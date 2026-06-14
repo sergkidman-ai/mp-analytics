@@ -75,7 +75,7 @@
 const $=s=>document.querySelector(s);
 const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
 const num=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU');
-let state={platform:'',account:'',period:'',sort:'net_profit',order:'asc',problem:false,q:''};
+let state={platform:'',account:'',period:'',sort:'revenue_buyer',order:'desc',problem:false,q:''};
 
 async function api(p){const r=await fetch(p);return r.json();}
 function qs(){return `platform=${state.platform}&account=${state.account}&period=${state.period}`;}

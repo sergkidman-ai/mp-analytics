@@ -66,11 +66,14 @@ def summary(platform: str = "", account: str = "", period: str = ""):
 
 @app.get("/api/sku")
 def sku(platform: str = "", account: str = "", period: str = "",
-        problem: bool = False, sort: str = "net_profit", order: str = "asc",
+        problem: bool = False, sort: str = "revenue_buyer", order: str = "desc",
         q: str = "", limit: int = 300):
     """SKU-уровень (drill-down). problem=true → только убыточные. q → поиск по nm_id."""
-    # nm_id='0' — служебный bucket WB (нераспределённая логистика), не SKU; убираем из списка.
-    extra = "article<>'0' AND net_profit<0 AND qty>0" if problem else "article<>'0'"
+    # nm_id='0' — служебный bucket WB (нераспределённая логистика), не SKU.
+    # Без real-активности (qty>0 или выручка>0) — это возвраты/удержания по товарам других
+    # периодов, не продажи; в SKU-список не показываем.
+    extra = ("article<>'0' AND net_profit<0 AND qty>0" if problem
+             else "article<>'0' AND (qty>0 OR revenue_buyer>0)")
     w, p = _where(platform, account, period, extra)
     if q:
         w = (w + " AND " if w else " WHERE ") + "article ILIKE %s"
