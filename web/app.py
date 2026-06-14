@@ -228,6 +228,128 @@ def opex(period: str = ""):
             "headcount": sum(1 for i in items if i["category"] == "salary")}
 
 
+def _biz_for(period):
+    """Агрегат по ВСЕМ аккаунтам за период (через _summary_one на аккаунт) + разбивка."""
+    accts = [r["account"] for r in db.query(
+        "SELECT DISTINCT account FROM margin_by_sku WHERE period_from=%s ORDER BY 1", (period,))]
+    per = [(a, _summary_one("", a, period)) for a in accts]
+    agg = {}
+    for k in ("revenue", "net", "cogs", "commission", "logistics", "qty", "own_revenue",
+              "adv_spend", "reviews_spend", "storage_all", "returns_sum",
+              "loss_count", "loss_sum", "loss_qty", "unalloc"):
+        agg[k] = sum((p.get(k) or 0) for _, p in per)
+    rev, own = agg["revenue"], agg["own_revenue"]
+    agg["margin_pct"] = round(agg["net"] / rev * 100, 1) if rev else None
+    agg["margin_own"] = round(agg["net"] / own * 100, 1) if own else None
+    agg["spp_pct"] = round((own - rev) / own * 100, 1) if own else None
+    agg["cogs_pct"] = round(agg["cogs"] / rev * 100, 1) if rev else None
+    agg["commission_pct"] = round(agg["commission"] / rev * 100, 1) if rev else None
+    agg["logi_pct"] = round(agg["logistics"] / rev * 100, 1) if rev else None
+    agg["adv_pct"] = round(agg["adv_spend"] / rev * 100, 1) if rev else None
+    return agg, per
+
+
+@app.get("/api/business")
+def business(period: str = ""):
+    """Главный экран: агрегат по всему бизнесу (оба ВБ) + расходы + динамика к прошлому месяцу."""
+    if not period:
+        period = db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
+    cur, per = _biz_for(period)
+    op = db.query("""SELECT coalesce(sum(amount),0)::float t FROM opex WHERE effective_from<=%s""", (period,))[0]["t"]
+    cur["opex"] = round(op, 2)
+    cur["net_after_opex"] = round(cur["net"] - op, 2)
+    prev_p = _prev_period("", "", period)
+    if prev_p:
+        prv, _ = _biz_for(prev_p)
+        cur["prev_period"] = prev_p
+        cur["delta"] = {}
+        for k in ("net", "revenue", "cogs", "margin_pct", "margin_own", "spp_pct",
+                  "commission_pct", "adv_spend", "loss_count"):
+            c, o = cur.get(k), prv.get(k)
+            cur["delta"][k] = None if c is None or o is None else {
+                "abs": round(c - o, 2), "pct": (None if not o else round((c - o) / abs(o) * 100, 1))}
+    else:
+        cur["prev_period"] = None
+        cur["delta"] = None
+    cur["accounts"] = [{"account": a, "name": {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр"}.get(a, a),
+                        "revenue": p["revenue"], "net": p["net"],
+                        "margin_pct": p["margin_pct"], "margin_own": p["margin_own"]} for a, p in per]
+    cur["period"] = period
+    return cur
+
+
+@app.get("/api/advice")
+def advice(period: str = ""):
+    """Аналитический слой: приоритизированные советы из цифр (детерминированно, без ИИ-вызова).
+    Поверх этого можно подключить LLM для свободных вопросов — данные те же."""
+    if not period:
+        period = db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
+    b, _ = _biz_for(period)
+    prev_p = _prev_period("", "", period)
+    prv = _biz_for(prev_p)[0] if prev_p else None
+    tips = []
+
+    def tip(sev, title, text):
+        tips.append({"sev": sev, "title": title, "text": text})
+
+    # 1. Маржа от нашей цены vs цель 25%
+    if b["margin_own"] is not None and b["margin_own"] < 25:
+        need = db.query(f"""SELECT coalesce(sum(0.25*s.our_price*m.qty - m.net_profit),0)::float gap
+            FROM margin_by_sku m JOIN sales s ON s.platform=m.platform AND s.account=m.account
+              AND s.period_from=m.period_from AND s.article=m.article
+            WHERE m.period_from=%s AND m.qty>0 AND s.our_price>0
+              AND m.net_profit/(s.our_price*m.qty) < 0.25""", (period,))[0]["gap"]
+        tip("high", f"Маржа от нашей цены {b['margin_own']}% < цели 25%",
+            f"До цели не хватает ≈{need:,.0f} ₽ чистой. Поднять цены по блоку «🎯 Поднять цену первыми» "
+            f"(там позиции отсортированы по вкладу в недобор).")
+    # 2. СПП растёт
+    if prv and b["spp_pct"] and prv["spp_pct"] and b["spp_pct"] > prv["spp_pct"] + 0.5:
+        tip("warn", f"СПП выросла до {b['spp_pct']}% (было {prv['spp_pct']}%)",
+            "СПП несёт продавец: каждый +1₽ СПП = −0.84₽ нам. Поднять базовые цены примерно на размер "
+            "роста СПП, чтобы удержать маржу.")
+    # 3. Постоянные расходы / чистая после них
+    op = db.query("SELECT coalesce(sum(amount),0)::float t FROM opex WHERE effective_from<=%s", (period,))[0]["t"]
+    if op > 0:
+        after = b["net"] - op
+        burden = round(op / b["revenue"] * 100, 1) if b["revenue"] else None
+        if after < 0:
+            tip("high", f"Чистая после ФОТ+аренды отрицательна ({after:,.0f} ₽)",
+                f"Постоянные расходы {op:,.0f} ₽ ({burden}% выручки) превышают чистую с ВБ. "
+                f"Срочно: поднять маржу (цены) и/или нарастить оборот; проверить раздутый штат к обороту.")
+        else:
+            tip("info", f"Постоянные расходы {op:,.0f} ₽/мес ({burden}% выручки)",
+                f"Чистая бизнеса после ФОТ+аренды ≈{after:,.0f} ₽.")
+    # 4. Рост COGS (микс)
+    if prv and b["cogs_pct"] and prv["cogs_pct"] and b["cogs_pct"] > prv["cogs_pct"] + 3:
+        tip("warn", f"COGS вырос до {b['cogs_pct']}% выручки (было {prv['cogs_pct']}%)",
+            "Скорее всего дорогой микс (новые дорогие позиции). Проверить наценку на новинки — "
+            "цель 25% от нашей цены должна закладываться сразу при заводе карточки.")
+    # 5. Хронические убыточные (≥3 мес подряд)
+    chronic = db.query("""
+        WITH p AS (SELECT DISTINCT period_from FROM margin_by_sku WHERE period_from<=%s ORDER BY 1 DESC LIMIT 3)
+        SELECT count(*) n, coalesce(sum(last_net),0)::float s FROM (
+          SELECT account, article, count(*) k, max(net_profit) FILTER (WHERE period_from=%s)*1.0 last_net
+          FROM margin_by_sku WHERE period_from IN (SELECT period_from FROM p) AND net_profit<0 AND qty>0 AND article<>'0'
+          GROUP BY 1,2 HAVING count(*)>=3) t""", (period, period))[0]
+    if chronic["n"] and chronic["n"] > 0:
+        tip("warn", f"{chronic['n']} позиций убыточны ≥3 мес подряд",
+            "Это хронический убыточный хвост. Решение: вывести из ассортимента или поднять цену/исправить "
+            "габариты карточки (см. блоки «Убыточные» и «Подозрительные габариты»).")
+    # 6. Габариты среди убыточных
+    dims = db.query(f"""SELECT count(*) n FROM margin_by_sku m JOIN wb_cards c
+        ON c.account=m.account AND c.nm_id::text=m.article
+        WHERE m.period_from=%s AND m.net_profit<0 AND m.qty>0
+          AND (c.dims_valid=false OR c.volume_l IS NULL
+               OR c.weight_kg/NULLIF(c.volume_l,0) < {DENS_LOW}
+               OR c.weight_kg/NULLIF(c.volume_l,0) > {DENS_HIGH})""", (period,))[0]["n"]
+    if dims and dims > 0:
+        tip("info", f"{dims} убыточных позиций — из-за габаритов, а не цены",
+            "WB считает логистику по литрам. Перемерить/исправить Д×Ш×В в карточках — дешевле, чем поднимать цену.")
+    if not tips:
+        tip("info", "Ключевых проблем не видно", "Маржа у цели, расходы покрыты. Держать курс.")
+    return {"period": period, "tips": tips}
+
+
 @app.get("/api/uplift")
 def uplift(platform: str = "", account: str = "", period: str = "", target: float = 0.25, limit: int = 20):
     """Какие позиции поднять в цене ПЕРВЫМИ, чтобы держать целевую маржу (по умолч. 25% от НАШЕЙ цены).
