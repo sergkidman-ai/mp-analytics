@@ -5,30 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Пульт бизнеса — BI маркетплейсов</title>
 <style>
-  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d}
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
   *{box-sizing:border-box}
   body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
   header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   h1{font-size:18px;margin:0}
   .filters{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto;align-items:center}
   select,input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
-  main{padding:22px;max-width:1200px;margin:0 auto}
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:8px}
+  main{padding:22px;max-width:1280px;margin:0 auto}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:8px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
   .card .lbl{color:var(--mut);font-size:12px}
   .card .val{font-size:22px;font-weight:600;margin-top:4px}
-  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}
+  .card .delta{font-size:12px;margin-top:3px}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
   .row{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:18px 0 10px}
   .row h2{font-size:15px;margin:0}
   table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
   th:first-child,td:first-child{text-align:left}
+  td.name{text-align:left;white-space:normal;max-width:300px;color:var(--mut);line-height:1.3}
   th{color:var(--mut);font-weight:500;cursor:pointer;user-select:none}
+  th[data-s]:hover{color:var(--txt)}
+  th .ar{color:var(--acc);font-size:11px}
   tbody tr:hover{background:#1d2b3c}
+  .badge{display:inline-block;padding:1px 7px;border-radius:6px;font-size:12px;background:#23303f}
+  .badge.b-neg{background:#3a2027;color:var(--neg)}.badge.b-warn{background:#3a3120;color:var(--warn)}
   .note{color:var(--mut);font-size:12px;margin:6px 0 0}
   label.chk{display:flex;gap:6px;align-items:center;color:var(--mut);cursor:pointer}
   .sub{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:760px){.sub{grid-template-columns:1fr}}
+  .nm{font-family:ui-monospace,Menlo,monospace;font-size:12px}
 </style>
 </head>
 <body>
@@ -42,40 +49,55 @@
 </header>
 <main>
   <div class="cards" id="cards"></div>
-  <p class="note">Маржа считается по <b>сегодняшней закупке (replacement-cost)</b>. Для распроданного / FBO
-     это «сколько заработали бы, закупая сейчас» — для них себестоимость = минимум по группе.</p>
+  <p class="note" id="prevnote"></p>
+  <p class="note">Маржа <b>ВБ %</b> — от цены продажи WB (после СПП); маржа <b>наша %</b> — от нашей цены (до СПП).
+     Себестоимость = сегодняшняя закупка (replacement-cost); для распроданного — минимум по группе.</p>
 
   <div class="row">
     <h2>SKU</h2>
     <label class="chk"><input type="checkbox" id="only-loss"> только убыточные</label>
-    <input id="search" placeholder="поиск по nm_id…" style="margin-left:auto">
+    <input id="search" placeholder="поиск: артикул WB / наш / название…" style="margin-left:auto">
   </div>
   <table id="sku">
     <thead><tr>
-      <th>артикул</th><th>название</th><th data-s="qty">шт</th>
-      <th>наша цена</th><th data-s="revenue_buyer">выручка (покуп.)</th>
+      <th data-s="nm_id">WB арт</th><th data-s="vendor_code">наш арт</th><th data-s="title">название</th>
+      <th data-s="qty">шт</th><th data-s="revenue_buyer">выручка (покуп.)</th>
       <th data-s="cogs">COGS</th><th data-s="net_profit">чистая</th>
-      <th data-s="margin_pct">маржа %</th>
+      <th data-s="margin_pct">маржа ВБ %</th><th data-s="margin_own">маржа наша %</th>
     </tr></thead>
     <tbody></tbody>
   </table>
 
   <div class="sub" style="margin-top:24px">
     <div>
-      <div class="row"><h2>⚠️ Топ убыточных</h2></div>
-      <table id="loss"><thead><tr><th>артикул</th><th>название</th><th>шт</th><th>убыток</th><th>+₽/шт→в плюс</th></tr></thead><tbody></tbody></table>
+      <div class="row"><h2>⚠️ Топ убыточных</h2><span class="muted" id="loss-sub"></span></div>
+      <table id="loss"><thead><tr>
+        <th>наш арт</th><th>WB арт</th><th>название</th><th>шт</th><th>убыток</th><th>+% к нашей цене→+10%</th>
+      </tr></thead><tbody></tbody></table>
     </div>
     <div>
-      <div class="row"><h2>📦 Остатки на складах WB (FBO)</h2></div>
+      <div class="row"><h2>📦 Остатки на складах WB (FBO)</h2><span class="muted" id="fbo-val"></span></div>
       <table id="stocks"><tbody></tbody></table>
     </div>
   </div>
+
+  <div class="row" style="margin-top:24px"><h2>🔎 Подозрительные габариты / вес</h2>
+    <span class="muted">WB считает логистику по объёму (литрам); ошибки в Д×Ш×В бьют по марже</span></div>
+  <table id="anom"><thead><tr>
+    <th>наш арт</th><th>WB арт</th><th>название</th><th>Д×Ш×В, см</th><th>литры</th>
+    <th>вес, кг</th><th>плотн. кг/л</th><th>флаг</th><th>продано</th><th>логистика</th>
+  </tr></thead><tbody></tbody></table>
+  <p class="note">Норма плотности ≈ 0.14 кг/л. «крупн./лёгкий» (&lt;0.05) — раздут объём, лишние литры логистики;
+     «тяжёлый/мелкий» (&gt;0.7) — занижены габариты (часто опечатка). Сортировка — по объёму продаж.</p>
 </main>
 <script>
 const $=s=>document.querySelector(s);
 const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
 const num=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU');
+const pct=v=>v==null?'—':v+'%';
+const esc=s=>(s||'').replace(/"/g,'&quot;');
 let state={platform:'',account:'',period:'',sort:'revenue_buyer',order:'desc',problem:false,q:''};
+let prevLabel='';
 
 async function api(p){const r=await fetch(p);return r.json();}
 function qs(){return `platform=${state.platform}&account=${state.account}&period=${state.period}`;}
@@ -85,57 +107,105 @@ async function initFilters(){
   const plat=[...new Set(m.slices.map(s=>s.platform))];
   const acc=[...new Set(m.slices.map(s=>s.account))];
   const per=[...new Set(m.slices.map(s=>s.period_from))];
-  fill('#f-platform',plat,'площадка');fill('#f-account',acc,'аккаунт');fill('#f-period',per,'период');
+  fill('#f-platform',plat);fill('#f-account',acc);fill('#f-period',per);
   state.platform=plat[0]||'';state.account=acc[0]||'';state.period=per[0]||'';
   $('#f-platform').value=state.platform;$('#f-account').value=state.account;$('#f-period').value=state.period;
 }
-function fill(sel,arr,lbl){const e=$(sel);e.innerHTML=arr.map(v=>`<option value="${v}">${v}</option>`).join('');}
+function fill(sel,arr){const e=$(sel);e.innerHTML=arr.map(v=>`<option value="${v}">${v}</option>`).join('');}
+
+// дельта к прошлому периоду. pp=true → разница в п.п.; иначе относит. %. goodUp — рост это хорошо?
+function deltaHtml(d,goodUp,pp){
+  if(!d||d.abs==null) return '';
+  let v;
+  if(pp){ if(d.abs===0)return''; v=(d.abs>0?'+':'')+d.abs+' п.п.'; }
+  else { if(d.pct==null||d.pct===0)return''; v=(d.pct>0?'+':'')+d.pct+'%'; }
+  const up=d.abs>0, good=goodUp?up:!up, arr=up?'▲':'▼';
+  return `<div class="delta ${good?'pos':'neg'}">${arr} ${v}</div>`;
+}
 
 async function loadSummary(){
   const s=await api('/api/summary?'+qs());
-  const m=s.margin_pct, mc=m==null?'':(m<0?'neg':'pos');
-  $('#cards').innerHTML=[
-    ['Выручка',rub(s.revenue)],['Чистая',`<span class="${s.net<0?'neg':'pos'}">${rub(s.net)}</span>`],
-    ['Маржа %',`<span class="${mc}">${m==null?'—':m+'%'}</span>`],['COGS',rub(s.cogs)],
-    ['Комиссия+логистика',rub(s.commission+s.logistics)],['Продано, шт',num(s.qty)],
-    ['Убыточных SKU',`<span class="neg">${num(s.loss_count)}</span>`],
-    ['Возвраты/нераспред.',`<span class="${s.net_other<0?'neg':'pos'}">${rub(s.net_other)}</span>`],
-  ].map(([l,v])=>`<div class="card"><div class="lbl">${l}</div><div class="val">${v}</div></div>`).join('');
+  prevLabel=s.prev_period||'';
+  $('#prevnote').textContent = prevLabel ? `▲▼ — изменение к прошлому периоду (${prevLabel})` : 'Прошлый период недоступен — динамика появится после загрузки ещё одного месяца.';
+  const dl=s.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
+  const cards=[
+    ['Выручка (ВБ)',rub(s.revenue),deltaHtml(dl.revenue,true,false)],
+    ['Наша цена (сумма)',rub(s.own_revenue),deltaHtml(dl.own_revenue,true,false)],
+    ['Чистая',`<span class="${mc(s.net)}">${rub(s.net)}</span>`,deltaHtml(dl.net,true,false)],
+    ['Маржа ВБ %',`<span class="${mc(s.margin_pct)}">${pct(s.margin_pct)}</span>`,deltaHtml(dl.margin_pct,true,true)],
+    ['Маржа наша %',`<span class="${mc(s.margin_own)}">${pct(s.margin_own)}</span>`,deltaHtml(dl.margin_own,true,true)],
+    ['COGS',rub(s.cogs),deltaHtml(dl.cogs,false,false)],
+    ['Комиссия+логистика',rub(s.commission+s.logistics),''],
+    ['Продано, шт',num(s.qty),deltaHtml(dl.qty,true,false)],
+    ['Убыточных SKU',`<span class="neg">${num(s.loss_count)}</span>`,''],
+    ['Возвраты/нераспред.',`<span class="${s.net_other<0?'neg':'pos'}">${rub(s.net_other)}</span>`,''],
+  ];
+  $('#cards').innerHTML=cards.map(([l,v,d])=>`<div class="card"><div class="lbl">${l}</div><div class="val">${v}</div>${d||''}</div>`).join('');
+  // подзаголовок блока убыточных: кол-во · штук · сумма
+  $('#loss-sub').innerHTML = `${num(s.loss_count)} поз. · ${num(s.loss_qty)} шт · <span class="neg">${rub(s.loss_sum)}</span>`;
 }
-function skuRow(r){const mc=r.net_profit<0?'neg':'pos';
-  return `<tr><td><b>${r.vendor_code||r.nm_id}</b></td>
-    <td class="muted" title="${(r.title||'').replace(/"/g,'')}">${(r.title||'—').slice(0,38)}</td>
-    <td>${num(r.qty)}</td><td>${rub(r.our_price)}</td><td>${rub(r.revenue_buyer)}</td>
-    <td>${rub(r.cogs)}</td><td class="${mc}">${rub(r.net_profit)}</td>
-    <td class="${mc}">${r.margin_pct==null?'—':r.margin_pct+'%'}</td></tr>`;}
+
+function skuRow(r){const mc=r.net_profit<0?'neg':'pos',mo=r.margin_own==null?'':(r.margin_own<0?'neg':'pos');
+  return `<tr>
+    <td class="nm">${r.nm_id}</td><td><b>${r.vendor_code||'—'}</b></td>
+    <td class="name" title="${esc(r.title)}">${r.title||'—'}</td>
+    <td>${num(r.qty)}</td><td>${rub(r.revenue_buyer)}</td><td>${rub(r.cogs)}</td>
+    <td class="${mc}">${rub(r.net_profit)}</td>
+    <td class="${mc}">${pct(r.margin_pct)}</td><td class="${mo}">${pct(r.margin_own)}</td></tr>`;}
 async function loadSku(){
   const d=await api(`/api/sku?${qs()}&problem=${state.problem}&sort=${state.sort}&order=${state.order}&q=${encodeURIComponent(state.q)}`);
-  $('#sku tbody').innerHTML=d.rows.map(skuRow).join('')||'<tr><td colspan="7" class="muted">нет данных</td></tr>';
+  $('#sku tbody').innerHTML=d.rows.map(skuRow).join('')||'<tr><td colspan="9" class="muted">нет данных</td></tr>';
+  updateArrows();
 }
+function updateArrows(){
+  document.querySelectorAll('#sku th[data-s]').forEach(th=>{
+    const base=th.dataset.label||(th.dataset.label=th.textContent.replace(/[▲▼]\s*$/,'').trim());
+    th.innerHTML = base + (th.dataset.s===state.sort?` <span class="ar">${state.order==='asc'?'▲':'▼'}</span>`:'');
+  });
+}
+
 async function loadLoss(){
-  const d=await api(`/api/sku?${qs()}&problem=true&sort=net_profit&order=asc&limit=8`);
+  const d=await api(`/api/sku?${qs()}&problem=true&sort=net_profit&order=asc&limit=12`);
   $('#loss tbody').innerHTML=d.rows.map(r=>`<tr>
-    <td><b>${r.vendor_code||r.nm_id}</b></td>
-    <td class="muted" title="${(r.title||'').replace(/"/g,'')}">${(r.title||'—').slice(0,24)}</td>
+    <td><b>${r.vendor_code||'—'}</b></td><td class="nm">${r.nm_id}</td>
+    <td class="name" title="${esc(r.title)}">${(r.title||'—').slice(0,40)}</td>
     <td>${num(r.qty)}</td><td class="neg">${rub(r.net_profit)}</td>
-    <td class="pos">+${num(r.price_up)} ₽</td></tr>`).join('')||'<tr><td colspan="5" class="muted">нет</td></tr>';
+    <td class="pos">${r.price_up_pct==null?'—':'+'+num(r.price_up_pct)+'%'}</td></tr>`).join('')
+    ||'<tr><td colspan="6" class="muted">нет</td></tr>';
 }
+
 async function loadStocks(){
   const d=await api(`/api/stocks?account=${state.account}`);
   const t=d.total||{};
+  $('#fbo-val').innerHTML = `на ${rub(d.fbo_value)} <span class="muted">(себест., оценено ${d.fbo_nm_valued}/${d.fbo_nm_total} nm)</span>`;
   let html=`<tr><td><b>Итого</b></td><td><b>${num(t.qty)}</b> шт</td><td class="muted">возвр. в пути ${num(t.returns)}</td></tr>`;
   html+=(d.by_subject||[]).map(s=>`<tr><td>${s.subject||'—'}</td><td>${num(s.qty)} шт</td><td class="muted">возвр ${num(s.returns)}</td></tr>`).join('');
   $('#stocks tbody').innerHTML=html;
 }
-async function refresh(){await Promise.all([loadSummary(),loadSku(),loadLoss(),loadStocks()]);}
+
+async function loadAnom(){
+  const d=await api(`/api/anomalies?account=${state.account}&limit=40`);
+  $('#anom tbody').innerHTML=d.rows.map(r=>{
+    const cls=r.flag==='тяжёлый/мелкий'?'b-warn':'b-neg';
+    const dims=[r.length_cm,r.width_cm,r.height_cm].map(x=>x==null?'?':num(x)).join('×');
+    return `<tr><td><b>${r.vendor_code||'—'}</b></td><td class="nm">${r.nm_id}</td>
+      <td class="name" title="${esc(r.title)}">${(r.title||'—').slice(0,32)}</td>
+      <td>${dims}</td><td>${r.volume_l==null?'—':r.volume_l}</td><td>${r.weight_kg==null?'—':r.weight_kg}</td>
+      <td>${r.density==null?'—':r.density}</td><td><span class="badge ${cls}">${r.flag}</span></td>
+      <td>${num(r.qty_sold)}</td><td>${rub(r.logistics)}</td></tr>`;
+  }).join('')||'<tr><td colspan="10" class="muted">подозрительных нет</td></tr>';
+}
+
+async function refresh(){await Promise.all([loadSummary(),loadSku(),loadLoss(),loadStocks(),loadAnom()]);}
 
 ['f-platform','f-account','f-period'].forEach(id=>$('#'+id).onchange=e=>{
   state[id.split('-')[1]]=e.target.value;refresh();});
 $('#only-loss').onchange=e=>{state.problem=e.target.checked;loadSku();};
 $('#search').oninput=e=>{state.q=e.target.value;clearTimeout(window._t);window._t=setTimeout(loadSku,300);};
-document.querySelectorAll('#sku th').forEach(th=>th.onclick=()=>{
-  const s=th.dataset.s;if(!s)return;
-  if(state.sort===s)state.order=state.order==='asc'?'desc':'asc';else{state.sort=s;state.order='asc';}
+document.querySelectorAll('#sku th[data-s]').forEach(th=>th.onclick=()=>{
+  const s=th.dataset.s;
+  if(state.sort===s)state.order=state.order==='asc'?'desc':'asc';
+  else{state.sort=s;state.order=(s==='title'||s==='vendor_code'||s==='nm_id')?'asc':'desc';}
   loadSku();});
 
 (async()=>{await initFilters();await refresh();})();

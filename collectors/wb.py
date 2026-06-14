@@ -159,12 +159,24 @@ def collect_cards(account):
         d = r.json()
         cards = d.get("cards", [])
         cur = d.get("cursor", {})
-        recs = [{
-            "account": account, "nm_id": c.get("nmID"), "vendor_code": c.get("vendorCode"),
-            "title": c.get("title"), "brand": c.get("brand"), "subject": c.get("subjectName"),
-        } for c in cards if c.get("nmID") is not None]
+        recs = []
+        for c in cards:
+            if c.get("nmID") is None:
+                continue
+            dim = c.get("dimensions") or {}
+            L, W, Hh = dim.get("length"), dim.get("width"), dim.get("height")
+            vol = (L * W * Hh / 1000.0) if None not in (L, W, Hh) else None
+            recs.append({
+                "account": account, "nm_id": c.get("nmID"), "vendor_code": c.get("vendorCode"),
+                "title": c.get("title"), "brand": c.get("brand"), "subject": c.get("subjectName"),
+                "length_cm": L, "width_cm": W, "height_cm": Hh,
+                "weight_kg": dim.get("weightBrutto"), "volume_l": vol,
+                "dims_valid": dim.get("isValid"),
+            })
         db.upsert("wb_cards", recs, conflict_cols=["account", "nm_id"],
-                  update_cols=["vendor_code", "title", "brand", "subject"])
+                  update_cols=["vendor_code", "title", "brand", "subject",
+                               "length_cm", "width_cm", "height_cm",
+                               "weight_kg", "volume_l", "dims_valid"])
         total_saved += len(recs)
         if len(cards) < cursor["limit"]:
             break
