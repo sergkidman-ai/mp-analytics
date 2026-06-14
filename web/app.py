@@ -69,6 +69,24 @@ def _summary_one(platform, account, period):
         FROM sales{w2 + (' AND ' if w2 else ' WHERE ')}qty>0 AND our_price IS NOT NULL""", p2)[0]
     r["own_revenue"] = own["own_revenue"]
     r["margin_own"] = round(r["net"] / own["own_revenue"] * 100, 1) if own["own_revenue"] else None
+    # расходы из сырого отчёта WB по типу удержания: реклама / отзывы / хранение / прочее.
+    # Это «нераспределённые» (без привязки к nm_id) — уже вычтены из net, показываем отдельно.
+    rw, rp = ["account=%s"], [account or "wb_acc1"]
+    if period:
+        rw.append("period_from=%s"); rp.append(period)
+    adv = db.query(f"""SELECT
+        coalesce(sum((payload->>'deduction')::numeric)
+            FILTER (WHERE payload->>'bonus_type_name' ILIKE '%%WB Продвижение%%'),0)::float adv_spend,
+        coalesce(sum((payload->>'deduction')::numeric)
+            FILTER (WHERE payload->>'bonus_type_name' ILIKE 'Списание за отзыв%%'),0)::float reviews_spend,
+        coalesce(sum((payload->>'storage_fee')::numeric),0)::float storage_all,
+        coalesce(sum((payload->>'deduction')::numeric),0)::float ded_all
+        FROM raw_wb_report WHERE {' AND '.join(rw)}""", rp)[0]
+    r["adv_spend"] = adv["adv_spend"]
+    r["reviews_spend"] = adv["reviews_spend"]
+    r["storage_all"] = adv["storage_all"]
+    r["other_ded"] = round(adv["ded_all"] - adv["adv_spend"] - adv["reviews_spend"], 2)
+    r["adv_pct"] = round(adv["adv_spend"] / r["revenue"] * 100, 1) if r["revenue"] else None
     return r
 
 
@@ -96,7 +114,7 @@ def summary(platform: str = "", account: str = "", period: str = ""):
         r["prev_period"] = prev_p
         # абсолютная и относительная динамика по ключевым метрикам
         r["delta"] = {}
-        for k in ("net", "revenue", "cogs", "own_revenue", "qty", "margin_pct", "margin_own"):
+        for k in ("net", "revenue", "cogs", "own_revenue", "qty", "margin_pct", "margin_own", "adv_spend"):
             cur, old = r.get(k), pr.get(k)
             if cur is None or old is None:
                 r["delta"][k] = None

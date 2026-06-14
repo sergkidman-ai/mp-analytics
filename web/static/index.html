@@ -136,9 +136,11 @@ async function loadSummary(){
     ['Маржа наша %',`<span class="${mc(s.margin_own)}">${pct(s.margin_own)}</span>`,deltaHtml(dl.margin_own,true,true)],
     ['COGS',rub(s.cogs),deltaHtml(dl.cogs,false,false)],
     ['Комиссия+логистика',rub(s.commission+s.logistics),''],
+    ['Реклама (WB Продвиж.)',`<span class="warn">${rub(s.adv_spend)}</span>${s.adv_pct!=null?` <span class="muted">${s.adv_pct}%</span>`:''}`,deltaHtml(dl.adv_spend,false,false)],
     ['Продано, шт',num(s.qty),deltaHtml(dl.qty,true,false)],
     ['Убыточных SKU',`<span class="neg">${num(s.loss_count)}</span>`,''],
-    ['Возвраты/нераспред.',`<span class="${s.net_other<0?'neg':'pos'}">${rub(s.net_other)}</span>`,''],
+    ['Возвраты/нераспред.',`<span class="${s.net_other<0?'neg':'pos'}">${rub(s.net_other)}</span>`,
+       `<span class="muted">реклама ${rub(s.adv_spend)} · отзывы ${rub(s.reviews_spend)} · хранение ${rub(s.storage_all)}</span>`],
   ];
   $('#cards').innerHTML=cards.map(([l,v,d])=>`<div class="card"><div class="lbl">${l}</div><div class="val">${v}</div>${d||''}</div>`).join('');
   // подзаголовок блока убыточных: кол-во · штук · сумма
