@@ -61,6 +61,15 @@
   <p class="note">Маржа <b>ВБ %</b> — от цены продажи WB (после СПП); маржа <b>наша %</b> — от нашей цены (до СПП).
      Себестоимость = сегодняшняя закупка (replacement-cost); для распроданного — минимум по группе.</p>
 
+  <div class="row"><h2>📈 Динамика по неделям</h2>
+    <label class="chk"><input type="checkbox" id="by-week"> разбить выбранный месяц по неделям</label></div>
+  <table id="weekly" style="display:none"><thead><tr>
+    <th>неделя</th><th>выручка</th><th>шт</th><th>COGS %</th><th>логистика %</th>
+    <th>опер. маржа %</th><th>чистая %</th>
+  </tr></thead><tbody></tbody></table>
+  <p class="note" id="weekly-note" style="display:none">Опер. маржа — экономика самих продаж (к перечислению − логистика − COGS);
+     чистая % — с накладными (реклама/хранение/штрафы приходят неравномерно, поэтому «дёргается»). Последняя неделя месяца может дозаполняться.</p>
+
   <div class="row">
     <h2>SKU</h2>
     <label class="chk"><input type="checkbox" id="only-loss"> только убыточные</label>
@@ -234,7 +243,23 @@ async function loadAnom(){
   }).join('')||'<tr><td colspan="10" class="muted">подозрительных нет</td></tr>';
 }
 
-async function refresh(){await Promise.all([loadSummary(),renderYTD(),loadSku(),loadLoss(),loadStocks(),loadAnom()]);}
+async function loadWeekly(){
+  const on=$('#by-week').checked;
+  $('#weekly').style.display=on?'':'none'; $('#weekly-note').style.display=on?'':'none';
+  if(!on) return;
+  const d=await api(`/api/weekly?${qs()}`);
+  const mc=v=>v<0?'neg':(v<25?'warn':'pos');
+  $('#weekly tbody').innerHTML=d.rows.map(r=>{
+    const d0=new Date(r.wk), d1=new Date(r.wk); d1.setDate(d1.getDate()+6);
+    const f=x=>x.getDate()+'.'+String(x.getMonth()+1).padStart(2,'0');
+    return `<tr><td>${f(d0)}–${f(d1)}</td><td>${rub(r.rev)}</td><td>${num(r.qty)}</td>
+      <td>${r.cogs_pct}%</td><td>${r.logi_pct}%</td>
+      <td class="${mc(r.opmargin)}"><b>${r.opmargin}%</b></td>
+      <td class="${mc(r.net_pct)}">${r.net_pct}%</td></tr>`;
+  }).join('')||'<tr><td colspan="7" class="muted">нет данных</td></tr>';
+}
+async function refresh(){await Promise.all([loadSummary(),renderYTD(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly()]);}
+$('#by-week').onchange=loadWeekly;
 
 ['f-platform','f-account','f-period'].forEach(id=>$('#'+id).onchange=e=>{
   state[id.split('-')[1]]=e.target.value;refresh();});

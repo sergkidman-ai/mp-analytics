@@ -202,6 +202,48 @@ def sku(platform: str = "", account: str = "", period: str = "",
     return {"rows": rows, "count": len(rows)}
 
 
+@app.get("/api/weekly")
+def weekly(platform: str = "", account: str = "", period: str = ""):
+    """Разбивка выбранного месяца по неделям (по дате реализации rr_dt). COGS на неделю —
+    из себест/ед месяца × недельные количества. opmargin = (к перечислению − логистика − COGS)/выр
+    (без накладных: реклама/хранение приходят лумпи); net% — с накладными."""
+    if not period:
+        return {"rows": []}
+    acc = account or "wb_acc1"
+    rows = db.query("""
+        WITH cpu AS (SELECT article, cogs/qty u FROM margin_by_sku
+            WHERE account=%s AND period_from=%s AND qty>0 AND cogs>0),
+        r AS (SELECT date_trunc('week',(payload->>'rr_dt')::date)::date wk,
+            payload->>'nm_id' nm, payload->>'supplier_oper_name' op,
+            coalesce((payload->>'quantity')::numeric,0) q, coalesce((payload->>'retail_amount')::numeric,0) ra,
+            coalesce((payload->>'ppvz_for_pay')::numeric,0) pay, coalesce((payload->>'delivery_rub')::numeric,0) del,
+            coalesce((payload->>'storage_fee')::numeric,0) stor, coalesce((payload->>'acceptance')::numeric,0) acc,
+            coalesce((payload->>'deduction')::numeric,0) ded, coalesce((payload->>'penalty')::numeric,0) pen
+            FROM raw_wb_report WHERE account=%s AND period_from=%s)
+        SELECT wk,
+            sum(CASE WHEN op='Продажа' THEN ra WHEN op='Возврат' THEN -ra ELSE 0 END)::float rev,
+            sum(pay)::float topay, sum(del)::float logi,
+            (sum(stor)+sum(acc)+sum(ded)+sum(pen))::float overhead,
+            sum(CASE WHEN op='Продажа' THEN q WHEN op='Возврат' THEN -q ELSE 0 END)::float qty,
+            sum(CASE WHEN op='Продажа' THEN q*coalesce(c.u,0)
+                     WHEN op='Возврат' THEN -q*coalesce(c.u,0) ELSE 0 END)::float cogs
+        FROM r LEFT JOIN cpu c ON c.article=r.nm GROUP BY wk ORDER BY wk""",
+        (acc, period, acc, period))
+    out = []
+    for x in rows:
+        rev = x["rev"] or 0
+        if rev < 1000:
+            continue
+        out.append({
+            "wk": x["wk"], "rev": rev, "qty": x["qty"],
+            "cogs_pct": round(x["cogs"] / rev * 100, 1),
+            "logi_pct": round(x["logi"] / rev * 100, 1),
+            "opmargin": round((x["topay"] - x["logi"] - x["cogs"]) / rev * 100, 1),
+            "net_pct": round((x["topay"] - x["logi"] - x["cogs"] - x["overhead"]) / rev * 100, 1),
+        })
+    return {"rows": out}
+
+
 def _loss_streak(platform, account, period, articles):
     """Сколько периодов подряд (заканчивая выбранным) позиция убыточна. Нужны загруженные
     прошлые месяцы; считаем число ведущих убыточных периодов в порядке от текущего назад."""
