@@ -169,7 +169,39 @@ def sku(platform: str = "", account: str = "", period: str = "",
         LEFT JOIN sales s ON s.platform=m.platform AND s.account=m.account
              AND s.period_from=m.period_from AND s.article=m.article
         {where} ORDER BY {sort_sql} {order} NULLS LAST LIMIT %s""", p + [limit])
+    if problem and rows:
+        streak = _loss_streak(platform, account, period, [r["nm_id"] for r in rows])
+        for r in rows:
+            r["loss_months"] = streak.get(r["nm_id"], 1)
     return {"rows": rows, "count": len(rows)}
+
+
+def _loss_streak(platform, account, period, articles):
+    """Сколько периодов подряд (заканчивая выбранным) позиция убыточна. Нужны загруженные
+    прошлые месяцы; считаем число ведущих убыточных периодов в порядке от текущего назад."""
+    if not period or not articles:
+        return {}
+    w, p = ["period_from <= %s", "article = ANY(%s)"], [period, list(articles)]
+    if platform:
+        w.append("platform=%s"); p.append(platform)
+    if account:
+        w.append("account=%s"); p.append(account)
+    hist = db.query(f"""SELECT article, period_from::text pf,
+        (net_profit<0 AND qty>0) loss FROM margin_by_sku
+        WHERE {' AND '.join(w)} ORDER BY article, period_from DESC""", p)
+    by = {}
+    for h in hist:
+        by.setdefault(h["article"], []).append(h["loss"])
+    out = {}
+    for art, flags in by.items():
+        n = 0
+        for f in flags:          # от текущего периода назад, считаем ведущие True
+            if f:
+                n += 1
+            else:
+                break
+        out[art] = n
+    return out
 
 
 @app.get("/api/stocks")

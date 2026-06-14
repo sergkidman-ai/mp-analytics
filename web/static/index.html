@@ -72,7 +72,7 @@
     <div>
       <div class="row"><h2>⚠️ Топ убыточных</h2><span class="muted" id="loss-sub"></span></div>
       <table id="loss"><thead><tr>
-        <th>наш арт</th><th>WB арт</th><th>название</th><th>шт</th><th>убыток</th><th>рекомендация</th>
+        <th>наш арт</th><th>WB арт</th><th>название</th><th>шт</th><th>убыток</th><th>в минусе</th><th>рекомендация</th>
       </tr></thead><tbody></tbody></table>
     </div>
     <div>
@@ -170,11 +170,13 @@ async function loadLoss(){
     const rec = r.dims_flag
       ? `<span class="badge b-warn" title="плотность ${r.density} кг/л · ${r.volume_l} л · логистика ${rub(r.logistics)}">⚠ габариты ${r.volume_l} л — поправить карточку</span>`
       : (r.price_up_pct==null?'—':`<span class="pos">+${num(r.price_up_pct)}% к нашей цене</span>`);
+    const lm=r.loss_months||1;
+    const streak = lm>=3?`<span class="badge b-neg">${lm} мес ⚠</span>`:`<span class="${lm>=2?'warn':'muted'}">${lm} мес</span>`;
     return `<tr>
       <td><b>${r.vendor_code||'—'}</b></td><td class="nm">${r.nm_id}</td>
       <td class="name" title="${esc(r.title)}">${(r.title||'—').slice(0,40)}</td>
-      <td>${num(r.qty)}</td><td class="neg">${rub(r.net_profit)}</td><td>${rec}</td></tr>`;
-  }).join('')||'<tr><td colspan="6" class="muted">нет</td></tr>';
+      <td>${num(r.qty)}</td><td class="neg">${rub(r.net_profit)}</td><td>${streak}</td><td>${rec}</td></tr>`;
+  }).join('')||'<tr><td colspan="7" class="muted">нет</td></tr>';
 }
 
 async function loadStocks(){

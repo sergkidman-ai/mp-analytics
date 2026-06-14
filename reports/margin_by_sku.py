@@ -86,11 +86,15 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     cogs_order = demand_cogs_by_order(ms_from, date_to)
     gmap = _group_price_map()
 
-    # WB-продажи по assembly: nm, units, sa_name (vendorCode)
+    # WB-продажи по assembly: nm, units, sa_name (vendorCode).
+    # ВАЖНО: фильтруем по периоду отчёта — иначе при нескольких загруженных месяцах
+    # tu/COGS суммируются по всем периодам и весь итог садится на одну строку (×N завышение).
     asm = db.query("""SELECT payload->>'assembly_id' a, payload->>'nm_id' nm,
         sum((payload->>'quantity')::numeric) u, max(payload->>'sa_name') sa
         FROM raw_wb_report WHERE account=%s AND payload->>'supplier_oper_name'='Продажа'
-          AND coalesce(payload->>'assembly_id','')<>'' GROUP BY 1,2""", (account,))
+          AND period_from=%s AND period_to=%s
+          AND coalesce(payload->>'assembly_id','')<>'' GROUP BY 1,2""",
+                   (account, date_from, date_to))
     nm = defaultdict(lambda: {"mc": 0.0, "mu": 0.0, "tu": 0.0, "sa": None})
     for r in asm:
         u = float(r["u"] or 0)
