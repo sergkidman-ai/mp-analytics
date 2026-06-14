@@ -132,13 +132,46 @@ def normalize_products(products):
     return len(rows)
 
 
+def collect_cost():
+    """Себестоимость из report/stock/all → products.cost_seb (реальная, из приёмок).
+
+    buyPrice НЕ использовать (кривая справка). Распроданным (нет остатка → нет себеста)
+    ставим минимум себеста по их группе external_code (самый дешёвый бренд — он же продаётся).
+    report/profit (FIFO) даёт мусор на старых приёмках без цены — не берём.
+    """
+    pairs, offset = [], 0
+    while True:
+        data = _get(f"{API}/report/stock/all", params={"limit": 1000, "offset": offset})
+        rows = data.get("rows", [])
+        for x in rows:
+            mid = x.get("meta", {}).get("href", "").rstrip("/").split("/")[-1].split("?")[0]
+            seb = (x.get("price", 0) or 0) / 100.0
+            if seb > 0:
+                pairs.append((seb, mid))
+        offset += 1000
+        if not rows or offset >= data.get("meta", {}).get("size", 0):
+            break
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            psycopg2.extras.execute_batch(
+                cur, "UPDATE products SET cost_seb=%s WHERE ms_id=%s", pairs, page_size=500)
+    # распроданным — минимум себеста по группе
+    db.execute("""
+        UPDATE products p SET cost_seb = grp.mn
+        FROM (SELECT external_code, min(cost_seb) mn FROM products
+              WHERE cost_seb>0 GROUP BY external_code) grp
+        WHERE p.external_code=grp.external_code AND (p.cost_seb IS NULL OR p.cost_seb=0)""")
+    return len(pairs)
+
+
 def main():
     print("Сбор товаров МойСклад…", flush=True)
     products = fetch_all_products()
     n_raw = load_raw(products)
     n_active = normalize_products(products)
+    n_cost = collect_cost()
     print(f"\nИтого: получено {len(products)} карточек → raw {n_raw}, "
-          f"активных в products {n_active}", flush=True)
+          f"активных в products {n_active}, себест из остатков {n_cost}", flush=True)
 
 
 if __name__ == "__main__":

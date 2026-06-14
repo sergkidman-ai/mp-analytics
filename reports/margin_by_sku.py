@@ -44,8 +44,9 @@ def _href_id(href):
 def demand_cogs_by_order(date_from, date_to, ms_agent="Покупатель ВБ",
                          ms_org='ООО "ЦИФРОВОЙ КВАДРАТ"'):
     """{order_name(assembly_id): cogs} — Σ buy_price компонентов отгрузки МС (по ms_id)."""
-    prod = {r["ms_id"]: float(r["buy_price"] or 0)
-            for r in db.query("SELECT ms_id, buy_price FROM products")}
+    # COGS = себестоимость из report/stock (из приёмок), НЕ buyPrice (тот — кривая справка).
+    prod = {r["ms_id"]: float(r["cost_seb"] or 0)
+            for r in db.query("SELECT ms_id, cost_seb FROM products")}
     ag = _ms("entity/counterparty", {"filter": f"name={ms_agent}", "limit": 1})["rows"][0]["meta"]["href"]
     org = _ms("entity/organization", {"filter": f"name={ms_org}", "limit": 1})["rows"][0]["meta"]["href"]
     flt = (f"agent={ag};organization={org};"
@@ -70,8 +71,8 @@ def demand_cogs_by_order(date_from, date_to, ms_agent="Покупатель ВБ
 def _group_price_map():
     """{external_code: (min_nonzero, max_nonzero, is_set)} для fallback-COGS."""
     rows = db.query("""SELECT external_code,
-        min(buy_price) FILTER (WHERE buy_price>0) mn,
-        max(buy_price) FILTER (WHERE buy_price>0) mx,
+        min(cost_seb) FILTER (WHERE cost_seb>0) mn,
+        max(cost_seb) FILTER (WHERE cost_seb>0) mx,
         bool_or(title ILIKE '%%набор%%' OR title ILIKE '%%комплект%%') is_set
         FROM products WHERE external_code IS NOT NULL GROUP BY external_code""")
     return {r["external_code"]: (r["mn"], r["mx"], r["is_set"]) for r in rows}
