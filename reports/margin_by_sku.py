@@ -14,6 +14,7 @@ import os
 import sys
 import time
 import pathlib
+import datetime
 from collections import defaultdict
 
 import requests
@@ -78,7 +79,10 @@ def _group_price_map():
 
 def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     print("Считаю COGS заказов из МС…", flush=True)
-    cogs_order = demand_cogs_by_order(date_from, date_to)
+    # Широкое окно МС: WB-выкуп идёт через ~6 дней после отгрузки → отгрузка под майский
+    # выкуп часто в апреле. Берём -45 дней от начала периода, иначе FBS примут за FBO.
+    ms_from = (datetime.date.fromisoformat(date_from) - datetime.timedelta(days=45)).isoformat()
+    cogs_order = demand_cogs_by_order(ms_from, date_to)
     gmap = _group_price_map()
 
     # WB-продажи по assembly: nm, units, sa_name (vendorCode)
