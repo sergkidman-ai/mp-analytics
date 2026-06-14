@@ -1,10 +1,14 @@
-"""run_daily.py — оркестратор сбора и пересборки витрин. Для cron 2×/день (МСК).
+"""run_daily.py — оркестратор сбора и пересборки витрин (cron, МСК).
 
-Обновляет: МойСклад (товары + себестоимость из report/stock), остатки WB (FBO),
-пересобирает витрину маржи. Дашборд читает результат из Postgres.
+Скользящее окно: на каждом прогоне обновляет ТЕКУЩИЙ и ПРОШЛЫЙ месяц по ВСЕМ WB-аккаунтам
+(финотчёт WB еженедельный, период пн–вс, выходит ~вторник — поэтому прогон по вт/ср даёт
+свежие недельные деньги; прошлый месяц добираем из-за лага выкупа/возвратов).
 
+Ключи периода всегда = первое..последнее число месяца (стабильны), даже если месяц неполный —
+тогда строки за месяц просто перезаписываются на каждом прогоне.
+
+Обновляет: МойСклад (товары + себест), карточки WB (раз в прогон), остатки FBO, витрину маржи.
 Запуск:  ./venv/bin/python run_daily.py
-TODO: скользящее окно WB-финотчёта по неделям (сейчас demo-период май фиксирован).
 """
 import sys
 import pathlib
@@ -18,7 +22,7 @@ import collectors.moysklad as ms          # noqa: E402
 import collectors.wb as wb                # noqa: E402
 import reports.margin_by_sku as margin    # noqa: E402
 
-PERIOD = ("wb_acc1", "2026-05-01", "2026-05-31")   # demo-период
+ACCOUNTS = ["wb_acc1", "wb_acc2"]
 
 
 def step(name, fn):
@@ -30,13 +34,33 @@ def step(name, fn):
         print(f"[FAIL] {name}:\n{traceback.format_exc()}", flush=True)
 
 
+def _month_bounds(d):
+    first = d.replace(day=1)
+    nxt = (first + datetime.timedelta(days=32)).replace(day=1)
+    last = nxt - datetime.timedelta(days=1)
+    return first, last
+
+
+def rolling_months(today):
+    """[(first, last)] для текущего и прошлого месяца (полные границы)."""
+    cur_first, cur_last = _month_bounds(today)
+    prev_first, prev_last = _month_bounds(cur_first - datetime.timedelta(days=1))
+    return [(prev_first, prev_last), (cur_first, cur_last)]
+
+
 def main():
     t0 = datetime.datetime.now()
     print(f"[run_daily] старт {t0:%Y-%m-%d %H:%M}", flush=True)
-    today = datetime.date.today().isoformat()
+    today = datetime.date.today()
+    months = rolling_months(today)
     step("МойСклад: товары + себестоимость", ms.main)
-    step("WB: остатки (FBO)", lambda: wb.collect_stocks(PERIOD[0], today))
-    step("Витрина маржи", lambda: margin.build(*PERIOD))
+    for acc in ACCOUNTS:
+        step(f"WB карточки {acc}", lambda acc=acc: wb.collect_cards(acc))
+        step(f"WB остатки FBO {acc}", lambda acc=acc: wb.collect_stocks(acc, today.isoformat()))
+        for f, l in months:
+            df, dt = f.isoformat(), l.isoformat()
+            step(f"WB отчёт {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: wb.main(a, x, y))
+            step(f"Витрина маржи {acc} {df}", lambda a=acc, x=df, y=dt: margin.build(a, x, y))
     print(f"[run_daily] готово за {(datetime.datetime.now()-t0).seconds}с", flush=True)
 
 

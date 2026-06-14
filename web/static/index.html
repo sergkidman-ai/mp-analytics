@@ -40,6 +40,12 @@
   #ytd.show{display:block}
   #ytd h3{margin:0 0 10px;font-size:14px;color:var(--acc)}
   #ytd .yt{display:flex;gap:26px;flex-wrap:wrap;align-items:baseline}
+  #opex{margin:14px 0 4px;background:#141d2b;border:1px solid var(--line);border-radius:12px;padding:14px 18px;display:none}
+  #opex.show{display:block}
+  #opex h3{margin:0 0 10px;font-size:14px;color:var(--warn)}
+  #opex .ppl{display:flex;gap:8px 16px;flex-wrap:wrap;margin-bottom:10px}
+  #opex .p{font-size:12px;color:var(--mut)}
+  #opex .tot{display:flex;gap:26px;flex-wrap:wrap;align-items:baseline;border-top:1px solid var(--line);padding-top:10px}
   .yi{display:flex;flex-direction:column}
   .yi .l{color:var(--mut);font-size:11px}
   .yi .v{font-size:18px;font-weight:600}
@@ -57,6 +63,7 @@
 <main>
   <div class="cards" id="cards"></div>
   <div id="ytd"></div>
+  <div id="opex"></div>
   <p class="note" id="prevnote"></p>
   <p class="note">Маржа <b>ВБ %</b> — от цены продажи WB (после СПП); маржа <b>наша %</b> — от нашей цены (до СПП).
      Себестоимость = сегодняшняя закупка (replacement-cost); для распроданного — минимум по группе.</p>
@@ -173,6 +180,24 @@ async function renderYTD(){
   el.innerHTML=`<h3>📅 Итого с начала года · ${lbl} · ${ps.length} мес</h3><div class="yt">`+
     items.map(([l,v])=>`<div class="yi"><span class="l">${l}</span><span class="v">${v}</span></div>`).join('')+'</div>';
 }
+async function loadOpex(){
+  const el=$('#opex');
+  const d=await api(`/api/opex?period=${state.period}`);
+  if(!d.applies){el.className='';el.innerHTML='';return;}
+  const ppl=d.items.map(i=>`<span class="p">${i.name} <span class="muted">(${i.role||i.category})</span> — ${rub(i.amount)}${i.tax_pct?' <span class="muted">+'+Math.round(i.tax_pct*100)+'%</span>':''}</span>`).join(' · ');
+  const naCls=d.net_after<0?'neg':'pos';
+  el.className='show';
+  el.innerHTML=`<h3>💼 Постоянные расходы (ФОТ + аренда) · с июня</h3>
+    <div class="ppl">${ppl}</div>
+    <div class="tot">
+      <div class="yi"><span class="lbl muted">ФОТ (${d.headcount} чел.)</span><span class="v">${rub(d.fot)}</span></div>
+      <div class="yi"><span class="lbl muted">Аренда</span><span class="v">${rub(d.rent)}</span></div>
+      <div class="yi"><span class="lbl muted">Итого расходы/мес</span><span class="v warn">${rub(d.total)}</span></div>
+      <div class="yi"><span class="lbl muted">Чистая бизнеса (оба ВБ)</span><span class="v">${rub(d.biz_net)}</span></div>
+      <div class="yi"><span class="lbl muted">Чистая ПОСЛЕ расходов</span><span class="v ${naCls}">${rub(d.net_after)}</span></div>
+    </div>
+    <p class="note" style="margin-top:8px">Расходы — на весь бизнес (оба юрлица). «Чистая после расходов» = чистая обоих ВБ за месяц − ФОТ − аренда. В неполном месяце (текущий) выручка ещё накапливается — сравнение приблизительное.</p>`;
+}
 async function loadSummary(){
   const s=await api('/api/summary?'+qs());
   prevLabel=s.prev_period||'';
@@ -284,7 +309,7 @@ async function loadUplift(){
       <td class="pos"><b>+${num(r.price_up_pct)}%</b></td><td class="neg">${rub(r.net_gap)}</td><td>${note}</td></tr>`;
   }).join('')||'<tr><td colspan="8" class="muted">все позиции уже ≥25% — цель держится</td></tr>';
 }
-async function refresh(){await Promise.all([loadSummary(),renderYTD(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly(),loadUplift()]);}
+async function refresh(){await Promise.all([loadSummary(),renderYTD(),loadOpex(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly(),loadUplift()]);}
 $('#by-week').onchange=()=>{if($('#by-week').checked)$('#roll-week').checked=false;loadWeekly();};
 $('#roll-week').onchange=()=>{if($('#roll-week').checked)$('#by-week').checked=false;loadWeekly();};
 

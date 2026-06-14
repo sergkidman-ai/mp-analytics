@@ -206,6 +206,28 @@ def sku(platform: str = "", account: str = "", period: str = "",
     return {"rows": rows, "count": len(rows)}
 
 
+@app.get("/api/opex")
+def opex(period: str = ""):
+    """Постоянные расходы (ФОТ + аренда) — бизнес-уровень, действуют с effective_from.
+    Возвращает список + итоги + чистую ВСЕГО бизнеса (оба ВБ) за месяц минус эти расходы."""
+    if not period:
+        return {"applies": False, "items": [], "total": 0}
+    items = db.query("""SELECT name, role, category, base::float, tax_pct::float, amount::float
+        FROM opex WHERE effective_from <= %s ORDER BY category, amount DESC""", (period,))
+    if not items:
+        return {"applies": False, "items": [], "total": 0, "period": period}
+    fot = sum(i["amount"] for i in items if i["category"] == "salary")
+    rent = sum(i["amount"] for i in items if i["category"] == "rent")
+    total = fot + rent
+    # чистая ВСЕГО бизнеса (все аккаунты/площадки) за выбранный месяц
+    biz = db.query("""SELECT coalesce(sum(net_profit),0)::float net FROM margin_by_sku
+        WHERE period_from=%s""", (period,))[0]["net"]
+    return {"applies": True, "period": period, "items": items,
+            "fot": round(fot, 2), "rent": round(rent, 2), "total": round(total, 2),
+            "biz_net": round(biz, 2), "net_after": round(biz - total, 2),
+            "headcount": sum(1 for i in items if i["category"] == "salary")}
+
+
 @app.get("/api/uplift")
 def uplift(platform: str = "", account: str = "", period: str = "", target: float = 0.25, limit: int = 20):
     """Какие позиции поднять в цене ПЕРВЫМИ, чтобы держать целевую маржу (по умолч. 25% от НАШЕЙ цены).
