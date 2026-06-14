@@ -98,6 +98,15 @@
     </div>
   </div>
 
+  <div class="row" style="margin-top:24px"><h2>🎯 Поднять цену первыми</h2>
+    <span class="muted">цель — 25% маржи от нашей цены; сортировка по ₽-вкладу в недобор (где больнее всего)</span></div>
+  <table id="uplift"><thead><tr>
+    <th>наш арт</th><th>WB арт</th><th>название</th><th>наша выручка</th><th>маржа наша %</th>
+    <th>+% к нашей цене</th><th>недобор до 25%, ₽</th><th>пометка</th>
+  </tr></thead><tbody></tbody></table>
+  <p class="note">«Недобор» = сколько ₽ чистой не хватает позиции до 25% от нашей цены (выручка × разрыв маржи).
+     Чем выше — тем сильнее позиция тянет месяц от цели. ⚠ габариты — сначала чинить карточку, цена вторична.</p>
+
   <div class="row" style="margin-top:24px"><h2>🔎 Подозрительные габариты / вес</h2>
     <span class="muted">WB считает логистику по объёму (литрам); ошибки в Д×Ш×В бьют по марже</span></div>
   <table id="anom"><thead><tr>
@@ -125,11 +134,13 @@ async function initFilters(){
   const acc=[...new Set(m.slices.map(s=>s.account))];
   const per=[...new Set(m.slices.map(s=>s.period_from))].sort();
   window.PERIODS=per; window.LATEST=per[per.length-1]||'';
-  fill('#f-platform',plat);fill('#f-account',acc);fill('#f-period',[...per].reverse());  // последний месяц сверху
+  fill('#f-platform',plat);fill('#f-account',acc,ACCNAMES);fill('#f-period',[...per].reverse());  // последний месяц сверху
   state.platform=plat[0]||'';state.account=acc[0]||'';state.period=window.LATEST;
   $('#f-platform').value=state.platform;$('#f-account').value=state.account;$('#f-period').value=state.period;
 }
-function fill(sel,arr){const e=$(sel);e.innerHTML=arr.map(v=>`<option value="${v}">${v}</option>`).join('');}
+const ACCNAMES={'wb_acc1':'Цифровой квадрат','wb_acc2':'Дисквэр'};
+function fill(sel,arr,lblmap){const e=$(sel);
+  e.innerHTML=arr.map(v=>`<option value="${v}">${(lblmap&&lblmap[v])||v}</option>`).join('');}
 
 // дельта к прошлому периоду. pp=true → разница в п.п.; иначе относит. %. goodUp — рост это хорошо?
 function deltaHtml(d,goodUp,pp){
@@ -171,7 +182,8 @@ async function loadSummary(){
     ['Наша цена (сумма)',rub(s.own_revenue),deltaHtml(dl.own_revenue,true,false)],
     ['Чистая',`<span class="${mc(s.net)}">${rub(s.net)}</span>`,deltaHtml(dl.net,true,false)],
     ['Маржа ВБ %',`<span class="${mc(s.margin_pct)}">${pct(s.margin_pct)}</span>`,deltaHtml(dl.margin_pct,true,true)],
-    ['Маржа наша %',`<span class="${mc(s.margin_own)}">${pct(s.margin_own)}</span>`,deltaHtml(dl.margin_own,true,true)],
+    ['Маржа наша %',`<span class="${mc(s.margin_own)}">${pct(s.margin_own)}</span> ${s.margin_own>=25?'<span class="pos">✓</span>':'<span class="muted">цель 25%</span>'}`,deltaHtml(dl.margin_own,true,true)],
+    ['СПП (эфф.) %',`<span class="warn">${pct(s.spp_pct)}</span>`,deltaHtml(dl.spp_pct,false,true)],
     ['COGS',rub(s.cogs),deltaHtml(dl.cogs,false,false)],
     ['Комиссия WB',`${rub(s.commission)} <span class="warn">${pct(s.commission_pct)}</span>`,deltaHtml(dl.commission_pct,false,true)],
     ['Логистика',rub(s.logistics),deltaHtml(dl.logistics,false,false)],
@@ -259,7 +271,18 @@ async function loadWeekly(){
       <td class="${mc(r.net_pct)}">${r.net_pct}%</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="muted">нет данных</td></tr>';
 }
-async function refresh(){await Promise.all([loadSummary(),renderYTD(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly()]);}
+async function loadUplift(){
+  const d=await api(`/api/uplift?${qs()}&limit=20`);
+  $('#uplift tbody').innerHTML=d.rows.map(r=>{
+    const note=r.dims_flag?`<span class="badge b-warn">⚠ габариты — чинить карточку</span>`:`<span class="pos">поднять цену</span>`;
+    const mo=r.margin_own<0?'neg':'warn';
+    return `<tr><td><b>${r.vendor_code||'—'}</b></td><td class="nm">${r.nm_id}</td>
+      <td class="name" title="${esc(r.title)}">${(r.title||'—').slice(0,34)}</td>
+      <td>${rub(r.own_rev)}</td><td class="${mo}">${pct(r.margin_own)}</td>
+      <td class="pos"><b>+${num(r.price_up_pct)}%</b></td><td class="neg">${rub(r.net_gap)}</td><td>${note}</td></tr>`;
+  }).join('')||'<tr><td colspan="8" class="muted">все позиции уже ≥25% — цель держится</td></tr>';
+}
+async function refresh(){await Promise.all([loadSummary(),renderYTD(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly(),loadUplift()]);}
 $('#by-week').onchange=loadWeekly;
 
 ['f-platform','f-account','f-period'].forEach(id=>$('#'+id).onchange=e=>{

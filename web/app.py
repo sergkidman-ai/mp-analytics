@@ -71,6 +71,9 @@ def _summary_one(platform, account, period):
         FROM sales{w2 + (' AND ' if w2 else ' WHERE ')}qty>0 AND our_price IS NOT NULL""", p2)[0]
     r["own_revenue"] = own["own_revenue"]
     r["margin_own"] = round(r["net"] / own["own_revenue"] * 100, 1) if own["own_revenue"] else None
+    # СПП (эффективная) = насколько цена покупателя ниже нашей = (наша − покупательская)/наша
+    r["spp_pct"] = round((own["own_revenue"] - r["revenue"]) / own["own_revenue"] * 100, 1) \
+        if own["own_revenue"] else None
     # расходы из сырого отчёта WB по типу удержания: реклама / отзывы / хранение / прочее.
     # Это «нераспределённые» (без привязки к nm_id) — уже вычтены из net, показываем отдельно.
     rw, rp = ["account=%s"], [account or "wb_acc1"]
@@ -121,8 +124,8 @@ def summary(platform: str = "", account: str = "", period: str = ""):
         r["prev_period"] = prev_p
         # абсолютная и относительная динамика по ключевым метрикам
         r["delta"] = {}
-        for k in ("net", "revenue", "cogs", "own_revenue", "qty", "margin_pct",
-                  "margin_own", "adv_spend", "commission_pct", "returns_sum", "logistics"):
+        for k in ("net", "revenue", "cogs", "own_revenue", "qty", "margin_pct", "margin_own",
+                  "adv_spend", "commission_pct", "returns_sum", "logistics", "spp_pct"):
             cur, old = r.get(k), pr.get(k)
             if cur is None or old is None:
                 r["delta"][k] = None
@@ -179,10 +182,11 @@ def sku(platform: str = "", account: str = "", period: str = "",
                  THEN round(m.net_profit/(s.our_price*m.qty)*100, 1) END::float margin_own,
             -- прирост к НАШЕЙ цене (доля) для выхода на 0.10 маржи от цены ВБ:
             -- x = (0.10*revenue - net)/(0.61*our_price*qty - 0.10*revenue)
-            CASE WHEN m.net_profit<0 AND m.qty>0 AND s.our_price>0
-                  AND (0.61*s.our_price*m.qty - 0.10*m.revenue_buyer) > 0
-                 THEN ceil((0.10*m.revenue_buyer - m.net_profit)
-                           / (0.61*s.our_price*m.qty - 0.10*m.revenue_buyer) * 100)
+            -- на сколько % поднять НАШУ цену, чтобы маржа от нашей цены достигла 25%:
+            -- x = (0.25 − net/own_rev) / 0.36  (0.36 = keep-ratio 0.61 − цель 0.25)
+            CASE WHEN m.qty>0 AND s.our_price>0
+                  AND m.net_profit/(s.our_price*m.qty) < 0.25
+                 THEN ceil((0.25 - m.net_profit/(s.our_price*m.qty)) / 0.36 * 100)
                  ELSE NULL END::float price_up_pct,
             round(c.volume_l,2)::float volume_l,
             round((c.weight_kg/NULLIF(c.volume_l,0))::numeric,3)::float density,
@@ -200,6 +204,40 @@ def sku(platform: str = "", account: str = "", period: str = "",
         for r in rows:
             r["loss_months"] = streak.get(r["nm_id"], 1)
     return {"rows": rows, "count": len(rows)}
+
+
+@app.get("/api/uplift")
+def uplift(platform: str = "", account: str = "", period: str = "", target: float = 0.25, limit: int = 20):
+    """Какие позиции поднять в цене ПЕРВЫМИ, чтобы держать целевую маржу (по умолч. 25% от НАШЕЙ цены).
+    Ранжируем по ₽-вкладу (net_gap = цель·наша_выручка − net): сверху — кто сильнее всего тянет
+    месяц от цели (большая выручка × недобор маржи). Для подозрительных габаритов — пометка
+    (там сначала чинить карточку, а не цену)."""
+    conds, p = [], []
+    if platform:
+        conds.append("m.platform=%s"); p.append(platform)
+    if account:
+        conds.append("m.account=%s"); p.append(account)
+    if period:
+        conds.append("m.period_from=%s"); p.append(period)
+    conds += ["m.article<>'0'", "m.qty>0", "s.our_price>0"]
+    where = " WHERE " + " AND ".join(conds)
+    rows = db.query(f"""
+        SELECT m.article nm_id, c.vendor_code, c.title,
+            (s.our_price*m.qty)::float own_rev, m.qty::float,
+            round((m.net_profit/(s.our_price*m.qty)*100)::numeric,1)::float margin_own,
+            ({target}*s.our_price*m.qty - m.net_profit)::float net_gap,
+            ceil(({target} - m.net_profit/(s.our_price*m.qty)) / (0.61-{target}) * 100)::float price_up_pct,
+            CASE WHEN c.dims_valid=false OR c.volume_l IS NULL THEN 'невалидные'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) < {DENS_LOW} THEN 'крупн./лёгкий'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) > {DENS_HIGH} THEN 'тяжёлый/мелкий'
+                 ELSE NULL END dims_flag
+        FROM margin_by_sku m
+        LEFT JOIN wb_cards c ON c.account=m.account AND c.nm_id::text=m.article
+        LEFT JOIN sales s ON s.platform=m.platform AND s.account=m.account
+             AND s.period_from=m.period_from AND s.article=m.article
+        {where} AND m.net_profit/(s.our_price*m.qty) < {target}
+        ORDER BY net_gap DESC NULLS LAST LIMIT %s""", p + [limit])
+    return {"rows": rows, "target": target, "count": len(rows)}
 
 
 @app.get("/api/weekly")
