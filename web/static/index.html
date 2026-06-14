@@ -135,11 +135,13 @@ async function loadSummary(){
     ['Маржа ВБ %',`<span class="${mc(s.margin_pct)}">${pct(s.margin_pct)}</span>`,deltaHtml(dl.margin_pct,true,true)],
     ['Маржа наша %',`<span class="${mc(s.margin_own)}">${pct(s.margin_own)}</span>`,deltaHtml(dl.margin_own,true,true)],
     ['COGS',rub(s.cogs),deltaHtml(dl.cogs,false,false)],
-    ['Комиссия+логистика',rub(s.commission+s.logistics),''],
+    ['Комиссия WB',`${rub(s.commission)} <span class="warn">${pct(s.commission_pct)}</span>`,deltaHtml(dl.commission_pct,false,true)],
+    ['Логистика',rub(s.logistics),deltaHtml(dl.logistics,false,false)],
     ['Реклама (WB Продвиж.)',`<span class="warn">${rub(s.adv_spend)}</span>${s.adv_pct!=null?` <span class="muted">${s.adv_pct}%</span>`:''}`,deltaHtml(dl.adv_spend,false,false)],
+    ['Возвраты',`<span class="neg">${rub(s.returns_sum)}</span> <span class="muted">${num(s.returns_qty)} шт</span>`,deltaHtml(dl.returns_sum,false,false)],
     ['Продано, шт',num(s.qty),deltaHtml(dl.qty,true,false)],
     ['Убыточных SKU',`<span class="neg">${num(s.loss_count)}</span>`,''],
-    ['Возвраты/нераспред.',`<span class="${s.net_other<0?'neg':'pos'}">${rub(s.net_other)}</span>`,
+    ['Нераспределённые',`<span class="neg">−${rub(s.unalloc)}</span>`,
        `<span class="muted">реклама ${rub(s.adv_spend)} · отзывы ${rub(s.reviews_spend)} · хранение ${rub(s.storage_all)}</span>`],
   ];
   $('#cards').innerHTML=cards.map(([l,v,d])=>`<div class="card"><div class="lbl">${l}</div><div class="val">${v}</div>${d||''}</div>`).join('');
