@@ -62,7 +62,8 @@
      Себестоимость = сегодняшняя закупка (replacement-cost); для распроданного — минимум по группе.</p>
 
   <div class="row"><h2>📈 Динамика по неделям</h2>
-    <label class="chk"><input type="checkbox" id="by-week"> разбить выбранный месяц по неделям</label></div>
+    <label class="chk"><input type="checkbox" id="by-week"> по неделям выбранного месяца</label>
+    <label class="chk"><input type="checkbox" id="roll-week" checked> скользящие 6 недель (все месяцы)</label></div>
   <table id="weekly" style="display:none"><thead><tr>
     <th>неделя</th><th>выручка</th><th>шт</th><th>COGS %</th><th>логистика %</th>
     <th>опер. маржа %</th><th>чистая %</th>
@@ -257,10 +258,10 @@ async function loadAnom(){
 }
 
 async function loadWeekly(){
-  const on=$('#by-week').checked;
+  const roll=$('#roll-week').checked, byMonth=$('#by-week').checked, on=roll||byMonth;
   $('#weekly').style.display=on?'':'none'; $('#weekly-note').style.display=on?'':'none';
   if(!on) return;
-  const d=await api(`/api/weekly?${qs()}`);
+  const d=await api(roll?`/api/weekly?${qs()}&rolling=6`:`/api/weekly?${qs()}`);
   const mc=v=>v<0?'neg':(v<25?'warn':'pos');
   $('#weekly tbody').innerHTML=d.rows.map(r=>{
     const d0=new Date(r.wk), d1=new Date(r.wk); d1.setDate(d1.getDate()+6);
@@ -283,7 +284,8 @@ async function loadUplift(){
   }).join('')||'<tr><td colspan="8" class="muted">все позиции уже ≥25% — цель держится</td></tr>';
 }
 async function refresh(){await Promise.all([loadSummary(),renderYTD(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly(),loadUplift()]);}
-$('#by-week').onchange=loadWeekly;
+$('#by-week').onchange=()=>{if($('#by-week').checked)$('#roll-week').checked=false;loadWeekly();};
+$('#roll-week').onchange=()=>{if($('#roll-week').checked)$('#by-week').checked=false;loadWeekly();};
 
 ['f-platform','f-account','f-period'].forEach(id=>$('#'+id).onchange=e=>{
   state[id.split('-')[1]]=e.target.value;refresh();});
