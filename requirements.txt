@@ -4,3 +4,5 @@ SQLAlchemy
 pandas
 python-dotenv
 openpyxl
+fastapi
+uvicorn[standard]

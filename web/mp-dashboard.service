@@ -1,0 +1,12 @@
+[Unit]
+Description=mp-analytics dashboard (Пульт бизнеса)
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8090
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
