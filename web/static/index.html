@@ -178,6 +178,7 @@ async function loadSummary(){
   prevLabel=s.prev_period||'';
   $('#prevnote').textContent = prevLabel ? `▲▼ — изменение к прошлому периоду (${prevLabel})` : 'Прошлый период недоступен — динамика появится после загрузки ещё одного месяца.';
   const dl=s.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
+  const pctOf=x=>s.revenue?(Math.round(x/s.revenue*1000)/10)+'%':'—';  // доля от выручки ВБ
   const cards=[
     ['Выручка (ВБ)',rub(s.revenue),deltaHtml(dl.revenue,true,false)],
     ['Наша цена (сумма)',rub(s.own_revenue),deltaHtml(dl.own_revenue,true,false)],
@@ -185,9 +186,9 @@ async function loadSummary(){
     ['Маржа ВБ %',`<span class="${mc(s.margin_pct)}">${pct(s.margin_pct)}</span>`,deltaHtml(dl.margin_pct,true,true)],
     ['Маржа наша %',`<span class="${mc(s.margin_own)}">${pct(s.margin_own)}</span> ${s.margin_own>=25?'<span class="pos">✓</span>':'<span class="muted">цель 25%</span>'}`,deltaHtml(dl.margin_own,true,true)],
     ['СПП (эфф.) %',`<span class="warn">${pct(s.spp_pct)}</span>`,deltaHtml(dl.spp_pct,false,true)],
-    ['COGS',rub(s.cogs),deltaHtml(dl.cogs,false,false)],
+    ['COGS',`${rub(s.cogs)} <span class="warn">${pctOf(s.cogs)}</span>`,deltaHtml(dl.cogs,false,false)],
     ['Комиссия WB',`${rub(s.commission)} <span class="warn">${pct(s.commission_pct)}</span>`,deltaHtml(dl.commission_pct,false,true)],
-    ['Логистика',rub(s.logistics),deltaHtml(dl.logistics,false,false)],
+    ['Логистика',`${rub(s.logistics)} <span class="warn">${pctOf(s.logistics)}</span>`,deltaHtml(dl.logistics,false,false)],
     ['Реклама (WB Продвиж.)',`<span class="warn">${rub(s.adv_spend)}</span>${s.adv_pct!=null?` <span class="muted">${s.adv_pct}%</span>`:''}`,deltaHtml(dl.adv_spend,false,false)],
     ['Возвраты',`<span class="neg">${rub(s.returns_sum)}</span> <span class="muted">${num(s.returns_qty)} шт</span>`,deltaHtml(dl.returns_sum,false,false)],
     ['Продано, шт',num(s.qty),deltaHtml(dl.qty,true,false)],
