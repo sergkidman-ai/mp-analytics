@@ -26,6 +26,7 @@ from core import db  # noqa: E402
 load_dotenv(BASE_DIR / ".env")
 REPORT_URL = "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod"
 STOCKS_URL = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"
+CARDS_URL = "https://content-api.wildberries.ru/content/v2/get/cards/list"
 TOKEN_ENV = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}
 
 
@@ -141,6 +142,35 @@ def collect_stocks(account, captured_at, since="2025-01-01"):
     } for x in rows if x.get("nmId") is not None]
     db.upsert("wb_stocks", recs, conflict_cols=["account", "nm_id", "warehouse", "captured_at"])
     return len(recs)
+
+
+def collect_cards(account):
+    """Карточки WB (nmID → vendorCode/название/бренд) → wb_cards. Категория «Контент»."""
+    H = {"Authorization": _token(account), "Content-Type": "application/json"}
+    cursor = {"limit": 100}
+    total_saved = 0
+    while True:
+        body = {"settings": {"cursor": cursor, "filter": {"withPhoto": -1}}}
+        r = requests.post(CARDS_URL, headers=H, json=body, timeout=120)
+        if r.status_code == 429:
+            time.sleep(int(r.headers.get("Retry-After", "20")) + 1)
+            continue
+        r.raise_for_status()
+        d = r.json()
+        cards = d.get("cards", [])
+        cur = d.get("cursor", {})
+        recs = [{
+            "account": account, "nm_id": c.get("nmID"), "vendor_code": c.get("vendorCode"),
+            "title": c.get("title"), "brand": c.get("brand"), "subject": c.get("subjectName"),
+        } for c in cards if c.get("nmID") is not None]
+        db.upsert("wb_cards", recs, conflict_cols=["account", "nm_id"],
+                  update_cols=["vendor_code", "title", "brand", "subject"])
+        total_saved += len(recs)
+        if len(cards) < cursor["limit"]:
+            break
+        cursor = {"limit": 100, "updatedAt": cur.get("updatedAt"), "nmID": cur.get("nmID")}
+        time.sleep(0.3)
+    return total_saved
 
 
 def main(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):

@@ -58,9 +58,12 @@ def summary(platform: str = "", account: str = "", period: str = ""):
         coalesce(sum(commission),0)::float commission,
         coalesce(sum(logistics),0)::float logistics,
         coalesce(sum(net_profit),0)::float net,
+        coalesce(sum(net_profit) FILTER (WHERE (qty>0 OR revenue_buyer>0) AND article<>'0'),0)::float net_activity,
         coalesce(sum(CASE WHEN net_profit<0 AND qty>0 AND article<>'0' THEN 1 ELSE 0 END),0) loss_count
         FROM margin_by_sku{w}""", p)[0]
     r["margin_pct"] = round(r["net"] / r["revenue"] * 100, 1) if r["revenue"] else None
+    # возвраты/нераспределённое = итог − сумма по реальным продажам (для сходимости таблицы)
+    r["net_other"] = round(r["net"] - r["net_activity"], 2)
     return r
 
 
@@ -68,22 +71,38 @@ def summary(platform: str = "", account: str = "", period: str = ""):
 def sku(platform: str = "", account: str = "", period: str = "",
         problem: bool = False, sort: str = "revenue_buyer", order: str = "desc",
         q: str = "", limit: int = 300):
-    """SKU-уровень (drill-down). problem=true → только убыточные. q → поиск по nm_id."""
-    # nm_id='0' — служебный bucket WB (нераспределённая логистика), не SKU.
-    # Без real-активности (qty>0 или выручка>0) — это возвраты/удержания по товарам других
-    # периодов, не продажи; в SKU-список не показываем.
-    extra = ("article<>'0' AND net_profit<0 AND qty>0" if problem
-             else "article<>'0' AND (qty>0 OR revenue_buyer>0)")
-    w, p = _where(platform, account, period, extra)
+    """SKU-уровень с артикулом/названием WB и нашей ценой. problem=true → убыточные + price_up.
+
+    Артефакты (nm=0, строки без продаж) убраны. revenue_buyer = цена ПОКУПАТЕЛЯ (после СПП);
+    our_price = наша цена до СПП. price_up = ориентир «+₽ к нашей цене», чтобы выйти в ноль
+    (keep-ratio 0.61: СПП ~29% + комиссия ~14%; без учёта изменения спроса)."""
+    conds, p = [], []
+    if platform:
+        conds.append("m.platform=%s"); p.append(platform)
+    if account:
+        conds.append("m.account=%s"); p.append(account)
+    if period:
+        conds.append("m.period_from=%s"); p.append(period)
+    conds.append("m.article<>'0'")
+    conds.append("m.net_profit<0 AND m.qty>0" if problem else "(m.qty>0 OR m.revenue_buyer>0)")
     if q:
-        w = (w + " AND " if w else " WHERE ") + "article ILIKE %s"
-        p.append(f"%{q}%")
-    sort = sort if sort in ("net_profit", "revenue_buyer", "cogs", "qty", "margin_pct") else "net_profit"
+        conds.append("(m.article ILIKE %s OR c.vendor_code ILIKE %s OR c.title ILIKE %s)")
+        p += [f"%{q}%", f"%{q}%", f"%{q}%"]
+    where = " WHERE " + " AND ".join(conds)
+    sort = sort if sort in ("net_profit", "revenue_buyer", "cogs", "qty", "margin_pct") else "revenue_buyer"
     order = "DESC" if order.lower() == "desc" else "ASC"
-    rows = db.query(f"""SELECT article,
-        qty::float, revenue_buyer::float, cogs::float, commission::float,
-        logistics::float, net_profit::float, round(margin_pct,1)::float margin_pct
-        FROM margin_by_sku{w} ORDER BY {sort} {order} NULLS LAST LIMIT %s""", p + [limit])
+    rows = db.query(f"""
+        SELECT m.article nm_id, c.vendor_code, c.title,
+            m.qty::float, s.our_price::float,
+            m.revenue_buyer::float, m.cogs::float, m.logistics::float,
+            m.net_profit::float, round(m.margin_pct,1)::float margin_pct,
+            CASE WHEN m.net_profit<0 AND m.qty>0
+                 THEN ceil(abs(m.net_profit)/m.qty/0.61) ELSE NULL END::float price_up
+        FROM margin_by_sku m
+        LEFT JOIN wb_cards c ON c.account=m.account AND c.nm_id::text=m.article
+        LEFT JOIN sales s ON s.platform=m.platform AND s.account=m.account
+             AND s.period_from=m.period_from AND s.article=m.article
+        {where} ORDER BY m.{sort} {order} NULLS LAST LIMIT %s""", p + [limit])
     return {"rows": rows, "count": len(rows)}
 
 

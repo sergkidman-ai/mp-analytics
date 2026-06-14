@@ -52,9 +52,9 @@
   </div>
   <table id="sku">
     <thead><tr>
-      <th data-s="article">nm_id</th><th data-s="qty">шт</th>
-      <th data-s="revenue_buyer">выручка</th><th data-s="cogs">COGS</th>
-      <th data-s="logistics">логистика</th><th data-s="net_profit">чистая</th>
+      <th>артикул</th><th>название</th><th data-s="qty">шт</th>
+      <th>наша цена</th><th data-s="revenue_buyer">выручка (покуп.)</th>
+      <th data-s="cogs">COGS</th><th data-s="net_profit">чистая</th>
       <th data-s="margin_pct">маржа %</th>
     </tr></thead>
     <tbody></tbody>
@@ -63,7 +63,7 @@
   <div class="sub" style="margin-top:24px">
     <div>
       <div class="row"><h2>⚠️ Топ убыточных</h2></div>
-      <table id="loss"><tbody></tbody></table>
+      <table id="loss"><thead><tr><th>артикул</th><th>название</th><th>шт</th><th>убыток</th><th>+₽/шт→в плюс</th></tr></thead><tbody></tbody></table>
     </div>
     <div>
       <div class="row"><h2>📦 Остатки на складах WB (FBO)</h2></div>
@@ -98,20 +98,27 @@ async function loadSummary(){
     ['Выручка',rub(s.revenue)],['Чистая',`<span class="${s.net<0?'neg':'pos'}">${rub(s.net)}</span>`],
     ['Маржа %',`<span class="${mc}">${m==null?'—':m+'%'}</span>`],['COGS',rub(s.cogs)],
     ['Комиссия+логистика',rub(s.commission+s.logistics)],['Продано, шт',num(s.qty)],
-    ['SKU',num(s.n_sku)],['Убыточных SKU',`<span class="neg">${num(s.loss_count)}</span>`],
+    ['Убыточных SKU',`<span class="neg">${num(s.loss_count)}</span>`],
+    ['Возвраты/нераспред.',`<span class="${s.net_other<0?'neg':'pos'}">${rub(s.net_other)}</span>`],
   ].map(([l,v])=>`<div class="card"><div class="lbl">${l}</div><div class="val">${v}</div></div>`).join('');
 }
 function skuRow(r){const mc=r.net_profit<0?'neg':'pos';
-  return `<tr><td>${r.article}</td><td>${num(r.qty)}</td><td>${rub(r.revenue_buyer)}</td>
-    <td>${rub(r.cogs)}</td><td>${rub(r.logistics)}</td>
-    <td class="${mc}">${rub(r.net_profit)}</td><td class="${mc}">${r.margin_pct==null?'—':r.margin_pct+'%'}</td></tr>`;}
+  return `<tr><td><b>${r.vendor_code||r.nm_id}</b></td>
+    <td class="muted" title="${(r.title||'').replace(/"/g,'')}">${(r.title||'—').slice(0,38)}</td>
+    <td>${num(r.qty)}</td><td>${rub(r.our_price)}</td><td>${rub(r.revenue_buyer)}</td>
+    <td>${rub(r.cogs)}</td><td class="${mc}">${rub(r.net_profit)}</td>
+    <td class="${mc}">${r.margin_pct==null?'—':r.margin_pct+'%'}</td></tr>`;}
 async function loadSku(){
   const d=await api(`/api/sku?${qs()}&problem=${state.problem}&sort=${state.sort}&order=${state.order}&q=${encodeURIComponent(state.q)}`);
   $('#sku tbody').innerHTML=d.rows.map(skuRow).join('')||'<tr><td colspan="7" class="muted">нет данных</td></tr>';
 }
 async function loadLoss(){
-  const d=await api(`/api/sku?${qs()}&problem=true&sort=net_profit&order=asc&limit=5`);
-  $('#loss tbody').innerHTML=d.rows.map(r=>`<tr><td>${r.article}</td><td class="neg">${rub(r.net_profit)}</td><td class="muted">${num(r.qty)} шт</td></tr>`).join('')||'<tr><td class="muted">нет</td></tr>';
+  const d=await api(`/api/sku?${qs()}&problem=true&sort=net_profit&order=asc&limit=8`);
+  $('#loss tbody').innerHTML=d.rows.map(r=>`<tr>
+    <td><b>${r.vendor_code||r.nm_id}</b></td>
+    <td class="muted" title="${(r.title||'').replace(/"/g,'')}">${(r.title||'—').slice(0,24)}</td>
+    <td>${num(r.qty)}</td><td class="neg">${rub(r.net_profit)}</td>
+    <td class="pos">+${num(r.price_up)} ₽</td></tr>`).join('')||'<tr><td colspan="5" class="muted">нет</td></tr>';
 }
 async function loadStocks(){
   const d=await api(`/api/stocks?account=${state.account}`);
