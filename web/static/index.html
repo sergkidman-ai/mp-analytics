@@ -178,7 +178,8 @@ async function loadSummary(){
     ['Реклама (WB Продвиж.)',`<span class="warn">${rub(s.adv_spend)}</span>${s.adv_pct!=null?` <span class="muted">${s.adv_pct}%</span>`:''}`,deltaHtml(dl.adv_spend,false,false)],
     ['Возвраты',`<span class="neg">${rub(s.returns_sum)}</span> <span class="muted">${num(s.returns_qty)} шт</span>`,deltaHtml(dl.returns_sum,false,false)],
     ['Продано, шт',num(s.qty),deltaHtml(dl.qty,true,false)],
-    ['Убыточных SKU',`<span class="neg">${num(s.loss_count)}</span>`,''],
+    ['Убыточных SKU',`<span class="neg">${num(s.loss_count)}</span>`,
+       `<span class="neg">${rub(s.loss_sum)}</span> · ${num(s.loss_qty)} шт`],
     ['Нераспределённые',`<span class="neg">−${rub(s.unalloc)}</span>`,
        `<span class="muted">реклама ${rub(s.adv_spend)} · отзывы ${rub(s.reviews_spend)} · хранение ${rub(s.storage_all)}</span>`],
   ];

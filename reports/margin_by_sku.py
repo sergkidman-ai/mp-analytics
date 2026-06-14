@@ -78,12 +78,16 @@ def _group_price_map():
     return {r["external_code"]: (r["mn"], r["mx"], r["is_set"]) for r in rows}
 
 
+# Юрлицо МойСклад по WB-аккаунту (COGS стыкуется по org+agent «Покупатель ВБ»).
+ACC_ORG = {"wb_acc1": 'ООО "ЦИФРОВОЙ КВАДРАТ"', "wb_acc2": 'ООО "ДИСКВЭР"'}
+
+
 def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
-    print("Считаю COGS заказов из МС…", flush=True)
+    print(f"Считаю COGS заказов из МС ({ACC_ORG.get(account)})…", flush=True)
     # Широкое окно МС: WB-выкуп идёт через ~6 дней после отгрузки → отгрузка под майский
     # выкуп часто в апреле. Берём -45 дней от начала периода, иначе FBS примут за FBO.
     ms_from = (datetime.date.fromisoformat(date_from) - datetime.timedelta(days=45)).isoformat()
-    cogs_order = demand_cogs_by_order(ms_from, date_to)
+    cogs_order = demand_cogs_by_order(ms_from, date_to, ms_org=ACC_ORG.get(account, ACC_ORG["wb_acc1"]))
     gmap = _group_price_map()
 
     # WB-продажи по assembly: nm, units, sa_name (vendorCode).
