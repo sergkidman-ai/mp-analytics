@@ -25,6 +25,7 @@ from core import db  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
 REPORT_URL = "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod"
+STOCKS_URL = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"
 TOKEN_ENV = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}
 
 
@@ -123,6 +124,23 @@ def normalize_sales(account, rows, date_from, date_to):
     if 216421567 in spp and spp[216421567]:
         ctrl_spp = sum(spp[216421567]) / len(spp[216421567])
     return len(recs), ctrl_spp
+
+
+def collect_stocks(account, captured_at, since="2025-01-01"):
+    """Остатки на складах WB (FBO) → wb_stocks. Снимок на captured_at."""
+    r = requests.get(STOCKS_URL, headers={"Authorization": _token(account)},
+                     params={"dateFrom": since}, timeout=120)
+    r.raise_for_status()
+    rows = r.json() or []
+    recs = [{
+        "account": account, "nm_id": x.get("nmId"), "vendor_code": x.get("supplierArticle"),
+        "warehouse": x.get("warehouseName"), "quantity": x.get("quantity"),
+        "quantity_full": x.get("quantityFull"), "in_way_to_client": x.get("inWayToClient"),
+        "in_way_from_client": x.get("inWayFromClient"), "brand": x.get("brand"),
+        "subject": x.get("subject"), "captured_at": captured_at,
+    } for x in rows if x.get("nmId") is not None]
+    db.upsert("wb_stocks", recs, conflict_cols=["account", "nm_id", "warehouse", "captured_at"])
+    return len(recs)
 
 
 def main(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
