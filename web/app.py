@@ -157,7 +157,13 @@ def sku(platform: str = "", account: str = "", period: str = "",
                   AND (0.61*s.our_price*m.qty - 0.10*m.revenue_buyer) > 0
                  THEN ceil((0.10*m.revenue_buyer - m.net_profit)
                            / (0.61*s.our_price*m.qty - 0.10*m.revenue_buyer) * 100)
-                 ELSE NULL END::float price_up_pct
+                 ELSE NULL END::float price_up_pct,
+            round(c.volume_l,2)::float volume_l,
+            round((c.weight_kg/NULLIF(c.volume_l,0))::numeric,3)::float density,
+            CASE WHEN c.dims_valid=false OR c.volume_l IS NULL OR c.weight_kg IS NULL THEN 'невалидные'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) < {DENS_LOW} THEN 'крупн./лёгкий'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) > {DENS_HIGH} THEN 'тяжёлый/мелкий'
+                 ELSE NULL END dims_flag
         FROM margin_by_sku m
         LEFT JOIN wb_cards c ON c.account=m.account AND c.nm_id::text=m.article
         LEFT JOIN sales s ON s.platform=m.platform AND s.account=m.account
