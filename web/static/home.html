@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пульт бизнеса — главный экран</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
+  header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  h1{font-size:18px;margin:0}
+  a.nav{margin-left:auto;color:var(--acc);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px}
+  a.nav:hover{background:var(--card)}
+  select{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{padding:22px;max-width:1100px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .bi .l{color:var(--mut);font-size:12px}
+  .bi .v{font-size:26px;font-weight:700;margin-top:4px}
+  .bi .delta{font-size:12px;margin-top:3px}
+  h2{font-size:15px;margin:22px 0 12px}
+  .accs{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+  .acc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;min-width:230px}
+  .acc .an{font-weight:600;margin-bottom:4px}
+  .acc .ar{font-size:12px;color:var(--mut)}
+  .tips{display:flex;flex-direction:column;gap:9px}
+  .tip{border-left:4px solid var(--line);padding:10px 14px;background:var(--card);border-radius:0 10px 10px 0}
+  .tip.high{border-color:var(--neg)}.tip.warn{border-color:var(--warn)}.tip.info{border-color:var(--acc)}
+  .tip .tt{font-weight:600}.tip .tx{color:var(--mut);font-size:13px;margin-top:2px}
+  .note{color:var(--mut);font-size:12px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏢 Пульт бизнеса — главный экран</h1>
+  <select id="f-period"></select>
+  <a class="nav" href="/dashboard">Детально по аккаунтам →</a>
+</header>
+<main>
+  <div class="big" id="big"></div>
+  <h2>По юрлицам</h2>
+  <div class="accs" id="accs"></div>
+  <h2>💡 Советы — что делать <span class="muted" style="font-weight:400;font-size:12px">(авто-анализ цифр)</span></h2>
+  <div class="tips" id="tips"></div>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const pct=v=>v==null?'—':v+'%';
+const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
+let period='';
+
+function deltaHtml(d,goodUp,pp){
+  if(!d||d.abs==null) return '';
+  let v;
+  if(pp){ if(d.abs===0)return''; v=(d.abs>0?'+':'')+d.abs+' п.п.'; }
+  else { if(d.pct==null||d.pct===0)return''; v=(d.pct>0?'+':'')+d.pct+'%'; }
+  const up=d.abs>0, good=goodUp?up:!up, arr=up?'▲':'▼';
+  return `<div class="delta ${good?'pos':'neg'}">${arr} ${v}</div>`;
+}
+
+async function api(p){const r=await fetch(p);return r.json();}
+
+async function initPeriods(){
+  const m=await api('/api/meta');
+  const per=[...new Set(m.slices.map(s=>s.period_from))].sort();
+  period=per[per.length-1]||'';
+  $('#f-period').innerHTML=[...per].reverse().map(v=>`<option value="${v}">${MONTHS[v.slice(5,7)]} ${v.slice(0,4)}</option>`).join('');
+  $('#f-period').value=period;
+  $('#f-period').onchange=e=>{period=e.target.value;load();};
+}
+
+async function load(){
+  const [b,a]=await Promise.all([api(`/api/business?period=${period}`),api(`/api/advice?period=${period}`)]);
+  const dl=b.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
+  const stats=[
+    ['Выручка (оба ВБ)',rub(b.revenue),deltaHtml(dl.revenue,true,false)],
+    ['Чистая с ВБ',`<span class="${mc(b.net)}">${rub(b.net)}</span>`,deltaHtml(dl.net,true,false)],
+    ['Маржа наша %',`<span class="${b.margin_own<25?'neg':'pos'}">${pct(b.margin_own)}</span> ${b.margin_own>=25?'<span class="pos">✓</span>':'<span class="muted">цель 25%</span>'}`,deltaHtml(dl.margin_own,true,true)],
+    ['СПП %',`<span class="warn">${pct(b.spp_pct)}</span>`,deltaHtml(dl.spp_pct,false,true)],
+    ['Расходы ФОТ+аренда',b.opex?rub(b.opex):'—',''],
+    ['Чистая ПОСЛЕ расходов',b.opex?`<span class="${b.net_after_opex<0?'neg':'pos'}">${rub(b.net_after_opex)}</span>`:rub(b.net),''],
+  ];
+  $('#big').innerHTML=stats.map(([l,v,d])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${d||''}</div>`).join('');
+  $('#accs').innerHTML=b.accounts.map(x=>`<div class="acc"><div class="an">${x.name}</div>
+    <div class="ar">выручка ${rub(x.revenue)} · чистая <span class="${x.net<0?'neg':'pos'}">${rub(x.net)}</span><br>маржа наша ${pct(x.margin_own)} · маржа ВБ ${pct(x.margin_pct)}</div></div>`).join('');
+  $('#tips').innerHTML=a.tips.map(t=>`<div class="tip ${t.sev}"><div class="tt">${t.title}</div><div class="tx">${t.text}</div></div>`).join('');
+  $('#foot').textContent=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)}. Расходы (ФОТ+аренда) учитываются с июня; в неполном месяце выручка ещё накапливается.`;
+}
+
+(async()=>{await initPeriods();await load();})();
+</script>
+</body>
+</html>

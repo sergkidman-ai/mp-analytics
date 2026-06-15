@@ -21,7 +21,12 @@ STATIC = BASE_DIR / "web" / "static"
 
 
 @app.get("/", response_class=HTMLResponse)
-def index():
+def home():
+    return (STATIC / "home.html").read_text(encoding="utf-8")
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
     return (STATIC / "index.html").read_text(encoding="utf-8")
 
 

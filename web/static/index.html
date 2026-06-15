@@ -10,6 +10,8 @@
   body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
   header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   h1{font-size:18px;margin:0}
+  a.nav{color:var(--acc);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px}
+  a.nav:hover{background:var(--card)}
   .filters{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto;align-items:center}
   select,input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
   main{padding:22px;max-width:1280px;margin:0 auto}
@@ -65,7 +67,8 @@
 </head>
 <body>
 <header>
-  <h1>📊 Пульт бизнеса</h1>
+  <h1>📊 Пульт бизнеса — детально</h1>
+  <a class="nav" href="/">🏢 Главная</a>
   <div class="filters">
     <select id="f-platform"></select>
     <select id="f-account"></select>
@@ -73,8 +76,6 @@
   </div>
 </header>
 <main>
-  <div id="biz"></div>
-  <div class="row"><h2>Детально по аккаунту</h2></div>
   <div class="cards" id="cards"></div>
   <div id="ytd"></div>
   <div id="opex"></div>
@@ -193,25 +194,6 @@ async function renderYTD(){
   el.className='show';
   el.innerHTML=`<h3>📅 Итого с начала года · ${lbl} · ${ps.length} мес</h3><div class="yt">`+
     items.map(([l,v])=>`<div class="yi"><span class="l">${l}</span><span class="v">${v}</span></div>`).join('')+'</div>';
-}
-async function loadBiz(){
-  const [b,a]=await Promise.all([api(`/api/business?period=${state.period}`),api(`/api/advice?period=${state.period}`)]);
-  const dl=b.delta||{}, mo=b.margin_own<25?'neg':'pos';
-  const stats=[
-    ['Выручка (оба ВБ)',rub(b.revenue),deltaHtml(dl.revenue,true,false)],
-    ['Чистая с ВБ',`<span class="${b.net<0?'neg':'pos'}">${rub(b.net)}</span>`,deltaHtml(dl.net,true,false)],
-    ['Маржа наша %',`<span class="${mo}">${pct(b.margin_own)}</span> ${b.margin_own>=25?'<span class="pos">✓</span>':'<span class="muted">цель 25%</span>'}`,deltaHtml(dl.margin_own,true,true)],
-    ['СПП %',`<span class="warn">${pct(b.spp_pct)}</span>`,deltaHtml(dl.spp_pct,false,true)],
-    ['Расходы (ФОТ+аренда)',b.opex?rub(b.opex):'—',''],
-    ['Чистая ПОСЛЕ расходов',b.opex?`<span class="${b.net_after_opex<0?'neg':'pos'}">${rub(b.net_after_opex)}</span>`:rub(b.net),''],
-  ];
-  const accs=b.accounts.map(x=>`<div class="acc"><b>${x.name}</b> · выр ${rub(x.revenue)} · чистая <span class="${x.net<0?'neg':'pos'}">${rub(x.net)}</span> · маржа наша ${pct(x.margin_own)}</div>`).join('');
-  const tips=a.tips.map(t=>`<div class="tip ${t.sev}"><div class="tt">${t.title}</div><div class="tx">${t.text}</div></div>`).join('');
-  $('#biz').innerHTML=`<h2>🏢 Бизнес в целом · ${b.period}</h2>
-    <div class="big">${stats.map(([l,v,d])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${d||''}</div>`).join('')}</div>
-    <div class="accs">${accs}</div>
-    <div class="muted" style="font-size:12px;margin-bottom:4px">💡 Советы — что делать (авто-анализ цифр)</div>
-    <div class="tips">${tips}</div>`;
 }
 async function loadOpex(){
   const el=$('#opex');
@@ -342,7 +324,7 @@ async function loadUplift(){
       <td class="pos"><b>+${num(r.price_up_pct)}%</b></td><td class="neg">${rub(r.net_gap)}</td><td>${note}</td></tr>`;
   }).join('')||'<tr><td colspan="8" class="muted">все позиции уже ≥25% — цель держится</td></tr>';
 }
-async function refresh(){await Promise.all([loadBiz(),loadSummary(),renderYTD(),loadOpex(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly(),loadUplift()]);}
+async function refresh(){await Promise.all([loadSummary(),renderYTD(),loadOpex(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly(),loadUplift()]);}
 $('#by-week').onchange=()=>{if($('#by-week').checked)$('#roll-week').checked=false;loadWeekly();};
 $('#roll-week').onchange=()=>{if($('#roll-week').checked)$('#by-week').checked=false;loadWeekly();};
 
