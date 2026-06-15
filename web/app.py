@@ -283,6 +283,25 @@ def business(period: str = ""):
     return cur
 
 
+@app.get("/api/trend")
+def trend():
+    """Помесячная динамика по всему бизнесу (оба ВБ) для графиков на главной + YTD-итоги."""
+    periods = [r["p"] for r in db.query(
+        "SELECT DISTINCT period_from::text p FROM margin_by_sku ORDER BY 1")]
+    months = []
+    for p in periods:
+        b, _ = _biz_for(p)
+        months.append({
+            "month": p, "revenue": b["revenue"], "net": b["net"], "qty": b["qty"],
+            "margin_pct": b["margin_pct"], "margin_own": b["margin_own"],
+            "cogs_pct": b["cogs_pct"], "commission_pct": b["commission_pct"],
+            "logi_pct": b["logi_pct"], "spp_pct": b["spp_pct"], "adv_pct": b["adv_pct"],
+        })
+    ytd = {k: round(sum(m[k] or 0 for m in months), 2) for k in ("revenue", "net", "qty")}
+    ytd["margin_pct"] = round(ytd["net"] / ytd["revenue"] * 100, 1) if ytd["revenue"] else None
+    return {"months": months, "ytd": ytd}
+
+
 @app.get("/api/advice")
 def advice(period: str = ""):
     """Аналитический слой: приоритизированные советы из цифр (детерминированно, без ИИ-вызова).

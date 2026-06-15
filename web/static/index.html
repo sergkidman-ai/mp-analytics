@@ -77,7 +77,6 @@
 </header>
 <main>
   <div class="cards" id="cards"></div>
-  <div id="ytd"></div>
   <div id="opex"></div>
   <p class="note" id="prevnote"></p>
   <p class="note">Маржа <b>ВБ %</b> — от цены продажи WB (после СПП); маржа <b>наша %</b> — от нашей цены (до СПП).
@@ -175,26 +174,6 @@ function deltaHtml(d,goodUp,pp){
   return `<div class="delta ${good?'pos':'neg'}">${arr} ${v}</div>`;
 }
 
-const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь',
-  '07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
-async function renderYTD(){
-  const el=$('#ytd');
-  if(!window.LATEST || state.period!==window.LATEST){el.className='';el.innerHTML='';return;}
-  const s=await api(`/api/summary?platform=${state.platform}&account=${state.account}`);  // без периода = весь год
-  const ps=window.PERIODS||[], a=ps[0], b=ps[ps.length-1];
-  const lbl=a&&b?`${MONTHS[a.slice(5,7)]}–${MONTHS[b.slice(5,7)]} ${b.slice(0,4)}`:'';
-  const items=[
-    ['Выручка (ВБ)',rub(s.revenue)],['Наша цена (сумма)',rub(s.own_revenue)],
-    ['Чистая',`<span class="${s.net<0?'neg':'pos'}">${rub(s.net)}</span>`],
-    ['Маржа ВБ %',`<span class="${s.margin_pct<0?'neg':'pos'}">${pct(s.margin_pct)}</span>`],
-    ['COGS',rub(s.cogs)],['Комиссия',`${rub(s.commission)} ${pct(s.commission_pct)}`],
-    ['Логистика',rub(s.logistics)],['Реклама',rub(s.adv_spend)],
-    ['Возвраты',rub(s.returns_sum)],['Продано, шт',num(s.qty)],
-  ];
-  el.className='show';
-  el.innerHTML=`<h3>📅 Итого с начала года · ${lbl} · ${ps.length} мес</h3><div class="yt">`+
-    items.map(([l,v])=>`<div class="yi"><span class="l">${l}</span><span class="v">${v}</span></div>`).join('')+'</div>';
-}
 async function loadOpex(){
   const el=$('#opex');
   const d=await api(`/api/opex?period=${state.period}`);
@@ -324,7 +303,7 @@ async function loadUplift(){
       <td class="pos"><b>+${num(r.price_up_pct)}%</b></td><td class="neg">${rub(r.net_gap)}</td><td>${note}</td></tr>`;
   }).join('')||'<tr><td colspan="8" class="muted">все позиции уже ≥25% — цель держится</td></tr>';
 }
-async function refresh(){await Promise.all([loadSummary(),renderYTD(),loadOpex(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly(),loadUplift()]);}
+async function refresh(){await Promise.all([loadSummary(),loadOpex(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly(),loadUplift()]);}
 $('#by-week').onchange=()=>{if($('#by-week').checked)$('#roll-week').checked=false;loadWeekly();};
 $('#roll-week').onchange=()=>{if($('#roll-week').checked)$('#by-week').checked=false;loadWeekly();};
 

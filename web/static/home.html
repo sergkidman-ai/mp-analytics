@@ -30,6 +30,11 @@
   .tip.high{border-color:var(--neg)}.tip.warn{border-color:var(--warn)}.tip.info{border-color:var(--acc)}
   .tip .tt{font-weight:600}.tip .tx{color:var(--mut);font-size:13px;margin-top:2px}
   .note{color:var(--mut);font-size:12px;margin:8px 0 0}
+  .chartbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .chartbox .ct{font-size:13px;color:var(--mut);margin-bottom:6px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:12px}
+  .legend span{display:inline-flex;align-items:center;gap:6px;color:var(--mut)}
+  .legend i{width:12px;height:3px;border-radius:2px;display:inline-block}
 </style>
 </head>
 <body>
@@ -40,6 +45,8 @@
 </header>
 <main>
   <div class="big" id="big"></div>
+  <h2>📈 Динамика по месяцам <span class="muted" id="ytd-sum" style="font-weight:400;font-size:12px"></span></h2>
+  <div id="charts"></div>
   <h2>По юрлицам</h2>
   <div class="accs" id="accs"></div>
   <h2>💡 Советы — что делать <span class="muted" style="font-weight:400;font-size:12px">(авто-анализ цифр)</span></h2>
@@ -51,7 +58,51 @@ const $=s=>document.querySelector(s);
 const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
 const pct=v=>v==null?'—':v+'%';
 const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
+const MSHORT={'01':'янв','02':'фев','03':'мар','04':'апр','05':'май','06':'июн','07':'июл','08':'авг','09':'сен','10':'окт','11':'ноя','12':'дек'};
 let period='';
+
+// Лёгкий линейный график на чистом SVG (без внешних библиотек).
+function chart(labels, series, fmtY){
+  const W=960,H=300,pl=58,pr=18,pt=16,pb=32, n=labels.length;
+  const xs=i=>pl+(W-pl-pr)*(n<=1?0.5:i/(n-1));
+  let vmax=0; series.forEach(s=>s.data.forEach(v=>{if(v!=null&&v>vmax)vmax=v;}));
+  vmax=vmax*1.12||1; const ys=v=>pt+(H-pt-pb)*(1-v/vmax);
+  let g='';
+  for(let k=0;k<=4;k++){const val=vmax*k/4,y=ys(val);
+    g+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="#243449"/>`+
+       `<text x="${pl-8}" y="${y+4}" fill="#8aa0b5" font-size="11" text-anchor="end">${fmtY(val)}</text>`;}
+  let xl=''; labels.forEach((l,i)=>{xl+=`<text x="${xs(i)}" y="${H-10}" fill="#8aa0b5" font-size="11" text-anchor="middle">${l}</text>`;});
+  let ln='';
+  series.forEach(s=>{
+    const poly=s.data.map((v,i)=>v==null?null:`${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).filter(Boolean).join(' ');
+    ln+=`<polyline points="${poly}" fill="none" stroke="${s.color}" stroke-width="2.2"/>`;
+    s.data.forEach((v,i)=>{if(v!=null)ln+=`<circle cx="${xs(i).toFixed(1)}" cy="${ys(v).toFixed(1)}" r="3.2" fill="${s.color}"/>`;});
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px">${g}${ln}${xl}</svg>`;
+}
+function legend(series){return `<div class="legend">`+series.map(s=>`<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')+`</div>`;}
+
+function renderCharts(t){
+  const labels=t.months.map(m=>MSHORT[m.month.slice(5,7)]);
+  const col={mp:'#3fa7ff',mo:'#37c871',cogs:'#ff5d5d',comm:'#ffb454',spp:'#c08bff',logi:'#5fb0c0',rev:'#3fa7ff',net:'#37c871'};
+  const pctS=[
+    {name:'Маржа ВБ %',color:col.mp,data:t.months.map(m=>m.margin_pct)},
+    {name:'Маржа наша %',color:col.mo,data:t.months.map(m=>m.margin_own)},
+    {name:'COGS %',color:col.cogs,data:t.months.map(m=>m.cogs_pct)},
+    {name:'Комиссия %',color:col.comm,data:t.months.map(m=>m.commission_pct)},
+    {name:'СПП %',color:col.spp,data:t.months.map(m=>m.spp_pct)},
+    {name:'Логистика %',color:col.logi,data:t.months.map(m=>m.logi_pct)},
+  ];
+  const moneyS=[
+    {name:'Выручка',color:col.rev,data:t.months.map(m=>m.revenue)},
+    {name:'Чистая',color:col.net,data:t.months.map(m=>m.net)},
+  ];
+  const fmtPct=v=>Math.round(v)+'%', fmtRub=v=>(v/1e6).toFixed(1)+'М';
+  $('#charts').innerHTML=
+    `<div class="chartbox"><div class="ct">Маржа и расходы, % от выручки</div>${chart(labels,pctS,fmtPct)}${legend(pctS)}</div>`+
+    `<div class="chartbox"><div class="ct">Выручка и чистая прибыль, ₽</div>${chart(labels,moneyS,fmtRub)}${legend(moneyS)}`+
+      `<div class="note">Последняя точка — текущий месяц, он ещё неполный: выручка/чистая ниже фактической за полный месяц.</div></div>`;
+}
 
 function deltaHtml(d,goodUp,pp){
   if(!d||d.abs==null) return '';
@@ -73,8 +124,13 @@ async function initPeriods(){
   $('#f-period').onchange=e=>{period=e.target.value;load();};
 }
 
+let trendCache=null;
 async function load(){
   const [b,a]=await Promise.all([api(`/api/business?period=${period}`),api(`/api/advice?period=${period}`)]);
+  if(!trendCache) trendCache=await api('/api/trend');
+  renderCharts(trendCache);
+  const y=trendCache.ytd;
+  $('#ytd-sum').textContent=`· с начала года: выручка ${rub(y.revenue)} · чистая ${rub(y.net)} · маржа ${pct(y.margin_pct)} · ${y.qty.toLocaleString('ru-RU')} шт`;
   const dl=b.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
   const stats=[
     ['Выручка (оба ВБ)',rub(b.revenue),deltaHtml(dl.revenue,true,false)],
