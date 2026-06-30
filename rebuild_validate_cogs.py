@@ -37,12 +37,13 @@ def compare():
         FROM margin_by_sku WHERE platform='wb' AND account='wb_acc1' GROUP BY 1 ORDER BY 1""")
     for r in rows:
         e = etalon.get(r["ym"])
-        d = (r["cogs"] - e) if e else None
+        cogs = float(r["cogs"])
+        d = (cogs - e) if e else None
         dp = (d / e * 100) if e else None
         es = f"{int(e):,}" if e else "—"
         ds = f"{int(d):+,}" if d is not None else "—"
         dps = f"{dp:+.1f}%" if dp is not None else ""
-        print(f"  {r['ym']:9}{int(r['cogs']):>14,}{es:>14}{ds:>12}{dps:>8}")
+        print(f"  {r['ym']:9}{int(cogs):>14,}{es:>14}{ds:>12}{dps:>8}")
 
     print("\n=== Контроль nm", CONTROL_NM, "(май 2026, wb_acc1) ===")
     for r in db.query("""SELECT to_char(period_from,'YYYY-MM') ym, qty,
