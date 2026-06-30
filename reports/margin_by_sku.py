@@ -1,7 +1,9 @@
 """reports/margin_by_sku.py — Этап 3. Витрина маржи: WB-деньги − реальный COGS из МС.
 
 COGS WB-продажи тремя слоями (покрытие → ~100%):
-  1) ТОЧНО по заказу: WB `assembly_id` = МС `name` → Σ buy_price компонентов отгрузки (FBS).
+  1) ТОЧНО по заказу: WB `assembly_id` = МС отгрузка `demand_name` → готовый себест отгрузки из
+     `ms_demand_cogs` (отчёт `report/stock/byoperation`, FIFO на moment документа — см.
+     collectors/ms_demand_cogs.py). Это РОВНО себест, рассчитанный МС в самой отгрузке (FBS).
   2) ИМПУТАЦИЯ: для непокрытых единиц nm, у которого есть матч — COGS/шт из его матч-заказов.
   3) FALLBACK (FBO, продажи со склада WB без отгрузки в МС): `sa_name`(vendorCode) = `external_code`
      МС → цена группы (для набора/комплекта — ненулевой максимум; для одиночных — минимум,
@@ -14,7 +16,6 @@ import os
 import sys
 import time
 import pathlib
-import datetime
 from collections import defaultdict
 
 import requests
@@ -41,31 +42,18 @@ def _href_id(href):
     return href.rstrip("/").split("/")[-1]
 
 
-def demand_cogs_by_order(date_from, date_to, ms_agent="Покупатель ВБ",
-                         ms_org='ООО "ЦИФРОВОЙ КВАДРАТ"'):
-    """{order_name(assembly_id): cogs} — Σ buy_price компонентов отгрузки МС (по ms_id)."""
-    # COGS = себестоимость из report/stock (из приёмок), НЕ buyPrice (тот — кривая справка).
-    prod = {r["ms_id"]: float(r["cost_seb"] or 0)
-            for r in db.query("SELECT ms_id, cost_seb FROM products")}
-    ag = _ms("entity/counterparty", {"filter": f"name={ms_agent}", "limit": 1})["rows"][0]["meta"]["href"]
-    org = _ms("entity/organization", {"filter": f"name={ms_org}", "limit": 1})["rows"][0]["meta"]["href"]
-    flt = (f"agent={ag};organization={org};"
-           f"moment>={date_from} 00:00:00;moment<={date_to} 23:59:59")
-    out, offset = {}, 0
-    while True:
-        j = _ms("entity/demand", {"limit": 100, "offset": offset,
-                                  "filter": flt, "expand": "positions.assortment"})
-        rows = j.get("rows", [])
-        for d in rows:
-            cogs = 0.0
-            for p in d.get("positions", {}).get("rows", []):
-                ms_id = _href_id(p.get("assortment", {}).get("meta", {}).get("href", ""))
-                cogs += prod.get(ms_id, 0.0) * (p.get("quantity", 0) or 0)
-            out[d.get("name")] = cogs
-        offset += 100
-        if not rows or offset >= j.get("meta", {}).get("size", 0):
-            break
-    return out
+def demand_cogs_from_cache(account):
+    """{demand_name(assembly_id): cogs} — готовый себест отгрузки из кэша ms_demand_cogs.
+
+    Себест рассчитан самой МС в документе отгрузки (report/stock/byoperation, FIFO на moment),
+    собран коллектором collectors/ms_demand_cogs.py. Матч по demand_name = WB assembly_id НАПРЯМУЮ
+    (не по дате-окну: лаг отгрузка→отчёт до ~7 недель). Фильтр по org — разделить Цифровой/Дисквэр.
+    """
+    org_name = ACC_ORG.get(account, ACC_ORG["wb_acc1"])
+    org_href = _ms("entity/organization", {"filter": f"name={org_name}", "limit": 1})["rows"][0]["meta"]["href"]
+    org_id = _href_id(org_href)
+    rows = db.query("SELECT demand_name, cogs FROM ms_demand_cogs WHERE org=%s", (org_id,))
+    return {r["demand_name"]: float(r["cogs"] or 0) for r in rows}
 
 
 def _group_price_map():
@@ -84,10 +72,9 @@ ACC_ORG = {"wb_acc1": 'ООО "ЦИФРОВОЙ КВАДРАТ"', "wb_acc2": 'О
 
 def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     print(f"Считаю COGS заказов из МС ({ACC_ORG.get(account)})…", flush=True)
-    # Широкое окно МС: WB-выкуп идёт через ~6 дней после отгрузки → отгрузка под майский
-    # выкуп часто в апреле. Берём -45 дней от начала периода, иначе FBS примут за FBO.
-    ms_from = (datetime.date.fromisoformat(date_from) - datetime.timedelta(days=45)).isoformat()
-    cogs_order = demand_cogs_by_order(ms_from, date_to, ms_org=ACC_ORG.get(account, ACC_ORG["wb_acc1"]))
+    # Готовый себест отгрузок из кэша ms_demand_cogs (report/stock/byoperation). Матч по
+    # assembly_id = demand_name напрямую — окно по дате не нужно (лаг отгрузка→отчёт до ~7 нед).
+    cogs_order = demand_cogs_from_cache(account)
     gmap = _group_price_map()
 
     # WB-продажи по assembly: nm, units, sa_name (vendorCode).

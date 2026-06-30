@@ -20,6 +20,7 @@ sys.path.insert(0, str(BASE_DIR))
 
 import collectors.moysklad as ms          # noqa: E402
 import collectors.wb as wb                # noqa: E402
+import collectors.ms_demand_cogs as msdc  # noqa: E402
 import collectors.ozon as oz              # noqa: E402
 import collectors.ozon_postings as ozp    # noqa: E402
 import reports.margin_by_sku as margin    # noqa: E402
@@ -72,6 +73,12 @@ def main():
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
             step(f"WB отчёт {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: wb.main(a, x, y))
+        # Себест отгрузок МС (report/stock/byoperation) — один раз на аккаунт после сбора
+        # отчётов: идемпотентно/резюмируемо, тянет только НЕкэшированные отгрузки (новые/свежие).
+        recent = (today - datetime.timedelta(days=80)).isoformat()
+        step(f"Себест отгрузок МС {acc}", lambda a=acc, mf=recent: msdc.collect(a, moment_from=mf))
+        for f, l in months:
+            df, dt = f.isoformat(), l.isoformat()
             step(f"Витрина маржи {acc} {df}", lambda a=acc, x=df, y=dt: margin.build(a, x, y))
     # --- Ozon: транзакции (по operation_date) + маржа по SKU (COGS из МС, org по аккаунту) ---
     for acc in OZON_ACCOUNTS:
