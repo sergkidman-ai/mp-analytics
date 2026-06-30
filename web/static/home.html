@@ -3,54 +3,107 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Пульт бизнеса — главный экран</title>
+<title>Пульт бизнеса — здоровье</title>
 <style>
   :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
   *{box-sizing:border-box}
-  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
-  header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
   h1{font-size:18px;margin:0}
-  a.nav{margin-left:auto;color:var(--acc);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px}
-  a.nav:hover{background:var(--card)}
   select{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
-  main{padding:22px;max-width:1100px;margin:0 auto}
+  main{flex:1;min-width:0;padding:22px;max-width:1040px;margin:0 auto}
   .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
-  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px}
-  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
-  .bi .l{color:var(--mut);font-size:12px}
-  .bi .v{font-size:26px;font-weight:700;margin-top:4px}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}
+  .lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}.logo.cur{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .spacer{margin-top:10px}
+  .health{display:flex;align-items:center;gap:18px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 22px;margin-bottom:18px;border-left:7px solid var(--line)}
+  .health.pos{border-left-color:var(--pos)}.health.warn{border-left-color:var(--warn)}.health.neg{border-left-color:var(--neg)}
+  .health .he{font-size:48px;line-height:1}
+  .health .ht{font-size:19px;font-weight:700}
+  .health .hs{color:var(--mut);font-size:13px;margin-top:3px}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-bottom:16px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:24px;font-weight:700;margin-top:4px}
   .bi .delta{font-size:12px;margin-top:3px}
-  h2{font-size:15px;margin:22px 0 12px}
-  .accs{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px}
-  .acc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;min-width:230px}
-  .acc .an{font-weight:600;margin-bottom:4px}
-  .acc .ar{font-size:12px;color:var(--mut)}
+  #opex{background:#141d2b;border:1px solid var(--line);border-radius:12px;padding:14px 18px;display:none;margin-bottom:18px}
+  #opex.show{display:block}
+  #opex h3{margin:0 0 10px;font-size:14px;color:var(--warn)}
+  #opex .ppl{display:flex;gap:8px 16px;flex-wrap:wrap;margin-bottom:10px}
+  #opex .p{font-size:12px;color:var(--mut)}
+  #opex .tot{display:flex;gap:22px;flex-wrap:wrap;align-items:baseline;border-top:1px solid var(--line);padding-top:10px}
+  #opex .ti{display:flex;flex-direction:column}
+  #opex .ti .lbl{font-size:12px;color:var(--mut)}#opex .ti .vv{font-size:18px;font-weight:700}
+  #opex h3{display:flex;align-items:center;gap:10px}
+  .ebtn{background:transparent;border:1px solid var(--line);color:var(--acc);border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer}
+  .ebtn:hover{background:var(--bg)}
+  .ebtn.primary{background:var(--acc);color:#06223c;border-color:var(--acc);font-weight:600}
+  table.oe{width:100%;border-collapse:collapse;margin-top:4px;font-size:13px}
+  table.oe th{color:var(--mut);font-weight:600;text-align:left;padding:4px 6px;font-size:11px}
+  table.oe td{padding:3px 6px;border-bottom:1px solid var(--line)}
+  table.oe input,table.oe select{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font:inherit;width:100%}
+  table.oe input[type=number]{text-align:right}
+  table.oe .amt{text-align:right;white-space:nowrap;color:var(--txt)}
+  table.oe .del{color:var(--neg);border:none;background:none;cursor:pointer;font-size:14px}
+  h2{font-size:15px;margin:18px 0 12px}
+  .accs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+  .plat{text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;display:block;transition:border-color .15s}
+  .plat:hover{border-color:var(--acc)}
+  .plat .an{font-weight:600;margin-bottom:5px;font-size:15px}
+  .plat .ar{font-size:13px;color:var(--mut)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
   .tips{display:flex;flex-direction:column;gap:9px}
-  .tip{border-left:4px solid var(--line);padding:10px 14px;background:var(--card);border-radius:0 10px 10px 0}
-  .tip.high{border-color:var(--neg)}.tip.warn{border-color:var(--warn)}.tip.info{border-color:var(--acc)}
-  .tip .tt{font-weight:600}.tip .tx{color:var(--mut);font-size:13px;margin-top:2px}
-  .note{color:var(--mut);font-size:12px;margin:8px 0 0}
-  .chartbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
-  .chartbox .ct{font-size:13px;color:var(--mut);margin-bottom:6px}
-  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:12px}
-  .legend span{display:inline-flex;align-items:center;gap:6px;color:var(--mut)}
-  .legend i{width:12px;height:3px;border-radius:2px;display:inline-block}
+  .tip{border-left:4px solid var(--line);padding:11px 15px;background:var(--card);border-radius:0 10px 10px 0}
+  .tip.high{border-color:var(--neg)}.tip.warn{border-color:var(--warn)}.tip.info{border-color:var(--acc)}.tip.good{border-color:var(--pos)}
+  .tip .tt{font-weight:600}.tip .tx{color:var(--mut);font-size:13px;margin-top:3px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 14px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:600;font-size:12px}
+  th:first-child,td:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .mptabs{display:flex;gap:4px;flex-wrap:wrap}
+  .mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+  .mptabs a:hover{background:var(--card);color:var(--txt)}
+  .mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .topbar .filters{margin-left:auto;display:flex;gap:8px;align-items:center}
 </style>
 </head>
 <body>
 <header>
-  <h1>🏢 Пульт бизнеса — главный экран</h1>
-  <select id="f-period"></select>
-  <a class="nav" href="/dashboard">Детально по аккаунтам →</a>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
 </header>
 <main>
+  <div class="topbar">
+    <nav class="mptabs">
+      <a href="/" class="cur">🏢 Главная</a>
+      <a href="/dashboard">🟣 Wildberries</a>
+      <a href="/ozon">🟦 Ozon</a>
+      <a href="/market">🟡 Маркет</a>
+      <a href="/sites">🌐 Сайты</a>
+    </nav>
+    <div class="filters"><select id="f-period"></select></div>
+  </div>
+  <div id="health"></div>
   <div class="big" id="big"></div>
-  <h2>📈 Динамика по месяцам <span class="muted" id="ytd-sum" style="font-weight:400;font-size:12px"></span></h2>
-  <div id="charts"></div>
-  <h2>По юрлицам</h2>
-  <div class="accs" id="accs"></div>
-  <h2>💡 Советы — что делать <span class="muted" style="font-weight:400;font-size:12px">(авто-анализ цифр)</span></h2>
-  <div class="tips" id="tips"></div>
+  <h2>📈 Динамика по неделям <span class="muted" style="font-weight:400;font-size:12px">(весь бизнес, ВБ+Ozon)</span></h2>
+  <table id="weekly"><thead><tr><th>Неделя (Пн–Вс)</th><th>Выручка</th><th>Чистая прибыль</th><th>Реклама</th><th>Маржа %</th></tr></thead><tbody></tbody></table>
+  <h2>По площадкам <span class="muted" style="font-weight:400;font-size:12px">→ нажми карточку, чтобы провалиться в детали</span></h2>
+  <div class="accs" id="plats"></div>
+  <h2 style="margin-top:26px">🚦 Рекомендации — что делать <span class="muted" style="font-weight:400;font-size:12px">(авто-сигналы по данным; цель — 5 млн чистой после ФОТ)</span></h2>
+  <div class="tips" id="signals"></div>
   <p class="note" id="foot"></p>
 </main>
 <script>
@@ -58,51 +111,7 @@ const $=s=>document.querySelector(s);
 const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
 const pct=v=>v==null?'—':v+'%';
 const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
-const MSHORT={'01':'янв','02':'фев','03':'мар','04':'апр','05':'май','06':'июн','07':'июл','08':'авг','09':'сен','10':'окт','11':'ноя','12':'дек'};
 let period='';
-
-// Лёгкий линейный график на чистом SVG (без внешних библиотек).
-function chart(labels, series, fmtY){
-  const W=960,H=300,pl=58,pr=18,pt=16,pb=32, n=labels.length;
-  const xs=i=>pl+(W-pl-pr)*(n<=1?0.5:i/(n-1));
-  let vmax=0; series.forEach(s=>s.data.forEach(v=>{if(v!=null&&v>vmax)vmax=v;}));
-  vmax=vmax*1.12||1; const ys=v=>pt+(H-pt-pb)*(1-v/vmax);
-  let g='';
-  for(let k=0;k<=4;k++){const val=vmax*k/4,y=ys(val);
-    g+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="#243449"/>`+
-       `<text x="${pl-8}" y="${y+4}" fill="#8aa0b5" font-size="11" text-anchor="end">${fmtY(val)}</text>`;}
-  let xl=''; labels.forEach((l,i)=>{xl+=`<text x="${xs(i)}" y="${H-10}" fill="#8aa0b5" font-size="11" text-anchor="middle">${l}</text>`;});
-  let ln='';
-  series.forEach(s=>{
-    const poly=s.data.map((v,i)=>v==null?null:`${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).filter(Boolean).join(' ');
-    ln+=`<polyline points="${poly}" fill="none" stroke="${s.color}" stroke-width="2.2"/>`;
-    s.data.forEach((v,i)=>{if(v!=null)ln+=`<circle cx="${xs(i).toFixed(1)}" cy="${ys(v).toFixed(1)}" r="3.2" fill="${s.color}"/>`;});
-  });
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px">${g}${ln}${xl}</svg>`;
-}
-function legend(series){return `<div class="legend">`+series.map(s=>`<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')+`</div>`;}
-
-function renderCharts(t){
-  const labels=t.months.map(m=>MSHORT[m.month.slice(5,7)]);
-  const col={mp:'#3fa7ff',mo:'#37c871',cogs:'#ff5d5d',comm:'#ffb454',spp:'#c08bff',logi:'#5fb0c0',rev:'#3fa7ff',net:'#37c871'};
-  const pctS=[
-    {name:'Маржа ВБ %',color:col.mp,data:t.months.map(m=>m.margin_pct)},
-    {name:'Маржа наша %',color:col.mo,data:t.months.map(m=>m.margin_own)},
-    {name:'COGS %',color:col.cogs,data:t.months.map(m=>m.cogs_pct)},
-    {name:'Комиссия %',color:col.comm,data:t.months.map(m=>m.commission_pct)},
-    {name:'СПП %',color:col.spp,data:t.months.map(m=>m.spp_pct)},
-    {name:'Логистика %',color:col.logi,data:t.months.map(m=>m.logi_pct)},
-  ];
-  const moneyS=[
-    {name:'Выручка',color:col.rev,data:t.months.map(m=>m.revenue)},
-    {name:'Чистая',color:col.net,data:t.months.map(m=>m.net)},
-  ];
-  const fmtPct=v=>Math.round(v)+'%', fmtRub=v=>(v/1e6).toFixed(1)+'М';
-  $('#charts').innerHTML=
-    `<div class="chartbox"><div class="ct">Маржа и расходы, % от выручки</div>${chart(labels,pctS,fmtPct)}${legend(pctS)}</div>`+
-    `<div class="chartbox"><div class="ct">Выручка и чистая прибыль, ₽</div>${chart(labels,moneyS,fmtRub)}${legend(moneyS)}`+
-      `<div class="note">Последняя точка — текущий месяц, он ещё неполный: выручка/чистая ниже фактической за полный месяц.</div></div>`;
-}
 
 function deltaHtml(d,goodUp,pp){
   if(!d||d.abs==null) return '';
@@ -112,39 +121,67 @@ function deltaHtml(d,goodUp,pp){
   const up=d.abs>0, good=goodUp?up:!up, arr=up?'▲':'▼';
   return `<div class="delta ${good?'pos':'neg'}">${arr} ${v}</div>`;
 }
-
 async function api(p){const r=await fetch(p);return r.json();}
 
 async function initPeriods(){
   const m=await api('/api/meta');
-  const per=[...new Set(m.slices.map(s=>s.period_from))].sort();
-  period=per[per.length-1]||'';
-  $('#f-period').innerHTML=[...per].reverse().map(v=>`<option value="${v}">${MONTHS[v.slice(5,7)]} ${v.slice(0,4)}</option>`).join('');
-  $('#f-period').value=period;
+  const per=[...new Set(m.slices.map(s=>s.period_from))].sort().reverse();
+  $('#f-period').innerHTML=per.map(p=>`<option value="${p}">${MONTHS[p.slice(5,7)]} ${p.slice(0,4)}</option>`).join('');
+  period=per[0]||'';
   $('#f-period').onchange=e=>{period=e.target.value;load();};
 }
 
-let trendCache=null;
 async function load(){
-  const [b,a]=await Promise.all([api(`/api/business?period=${period}`),api(`/api/advice?period=${period}`)]);
-  if(!trendCache) trendCache=await api('/api/trend');
-  renderCharts(trendCache);
-  const y=trendCache.ytd;
-  $('#ytd-sum').textContent=`· с начала года: выручка ${rub(y.revenue)} · чистая ${rub(y.net)} · маржа ${pct(y.margin_pct)} · ${y.qty.toLocaleString('ru-RU')} шт`;
-  const dl=b.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
+  const b=await api(`/api/business?period=${period}`);
+  const t=b.total||{}, dl=b.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
+  const after=b.net_after_opex;
+
+  // Здоровье бизнеса — простой светофор по марже и прибыли после постоянных расходов
+  let h;
+  if(after>0 && t.margin_pct>=18) h={e:'💪',cls:'pos',t:'Бизнес здоров и силён',s:'Маржа в норме, прибыль покрывает ФОТ и аренду.'};
+  else if(after>0)               h={e:'🙂',cls:'warn',t:'В форме, но под нагрузкой',s:'Прибыль есть, но запас тонкий — держи расходы и маржу под контролем.'};
+  else                           h={e:'🤒',cls:'neg',t:'Бизнес хворает',s:'После ФОТ+аренды уходим в минус. Поднимать маржу и/или оборот.'};
+  $('#health').innerHTML=`<div class="health ${h.cls}"><div class="he">${h.e}</div><div><div class="ht">${h.t}</div><div class="hs">${h.s}</div></div></div>`;
+
   const stats=[
-    ['Выручка (оба ВБ)',rub(b.revenue),deltaHtml(dl.revenue,true,false)],
-    ['Чистая с ВБ',`<span class="${mc(b.net)}">${rub(b.net)}</span>`,deltaHtml(dl.net,true,false)],
-    ['Маржа наша %',`<span class="${b.margin_own<25?'neg':'pos'}">${pct(b.margin_own)}</span> ${b.margin_own>=25?'<span class="pos">✓</span>':'<span class="muted">цель 25%</span>'}`,deltaHtml(dl.margin_own,true,true)],
-    ['СПП %',`<span class="warn">${pct(b.spp_pct)}</span>`,deltaHtml(dl.spp_pct,false,true)],
-    ['Расходы ФОТ+аренда',b.opex?rub(b.opex):'—',''],
-    ['Чистая ПОСЛЕ расходов',b.opex?`<span class="${b.net_after_opex<0?'neg':'pos'}">${rub(b.net_after_opex)}</span>`:rub(b.net),''],
+    ['Выручка',rub(t.revenue),deltaHtml(dl.total_revenue,true,false)],
+    ['Себестоимость',`${rub(t.cogs)} <span class="muted" style="font-size:13px">${pct(t.cogs_pct)}</span>`+
+      (t.cogs_actual?`<div class="muted" style="font-size:11px;margin-top:2px">учётная (Цифровой): ${rub(t.cogs_actual)}</div>`:''),''],
+    ['Чистая прибыль',`<span class="${mc(t.net)}">${rub(t.net)}</span>`,deltaHtml(dl.total_net,true,false)],
+    ['Маржа',pct(t.margin_pct),deltaHtml(dl.total_margin,true,true)],
+    ['Опер. расходы',`<span class="warn">${rub(b.opex)}</span>`,''],
+    ['Чистая после ФОТ',`<span class="${mc(after)}">${rub(after)}</span>`,''],
   ];
   $('#big').innerHTML=stats.map(([l,v,d])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${d||''}</div>`).join('');
-  $('#accs').innerHTML=b.accounts.map(x=>`<div class="acc"><div class="an">${x.name}</div>
-    <div class="ar">выручка ${rub(x.revenue)} · чистая <span class="${x.net<0?'neg':'pos'}">${rub(x.net)}</span><br>маржа наша ${pct(x.margin_own)} · маржа ВБ ${pct(x.margin_pct)}</div></div>`).join('');
-  $('#tips').innerHTML=a.tips.map(t=>`<div class="tip ${t.sev}"><div class="tt">${t.title}</div><div class="tx">${t.text}</div></div>`).join('');
-  $('#foot').textContent=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)}. Расходы (ФОТ+аренда) учитываются с июня; в неполном месяце выручка ещё накапливается.`;
+
+  const wb=b.wb||{}, oz=b.ozon||{}, ya=b.yandex;
+  $('#plats').innerHTML=
+    `<a class="plat" href="/dashboard"><div class="an">🟣 Wildberries →</div><div class="ar">выручка ${rub(wb.revenue)} · чистая <span class="${wb.net<0?'neg':'pos'}">${rub(wb.net)}</span> · маржа ${pct(wb.margin_pct)}</div></a>`+
+    `<a class="plat" href="/ozon"><div class="an">🟦 Ozon →</div><div class="ar">выручка ${rub(oz.revenue)} · чистая <span class="${oz.net<0?'neg':'pos'}">${rub(oz.net)}</span> · маржа ${pct(oz.margin_pct)}</div></a>`+
+    (ya?`<a class="plat" href="/market"><div class="an">🟡 Маркет →</div><div class="ar">выручка ${rub(ya.revenue)} · чистая <span class="${ya.net<0?'neg':'pos'}">${rub(ya.net)}</span> · маржа ${pct(ya.margin_pct)}</div></a>`:'');
+
+  $('#foot').innerHTML=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} (текущий месяц неполный). Итог — по 3 площадкам: <b>ВБ + Ozon + Маркет</b>. Маркет — с настоящей чистой (выручка − COGS − комиссия/логистика/эквайринг/реклама), окно ~30 дней (комиссии по доставленным заказам, как лаг отчёта). Детали и проблемные SKU — внутри площадок.`;
+  loadWeekly();
+  loadSignals();
+}
+
+async function loadSignals(){
+  const sig=await api(`/api/signals?period=${period}`);
+  $('#signals').innerHTML=(sig.tips||[]).map(t=>`<div class="tip ${t.sev}"><div class="tt">${t.title}</div><div class="tx">${t.text}</div></div>`).join('');
+}
+
+async function loadWeekly(){
+  const d=await api(`/api/weekly_business?period=${period}`);
+  const rows=d.rows||[];
+  const f=x=>('0'+x.getDate()).slice(-2)+'.'+('0'+(x.getMonth()+1)).slice(-2);
+  const mc=v=>v==null?'':(v<0?'neg':(v<18?'warn':'pos'));
+  $('#weekly tbody').innerHTML=rows.map(r=>{
+    const d0=new Date(r.wk),d1=new Date(r.wk);d1.setDate(d1.getDate()+6);
+    return `<tr><td>${f(d0)}–${f(d1)}</td><td>${rub(r.rev)}</td>
+      <td class="${r.net<0?'neg':'pos'}">${rub(r.net)}</td>
+      <td class="neg">${r.ad>0?('−'+rub(r.ad)):'—'}</td>
+      <td class="${mc(r.margin)}"><b>${pct(r.margin)}</b></td></tr>`;
+  }).join('')||'<tr><td colspan="5" class="muted">нет недельных данных</td></tr>';
 }
 
 (async()=>{await initPeriods();await load();})();

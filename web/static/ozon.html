@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ozon — доходы и расходы</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  h1{font-size:18px;margin:0}
+  a.nav{color:var(--acc);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px}
+  a.nav:hover{background:var(--card)}
+  .spacer{margin-left:auto}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}
+  .lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--card);border-color:var(--line)}.logo.cur{border-color:var(--acc);background:var(--card)}
+  .tips{display:flex;flex-direction:column;gap:8px;margin:8px 0 4px}
+  .tip{border-left:4px solid var(--line);padding:10px 14px;background:var(--card);border-radius:0 10px 10px 0}
+  .tip.high{border-color:var(--neg)}.tip.warn{border-color:var(--warn)}.tip.info{border-color:var(--acc)}.tip.good{border-color:var(--pos)}
+  .tip .tt{font-weight:600}.tip .tx{color:var(--mut);font-size:13px;margin-top:2px}
+  .hint{display:none;background:#13243a;border:1px solid var(--acc);border-radius:12px;padding:14px 18px;margin:14px 0 4px;font-size:14px;box-shadow:0 0 0 1px rgba(63,167,255,.15)}
+  .hint.show{display:block}
+  select{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1100px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:8px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:24px;font-weight:700;margin-top:4px}
+  .bi .delta{font-size:12px;margin-top:3px}
+  h2{font-size:15px;margin:24px 0 12px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .c{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;border-left:4px solid var(--line)}
+  .c.inc{border-left-color:var(--pos)}.c.exp{border-left-color:var(--neg)}
+  .c .cn{font-size:13px;display:flex;justify-content:space-between;gap:8px}
+  .c .cv{font-size:20px;font-weight:700;margin-top:3px}
+  .c .cs{font-size:11px;color:var(--mut);margin-top:2px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:600;font-size:12px}
+  th:first-child,td:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+  .g{background:var(--pos)}.y{background:var(--warn)}.r{background:var(--neg)}
+  .accs{display:flex;gap:14px;flex-wrap:wrap}
+  .acc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;min-width:230px}
+  .acc .an{font-weight:600;margin-bottom:4px}.acc .ar{font-size:12px;color:var(--mut)}
+  .chartbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .chartbox .ct{font-size:13px;color:var(--mut);margin-bottom:6px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:12px}
+  .legend span{display:inline-flex;align-items:center;gap:6px;color:var(--mut)}
+  .legend i{width:12px;height:3px;border-radius:2px;display:inline-block}
+  .note{color:var(--mut);font-size:12px;margin:8px 0 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .pill{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-left:6px}
+  details{margin-top:10px}summary{cursor:pointer;color:var(--acc);font-size:13px}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .mptabs{display:flex;gap:4px;flex-wrap:wrap}
+  .mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+  .mptabs a:hover{background:var(--card);color:var(--txt)}
+  .mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .topbar .filters{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .l3tabs{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0 16px;border-bottom:1px solid var(--line)}
+  .l3tab{cursor:pointer;color:var(--mut);padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px;user-select:none}
+  .l3tab:hover{color:var(--txt);background:var(--card)}
+  .l3tab.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
+</header>
+<main>
+  <div class="topbar">
+    <nav class="mptabs">
+      <a href="/">🏢 Главная</a>
+      <a href="/dashboard">🟣 Wildberries</a>
+      <a href="/ozon" class="cur">🟦 Ozon</a>
+      <a href="/market">🟡 Маркет</a>
+      <a href="/sites">🌐 Сайты</a>
+    </nav>
+    <div class="filters">
+      <select id="f-account" title="Аккаунт — уровень 3 (детали по юрлицу)"></select>
+      <select id="f-period"></select>
+    </div>
+  </div>
+  <div class="big" id="big"></div>
+  <p class="note" id="sub"></p>
+
+  <h2>🔴 Расходы <span class="muted" style="font-weight:400;font-size:12px">(разложено по статьям; % — от выручки)</span></h2>
+  <div class="cards" id="expense"></div>
+
+  <h2>🎛️ Что можно урезать <span class="muted" style="font-weight:400;font-size:12px">(🟢 режется решением · 🟡 частично · 🔴 фикс площадки)</span></h2>
+  <table id="ctrl"><thead><tr><th>Статья</th><th>₽</th><th>% выручки</th><th>Управляемость</th></tr></thead><tbody></tbody></table>
+
+  <h2>🚦 Рекомендации</h2>
+  <div class="tips" id="signals"></div>
+
+  <details>
+    <summary>Показать все операции Ozon как в отчёте (сырые типы, Σ = к перечислению)</summary>
+    <div class="grid2" style="margin-top:10px">
+      <table id="raw-inc"><thead><tr><th>Доход (тип операции)</th><th>₽</th><th>шт</th></tr></thead><tbody></tbody></table>
+      <table id="raw-exp"><thead><tr><th>Расход (тип операции)</th><th>₽</th><th>шт</th></tr></thead><tbody></tbody></table>
+    </div>
+  </details>
+
+  <h2>🏢 По юрлицам</h2>
+  <div class="accs" id="accs"></div>
+
+  <h2>📈 По неделям (Пн–Вс)</h2>
+  <table id="wk"><thead><tr><th>Неделя</th><th>Выручка</th><th>Реклама</th><th>Чистая (оценка)</th></tr></thead><tbody></tbody></table>
+
+  <div id="drillhint" class="hint"></div>
+  <div id="l3detail">
+  <div class="l3tabs">
+    <a class="l3tab cur" data-tab="overview">📊 Обзор</a>
+    <a class="l3tab" data-tab="promo">🎁 Акции</a>
+    <a class="l3tab" data-tab="rating">⭐ Рейтинг</a>
+    <a class="l3tab" data-tab="ads">📣 Реклама</a>
+    <a class="l3tab" data-tab="bids">💰 Ставки</a>
+  </div>
+  <div class="l3panel" data-panel="promo" style="display:none">
+  <h2>🎁 Акции <span class="muted" style="font-weight:400;font-size:12px">(из постингов: что идёт, сколько продано, какая скидка)</span></h2>
+  <table id="promos"><thead><tr><th>Акция</th><th>Продано ед</th><th>Выручка</th><th>Скидка ₽</th><th>Скидка %</th><th>SKU</th></tr></thead><tbody></tbody></table>
+  <h2 style="font-size:14px">🔻 Плохо отрабатывают в акциях <span class="muted" style="font-weight:400;font-size:12px">(большая скидка + низкая/минусовая маржа — кандидаты вывести из акций)</span></h2>
+  <table id="promobad"><thead><tr><th>SKU</th><th>Товар</th><th>Скидка %</th><th>Маржа %</th><th>Цена прод.</th><th>До скидки</th></tr></thead><tbody></tbody></table>
+  </div><!-- /promo -->
+
+  <div class="l3panel" data-panel="rating" style="display:none">
+  <h2>⭐ Низкий рейтинг (&lt;4.3) <span class="muted" style="font-weight:400;font-size:12px">(звёзды из отзывов; кандидаты улучшить карточку/товар)</span></h2>
+  <table id="rating"><thead><tr><th>SKU</th><th>Товар</th><th>Рейтинг</th><th>Отзывов</th><th>1★</th><th>2★</th><th>3★</th></tr></thead><tbody></tbody></table>
+  </div><!-- /rating -->
+
+  <div class="l3panel" data-panel="overview">
+  <h2>📦 FBO vs FBS <span class="muted" style="font-weight:400;font-size:12px">(по юрлицу; FBO в МойСклад не виден)</span></h2>
+  <table id="sch"><thead><tr><th>Схема</th><th>Выручка ₽</th><th>Доля</th></tr></thead><tbody></tbody></table>
+
+  <h2>🏆 Топ-SKU по выручке</h2>
+  <table id="top"><thead><tr><th>SKU</th><th>Товар</th><th>Выручка</th><th>COGS</th><th>Чистая</th><th>Маржа</th><th>Цена прод.</th><th>До скидки</th><th>Скидка</th></tr></thead><tbody></tbody></table>
+
+  <h2>🔻 Убыточные SKU <span class="muted" style="font-weight:400;font-size:12px">(в минус после комиссий)</span></h2>
+  <table id="loss"><thead><tr><th>SKU</th><th>Товар</th><th>Выручка</th><th>COGS</th><th>Чистая</th><th>Маржа</th><th>Цена прод.</th><th>До скидки</th><th>Скидка</th></tr></thead><tbody></tbody></table>
+  </div><!-- /overview -->
+
+  <div class="l3panel" data-panel="bids" style="display:none">
+    <div class="row"><h2>💰 Ставки по SKU <span class="muted" id="bids-sub" style="font-weight:400;font-size:12px"></span></h2></div>
+    <div style="margin:4px 0 10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <select id="bids-camp"></select>
+      <span class="muted" style="font-size:12px">ставка — ₽ за клик; цель-ДРР — для авто-стратегии. «Сохранить» пишет в живую кампанию Ozon.</span>
+    </div>
+    <table id="bids"><thead><tr><th>Товар</th><th>SKU</th><th>Кампания</th><th>Ставка ₽</th><th>Δ день</th><th>Цель-ДРР</th><th></th></tr></thead><tbody></tbody></table>
+  </div>
+  <div class="l3panel" data-panel="ads" style="display:none">
+    <h2>📣 Реклама Ozon <span class="muted" id="ads-sub" style="font-weight:400;font-size:12px">(Performance)</span></h2>
+    <div id="ads-sum" class="muted" style="margin:2px 0 12px"></div>
+    <table id="ads"><thead><tr><th>Кампания</th><th>Оплата</th><th>Расход</th><th>Выручка с рекл.</th><th>ДРР</th><th>Клики</th><th>Статус</th></tr></thead><tbody></tbody></table>
+    <p class="note">«Оплата за заказ» — % с заказа (покрывает все товары, поэтому несёт основной расход; ДРР по ней = ставка). «Трафареты» — оплата за клики, ДРР считается по выручке в продвижении. Только Цифровой (Performance-ключи). Обновляется в дневном прогоне.</p>
+  </div>
+  </div>
+
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const pct=v=>v==null?'—':v+'%';
+const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
+let period='', account='';
+
+function chart(labels, series, fmtY){
+  const W=960,H=280,pl=64,pr=18,pt=16,pb=32, n=labels.length;
+  const xs=i=>pl+(W-pl-pr)*(n<=1?0.5:i/(n-1));
+  let vmax=0,vmin=0; series.forEach(s=>s.data.forEach(v=>{if(v!=null){if(v>vmax)vmax=v;if(v<vmin)vmin=v;}}));
+  vmax=vmax*1.12||1; const span=(vmax-vmin)||1; const ys=v=>pt+(H-pt-pb)*(1-(v-vmin)/span);
+  let g='';
+  for(let k=0;k<=4;k++){const val=vmin+span*k/4,y=ys(val);
+    g+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="#243449"/>`+
+       `<text x="${pl-8}" y="${y+4}" fill="#8aa0b5" font-size="11" text-anchor="end">${fmtY(val)}</text>`;}
+  let xl=''; labels.forEach((l,i)=>{xl+=`<text x="${xs(i)}" y="${H-10}" fill="#8aa0b5" font-size="11" text-anchor="middle">${l}</text>`;});
+  let ln='';
+  series.forEach(s=>{
+    const poly=s.data.map((v,i)=>v==null?null:`${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).filter(Boolean).join(' ');
+    ln+=`<polyline points="${poly}" fill="none" stroke="${s.color}" stroke-width="2.2"/>`;
+    s.data.forEach((v,i)=>{if(v!=null)ln+=`<circle cx="${xs(i).toFixed(1)}" cy="${ys(v).toFixed(1)}" r="3.2" fill="${s.color}"/>`;});
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px">${g}${ln}${xl}</svg>`;
+}
+function legend(series){return `<div class="legend">`+series.map(s=>`<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')+`</div>`;}
+function deltaHtml(d,goodUp,pp){
+  if(!d||d.abs==null) return '';
+  let v;
+  if(pp){ if(d.abs===0)return''; v=(d.abs>0?'+':'')+d.abs+' п.п.'; }
+  else { if(d.pct==null||d.pct===0)return''; v=(d.pct>0?'+':'')+d.pct+'%'; }
+  const up=d.abs>0, good=goodUp?up:!up, arr=up?'▲':'▼';
+  return `<div class="delta ${good?'pos':'neg'}">${arr} ${v}</div>`;
+}
+async function api(p){const r=await fetch(p);return r.json();}
+const qs=()=>`?account=${encodeURIComponent(account)}&period=${encodeURIComponent(period)}`;
+
+async function initFilters(){
+  const m=await api('/api/meta');
+  const per=[...new Set(m.slices.filter(s=>s.platform==='ozon').map(s=>s.period_from))].sort().reverse();
+  $('#f-period').innerHTML=per.map(p=>`<option value="${p}">${MONTHS[p.slice(5,7)]} ${p.slice(0,4)}</option>`).join('');
+  period=per[0]||'';
+  $('#f-account').innerHTML=`<option value="">Все юрлица</option><option value="oz_acc1">Цифровой квадрат</option><option value="oz_acc2">Дисквэр</option>`;
+  $('#f-period').onchange=e=>{period=e.target.value;load();};
+  $('#f-account').onchange=e=>{account=e.target.value;load();};
+}
+
+async function load(){
+  const [s,e,br,w,top,loss,sig]=await Promise.all([
+    api('/api/ozon/summary'+qs()),
+    api('/api/ozon/expenses'+qs()),
+    api('/api/ozon/breakdown'+qs()),
+    api('/api/ozon/weekly'+qs()),
+    api('/api/ozon/sku'+qs()+'&sort=revenue_buyer&order=desc&limit=15'),
+    api('/api/ozon/sku'+qs()+'&problem=true&sort=revenue_buyer&order=desc&limit=15'),
+    api('/api/signals?scope=ozon&account='+encodeURIComponent(account)+'&period='+encodeURIComponent(period)),
+  ]);
+  $('#signals').innerHTML=(sig.tips||[]).map(t=>`<div class="tip ${t.sev}"><div class="tt">${t.title}</div><div class="tx">${t.text}</div></div>`).join('');
+  const d=s.delta||{}, rev=s.revenue||1;
+  $('#big').innerHTML=[
+    ['Выручка (продажи)',rub(s.revenue),deltaHtml(d.revenue,true,false)],
+    ['К перечислению',rub(s.to_payout),''],
+    ['COGS',rub(s.cogs)+` <span class="muted" style="font-size:13px">${pct(s.cogs_pct)}</span>`,''],
+    ['Чистая прибыль',rub(s.net),deltaHtml(d.net,true,false)],
+    ['Маржа',pct(s.margin_pct),deltaHtml(d.margin_pct,true,true)],
+  ].map(([l,v,dl])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${dl}</div>`).join('');
+  $('#sub').textContent=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} (текущий месяц неполный). `
+    +`Выручка ${rub(s.revenue)} → Ozon перевёл ${rub(s.to_payout)} − COGS ${rub(s.cogs)} = чистая ${rub(s.net)}.`;
+
+  // Расходы = отрицательные статьи (категории; комиссия/логистика вынесены отдельно). % — от выручки
+  $('#expense').innerHTML=e.items.filter(i=>i.amount<0).map(i=>
+    `<div class="c exp"><div class="cn"><span>${i.name}</span><span class="muted">${i.pct}%</span></div><div class="cv neg">${rub(i.amount)}</div></div>`).join('');
+
+  const ctl={green:'<span class="dot g"></span>режется',yellow:'<span class="dot y"></span>частично',red:'<span class="dot r"></span>фикс'};
+  $('#ctrl tbody').innerHTML=e.items.map(i=>
+    `<tr><td>${i.name}</td><td class="${i.amount<0?'neg':'pos'}">${rub(i.amount)}</td><td>${i.pct}%</td><td>${ctl[i.control]||''}</td></tr>`).join('');
+
+  $('#raw-inc tbody').innerHTML=(br.income||[]).map(r=>`<tr><td>${r.name}</td><td class="pos">${rub(r.amt)}</td><td>${r.n}</td></tr>`).join('');
+  $('#raw-exp tbody').innerHTML=(br.expense||[]).map(r=>`<tr><td>${r.name}</td><td class="neg">${rub(r.amt)}</td><td>${r.n}</td></tr>`).join('');
+
+  $('#sch tbody').innerHTML=e.schemas.map(x=>
+    `<tr><td>${x.schema}${x.schema==='FBO'?'<span class="pill">не в МС</span>':''}</td><td>${rub(x.revenue)}</td><td>${x.pct}%</td></tr>`).join('');
+
+  $('#accs').innerHTML=(s.accounts||[]).map(a=>
+    `<div class="acc"><div class="an">${a.name}</div><div class="ar">Выручка ${rub(a.revenue)}<br>Чистая <b class="${a.net<0?'neg':'pos'}">${rub(a.net)}</b> · маржа ${pct(a.margin_pct)}</div></div>`).join('');
+
+  $('#wk tbody').innerHTML=w.rows.map(r=>
+    `<tr><td>${r.label}</td><td>${rub(r.revenue)}</td><td>${r.ad?rub(r.ad):'—'} ${r.ad_pct?'<span class="muted">'+r.ad_pct+'%</span>':''}</td><td class="${r.net<0?'neg':'pos'}">${rub(r.net)}</td></tr>`).join('')
+    ||'<tr><td colspan=4 class="muted">нет данных</td></tr>';
+
+  // L2 (все юрлица) — без SKU-детализации, только подсказка куда копать; L3 (выбран аккаунт) — детали
+  const isAcc=!!account;
+  $('#l3detail').style.display=isAcc?'':'none';
+  const h=$('#drillhint');
+  if(isAcc){h.className='hint';h.innerHTML='';}
+  else{h.className='hint show';
+    h.innerHTML='🔎 Это сводка по <b>обоим юрлицам Ozon</b> (уровень площадки). Чтобы найти проблему — выбери юрлицо в фильтре «Аккаунт» (Цифровой / Дисквэр) сверху → откроются топ и убыточные SKU.';}
+  if(isAcc){
+    const skuRow=r=>`<tr><td>${r.sku}</td><td class="muted">${(r.title||'').slice(0,34)}</td><td>${rub(r.revenue_buyer)}</td><td>${rub(r.cogs)}</td><td class="${r.net_profit<0?'neg':'pos'}">${rub(r.net_profit)}</td><td class="${r.margin_pct<0?'neg':''}">${pct(r.margin_pct)}</td><td>${r.sale_price!=null?rub(r.sale_price):'—'}</td><td class="muted">${r.old_price?rub(r.old_price):''}</td><td class="${r.discount_pct>15?'warn':''}">${r.discount_pct!=null?r.discount_pct+'%':''}</td></tr>`;
+    $('#top tbody').innerHTML=top.rows.map(skuRow).join('')||'<tr><td colspan=9 class="muted">нет данных</td></tr>';
+    $('#loss tbody').innerHTML=loss.rows.map(skuRow).join('')||'<tr><td colspan=9 class="muted">убыточных нет</td></tr>';
+    const pr=await api('/api/ozon/promos'+qs());
+    $('#promos tbody').innerHTML=(pr.actions||[]).map(a=>`<tr><td>${a.action}</td><td>${a.units.toLocaleString('ru-RU')}</td><td>${rub(a.revenue)}</td><td class="neg">${rub(a.discount)}</td><td class="${a.discount_pct>15?'warn':''}">${a.discount_pct}%</td><td>${a.skus}</td></tr>`).join('')||'<tr><td colspan=6 class="muted">акций нет</td></tr>';
+    $('#promobad tbody').innerHTML=(pr.bad||[]).map(b=>`<tr><td>${b.sku}</td><td class="muted">${(b.title||'').slice(0,30)}</td><td class="warn">${b.discount_pct}%</td><td class="${b.margin_pct<0?'neg':''}">${b.margin_pct!=null?Math.round(b.margin_pct)+'%':'—'}</td><td>${rub(b.sale_price)}</td><td class="muted">${rub(b.old_price)}</td></tr>`).join('')||'<tr><td colspan=6 class="muted">нет</td></tr>';
+    const rt=await api('/api/ozon/ratings?account='+encodeURIComponent(account));
+    $('#rating tbody').innerHTML=(rt.rows||[]).map(r=>`<tr><td>${r.sku}</td><td class="muted">${(r.title||'').slice(0,30)}</td><td class="${r.avg_rating<4?'neg':'warn'}"><b>${r.avg_rating}★</b></td><td>${r.reviews_count}</td><td class="neg">${r.r1||''}</td><td>${r.r2||''}</td><td>${r.r3||''}</td></tr>`).join('')||'<tr><td colspan=7 class="muted">рейтинг <4.3 не найден</td></tr>';
+    const ad=await api('/api/ozon/ads?account='+encodeURIComponent(account));
+    const at=ad.totals||{};
+    $('#ads-sub').textContent=ad.period?('период '+ad.period):'';
+    $('#ads-sum').innerHTML = (at.spend!=null && ad.campaigns && ad.campaigns.length)
+      ? `Расход <b>${rub(at.spend)}</b> · выручка с рекл. <b>${rub(at.ad_revenue)}</b> · ДРР от всей выручки <b>${at.drr_of_total!=null?at.drr_of_total+'%':'—'}</b>`
+        + (at.by_model?' · '+Object.entries(at.by_model).map(([m,v])=>`${m} ${rub(v.spend)}`).join(' · '):'')
+      : 'нет данных по рекламе (Performance-ключи только у Цифрового)';
+    $('#ads tbody').innerHTML=(ad.campaigns||[]).map(c=>
+      `<tr><td class="muted">${(c.title||c.campaign_id).slice(0,34)}</td><td>${c.pay_model||''}</td><td>${rub(c.spend)}</td><td>${c.ad_revenue?rub(c.ad_revenue):'—'}</td><td class="${c.drr>10?'warn':''}">${c.drr!=null?c.drr+'%':'—'}</td><td>${(c.clicks||0).toLocaleString('ru-RU')}</td><td class="muted">${c.state==='CAMPAIGN_STATE_RUNNING'?'активна':(c.state||'').replace('CAMPAIGN_STATE_','').toLowerCase()}</td></tr>`
+    ).join('')||'<tr><td colspan=7 class="muted">нет активных кампаний / нет Performance-доступа</td></tr>';
+    await loadBids();
+  }
+
+  $('#foot').textContent='Источник: транзакции + постинги Ozon (цены/скидки/акции) + COGS из МойСклад. Обновляется run_daily.';
+}
+let bidsData=null;
+async function loadBids(){
+  bidsData=await api('/api/ozon/bids?account='+encodeURIComponent(account||'oz_acc1'));
+  $('#bids-sub').textContent=bidsData.captured?('снимок '+bidsData.captured):'';
+  const sel=$('#bids-camp');
+  if(sel.dataset.acc!==account){
+    sel.innerHTML='<option value="">Все кампании</option>'+(bidsData.campaigns||[]).map(c=>`<option value="${c.id}">${c.title}</option>`).join('');
+    sel.dataset.acc=account; sel.onchange=renderBids;
+  }
+  renderBids();
+}
+function renderBids(){
+  const cf=$('#bids-camp').value;
+  const rows=(bidsData.rows||[]).filter(r=>!cf||r.campaign_id===cf);
+  $('#bids tbody').innerHTML=rows.map(r=>{
+    const dl=r.bid_delta==null?'':(r.bid_delta>0?`<span class="pos">+${r.bid_delta}</span>`:(r.bid_delta<0?`<span class="neg">${r.bid_delta}</span>`:'0'));
+    return `<tr data-cid="${r.campaign_id}" data-sku="${r.sku}"><td class="muted">${(r.title||'').slice(0,36)}</td><td>${r.sku}</td><td class="muted">${(r.campaign_title||'').slice(0,16)}</td>`+
+      `<td><input type="number" step="0.5" min="0" value="${r.bid}" style="width:78px"></td><td>${dl}</td><td>${r.target_cir||0}</td>`+
+      `<td><button class="bidsave" style="cursor:pointer">Сохранить</button></td></tr>`;
+  }).join('')||'<tr><td colspan="7" class="muted">нет ставок (нужны Performance-ключи Цифрового)</td></tr>';
+}
+document.addEventListener('click',async e=>{
+  if(!e.target.classList.contains('bidsave'))return;
+  const tr=e.target.closest('tr'), cid=tr.dataset.cid, sku=tr.dataset.sku, bid=parseFloat(tr.querySelector('input').value);
+  if(!(bid>0)){alert('Ставка должна быть больше 0');return;}
+  if(!confirm(`Изменить ставку SKU ${sku} на ${bid} ₽ в живой кампании Ozon?`))return;
+  e.target.disabled=true; e.target.textContent='…';
+  try{
+    const j=await (await fetch('/api/ozon/bids/set',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({account:account||'oz_acc1',campaign_id:cid,sku:sku,bid:bid})})).json();
+    e.target.textContent=j.ok?'✓ сохранено':'Сохранить'; e.target.disabled=false;
+    if(!j.ok)alert('Ошибка Ozon: '+(j.error||''));
+  }catch(err){e.target.textContent='Сохранить';e.target.disabled=false;alert('Сбой запроса');}
+});
+document.querySelectorAll('.l3tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.l3tab').forEach(x=>x.classList.toggle('cur',x===t));
+  const p=t.dataset.tab;
+  document.querySelectorAll('#l3detail .l3panel').forEach(pl=>{pl.style.display=pl.dataset.panel===p?'':'none';});
+});
+(async()=>{await initFilters();await load();})();
+</script>
+</body>
+</html>

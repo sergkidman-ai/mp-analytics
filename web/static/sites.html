@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Продажи с сайтов</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  h1{font-size:18px;margin:0}
+  select{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1000px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .spacer{margin-left:auto}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}
+  .lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--card);border-color:var(--line)}.logo.cur{border-color:var(--acc);background:var(--card)}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:24px;font-weight:700;margin-top:4px}
+  h2{font-size:15px;margin:18px 0 12px}
+  .projs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .pcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .pcard .pn{font-weight:700;font-size:15px;margin-bottom:8px}
+  .pcard .rowm{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-bottom:1px solid var(--line)}
+  .pcard .rowm:last-child{border:none}
+  .rs{margin-top:8px;font-size:12px;color:var(--mut)}
+  .rs .ri{display:flex;justify-content:space-between;padding:2px 0}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .mptabs{display:flex;gap:4px;flex-wrap:wrap}
+  .mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+  .mptabs a:hover{background:var(--card);color:var(--txt)}
+  .mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .topbar .filters{margin-left:auto;display:flex;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
+</header>
+<main>
+  <div class="topbar">
+    <nav class="mptabs">
+      <a href="/">🏢 Главная</a>
+      <a href="/dashboard">🟣 Wildberries</a>
+      <a href="/ozon">🟦 Ozon</a>
+      <a href="/market">🟡 Маркет</a>
+      <a href="/sites" class="cur">🌐 Сайты</a>
+    </nav>
+    <div class="filters">
+      <select id="f-period"></select>
+    </div>
+  </div>
+  <p class="note" style="margin-top:0">Источник — МойСклад, заказы по полю «Проект» (Digitalsquare, Kartridge.org, Алиэкспресс).
+     Доход = выполненные заказы (доставлен/оплачен); отдельно показаны отменённые с причиной и заказы в работе.</p>
+  <div class="big" id="big"></div>
+  <h2>По сайтам</h2>
+  <div class="projs" id="projs"></div>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
+let period='';
+async function api(p){const r=await fetch(p);return r.json();}
+async function initPeriods(){
+  const m=await api('/api/meta');
+  const per=[...new Set(m.slices.map(s=>s.period_from))].sort().reverse();
+  $('#f-period').innerHTML=per.map(p=>`<option value="${p}">${MONTHS[p.slice(5,7)]} ${p.slice(0,4)}</option>`).join('');
+  period=per[0]||'';
+  $('#f-period').onchange=e=>{period=e.target.value;load();};
+}
+async function load(){
+  $('#projs').innerHTML='<div class="muted">загрузка из МойСклада…</div>';
+  const d=await api(`/api/sites?period=${period}`);
+  $('#big').innerHTML=[
+    ['Доход с сайтов (выполнено)',`<span class="pos">${rub(d.income)}</span>`],
+    ['Отменено',`<span class="neg">${rub(d.cancelled)}</span> <span class="muted" style="font-size:13px">${d.cancelled_n} зак.</span>`],
+    ['В работе (ожидает)',rub(d.pending)],
+  ].map(([l,v])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+  $('#projs').innerHTML=d.projects.map(p=>`
+    <div class="pcard">
+      <div class="pn">${p.project} <span class="muted" style="font-weight:400;font-size:12px">${p.orders} зак.</span></div>
+      <div class="rowm"><span>✅ Выполнено (доход)</span><b class="pos">${rub(p.fulfilled)} <span class="muted" style="font-weight:400">· ${p.fulfilled_n}</span></b></div>
+      <div class="rowm"><span>❌ Отменено</span><b class="neg">${rub(p.cancelled)} <span class="muted" style="font-weight:400">· ${p.cancelled_n}</span></b></div>
+      <div class="rowm"><span>⏳ В работе</span><span>${rub(p.pending)} <span class="muted">· ${p.pending_n}</span></span></div>
+      ${p.reasons.length?`<div class="rs"><div style="margin:6px 0 2px">Причины отмен:</div>${p.reasons.map(r=>`<div class="ri"><span>${r.reason.replace('Отменен - ','')}</span><span>${rub(r.sum)} · ${r.count}</span></div>`).join('')}</div>`:''}
+    </div>`).join('');
+  $('#foot').textContent=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)}. «Доход» учитывает выполненные заказы; в работе — потенциальный доход (ещё не закрыт).`;
+}
+(async()=>{await initPeriods();await load();})();
+</script>
+</body>
+</html>

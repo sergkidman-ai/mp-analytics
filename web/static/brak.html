@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Брак и возвраты</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  main{flex:1;min-width:0;padding:22px;max-width:1100px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .mptabs{display:flex;gap:4px;flex-wrap:wrap}
+  .mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+  .mptabs a:hover{background:var(--card);color:var(--txt)}
+  .mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .topbar .filters{margin-left:auto;display:flex;gap:8px;align-items:center}
+  h2{font-size:15px;margin:18px 0 12px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
+  td.name{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .r-hi{color:var(--neg);font-weight:700}.r-mid{color:var(--warn)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak" class="cur">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
+</header>
+<main>
+  <p class="note" style="margin-top:0">Что чаще всего возвращают (ВБ: доля возвратов от продаж) и склад «Брак». Высокая доля возвратов по модели → сигнал не закупать (и у какого поставщика). Доля ≥10% — красным, ≥5% — жёлтым.</p>
+  <h2>♻️ Что чаще всего возвращают (ВБ) <span class="muted" style="font-weight:400;font-size:12px">(сортировка по доле возвратов; учтены модели с ≥5 движений)</span></h2>
+  <table id="ret"><thead><tr><th>Товар</th><th>% возвратов</th><th>Возвратов</th><th>Продано</th><th>Поставщик</th></tr></thead><tbody></tbody></table>
+  <h2>🗑️ Склад «Брак» <span class="muted" style="font-weight:400;font-size:12px">(дефекты на списание/претензию поставщику)</span></h2>
+  <table id="brak"><thead><tr><th>Товар</th><th>Поставщик</th><th>Шт</th><th>Сумма</th></tr></thead><tbody></tbody></table>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const num=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU');
+async function api(p){const r=await fetch(p);return r.json();}
+async function load(){
+  const d=await api('/api/brak');
+  $('#ret tbody').innerHTML=(d.wb_returns||[]).map(r=>{
+    const rc=r.rate>=10?'r-hi':(r.rate>=5?'r-mid':'');
+    return `<tr><td class="name" title="${(r.title||'').replace(/"/g,'&quot;')}">${r.title||r.nm}</td><td class="${rc}">${r.rate}%</td><td>${num(r.ret)}</td><td>${num(r.sales)}</td><td class="muted">${r.supplier||'—'}</td></tr>`;
+  }).join('')||'<tr><td colspan="5" class="muted">возвратов нет</td></tr>';
+  $('#brak tbody').innerHTML=(d.brak_store||[]).map(b=>
+    `<tr><td class="name" title="${(b.name||'').replace(/"/g,'&quot;')}">${b.name||'—'}</td><td class="muted">${b.supplier||'—'}</td><td>${num(b.stock)}</td><td>${rub(b.val)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">склад «Брак» пуст</td></tr>';
+  $('#foot').textContent='Возвраты — по всем загруженным месяцам ВБ. Ozon-возвраты добавим. Снимок склада «Брак» на '+(d.captured||'—')+'. Высокая доля + поставщик = повод для претензии/отказа в закупке.';
+}
+load();
+</script>
+</body>
+</html>

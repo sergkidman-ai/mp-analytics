@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Операционные расходы</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  h1{font-size:18px;margin:0}
+  select{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1000px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .spacer{margin-left:auto}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}
+  .lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--card);border-color:var(--line)}.logo.cur{border-color:var(--acc);background:var(--card)}
+  #opex{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+  #opex h3{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:15px}
+  #opex .ppl{display:flex;gap:8px 16px;flex-wrap:wrap;margin-bottom:12px}
+  #opex .p{font-size:12px;color:var(--mut)}
+  #opex .tot{display:flex;gap:24px;flex-wrap:wrap;align-items:baseline;border-top:1px solid var(--line);padding-top:12px}
+  #opex .ti{display:flex;flex-direction:column}
+  #opex .ti .lbl{font-size:12px;color:var(--mut)}#opex .ti .vv{font-size:20px;font-weight:700}
+  .ebtn{background:transparent;border:1px solid var(--line);color:var(--acc);border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer}
+  .ebtn:hover{background:var(--bg)}
+  .ebtn.primary{background:var(--acc);color:#06223c;border-color:var(--acc);font-weight:600}
+  table.oe{width:100%;border-collapse:collapse;margin-top:4px;font-size:13px}
+  table.oe th{color:var(--mut);font-weight:600;text-align:left;padding:5px 7px;font-size:11px}
+  table.oe td{padding:4px 7px;border-bottom:1px solid var(--line)}
+  table.oe input,table.oe select{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;width:100%}
+  table.oe input[type=number]{text-align:right}
+  table.oe .amt{text-align:right;white-space:nowrap}
+  table.oe .del{color:var(--neg);border:none;background:none;cursor:pointer;font-size:15px}
+  .note{color:var(--mut);font-size:12px;margin:10px 0 0}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .mptabs{display:flex;gap:4px;flex-wrap:wrap}
+  .mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+  .mptabs a:hover{background:var(--card);color:var(--txt)}
+  .mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .topbar .filters{margin-left:auto;display:flex;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex" class="cur">💼 Опер. расходы</a>
+  </nav>
+</header>
+<main>
+  <select id="f-period"></select>
+  <p class="note" style="margin-top:0">Постоянные/общебизнесовые расходы (ФОТ + аренда + налоги) на весь бизнес (WB + Ozon).
+     Редактируются помесячно: правки сохраняются снапшотом за выбранный месяц, следующие месяцы наследуют его, пока не отредактируешь новый.</p>
+  <div id="opex"></div>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const esc=s=>(s==null?'':String(s)).replace(/"/g,'&quot;');
+const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
+let period='', opexData=null, opexEdit=false, editItems=[];
+async function api(p){const r=await fetch(p);return r.json();}
+
+async function initPeriods(){
+  const m=await api('/api/meta');
+  const per=[...new Set(m.slices.map(s=>s.period_from))].sort().reverse();
+  $('#f-period').innerHTML=per.map(p=>`<option value="${p}">${MONTHS[p.slice(5,7)]} ${p.slice(0,4)}</option>`).join('');
+  period=per[0]||'';
+  $('#f-period').onchange=e=>{period=e.target.value;opexEdit=false;loadOpex();};
+}
+async function loadOpex(){ opexData=await api(`/api/opex?period=${period}`); renderOpex(); }
+function renderOpex(){
+  const el=$('#opex'); if(opexEdit) return renderOpexEdit();
+  const d=opexData;
+  const pencil=`<button class="ebtn" onclick="startEdit()">✏️ править</button>`;
+  if(!d.applies){
+    el.innerHTML=`<h3>Расходы за ${MONTHS[period.slice(5,7)]} не заданы ${pencil}</h3><div class="muted">Нажми «править», чтобы внести ФОТ, аренду и налоги.</div>`;
+    return;
+  }
+  const ppl=d.items.map(i=>`<span class="p">${i.name} <span class="muted">(${({salary:'ФОТ',rent:'Аренда',tax:'Налоги'})[i.category]||i.role||i.category})</span> — ${rub(i.amount)}${i.tax_pct?' <span class="muted">+'+Math.round(i.tax_pct*100)+'%</span>':''}</span>`).join(' · ');
+  const naCls=d.net_after<0?'neg':'pos';
+  const inh=d.own?'':`<span class="muted" style="font-weight:400;font-size:12px">(наследует ${MONTHS[d.snapshot.slice(5,7)]} — «править» создаст свой снапшот)</span>`;
+  el.innerHTML=`<h3>${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} ${pencil} ${inh}</h3>
+    <div class="ppl">${ppl}</div>
+    <div class="tot">
+      <div class="ti"><span class="lbl">ФОТ (${d.headcount} чел.)</span><span class="vv">${rub(d.fot)}</span></div>
+      <div class="ti"><span class="lbl">Аренда</span><span class="vv">${rub(d.rent)}</span></div>
+      <div class="ti"><span class="lbl">Налоги</span><span class="vv">${rub(d.tax)}</span></div>
+      <div class="ti"><span class="lbl">Итого расходы/мес</span><span class="vv warn">${rub(d.total)}</span></div>
+      <div class="ti"><span class="lbl">Чистая бизнеса (WB+Ozon)</span><span class="vv">${rub(d.biz_net)}</span></div>
+      <div class="ti"><span class="lbl">Чистая ПОСЛЕ расходов</span><span class="vv ${naCls}">${rub(d.net_after)}</span></div>
+    </div>
+    <div class="note">Чистая бизнеса = WB ${rub(d.wb_net)} + Ozon ${rub(d.oz_net)} за месяц.</div>`;
+}
+function startEdit(){
+  editItems=(opexData.items||[]).map(i=>({name:i.name,role:i.role||'',category:i.category,base:+i.base,tax_pct:+i.tax_pct}));
+  if(!editItems.length) editItems=[{name:'',role:'',category:'salary',base:0,tax_pct:0}];
+  opexEdit=true; renderOpex();
+}
+function renderOpexEdit(){
+  const rows=editItems.map((it,i)=>`<tr>
+    <td><input value="${esc(it.name)}" placeholder="название" oninput="editItems[${i}].name=this.value"></td>
+    <td><input value="${esc(it.role)}" placeholder="роль/коммент" oninput="editItems[${i}].role=this.value"></td>
+    <td><select onchange="editItems[${i}].category=this.value">
+      <option value="salary"${it.category==='salary'?' selected':''}>ФОТ</option>
+      <option value="rent"${it.category==='rent'?' selected':''}>Аренда</option>
+      <option value="tax"${it.category==='tax'?' selected':''}>Налоги</option></select></td>
+    <td><input type="number" value="${it.base}" oninput="editItems[${i}].base=+this.value||0;recalcOpex()"></td>
+    <td><input type="number" step="1" value="${Math.round(it.tax_pct*100)}" oninput="editItems[${i}].tax_pct=(+this.value||0)/100;recalcOpex()"></td>
+    <td class="amt" id="amt${i}">${rub(it.base*(1+it.tax_pct))}</td>
+    <td><button class="del" onclick="delRow(${i})" title="удалить">✕</button></td></tr>`).join('');
+  $('#opex').innerHTML=`<h3>✏️ Правка · ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)}</h3>
+    <table class="oe"><thead><tr><th>Название</th><th>Роль/коммент</th><th>Категория</th><th>База ₽</th><th>Налог %</th><th style="text-align:right">Сумма</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="ebtn" onclick="addRow()">+ строка</button>
+      <span class="spacer"></span>
+      <button class="ebtn" onclick="cancelEdit()">Отмена</button>
+      <button class="ebtn primary" onclick="saveOpex()">💾 Сохранить за ${MONTHS[period.slice(5,7)]}</button>
+    </div>
+    <div class="note">Сумма = база × (1 + налог%). Сохранение создаёт снапшот за месяц; следующие месяцы наследуют его.</div>`;
+}
+function recalcOpex(){editItems.forEach((it,i)=>{const c=$('#amt'+i);if(c)c.textContent=rub(it.base*(1+it.tax_pct));});}
+function addRow(){editItems.push({name:'',role:'',category:'salary',base:0,tax_pct:0});renderOpex();}
+function delRow(i){editItems.splice(i,1);if(!editItems.length)editItems=[{name:'',role:'',category:'salary',base:0,tax_pct:0}];renderOpex();}
+function cancelEdit(){opexEdit=false;renderOpex();}
+async function saveOpex(){
+  const r=await fetch('/api/opex/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({period,items:editItems})});
+  if(!r.ok){alert('Не удалось сохранить');return;}
+  opexEdit=false; await loadOpex();
+}
+(async()=>{await initPeriods();await loadOpex();})();
+</script>
+</body>
+</html>

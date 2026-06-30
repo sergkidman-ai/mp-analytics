@@ -7,14 +7,20 @@
 <style>
   :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
   *{box-sizing:border-box}
-  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
-  header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
   h1{font-size:18px;margin:0}
   a.nav{color:var(--acc);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px}
   a.nav:hover{background:var(--card)}
-  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto;align-items:center}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}
+  .lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--card);border-color:var(--line)}.logo.cur{border-color:var(--acc);background:var(--card)}
+  .filters{display:flex;flex-direction:column;gap:8px;margin-top:10px}
   select,input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
-  main{padding:22px;max-width:1280px;margin:0 auto}
+  main{flex:1;min-width:0;padding:22px;max-width:1280px;margin:0 auto}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:8px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
   .card .lbl{color:var(--mut);font-size:12px}
@@ -48,50 +54,97 @@
   #biz .acc{background:#172230;border:1px solid var(--line);border-radius:10px;padding:8px 13px;font-size:12px}
   .tips{display:flex;flex-direction:column;gap:7px}
   .tip{border-left:3px solid var(--line);padding:7px 12px;background:#131e2c;border-radius:0 8px 8px 0}
-  .tip.high{border-color:var(--neg)}.tip.warn{border-color:var(--warn)}.tip.info{border-color:var(--acc)}
+  .tip.high{border-color:var(--neg)}.tip.warn{border-color:var(--warn)}.tip.info{border-color:var(--acc)}.tip.good{border-color:var(--pos)}
+  .tips{display:flex;flex-direction:column;gap:8px;margin:6px 0 14px}
+  .hint{display:none;background:#13243a;border:1px solid var(--acc);border-radius:12px;padding:14px 18px;margin:6px 0 18px;font-size:14px;box-shadow:0 0 0 1px rgba(63,167,255,.15)}
+  .hint.show{display:block}
   .tip .tt{font-weight:600;font-size:13px}.tip .tx{color:var(--mut);font-size:12px}
   #ytd{margin:16px 0 4px;background:linear-gradient(180deg,#16263a,#13202f);border:1px solid #2b446a;border-radius:12px;padding:14px 18px;display:none}
   #ytd.show{display:block}
   #ytd h3{margin:0 0 10px;font-size:14px;color:var(--acc)}
   #ytd .yt{display:flex;gap:26px;flex-wrap:wrap;align-items:baseline}
-  #opex{margin:14px 0 4px;background:#141d2b;border:1px solid var(--line);border-radius:12px;padding:14px 18px;display:none}
-  #opex.show{display:block}
-  #opex h3{margin:0 0 10px;font-size:14px;color:var(--warn)}
-  #opex .ppl{display:flex;gap:8px 16px;flex-wrap:wrap;margin-bottom:10px}
-  #opex .p{font-size:12px;color:var(--mut)}
-  #opex .tot{display:flex;gap:26px;flex-wrap:wrap;align-items:baseline;border-top:1px solid var(--line);padding-top:10px}
   .yi{display:flex;flex-direction:column}
   .yi .l{color:var(--mut);font-size:11px}
   .yi .v{font-size:18px;font-weight:600}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .mptabs{display:flex;gap:4px;flex-wrap:wrap}
+  .mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+  .mptabs a:hover{background:var(--card);color:var(--txt)}
+  .mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .topbar .filters{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .l3tabs{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0 16px;border-bottom:1px solid var(--line)}
+  .l3tab{cursor:pointer;color:var(--mut);padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px;user-select:none}
+  .l3tab:hover{color:var(--txt);background:var(--card)}
+  .l3tab.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
 </style>
 </head>
 <body>
 <header>
-  <h1>📊 Пульт бизнеса — детально</h1>
-  <a class="nav" href="/">🏢 Главная</a>
-  <div class="filters">
-    <select id="f-platform"></select>
-    <select id="f-account"></select>
-    <select id="f-period"></select>
-  </div>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
 </header>
 <main>
+  <div class="topbar">
+    <nav class="mptabs">
+      <a href="/">🏢 Главная</a>
+      <a href="/dashboard" class="cur">🟣 Wildberries</a>
+      <a href="/ozon">🟦 Ozon</a>
+      <a href="/market">🟡 Маркет</a>
+      <a href="/sites">🌐 Сайты</a>
+    </nav>
+    <div class="filters">
+      <select id="f-platform" style="display:none"></select>
+      <select id="f-account" title="Аккаунт — уровень 3 (детали по юрлицу)"></select>
+      <select id="f-period"></select>
+    </div>
+  </div>
   <div class="cards" id="cards"></div>
-  <div id="opex"></div>
+  <div class="tips" id="signals"></div>
   <p class="note" id="prevnote"></p>
   <p class="note">Маржа <b>ВБ %</b> — от цены продажи WB (после СПП); маржа <b>наша %</b> — от нашей цены (до СПП).
      Себестоимость = сегодняшняя закупка (replacement-cost); для распроданного — минимум по группе.</p>
 
-  <div class="row"><h2>📈 Динамика по неделям</h2>
-    <label class="chk"><input type="checkbox" id="by-week"> по неделям выбранного месяца</label>
-    <label class="chk"><input type="checkbox" id="roll-week" checked> скользящие 6 недель (все месяцы)</label></div>
-  <table id="weekly" style="display:none"><thead><tr>
-    <th>неделя</th><th>выручка</th><th>шт</th><th>COGS %</th><th>логистика %</th>
+  <h2>📈 Динамика по неделям</h2>
+  <table id="weekly"><thead><tr>
+    <th>неделя</th><th>выручка</th><th>шт</th><th>COGS %</th><th>логистика %</th><th>реклама</th>
     <th>опер. маржа %</th><th>чистая %</th>
   </tr></thead><tbody></tbody></table>
-  <p class="note" id="weekly-note" style="display:none">Опер. маржа — экономика самих продаж (к перечислению − логистика − COGS);
+  <p class="note" id="weekly-note">Опер. маржа — экономика самих продаж (к перечислению − логистика − COGS);
      чистая % — с накладными (реклама/хранение/штрафы приходят неравномерно, поэтому «дёргается»). Последняя неделя месяца может дозаполняться.</p>
 
+  <div id="drillhint" class="hint"></div>
+  <div id="l3detail">
+  <div class="l3tabs">
+    <a class="l3tab cur" data-tab="funnel">📈 Воронка</a>
+    <a class="l3tab" data-tab="overview">📊 Обзор · SKU</a>
+    <a class="l3tab" data-tab="ads">📣 Реклама</a>
+    <a class="l3tab" data-tab="promo">🏷️ Акции</a>
+  </div>
+  <div class="l3panel" data-panel="funnel">
+  <div class="row" style="margin-top:4px"><h2>📈 Воронка и трафик</h2>
+    <span class="muted" id="funnel-sub">источник — WB «Воронка продаж» (Аналитика)</span></div>
+  <div class="cards" id="funnel-cards"></div>
+  <div class="row" style="margin-top:14px"><h2 id="funnel-title">🚦 Трафик есть — продаж нет</h2>
+    <span class="muted" id="funnel-hint">≥30 переходов в карточку и 0 заказов за период — сливаем показы</span>
+    <label class="chk" style="margin-left:auto"><input type="checkbox" id="funnel-lowrating"> только рейтинг &lt;4.3</label>
+  </div>
+  <table id="funnel"><thead><tr>
+    <th>WB арт</th><th>название</th><th>переходы</th><th>Δ трафик</th>
+    <th>в корзину %</th><th>корзина→заказ %</th><th>выкуп %</th><th>заказы ₽</th><th>рейтинг</th>
+  </tr></thead><tbody></tbody></table>
+  <p class="note">«Δ трафик» — переходы к прошлому сопоставимому периоду: ↓ значит карточку реже показывают/кликают.
+     Много переходов при низкой конверсии в корзину = слабая карточка или цена. Рейтинг карточки — по отзывам WB.</p>
+  </div><!-- /panel funnel -->
+
+  <div class="l3panel" data-panel="overview" style="display:none">
   <div class="row">
     <h2>SKU</h2>
     <label class="chk"><input type="checkbox" id="only-loss"> только убыточные</label>
@@ -103,22 +156,18 @@
       <th data-s="qty">шт</th><th data-s="revenue_buyer">выручка (покуп.)</th>
       <th data-s="cogs">COGS</th><th data-s="net_profit">чистая</th>
       <th data-s="margin_pct">маржа ВБ %</th><th data-s="margin_own">маржа наша %</th>
+      <th>до скидки</th><th>скидка %</th><th>СПП %</th>
     </tr></thead>
     <tbody></tbody>
   </table>
 
-  <div class="sub" style="margin-top:24px">
-    <div>
-      <div class="row"><h2>⚠️ Топ убыточных</h2><span class="muted" id="loss-sub"></span></div>
-      <table id="loss"><thead><tr>
-        <th>наш арт</th><th>WB арт</th><th>название</th><th>шт</th><th>убыток</th><th>в минусе</th><th>рекомендация</th>
-      </tr></thead><tbody></tbody></table>
-    </div>
-    <div>
-      <div class="row"><h2>📦 Остатки на складах WB (FBO)</h2><span class="muted" id="fbo-val"></span></div>
-      <table id="stocks"><tbody></tbody></table>
-    </div>
-  </div>
+  <div class="row" style="margin-top:24px"><h2>⚠️ Топ убыточных SKU</h2><span class="muted" id="loss-sub"></span></div>
+  <table id="loss"><thead><tr>
+    <th>наш арт</th><th>WB арт</th><th>название</th><th>шт</th><th>убыток</th><th>в минусе</th><th>рекомендация</th>
+  </tr></thead><tbody></tbody></table>
+
+  <div class="row" style="margin-top:24px"><h2>📦 Остатки на складах WB (FBO)</h2><span class="muted" id="fbo-val"></span></div>
+  <table id="stocks"><tbody></tbody></table>
 
   <div class="row" style="margin-top:24px"><h2>🎯 Поднять цену первыми</h2>
     <span class="muted">цель — 25% маржи от нашей цены; сортировка по ₽-вкладу в недобор (где больнее всего)</span></div>
@@ -137,6 +186,27 @@
   </tr></thead><tbody></tbody></table>
   <p class="note">Норма плотности ≈ 0.14 кг/л. «крупн./лёгкий» (&lt;0.05) — раздут объём, лишние литры логистики;
      «тяжёлый/мелкий» (&gt;0.7) — занижены габариты (часто опечатка). Сортировка — по объёму продаж.</p>
+  </div><!-- /panel overview -->
+
+  <div class="l3panel" data-panel="ads" style="display:none">
+    <div class="row"><h2>📣 Реклама WB <span class="muted" id="wbads-sub" style="font-weight:400;font-size:12px">(Продвижение)</span></h2></div>
+    <div id="wbads-sum" class="muted" style="margin:2px 0 12px"></div>
+    <table id="wbads"><thead><tr>
+      <th>Кампания</th><th>Тип</th><th>Расход</th><th>Выручка</th><th>ДРР</th><th>Заказы</th><th>Клики</th><th>CTR</th>
+    </tr></thead><tbody></tbody></table>
+    <p class="note">Расход и ДРР по активным кампаниям WB «Продвижение» (статусы активна/на паузе). ДРР = расход ÷ выручка с рекламы. Данные до вчера (за сегодня WB статистику не отдаёт). Обновляется в дневном прогоне.</p>
+  </div>
+  <div class="l3panel" data-panel="promo" style="display:none">
+    <div class="row"><h2>🏷️ Акции и СПП WB</h2><span class="muted" id="wbpromo-sub" style="font-weight:400;font-size:12px"></span></div>
+    <div id="wbpromo-sum" class="muted" style="margin:2px 0 12px"></div>
+    <div class="row" style="margin-top:6px"><h2 style="font-size:14px">🔻 СПП/скидка съедают маржу</h2>
+      <span class="muted" style="font-size:12px">маржа наша &lt;10% при высоком СПП/скидке; сортировка по ₽ СПП — где больнее. Поднять цену, чтобы компенсировать</span></div>
+    <table id="wbpromo"><thead><tr>
+      <th>Товар</th><th>До скидки</th><th>Цена прод.</th><th>Скидка %</th><th>СПП %</th><th>СПП ₽</th><th>Маржа наша %</th><th>Выручка</th>
+    </tr></thead><tbody></tbody></table>
+    <p class="note">СПП — скидка постоянного покупателя (несём мы). «Маржа наша» — от нашей цены (до СПП). Цена прод. — после нашей скидки (до СПП).</p>
+  </div>
+  </div>
 </main>
 <script>
 const $=s=>document.querySelector(s);
@@ -152,12 +222,14 @@ function qs(){return `platform=${state.platform}&account=${state.account}&period
 
 async function initFilters(){
   const m=await api('/api/meta');
-  const plat=[...new Set(m.slices.map(s=>s.platform))];
-  const acc=[...new Set(m.slices.map(s=>s.account))];
+  const plat=[...new Set(m.slices.map(s=>s.platform))].filter(p=>p==='wb');   // детальная страница — только WB
+  const acc=[...new Set(m.slices.map(s=>s.account))].filter(a=>a.startsWith('wb'));
   const per=[...new Set(m.slices.map(s=>s.period_from))].sort();
   window.PERIODS=per; window.LATEST=per[per.length-1]||'';
-  fill('#f-platform',plat);fill('#f-account',acc,ACCNAMES);fill('#f-period',[...per].reverse());  // последний месяц сверху
-  state.platform=plat[0]||'';state.account=acc[0]||'';state.period=window.LATEST;
+  fill('#f-platform',plat,{wb:'Wildberries'});fill('#f-account',acc,ACCNAMES);fill('#f-period',[...per].reverse());  // последний месяц сверху
+  $('#f-platform').innerHTML+='<option value="__ozon">🟦 Ozon → (отдельная страница)</option>';
+  $('#f-account').innerHTML='<option value="">Все ВБ (оба юрлица)</option>'+$('#f-account').innerHTML;  // по умолчанию — агрегат
+  state.platform=plat[0]||'';state.account='';state.period=window.LATEST;
   $('#f-platform').value=state.platform;$('#f-account').value=state.account;$('#f-period').value=state.period;
 }
 const ACCNAMES={'wb_acc1':'Цифровой квадрат','wb_acc2':'Дисквэр'};
@@ -174,24 +246,6 @@ function deltaHtml(d,goodUp,pp){
   return `<div class="delta ${good?'pos':'neg'}">${arr} ${v}</div>`;
 }
 
-async function loadOpex(){
-  const el=$('#opex');
-  const d=await api(`/api/opex?period=${state.period}`);
-  if(!d.applies){el.className='';el.innerHTML='';return;}
-  const ppl=d.items.map(i=>`<span class="p">${i.name} <span class="muted">(${i.role||i.category})</span> — ${rub(i.amount)}${i.tax_pct?' <span class="muted">+'+Math.round(i.tax_pct*100)+'%</span>':''}</span>`).join(' · ');
-  const naCls=d.net_after<0?'neg':'pos';
-  el.className='show';
-  el.innerHTML=`<h3>💼 Постоянные расходы (ФОТ + аренда) · с июня</h3>
-    <div class="ppl">${ppl}</div>
-    <div class="tot">
-      <div class="yi"><span class="lbl muted">ФОТ (${d.headcount} чел.)</span><span class="v">${rub(d.fot)}</span></div>
-      <div class="yi"><span class="lbl muted">Аренда</span><span class="v">${rub(d.rent)}</span></div>
-      <div class="yi"><span class="lbl muted">Итого расходы/мес</span><span class="v warn">${rub(d.total)}</span></div>
-      <div class="yi"><span class="lbl muted">Чистая бизнеса (оба ВБ)</span><span class="v">${rub(d.biz_net)}</span></div>
-      <div class="yi"><span class="lbl muted">Чистая ПОСЛЕ расходов</span><span class="v ${naCls}">${rub(d.net_after)}</span></div>
-    </div>
-    <p class="note" style="margin-top:8px">Расходы — на весь бизнес (оба юрлица). «Чистая после расходов» = чистая обоих ВБ за месяц − ФОТ − аренда. В неполном месяце (текущий) выручка ещё накапливается — сравнение приблизительное.</p>`;
-}
 async function loadSummary(){
   const s=await api('/api/summary?'+qs());
   prevLabel=s.prev_period||'';
@@ -199,10 +253,10 @@ async function loadSummary(){
   const dl=s.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
   const pctOf=x=>s.revenue?(Math.round(x/s.revenue*1000)/10)+'%':'—';  // доля от выручки ВБ
   const cards=[
-    ['Выручка (ВБ)',rub(s.revenue),deltaHtml(dl.revenue,true,false)],
-    ['Наша цена (сумма)',rub(s.own_revenue),deltaHtml(dl.own_revenue,true,false)],
+    ['Наша цена (продаём)',rub(s.revenue),deltaHtml(dl.revenue,true,false)],
+    ['Цена ВБ (реализовал)',rub(s.revenue_wb),deltaHtml(dl.revenue_wb,true,false)],
     ['Чистая',`<span class="${mc(s.net)}">${rub(s.net)}</span>`,deltaHtml(dl.net,true,false)],
-    ['Маржа ВБ %',`<span class="${mc(s.margin_pct)}">${pct(s.margin_pct)}</span>`,deltaHtml(dl.margin_pct,true,true)],
+    ['Маржа ВБ %',`<span class="${mc(s.margin_wb)}">${pct(s.margin_wb)}</span>`,deltaHtml(dl.margin_wb,true,true)],
     ['Маржа наша %',`<span class="${mc(s.margin_own)}">${pct(s.margin_own)}</span> ${s.margin_own>=25?'<span class="pos">✓</span>':'<span class="muted">цель 25%</span>'}`,deltaHtml(dl.margin_own,true,true)],
     ['СПП (эфф.) %',`<span class="warn">${pct(s.spp_pct)}</span>`,deltaHtml(dl.spp_pct,false,true)],
     ['COGS',`${rub(s.cogs)} <span class="warn">${pctOf(s.cogs)}</span>`,deltaHtml(dl.cogs,false,false)],
@@ -227,10 +281,60 @@ function skuRow(r){const mc=r.net_profit<0?'neg':'pos',mo=r.margin_own==null?'':
     <td class="name" title="${esc(r.title)}">${r.title||'—'}</td>
     <td>${num(r.qty)}</td><td>${rub(r.revenue_buyer)}</td><td>${rub(r.cogs)}</td>
     <td class="${mc}">${rub(r.net_profit)}</td>
-    <td class="${mc}">${pct(r.margin_pct)}</td><td class="${mo}">${pct(r.margin_own)}</td></tr>`;}
+    <td class="${mc}">${pct(r.margin_pct)}</td><td class="${mo}">${pct(r.margin_own)}</td>
+    <td>${r.price_before?rub(r.price_before):'—'}</td>
+    <td class="${r.discount_pct>15?'warn':''}">${r.discount_pct!=null?r.discount_pct+'%':''}</td>
+    <td class="warn">${r.spp_pct!=null?r.spp_pct+'%':''}</td></tr>`;}
+async function loadFunnel(){
+  const low=$('#funnel-lowrating').checked;
+  $('#funnel-title').textContent = low? '⭐ Карточки с низким рейтингом (<4.3)' : '🚦 Трафик есть — продаж нет';
+  $('#funnel-hint').textContent = low? 'рейтинг по отзывам ниже 4.3 — тормозит конверсию' : '≥30 переходов в карточку и 0 заказов за период — сливаем показы';
+  const d=await api(`/api/wb/funnel?account=${state.account}&period=${state.period}&${low?'low_rating=true&sort=rating&order=asc':'problem=true&sort=open&order=desc'}&limit=200`);
+  const a=d.agg||{}, dl=a.open_delta_pct;
+  const arrow = dl==null?'' : (dl>=0?`<span class="pos">▲ ${dl}%</span>`:`<span class="neg">▼ ${Math.abs(dl)}%</span>`);
+  const cards=[
+    ['Переходы в карточку',`${num(a.open_cur)} ${arrow}`,`<span class="muted">трафик за период, Δ к прошлому</span>`],
+    ['В корзину',pct(a.cart_conv),'<span class="muted">переходы → корзина</span>'],
+    ['Корзина → заказ',pct(a.order_conv),'<span class="muted">корзина → заказ</span>'],
+    ['Выкуп',pct(a.buyout_conv),'<span class="muted">заказы → выкуп</span>'],
+    ['Рейтинг <4.3',`<span class="${a.low_rated>0?'neg':''}">${num(a.low_rated)}</span> <span class="muted">шт</span>`,'<span class="muted">карточек требуют внимания</span>'],
+  ];
+  $('#funnel-cards').innerHTML=cards.map(([l,v,d])=>`<div class="card"><div class="lbl">${l}</div><div class="val">${v}</div>${d||''}</div>`).join('');
+  const tb=$('#funnel tbody');
+  tb.innerHTML=(d.rows||[]).map(r=>{
+    const od=r.open_delta, odh = od==null?'—':(od>0?`<span class="pos">+${num(od)}</span>`:(od<0?`<span class="neg">${num(od)}</span>`:'0'));
+    const rt = r.feedback_rating? r.feedback_rating.toFixed(1)+(r.feedback_rating<4.3?' ⚠':'') : '—';
+    return `<tr><td class="nm">${r.nm_id}</td><td class="name" title="${esc(r.title)}">${r.title||r.vendor_code||'—'}</td>
+      <td>${num(r.open_count)}</td><td>${odh}</td>
+      <td>${pct(r.add_to_cart_pct)}</td><td>${pct(r.cart_to_order_pct)}</td><td class="${r.buyout_pct<70?'warn':''}">${pct(r.buyout_pct)}</td>
+      <td>${rub(r.order_sum)}</td><td class="${r.feedback_rating&&r.feedback_rating<4.3?'neg':''}">${rt}</td></tr>`;
+  }).join('')||'<tr><td colspan="9" class="muted">нет данных за период</td></tr>';
+}
+async function loadWbPromo(){
+  const d=await api(`/api/wb/promo?account=${state.account}&period=${state.period}`);
+  const t=d.totals||{};
+  $('#wbpromo-sub').textContent=d.period?('период '+d.period):'';
+  $('#wbpromo-sum').innerHTML = t.revenue!=null
+    ? `Ср. скидка <b>${t.avg_discount}%</b> · ср. СПП <b>${t.avg_spp}%</b> · СПП ≈ <b>${rub(t.spp_rub)}</b> · проблемных <b>${num(t.bad_count)}</b> на ${rub(t.bad_revenue)}`
+    : 'нет данных';
+  $('#wbpromo tbody').innerHTML=(d.rows||[]).map(r=>
+    `<tr><td class="name" title="${esc(r.title||'')}">${r.title||r.vendor_code||r.nm_id}</td><td>${r.price_before?rub(r.price_before):'—'}</td><td>${r.price_after?rub(r.price_after):'—'}</td><td class="${r.discount_pct>15?'warn':''}">${r.discount_pct}%</td><td class="warn">${r.spp_pct}%</td><td class="warn">${rub(r.spp_rub)}</td><td class="${r.margin_own<0?'neg':''}">${r.margin_own!=null?r.margin_own+'%':'—'}</td><td>${rub(r.revenue_buyer)}</td></tr>`
+  ).join('')||'<tr><td colspan="7" class="muted">проблемных по скидкам нет</td></tr>';
+}
+async function loadWbAds(){
+  const d=await api(`/api/wb/ads?account=${state.account}&period=${state.period}`);
+  const t=d.totals||{};
+  $('#wbads-sub').textContent=d.period?('период '+d.period):'';
+  $('#wbads-sum').innerHTML = (t.spend!=null && d.campaigns && d.campaigns.length)
+    ? `Расход <b>${rub(t.spend)}</b> · выручка с рекл. <b>${rub(t.revenue)}</b> · ДРР <b>${t.drr!=null?t.drr+'%':'—'}</b> · заказов ${num(t.orders)} · кампаний ${t.campaigns}`
+    : 'нет активных кампаний / нет доступа «Продвижение» у этого юрлица';
+  $('#wbads tbody').innerHTML=(d.campaigns||[]).map(c=>
+    `<tr><td class="name" title="${esc(c.name||'')}">${c.name||('#'+c.advert_id)}</td><td class="muted">${c.type_name||''}</td><td>${rub(c.spend)}</td><td>${c.revenue?rub(c.revenue):'—'}</td><td class="${c.drr>15?'warn':''}">${c.drr!=null?c.drr+'%':'—'}</td><td>${num(c.orders)}</td><td>${num(c.clicks)}</td><td class="muted">${c.ctr!=null?c.ctr+'%':''}</td></tr>`
+  ).join('')||'<tr><td colspan="8" class="muted">нет данных</td></tr>';
+}
 async function loadSku(){
   const d=await api(`/api/sku?${qs()}&problem=${state.problem}&sort=${state.sort}&order=${state.order}&q=${encodeURIComponent(state.q)}`);
-  $('#sku tbody').innerHTML=d.rows.map(skuRow).join('')||'<tr><td colspan="9" class="muted">нет данных</td></tr>';
+  $('#sku tbody').innerHTML=d.rows.map(skuRow).join('')||'<tr><td colspan="12" class="muted">нет данных</td></tr>';
   updateArrows();
 }
 function updateArrows(){
@@ -278,19 +382,17 @@ async function loadAnom(){
 }
 
 async function loadWeekly(){
-  const roll=$('#roll-week').checked, byMonth=$('#by-week').checked, on=roll||byMonth;
-  $('#weekly').style.display=on?'':'none'; $('#weekly-note').style.display=on?'':'none';
-  if(!on) return;
-  const d=await api(roll?`/api/weekly?${qs()}&rolling=6`:`/api/weekly?${qs()}`);
+  const d=await api(`/api/weekly?${qs()}`);
   const mc=v=>v<0?'neg':(v<25?'warn':'pos');
   $('#weekly tbody').innerHTML=d.rows.map(r=>{
     const d0=new Date(r.wk), d1=new Date(r.wk); d1.setDate(d1.getDate()+6);
     const f=x=>x.getDate()+'.'+String(x.getMonth()+1).padStart(2,'0');
     return `<tr><td>${f(d0)}–${f(d1)}</td><td>${rub(r.rev)}</td><td>${num(r.qty)}</td>
       <td>${r.cogs_pct}%</td><td>${r.logi_pct}%</td>
+      <td>${r.ad!=null?rub(r.ad):'—'} ${r.ad_pct?'<span class="muted">'+r.ad_pct+'%</span>':''}</td>
       <td class="${mc(r.opmargin)}"><b>${r.opmargin}%</b></td>
       <td class="${mc(r.net_pct)}">${r.net_pct}%</td></tr>`;
-  }).join('')||'<tr><td colspan="7" class="muted">нет данных</td></tr>';
+  }).join('')||'<tr><td colspan="8" class="muted">нет данных</td></tr>';
 }
 async function loadUplift(){
   const d=await api(`/api/uplift?${qs()}&limit=20`);
@@ -303,12 +405,28 @@ async function loadUplift(){
       <td class="pos"><b>+${num(r.price_up_pct)}%</b></td><td class="neg">${rub(r.net_gap)}</td><td>${note}</td></tr>`;
   }).join('')||'<tr><td colspan="8" class="muted">все позиции уже ≥25% — цель держится</td></tr>';
 }
-async function refresh(){await Promise.all([loadSummary(),loadOpex(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadWeekly(),loadUplift()]);}
-$('#by-week').onchange=()=>{if($('#by-week').checked)$('#roll-week').checked=false;loadWeekly();};
-$('#roll-week').onchange=()=>{if($('#roll-week').checked)$('#by-week').checked=false;loadWeekly();};
+async function loadSignals(){
+  const d=await api(`/api/signals?scope=wb&account=${state.account}&period=${state.period}`);
+  $('#signals').innerHTML=(d.tips||[]).map(t=>`<div class="tip ${t.sev}"><div class="tt">${t.title}</div><div class="tx">${t.text}</div></div>`).join('');
+}
+function applyLevel(){
+  const isAcc=!!state.account;   // выбран конкретный юрлицо = уровень 3 (детали по SKU)
+  $('#l3detail').style.display=isAcc?'':'none';
+  const h=$('#drillhint');
+  if(isAcc){h.className='hint';h.innerHTML='';}
+  else{h.className='hint show';
+    h.innerHTML='🔎 Это сводка по <b>обоим юрлицам ВБ</b> (уровень площадки). Чтобы найти проблему — выбери юрлицо в фильтре «Аккаунт» (Цифровой / Дисквэр) сверху → откроются убыточные SKU, габариты, остатки и что поднять в цене.';}
+}
+async function refresh(){applyLevel();await Promise.all([loadSummary(),loadSignals(),loadWeekly(),...(state.account?[loadFunnel(),loadWbAds(),loadWbPromo(),loadSku(),loadLoss(),loadStocks(),loadAnom(),loadUplift()]:[])]);}
 
 ['f-platform','f-account','f-period'].forEach(id=>$('#'+id).onchange=e=>{
   state[id.split('-')[1]]=e.target.value;refresh();});
+$('#funnel-lowrating').onchange=loadFunnel;
+document.querySelectorAll('.l3tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.l3tab').forEach(x=>x.classList.toggle('cur',x===t));
+  const p=t.dataset.tab;
+  document.querySelectorAll('#l3detail .l3panel').forEach(pl=>{pl.style.display=pl.dataset.panel===p?'':'none';});
+});
 $('#only-loss').onchange=e=>{state.problem=e.target.checked;loadSku();};
 $('#search').oninput=e=>{state.q=e.target.value;clearTimeout(window._t);window._t=setTimeout(loadSku,300);};
 document.querySelectorAll('#sku th[data-s]').forEach(th=>th.onclick=()=>{

@@ -87,7 +87,11 @@ def normalize_sales(account, rows, date_from, date_to):
         op = r.get("supplier_oper_name")
         if op == "Продажа":
             a["qty"] += _f(r, "quantity")
-            a["revenue_buyer"] += _f(r, "retail_amount")
+            # Выручка = «наша цена» (до СПП) = retail_price_withdisc_rub — как в учётной таблице.
+            # retail_amount (после СПП) занижает на величину СПП (~26%). Комиссия — на базе
+            # фактического payout (retail_amount−to_pay); чистая считается от to_pay, НЕ от выручки.
+            a["revenue_buyer"] += _f(r, "retail_price_withdisc_rub")
+            a["revenue_wb"] += _f(r, "retail_amount")   # «Вайлдберриз реализовал Товар (Пр)» = цена ВБ (после СПП)
             a["commission"] += _f(r, "retail_amount") - _f(r, "ppvz_for_pay")
             if _f(r, "ppvz_spp_prc"):
                 spp[nm].append(_f(r, "ppvz_spp_prc"))
@@ -96,7 +100,8 @@ def normalize_sales(account, rows, date_from, date_to):
         elif op == "Возврат":
             a["qty"] -= _f(r, "quantity")
             a["returns_sum"] += _f(r, "retail_amount")
-            a["revenue_buyer"] -= _f(r, "retail_amount")
+            a["revenue_buyer"] -= _f(r, "retail_price_withdisc_rub")
+            a["revenue_wb"] -= _f(r, "retail_amount")
             a["commission"] -= _f(r, "retail_amount") - _f(r, "ppvz_for_pay")
         a["to_pay"] += _f(r, "ppvz_for_pay")
         a["logistics"] += _f(r, "delivery_rub")
@@ -113,7 +118,7 @@ def normalize_sales(account, rows, date_from, date_to):
             "qty": a["qty"],
             "our_price": (sum(pr) / len(pr)) if pr else None,
             "buyer_price": (a["revenue_buyer"] / a["qty"]) if a["qty"] else None,
-            "revenue_buyer": a["revenue_buyer"], "to_pay": a["to_pay"],
+            "revenue_buyer": a["revenue_buyer"], "revenue_wb": a["revenue_wb"], "to_pay": a["to_pay"],
             "commission": a["commission"], "logistics": a["logistics"],
             "logistics_cnt": a["logistics_cnt"], "returns_sum": a["returns_sum"],
             "storage": a["storage"], "acceptance": a["acceptance"], "other": a["other"],

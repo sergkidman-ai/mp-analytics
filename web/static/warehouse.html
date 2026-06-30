@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Склад</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  main{flex:1;min-width:0;padding:22px;max-width:1100px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  h2{font-size:15px;margin:22px 0 12px}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:6px 0 4px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .bi .l{color:var(--mut);font-size:12px}
+  .bi .v{font-size:25px;font-weight:700;margin-top:4px}
+  .bi .v small{font-size:14px;font-weight:600;color:var(--mut)}
+  .bi .d{font-size:13px;margin-top:5px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
+  td.name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .d0{color:var(--neg);font-weight:700}.d1{color:var(--warn)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .sub{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:820px){.sub{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse" class="cur">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
+</header>
+<main>
+  <p class="note" style="margin-top:0">Наш сток по складам и его динамика день ко дню. Наши склады — из МойСклад; Озон ФБО и ВБ ФБО — из API площадок, по юрлицам (Цифровой/Дисквэр). ▲ зелёным — прибавилось, ▼ красным — убыло за сутки.</p>
+  <div class="big" id="big"></div>
+
+  <h2>🏠 Наши склады <span class="muted" style="font-weight:400;font-size:12px">(Звёздный / Дисквер / Кантемировская)</span></h2>
+  <table id="our"><thead><tr><th>Склад</th><th>Позиций</th><th>Штук</th><th>Заморожено ₽</th></tr></thead><tbody></tbody></table>
+
+  <div class="sub">
+    <div>
+      <h2>🟦 Озон ФБО <span class="muted" id="ozon-cap" style="font-weight:400;font-size:12px"></span></h2>
+      <table id="ozon"><thead><tr><th>Юрлицо</th><th>SKU</th><th>К продаже</th><th>В резерве</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div>
+      <h2>🟣 ВБ ФБО <span class="muted" id="wb-cap" style="font-weight:400;font-size:12px"></span></h2>
+      <table id="wb"><thead><tr><th>Аккаунт</th><th>Карточек</th><th>Штук</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <h2>⏳ Что кончается на наших складах <span class="muted" style="font-weight:400;font-size:12px">(наш сток ÷ скорость продаж ≤ 25 дней — пора докупать)</span></h2>
+  <table id="deficit"><thead><tr><th>Товар</th><th>Поставщик</th><th>Остаток</th><th>В пути</th><th>Прод./30д</th><th>Дней хватит</th></tr></thead><tbody></tbody></table>
+
+  <h2>📅 Динамика по дням <span class="muted" style="font-weight:400;font-size:12px">(штук на складе; копится с каждым снимком)</span></h2>
+  <table id="hist"><thead><tr><th>Дата</th><th>Наши склады, шт</th><th>Озон ФБО, шт</th></tr></thead><tbody></tbody></table>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const num=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU');
+async function api(p){const r=await fetch(p);return r.json();}
+function dlt(v,unit){
+  if(v==null||v===0) return '<span class="muted">без изменений</span>';
+  const up=v>0;
+  return `<span class="${up?'pos':'neg'}">${up?'▲':'▼'} ${num(Math.abs(v))}${unit}/день</span>`;
+}
+async function load(){
+  const d=await api('/api/warehouse');
+  if(!d.captured){$('#big').innerHTML='<div class="muted">Сбор ещё идёт — обнови через пару минут.</div>';return;}
+  const o=d.our, oz=d.ozon_fbo, w=d.wb_fbo;
+  $('#big').innerHTML=[
+    ['🏠 Наши склады',`${num(o.units)} <small>шт</small>`,`${rub(o.val)} · ${dlt(o.d_units,' шт')}`],
+    ['🟦 Озон ФБО',`${num(oz.units)} <small>шт к продаже</small>`,dlt(oz.d_units,' шт')],
+    ['🟣 ВБ ФБО',`${num(w.units)} <small>шт</small>`,dlt(w.d_units,' шт')],
+  ].map(([l,v,dd])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${dd}</div></div>`).join('');
+
+  $('#our tbody').innerHTML=(o.stores||[]).map(s=>
+    `<tr><td>${s.store}</td><td>${num(s.n)}</td><td>${num(s.units)}</td><td>${rub(s.val)}</td></tr>`).join('')
+    +`<tr><td><b>Итого</b></td><td><b>—</b></td><td><b>${num(o.units)}</b></td><td><b>${rub(o.val)}</b></td></tr>`;
+
+  $('#ozon-cap').textContent=oz.captured?('снимок '+oz.captured):'';
+  const OACC={oz_acc1:'Цифровой квадрат',oz_acc2:'Дисквэр'};
+  $('#ozon tbody').innerHTML=(oz.accounts||[]).map(a=>
+    `<tr><td>${OACC[a.account]||a.account}</td><td>${num(a.n)}</td><td>${num(a.units)}</td><td class="muted">${num(a.reserved)}</td></tr>`).join('')
+    +`<tr><td><b>Итого</b></td><td>—</td><td><b>${num(oz.units)}</b></td><td class="muted">${num(oz.reserved)}</td></tr>`
+    ||'<tr><td colspan="4" class="muted">нет данных</td></tr>';
+
+  $('#wb-cap').textContent=w.captured?('снимок '+w.captured):'';
+  const ACC={wb_acc1:'Цифровой квадрат',wb_acc2:'Дисквэр'};
+  $('#wb tbody').innerHTML=(w.accounts||[]).map(a=>
+    `<tr><td>${ACC[a.account]||a.account}</td><td>${num(a.n)}</td><td>${num(a.units)}</td></tr>`).join('')
+    +`<tr><td><b>Итого</b></td><td>—</td><td><b>${num(w.units)}</b></td></tr>`;
+
+  $('#deficit tbody').innerHTML=(d.deficit||[]).map(r=>{
+    const c=r.days_left<=7?'d0':(r.days_left<=14?'d1':'');
+    return `<tr><td class="name" title="${(r.name||'').replace(/"/g,'&quot;')}">${r.name||'—'}</td><td class="muted">${r.supplier||'—'}</td><td>${num(r.stock)}</td><td>${num(r.in_transit)}</td><td>${num(r.sold_30d)}</td><td class="${c}">${r.days_left}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" class="muted">дефицита нет</td></tr>';
+
+  const hm={}; (d.history_our||[]).forEach(r=>hm[r.d]=(hm[r.d]||{}),hm[r.d].our=r.units);
+  (d.history_ozon||[]).forEach(r=>{hm[r.d]=hm[r.d]||{};hm[r.d].oz=r.units;});
+  const dates=Object.keys(hm).sort().reverse();
+  $('#hist tbody').innerHTML=dates.map(dt=>
+    `<tr><td>${dt}</td><td>${num(hm[dt].our)}</td><td>${num(hm[dt].oz)}</td></tr>`).join('')
+    ||'<tr><td colspan="3" class="muted">накопится со снимками</td></tr>';
+
+  $('#foot').textContent='Снимок наших складов/Озон на '+d.captured+(d.prev?(' (дельта к '+d.prev+')'):'')+'. ВБ ФБО — отдельный снимок остатков WB.';
+}
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Залежи</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1100px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .spacer{margin-left:auto}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--card);border-color:var(--line)}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:16px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:24px;font-weight:700;margin-top:4px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
+  td.name{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  tr.col td{background:rgba(255,180,84,.10)}
+  .d0{color:var(--neg);font-weight:700}.d1{color:var(--warn)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .mptabs{display:flex;gap:4px;flex-wrap:wrap}
+  .mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+  .mptabs a:hover{background:var(--card);color:var(--txt)}
+  .mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .topbar .filters{margin-left:auto;display:flex;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale" class="cur">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
+</header>
+<main>
+  <p class="note" style="margin-top:0">НАШ сток, который лежит &gt;3 мес (склады Кантемировская/Дисквер/Звездный) — заморожены деньги. Кандидаты на распродажу (возможно дешевле). 🎨 цветные подсвечены — им часто нужна пара/набор цветов, чтобы уйти.</p>
+  <div class="big" id="big"></div>
+  <h2>🧊 Залежи &gt;3 мес <span class="muted" style="font-weight:400;font-size:12px">(по сумме заморозки)</span></h2>
+  <table id="t"><thead><tr><th>Товар</th><th>Поставщик</th><th>Склад</th><th>Остаток</th><th>Дней лежит</th><th>Заморожено</th></tr></thead><tbody></tbody></table>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const num=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU');
+async function api(p){const r=await fetch(p);return r.json();}
+async function load(){
+  const d=await api('/api/stale?limit=300');
+  if(!d.captured){$('#big').innerHTML='<div class="muted">Сбор ещё идёт — обнови через пару минут.</div>';return;}
+  const tt=d.totals||{};
+  $('#big').innerHTML=[
+    ['Залежей >3 мес',num(tt.n)],
+    ['Заморожено в залежах',`<span class="warn">${rub(tt.value)}</span>`],
+    ['Из них цветных 🎨',num(tt.colored_n)],
+  ].map(([l,v])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+  $('#t tbody').innerHTML=d.rows.map(r=>
+    `<tr class="${r.colored?'col':''}"><td class="name" title="${(r.name||'').replace(/"/g,'&quot;')}">${r.colored?'🎨 ':''}${r.name||'—'}</td><td class="muted">${r.supplier||'—'}</td><td class="muted">${r.store||''}</td><td>${num(r.stock)}</td><td class="${r.stock_days>=180?'d0':'d1'}">${r.stock_days}</td><td>${rub(r.stock_value)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">залежей >3 мес нет</td></tr>';
+  $('#foot').textContent='Снимок на '+d.captured+'. ≥90 дней — жёлтым, ≥180 — красным. Цветные (🎨) часто стоят из-за нехватки парных цветов. Обновляется ежедневно.';
+}
+load();
+</script>
+</body>
+</html>

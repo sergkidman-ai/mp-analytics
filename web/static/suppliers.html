@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Поставщики</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  select,input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1100px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:24px;font-weight:700;margin-top:4px}
+  h2{font-size:15px;margin:22px 0 12px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  .chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .chip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px}
+  .chip b{font-size:15px}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .dormrow td{background:#241a1d}
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;background:#3a2027;color:var(--neg)}
+  .tag.w{background:#3a3120;color:var(--warn)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers" class="cur">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
+</header>
+<main>
+  <p class="note" style="margin-top:0">Поставщики и их «Удалённый склад» (что у них есть → основа для арбитража/докупки). Дубли названий одного поставщика слиты в один. «Последняя закупка» — из приёмок МойСклад. Свои склады и дефицит — на странице «Склад».</p>
+  <div style="margin:10px 0 14px"><input id="q" placeholder="поиск поставщика" style="min-width:260px"></div>
+  <div class="big" id="big"></div>
+  <div class="chips" id="stores"></div>
+
+  <h2>🚫 Спящие поставщики — кандидаты на удаление <span class="muted" style="font-weight:400;font-size:12px">(закрыты, либо нет закупок и товар не движется)</span></h2>
+  <table id="dorm"><thead><tr><th>Поставщик</th><th>Позиций</th><th>Движется</th><th>Последняя закупка</th><th>Статус</th></tr></thead><tbody></tbody></table>
+
+  <h2>🏭 Поставщики (по объёму на их складе) <span class="muted" style="font-weight:400;font-size:12px">(движется = SKU с продажами за 30д; дубли слиты)</span></h2>
+  <table id="sup"><thead><tr><th>Поставщик</th><th>Позиций</th><th>Движется</th><th>Объём у них ₽</th><th>Последняя закупка</th></tr></thead><tbody></tbody></table>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const num=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU');
+let t=null;
+async function api(p){const r=await fetch(p);return r.json();}
+function lastCell(r){
+  if(r.last_supply) return `${r.last_supply}<span class="muted"> · ${r.days_since}д</span>`;
+  return '<span class="muted">нет за год</span>';
+}
+function statusCell(r){
+  if(r.closed) return '<span class="tag">закрыт</span>';
+  if(r.days_since==null) return '<span class="tag">нет закупок за год</span>';
+  return `<span class="tag w">не закупались ${r.days_since}д</span>`;
+}
+async function load(){
+  const q=$('#q').value.trim();
+  const d=await api('/api/suppliers?q='+encodeURIComponent(q));
+  if(!d.captured){$('#big').innerHTML='<div class="muted">Сбор поставщиков ещё идёт — обнови через пару минут.</div>';return;}
+  const tt=d.totals||{};
+  $('#big').innerHTML=[
+    ['Поставщиков (слито)',num(tt.suppliers)],
+    ['Спящих — на удаление',`<span class="${tt.dormant>0?'neg':''}">${num(tt.dormant)}</span>`],
+    ['Объём у поставщиков',rub(tt.frozen)],
+  ].map(([l,v])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+  $('#stores').innerHTML=(d.stores||[]).map(s=>`<div class="chip">${s.store}: <b>${rub(s.val)}</b> <span class="muted">${num(s.n)} поз.</span></div>`).join('');
+
+  $('#dorm tbody').innerHTML=(d.dormant||[]).map(r=>
+    `<tr class="dormrow"><td>${r.supplier}</td><td>${num(r.n)}</td><td>${num(r.moving)}</td><td>${lastCell(r)}</td><td>${statusCell(r)}</td></tr>`
+  ).join('')||'<tr><td colspan="5" class="muted">спящих нет — все поставщики активны</td></tr>';
+
+  $('#sup tbody').innerHTML=(d.suppliers||[]).map(s=>{
+    const vr=s.variants>1?` <span class="muted" title="слито вариантов названия">×${s.variants}</span>`:'';
+    return `<tr><td>${s.supplier}${vr}</td><td>${num(s.n)}</td><td>${num(s.moving)}</td><td>${rub(s.val)}</td><td>${lastCell(s)}</td></tr>`;
+  }).join('')||'<tr><td colspan="5" class="muted">нет данных</td></tr>';
+
+  $('#foot').textContent='Снимок остатков на '+d.captured+'. «Объём у поставщиков» = стоимость их стока на удалённом складе (рыночный объём, не наши деньги). Спящие — повод вычистить из базы.';
+}
+$('#q').oninput=()=>{clearTimeout(t);t=setTimeout(load,300);};
+load();
+</script>
+</body>
+</html>
