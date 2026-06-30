@@ -5,3 +5,5 @@ venv/
 *.log
 pgdata/
 incoming/
+.workstream
+.claude/worktrees/

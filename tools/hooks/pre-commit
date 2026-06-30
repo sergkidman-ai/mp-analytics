@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Флаг чужой территории между потоками работы (см. tools/territory_guard.py).
+# Активируется через:  git config core.hooksPath tools/hooks
+root="$(git rev-parse --show-toplevel)"
+python3 "$root/tools/territory_guard.py" --staged

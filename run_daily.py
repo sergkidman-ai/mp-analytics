@@ -1,13 +1,15 @@
-"""run_daily.py — оркестратор сбора и пересборки витрин (cron, МСК).
+"""run_daily.py — оркестратор ФИНАНСОВОГО потока (cron, МСК). См. поток МАРКЕТИНГА → run_marketing.py.
 
-Скользящее окно: на каждом прогоне обновляет ТЕКУЩИЙ и ПРОШЛЫЙ месяц по ВСЕМ WB-аккаунтам
-(финотчёт WB еженедельный, период пн–вс, выходит ~вторник — поэтому прогон по вт/ср даёт
-свежие недельные деньги; прошлый месяц добираем из-за лага выкупа/возвратов).
+Поток «Финансы»: себест/COGS/маржа, выручка/расходы, P&L по площадкам. Витрину margin_by_sku
+ПИШЕТ только этот поток (граница доменов — см. docs/BRIEF_FIN.md / docs/BRIEF_MKT.md).
 
-Ключи периода всегда = первое..последнее число месяца (стабильны), даже если месяц неполный —
-тогда строки за месяц просто перезаписываются на каждом прогоне.
+Скользящее окно: на каждом прогоне обновляет ТЕКУЩИЙ и ПРОШЛЫЙ месяц по ВСЕМ аккаунтам
+(финотчёт WB еженедельный, период пн–вс, выходит ~вторник; прошлый месяц добираем из-за лага
+выкупа/возвратов). Ключи периода = первое..последнее число месяца (стабильны).
 
-Обновляет: МойСклад (товары + себест), карточки WB (раз в прогон), остатки FBO, витрину маржи.
+Обновляет: МойСклад (товары+себест, наборы, поставщики), карточки/остатки WB, себест отгрузок,
+финотчёты WB→sales, Ozon каталог/остатки/транзакции/постинги, Яндекс; пересобирает витрины маржи.
+Маркетинг (Джем/реклама/воронка/отзывы) сюда НЕ входит — он в run_marketing.py.
 Запуск:  ./venv/bin/python run_daily.py
 """
 import sys
@@ -28,7 +30,6 @@ import reports.margin_ozon_sku as ozm     # noqa: E402
 
 ACCOUNTS = ["wb_acc1", "wb_acc2"]
 OZON_ACCOUNTS = ["oz_acc1", "oz_acc2"]
-PREMIUM_OZON = ["oz_acc1"]   # отзывы/звёздный рейтинг — только Премиум-Про (у Дисквэра доступа нет)
 
 
 def step(name, fn):
@@ -67,9 +68,6 @@ def main():
     for acc in ACCOUNTS:
         step(f"WB карточки {acc}", lambda acc=acc: wb.collect_cards(acc))
         step(f"WB остатки FBO {acc}", lambda acc=acc: wb.collect_stocks(acc, today.isoformat()))
-        step(f"WB воронка {acc}", lambda acc=acc: __import__("collectors.wb_funnel", fromlist=["main"]).main(acc))
-        step(f"WB реклама {acc}", lambda acc=acc: __import__("collectors.wb_ads", fromlist=["main"]).main(acc))
-        step(f"WB Джем позиции/запросы {acc}", lambda acc=acc: __import__("collectors.wb_jam", fromlist=["main"]).main(acc))
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
             step(f"WB отчёт {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: wb.main(a, x, y))
@@ -84,10 +82,6 @@ def main():
     for acc in OZON_ACCOUNTS:
         step(f"Ozon каталог {acc}", lambda a=acc: __import__("collectors.ozon_products", fromlist=["main"]).main(a))
         step(f"Ozon ФБО остатки {acc}", lambda a=acc: __import__("collectors.ozon_fbo_stock", fromlist=["main"]).main(a))
-        step(f"Ozon реклама {acc}", lambda a=acc: __import__("collectors.ozon_ads", fromlist=["main"]).main(a))
-        step(f"Ozon ставки {acc}", lambda a=acc: __import__("collectors.ozon_bids", fromlist=["main"]).main(a))
-        if acc in PREMIUM_OZON:   # рейтинг недоступен без Премиум-Про
-            step(f"Ozon отзывы/рейтинг {acc}", lambda a=acc: __import__("collectors.ozon_reviews", fromlist=["main"]).main(a))
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
             step(f"Ozon транзакции {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: oz.main(x, y, a))
