@@ -95,15 +95,19 @@ def list_demand_ids(org_href, agent_href, moment_from):
 
 
 def byoperation_cogs(demand_id):
-    """(cogs_руб, qty, npos) по отчёту «Остатки по документу». cost — копейки, итог с учётом quantity."""
+    """(cogs_руб, qty, positions) по отчёту «Остатки по документу». cost — копейки, итог с учётом
+    quantity. positions: [{ms_id, cost(₽ итог), qty}] — для ms_demand_pos (импутация FBO по ms_id)."""
     j = get(f"/report/stock/byoperation?operation.id={demand_id}")
     rows = j.get("rows", [])
     if not rows:
-        return 0.0, 0.0, 0
+        return 0.0, 0.0, []
     pos = rows[0].get("positions", []) or []
-    cogs = sum((p.get("cost", 0) or 0) for p in pos) / 100.0
-    qty = sum((p.get("quantity", 0) or 0) for p in pos)
-    return cogs, qty, len(pos)
+    out = [{"ms_id": _hid((p.get("meta", {}) or {}).get("href")),
+            "cost": (p.get("cost", 0) or 0) / 100.0,
+            "qty": p.get("quantity", 0) or 0} for p in pos]
+    cogs = sum(p["cost"] for p in out)
+    qty = sum(p["qty"] for p in out)
+    return cogs, qty, out
 
 
 def needed_assembly_ids(account):
@@ -137,23 +141,32 @@ def collect(account="wb_acc1", moment_from="2025-09-01", batch=200, progress_eve
     if missing[:5]:
         print(f"[{account}]   примеры отсутствующих: {missing[:5]}", flush=True)
 
-    buf, done = [], 0
+    buf, pbuf, done = [], [], 0
+
+    def flush():
+        # порядок важен: сперва документы (FK), затем позиции
+        if buf:
+            db.upsert("ms_demand_cogs", buf, conflict_cols=["demand_id"])
+        if pbuf:
+            db.upsert("ms_demand_pos", pbuf, conflict_cols=["demand_id", "ms_id"])
+
     for name, did, moment in todo:
         try:
-            cogs, qty, npos = byoperation_cogs(did)
+            cogs, qty, positions = byoperation_cogs(did)
         except Exception as e:
             print(f"[{account}] ОШИБКА byoperation {name} ({did}): {e}", flush=True)
             continue
         buf.append({"demand_id": did, "demand_name": name, "org": org_id,
-                    "moment": moment, "cogs": cogs, "qty": qty, "npos": npos})
+                    "moment": moment, "cogs": cogs, "qty": qty, "npos": len(positions)})
+        pbuf += [{"demand_id": did, "ms_id": p["ms_id"], "cost": p["cost"], "qty": p["qty"]}
+                 for p in positions if p["ms_id"]]
         done += 1
         if len(buf) >= batch:
-            db.upsert("ms_demand_cogs", buf, conflict_cols=["demand_id"])
-            buf = []
+            flush()
+            buf, pbuf = [], []
         if done % progress_every == 0:
             print(f"[{account}]   собрано {done}/{len(todo)}…", flush=True)
-    if buf:
-        db.upsert("ms_demand_cogs", buf, conflict_cols=["demand_id"])
+    flush()
     print(f"[{account}] ГОТОВО: собрано {done}, пропущено-без-id {len(missing)}", flush=True)
     return done, len(missing)
 
