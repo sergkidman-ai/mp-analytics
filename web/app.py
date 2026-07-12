@@ -1837,10 +1837,14 @@ def _compare_period(scope, period, tip):
 
 @app.get("/api/weekly_business")
 def weekly_business(period: str = ""):
-    """Недельная динамика всего бизнеса (ВБ + Ozon) за месяц: выручка, чистая (после всех
-    вычетов: комиссия/логистика/COGS/накладные), маржа %. Для таблицы на главном экране."""
+    """Недельная динамика бизнеса (ВБ + Ozon): недели, ПЕРЕСЕКАЮЩИЕ выбранный месяц, каждая
+    склеена ЦЕЛИКОМ — граничная неделя не режется по границе месяца (хвосты соседних месяцев
+    включаются). Чистая = к перечислению − логистика − COGS − накладные. Таблица главного экрана."""
     period = period or db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
     df, dt = _oz_month(period)
+    d0, d1 = _dt.date.fromisoformat(df), _dt.date.fromisoformat(dt)
+    wk_start = d0 - _dt.timedelta(days=d0.weekday())                          # пн недели с 1-м числом
+    wk_end = d1 - _dt.timedelta(days=d1.weekday()) + _dt.timedelta(days=6)    # вс последней недели
     wk = {}  # wkdate -> {"rev":, "net":}
 
     def add(k, rev, net):
@@ -1848,50 +1852,63 @@ def weekly_business(period: str = ""):
         d["rev"] += rev or 0
         d["net"] += net or 0
 
-    # WB по неделям: чистая = к перечислению − логистика − COGS − накладные
+    # WB: по rr_dt в границах склеенных недель, БЕЗ фильтра месяца загрузки (rrd_id уникален,
+    # соседние окна сбора не дублируются). cpu — последняя по nm (replacement стабилен,
+    # как в /api/weekly rolling); витрина margin_by_sku теперь на модели формирования.
     for r in db.query("""
-        WITH cpu AS (SELECT article, sum(cogs)/sum(qty) u FROM margin_by_sku
-            WHERE platform='wb' AND period_from=%s AND qty>0 AND cogs>0 GROUP BY article),
+        WITH cpu AS (SELECT DISTINCT ON (article) article, cogs/nullif(qty,0) u
+            FROM margin_by_sku WHERE platform='wb' AND qty>0 AND cogs>0
+            ORDER BY article, period_from DESC),
         r AS (SELECT date_trunc('week',(payload->>'rr_dt')::date)::date::text wk,
             payload->>'nm_id' nm, payload->>'supplier_oper_name' op,
             coalesce((payload->>'quantity')::numeric,0) q, coalesce((payload->>'retail_amount')::numeric,0) ra,
             coalesce((payload->>'ppvz_for_pay')::numeric,0) pay, coalesce((payload->>'delivery_rub')::numeric,0) del,
             coalesce((payload->>'storage_fee')::numeric,0)+coalesce((payload->>'acceptance')::numeric,0)
               +coalesce((payload->>'deduction')::numeric,0)+coalesce((payload->>'penalty')::numeric,0) ov
-            FROM raw_wb_report WHERE period_from=%s)
+            FROM raw_wb_report WHERE (payload->>'rr_dt')::date BETWEEN %s AND %s)
         SELECT wk,
             sum(CASE WHEN op='Продажа' THEN ra WHEN op='Возврат' THEN -ra ELSE 0 END)::float rev,
             (sum(pay)-sum(del)-sum(ov)
              -sum(CASE WHEN op='Продажа' THEN q*coalesce(c.u,0)
                        WHEN op='Возврат' THEN -q*coalesce(c.u,0) ELSE 0 END))::float net
-        FROM r LEFT JOIN cpu c ON c.article=r.nm WHERE wk IS NOT NULL GROUP BY wk""", (period, period)):
+        FROM r LEFT JOIN cpu c ON c.article=r.nm WHERE wk IS NOT NULL GROUP BY wk""",
+                       (wk_start.isoformat(), wk_end.isoformat())):
         add(r["wk"], r["rev"], r["net"])
 
-    # Ozon по неделям: чистая = к перечислению(amount) − COGS (месячный, разнесён по доле выручки)
-    oz_cogs = _oz_cogs("", period)
+    # Ozon: operation_date в границах склеенных недель. COGS месячный → на неделю по доле
+    # выручки недели В ЭТОМ месяце (граничная неделя получает доли из ОБОИХ месяцев).
+    span_from = wk_start.replace(day=1)
+    span_to = _oz_month(wk_end.replace(day=1).isoformat())[1]
     ozw = db.query("""SELECT date_trunc('week',(payload->>'operation_date')::date)::date::text wk,
+        date_trunc('month',(payload->>'operation_date')::date)::date::text mm,
         coalesce(sum((payload->>'accruals_for_sale')::numeric),0)::float rev,
         coalesce(sum((payload->>'amount')::numeric),0)::float topay
         FROM raw_ozon_transaction WHERE (payload->>'operation_date')::date BETWEEN %s AND %s
-        AND payload->>'operation_date' IS NOT NULL GROUP BY 1""", (df, dt))
-    oz_rev_tot = sum(r["rev"] or 0 for r in ozw) or 1
+        AND payload->>'operation_date' IS NOT NULL GROUP BY 1,2""", (span_from.isoformat(), span_to))
+    mm_rev = {}
     for r in ozw:
-        if r["wk"]:
-            add(r["wk"], r["rev"], (r["topay"] or 0) - oz_cogs * ((r["rev"] or 0) / oz_rev_tot))
+        mm_rev[r["mm"]] = mm_rev.get(r["mm"], 0.0) + (r["rev"] or 0)
+    mm_cogs = {mm: _oz_cogs("", mm) for mm in mm_rev}
+    for r in ozw:
+        if r["wk"] and wk_start.isoformat() <= r["wk"] <= wk_end.isoformat():
+            share = (r["rev"] or 0) / (mm_rev.get(r["mm"]) or 1)
+            add(r["wk"], r["rev"], (r["topay"] or 0) - mm_cogs.get(r["mm"], 0.0) * share)
 
-    # Расход на рекламу по неделям (ВБ + Озон, оба юрлица) из ad_spend_daily
+    # Расход на рекламу по неделям (ВБ + Озон, оба юрлица) — тоже склеенными неделями
     adw = {}
     for pl in ("wb", "ozon"):
         accs = [r["account"] for r in db.query(
             "SELECT DISTINCT account FROM ad_spend_daily WHERE platform=%s", (pl,))]
         if not accs:
             continue
-        for w, ad in _weekly_adspend(pl, accs, period).items():
+        for w, ad in _weekly_adspend(pl, accs).items():
             key = w.isoformat() if hasattr(w, "isoformat") else str(w)
             adw[key] = adw.get(key, 0) + (ad or 0)
 
     rows = []
     for k in sorted(wk):
+        if not (wk_start.isoformat() <= k <= wk_end.isoformat()):
+            continue
         rev, net = wk[k]["rev"], wk[k]["net"]
         if rev < 1:
             continue
