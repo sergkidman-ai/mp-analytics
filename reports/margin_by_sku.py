@@ -19,6 +19,7 @@ net_profit = to_pay − logistics − storage − acceptance − other − COGS.
 Запуск:  ./venv/bin/python reports/margin_by_sku.py [wb_acc1 [2026-01-01 2026-01-31]]
 """
 import os
+import re
 import sys
 import time
 import pathlib
@@ -94,11 +95,15 @@ def _chain_cpu(nm, sa, cpu_hist, grp, setc, buy, manual):
     """Себест/шт по цепочке фолбэков (шаги 2–7). None если не нашлось нигде."""
     if nm in cpu_hist:
         return cpu_hist[nm], "cpu_hist"
+    # Группа МС = ведущие цифры артикула (правило клиента): Цифровой «07772»=0777+2,
+    # Дисквэр «3212wqfn7m9y»=3212+случайный хвост. Пробуем полный артикул, потом 5, потом 4 цифры.
     keys = [sa] if sa else []
-    if sa and len(sa) == 5:
-        keys.append(sa[:4])
-    elif sa and len(sa) == 6:
-        keys += [sa[:5], sa[:4]]
+    m = re.match(r"^(\d{4,6})", sa or "")
+    if m:
+        digits = m.group(1)
+        if len(digits) >= 5:
+            keys.append(digits[:5])
+        keys.append(digits[:4])
     for k in keys:
         if k in grp:
             u = _grp_cost(grp[k])
