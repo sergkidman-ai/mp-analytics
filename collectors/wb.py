@@ -194,10 +194,9 @@ def main(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     print(f"WB {account} {date_from}..{date_to}", flush=True)
     rows = fetch_report(account, date_from, date_to)
     n_raw = load_raw(account, rows, date_from, date_to)
-    n_sales, ctrl_spp = normalize_sales(account, rows, date_from, date_to)
-    print(f"\nИтого: строк отчёта {len(rows)} → raw {n_raw}, sales(nm_id) {n_sales}", flush=True)
-    if ctrl_spp is not None:
-        print(f"Контроль СПП по nm_id 216421567: средн. {ctrl_spp:.2f}% (ожидаем ≈28.84%)", flush=True)
+    # sales больше НЕ пишем здесь: слой пересобирается по месяцу формирования
+    # из raw (reports/wb_sales_formation.py) — той же моделью, что margin_by_sku.
+    print(f"\nИтого: строк отчёта {len(rows)} → raw {n_raw}", flush=True)
 
 
 if __name__ == "__main__":

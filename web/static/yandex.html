@@ -58,6 +58,7 @@
     </nav>
   </div>
   <p class="note" style="margin-top:0" id="period"></p>
+  <p style="margin:4px 0 10px">Месяц: <select id="mon" style="font-size:14px;padding:3px 6px"></select></p>
   <div class="big" id="big"></div>
 
   <h2>🏪 По магазинам</h2>
@@ -85,23 +86,34 @@ async function load(){
   const d=await api('/api/yandex/summary');
   if(!d.ok){$('#big').innerHTML='<div class="muted">Данные Маркета ещё не собраны.</div>';return;}
   $('#period').textContent='История: '+d.since+' … '+d.until+' (по месяцам). Выручка = оплата покупателя + субсидия Маркета, без отменённых, возвраты вычтены.';
-  $('#big').innerHTML=[
-    ['Выручка',rub(d.revenue),`<span class="muted">payment ${rub(d.payment)} + субсидия ${rub(d.subsidy)}</span>`],
-    ['Чистая',`<span class="${d.net<0?'neg':'pos'}">${rub(d.net)}</span>`,`<span class="muted">маржа ${d.net_margin_pct!=null?d.net_margin_pct+'%':'—'}</span>`],
-    ['COGS',rub(d.cogs),`<span class="muted">себест, покрытие ${d.cogs_coverage||'—'}% + импутация</span>`],
-    ['Расходы Маркета',rub(d.mp_cost),`<span class="muted">комиссия+логистика+эквайринг+буст</span>`],
-    ['Заказов',num(d.orders),'<span class="muted">без отменённых</span>'],
-    ['Субсидия Маркета',rub(d.subsidy),`<span class="muted">${d.revenue?Math.round(d.subsidy/d.revenue*100):0}% выручки</span>`],
-    ['Отменено',`<span class="${d.cancelled>0?'neg':''}">${num(d.cancelled)}</span>`,`<span class="muted">${rub(d.cancelled_sum)}</span>`],
-  ].map(([l,v,dd])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${dd||''}</div></div>`).join('');
+  const mo=await api('/api/yandex/monthly');
+  const rows=mo.rows||[];
+  const bigFor=r=>{ // r: строка месяца из /api/yandex/monthly или null=вся история из summary
+    const rev=r?(r.revenue+r.subsidy):d.revenue, pay=r?r.revenue:d.payment, sub=r?r.subsidy:d.subsidy,
+      net=r?r.net:d.net, mpct=r?r.margin_pct:d.net_margin_pct, cogs=r?r.cogs:d.cogs,
+      cov=r?r.cogs_cov_pct:d.cogs_coverage, mp=r?r.mp_cost:d.mp_cost, ords=r?r.orders:d.orders;
+    $('#big').innerHTML=[
+      ['Выручка',rub(rev),`<span class="muted">payment ${rub(pay)} + субсидия ${rub(sub)}</span>`],
+      ['Чистая',`<span class="${net<0?'neg':'pos'}">${rub(net)}</span>`,`<span class="muted">маржа ${mpct!=null?mpct+'%':'—'}</span>`],
+      ['COGS',rub(cogs),`<span class="muted">себест${cov==100?' (факт МС)':', покрытие '+(cov||'—')+'%'}</span>`],
+      ['Расходы Маркета',rub(mp),`<span class="muted">комиссия+логистика+эквайринг+буст</span>`],
+      ['Заказов',num(ords),'<span class="muted">без отменённых</span>'],
+      ['Субсидия Маркета',rub(sub),`<span class="muted">${pay?Math.round(sub/pay*100):0}% сверх payment</span>`],
+      r?['Возвраты',num(r.returns_orders),`<span class="muted">${rub(r.returns_sum)}</span>`]
+       :['Отменено',`<span class="${d.cancelled>0?'neg':''}">${num(d.cancelled)}</span>`,`<span class="muted">${rub(d.cancelled_sum)}</span>`],
+    ].map(([l,v,dd])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${dd||''}</div></div>`).join('');
+  };
+  const sel=$('#mon');
+  sel.innerHTML='<option value="">Вся история</option>'+rows.map((r,i)=>`<option value="${i}">${r.month}</option>`).join('');
+  sel.onchange=()=>bigFor(sel.value===''?null:rows[+sel.value]);
+  if(rows.length){sel.value=String(rows.length-1);bigFor(rows[rows.length-1]);}else bigFor(null);
 
   $('#stores tbody').innerHTML=(d.stores||[]).map(s=>
     `<tr><td>${s.store}</td><td>${num(s.orders)}</td><td>${rub(s.revenue)}</td></tr>`).join('');
   $('#status tbody').innerHTML=(d.by_status||[]).map(s=>
     `<tr><td class="${s.status==='CANCELLED'?'neg':''}">${s.status}</td><td>${num(s.n)}</td><td>${rub(s.revenue)}</td></tr>`).join('');
 
-  const mo=await api('/api/yandex/monthly');
-  $('#ymonthly tbody').innerHTML=(mo.rows||[]).map(r=>
+  $('#ymonthly tbody').innerHTML=rows.map(r=>
     `<tr><td>${r.month}</td><td>${num(r.orders)}</td><td>${rub(r.revenue)}</td><td class="muted">${rub(r.subsidy)}</td>`+
     `<td class="neg">−${rub(r.fee)}</td><td class="neg">−${rub(r.delivery)}</td><td class="neg">−${rub(r.transfer)}</td><td class="neg">−${rub(r.promotion)}</td>`+
     `<td class="muted">${r.returns_orders?num(r.returns_orders)+' ('+rub(r.returns_sum)+')':'—'}</td>`+

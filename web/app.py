@@ -323,13 +323,15 @@ def _biz_for(period):
     per = [(a, _summary_one("", a, period)) for a in accts]
     agg = {}
     for k in ("revenue", "net", "cogs", "commission", "logistics", "qty", "own_revenue",
-              "adv_spend", "reviews_spend", "storage_all", "returns_sum",
+              "revenue_wb", "adv_spend", "reviews_spend", "storage_all", "returns_sum",
               "loss_count", "loss_sum", "loss_qty", "unalloc"):
         agg[k] = sum((p.get(k) or 0) for _, p in per)
-    rev, own = agg["revenue"], agg["own_revenue"]
+    rev, own, wb_rev = agg["revenue"], agg["own_revenue"], agg["revenue_wb"]
     agg["margin_pct"] = round(agg["net"] / rev * 100, 1) if rev else None
     agg["margin_own"] = round(agg["net"] / own * 100, 1) if own else None
-    agg["spp_pct"] = round((own - rev) / own * 100, 1) if own else None
+    # СПП = (наша цена − «ВБ реализовал») / наша цена; revenue витрины = наша цена
+    agg["spp_pct"] = round((rev - wb_rev) / rev * 100, 1) if rev and wb_rev else None
+    agg["margin_wb"] = round(agg["net"] / wb_rev * 100, 1) if wb_rev else None
     agg["cogs_pct"] = round(agg["cogs"] / rev * 100, 1) if rev else None
     agg["commission_pct"] = round(agg["commission"] / rev * 100, 1) if rev else None
     agg["logi_pct"] = round(agg["logistics"] / rev * 100, 1) if rev else None

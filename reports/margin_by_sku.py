@@ -174,7 +174,9 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     unmatched_units = defaultdict(float)
     for aid, nms in asm.items():
         tot_q = sum(nms.values())
-        c = cogs_order.get(aid)
+        # нулевой себест в кэше = МС не знает цену отгрузки → считаем НЕсматченным,
+        # иначе ноль проходит как «покрыто» и завышает чистую (слепое пятно метрики)
+        c = cogs_order.get(aid) or None
         for nm, q in nms.items():
             if c is not None and tot_q > 0:
                 mc[nm] += c * q / tot_q

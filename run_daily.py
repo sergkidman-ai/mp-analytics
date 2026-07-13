@@ -78,6 +78,8 @@ def main():
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
             step(f"Витрина маржи {acc} {df}", lambda a=acc, x=df, y=dt: margin.build(a, x, y))
+            step(f"Слой sales {acc} {df} (по формированию)",
+                 lambda a=acc, x=df: __import__("reports.wb_sales_formation", fromlist=["build"]).build(a, x[:7]))
     # --- Ozon: транзакции (по operation_date) + маржа по SKU (COGS из МС, org по аккаунту) ---
     for acc in OZON_ACCOUNTS:
         step(f"Ozon каталог {acc}", lambda a=acc: __import__("collectors.ozon_products", fromlist=["main"]).main(a))
