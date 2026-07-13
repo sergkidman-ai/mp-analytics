@@ -13,7 +13,7 @@ import pathlib
 
 import requests
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -1088,6 +1088,13 @@ def _ya_business(period: str = ""):
             "returns": r["returns_orders"], "returns_sum": round(r["rs"] or 0),
             "cogs_cov_pct": r["cov"],
             "margin_pct": round(net / rev * 100, 1) if rev else None, "gross": False}
+
+
+@app.get("/download/ms-zero-cogs.csv")
+def download_zero_cogs():
+    """Список отгрузок МС с нулевой себестоимостью — для ручной правки в МойСклад."""
+    return FileResponse(BASE_DIR / "docs" / "ms_zero_cogs_demands.csv",
+                        media_type="text/csv", filename="ms_zero_cogs_demands.csv")
 
 
 @app.get("/market", response_class=HTMLResponse)
