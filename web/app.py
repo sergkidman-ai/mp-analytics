@@ -1179,6 +1179,7 @@ def yandex_monthly():
     субсидия, расходы МП по типам, возвраты, COGS (импутация) и чистая."""
     rows = db.query("""SELECT to_char(month,'YYYY-MM') ym, revenue::float rev, subsidy::float subsidy,
         orders, returns_orders, returns_sum::float rs,
+        coalesce(unredeemed_orders,0) unr, coalesce(unredeemed_cost,0)::float unr_cost,
         fee::float fee, delivery::float delivery, transfer::float transfer,
         promotion::float promotion, (agency+other_fee)::float other,
         cogs::float cogs, cogs_cov_pct::float cov
@@ -1192,6 +1193,7 @@ def yandex_monthly():
         out.append({"month": r["ym"], "revenue": round(r["rev"] or 0),
                     "subsidy": round(r["subsidy"] or 0), "orders": r["orders"],
                     "returns_orders": r["returns_orders"], "returns_sum": round(r["rs"] or 0),
+                    "unredeemed_orders": r["unr"], "unredeemed_cost": round(r["unr_cost"]),
                     "fee": round(r["fee"] or 0), "delivery": round(r["delivery"] or 0),
                     "transfer": round(r["transfer"] or 0), "promotion": round(r["promotion"] or 0),
                     "other": round(r["other"] or 0), "mp_cost": mp,

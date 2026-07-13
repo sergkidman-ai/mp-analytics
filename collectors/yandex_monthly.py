@@ -78,6 +78,83 @@ def collect_offers():
     return n
 
 
+def _report_csv(path, body, timeout=180):
+    """Асинхронный отчёт Партнёр-API → список dict-строк CSV (архив может содержать несколько CSV —
+    возвращаем по имени файла)."""
+    import io
+    import csv
+    import zipfile
+    key = os.getenv("YANDEX_API_KEY_ACC1")
+    H = {"Api-Key": key, "Content-Type": "application/json"}
+    r = requests.post(f"{API}{path}", headers=H, params={"format": "CSV"}, json=body, timeout=60)
+    r.raise_for_status()
+    rid = r.json()["result"]["reportId"]
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        i = requests.get(f"{API}/reports/info/{rid}", headers=H, timeout=30).json().get("result", {})
+        if i.get("status") == "DONE":
+            f = requests.get(i["file"], timeout=120)
+            out = {}
+            with zipfile.ZipFile(io.BytesIO(f.content)) as z:
+                for name in z.namelist():
+                    if name.endswith(".csv"):
+                        out[name] = list(csv.DictReader(io.TextIOWrapper(z.open(name), encoding="utf-8")))
+            return out
+        if i.get("status") == "FAILED":
+            raise RuntimeError(f"отчёт {path} FAILED: {i.get('subStatus')}")
+        time.sleep(3)
+    raise RuntimeError(f"отчёт {path}: таймаут {timeout}с")
+
+
+def collect_boost(months):
+    """Реклама Маркета по месяцам из отчётов продвижения → yandex_boost_monthly.
+    months — список 'YYYY-MM-01'. Буст продаж — отчёт на месяц (строки без дат);
+    буст показов — один отчёт на весь диапазон (REAL_COST по дням)."""
+    import calendar
+    biz = os.getenv("YANDEX_BUSINESS_ID_ACC1")
+    today = datetime.date.today().isoformat()
+    res = {mo: {"sales_boost": 0.0, "shows_boost": 0.0} for mo in months}
+    for mo in months:
+        y, m = int(mo[:4]), int(mo[5:7])
+        # dateTo в будущем API не принимает (400) — обрезаем текущий месяц по сегодня
+        d_to = min(f"{mo[:7]}-{calendar.monthrange(y, m)[1]:02d}", today)
+        try:
+            csvs = _report_csv("/reports/boost-consolidated/generate",
+                               {"businessId": int(biz), "dateFrom": mo, "dateTo": d_to})
+            rows = next((v for k, v in csvs.items() if "boost" in k), [])
+            res[mo]["sales_boost"] = round(sum(float(r.get("BILLED_AMOUNT") or 0) for r in rows), 2)
+        except Exception as e:
+            print(f"  [ya boost] продажи {mo[:7]}: {e}", flush=True)
+            res[mo]["sales_boost"] = None
+        time.sleep(1)
+    try:
+        y, m = int(months[-1][:4]), int(months[-1][5:7])
+        d_to = min(f"{months[-1][:7]}-{calendar.monthrange(y, m)[1]:02d}", today)
+        csvs = _report_csv("/reports/shows-boost/generate",
+                           {"businessId": int(biz), "dateFrom": months[0], "dateTo": d_to,
+                            "attributionType": "CLICKS"})
+        rows = next((v for k, v in csvs.items() if "campaigns" in k), [])
+        by_mo = defaultdict(float)
+        for r in rows:
+            d = (r.get("DATE") or "")[:7]
+            by_mo[d + "-01"] += float(r.get("REAL_COST") or 0)
+        for mo in months:
+            res[mo]["shows_boost"] = round(by_mo.get(mo, 0.0), 2)
+    except Exception as e:
+        print(f"  [ya boost] показы: {e}", flush=True)
+        for mo in months:
+            res[mo]["shows_boost"] = None
+    recs = [{"account": ACCOUNT, "month": mo, **v} for mo, v in res.items()
+            if v["sales_boost"] is not None or v["shows_boost"] is not None]
+    if recs:
+        db.upsert("yandex_boost_monthly", recs, conflict_cols=["account", "month"],
+                  update_cols=["sales_boost", "shows_boost"])
+    for r in recs:
+        print(f"  буст {r['month'][:7]}: продажи {r['sales_boost'] or 0:,.0f} + "
+              f"показы {r['shows_boost'] or 0:,.0f}", flush=True)
+    return res
+
+
 def _ms_cogs_monthly(since="2026-01-01"):
     """ФАКТ себеста Маркета по месяцам из МС-заказов «Покупатель Маркет»/«Я.Маркет Экспресс»:
     Σ products.cost_seb × qty по позициям, месяц = moment заказа. Это те же продажи, что в
@@ -203,30 +280,44 @@ def collect(since="2026-01-01"):
                     raw_buf.append({"account": ACCOUNT, "order_id": str(oid),
                                     "campaign_id": str(cid),
                                     "payload": psycopg2.extras.Json(o)})
-                if o.get("status") == "CANCELLED":
-                    continue
                 cd = (o.get("creationDate") or "")[:7]   # YYYY-MM
                 if len(cd) != 7:
                     continue
                 mo = cd + "-01"
+                st = o.get("status") or ""
+                f = fin[mo]
+                # ОТМЕНЫ: статусы CANCELLED_* (ровно 'CANCELLED' не бывает!). Деньги покупателя
+                # самокорректны (PAYMENT−REFUND=0), но субсидию и счётчик заказов НЕ включаем.
+                # Комиссии отменённых (логистика незабора) — реальный расход, учитываем;
+                # незабор = CANCELLED_IN_DELIVERY — отдельной метрикой.
+                if st.startswith("CANCELLED"):
+                    o_comm = 0.0
+                    for c in (o.get("commissions") or []):
+                        comm_types[c.get("type")] += 1
+                        v = c.get("actual", 0) or 0
+                        f[_comm_col(c.get("type"))] += v
+                        o_comm += v
+                    if st == "CANCELLED_IN_DELIVERY":
+                        f["unredeemed_orders"] += 1
+                        f["unredeemed_cost"] += o_comm
+                    continue
                 a = agg[mo]
                 a["orders"] += 1
                 pay, refund = _pay_sum(o)
                 sub = sum(s.get("amount", 0) or 0 for s in (o.get("subsidies") or []))
                 a["revenue"] += pay
                 a["subsidy"] += sub
-                f = fin[mo]
                 f["revenue"] += pay
                 f["subsidy"] += sub
                 f["orders"] += 1
-                if o.get("status") in RETURN_STATUSES:
+                if st in RETURN_STATUSES:
                     f["returns_orders"] += 1
                 f["returns_sum"] += refund
                 for c in (o.get("commissions") or []):
                     comm_types[c.get("type")] += 1
                     f[_comm_col(c.get("type"))] += c.get("actual", 0) or 0
                 # COGS: без отмен и возвратов (товар вернулся — себест не списываем)
-                if o.get("status") not in RETURN_STATUSES:
+                if st not in RETURN_STATUSES:
                     for it in (o.get("items") or []):
                         q = it.get("count", 0) or 0
                         sku = str(it.get("shopSku") or "")
@@ -259,11 +350,19 @@ def collect(since="2026-01-01"):
         ms_fact = _ms_cogs_monthly(since)
     except Exception as e:  # МС недоступен — работаем по карте
         print(f"  [ya monthly] МС-факт себеста недоступен: {e}", flush=True)
+    # Реклама: отчёты продвижения (yandex_boost_monthly); AUCTION_PROMOTION заказов — лишь
+    # малая часть списаний, используем как фолбэк, НЕ суммируем (иначе задвоение буста продаж)
+    boost = {r["month"].isoformat(): float(r["sales_boost"] or 0) + float(r["shows_boost"] or 0)
+             for r in db.query(
+                 "SELECT month, sales_boost, shows_boost FROM yandex_boost_monthly WHERE account=%s",
+                 (ACCOUNT,))}
     frecs = []
     for mo, f in sorted(fin.items()):
         map_cogs = round(f["cogs"] + (f["qty"] - f["qty_cov"]) * (f["cogs"] / f["qty_cov"])
                          if f["qty_cov"] else f["cogs"], 2)
         fact = ms_fact.get(mo)
+        if mo in boost:
+            f["promotion"] = boost[mo]
         frecs.append({"account": ACCOUNT, "month": mo,
                       "revenue": round(f["revenue"], 2), "subsidy": round(f["subsidy"], 2),
                       "orders": int(f["orders"]),
@@ -271,6 +370,8 @@ def collect(since="2026-01-01"):
                       "fee": round(f["fee"], 2), "delivery": round(f["delivery"], 2),
                       "transfer": round(f["transfer"], 2), "promotion": round(f["promotion"], 2),
                       "agency": round(f["agency"], 2), "other_fee": round(f["other_fee"], 2),
+                      "unredeemed_orders": int(f["unredeemed_orders"]),
+                      "unredeemed_cost": round(f["unredeemed_cost"], 2),
                       "cogs": round(fact, 2) if fact else map_cogs,
                       "cogs_cov_pct": 100.0 if fact else (
                           round(f["qty_cov"] / f["qty"] * 100, 1) if f["qty"] else 0)})
@@ -278,12 +379,13 @@ def collect(since="2026-01-01"):
         db.upsert("yandex_finance_monthly", frecs, conflict_cols=["account", "month"],
                   update_cols=["revenue", "subsidy", "orders", "returns_orders", "returns_sum",
                                "fee", "delivery", "transfer", "promotion", "agency", "other_fee",
-                               "cogs", "cogs_cov_pct"])
+                               "unredeemed_orders", "unredeemed_cost", "cogs", "cogs_cov_pct"])
         db.execute("UPDATE yandex_finance_monthly SET updated_at=now() WHERE account=%s", (ACCOUNT,))
     for r in frecs:
         mp = r["fee"] + r["delivery"] + r["transfer"] + r["promotion"] + r["agency"] + r["other_fee"]
         print(f"  {r['month'][:7]}: выручка {r['revenue']:,.0f} | субсидия {r['subsidy']:,.0f} | "
               f"заказов {r['orders']} | возвратов {r['returns_orders']} ({r['returns_sum']:,.0f}) | "
+              f"незаборов {r['unredeemed_orders']} ({r['unredeemed_cost']:,.0f}) | "
               f"расходы МП {mp:,.0f} (комиссия {r['fee']:,.0f}, логистика {r['delivery']:,.0f}, "
               f"эквайринг {r['transfer']:,.0f}, буст {r['promotion']:,.0f}) | "
               f"COGS {r['cogs']:,.0f} ({r['cogs_cov_pct']:.0f}%)", flush=True)
@@ -295,6 +397,11 @@ def main():
     since = sys.argv[1] if len(sys.argv) > 1 else "2026-01-01"
     print(f"Яндекс.Маркет помесячно с {since} (stats/orders)", flush=True)
     collect_offers()
+    # буст: ежедневно освежаем текущий+прошлый месяц (закрытые месяцы не меняются)
+    today = datetime.date.today()
+    cur = today.replace(day=1)
+    prev = (cur - datetime.timedelta(days=1)).replace(day=1)
+    collect_boost([prev.isoformat(), cur.isoformat()])
     collect(since)
 
 

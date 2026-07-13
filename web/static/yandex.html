@@ -65,7 +65,7 @@
   <table id="stores"><thead><tr><th>Магазин (campaignId)</th><th>Заказов</th><th>Выручка</th></tr></thead><tbody></tbody></table>
 
   <h2>📅 Экономика по месяцам <span class="muted" style="font-weight:400;font-size:12px">(выручка = payment, возвраты вычтены; субсидия Маркета сверху; расходы МП по факту stats/orders; COGS с импутацией)</span></h2>
-  <table id="ymonthly"><thead><tr><th>Месяц</th><th>Заказов</th><th>Выручка</th><th>Субсидия</th><th>Комиссия</th><th>Логистика</th><th>Эквайринг</th><th>Буст</th><th>Возвраты</th><th>COGS</th><th>Чистая</th><th>Маржа</th></tr></thead><tbody></tbody></table>
+  <table id="ymonthly"><thead><tr><th>Месяц</th><th>Заказов</th><th>Выручка</th><th>Субсидия</th><th>Комиссия</th><th>Логистика</th><th>Эквайринг</th><th>Буст</th><th>Возвраты</th><th>Незаборы</th><th>COGS</th><th>Чистая</th><th>Маржа</th></tr></thead><tbody></tbody></table>
 
   <h2>📈 По неделям <span class="muted" style="font-weight:400;font-size:12px">(заказы + выручка, без отменённых)</span></h2>
   <table id="weekly"><thead><tr><th>Неделя</th><th>Заказов</th><th>Выручка</th></tr></thead><tbody></tbody></table>
@@ -117,8 +117,9 @@ async function load(){
     `<tr><td>${r.month}</td><td>${num(r.orders)}</td><td>${rub(r.revenue)}</td><td class="muted">${rub(r.subsidy)}</td>`+
     `<td class="neg">−${rub(r.fee)}</td><td class="neg">−${rub(r.delivery)}</td><td class="neg">−${rub(r.transfer)}</td><td class="neg">−${rub(r.promotion)}</td>`+
     `<td class="muted">${r.returns_orders?num(r.returns_orders)+' ('+rub(r.returns_sum)+')':'—'}</td>`+
+    `<td class="muted">${r.unredeemed_orders?num(r.unredeemed_orders)+' ('+rub(r.unredeemed_cost)+')':'—'}</td>`+
     `<td class="neg">−${rub(r.cogs)}<span class="muted" style="font-size:11px"> ${r.cogs_cov_pct?r.cogs_cov_pct.toFixed(0)+'%':''}</span></td>`+
-    `<td class="${r.net<0?'neg':'pos'}"><b>${rub(r.net)}</b></td><td>${r.margin_pct==null?'—':r.margin_pct.toFixed(1)+'%'}</td></tr>`).join('')||'<tr><td colspan="12" class="muted">нет данных</td></tr>';
+    `<td class="${r.net<0?'neg':'pos'}"><b>${rub(r.net)}</b></td><td>${r.margin_pct==null?'—':r.margin_pct.toFixed(1)+'%'}</td></tr>`).join('')||'<tr><td colspan="13" class="muted">нет данных</td></tr>';
 
   const w=await api('/api/yandex/weekly');
   $('#weekly tbody').innerHTML=(w.rows||[]).map(r=>
