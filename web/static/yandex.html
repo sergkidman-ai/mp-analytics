@@ -63,8 +63,8 @@
   <h2>🏪 По магазинам</h2>
   <table id="stores"><thead><tr><th>Магазин (campaignId)</th><th>Заказов</th><th>Выручка</th></tr></thead><tbody></tbody></table>
 
-  <h2>📅 По месяцам <span class="muted" style="font-weight:400;font-size:12px">(история; выручка = наша цена/payment, без отмен; субсидия — справочно)</span></h2>
-  <table id="ymonthly"><thead><tr><th>Месяц</th><th>Заказов</th><th>Выручка</th><th>Субсидия</th></tr></thead><tbody></tbody></table>
+  <h2>📅 Экономика по месяцам <span class="muted" style="font-weight:400;font-size:12px">(выручка = payment, возвраты вычтены; субсидия Маркета сверху; расходы МП по факту stats/orders; COGS с импутацией)</span></h2>
+  <table id="ymonthly"><thead><tr><th>Месяц</th><th>Заказов</th><th>Выручка</th><th>Субсидия</th><th>Комиссия</th><th>Логистика</th><th>Эквайринг</th><th>Буст</th><th>Возвраты</th><th>COGS</th><th>Чистая</th><th>Маржа</th></tr></thead><tbody></tbody></table>
 
   <h2>📈 По неделям <span class="muted" style="font-weight:400;font-size:12px">(заказы + выручка, без отменённых)</span></h2>
   <table id="weekly"><thead><tr><th>Неделя</th><th>Заказов</th><th>Выручка</th></tr></thead><tbody></tbody></table>
@@ -84,12 +84,12 @@ async function api(p){const r=await fetch(p);return r.json();}
 async function load(){
   const d=await api('/api/yandex/summary');
   if(!d.ok){$('#big').innerHTML='<div class="muted">Данные Маркета ещё не собраны.</div>';return;}
-  $('#period').textContent='Окно: '+d.since+' … '+d.until+' (≈30 дней). Выручка = оплата покупателя + субсидия Маркета, без отменённых.';
+  $('#period').textContent='История: '+d.since+' … '+d.until+' (по месяцам). Выручка = оплата покупателя + субсидия Маркета, без отменённых, возвраты вычтены.';
   $('#big').innerHTML=[
     ['Выручка',rub(d.revenue),`<span class="muted">payment ${rub(d.payment)} + субсидия ${rub(d.subsidy)}</span>`],
     ['Чистая',`<span class="${d.net<0?'neg':'pos'}">${rub(d.net)}</span>`,`<span class="muted">маржа ${d.net_margin_pct!=null?d.net_margin_pct+'%':'—'}</span>`],
-    ['COGS',rub(d.cogs),`<span class="muted">себест (МС-приёмки, 100%)</span>`],
-    ['Расходы Маркета',rub(d.mp_cost),`<span class="muted">комиссия+логистика+эквайринг+реклама</span>`],
+    ['COGS',rub(d.cogs),`<span class="muted">себест, покрытие ${d.cogs_coverage||'—'}% + импутация</span>`],
+    ['Расходы Маркета',rub(d.mp_cost),`<span class="muted">комиссия+логистика+эквайринг+буст</span>`],
     ['Заказов',num(d.orders),'<span class="muted">без отменённых</span>'],
     ['Субсидия Маркета',rub(d.subsidy),`<span class="muted">${d.revenue?Math.round(d.subsidy/d.revenue*100):0}% выручки</span>`],
     ['Отменено',`<span class="${d.cancelled>0?'neg':''}">${num(d.cancelled)}</span>`,`<span class="muted">${rub(d.cancelled_sum)}</span>`],
@@ -102,7 +102,11 @@ async function load(){
 
   const mo=await api('/api/yandex/monthly');
   $('#ymonthly tbody').innerHTML=(mo.rows||[]).map(r=>
-    `<tr><td>${r.month}</td><td>${num(r.orders)}</td><td>${rub(r.revenue)}</td><td class="muted">${rub(r.subsidy)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">нет данных</td></tr>';
+    `<tr><td>${r.month}</td><td>${num(r.orders)}</td><td>${rub(r.revenue)}</td><td class="muted">${rub(r.subsidy)}</td>`+
+    `<td class="neg">−${rub(r.fee)}</td><td class="neg">−${rub(r.delivery)}</td><td class="neg">−${rub(r.transfer)}</td><td class="neg">−${rub(r.promotion)}</td>`+
+    `<td class="muted">${r.returns_orders?num(r.returns_orders)+' ('+rub(r.returns_sum)+')':'—'}</td>`+
+    `<td class="neg">−${rub(r.cogs)}<span class="muted" style="font-size:11px"> ${r.cogs_cov_pct?r.cogs_cov_pct.toFixed(0)+'%':''}</span></td>`+
+    `<td class="${r.net<0?'neg':'pos'}"><b>${rub(r.net)}</b></td><td>${r.margin_pct==null?'—':r.margin_pct.toFixed(1)+'%'}</td></tr>`).join('')||'<tr><td colspan="12" class="muted">нет данных</td></tr>';
 
   const w=await api('/api/yandex/weekly');
   $('#weekly tbody').innerHTML=(w.rows||[]).map(r=>

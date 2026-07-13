@@ -353,7 +353,7 @@ def business(period: str = ""):
                  "margin_pct": cur.get("margin_own")}
     cur["ozon"] = {"revenue": oz["revenue"], "net": oz["net"], "margin_pct": oz["margin_pct"],
                    "cogs": oz["cogs"]}
-    ya = _ya_business()                    # Маркет: выручка/COGS/валовая — входит в ИТОГ
+    ya = _ya_business(period)              # Маркет за месяц: выручка/расходы/COGS — входит в ИТОГ
     if ya:
         cur["yandex"] = ya
         t_rev += ya["revenue"]; t_net += ya["net"]; t_cogs += ya["cogs"]
@@ -379,10 +379,10 @@ def business(period: str = ""):
             c, o = cur.get(k), prv.get(k)
             cur["delta"][k] = None if c is None or o is None else {
                 "abs": round(c - o, 2), "pct": (None if not o else round((c - o) / abs(o) * 100, 1))}
-        # дельты по ИТОГУ (WB по нашей цене + Ozon + Маркет). Маркет — окно ~30д (без истории),
-        # поэтому в прошлом периоде берём те же значения, чтобы дельта не задвоилась.
-        p_rev = (prv.get("own_revenue") or 0) + oz_prev["revenue"] + (ya["revenue"] if ya else 0)
-        p_net = prv["net"] + oz_prev["net"] + (ya["net"] if ya else 0)
+        # дельты по ИТОГУ (WB по нашей цене + Ozon + Маркет) — Маркет теперь помесячный
+        ya_prev = _ya_business(prev_p) if ya else None
+        p_rev = (prv.get("own_revenue") or 0) + oz_prev["revenue"] + (ya_prev["revenue"] if ya_prev else 0)
+        p_net = prv["net"] + oz_prev["net"] + (ya_prev["net"] if ya_prev else 0)
         for k, c, o in (("total_revenue", t_rev, p_rev),
                         ("total_net", t_net, p_net),
                         ("total_margin", cur["total"]["margin_pct"],
@@ -1069,20 +1069,24 @@ def _ya_dow(ds):
     return (d - _dt.timedelta(days=d.weekday()))
 
 
-def _ya_business():
-    """Маркет для агрегата главной: выручка (payment+subsidy, без отмен) + заказы + COGS + валовая.
-    Чистая = валовая (выручка − COGS); комиссия/логистика Маркета пока не учтены (только COGS)."""
-    if not db.query("SELECT 1 FROM raw_yandex_order WHERE account='ya_acc1' LIMIT 1"):
+def _ya_business(period: str = ""):
+    """Маркет для агрегата главной — ЗА ВЫБРАННЫЙ МЕСЯЦ из yandex_finance_monthly (stats/orders,
+    история с января). Выручка = payment+subsidy, возвраты вычтены (REFUND). Расходы МП =
+    комиссия+логистика+эквайринг+буст+прочее. COGS с импутацией непокрытых штук."""
+    q = db.query("""SELECT revenue::float r, subsidy::float s, orders,
+            returns_orders, returns_sum::float rs, cogs::float cogs, cogs_cov_pct::float cov,
+            (fee+delivery+transfer+promotion+agency+other_fee)::float mp
+        FROM yandex_finance_monthly WHERE account='ya_acc1' AND month=%s""", (period or None,))
+    if not q:
         return None
-    r = db.query(f"""SELECT sum(case when {YA_OK} then {YA_REV} else 0 end)::float revenue,
-        count(*) filter(where {YA_OK}) orders FROM raw_yandex_order WHERE account='ya_acc1'""")[0]
-    rev = round(r["revenue"] or 0)
-    tot = db.query("SELECT cost_per_unit FROM yandex_cost WHERE offer='__total__'")
-    cogs = round(float(tot[0]["cost_per_unit"])) if tot else 0
-    mp = db.query("SELECT cost_per_unit FROM yandex_cost WHERE offer='__mp_cost__'")
-    mp_cost = round(float(mp[0]["cost_per_unit"])) if mp else 0   # комиссия+логистика+эквайринг+реклама
+    r = q[0]
+    rev = round((r["r"] or 0) + (r["s"] or 0))
+    cogs = round(r["cogs"] or 0)
+    mp_cost = round(r["mp"] or 0)
     net = rev - cogs - mp_cost                                    # настоящая чистая
     return {"revenue": rev, "orders": r["orders"], "cogs": cogs, "mp_cost": mp_cost, "net": net,
+            "returns": r["returns_orders"], "returns_sum": round(r["rs"] or 0),
+            "cogs_cov_pct": r["cov"],
             "margin_pct": round(net / rev * 100, 1) if rev else None, "gross": False}
 
 
@@ -1119,23 +1123,25 @@ def yandex_summary():
         FROM raw_yandex_order o, jsonb_array_elements(o.payload->'items') it
         LEFT JOIN yandex_cost yc ON yc.offer = it->>'offerId'
         WHERE o.account='ya_acc1' AND o.payload->>'status'<>'CANCELLED'""")[0]
-    rev = t["revenue"] or 0
-    # COGS — ИТОГ из МС-заказов «Покупатель Маркет» (как ВБ/Озон: report/stock приёмок, 100%).
-    tot = db.query("SELECT cost_per_unit FROM yandex_cost WHERE offer='__total__'")
-    cogs = round(float(tot[0]["cost_per_unit"])) if tot else round(c["cogs"] or 0)
-    coverage = 100 if tot else (round((c["rev_matched"] or 0) / rev * 100) if rev else 0)
-    gross = round(rev - cogs)                          # валовая = выручка − COGS (МС-источник)
-    mpq = db.query("SELECT cost_per_unit FROM yandex_cost WHERE offer='__mp_cost__'")
-    mp_cost = round(float(mpq[0]["cost_per_unit"])) if mpq else 0   # комиссия+логистика+эквайринг+реклама
+    # Итоги — из yandex_finance_monthly (вся история, единое окно: выручка/расходы/COGS за одни месяцы)
+    f = db.query("""SELECT sum(revenue+subsidy)::float rev, sum(revenue)::float pay,
+        sum(subsidy)::float sub, sum(orders) orders, sum(cogs)::float cogs,
+        sum(fee+delivery+transfer+promotion+agency+other_fee)::float mp,
+        round(avg(cogs_cov_pct)) cov, min(month)::text mn, max(month)::text mx
+        FROM yandex_finance_monthly WHERE account='ya_acc1'""")[0]
+    rev = f["rev"] or (t["revenue"] or 0)
+    cogs = round(f["cogs"] or 0)
+    mp_cost = round(f["mp"] or 0)                      # комиссия+логистика+эквайринг+буст+прочее
+    gross = round(rev - cogs)                          # валовая = выручка − COGS
     net = round(rev - cogs - mp_cost)                  # НАСТОЯЩАЯ чистая
-    return {"ok": True, "revenue": round(rev), "payment": round(t["payment"] or 0),
-            "subsidy": round(t["subsidy"] or 0), "orders": t["orders"], "cancelled": t["cancelled"],
-            "cancelled_sum": round(t["cancelled_sum"] or 0),
-            "cogs": cogs, "cogs_coverage": coverage, "gross": gross,
+    return {"ok": True, "revenue": round(rev), "payment": round(f["pay"] or 0),
+            "subsidy": round(f["sub"] or 0), "orders": f["orders"] or t["orders"],
+            "cancelled": t["cancelled"], "cancelled_sum": round(t["cancelled_sum"] or 0),
+            "cogs": cogs, "cogs_coverage": f["cov"], "gross": gross,
             "gross_margin_pct": round(gross / rev * 100, 1) if rev else None,
             "mp_cost": mp_cost, "net": net,
             "net_margin_pct": round(net / rev * 100, 1) if rev else None,
-            "since": (t["mn"] or "")[:10], "until": (t["mx"] or "")[:10],
+            "since": (f["mn"] or "")[:10], "until": (f["mx"] or "")[:10],
             "stores": by_store, "by_status": by_status}
 
 
@@ -1160,11 +1166,29 @@ def yandex_weekly():
 
 @app.get("/api/yandex/monthly")
 def yandex_monthly():
-    """Маркет помесячно (история из stats/orders): выручка=payment (наша цена), субсидия, заказы."""
-    rows = db.query("""SELECT to_char(month,'YYYY-MM') ym, revenue::float rev,
-        subsidy::float subsidy, orders FROM yandex_monthly WHERE account='ya_acc1' ORDER BY month""")
-    return {"rows": [{"month": r["ym"], "revenue": round(r["rev"] or 0),
-                      "subsidy": round(r["subsidy"] or 0), "orders": r["orders"]} for r in rows]}
+    """Маркет помесячно (yandex_finance_monthly из stats/orders): выручка (возвраты вычтены),
+    субсидия, расходы МП по типам, возвраты, COGS (импутация) и чистая."""
+    rows = db.query("""SELECT to_char(month,'YYYY-MM') ym, revenue::float rev, subsidy::float subsidy,
+        orders, returns_orders, returns_sum::float rs,
+        fee::float fee, delivery::float delivery, transfer::float transfer,
+        promotion::float promotion, (agency+other_fee)::float other,
+        cogs::float cogs, cogs_cov_pct::float cov
+        FROM yandex_finance_monthly WHERE account='ya_acc1' ORDER BY month""")
+    out = []
+    for r in rows:
+        rev = round((r["rev"] or 0) + (r["subsidy"] or 0))
+        mp = round((r["fee"] or 0) + (r["delivery"] or 0) + (r["transfer"] or 0)
+                   + (r["promotion"] or 0) + (r["other"] or 0))
+        net = rev - round(r["cogs"] or 0) - mp
+        out.append({"month": r["ym"], "revenue": round(r["rev"] or 0),
+                    "subsidy": round(r["subsidy"] or 0), "orders": r["orders"],
+                    "returns_orders": r["returns_orders"], "returns_sum": round(r["rs"] or 0),
+                    "fee": round(r["fee"] or 0), "delivery": round(r["delivery"] or 0),
+                    "transfer": round(r["transfer"] or 0), "promotion": round(r["promotion"] or 0),
+                    "other": round(r["other"] or 0), "mp_cost": mp,
+                    "cogs": round(r["cogs"] or 0), "cogs_cov_pct": r["cov"],
+                    "net": net, "margin_pct": round(net / rev * 100, 1) if rev else None})
+    return {"rows": out}
 
 
 @app.get("/api/yandex/sku")

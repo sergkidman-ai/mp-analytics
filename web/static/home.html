@@ -160,7 +160,7 @@ async function load(){
     `<a class="plat" href="/ozon"><div class="an">🟦 Ozon →</div><div class="ar">выручка ${rub(oz.revenue)} · чистая <span class="${oz.net<0?'neg':'pos'}">${rub(oz.net)}</span> · маржа ${pct(oz.margin_pct)}</div></a>`+
     (ya?`<a class="plat" href="/market"><div class="an">🟡 Маркет →</div><div class="ar">выручка ${rub(ya.revenue)} · чистая <span class="${ya.net<0?'neg':'pos'}">${rub(ya.net)}</span> · маржа ${pct(ya.margin_pct)}</div></a>`:'');
 
-  $('#foot').innerHTML=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} (текущий месяц неполный). Итог — по 3 площадкам: <b>ВБ + Ozon + Маркет</b>. Маркет — с настоящей чистой (выручка − COGS − комиссия/логистика/эквайринг/реклама), окно ~30 дней (комиссии по доставленным заказам, как лаг отчёта). Детали и проблемные SKU — внутри площадок.`;
+  $('#foot').innerHTML=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} (текущий месяц неполный). Итог — по 3 площадкам: <b>ВБ + Ozon + Маркет</b>. Маркет — за выбранный месяц, с настоящей чистой (выручка − COGS − комиссия/логистика/эквайринг/буст; возвраты вычтены). Детали и проблемные SKU — внутри площадок.`;
   loadWeekly();
   loadSignals();
 }
