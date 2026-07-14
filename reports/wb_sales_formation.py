@@ -38,7 +38,8 @@ def build(account, ym):
                payload->>'retail_amount' ra, payload->>'ppvz_for_pay' pay,
                payload->>'delivery_rub' del, payload->>'delivery_amount' dela,
                payload->>'storage_fee' st, payload->>'acceptance' acc,
-               payload->>'deduction' ded, payload->>'penalty' pen
+               payload->>'deduction' ded, payload->>'penalty' pen,
+               payload->>'cashback_amount' cb
         FROM raw_wb_report
         WHERE account=%s AND to_char((payload->>'create_dt')::date,'YYYY-MM')=%s""",
                    (account, ym))
@@ -64,12 +65,14 @@ def build(account, ym):
             a["revenue_buyer"] -= _f(r["rpw"])
             a["revenue_wb"] -= _f(r["ra"])
             a["commission"] -= _f(r["ra"]) - _f(r["pay"])
-        a["to_pay"] += _f(r["pay"])
+        # «Возврат» лежит с ПОЛОЖИТЕЛЬНЫМ ppvz_for_pay — вычитаем (сверено с ЛК ВБ).
+        a["to_pay"] += (-_f(r["pay"]) if r["op"] == "Возврат" else _f(r["pay"]))
         a["logistics"] += _f(r["del"])
         a["logistics_cnt"] += _f(r["dela"])
         a["storage"] += _f(r["st"])
         a["acceptance"] += _f(r["acc"])
-        a["other"] += _f(r["ded"]) + _f(r["pen"])
+        # cashback_amount = баллы лояльности, удержанные ВБ (входят в «Итого к оплате»)
+        a["other"] += _f(r["ded"]) + _f(r["pen"]) + _f(r["cb"])
     recs = []
     for nm, a in agg.items():
         pr = price[nm]

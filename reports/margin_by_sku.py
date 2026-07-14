@@ -137,7 +137,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
                coalesce((payload->>'delivery_rub')::numeric,0) del,
                coalesce((payload->>'storage_fee')::numeric,0) st,
                coalesce((payload->>'acceptance')::numeric,0) acc,
-               coalesce((payload->>'deduction')::numeric,0)+coalesce((payload->>'penalty')::numeric,0) oth
+               coalesce((payload->>'deduction')::numeric,0)+coalesce((payload->>'penalty')::numeric,0)+coalesce((payload->>'cashback_amount')::numeric,0) oth
         FROM raw_wb_report
         WHERE account=%s AND to_char((payload->>'create_dt')::date,'YYYY-MM')=%s""",
                    (account, ym))
@@ -162,7 +162,9 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
             a["returns_sum"] += r["ra"]
             a["revenue_buyer"] -= r["rpw"]
             a["commission"] -= (r["ra"] - r["pay"])
-        a["to_pay"] += r["pay"]
+        # «Возврат» в сырье ВБ лежит с ПОЛОЖИТЕЛЬНЫМ ppvz_for_pay — вычитаем,
+        # иначе «К перечислению» и чистая завышаются на 2× сумму возвратов.
+        a["to_pay"] += (-r["pay"] if r["op"] == "Возврат" else r["pay"])
         a["logistics"] += r["del"]
         a["storage"] += r["st"]
         a["acceptance"] += r["acc"]
