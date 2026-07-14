@@ -1099,6 +1099,13 @@ def download_zero_cogs():
                         media_type="text/csv", filename="ms_zero_cogs_demands.csv")
 
 
+@app.get("/download/wb-price-econ.csv")
+def download_price_econ():
+    """Рост цен май→сейчас по SKU + юнит-экономика (чистая/шт и чистая/нед до и после)."""
+    return FileResponse(BASE_DIR / "docs" / "wb_price_change_unit_econ.csv",
+                        media_type="text/csv", filename="wb_price_change_unit_econ.csv")
+
+
 @app.get("/market", response_class=HTMLResponse)
 def market_page():
     return (STATIC / "yandex.html").read_text(encoding="utf-8")
