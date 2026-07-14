@@ -60,6 +60,8 @@
   <p class="note" style="margin-top:0" id="period"></p>
   <p style="margin:4px 0 10px">Месяц: <select id="mon" style="font-size:14px;padding:3px 6px"></select></p>
   <div class="big" id="big"></div>
+  <h2>💸 Расходы Маркета</h2>
+  <div class="big" id="costs"></div>
 
   <h2>🏪 По магазинам</h2>
   <table id="stores"><thead><tr><th>Магазин (campaignId)</th><th>Заказов</th><th>Выручка</th></tr></thead><tbody></tbody></table>
@@ -88,6 +90,7 @@ async function load(){
   $('#period').textContent='История: '+d.since+' … '+d.until+' (по месяцам). Выручка = оплата покупателя + субсидия Маркета, без отменённых, возвраты вычтены.';
   const mo=await api('/api/yandex/monthly');
   const rows=mo.rows||[];
+  const sumRows=k=>rows.reduce((a,r)=>a+(r[k]||0),0);
   const bigFor=r=>{ // r: строка месяца из /api/yandex/monthly или null=вся история из summary
     const rev=r?(r.revenue+r.subsidy):d.revenue, pay=r?r.revenue:d.payment, sub=r?r.subsidy:d.subsidy,
       net=r?r.net:d.net, mpct=r?r.margin_pct:d.net_margin_pct, cogs=r?r.cogs:d.cogs,
@@ -96,11 +99,24 @@ async function load(){
       ['Выручка',rub(rev),`<span class="muted">payment ${rub(pay)} + субсидия ${rub(sub)}</span>`],
       ['Чистая',`<span class="${net<0?'neg':'pos'}">${rub(net)}</span>`,`<span class="muted">маржа ${mpct!=null?mpct+'%':'—'}</span>`],
       ['COGS',rub(cogs),`<span class="muted">себест${cov==100?' (факт МС)':', покрытие '+(cov||'—')+'%'}</span>`],
-      ['Расходы Маркета',rub(mp),`<span class="muted">комиссия+логистика+эквайринг+буст</span>`],
       ['Заказов',num(ords),'<span class="muted">без отменённых</span>'],
       ['Субсидия Маркета',rub(sub),`<span class="muted">${pay?Math.round(sub/pay*100):0}% сверх payment</span>`],
       r?['Возвраты',num(r.returns_orders),`<span class="muted">${rub(r.returns_sum)}</span>`]
        :['Отменено',`<span class="${d.cancelled>0?'neg':''}">${num(d.cancelled)}</span>`,`<span class="muted">${rub(d.cancelled_sum)}</span>`],
+    ].map(([l,v,dd])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${dd||''}</div></div>`).join('');
+    // расходы отдельным рядом плиток; для «всей истории» — суммы по месяцам
+    const c = r||{fee:sumRows('fee'),delivery:sumRows('delivery'),transfer:sumRows('transfer'),
+      promotion:sumRows('promotion'),other:sumRows('other'),
+      unredeemed_orders:sumRows('unredeemed_orders'),unredeemed_cost:sumRows('unredeemed_cost')};
+    const p=v=>rev?` · ${(v/rev*100).toFixed(1)}%`:'';
+    $('#costs').innerHTML=[
+      ['Всего расходов',rub(mp),`<span class="muted">${rev?(mp/rev*100).toFixed(1)+'% выручки':''}</span>`],
+      ['Комиссия',rub(c.fee),`<span class="muted">размещение${p(c.fee)}</span>`],
+      ['Логистика',rub(c.delivery),`<span class="muted">вкл. межрегион и экспресс${p(c.delivery)}</span>`],
+      ['Эквайринг',rub(c.transfer),`<span class="muted">перевод денег${p(c.transfer)}</span>`],
+      ['Реклама (буст)',rub(c.promotion),`<span class="muted">продажи + показы${p(c.promotion)}</span>`],
+      ['Прочее',rub(c.other),`<span class="muted">агентское, сортировка, лояльность</span>`],
+      ['Незаборы',num(c.unredeemed_orders),`<span class="muted">удержано ${rub(c.unredeemed_cost)}</span>`],
     ].map(([l,v,dd])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${dd||''}</div></div>`).join('');
   };
   const sel=$('#mon');
