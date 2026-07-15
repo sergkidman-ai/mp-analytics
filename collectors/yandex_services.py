@@ -11,20 +11,73 @@
 Запуск:  ./venv/bin/python collectors/yandex_services.py [путь.xlsx]
 По умолчанию — incoming/marketplace_services_financial_month.xlsx.
 """
+import os
+import io
 import sys
-import json
+import csv
+import time
+import zipfile
 import hashlib
+import calendar
+import datetime
 import pathlib
 
 import openpyxl
+import requests
 from psycopg2.extras import Json
+from dotenv import load_dotenv
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 
+load_dotenv(BASE_DIR / ".env")
+API = "https://api.partner.market.yandex.ru"
 ACCOUNT = "ya_acc1"
 DEFAULT_FILE = BASE_DIR / "incoming" / "marketplace_services_financial_month.xlsx"
+
+# Единый отчёт Партнёр-API (united-marketplace-services) отдаёт по CSV на вид услуги.
+# Берём только рекламу/промо, которых НЕТ в stats/orders (иначе задвоение комиссии/логистики):
+#   boost/cpm-boost/product-banners → реклама; loyalty_and_reviews → отзывы;
+#   business_subscription → подписка; строки Полок (SERVICE_NAME ~ «Полк») → реклама, где бы ни лежали.
+# placement/delivery*/payment_*/order_processing/storage — уже учтены через stats/orders, пропускаем.
+AD_CSV = {"boost.csv", "cpm-boost.csv", "product-banners.csv"}
+DATE_COLS = ("SERVICE_DATE", "SERVICE_DATE_TIME")
+BONUS_COLS = ("BONUS_PAID", "PAYMENT_WITH_BONUSES")
+# Реальная оплата ₽ лежит в РАЗНЫХ колонках у разных услуг (сверено с ручной выгрузкой ЛК):
+#   буст продаж → PREPAID+POSTPAID; буст показов/баннеры → PAYMENT;
+#   отзывы/подписка/Полки → SERVICE_PRICE (фолбэк AMOUNT_WITHOUT_BONUSES/TOTAL_AMOUNT).
+SERVICE_PRICE_FALLBACK = ("SERVICE_PRICE", "AMOUNT_WITHOUT_BONUSES", "TOTAL_AMOUNT")
+
+
+def _fnum(v):
+    if v in (None, ""):
+        return 0.0
+    try:
+        return float(str(v).replace("\xa0", "").replace(" ", "").replace(",", "."))
+    except ValueError:
+        return 0.0
+
+
+def _csv_cat(fname, service_name):
+    if fname in AD_CSV:
+        return "ad"
+    if fname == "loyalty_and_reviews.csv":
+        return "reviews"
+    if fname == "business_subscription.csv":
+        return "subscription"
+    if "полк" in (service_name or "").lower():   # Полки — где бы ни лежали
+        return "ad"
+    return None
+
+
+def _csv_cost(fname, rec):
+    """Реальная оплата ₽ строки — колонка зависит от вида услуги."""
+    if fname == "boost.csv":                       # буст продаж
+        return _fnum(rec.get("PREPAID")) + _fnum(rec.get("POSTPAID"))
+    if fname in ("cpm-boost.csv", "product-banners.csv"):  # буст показов / баннеры
+        return _fnum(rec.get("PAYMENT"))
+    return next((_fnum(rec[c]) for c in SERVICE_PRICE_FALLBACK if _fnum(rec.get(c))), 0.0)
 
 # Правило разбора на каждый лист услуги:
 #   category   — свёрнутая категория (ad|subscription|reviews);
@@ -111,8 +164,8 @@ def parse(path):
                 "account": ACCOUNT, "service": sheet, "category": category,
                 "ym": ym, "svc_date": _svc_date(dval),
                 "order_id": order_id, "sku": sku,
-                "cost": round(cost, 2), "bonus": round(bonus, 2),
-                "row_hash": hashlib.md5(key.encode()).hexdigest(),
+                "cost": round(cost, 2), "bonus": round(bonus, 2), "source": "file",
+                "row_hash": hashlib.md5(("file|" + key).encode()).hexdigest(),
                 "payload": Json({"service": sheet, "ym": ym, "order_id": order_id,
                                  "sku": sku, "cost": round(cost, 2), "bonus": round(bonus, 2)}),
             })
@@ -122,19 +175,121 @@ def parse(path):
     return rows
 
 
+def _replace_months(rows, account):
+    """Помесячная идемпотентность: месяцем владеет тот, кто записал последним.
+    Чистим только затрагиваемые месяцы (любой источник) и вставляем новые строки —
+    так API (свежие месяцы) и файл (старые) не затирают друг друга."""
+    if not rows:
+        return 0
+    months = sorted({r["ym"] for r in rows})
+    db.execute("DELETE FROM raw_yandex_services WHERE account=%s AND ym = ANY(%s)",
+               (account, months))
+    db.upsert("raw_yandex_services", rows, conflict_cols=["account", "row_hash"])
+    return len(rows), months
+
+
 def import_file(path=DEFAULT_FILE, account=ACCOUNT):
-    """Полный снапшот: чистим прежние строки аккаунта и заливаем заново (идемпотентно)."""
+    """Ручная выгрузка ЛК → raw_yandex_services (source='file'), помесячно идемпотентно."""
     path = pathlib.Path(path)
     if not path.exists():
-        print(f"  [services] файл не найден: {path}", flush=True)
+        print(f"  [services] файл не найден: {path} — пропуск", flush=True)
         return 0
     rows = parse(path)
     if not rows:
         return 0
-    db.execute("DELETE FROM raw_yandex_services WHERE account=%s", (account,))
-    n = db.upsert("raw_yandex_services", rows, conflict_cols=["account", "row_hash"])
-    months = sorted({r["ym"] for r in rows})
-    print(f"  [services] залито {n} строк, месяцы {months[0]}..{months[-1]}", flush=True)
+    n, months = _replace_months(rows, account)
+    print(f"  [services/file] залито {n} строк, месяцы {months[0]}..{months[-1]}", flush=True)
+    return n
+
+
+def _services_report(date_from, date_to, timeout=240):
+    """Единый отчёт о стоимости услуг → {имя_csv: [dict-строки]} (асинхронно, ZIP из CSV)."""
+    key = os.getenv("YANDEX_API_KEY_ACC1")
+    biz = int(os.getenv("YANDEX_BUSINESS_ID_ACC1"))
+    H = {"Api-Key": key, "Content-Type": "application/json"}
+    body = {"businessId": biz,
+            "dateTimeFrom": f"{date_from}T00:00:00+03:00",
+            "dateTimeTo": f"{date_to}T23:59:59+03:00"}
+    r = requests.post(f"{API}/reports/united-marketplace-services/generate",
+                      headers=H, params={"format": "CSV"}, json=body, timeout=60)
+    r.raise_for_status()
+    rid = r.json()["result"]["reportId"]
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        i = requests.get(f"{API}/reports/info/{rid}", headers=H, timeout=30).json().get("result", {})
+        st = i.get("status")
+        if st == "DONE":
+            f = requests.get(i["file"], timeout=180)
+            out = {}
+            with zipfile.ZipFile(io.BytesIO(f.content)) as z:
+                for name in z.namelist():
+                    if name.endswith(".csv"):
+                        out[name] = list(csv.DictReader(
+                            io.TextIOWrapper(z.open(name), encoding="utf-8")))
+            return out
+        if st == "FAILED":
+            raise RuntimeError(f"united-services FAILED: {i.get('subStatus')}")
+        time.sleep(3)
+    raise RuntimeError(f"united-services: таймаут {timeout}с")
+
+
+def collect_api(months=None, account=ACCOUNT):
+    """Автосбор рекламы/подписки/отзывов из единого отчёта Партнёр-API за месяцы `months`
+    ('YYYY-MM-01'). По умолчанию — текущий и прошлый месяц (глубина API ~70 дней).
+    Пишет в raw_yandex_services (source='api'), помесячно идемпотентно."""
+    today = datetime.date.today()
+    if not months:
+        cur = today.replace(day=1)
+        prev = (cur - datetime.timedelta(days=1)).replace(day=1)
+        months = [prev.isoformat(), cur.isoformat()]
+    d_from = min(months)[:10]
+    y, m = int(max(months)[:4]), int(max(months)[5:7])
+    d_to = min(f"{max(months)[:7]}-{calendar.monthrange(y, m)[1]:02d}", today.isoformat())
+    try:
+        csvs = _services_report(d_from, d_to)
+    except Exception as e:
+        print(f"  [services/api] отчёт не получен: {e}", flush=True)
+        return 0
+    rows, skipped = [], {}
+    for fname, recs in csvs.items():
+        for i, rec in enumerate(recs):
+            cat = _csv_cat(fname, rec.get("SERVICE_NAME"))
+            if cat is None:
+                skipped[fname] = skipped.get(fname, 0) + 1
+                continue
+            cost = _csv_cost(fname, rec)
+            if cost == 0:
+                continue
+            dval = next((rec[c] for c in DATE_COLS if rec.get(c)), None)
+            ym = _ym(dval)
+            if not ym:
+                continue
+            bonus = next((_fnum(rec[c]) for c in BONUS_COLS if c in rec), 0.0)
+            order_id = rec.get("ORDER_ID") or None
+            sku = rec.get("SHOP_SKU") or None
+            key = f"api|{fname}|{ym}|{order_id}|{sku}|{_svc_date(dval)}|{cost:.4f}|{i}"
+            rows.append({
+                "account": account, "service": fname.replace(".csv", ""), "category": cat,
+                "ym": ym, "svc_date": _svc_date(dval), "order_id": order_id, "sku": sku,
+                "cost": round(cost, 2), "bonus": round(bonus, 2), "source": "api",
+                "row_hash": hashlib.md5(key.encode()).hexdigest(),
+                "payload": Json({"file": fname, "ym": ym, "order_id": order_id, "sku": sku,
+                                 "service_name": rec.get("SERVICE_NAME"),
+                                 "cost": round(cost, 2), "bonus": round(bonus, 2)}),
+            })
+    if not rows:
+        print(f"  [services/api] строк нет за {d_from}..{d_to} (глубина API?)", flush=True)
+        return 0
+    n, got = _replace_months(rows, account)
+    from collections import defaultdict
+    by = defaultdict(float)
+    for r in rows:
+        by[(r["ym"], r["category"])] += r["cost"]
+    print(f"  [services/api] залито {n} строк, месяцы {got[0]}..{got[-1]}", flush=True)
+    for (ym, cat), v in sorted(by.items()):
+        print(f"    {ym} {cat}: {v:,.0f} ₽", flush=True)
+    if skipped:
+        print(f"    (пропущены как уже-в-stats: {dict(skipped)})", flush=True)
     return n
 
 
@@ -151,9 +306,20 @@ def services_monthly(account=ACCOUNT):
     return out
 
 
+def main():
+    """Ночной шаг: если файл в incoming/ — заливаем его; всегда добираем свежие месяцы из API."""
+    import_file()
+    collect_api()
+
+
 if __name__ == "__main__":
-    src = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_FILE
-    import_file(src)
+    arg = sys.argv[1] if len(sys.argv) > 1 else ""
+    if arg == "api":
+        collect_api(sys.argv[2:] or None)
+    elif arg and arg != "file":
+        import_file(arg)          # путь к xlsx
+    else:
+        main()
     print("\nСвёртка по месяцам (реклама | подписка | отзывы):")
     for ym, d in sorted(services_monthly().items()):
         print(f"  {ym}: реклама {d['ad']:>10,.0f} | подписка {d['subscription']:>7,.0f} "

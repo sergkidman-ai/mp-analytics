@@ -90,8 +90,9 @@ def main():
             step(f"Ozon постинги {acc} {df}", lambda a=acc, x=df, y=dt: ozp.main(x, y, a))
             step(f"Ozon маржа {acc} {df}", lambda a=acc, x=df, y=dt: ozm.build(x, y, a))
     step("Яндекс.Маркет: заказы", lambda: __import__("collectors.yandex", fromlist=["main"]).main())
-    # Стоимость услуг из ЛК (реклама янв–апр, Полки, подписка, отзывы) — если файл лежит в incoming/.
-    step("Яндекс.Маркет: услуги ЛК", lambda: __import__("collectors.yandex_services", fromlist=["import_file"]).import_file())
+    # Стоимость услуг: ручной файл ЛК (старые месяцы, если лежит в incoming/) + автосбор
+    # свежих месяцев из единого отчёта Партнёр-API (реклама/Полки/подписка/отзывы).
+    step("Яндекс.Маркет: услуги", lambda: __import__("collectors.yandex_services", fromlist=["main"]).main())
     step("Яндекс.Маркет: помесячно", lambda: __import__("collectors.yandex_monthly", fromlist=["main"]).main())
     print(f"[run_daily] готово за {(datetime.datetime.now()-t0).seconds}с", flush=True)
 
