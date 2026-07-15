@@ -350,18 +350,31 @@ def collect(since="2026-01-01"):
         ms_fact = _ms_cogs_monthly(since)
     except Exception as e:  # МС недоступен — работаем по карте
         print(f"  [ya monthly] МС-факт себеста недоступен: {e}", flush=True)
-    # Реклама: отчёты продвижения (yandex_boost_monthly); AUCTION_PROMOTION заказов — лишь
-    # малая часть списаний, используем как фолбэк, НЕ суммируем (иначе задвоение буста продаж)
+    # Реклама, приоритет источника:
+    #   1) отчёт о стоимости услуг из ЛК (raw_yandex_services) — покрывает ВСЕ месяцы,
+    #      включая янв–апр, куда API продвижения не отдаёт (буст продаж/показов+Полки+баннеры);
+    #   2) API-отчёты продвижения (yandex_boost_monthly) — фолбэк на май–июнь;
+    #   3) AUCTION_PROMOTION из заказов (f["promotion"]) — грубый фолбэк (~5%).
+    # Май–июнь по бусту эти источники совпали до рубля (сверено).
     boost = {r["month"].isoformat(): float(r["sales_boost"] or 0) + float(r["shows_boost"] or 0)
              for r in db.query(
                  "SELECT month, sales_boost, shows_boost FROM yandex_boost_monthly WHERE account=%s",
                  (ACCOUNT,))}
+    svc = {r["ym"]: r for r in db.query("""
+        SELECT ym,
+               sum(cost) FILTER (WHERE category='ad')::float           ad,
+               sum(cost) FILTER (WHERE category='subscription')::float subscription,
+               sum(cost) FILTER (WHERE category='reviews')::float      reviews
+        FROM raw_yandex_services WHERE account=%s GROUP BY ym""", (ACCOUNT,))}
     frecs = []
     for mo, f in sorted(fin.items()):
         map_cogs = round(f["cogs"] + (f["qty"] - f["qty_cov"]) * (f["cogs"] / f["qty_cov"])
                          if f["qty_cov"] else f["cogs"], 2)
         fact = ms_fact.get(mo)
-        if mo in boost:
+        s = svc.get(mo[:7]) or {}
+        if s.get("ad"):
+            f["promotion"] = s["ad"]
+        elif mo in boost:
             f["promotion"] = boost[mo]
         frecs.append({"account": ACCOUNT, "month": mo,
                       "revenue": round(f["revenue"], 2), "subsidy": round(f["subsidy"], 2),
@@ -370,6 +383,8 @@ def collect(since="2026-01-01"):
                       "fee": round(f["fee"], 2), "delivery": round(f["delivery"], 2),
                       "transfer": round(f["transfer"], 2), "promotion": round(f["promotion"], 2),
                       "agency": round(f["agency"], 2), "other_fee": round(f["other_fee"], 2),
+                      "subscription_cost": round(s.get("subscription") or 0, 2),
+                      "reviews_cost": round(s.get("reviews") or 0, 2),
                       "unredeemed_orders": int(f["unredeemed_orders"]),
                       "unredeemed_cost": round(f["unredeemed_cost"], 2),
                       "cogs": round(fact, 2) if fact else map_cogs,
@@ -379,15 +394,18 @@ def collect(since="2026-01-01"):
         db.upsert("yandex_finance_monthly", frecs, conflict_cols=["account", "month"],
                   update_cols=["revenue", "subsidy", "orders", "returns_orders", "returns_sum",
                                "fee", "delivery", "transfer", "promotion", "agency", "other_fee",
+                               "subscription_cost", "reviews_cost",
                                "unredeemed_orders", "unredeemed_cost", "cogs", "cogs_cov_pct"])
         db.execute("UPDATE yandex_finance_monthly SET updated_at=now() WHERE account=%s", (ACCOUNT,))
     for r in frecs:
-        mp = r["fee"] + r["delivery"] + r["transfer"] + r["promotion"] + r["agency"] + r["other_fee"]
+        mp = (r["fee"] + r["delivery"] + r["transfer"] + r["promotion"] + r["agency"]
+              + r["other_fee"] + r["subscription_cost"] + r["reviews_cost"])
         print(f"  {r['month'][:7]}: выручка {r['revenue']:,.0f} | субсидия {r['subsidy']:,.0f} | "
               f"заказов {r['orders']} | возвратов {r['returns_orders']} ({r['returns_sum']:,.0f}) | "
               f"незаборов {r['unredeemed_orders']} ({r['unredeemed_cost']:,.0f}) | "
               f"расходы МП {mp:,.0f} (комиссия {r['fee']:,.0f}, логистика {r['delivery']:,.0f}, "
-              f"эквайринг {r['transfer']:,.0f}, буст {r['promotion']:,.0f}) | "
+              f"эквайринг {r['transfer']:,.0f}, реклама {r['promotion']:,.0f}, "
+              f"подписка {r['subscription_cost']:,.0f}, отзывы {r['reviews_cost']:,.0f}) | "
               f"COGS {r['cogs']:,.0f} ({r['cogs_cov_pct']:.0f}%)", flush=True)
     print(f"Яндекс.Маркет: сырья {n_raw} заказов, помесячно {len(frecs)} месяцев | "
           f"типы commissions: {dict(comm_types)}", flush=True)

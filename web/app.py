@@ -1077,7 +1077,7 @@ def _ya_business(period: str = ""):
     комиссия+логистика+эквайринг+буст+прочее. COGS с импутацией непокрытых штук."""
     q = db.query("""SELECT revenue::float r, subsidy::float s, orders,
             returns_orders, returns_sum::float rs, cogs::float cogs, cogs_cov_pct::float cov,
-            (fee+delivery+transfer+promotion+agency+other_fee)::float mp
+            (fee+delivery+transfer+promotion+agency+other_fee+subscription_cost+reviews_cost)::float mp
         FROM yandex_finance_monthly WHERE account='ya_acc1' AND month=%s""", (period or None,))
     if not q:
         return None
@@ -1142,7 +1142,7 @@ def yandex_summary():
     # Итоги — из yandex_finance_monthly (вся история, единое окно: выручка/расходы/COGS за одни месяцы)
     f = db.query("""SELECT sum(revenue+subsidy)::float rev, sum(revenue)::float pay,
         sum(subsidy)::float sub, sum(orders) orders, sum(cogs)::float cogs,
-        sum(fee+delivery+transfer+promotion+agency+other_fee)::float mp,
+        sum(fee+delivery+transfer+promotion+agency+other_fee+subscription_cost+reviews_cost)::float mp,
         round(avg(cogs_cov_pct)) cov, min(month)::text mn, max(month)::text mx
         FROM yandex_finance_monthly WHERE account='ya_acc1'""")[0]
     rev = f["rev"] or (t["revenue"] or 0)
@@ -1188,7 +1188,7 @@ def yandex_monthly():
         orders, returns_orders, returns_sum::float rs,
         coalesce(unredeemed_orders,0) unr, coalesce(unredeemed_cost,0)::float unr_cost,
         fee::float fee, delivery::float delivery, transfer::float transfer,
-        promotion::float promotion, (agency+other_fee)::float other,
+        promotion::float promotion, (agency+other_fee+subscription_cost+reviews_cost)::float other,
         cogs::float cogs, cogs_cov_pct::float cov
         FROM yandex_finance_monthly WHERE account='ya_acc1' ORDER BY month""")
     out = []
