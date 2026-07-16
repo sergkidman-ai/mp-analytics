@@ -35,7 +35,17 @@ _last = [0.0]
 
 # Юрлицо МС по WB-аккаунту (совпадает с reports/margin_by_sku.ACC_ORG).
 ACC_ORG = {"wb_acc1": 'ООО "ЦИФРОВОЙ КВАДРАТ"', "wb_acc2": 'ООО "ДИСКВЭР"'}
-AGENT = "Покупатель ВБ"
+
+
+def _norm_posting(p):
+    return "-".join((p or "").split("-")[:2])
+
+
+OZ_ACC_ORG = {"oz_acc1": 'ООО "ЦИФРОВОЙ КВАДРАТ"', "oz_acc2": 'ООО "ДИСКВЭР"'}
+PLATFORM = {
+    "wb": {"agents": ["Покупатель ВБ"], "org_map": ACC_ORG},
+    "ozon": {"agents": ["Покупатель Озон", "Озон Экспресс"], "org_map": OZ_ACC_ORG},
+}
 
 
 def _throttle():
@@ -118,25 +128,52 @@ def needed_assembly_ids(account):
     return {r["a"] for r in rows if r["a"]}
 
 
-def collect(account="wb_acc1", moment_from="2025-09-01", batch=200, progress_every=500):
-    org_name = ACC_ORG[account]
+def needed_ozon_norms(account):
+    """distinct нормализованные posting_number доставленных отправлений Ozon."""
+    rows = db.query("""SELECT DISTINCT payload->'posting'->>'posting_number' posting_number
+        FROM raw_ozon_transaction WHERE account=%s
+          AND payload->>'operation_type'='OperationAgentDeliveredToCustomer'""", (account,))
+    return {_norm_posting(r["posting_number"]) for r in rows if r["posting_number"]}
+
+
+def collect(account="wb_acc1", platform="wb", moment_from="2025-09-01", batch=200,
+            progress_every=500):
+    config = PLATFORM[platform]
+    org_name = config["org_map"][account]
+    agents = config["agents"]
     print(f"[{account}] юрлицо {org_name}; резолв org/agent…", flush=True)
     org_href = _resolve_href("organization", org_name)
-    agent_href = _resolve_href("counterparty", AGENT)
     org_id = _hid(org_href)
 
-    need = needed_assembly_ids(account)
-    cached = {r["demand_name"] for r in db.query(
-        "SELECT demand_name FROM ms_demand_cogs WHERE org=%s", (org_id,))}
-    print(f"[{account}] нужно отгрузок {len(need)}, уже в кэше {len(cached & need)}", flush=True)
-
-    print(f"[{account}] список отгрузок МС (org+agent, moment>={moment_from})…", flush=True)
-    name2id = list_demand_ids(org_href, agent_href, moment_from)
-    print(f"[{account}] отгрузок в списке МС: {len(name2id)}", flush=True)
-
-    todo = [(n, name2id[n][0], name2id[n][1]) for n in need
-            if n not in cached and n in name2id]
-    missing = [n for n in need if n not in name2id and n not in cached]
+    cached = {r["demand_id"] for r in db.query(
+        "SELECT demand_id FROM ms_demand_cogs WHERE org=%s AND agent = ANY(%s)",
+        (org_id, agents))}
+    todo = []
+    all_names = set()
+    if platform == "wb":
+        need = needed_assembly_ids(account)
+        agent = agents[0]
+        agent_href = _resolve_href("counterparty", agent)
+        print(f"[{account}] список отгрузок МС (org+agent, moment>={moment_from})…", flush=True)
+        name2id = list_demand_ids(org_href, agent_href, moment_from)
+        all_names.update(name2id)
+        print(f"[{account}] отгрузок в списке МС: {len(name2id)}", flush=True)
+        todo = [(n, did, moment, agent) for n, (did, moment) in name2id.items()
+                if n in need and did not in cached]
+        missing = [n for n in need if n not in name2id]
+    else:
+        need = needed_ozon_norms(account)
+        for agent in agents:
+            agent_href = _resolve_href("counterparty", agent)
+            print(f"[{account}] список отгрузок МС ({agent}, moment>={moment_from})…", flush=True)
+            name2id = list_demand_ids(org_href, agent_href, moment_from)
+            all_names.update(_norm_posting(n) for n in name2id)
+            print(f"[{account}] отгрузок в списке МС ({agent}): {len(name2id)}", flush=True)
+            todo += [(n, did, moment, agent) for n, (did, moment) in name2id.items()
+                     if _norm_posting(n) in need and did not in cached]
+        missing = [n for n in need if n not in all_names]
+    print(f"[{account}] нужно отгрузок {len(need)}, уже в кэше {len(need) - len(todo) - len(missing)}",
+          flush=True)
     print(f"[{account}] к сбору {len(todo)}; нет в списке МС (вне окна?) {len(missing)}", flush=True)
     if missing[:5]:
         print(f"[{account}]   примеры отсутствующих: {missing[:5]}", flush=True)
@@ -150,14 +187,15 @@ def collect(account="wb_acc1", moment_from="2025-09-01", batch=200, progress_eve
         if pbuf:
             db.upsert("ms_demand_pos", pbuf, conflict_cols=["demand_id", "ms_id"])
 
-    for name, did, moment in todo:
+    for name, did, moment, agent in todo:
         try:
             cogs, qty, positions = byoperation_cogs(did)
         except Exception as e:
             print(f"[{account}] ОШИБКА byoperation {name} ({did}): {e}", flush=True)
             continue
         buf.append({"demand_id": did, "demand_name": name, "org": org_id,
-                    "moment": moment, "cogs": cogs, "qty": qty, "npos": len(positions)})
+                    "agent": agent, "moment": moment, "cogs": cogs, "qty": qty,
+                    "npos": len(positions)})
         pbuf += [{"demand_id": did, "ms_id": p["ms_id"], "cost": p["cost"], "qty": p["qty"]}
                  for p in positions if p["ms_id"]]
         done += 1
@@ -172,9 +210,15 @@ def collect(account="wb_acc1", moment_from="2025-09-01", batch=200, progress_eve
 
 
 def main():
-    accounts = sys.argv[1:] or ["wb_acc1", "wb_acc2"]
+    args = sys.argv[1:]
+    if args and args[0] in PLATFORM:
+        platform = args.pop(0)
+    else:
+        platform = "wb"
+    defaults = ["oz_acc1", "oz_acc2"] if platform == "ozon" else ["wb_acc1", "wb_acc2"]
+    accounts = args or defaults
     for acc in accounts:
-        collect(acc)
+        collect(acc, platform=platform)
 
 
 if __name__ == "__main__":

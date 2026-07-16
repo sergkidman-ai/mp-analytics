@@ -57,7 +57,8 @@ def demand_cogs_from_cache(account):
     org_name = ACC_ORG.get(account, ACC_ORG["wb_acc1"])
     org_href = _ms("entity/organization", {"filter": f"name={org_name}", "limit": 1})["rows"][0]["meta"]["href"]
     org_id = _href_id(org_href)
-    rows = db.query("SELECT demand_name, cogs FROM ms_demand_cogs WHERE org=%s", (org_id,))
+    rows = db.query("""SELECT demand_name, cogs FROM ms_demand_cogs
+        WHERE org=%s AND agent='Покупатель ВБ'""", (org_id,))
     return {r["demand_name"]: float(r["cogs"] or 0) for r in rows}
 
 

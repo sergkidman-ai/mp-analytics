@@ -108,17 +108,29 @@ def main():
     for acc in OZON_ACCOUNTS:
         ozon_catalog_ok = step(f"Ozon каталог {acc}", lambda a=acc: __import__("collectors.ozon_products", fromlist=["main"]).main(a))
         step(f"Ozon ФБО остатки {acc}", lambda a=acc: __import__("collectors.ozon_fbo_stock", fromlist=["main"]).main(a))
+        ozon_txn_ok, ozon_post_ok = {}, {}
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
-            transactions_ok = step(f"Ozon транзакции {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: oz.main(x, y, a))
-            postings_ok = step(f"Ozon постинги {acc} {df}", lambda a=acc, x=df, y=dt: ozp.main(x, y, a))
+            ozon_txn_ok[df] = step(f"Ozon транзакции {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: oz.main(x, y, a))
+            ozon_post_ok[df] = step(f"Ozon постинги {acc} {df}", lambda a=acc, x=df, y=dt: ozp.main(x, y, a))
+        # Себест отгрузок Ozon (МС, report/stock/byoperation FIFO) — один раз на аккаунт ПОСЛЕ сбора
+        # транзакций (нужны доставленные постинги). Агенты FBS «Покупатель Озон» + RFBS «Озон Экспресс».
+        recent = (today - datetime.timedelta(days=80)).isoformat()
+        ozon_cogs_ok = step(
+            f"Себест отгрузок Ozon (МС) {acc}",
+            lambda a=acc, mf=recent: msdc.collect(a, platform="ozon", moment_from=mf),
+        )
+        for f, l in months:
+            df, dt = f.isoformat(), l.isoformat()
             failed_sources = []
-            if not transactions_ok:
+            if not ozon_txn_ok[df]:
                 failed_sources.append(f"Ozon транзакции {acc} {df}..{dt}")
-            if not postings_ok:
+            if not ozon_post_ok[df]:
                 failed_sources.append(f"Ozon постинги {acc} {df}")
             if not ozon_catalog_ok:
                 failed_sources.append(f"Ozon каталог {acc}")
+            if not ozon_cogs_ok:
+                failed_sources.append(f"Себест отгрузок Ozon (МС) {acc}")
             if failed_sources:
                 print(f"[skip] Ozon маржа {acc} {df}: витрина не обновлена, данные неполные "
                       f"(упал источник: {', '.join(failed_sources)})", flush=True)

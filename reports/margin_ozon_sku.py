@@ -5,8 +5,8 @@ SKU: items[].sku операции (78% операций несут товары;
 эквайринг без items — это ОВЕРХЕД, не привязывается к SKU, показывается отдельно).
 
 COGS по тому же принципу, что у ВБ (margin_by_sku), но ключ озоновский:
-  posting_number → первые 2 сегмента `order_id-shipment` → МС customerorder (агент
-  «Покупатель Озон») → Σ cost_seb позиций. Окно МС широкое (−45д) под лаг выплат Ozon.
+  posting_number → первые 2 сегмента `order_id-shipment` → FIFO-кэш ms_demand_cogs
+  (report/stock/byoperation на moment отгрузки, агенты «Покупатель Озон» и «Озон Экспресс»).
   FBO (~3.2%) отгрузки в МС НЕ имеет → COGS не находится (как WB-FBO) — в покрытии видно.
 
 Мульти-SKU отправление: деньги и COGS делятся поровну между SKU отправления (большинство
@@ -62,29 +62,14 @@ def _agent_href(name="Покупатель Озон"):
 
 
 def posting_cogs_map(date_from, date_to, ms_org):
-    """{norm_posting: cogs} — Σ cost_seb позиций МС-заказов агента «Покупатель Озон»."""
-    prod = {r["ms_id"]: float(r["cost_seb"] or 0)
-            for r in db.query("SELECT ms_id, cost_seb FROM products")}
-    ag, ag_name = _agent_href()
-    org = _ms("entity/organization", {"filter": f"name={ms_org}", "limit": 1})["rows"][0]["meta"]["href"]
-    flt = (f"agent={ag};organization={org};"
-           f"moment>={date_from} 00:00:00;moment<={date_to} 23:59:59")
-    out, offset, n = defaultdict(float), 0, 0
-    while True:
-        j = _ms("entity/customerorder", {"limit": 100, "offset": offset,
-                                         "filter": flt, "expand": "positions.assortment"})
-        rows = j.get("rows", [])
-        for o in rows:
-            key = norm_posting(o.get("name", ""))
-            for p in o.get("positions", {}).get("rows", []):
-                ms_id = _href_id(p.get("assortment", {}).get("meta", {}).get("href", ""))
-                out[key] += prod.get(ms_id, 0.0) * (p.get("quantity", 0) or 0)
-            n += 1
-        offset += 100
-        if not rows or offset >= j.get("meta", {}).get("size", 0):
-            break
-    print(f"  МС агент «{ag_name}»: {n} заказов, {len(out)} уник. postings ({date_from}..{date_to})",
-          flush=True)
+    """{norm_posting: cogs} — FIFO-кэш отгрузок FBS+RFBS на их moment в МС."""
+    org = _ms("entity/organization", {"filter": f"name={ms_org}", "limit": 1})
+    org_id = _href_id(org["rows"][0]["meta"]["href"])
+    rows = db.query("""SELECT demand_name, cogs FROM ms_demand_cogs
+        WHERE org=%s AND agent IN ('Покупатель Озон','Озон Экспресс')""", (org_id,))
+    out = defaultdict(float)
+    for r in rows:
+        out[norm_posting(r["demand_name"])] += float(r["cogs"] or 0)
     return out
 
 
