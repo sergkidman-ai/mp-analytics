@@ -30,6 +30,7 @@ import reports.margin_ozon_sku as ozm     # noqa: E402
 
 ACCOUNTS = ["wb_acc1", "wb_acc2"]
 OZON_ACCOUNTS = ["oz_acc1", "oz_acc2"]
+FAILED_STEPS = []
 
 
 def step(name, fn):
@@ -37,8 +38,11 @@ def step(name, fn):
     try:
         fn()
         print(f"[ok] {name} ({(datetime.datetime.now()-t).seconds}с)", flush=True)
+        return True
     except Exception:
         print(f"[FAIL] {name}:\n{traceback.format_exc()}", flush=True)
+        FAILED_STEPS.append(name)
+        return False
 
 
 def _month_bounds(d):
@@ -56,6 +60,7 @@ def rolling_months(today):
 
 
 def main():
+    FAILED_STEPS.clear()
     t0 = datetime.datetime.now()
     print(f"[run_daily] старт {t0:%Y-%m-%d %H:%M}", flush=True)
     today = datetime.date.today()
@@ -68,33 +73,68 @@ def main():
     for acc in ACCOUNTS:
         step(f"WB карточки {acc}", lambda acc=acc: wb.collect_cards(acc))
         step(f"WB остатки FBO {acc}", lambda acc=acc: wb.collect_stocks(acc, today.isoformat()))
+        wb_reports_ok = {}
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
-            step(f"WB отчёт {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: wb.main(a, x, y))
+            wb_reports_ok[(acc, df)] = step(
+                f"WB отчёт {acc} {df}..{dt}",
+                lambda a=acc, x=df, y=dt: wb.main(a, x, y),
+            )
         # Себест отгрузок МС (report/stock/byoperation) — один раз на аккаунт после сбора
         # отчётов: идемпотентно/резюмируемо, тянет только НЕкэшированные отгрузки (новые/свежие).
         recent = (today - datetime.timedelta(days=80)).isoformat()
-        step(f"Себест отгрузок МС {acc}", lambda a=acc, mf=recent: msdc.collect(a, moment_from=mf))
+        shipment_cogs_ok = step(
+            f"Себест отгрузок МС {acc}",
+            lambda a=acc, mf=recent: msdc.collect(a, moment_from=mf),
+        )
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
+            failed_sources = []
+            if not wb_reports_ok[(acc, df)]:
+                failed_sources.append(f"WB отчёт {acc} {df}..{dt}")
+            if not shipment_cogs_ok:
+                failed_sources.append(f"Себест отгрузок МС {acc}")
+            if failed_sources:
+                source_names = ", ".join(failed_sources)
+                print(f"[skip] Витрина маржи {acc} {df}: витрина не обновлена, "
+                      f"данные неполные (упал источник: {source_names})", flush=True)
+                print(f"[skip] Слой sales {acc} {df}: витрина не обновлена, "
+                      f"данные неполные (упал источник: {source_names})", flush=True)
+                continue
             step(f"Витрина маржи {acc} {df}", lambda a=acc, x=df, y=dt: margin.build(a, x, y))
             step(f"Слой sales {acc} {df} (по формированию)",
                  lambda a=acc, x=df: __import__("reports.wb_sales_formation", fromlist=["build"]).build(a, x[:7]))
     # --- Ozon: транзакции (по operation_date) + маржа по SKU (COGS из МС, org по аккаунту) ---
     for acc in OZON_ACCOUNTS:
-        step(f"Ozon каталог {acc}", lambda a=acc: __import__("collectors.ozon_products", fromlist=["main"]).main(a))
+        ozon_catalog_ok = step(f"Ozon каталог {acc}", lambda a=acc: __import__("collectors.ozon_products", fromlist=["main"]).main(a))
         step(f"Ozon ФБО остатки {acc}", lambda a=acc: __import__("collectors.ozon_fbo_stock", fromlist=["main"]).main(a))
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
-            step(f"Ozon транзакции {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: oz.main(x, y, a))
-            step(f"Ozon постинги {acc} {df}", lambda a=acc, x=df, y=dt: ozp.main(x, y, a))
+            transactions_ok = step(f"Ozon транзакции {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: oz.main(x, y, a))
+            postings_ok = step(f"Ozon постинги {acc} {df}", lambda a=acc, x=df, y=dt: ozp.main(x, y, a))
+            failed_sources = []
+            if not transactions_ok:
+                failed_sources.append(f"Ozon транзакции {acc} {df}..{dt}")
+            if not postings_ok:
+                failed_sources.append(f"Ozon постинги {acc} {df}")
+            if not ozon_catalog_ok:
+                failed_sources.append(f"Ozon каталог {acc}")
+            if failed_sources:
+                print(f"[skip] Ozon маржа {acc} {df}: витрина не обновлена, данные неполные "
+                      f"(упал источник: {', '.join(failed_sources)})", flush=True)
+                continue
             step(f"Ozon маржа {acc} {df}", lambda a=acc, x=df, y=dt: ozm.build(x, y, a))
     step("Яндекс.Маркет: заказы", lambda: __import__("collectors.yandex", fromlist=["main"]).main())
     # Стоимость услуг: ручной файл ЛК (старые месяцы, если лежит в incoming/) + автосбор
     # свежих месяцев из единого отчёта Партнёр-API (реклама/Полки/подписка/отзывы).
     step("Яндекс.Маркет: услуги", lambda: __import__("collectors.yandex_services", fromlist=["main"]).main())
     step("Яндекс.Маркет: помесячно", lambda: __import__("collectors.yandex_monthly", fromlist=["main"]).main())
-    print(f"[run_daily] готово за {(datetime.datetime.now()-t0).seconds}с", flush=True)
+    elapsed = (datetime.datetime.now()-t0).seconds
+    if FAILED_STEPS:
+        print(f"[run_daily] завершено с ошибками за {elapsed}с: упало {len(FAILED_STEPS)} шагов: "
+              f"{', '.join(FAILED_STEPS)}", flush=True)
+        sys.exit(1)
+    print(f"[run_daily] готово за {elapsed}с", flush=True)
 
 
 if __name__ == "__main__":
