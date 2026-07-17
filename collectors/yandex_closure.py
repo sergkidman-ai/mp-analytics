@@ -27,6 +27,7 @@ import datetime
 import pathlib
 
 import requests
+import psycopg2.extras
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -35,7 +36,7 @@ from core import db  # noqa: E402
 API = "https://api.partner.market.yandex.ru"
 ACCOUNT = "ya_acc1"
 RATE_SLEEP = 125          # лимит 1 запрос / 2 мин на generate
-_last_gen = [0.0]         # монотонная метка последнего generate
+_last_gen = [None]        # монотонная метка последнего generate (None → первый вызов не спит)
 
 SHEET_CAT = {
     "period_closure_income_payments": "revenue",
@@ -83,10 +84,11 @@ def _closure_csvs(key, campaign_id, year, month, timeout=300):
     body = {"campaignId": int(campaign_id),
             "monthOfYear": {"year": year, "month": month},
             "contractType": "INCOME"}
-    # соблюдаем лимит 1/2мин между generate
-    wait = RATE_SLEEP - (time.monotonic() - _last_gen[0])
-    if wait > 0:
-        time.sleep(wait)
+    # соблюдаем лимит 1/2мин между generate (первый вызов — без ожидания)
+    if _last_gen[0] is not None:
+        wait = RATE_SLEEP - (time.monotonic() - _last_gen[0])
+        if wait > 0:
+            time.sleep(wait)
     rid = None
     for attempt in range(6):
         r = requests.post(f"{API}/v2/reports/closure-documents/detalization/generate",
@@ -133,6 +135,22 @@ def _months(m_from, m_to):
     return out
 
 
+_COLS = ["account", "ym", "category", "transaction_id", "transaction_date", "order_id",
+         "offer_id", "offer_name", "count", "amount", "campaign_id", "source"]
+
+
+def _replace_month(account, ym, rows):
+    """Атомарный снапшот месяца: DELETE прежних строк + INSERT новых в ОДНОЙ транзакции
+    (get_conn коммитит при успехе, откатывает при ошибке — читатели не видят пустой месяц)."""
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM raw_yandex_closure WHERE account=%s AND ym=%s", (account, ym))
+            if rows:
+                sql = (f"INSERT INTO raw_yandex_closure ({', '.join(_COLS)}) "
+                       f"VALUES ({', '.join(['%s'] * len(_COLS))})")
+                psycopg2.extras.execute_batch(cur, sql, [[r[c] for c in _COLS] for r in rows])
+
+
 def collect(m_from=None, m_to=None, account=ACCOUNT):
     """Собирает выручку/возвраты по месяцам [m_from..m_to] ('YYYY-MM').
     По умолчанию — прошлый и текущий месяц. Идемпотентно: снапшот на (account, ym)."""
@@ -148,11 +166,13 @@ def collect(m_from=None, m_to=None, account=ACCOUNT):
         seen = set()                       # (category, transaction_id) — дедуп по кампаниям
         rows = []
         contrib = {}
+        errored = False                    # хоть одна кампания упала → не затираем месяц
         for cid in camps:
             try:
                 csvs = _closure_csvs(key, cid, year, month)
             except Exception as e:
                 print(f"  [closure] {ym} camp={cid}: {e}", flush=True)
+                errored = True
                 continue
             cadd = 0.0
             for name, recs in csvs.items():
@@ -161,18 +181,20 @@ def collect(m_from=None, m_to=None, account=ACCOUNT):
                 if not cat:
                     continue
                 for rec in recs:
-                    tid = rec.get("TRANSACTION_ID") or ""
-                    key_dedup = (cat, tid)
-                    if tid and key_dedup in seen:
-                        continue
-                    seen.add(key_dedup)
                     amt = _fnum(rec.get("TRANSACTION_SUM"))
                     if amt == 0:
                         continue
+                    tid = rec.get("TRANSACTION_ID") or ""
+                    # дедуп между кампаниями одного договора — по (category, transaction_id);
+                    # пустой TID → стабильный ключ с ym+cid (снапшот и так режется по (account,ym)).
+                    dkey = (cat, tid) if tid else (cat, f"{ym}:{cid}:{name}:{len(rows)}")
+                    if dkey in seen:
+                        continue
+                    seen.add(dkey)
                     cadd += amt
                     rows.append({
                         "account": account, "ym": ym, "category": cat,
-                        "transaction_id": tid or f"{cid}:{name}:{len(rows)}",
+                        "transaction_id": tid or dkey[1],
                         "transaction_date": _date(rec.get("TRANSACTION_DATE")),
                         "order_id": rec.get("ORDER_ID") or None,
                         "offer_id": rec.get("OFFER_ID") or None,
@@ -184,15 +206,14 @@ def collect(m_from=None, m_to=None, account=ACCOUNT):
                         "payload": None,
                     })
             contrib[cid] = round(cadd, 2)
-        # снапшот месяца: удаляем прежние строки и заливаем заново
-        db.execute("DELETE FROM raw_yandex_closure WHERE account=%s AND ym=%s", (account, ym))
-        if rows:
-            db.upsert("raw_yandex_closure", rows,
-                      conflict_cols=["account", "category", "transaction_id"],
-                      update_cols=["ym", "transaction_date", "order_id", "offer_id",
-                                   "offer_name", "count", "amount", "campaign_id", "source"])
         rev = sum(r["amount"] for r in rows if r["category"] == "revenue")
         ret = sum(r["amount"] for r in rows if r["category"] == "returns")
+        if errored:
+            # частичные данные не сохраняем — прежний полный снапшот месяца сохраняем как есть
+            print(f"  [closure] {ym}: ПРОПУСК записи (ошибка кампании); прежние данные месяца целы. "
+                  f"собрано было: выручка {rev:,.2f} возвраты {ret:,.2f}".replace(",", " "), flush=True)
+            continue
+        _replace_month(account, ym, rows)   # атомарно: DELETE + INSERT в одной транзакции
         total += len(rows)
         print(f"  [closure] {ym}: выручка {rev:,.2f} | возвраты {ret:,.2f} | "
               f"строк {len(rows)} | вклад кампаний {contrib}".replace(",", " "), flush=True)
