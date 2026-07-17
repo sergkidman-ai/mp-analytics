@@ -100,6 +100,13 @@ def _csv_cost(fname, rec):
 #   bonus_col  — колонка «оплата бонусами» (не наши деньги), если есть;
 #   date_col   — колонка даты оказания услуги.
 DATE = "Дата оказания услуги"
+DATE_DT = "Дата и время оказания услуги"   # часть листов зовёт дату так
+# Расходные листы «Отчёта о стоимости услуг» (ручная выгрузка ЛК за старые месяцы, где
+# API недоступен). Категории — те же, что источает API (_csv_cat): commission/logistics/
+# acquiring/misc. Комиссия (лист «Размещение») — колонка «Стоимость услуги (AX = …)»:
+# суффикс формулы меняется, поэтому матчим по префиксу «Стоимость услуги (AX» (маркер *).
+# Проверено на январе до копейки: комиссия 219766.79, логистика 85751.91,
+# эквайринг 12351.15, прочее 600.
 SHEETS = {
     "Буст продаж, оплата за показы":  ("boost_shows",  ["Оплата, ₽"],                 "Оплата бонусами", DATE),
     "Буст продаж, оплата за продажи": ("boost_sales",  ["Предоплата, ₽", "Постоплата, ₽"], "Оплата бонусами", DATE),
@@ -107,6 +114,13 @@ SHEETS = {
     "Товарные баннеры":               ("boost_shows",  ["Оплата, ₽"],                 "Оплата бонусами", DATE),
     "Программа лояльности и отзывы":   ("reviews",      ["Стоимость услуги, ₽"], "Оплата бонусами", DATE),
     "Подписки":                       ("subscription", ["Стоимость услуги, ₽"],       None,              DATE),
+    "Размещение товаров и услуг":      ("commission",   ["Стоимость услуги (AX*"],     None,              DATE_DT),
+    "Доставка покупателю":            ("logistics",    ["Стоимость услуги, ₽"],       None,              DATE_DT),
+    "Экспресс-доставка покупателю":    ("logistics",    ["Стоимость услуги"],          None,              DATE_DT),
+    "Приём платежа":                  ("acquiring",    ["Стоимость услуги, ₽"],       None,              DATE_DT),
+    "Перевод платежа":                ("acquiring",    ["Стоимость услуги, ₽"],       None,              DATE_DT),
+    "Обработка заказов в СЦ или ПВЗ":  ("misc",         ["Стоимость услуги, ₽"],       None,              DATE),
+    "Хранение невыкупов и возвратов":  ("misc",         ["Стоимость услуги, ₽"],       None,              DATE),
 }
 ORDER_HDRS = ("Номер заказа или отгрузки",)
 SKU_HDRS = ("Ваш SKU",)
@@ -138,7 +152,9 @@ def _header_row(ws):
         names = [(str(ws.cell(r, c).value).strip() if ws.cell(r, c).value is not None else "")
                  for c in range(1, ws.max_column + 1)]
         if DATE in names or any(n.startswith("Оплата, ₽") for n in names) \
-           or "Стоимость услуги, ₽" in names or "Предоплата, ₽" in names:
+           or "Предоплата, ₽" in names \
+           or any(n.startswith("Стоимость услуги") for n in names) \
+           or any("оказания услуги" in n for n in names):
             return r, {n: i + 1 for i, n in enumerate(names) if n}
     return None, {}
 
@@ -156,7 +172,14 @@ def parse(path):
         if hr is None:
             print(f"  [services] «{sheet}»: шапка не найдена — пропуск", flush=True)
             continue
-        cc = [h[x] for x in cost_cols if x in h]
+        # колонки стоимости: точное имя, либо префикс (маркер '*' в конце — для «AX = …»)
+        cc = []
+        for x in cost_cols:
+            if x.endswith("*"):
+                cc += [h[k] for k in h if k.startswith(x[:-1])]
+            elif x in h:
+                cc.append(h[x])
+        cc = list(dict.fromkeys(cc))
         bc = h.get(bonus_col) if bonus_col else None
         # дата оказания услуги на части листов зовётся «Дата и время оказания услуги»
         dc = h.get(date_col) or next((h[k] for k in h if "оказания услуги" in k), None)
