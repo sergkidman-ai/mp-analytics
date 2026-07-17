@@ -360,9 +360,18 @@ def collect(since="2026-01-01"):
              for r in db.query(
                  "SELECT month, sales_boost, shows_boost FROM yandex_boost_monthly WHERE account=%s",
                  (ACCOUNT,))}
+    # Расходные категории (комиссия/логистика/эквайринг/прочее) и реклама — из ОФИЦИАЛЬНОГО
+    # «Отчёта о стоимости услуг» (raw_yandex_services), сверено с ЛК до копейки. Реклама — раздельно.
     svc = {r["ym"]: r for r in db.query("""
         SELECT ym,
-               sum(cost) FILTER (WHERE category='ad')::float           ad,
+               sum(cost) FILTER (WHERE category='commission')::float   commission,
+               sum(cost) FILTER (WHERE category='logistics')::float    logistics,
+               sum(cost) FILTER (WHERE category='acquiring')::float    acquiring,
+               sum(cost) FILTER (WHERE category='misc')::float         misc,
+               sum(cost) FILTER (WHERE category='boost_sales')::float  boost_sales,
+               sum(cost) FILTER (WHERE category='boost_shows')::float  boost_shows,
+               sum(cost) FILTER (WHERE category='shelf')::float        shelf,
+               sum(cost) FILTER (WHERE category IN ('boost_sales','boost_shows','shelf'))::float ad,
                sum(cost) FILTER (WHERE category='subscription')::float subscription,
                sum(cost) FILTER (WHERE category='reviews')::float      reviews
         FROM raw_yandex_services WHERE account=%s GROUP BY ym""", (ACCOUNT,))}
@@ -372,9 +381,23 @@ def collect(since="2026-01-01"):
                          if f["qty_cov"] else f["cogs"], 2)
         fact = ms_fact.get(mo)
         s = svc.get(mo[:7]) or {}
-        if s.get("ad"):
+        # Расходные — из отчёта услуг (истина), НЕ из stats/orders commissions[] (иначе задвоение).
+        # Если отчёт за месяц не собран — остаётся значение из stats/orders (фолбэк).
+        if s.get("commission") is not None:
+            f["fee"] = s["commission"]
+        if s.get("logistics") is not None:
+            f["delivery"] = s["logistics"]
+        if s.get("acquiring") is not None:
+            f["transfer"] = s["acquiring"]
+        if s.get("misc") is not None:
+            f["other_fee"] = s["misc"]
+        # реклама раздельно (Fix 3)
+        f["boost_sales"] = s.get("boost_sales") or 0.0
+        f["boost_shows"] = s.get("boost_shows") or 0.0
+        f["shelf"] = s.get("shelf") or 0.0
+        if s.get("ad") is not None:      # отчёт услуг за месяц собран (даже если реклама = 0)
             f["promotion"] = s["ad"]
-        elif mo in boost:
+        elif mo in boost:                # иначе фолбэк на API продвижения
             f["promotion"] = boost[mo]
         frecs.append({"account": ACCOUNT, "month": mo,
                       "revenue": round(f["revenue"], 2), "subsidy": round(f["subsidy"], 2),
@@ -385,6 +408,9 @@ def collect(since="2026-01-01"):
                       "agency": round(f["agency"], 2), "other_fee": round(f["other_fee"], 2),
                       "subscription_cost": round(s.get("subscription") or 0, 2),
                       "reviews_cost": round(s.get("reviews") or 0, 2),
+                      "boost_sales": round(f["boost_sales"], 2),
+                      "boost_shows": round(f["boost_shows"], 2),
+                      "shelf": round(f["shelf"], 2),
                       "unredeemed_orders": int(f["unredeemed_orders"]),
                       "unredeemed_cost": round(f["unredeemed_cost"], 2),
                       "cogs": round(fact, 2) if fact else map_cogs,
@@ -395,6 +421,7 @@ def collect(since="2026-01-01"):
                   update_cols=["revenue", "subsidy", "orders", "returns_orders", "returns_sum",
                                "fee", "delivery", "transfer", "promotion", "agency", "other_fee",
                                "subscription_cost", "reviews_cost",
+                               "boost_sales", "boost_shows", "shelf",
                                "unredeemed_orders", "unredeemed_cost", "cogs", "cogs_cov_pct"])
         db.execute("UPDATE yandex_finance_monthly SET updated_at=now() WHERE account=%s", (ACCOUNT,))
     for r in frecs:
