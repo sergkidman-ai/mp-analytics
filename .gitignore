@@ -9,3 +9,9 @@ incoming/
 .claude/worktrees/
 docs/feedback_drafts.html
 docs/feedback_reference.html
+docs/feedback_compare.html
+docs/feedback_variability.html
+feedback_run.html
+feedback_run_artifact.html
+docs/feedback_*.html
+docs/questions_*.html

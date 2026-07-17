@@ -22,8 +22,47 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 load_dotenv(BASE_DIR / ".env")
 from core import db                                        # noqa: E402
-from reports.feedback_drafts import _ozon_compat, _write_html, _classify, _norm, MODEL_RX  # noqa: E402
+from reports.feedback_drafts import _write_html, _classify, _norm, MODEL_RX  # noqa: E402
 from reports.feedback_corpus import load_corpus            # noqa: E402
+from reports.card_facts import CardFacts                   # noqa: E402
+from reports.catalog import catalog_block                  # noqa: E402
+
+_CHIP_RU = {"installed": "с чипом (уже установлен, докупать не нужно)",
+            "not_required": "чип уже установлен, дополнительно докупать/ставить не требуется",
+            "none": "без чипа (чип переставляется с прежнего оригинального картриджа)"}
+
+
+def _card_data(r, cf):
+    """CARD_DATA для промпта: чистые факты карточки (card_facts v2, offline из raw_*_card_content /
+    raw_ozon_attributes). Чип — 3 корректных состояния, модели — чистый список. '' если карточки нет."""
+    f = (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon"
+         else cf.for_wb(r["item_id"]) if r["platform"] == "wb" else None)
+    # каталог наших листингов — для вопросов о наличии/цвете/артикуле (источник №3); модель принтера
+    # берём из карточки, если в вопросе её нет («а цветной есть?» — модель уже известна)
+    cat = (catalog_block(r.get("body") or "", r.get("product_name") or "", (f or {}).get("models"))
+           if r["kind"] == "question" else "")
+    if not f:
+        return cat  # карточки нет, но каталог по наличию может быть
+    lines = []
+    if f.get("code"):       lines.append(f"код картриджа: {f['code']} (можно назвать покупателю)")
+    if f.get("kind"):       lines.append(f"тип: {f['kind']}" + (f" / {f['ptype']}" if f.get("ptype") else ""))
+    if f.get("chip"):       lines.append("чип: " + _CHIP_RU.get(f["chip"], f["chip"]))
+    else:                   lines.append("чип: в карточке НЕ указан (не утверждать)")
+    lines.append("заправляемость: " + (f["refillable"] if f.get("refillable") else "в описании НЕ заявлена"))
+    if f.get("resource"):   lines.append(f"ресурс, стр: {f['resource']}")
+    if f.get("color"):      lines.append(f"цвет: {f['color']}")
+    if f.get("models"):
+        lines.append("СОВМЕСТИМЫЕ МОДЕЛИ (полный список карточки): " + ", ".join(f["models"]))
+    else:
+        lines.append("совместимые модели: в карточке НЕ перечислены (совместимость не утверждать)")
+    if f.get("annot"):
+        lines.append("ОПИСАНИЕ КАРТОЧКИ (свободный текст — бери отсюда состав/комплектацию набора, модель "
+                     "картриджа, число листов; факты в полях выше приоритетнее): " + f["annot"][:600])
+    head = f"Товар: {f.get('name') or r['product_name']} (артикул {f.get('article') or '—'})"
+    block = head + "\nФАКТЫ КАРТОЧКИ:\n- " + "\n- ".join(lines)
+    if f.get("chip_src"):
+        block += f"\n(чип уточнён по Ozon-двойнику того же артикула)"
+    return block + ("\n\n" + cat if cat else "")
 
 MODEL = "claude-sonnet-5"          # клиентские ответы — важна корректность; батч даёт −50%
 MAX_TOKENS = 500
@@ -34,14 +73,34 @@ SYSTEM = """Ты — специалист поддержки интернет-м
 
 ТОН (по нашим реальным ответам): вежливо, тепло, кратко (1–3 предложения), на «Вы». На позитив —
 благодаришь за выбор товара и магазина. На негатив — сожалеешь, не споришь, зовёшь написать в чат
-по QR-коду на упаковке и обещаешь разобраться (возврат/замена). На вопрос — отвечаешь по делу.
+и обещаешь разобраться (возврат/замена). На вопрос — отвечаешь по делу.
+
+КУДА ЗВАТЬ ЗА ПОМОЩЬЮ — ЗАВИСИТ ОТ ТОГО, КУПЛЕН ЛИ ТОВАР:
+• Покупатель УЖЕ купил и пишет о проблеме (отзыв; вопрос вида «купил/пришёл/установил, не печатает,
+  ошибка, брак, возврат») — у него есть коробка: зови «в чат по QR-коду на упаковке или в товарном
+  чеке внутри коробки».
+• Это ВОПРОС ещё НЕ купившего (уточнить совместимость/цвет/наличие/характеристику) — у него НЕТ ни
+  коробки, ни товарного чека, ни стикера. НЕЛЬЗЯ отправлять его «по QR-коду на упаковке/в чеке». Либо
+  ответь по делу, либо попроси уточнить деталь прямо здесь, в вопросах к товару («уточните, пожалуйста,
+  точную модель — подскажем, подойдёт ли»). Не упоминай коробку, упаковку, чек и QR-код.
 
 ГЛАВНОЕ ПРАВИЛО — ПРОВЕРКА ДАННЫХ. Утверждай ТОЛЬКО то, что подтверждено блоком CARD_DATA
 (характеристики/совместимость карточки). Если спрашивают про модель принтера, которой НЕТ в
-CARD_DATA — не говори «подходит»; попроси уточнить точную модель и предложи помощь. Никогда не
+CARD_DATA — не говори «подходит»; попроси уточнить точную модель и предложи помощь. ИСКЛЮЧЕНИЕ:
+суффиксы-варианты одной серии (напр. CX17 и CX17NF/CX17WF; C1750 и C1750N/W; M2000 и M2000DN/DW) —
+это одна линейка с общим картриджем: если базовая модель есть в списке, вариант тоже подходит. Никогда не
 выдумывай совместимость, регион чипа, ресурс, цвет, «оригинал/совместимый». Если данных нет —
 route=review. Технические проблемы («не опознан», «ошибка чипа», «печатает серым») — краткий
 совет + приглашение в чат, без гарантий.
+
+НАЛИЧИЕ/ЦВЕТ. Не утверждай, что какого-то цвета или варианта товара у нас НЕТ в ассортименте, если
+это не следует из блока КАТАЛОГ. То, что в ЭТОЙ карточке только один цвет, НЕ значит, что другого нет
+в магазине. Если в КАТАЛОГ есть подходящий вариант — назови его (можно артикул); если каталога нет или
+он пуст — не отрицай наличие, а предложи покупателю уточнить нужный цвет прямо здесь, поможем подобрать.
+МОДЕЛЬ ПРИНТЕРА НЕ ПЕРЕСПРАШИВАЙ, если она уже есть в названии товара / CARD_DATA — используй её.
+Пример: товар «Картридж для HP DeskJet 3745» + вопрос «а цветной есть?» → модель уже известна (HP
+DeskJet 3745), смотри КАТАЛОГ и отвечай «да, есть цветной, артикул …» или предложи проверить наличие —
+но НЕ проси покупателя назвать модель принтера.
 
 ФОРМАТ ОТВЕТА — СТРОГО один JSON-объект, без markdown:
 {"reply": "<готовый к публикации текст ответа>",
@@ -86,9 +145,17 @@ def _asked_models(body):
             if re.search(r"\d", m.group(0)) and len(_norm(m.group(0))) >= 3]
 
 
+def _text_of(message):
+    """Текст ответа модели без thinking-блоков (relay/модель могут возвращать ThinkingBlock первым)."""
+    return "".join(getattr(b, "text", "") for b in message.content
+                   if getattr(b, "type", None) == "text").strip()
+
+
 def _gather(limit=None):
+    # весь неотвеченный текстовый backlog (~49 шт), свежие первыми; вопросы в приоритет
     rows = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,body,pros,cons,payload
-        FROM raw_feedback WHERE is_answered=false AND account IN ('wb_acc1','oz_acc1')""")
+        FROM raw_feedback WHERE is_answered=false AND account IN ('wb_acc1','oz_acc1')
+        ORDER BY created_at DESC NULLS LAST""")
     items = [r for r in rows if _classify(r) in ("question", "negative", "positive")]
     items.sort(key=lambda r: {"question": 0, "negative": 1, "positive": 2}[_classify(r)])
     return items[:limit] if limit else items
@@ -109,14 +176,19 @@ def run(limit=None):
     from anthropic import Anthropic
     from anthropic.types.messages.batch_create_params import Request
     from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
-    client = Anthropic(api_key=key)
+    # relay-эндпоинт (ANTHROPIC_BASE_URL, self-signed по IP) → verify=False, как в Соколе
+    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    if base_url:
+        import httpx
+        client = Anthropic(api_key=key, base_url=base_url, http_client=httpx.Client(verify=False))
+    else:
+        client = Anthropic(api_key=key)
 
     items = _gather(limit)
     if not items:
         print("Нет элементов для LLM.", flush=True)
         return
-    oz_skus = {r["item_id"] for r in items if r["platform"] == "ozon" and r["item_id"]}
-    compat = _ozon_compat("oz_acc1", oz_skus) if oz_skus else {}
+    cf = CardFacts()
     corpus = load_corpus()
     print(f"Справочник наших ответов: {len(corpus.items)} шт (динамические few-shot)", flush=True)
 
@@ -124,7 +196,7 @@ def run(limit=None):
     for i, r in enumerate(items):
         cid = f"i{i}"
         idx[cid] = r
-        cc = compat.get(r["item_id"], "") if r["platform"] == "ozon" else ""
+        cc = _card_data(r, cf)
         cid_compat[cid] = cc
         src = (r["body"] or r["pros"] or r["cons"] or "")
         ex = corpus.retrieve(r["kind"], src, r["product_name"], k=5)
@@ -155,7 +227,7 @@ def _store(client, batch_id, idx, cid_compat):
         if r is None or res.result.type != "succeeded":
             err += 1
             continue
-        raw = res.result.message.content[0].text.strip()
+        raw = _text_of(res.result.message)
         try:
             m = re.search(r"\{.*\}", raw, re.S)
             data = json.loads(m.group(0))
@@ -208,8 +280,68 @@ def _export_html():
     print("HTML обновлён: docs/feedback_drafts.html", flush=True)
 
 
+def dry_run(limit=None):
+    """Предпросмотр БЕЗ API: собирает ровно те промпты, что ушли бы в батч (грунтовка + few-shot
+    + обращение), и пишет docs/feedback_dry.html. Проверить начинку до траты токенов."""
+    items = _gather(limit)
+    if not items:
+        print("Нет элементов.", flush=True)
+        return
+    cf = CardFacts()
+    corpus = load_corpus()
+    print(f"Dry-run: {len(items)} обращений, справочник {len(corpus.items)} ответов. API НЕ вызывается.",
+          flush=True)
+    import html as _h
+    cat_badge = {"question": ("вопрос", "#084298", "#cfe2ff"),
+                 "negative": ("негатив", "#842029", "#f8d7da"),
+                 "positive": ("позитив", "#0f5132", "#d1e7dd")}
+    parts = ["<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f5f7;"
+             "color:#1a1a1a;margin:0}@media(prefers-color-scheme:dark){body{background:#161719;"
+             "color:#e6e6e6}.card{background:#1f2124;border-color:#2c2f33}.blk{background:#26282b}}"
+             "header{padding:18px 26px;background:#5a3fa0;color:#fff}h1{margin:0;font-size:18px}"
+             ".wrap{max-width:920px;margin:0 auto;padding:16px}.card{background:#fff;border:1px solid "
+             "#e3e5e8;border-radius:11px;padding:14px 16px;margin:14px 0}.meta{font-size:12px;color:#888}"
+             ".prod{font-size:12px;color:#5a3fa0;font-weight:600;margin:3px 0 8px}.badge{display:inline-block;"
+             "font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px}"
+             ".blk{background:#eef0f2;border-radius:8px;padding:9px 12px;margin:8px 0;font-size:12.5px;"
+             "white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace}.lbl{font-size:11px;font-weight:700;"
+             "text-transform:uppercase;color:#5a3fa0;letter-spacing:.4px;display:block;margin:10px 0 3px}"
+             "</style><header><h1>Dry-run: что уйдёт в модель (API не вызывается)</h1></header><div class='wrap'>"
+             f"<p class='meta'>{len(items)} обращений за 30 дней. Ниже per-item: факты карточки (grounding), "
+             "похожие наши прошлые ответы (few-shot) и итоговый USER-блок промпта.</p>"
+             f"<div class='blk'><b>SYSTEM (един на все):</b>\n{_h.escape(SYSTEM)}</div>"]
+    for r in items:
+        cat = _classify(r)
+        lab, fg, bg = cat_badge.get(cat, (cat, "#555", "#ddd"))
+        cc = _card_data(r, cf)
+        src = (r["body"] or r["pros"] or r["cons"] or "")
+        ex = corpus.retrieve(r["kind"], src, r["product_name"], k=5)
+        ub = _user_block(r, _name(r), cc, ex)
+        shown = (r["body"] or "").strip()
+        if r["pros"]:
+            shown += f"\n[достоинства]: {r['pros']}"
+        if r["cons"]:
+            shown += f"\n[недостатки]: {r['cons']}"
+        parts.append(
+            f"<div class='card'><div class='meta'>{_h.escape(r['platform'])} · {_h.escape(r['account'])}"
+            f"<span class='badge' style='color:{fg};background:{bg}'>{lab}</span></div>"
+            f"<div class='prod'>{_h.escape(r['product_name'] or '')}</div>"
+            f"<div class='blk'>{_h.escape(shown.strip() or '(без текста)')}</div>"
+            f"<span class='lbl'>Факты карточки (grounding)</span>"
+            f"<div class='blk'>{_h.escape(cc or '(карточка не сшита — фактов нет)')}</div>"
+            f"<span class='lbl'>USER-блок промпта (few-shot + карточка + обращение)</span>"
+            f"<div class='blk'>{_h.escape(ub)}</div></div>")
+    parts.append("</div>")
+    out = BASE_DIR / "docs" / "feedback_dry.html"
+    out.write_text("".join(parts), encoding="utf-8")
+    print(f"Готово → {out}", flush=True)
+
+
 if __name__ == "__main__":
     lim = None
     if "--limit" in sys.argv:
         lim = int(sys.argv[sys.argv.index("--limit") + 1])
-    run(lim)
+    if "--dry" in sys.argv:
+        dry_run(lim)
+    else:
+        run(lim)
