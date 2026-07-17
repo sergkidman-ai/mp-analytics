@@ -10,7 +10,14 @@ AGENCY=агентское), статусы (RETURNED и т.п.), items.shopSku (
 и yandex_finance_monthly (выручка/расходы/возвраты/COGS по месяцам).
 Выручка = Σ payments без CANCELLED — сходится с учётной таблицей.
 
-Запуск:  ./venv/bin/python collectors/yandex_monthly.py [YYYY-MM-01 since]
+Запуск:
+  ./venv/bin/python collectors/yandex_monthly.py [YYYY-MM-01 since]      # полный: тянет заказы из API
+  ./venv/bin/python collectors/yandex_monthly.py --light [YYYY-MM-01]    # лёгкий: пересчёт из сырья, без API
+
+Лёгкий режим (recompute) пересобирает витрину из уже собранного сырья
+(raw_yandex_stats_order + raw_yandex_services + raw_yandex_closure + yandex_boost_monthly)
+и НЕ обращается к stats/orders API. Применять, когда обновилось только сырьё (загружен отчёт
+услуг / closure / себест) или когда полный пул «слишком большой, не проходит».
 """
 import os
 import sys
@@ -252,93 +259,62 @@ def _pay_sum(o):
     return pay - refund, refund
 
 
-def collect(since="2026-01-01"):
-    key, camps = _cfg()
-    H = {"Api-Key": key, "Content-Type": "application/json"}
-    today = datetime.date.today().isoformat()
-    # Себест: цепочка yandex_cost → external_code → баркод → закупочная ЯМ (см. _cost_map)
-    cmap = _cost_map()
-    cost = {sku: c for sku, (c, _src) in cmap.items()}
-    src_cnt = Counter(src for _, src in cmap.values())
-    print(f"  карта себеста: {len(cost)} SKU ({dict(src_cnt)})", flush=True)
-    agg = defaultdict(lambda: {"revenue": 0.0, "subsidy": 0.0, "orders": 0})
-    fin = defaultdict(lambda: defaultdict(float))
-    comm_types = Counter()
-    raw_buf, n_raw = [], 0
-    for cid in camps:
-        tok = None
-        for _ in range(200):
-            params = {"page_token": tok} if tok else {}
-            r = requests.post(f"{API}/campaigns/{cid}/stats/orders", headers=H, params=params,
-                              json={"dateFrom": since, "dateTo": today}, timeout=120)
-            if r.status_code != 200:
-                print(f"  [ya monthly] cid {cid}: HTTP {r.status_code} — стоп", flush=True)
-                break
-            res = r.json().get("result", {})
-            for o in res.get("orders", []):
-                oid = o.get("id")
-                if oid is not None:
-                    raw_buf.append({"account": ACCOUNT, "order_id": str(oid),
-                                    "campaign_id": str(cid),
-                                    "payload": psycopg2.extras.Json(o)})
-                cd = (o.get("creationDate") or "")[:7]   # YYYY-MM
-                if len(cd) != 7:
-                    continue
-                mo = cd + "-01"
-                st = o.get("status") or ""
-                f = fin[mo]
-                # ОТМЕНЫ: статусы CANCELLED_* (ровно 'CANCELLED' не бывает!). Деньги покупателя
-                # самокорректны (PAYMENT−REFUND=0), но субсидию и счётчик заказов НЕ включаем.
-                # Комиссии отменённых (логистика незабора) — реальный расход, учитываем;
-                # незабор = CANCELLED_IN_DELIVERY — отдельной метрикой.
-                if st.startswith("CANCELLED"):
-                    o_comm = 0.0
-                    for c in (o.get("commissions") or []):
-                        comm_types[c.get("type")] += 1
-                        v = c.get("actual", 0) or 0
-                        f[_comm_col(c.get("type"))] += v
-                        o_comm += v
-                    if st == "CANCELLED_IN_DELIVERY":
-                        f["unredeemed_orders"] += 1
-                        f["unredeemed_cost"] += o_comm
-                    continue
-                a = agg[mo]
-                a["orders"] += 1
-                pay, refund = _pay_sum(o)
-                sub = sum(s.get("amount", 0) or 0 for s in (o.get("subsidies") or []))
-                a["revenue"] += pay
-                a["subsidy"] += sub
-                f["revenue"] += pay
-                f["subsidy"] += sub
-                f["orders"] += 1
-                if st in RETURN_STATUSES:
-                    f["returns_orders"] += 1
-                f["returns_sum"] += refund
-                for c in (o.get("commissions") or []):
-                    comm_types[c.get("type")] += 1
-                    f[_comm_col(c.get("type"))] += c.get("actual", 0) or 0
-                # COGS: без отмен и возвратов (товар вернулся — себест не списываем)
-                if st not in RETURN_STATUSES:
-                    for it in (o.get("items") or []):
-                        q = it.get("count", 0) or 0
-                        sku = str(it.get("shopSku") or "")
-                        f["qty"] += q
-                        if sku in cost:
-                            f["cogs"] += cost[sku] * q
-                            f["qty_cov"] += q
-            if len(raw_buf) >= 500:
-                n_raw += db.upsert("raw_yandex_stats_order", raw_buf,
-                                   conflict_cols=["account", "order_id"],
-                                   update_cols=["campaign_id", "payload"])
-                raw_buf = []
-            tok = (res.get("paging") or {}).get("nextPageToken")
-            if not tok:
-                break
-            time.sleep(0.5)
-    if raw_buf:
-        n_raw += db.upsert("raw_yandex_stats_order", raw_buf,
-                           conflict_cols=["account", "order_id"],
-                           update_cols=["campaign_id", "payload"])
+def _fold_order(o, fin, agg, comm_types, cost):
+    """Свернуть один заказ stats/orders в помесячные агрегаты fin/agg (мутирует их).
+    Единая логика для live-пула (collect) и пересчёта из сырья (recompute) — источник
+    заказа (API или raw_yandex_stats_order) значения не имеет, payload идентичен."""
+    cd = (o.get("creationDate") or "")[:7]   # YYYY-MM
+    if len(cd) != 7:
+        return
+    mo = cd + "-01"
+    st = o.get("status") or ""
+    f = fin[mo]
+    # ОТМЕНЫ: статусы CANCELLED_* (ровно 'CANCELLED' не бывает!). Деньги покупателя
+    # самокорректны (PAYMENT−REFUND=0), но субсидию и счётчик заказов НЕ включаем.
+    # Комиссии отменённых (логистика незабора) — реальный расход, учитываем;
+    # незабор = CANCELLED_IN_DELIVERY — отдельной метрикой.
+    if st.startswith("CANCELLED"):
+        o_comm = 0.0
+        for c in (o.get("commissions") or []):
+            comm_types[c.get("type")] += 1
+            v = c.get("actual", 0) or 0
+            f[_comm_col(c.get("type"))] += v
+            o_comm += v
+        if st == "CANCELLED_IN_DELIVERY":
+            f["unredeemed_orders"] += 1
+            f["unredeemed_cost"] += o_comm
+        return
+    a = agg[mo]
+    a["orders"] += 1
+    pay, refund = _pay_sum(o)
+    sub = sum(s.get("amount", 0) or 0 for s in (o.get("subsidies") or []))
+    a["revenue"] += pay
+    a["subsidy"] += sub
+    f["revenue"] += pay
+    f["subsidy"] += sub
+    f["orders"] += 1
+    if st in RETURN_STATUSES:
+        f["returns_orders"] += 1
+    f["returns_sum"] += refund
+    for c in (o.get("commissions") or []):
+        comm_types[c.get("type")] += 1
+        f[_comm_col(c.get("type"))] += c.get("actual", 0) or 0
+    # COGS: без отмен и возвратов (товар вернулся — себест не списываем)
+    if st not in RETURN_STATUSES:
+        for it in (o.get("items") or []):
+            q = it.get("count", 0) or 0
+            sku = str(it.get("shopSku") or "")
+            f["qty"] += q
+            if sku in cost:
+                f["cogs"] += cost[sku] * q
+                f["qty_cov"] += q
+
+
+def _write_finance(fin, agg, since):
+    """Аггрегатная фаза: fin/agg → yandex_monthly + yandex_finance_monthly.
+    Общая для collect (live) и recompute (из сырья). Расходы/реклама — из
+    raw_yandex_services; выручка/возвраты — из raw_yandex_closure (фолбэк на stats/orders).
+    Возвращает список записанных помесячных строк (frecs)."""
     recs = [{"account": ACCOUNT, "month": mo, "revenue": round(v["revenue"], 2),
              "subsidy": round(v["subsidy"], 2), "orders": v["orders"]}
             for mo, v in sorted(agg.items())]
@@ -447,12 +423,104 @@ def collect(since="2026-01-01"):
               f"эквайринг {r['transfer']:,.0f}, реклама {r['promotion']:,.0f}, "
               f"подписка {r['subscription_cost']:,.0f}, отзывы {r['reviews_cost']:,.0f}) | "
               f"COGS {r['cogs']:,.0f} ({r['cogs_cov_pct']:.0f}%)", flush=True)
+    return frecs
+
+
+def recompute(since="2026-01-01"):
+    """ЛЁГКИЙ режим: пересобрать витрину из УЖЕ собранного сырья, БЕЗ обращения к API Яндекса.
+    Заказы читаются из raw_yandex_stats_order (payload идентичен ответу API), расходы/реклама —
+    из raw_yandex_services, выручка/возвраты — из raw_yandex_closure, буст — из yandex_boost_monthly.
+    Выхлоп идентичен collect(), но без тяжёлого stats/orders-пула (×3 кампании). Применять,
+    когда обновилось только сырьё (загружен отчёт услуг / closure / себест), а перетягивать
+    заказы не нужно — или когда полный пул «слишком большой, не проходит»."""
+    cmap = _cost_map()
+    cost = {sku: c for sku, (c, _src) in cmap.items()}
+    print(f"  карта себеста: {len(cost)} SKU", flush=True)
+    fin = defaultdict(lambda: defaultdict(float))
+    agg = defaultdict(lambda: {"revenue": 0.0, "subsidy": 0.0, "orders": 0})
+    comm_types = Counter()
+    # Ограничиваем набор заказов ровно как live-пул: только КАМПАНИИ из конфига и окно с даты
+    # since (в API это dateFrom, точность до дня). Без этого пересчёт учёл бы «осевшие» в сырье
+    # заказы снятых из конфига кампаний и отличался бы от collect() на этих данных.
+    camps = [c.strip() for c in (os.getenv("YANDEX_CAMPAIGN_ID_ACC1") or "").split(",") if c.strip()]
+    q = "SELECT payload FROM raw_yandex_stats_order WHERE account=%s"
+    params = [ACCOUNT]
+    if camps:
+        q += " AND campaign_id = ANY(%s)"
+        params.append(camps)
+    n = 0
+    for row in db.query(q, tuple(params)):
+        o = row["payload"] or {}
+        if ((o.get("creationDate") or "")[:10]) < since:   # окно как у live-пула (dateFrom=since, до дня)
+            continue
+        _fold_order(o, fin, agg, comm_types, cost)
+        n += 1
+    print(f"  пересчёт из сырья: {n} заказов (с {since})", flush=True)
+    frecs = _write_finance(fin, agg, since)
+    print(f"Яндекс.Маркет (лёгкий пересчёт): помесячно {len(frecs)} месяцев | "
+          f"типы commissions: {dict(comm_types)}", flush=True)
+    return frecs
+
+
+def collect(since="2026-01-01"):
+    key, camps = _cfg()
+    H = {"Api-Key": key, "Content-Type": "application/json"}
+    today = datetime.date.today().isoformat()
+    # Себест: цепочка yandex_cost → external_code → баркод → закупочная ЯМ (см. _cost_map)
+    cmap = _cost_map()
+    cost = {sku: c for sku, (c, _src) in cmap.items()}
+    src_cnt = Counter(src for _, src in cmap.values())
+    print(f"  карта себеста: {len(cost)} SKU ({dict(src_cnt)})", flush=True)
+    agg = defaultdict(lambda: {"revenue": 0.0, "subsidy": 0.0, "orders": 0})
+    fin = defaultdict(lambda: defaultdict(float))
+    comm_types = Counter()
+    raw_buf, n_raw = [], 0
+    for cid in camps:
+        tok = None
+        for _ in range(200):
+            params = {"page_token": tok} if tok else {}
+            r = requests.post(f"{API}/campaigns/{cid}/stats/orders", headers=H, params=params,
+                              json={"dateFrom": since, "dateTo": today}, timeout=120)
+            if r.status_code != 200:
+                print(f"  [ya monthly] cid {cid}: HTTP {r.status_code} — стоп", flush=True)
+                break
+            res = r.json().get("result", {})
+            for o in res.get("orders", []):
+                oid = o.get("id")
+                if oid is not None:
+                    raw_buf.append({"account": ACCOUNT, "order_id": str(oid),
+                                    "campaign_id": str(cid),
+                                    "payload": psycopg2.extras.Json(o)})
+                _fold_order(o, fin, agg, comm_types, cost)
+            if len(raw_buf) >= 500:
+                n_raw += db.upsert("raw_yandex_stats_order", raw_buf,
+                                   conflict_cols=["account", "order_id"],
+                                   update_cols=["campaign_id", "payload"])
+                raw_buf = []
+            tok = (res.get("paging") or {}).get("nextPageToken")
+            if not tok:
+                break
+            time.sleep(0.5)
+    if raw_buf:
+        n_raw += db.upsert("raw_yandex_stats_order", raw_buf,
+                           conflict_cols=["account", "order_id"],
+                           update_cols=["campaign_id", "payload"])
+    frecs = _write_finance(fin, agg, since)
     print(f"Яндекс.Маркет: сырья {n_raw} заказов, помесячно {len(frecs)} месяцев | "
           f"типы commissions: {dict(comm_types)}", flush=True)
 
 
 def main():
-    since = sys.argv[1] if len(sys.argv) > 1 else "2026-01-01"
+    # Лёгкий режим: yandex_monthly.py --light [since] — пересчёт витрины из уже собранного
+    # сырья без API-пула (когда обновилось только сырьё или полный пул «не проходит»).
+    argv = sys.argv[1:]
+    light = any(a in ("--light", "--recompute", "recompute") for a in argv)
+    pos = [a for a in argv if not a.startswith("-") and a not in ("recompute",)]
+    since = pos[0] if pos else "2026-01-01"
+    if light:
+        print(f"Яндекс.Маркет: ЛЁГКИЙ пересчёт витрины из сырья с {since} (без API)", flush=True)
+        recompute(since)
+        return
     print(f"Яндекс.Маркет помесячно с {since} (stats/orders)", flush=True)
     collect_offers()
     # буст: ежедневно освежаем текущий+прошлый месяц (закрытые месяцы не меняются)
