@@ -37,11 +37,29 @@ ACCOUNT = "ya_acc1"
 DEFAULT_FILE = BASE_DIR / "incoming" / "marketplace_services_financial_month.xlsx"
 
 # Единый отчёт Партнёр-API (united-marketplace-services) отдаёт по CSV на вид услуги.
-# Берём только рекламу/промо, которых НЕТ в stats/orders (иначе задвоение комиссии/логистики):
-#   boost/cpm-boost/product-banners → реклама; loyalty_and_reviews → отзывы;
-#   business_subscription → подписка; строки Полок (SERVICE_NAME ~ «Полк») → реклама, где бы ни лежали.
-# placement/delivery*/payment_*/order_processing/storage — уже учтены через stats/orders, пропускаем.
-AD_CSV = {"boost.csv", "cpm-boost.csv", "product-banners.csv"}
+# ИСТОЧНИК ИСТИНЫ для расходных категорий витрины — сверено с ЛК до копейки (январь 2026):
+#   placement → commission (комиссия за размещение, колонка TOTAL_AMOUNT — не SERVICE_PRICE!);
+#   delivery + express_delivery → logistics (SERVICE_PRICE);
+#   payment_transfer + payment_accepting → acquiring/эквайринг (SERVICE_PRICE);
+#   order_processing + storage_of_returns → misc/«прочее» (SERVICE_PRICE);
+#   boost → boost_sales; cpm-boost/product-banners → boost_shows; Полки → shelf (реклама раздельно);
+#   loyalty_and_reviews → reviews; business_subscription → subscription.
+# Раньше расходные CSV выбрасывались (учитывались через stats/orders commissions[]); теперь берём
+# ИХ отсюда, а в stats/orders эти категории больше НЕ источаем (иначе задвоение). См. yandex_monthly.
+CSV_CAT = {
+    "boost.csv": "boost_sales",
+    "cpm-boost.csv": "boost_shows",
+    "product-banners.csv": "boost_shows",
+    "placement.csv": "commission",
+    "delivery.csv": "logistics",
+    "express_delivery.csv": "logistics",
+    "payment_transfer.csv": "acquiring",
+    "payment_accepting.csv": "acquiring",
+    "order_processing.csv": "misc",
+    "storage_of_returns.csv": "misc",
+    "loyalty_and_reviews.csv": "reviews",
+    "business_subscription.csv": "subscription",
+}
 DATE_COLS = ("SERVICE_DATE", "SERVICE_DATE_TIME")
 BONUS_COLS = ("BONUS_PAID", "PAYMENT_WITH_BONUSES")
 # Реальная оплата ₽ лежит в РАЗНЫХ колонках у разных услуг (сверено с ручной выгрузкой ЛК):
@@ -60,23 +78,20 @@ def _fnum(v):
 
 
 def _csv_cat(fname, service_name):
-    if fname in AD_CSV:
-        return "ad"
-    if fname == "loyalty_and_reviews.csv":
-        return "reviews"
-    if fname == "business_subscription.csv":
-        return "subscription"
-    if "полк" in (service_name or "").lower():   # Полки — где бы ни лежали
-        return "ad"
-    return None
+    if "полк" in (service_name or "").lower():   # Полки — где бы ни лежали (shelf.csv и пр.)
+        return "shelf"
+    return CSV_CAT.get(fname)                     # None → строка пропускается
 
 
 def _csv_cost(fname, rec):
-    """Реальная оплата ₽ строки — колонка зависит от вида услуги."""
+    """Реальная оплата ₽ строки — колонка зависит от вида услуги (сверено с ЛК)."""
     if fname == "boost.csv":                       # буст продаж
         return _fnum(rec.get("PREPAID")) + _fnum(rec.get("POSTPAID"))
     if fname in ("cpm-boost.csv", "product-banners.csv"):  # буст показов / баннеры
         return _fnum(rec.get("PAYMENT"))
+    if fname == "placement.csv":                   # комиссия за размещение — реальные деньги в TOTAL_AMOUNT
+        return _fnum(rec.get("TOTAL_AMOUNT"))
+    # delivery/express/payment_*/order_processing/storage_of_returns/отзывы/подписка → SERVICE_PRICE
     return next((_fnum(rec[c]) for c in SERVICE_PRICE_FALLBACK if _fnum(rec.get(c))), 0.0)
 
 # Правило разбора на каждый лист услуги:
@@ -86,10 +101,10 @@ def _csv_cost(fname, rec):
 #   date_col   — колонка даты оказания услуги.
 DATE = "Дата оказания услуги"
 SHEETS = {
-    "Буст продаж, оплата за показы":  ("ad",           ["Оплата, ₽"],                 "Оплата бонусами", DATE),
-    "Буст продаж, оплата за продажи": ("ad",           ["Предоплата, ₽", "Постоплата, ₽"], "Оплата бонусами", DATE),
-    "Полки":                          ("ad",           ["Оплата, ₽"],                 "Оплата бонусами", DATE),
-    "Товарные баннеры":               ("ad",           ["Оплата, ₽"],                 "Оплата бонусами", DATE),
+    "Буст продаж, оплата за показы":  ("boost_shows",  ["Оплата, ₽"],                 "Оплата бонусами", DATE),
+    "Буст продаж, оплата за продажи": ("boost_sales",  ["Предоплата, ₽", "Постоплата, ₽"], "Оплата бонусами", DATE),
+    "Полки":                          ("shelf",        ["Оплата, ₽"],                 "Оплата бонусами", DATE),
+    "Товарные баннеры":               ("boost_shows",  ["Оплата, ₽"],                 "Оплата бонусами", DATE),
     "Программа лояльности и отзывы":   ("reviews",      ["Стоимость услуги, ₽"], "Оплата бонусами", DATE),
     "Подписки":                       ("subscription", ["Стоимость услуги, ₽"],       None,              DATE),
 }
@@ -293,16 +308,23 @@ def collect_api(months=None, account=ACCOUNT):
     return n
 
 
+AD_CATS = ("boost_sales", "boost_shows", "shelf")  # компоненты «рекламы» (реклама = их сумма)
+
+
 def services_monthly(account=ACCOUNT):
-    """Свёртка по месяцам: {ym: {'ad':..,'subscription':..,'reviews':..,'ad_bonus':..}}."""
+    """Свёртка по месяцам: {ym: {категория: ₽, '<кат>_bonus': ₽, 'ad': Σ рекламных}}.
+    Категории: commission, logistics, acquiring, misc, boost_sales, boost_shows, shelf,
+    subscription, reviews. «ad» — агрегат рекламных (boost_sales+boost_shows+shelf) для совместимости."""
     out = {}
     for r in db.query("""
             SELECT ym, category, sum(cost)::float cost, sum(bonus)::float bonus
             FROM raw_yandex_services WHERE account=%s GROUP BY ym, category""", (account,)):
-        d = out.setdefault(r["ym"], {"ad": 0.0, "subscription": 0.0, "reviews": 0.0, "ad_bonus": 0.0})
+        d = out.setdefault(r["ym"], {})
         d[r["category"]] = r["cost"]
-        if r["category"] == "ad":
-            d["ad_bonus"] = r["bonus"]
+        d[r["category"] + "_bonus"] = r["bonus"]
+    for ym, d in out.items():
+        d["ad"] = sum(d.get(c, 0.0) for c in AD_CATS)
+        d["ad_bonus"] = sum(d.get(c + "_bonus", 0.0) for c in AD_CATS)
     return out
 
 
@@ -320,7 +342,10 @@ if __name__ == "__main__":
         import_file(arg)          # путь к xlsx
     else:
         main()
-    print("\nСвёртка по месяцам (реклама | подписка | отзывы):")
+    print("\nСвёртка по месяцам (комиссия | логистика | эквайринг | прочее | реклама | подписка | отзывы):")
     for ym, d in sorted(services_monthly().items()):
-        print(f"  {ym}: реклама {d['ad']:>10,.0f} | подписка {d['subscription']:>7,.0f} "
-              f"| отзывы {d['reviews']:>7,.0f}")
+        print(f"  {ym}: комис {d.get('commission',0):>9,.0f} | логист {d.get('logistics',0):>8,.0f} "
+              f"| эквайр {d.get('acquiring',0):>7,.0f} | прочее {d.get('misc',0):>6,.0f} "
+              f"| реклама {d.get('ad',0):>9,.0f} (бустП {d.get('boost_sales',0):>7,.0f}/"
+              f"бустПок {d.get('boost_shows',0):>6,.0f}/полки {d.get('shelf',0):>6,.0f}) "
+              f"| подписка {d.get('subscription',0):>6,.0f} | отзывы {d.get('reviews',0):>6,.0f}")
