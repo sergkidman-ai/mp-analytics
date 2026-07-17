@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from collectors import yandex_closure  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
 API = "https://api.partner.market.yandex.ru"
@@ -375,12 +376,22 @@ def collect(since="2026-01-01"):
                sum(cost) FILTER (WHERE category='subscription')::float subscription,
                sum(cost) FILTER (WHERE category='reviews')::float      reviews
         FROM raw_yandex_services WHERE account=%s GROUP BY ym""", (ACCOUNT,))}
+    # Выручка и возвраты — из детализированного отчёта о схождении с закрывающими
+    # документами (raw_yandex_closure), сверено с ЛК до копейки. Фолбэк на stats/orders,
+    # если closure за месяц не собран. См. collectors/yandex_closure.py.
+    clo = yandex_closure.closure_monthly(ACCOUNT)
     frecs = []
     for mo, f in sorted(fin.items()):
         map_cogs = round(f["cogs"] + (f["qty"] - f["qty_cov"]) * (f["cogs"] / f["qty_cov"])
                          if f["qty_cov"] else f["cogs"], 2)
         fact = ms_fact.get(mo)
         s = svc.get(mo[:7]) or {}
+        # Выручка/возвраты — из closure-отчёта (истина ЛК). Гросс-поступления от покупателей
+        # (не нетто по заказу) и возвраты как отдельная строка; фолбэк — значения stats/orders.
+        c = clo.get(mo[:7])
+        if c:
+            f["revenue"] = c["revenue"]
+            f["returns_sum"] = c["returns"]     # положительный модуль (как в stats-конвенции)
         # Расходные — из отчёта услуг (истина), НЕ из stats/orders commissions[] (иначе задвоение).
         # Если отчёт за месяц не собран — остаётся значение из stats/orders (фолбэк).
         if s.get("commission") is not None:
