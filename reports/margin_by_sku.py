@@ -52,14 +52,29 @@ def _href_id(href):
     return href.rstrip("/").split("/")[-1]
 
 
-def demand_cogs_from_cache(account):
-    """{demand_name(assembly_id): cogs} — готовый себест отгрузки из кэша ms_demand_cogs."""
+def _org_id(account):
+    """id организации МС по WB-аккаунту (один резолв на сборку)."""
     org_name = ACC_ORG.get(account, ACC_ORG["wb_acc1"])
     org_href = _ms("entity/organization", {"filter": f"name={org_name}", "limit": 1})["rows"][0]["meta"]["href"]
-    org_id = _href_id(org_href)
-    rows = db.query("""SELECT demand_name, cogs FROM ms_demand_cogs
+    return _href_id(org_href)
+
+
+def demand_cogs_from_cache(org_id):
+    """{demand_name(assembly_id): (cogs, qty)} — себест и штуки отгрузки из кэша ms_demand_cogs."""
+    rows = db.query("""SELECT demand_name, cogs, qty FROM ms_demand_cogs
         WHERE org=%s AND agent='Покупатель ВБ'""", (org_id,))
-    return {r["demand_name"]: float(r["cogs"] or 0) for r in rows}
+    return {r["demand_name"]: (float(r["cogs"] or 0), float(r["qty"] or 0)) for r in rows}
+
+
+def return_sellable_qty(org_id):
+    """{assembly_id(demand_name): Σ ret_qty} возвратов в ПРОДАВАЕМЫЙ сток — БЮДЖЕТ штук для сторно
+    COGS. Брак сюда не входит (sellable=FALSE). Сторно на aid ограничиваем этим кол-вом, чтобы даже
+    при смешанном возврате (часть в сток, часть в брак) дефектные штуки не попали в сторно.
+    Источник — collectors/ms_return_cogs."""
+    return {r["demand_name"]: float(r["q"] or 0) for r in db.query(
+        """SELECT demand_name, sum(ret_qty) q FROM ms_return_cogs
+           WHERE org=%s AND sellable AND demand_name IS NOT NULL GROUP BY demand_name""",
+        (org_id,))}
 
 
 def _fallback_sources(account):
@@ -125,7 +140,9 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     """Витрина за МЕСЯЦ ФОРМИРОВАНИЯ = месяц date_from (ключи периода — границы месяца)."""
     ym = date_from[:7]
     print(f"Витрина маржи {account} {ym} (по формированию)…", flush=True)
-    cogs_order = demand_cogs_from_cache(account)
+    org_id = _org_id(account)
+    cogs_order = demand_cogs_from_cache(org_id)       # {aid: (cogs, qty)}
+    sell_budget = return_sellable_qty(org_id)         # {aid: sellable_ret_qty} — бюджет штук сторно
 
     # Деньги по nm из отчётов месяца формирования (семантика = collectors/wb.normalize_sales).
     raw = db.query("""
@@ -149,6 +166,8 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     money = defaultdict(lambda: defaultdict(float))
     sa_of = {}
     asm = defaultdict(lambda: defaultdict(float))   # aid -> nm -> qty (только Продажа, FBS)
+    storno = defaultdict(float)                      # nm -> сторно COGS возвратов в сток (месяц возврата)
+    storno_used = defaultdict(float)                 # aid -> уже сторнировано штук (лимит = sell_budget)
     for r in money_rows_iter(raw):
         nm, a = r["nm"], money[r["nm"]]
         sa_of.setdefault(nm, r["sa"])
@@ -163,6 +182,21 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
             a["returns_sum"] += r["ra"]
             a["revenue_buyer"] -= r["rpw"]
             a["commission"] -= (r["ra"] - r["pay"])
+            # Сторно COGS: товар вернулся в ПРОДАВАЕМЫЙ сток (склад ≠ Брак) — себест исходной
+            # отгрузки надо вернуть из расходов, иначе при перепродаже спишется дважды. Себест/шт
+            # = cogs/qty исходной отгрузки (метод B), × штук возврата, но НЕ больше подтверждённого
+            # МС бюджета sellable-штук на этот aid (дефектные штуки смешанного возврата не сторнируем).
+            # Период — месяц ФОРМИРОВАНИЯ WB-строки Возврат (= месяц денежного реверса, метод A);
+            # НЕ месяц МС-документа (он отстаёт на 1–3 мес — сверено). storno_used сбрасывается на
+            # каждый месячный build: это корректно, пока WB отражает один возврат в ОДНОМ отчётном
+            # месяце (0 нарушений на данных) — та же предпосылка, что и у денежного реверса возвратов.
+            aid = r["aid"]
+            if aid and aid != "0":
+                take = min(r["q"], max(0.0, sell_budget.get(aid, 0.0) - storno_used[aid]))
+                cq = cogs_order.get(aid)
+                if take > 0 and cq and cq[1] > 0:
+                    storno[nm] += cq[0] / cq[1] * take
+                    storno_used[aid] += take
         # «Возврат» в сырье ВБ лежит с ПОЛОЖИТЕЛЬНЫМ ppvz_for_pay — вычитаем,
         # иначе «К перечислению» и чистая завышаются на 2× сумму возвратов.
         a["to_pay"] += (-r["pay"] if r["op"] == "Возврат" else r["pay"])
@@ -179,7 +213,8 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
         tot_q = sum(nms.values())
         # нулевой себест в кэше = МС не знает цену отгрузки → считаем НЕсматченным,
         # иначе ноль проходит как «покрыто» и завышает чистую (слепое пятно метрики)
-        c = cogs_order.get(aid) or None
+        cq = cogs_order.get(aid)
+        c = (cq[0] if cq else 0) or None
         for nm, q in nms.items():
             if c is not None and tot_q > 0:
                 mc[nm] += c * q / tot_q
@@ -207,6 +242,9 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
                     cov[src] += rest
                 else:
                     cov["нет"] += rest
+        # Сторно себеста вернувшегося в сток товара (месяц возврата). Может увести cogs в минус,
+        # если исходная продажа была в другом месяце — это корректный кредит себеста в месяц возврата.
+        cogs -= storno.get(nm, 0.0)
         rev = a["revenue_buyer"]
         net = a["to_pay"] - a["logistics"] - a["storage"] - a["acceptance"] - a["other"] - cogs
         recs.append({
@@ -229,6 +267,10 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     covered = tot - cov.get("нет", 0)
     detail = ", ".join(f"{k} {v:.0f}" for k, v in sorted(cov.items(), key=lambda x: -x[1]) if v)
     print(f"  COGS-покрытие: {covered/tot*100:.1f}% из {tot:.0f} шт ({detail})", flush=True)
+    st_sum = sum(storno.values())
+    if st_sum:
+        print(f"  сторно COGS возвратов в сток: −{st_sum:,.0f} ₽ по {sum(1 for v in storno.values() if v)} nm"
+              .replace(",", " "), flush=True)
     print(f"  записано {len(recs)} nm_id за {ym}", flush=True)
 
 
