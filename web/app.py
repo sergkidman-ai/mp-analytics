@@ -720,11 +720,13 @@ OZ_NAMES = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Дискв
 OZ_RU = {"revenue": "Выручка", "commission": "Комиссия", "advertising": "Реклама/продвиж.",
          "logistics": "Логистика", "returns": "Возвраты", "penalties": "Штрафы",
          "acquiring": "Эквайринг", "storage": "Склад/обработка", "subscription": "Подписка",
-         "other": "Прочее"}
+         "partners": "Партнёрские", "points": "Баллы/Звёздные", "compensation": "Компенсации",
+         "fbo": "FBO склад", "other": "Прочее"}
 # управляемость статьи: green — режется решением, yellow — частично, red — фикс площадки
 OZ_CTRL = {"advertising": "green", "penalties": "green", "subscription": "green",
-           "logistics": "yellow", "returns": "yellow", "storage": "yellow", "other": "yellow",
-           "commission": "red", "acquiring": "red"}
+           "points": "green", "logistics": "yellow", "returns": "yellow", "storage": "yellow",
+           "partners": "yellow", "fbo": "yellow", "other": "yellow",
+           "commission": "red", "acquiring": "red", "compensation": "red"}
 
 
 def _oz_last_period():

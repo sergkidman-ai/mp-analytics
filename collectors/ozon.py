@@ -56,24 +56,35 @@ def _num(v):
 # КЛАССИФИКАЦИЯ СТАТЕЙ РАСХОДОВ
 # --------------------------------------------------------------------------
 # Категории витрины. revenue (+), остальные — расходы (Ozon отдаёт со знаком −).
+# points — баллы/Звёздные (партнёрская программа лояльности); partners — доставка/сеть
+# Партнёров Ozon (realFBS + redistribution); compensation — возмещения «по вине Ozon»;
+# fbo — складские операции FBO. В эталоне ЛК points+partners+acquiring сворачиваются в
+# «Партнёрские программы», subscription — в «Рекламу»; храним раздельно (роллап — в отчёте).
 CATEGORIES = ["revenue", "commission", "advertising", "logistics",
-              "returns", "penalties", "acquiring", "storage", "subscription", "other"]
+              "returns", "penalties", "acquiring", "storage", "subscription",
+              "partners", "points", "compensation", "fbo", "other"]
 
 
 def _classify_service(name):
     """services[].name (англ. машинные коды Ozon) → категория."""
     n = (name or "").lower()
-    if "acquiring" in n:
+    if "acquiring" in n:                       # в т.ч. MarketplaceRedistributionOfAcquiring
         return "acquiring"
-    if "stars" in n:                       # ItemAgentServiceStarsMembership — баллы/Звёздные
-        return "advertising"
+    if "stars" in n:                           # ItemAgentServiceStarsMembership — Звёздные баллы
+        return "points"
+    if "redistribution" in n:                  # сеть Партнёров Ozon (last-mile/dropoff/returns)
+        return "partners"
+    if "premiummembership" in n:               # PremiumMembershipCommission — подписка
+        return "subscription"
     if "return" in n:
         return "returns"
+    if any(k in n for k in ("movement", "temporarystorage", "disposal",
+                            "volumeweight", "cargoassortment")):
+        return "fbo"                           # склад/вывоз/утилизация FBO
     if any(k in n for k in ("logistic", "lastmile", "dropoff", "handover",
-                            "movement", "flow", "delivery", "courier")):
+                            "flow", "delivery", "courier")):
         return "logistics"
-    if any(k in n for k in ("storage", "package", "disposal",
-                            "volumeweight", "processing", "assortment")):
+    if any(k in n for k in ("storage", "package", "processing", "assortment")):
         return "storage"
     return "other"
 
@@ -82,8 +93,13 @@ def _classify_optype(name):
     """operation_type_name (рус. название) → категория. Для standalone-операций
     (реклама/штрафы/подписка), у которых нет компонентов — статья из самого типа."""
     n = (name or "").lower()
-    if any(k in n for k in ("продвижен", "клик", "звёздн", "звездн", "отзыв",
-                            "трафарет", "реклам")):
+    if "по вине ozon" in n or "потеря" in n:   # возмещения брак/потеря по вине площадки
+        return "compensation"
+    if "звёздн" in n or "звездн" in n:         # Звёздные товары — баллы
+        return "points"
+    if "партнёр" in n or "партнер" in n or "realfbs" in n:
+        return "partners"
+    if any(k in n for k in ("продвижен", "клик", "отзыв", "трафарет", "реклам")):
         return "advertising"
     if "эквайринг" in n:
         return "acquiring"
@@ -93,10 +109,13 @@ def _classify_optype(name):
         return "penalties"
     if any(k in n for k in ("возврат", "отмен", "невыкуп")):
         return "returns"
-    if any(k in n for k in ("хранени", "размещени", "вывоз", "утилизац",
-                            "упаковк", "обработк", "подготовк", "склад")):
+    if any(k in n for k in ("размещени", "вывоз", "утилизац", "овх", "дополнительн")):
+        return "fbo"
+    if any(k in n for k in ("хранени", "упаковк", "обработк", "подготовк", "склад", "материал")):
         return "storage"
-    if any(k in n for k in ("доставк", "курьер", "логистик", "магистрал", "realfbs", "выезд")):
+    if "перечислен" in n:                      # Перечисление за доставку от покупателя (+)
+        return "other"
+    if any(k in n for k in ("доставк", "курьер", "логистик", "магистрал", "выезд")):
         return "logistics"
     return "other"
 
@@ -113,7 +132,9 @@ def categorize_operation(op):
     accr = _num(op.get("accruals_for_sale"))
     comm = _num(op.get("sale_commission"))
     dch = _num(op.get("delivery_charge")) + _num(op.get("return_delivery_charge"))
-    out["revenue"] += accr
+    # Fix B: отрицательные accruals — это возвраты покупателя, не «минус-выручка».
+    # Разводим по знаку: revenue — только продажи (+), returns — возвраты (−).
+    out["returns" if accr < 0 else "revenue"] += accr
     out["commission"] += comm
     out["logistics"] += dch
     tracked = accr + comm + dch
