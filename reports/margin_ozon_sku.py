@@ -197,7 +197,8 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
             "returns_sum": -f["returns"], "storage": -f["storage"],
             "acceptance": 0.0,
             "other": -(f["penalties"] + f["acquiring"] + f["advertising"]
-                       + f["subscription"] + f["other"]),
+                       + f["subscription"] + f["partners"] + f["points"]
+                       + f["compensation"] + f["fbo"] + f["other"]),
             "net_profit": net, "margin_pct": (net / rev * 100) if rev else None,
             "commission_pct": (-f["commission"] / rev * 100) if rev else None,
         }

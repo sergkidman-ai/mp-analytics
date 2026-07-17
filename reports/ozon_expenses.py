@@ -26,7 +26,8 @@ COST_CATS = [c for c in CATEGORIES if c != "revenue"]
 RU = {"revenue": "Выручка", "commission": "Комиссия", "advertising": "Реклама/продвиж.",
       "logistics": "Логистика", "returns": "Возвраты", "penalties": "Штрафы",
       "acquiring": "Эквайринг", "storage": "Склад/обработка", "subscription": "Подписка",
-      "other": "Прочее"}
+      "partners": "Партнёрские", "points": "Баллы/Звёздные", "compensation": "Компенсации",
+      "fbo": "FBO склад", "other": "Прочее"}
 
 
 def _fmt(v):
