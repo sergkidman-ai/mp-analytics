@@ -151,9 +151,45 @@ def _replace_month(account, ym, rows):
                 psycopg2.extras.execute_batch(cur, sql, [[r[c] for c in _COLS] for r in rows])
 
 
+def _parse_csvs(csvs, account, ym, cid):
+    """Листы одного отчёта → строки для raw_yandex_closure.
+    TRANSACTION_ID в closure-CSV пуст → ключ строки синтетический (ym+cid+лист+индекс);
+    снапшот режется по (account, ym), поэтому уникальность в пределах месяца достаточна."""
+    rows = []
+    for name, recs in csvs.items():
+        base = name[:-4] if name.endswith(".csv") else name
+        cat = SHEET_CAT.get(base)
+        if not cat:
+            continue
+        for rec in recs:
+            amt = _fnum(rec.get("TRANSACTION_SUM"))
+            if amt == 0:
+                continue
+            tid = rec.get("TRANSACTION_ID") or f"{ym}:{cid}:{base}:{len(rows)}"
+            rows.append({
+                "account": account, "ym": ym, "category": cat,
+                "transaction_id": tid,
+                "transaction_date": _date(rec.get("TRANSACTION_DATE")),
+                "order_id": rec.get("ORDER_ID") or None,
+                "offer_id": rec.get("OFFER_ID") or None,
+                "offer_name": rec.get("OFFER_NAME") or None,
+                "count": int(_fnum(rec.get("COUNT"))) if rec.get("COUNT") else None,
+                "amount": round(amt, 2),
+                "campaign_id": str(cid),
+                "source": "api",
+                "payload": None,
+            })
+    return rows
+
+
 def collect(m_from=None, m_to=None, account=ACCOUNT):
     """Собирает выручку/возвраты по месяцам [m_from..m_to] ('YYYY-MM').
-    По умолчанию — прошлый и текущий месяц. Идемпотентно: снапшот на (account, ym)."""
+    По умолчанию — прошлый и текущий месяц. Идемпотентно: снапшот на (account, ym).
+
+    Closure-отчёт консолидирован на уровне ДОГОВОРА: любой campaignId одного договора
+    возвращает идентичные данные (проверено — 3 кампании дают один и тот же отчёт, TID пуст,
+    дедуп невозможен). Поэтому берём ПЕРВУЮ кампанию, вернувшую выручку, и останавливаемся
+    (это и корректно — иначе тройной счёт, — и втрое быстрее по лимиту API)."""
     key, camps = _cfg()
     today = datetime.date.today()
     if not m_from:
@@ -163,60 +199,29 @@ def collect(m_from=None, m_to=None, account=ACCOUNT):
     m_to = m_to or m_from
     total = 0
     for year, month, ym in _months(m_from, m_to):
-        seen = set()                       # (category, transaction_id) — дедуп по кампаниям
-        rows = []
-        contrib = {}
-        errored = False                    # хоть одна кампания упала → не затираем месяц
+        rows, used_cid, fetched = [], None, False
         for cid in camps:
             try:
                 csvs = _closure_csvs(key, cid, year, month)
             except Exception as e:
                 print(f"  [closure] {ym} camp={cid}: {e}", flush=True)
-                errored = True
                 continue
-            cadd = 0.0
-            for name, recs in csvs.items():
-                base = name[:-4] if name.endswith(".csv") else name
-                cat = SHEET_CAT.get(base)
-                if not cat:
-                    continue
-                for rec in recs:
-                    amt = _fnum(rec.get("TRANSACTION_SUM"))
-                    if amt == 0:
-                        continue
-                    tid = rec.get("TRANSACTION_ID") or ""
-                    # дедуп между кампаниями одного договора — по (category, transaction_id);
-                    # пустой TID → стабильный ключ с ym+cid (снапшот и так режется по (account,ym)).
-                    dkey = (cat, tid) if tid else (cat, f"{ym}:{cid}:{name}:{len(rows)}")
-                    if dkey in seen:
-                        continue
-                    seen.add(dkey)
-                    cadd += amt
-                    rows.append({
-                        "account": account, "ym": ym, "category": cat,
-                        "transaction_id": tid or dkey[1],
-                        "transaction_date": _date(rec.get("TRANSACTION_DATE")),
-                        "order_id": rec.get("ORDER_ID") or None,
-                        "offer_id": rec.get("OFFER_ID") or None,
-                        "offer_name": rec.get("OFFER_NAME") or None,
-                        "count": int(_fnum(rec.get("COUNT"))) if rec.get("COUNT") else None,
-                        "amount": round(amt, 2),
-                        "campaign_id": str(cid),
-                        "source": "api",
-                        "payload": None,
-                    })
-            contrib[cid] = round(cadd, 2)
+            fetched = True
+            crows = _parse_csvs(csvs, account, ym, cid)
+            if any(r["category"] == "revenue" for r in crows):
+                rows, used_cid = crows, cid
+                break                      # консолидированный отчёт получен — остальные идентичны
+            # эта кампания без выручки (мёртвый магазин?) — пробуем следующую
+        if not fetched:
+            print(f"  [closure] {ym}: ПРОПУСК — ни одна кампания не ответила; "
+                  "прежние данные месяца целы", flush=True)
+            continue
+        _replace_month(account, ym, rows)   # атомарно: DELETE + INSERT (rows=[] → пустой месяц)
+        total += len(rows)
         rev = sum(r["amount"] for r in rows if r["category"] == "revenue")
         ret = sum(r["amount"] for r in rows if r["category"] == "returns")
-        if errored:
-            # частичные данные не сохраняем — прежний полный снапшот месяца сохраняем как есть
-            print(f"  [closure] {ym}: ПРОПУСК записи (ошибка кампании); прежние данные месяца целы. "
-                  f"собрано было: выручка {rev:,.2f} возвраты {ret:,.2f}".replace(",", " "), flush=True)
-            continue
-        _replace_month(account, ym, rows)   # атомарно: DELETE + INSERT в одной транзакции
-        total += len(rows)
         print(f"  [closure] {ym}: выручка {rev:,.2f} | возвраты {ret:,.2f} | "
-              f"строк {len(rows)} | вклад кампаний {contrib}".replace(",", " "), flush=True)
+              f"строк {len(rows)} | кампания {used_cid}".replace(",", " "), flush=True)
     print(f"Closure Яндекс: {total} строк за {m_from}..{m_to}", flush=True)
     return total
 
