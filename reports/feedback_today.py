@@ -62,6 +62,32 @@ def _is_compat_q(body):
     return bool(_asked_models(body or "")) and bool(_COMPAT_Q_RX.search(body or ""))
 
 
+# ФАКТ-ВЕБ: объективные ТТХ, которых нет в карточке, легко ищутся в вебе — не отфутболивать «напишите нам».
+_SPEC_Q_RX = re.compile(r"грамм|вес\s+тонер|тонер.{0,12}грамм|пигментн|водораствор|тип\s+чернил|"
+                        r"состав\s+чернил|скольк\w*\s+мл\b|объ[её]м\s+мл", re.I)
+# сомнение покупателя в характеристике: «ресурс 150 — это нормально?», «так мало?»
+_DOUBT_RX = re.compile(r"это\s+норм|нормальн|так\s+мало|почему\s+так\s+мало|маловат|это\s+мало|правильн\w*\s+ли", re.I)
+# ответ модели-«отказ»: значения нет / отправляет уточнять — сигнал, что стоит проверить веб
+_DEFER_RX = re.compile(r"не\s+указан|нет\s+информац|напишите\s+нам|уточните|обратитесь|не\s+могу\s+сказать|"
+                       r"не\s+заявл|заявленн\w+\s+характеристик", re.I)
+_INCOMPAT_RX = re.compile(r"не\s+подход|не\s+подойд|не\s+совмест", re.I)
+
+
+def _needs_fact_web(question, reply):
+    """Стоит ли достроить ответ внешним веб-поиском факта/подбора (когда карточка/модель не дали ответа)."""
+    q, a = question or "", reply or ""
+    # 1) спец-вопрос про ТТХ + модель ушла в отказ → веб знает граммы тонера/тип чернил
+    if _SPEC_Q_RX.search(q) and _DEFER_RX.search(a):
+        return True
+    # 2) сомнение в характеристике (ресурс/граммы) → веб-сверка с типичным значением
+    if _DOUBT_RX.search(q) and re.search(r"ресурс|стран|грамм|\bмл\b|тонер|чернил", q, re.I):
+        return True
+    # 3) несовместимо, но модель принтера НАЗВАНА, а альтернатива НЕ предложена → веб-подбор картриджа
+    if _asked_models(q) and _INCOMPAT_RX.search(a) and not re.search(r"артикул\s+ВБ|Ozon\s+SKU", a):
+        return True
+    return False
+
+
 def _fam_status(question, card_models):
     """Совместимость с учётом ВАРИАНТОВ серии. → ('yes',matched)|('unknown',asked)|('no_data'|'no_ask',[])."""
     asked = _asked_models(question)
@@ -265,6 +291,21 @@ def _answer(client, r, cf, corpus):
                     ground.update({"source": "модель", "note": "по знанию модели (совм. вне карточки); "
                                    + (ground.get("note") or "")[:200]})
             route = "review"
+        # ФАКТ-ВЕБ: карточка/модель не дали ответа на объективный вопрос (ТТХ / подбор по модели) —
+        # достраиваем внешним поиском вместо «напишите нам». Веб → source=веб-факт, всегда на ревью.
+        if r["kind"] == "question" and not used_web and _needs_fact_web(r["body"], reply):
+            from reports.feedback_web import web_fact, WEB_MODEL
+            from reports.llm_client import client_for
+            wf = web_fact(client_for(WEB_MODEL), r["body"], r["product_name"], cc)
+            used_web = True
+            if wf and (wf.get("answer") or "").strip():
+                reply = wf["answer"].strip()
+                route = "review"
+                ground.update({"web": True, "source": "веб-факт", "grounded": True,
+                               "sources": wf.get("sources", []),
+                               "note": "веб-факт: " + (wf.get("note") or "")[:220]})
+            else:
+                ground.update({"note": "веб-факт без ответа; " + (ground.get("note") or "")[:200]})
     else:
         name = _first_name(r["payload"]) if r["platform"] == "wb" else None
         _c, reply, route, conf = draft_review(r, name, _short(r["product_name"]))

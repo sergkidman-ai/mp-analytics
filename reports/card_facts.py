@@ -148,8 +148,12 @@ def facts_ozon(payload):
     if not resource:
         resource = _first(vals, OZ["resource"])
     refill = "да" if re.search(r"заправочн|заправляем|для заправк|дозаправ", (annot + payload.get("name", "")).lower()) else None
+    # вес — из карточки это вес ТОВАРА С УПАКОВКОЙ (для набора — всей упаковки), НЕ граммы тонера в тубе
+    w = payload.get("weight")
+    weight_pkg = f"{w} {payload.get('weight_unit') or 'г'}" if w else None
     return {
         "platform": "ozon",
+        "weight_pkg": weight_pkg,
         "name": _first(vals, OZ["name"]) or payload.get("name"),
         "article": _first(vals, OZ["article"]) or _first(vals, OZ["vcode"]),
         "code": _cart_code(payload.get("name"), _first(vals, OZ["name"]), annot),

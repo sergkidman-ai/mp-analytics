@@ -92,6 +92,57 @@ def web_compat(client, question, product_name, card_summary, model=None):
     return data
 
 
+FACT_SYSTEM = """Ты — специалист поддержки магазина совместимых картриджей «Цифровой квадрат» (Wildberries, Ozon).
+Покупатель задал вопрос о ХАРАКТЕРИСТИКАХ товара, которых нет в нашей карточке (вес/граммы тонера в тубе,
+тип чернил — пигментные или водорастворимые, состав, типичный ресурс для модели), ИЛИ спрашивает, какой
+картридж нужен его принтеру. Найди ответ в вебе по конкретной модели картриджа/принтера из НАШ ТОВАР.
+
+Отвечай в нашем тоне: вежливо, на «Вы», 1–3 предложения, без ссылок и посторонних артикулов производителя
+в тексте. Опирайся на веб-данные по конкретной модели. Если точных данных по нашей модели нет — дай типичное
+для этого класса значение с оговоркой «обычно/как правило», НЕ выдумывай точных цифр. Про производителя:
+совместимые картриджи — производство Китай.
+
+ЕСЛИ вопрос про подбор картриджа для принтера и в присланных ФАКТАХ есть блок «КАТАЛОГ» с нашим листингом
+под эту модель — предложи его площадочный артикул (артикул ВБ / Ozon SKU) из КАТАЛОГ, не выдумывай. Если в
+КАТАЛОГ подходящего нет — назови, картридж какой серии нужен этому принтеру, и предложи уточнить/подобрать.
+Это вопрос ДО покупки — НЕ отправляй «в чат по QR-коду на упаковке/в чеке».
+
+Верни СТРОГО один JSON без markdown:
+{"answer":"<текст ответа покупателю>","note":"<источник/на чём основан вывод>"}"""
+
+
+def web_fact(client, question, product_name, card_summary, model=None):
+    """Веб-поиск ФАКТА по ТТХ или подбор картриджа по модели принтера. → {answer, sources[], note} | error."""
+    model = model or WEB_MODEL
+    prompt = (f"НАШ ТОВАР: {product_name}\n"
+              f"ФАКТЫ НАШЕЙ КАРТОЧКИ (в т.ч. блок КАТАЛОГ, если есть):\n{(card_summary or '(нет)')[:1400]}\n\n"
+              f"ВОПРОС ПОКУПАТЕЛЯ:\n\"\"\"{(question or '')[:600]}\"\"\"\n\n"
+              f"Найди ответ в вебе. Верни JSON.")
+    try:
+        sysparam = ([{"type": "text", "text": FACT_SYSTEM, "cache_control": {"type": "ephemeral"}}]
+                    if not model.lower().startswith("deepseek") else FACT_SYSTEM)
+        m = client.messages.create(
+            model=model, max_tokens=int(os.environ.get("FEEDBACK_WEB_MAX_TOKENS", "2500")), system=sysparam,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": WEB_MAX_USES}],
+            messages=[{"role": "user", "content": prompt}])
+    except Exception as e:
+        return {"answer": "", "sources": [], "note": f"web-error: {str(e)[:120]}", "error": True}
+    txt = "".join(b.text for b in _text_blocks(m)).strip()
+    data = None
+    mm = re.search(r"\{.*\}", txt, re.S)
+    if mm:
+        try:
+            data = json.loads(mm.group(0))
+        except Exception:
+            data = None
+    if not data:
+        return {"answer": "", "sources": _sources(m), "note": "parse-fail"}
+    data["sources"] = _sources(m)
+    data.setdefault("note", "")
+    data.setdefault("answer", "")
+    return data
+
+
 if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore")
