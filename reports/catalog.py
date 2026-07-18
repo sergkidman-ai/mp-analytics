@@ -263,6 +263,32 @@ def catalog_block(text, product_name="", card_models=None, platform=None, card_c
     return "\n".join(lines)
 
 
+def catalog_offer(text, product_name="", card_models=None, platform=None):
+    """Детерминированная страховка: есть ли у нас листинг под модель ПРИНТЕРА из вопроса. → {ref,url,
+    title,platform} | None. Матчит строго (бренд AND номер модели из вопроса) — ложных не даёт. Нужна,
+    чтобы поймать ложное «в каталоге нет» от модели, когда листинг реально есть (площадка покупателя — вперёд)."""
+    q = text or ""
+    brand = next((b for b in _BRANDS if b in (q + " " + (product_name or "")).lower()), None)
+    nums = _nums(_model_tokens(q))
+    if not nums:
+        return None
+    hits, seen = [], set()
+    for num in nums[:3]:
+        toks = [x for x in (brand, num) if x]
+        for h in _search(toks, None):
+            key = (h["platform"], h["id"])
+            if key not in seen:
+                seen.add(key)
+                hits.append(h)
+    if not hits:
+        return None
+    if platform:
+        hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
+    h = hits[0]
+    ref, url = _plat_ref(h)
+    return {"ref": ref, "url": url, "title": (h["title"] or "")[:80], "platform": h["platform"]}
+
+
 if __name__ == "__main__":
     for q in ["Есть ли у вас этот картридж штучно чёрный?",
               "Нужен только голубой для Kyocera TK-5240, есть артикул?",

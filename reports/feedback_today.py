@@ -71,6 +71,19 @@ _DOUBT_RX = re.compile(r"это\s+норм|нормальн|так\s+мало|п
 _DEFER_RX = re.compile(r"не\s+указан|нет\s+информац|напишите\s+нам|уточните|обратитесь|не\s+могу\s+сказать|"
                        r"не\s+заявл|заявленн\w+\s+характеристик", re.I)
 _INCOMPAT_RX = re.compile(r"не\s+подход|не\s+подойд|не\s+совмест", re.I)
+# процедурный/техвопрос по эксплуатации: чип / прошивка / сброс счётчика / «не видит картридж» /
+# «просит оригинал» — объективный ответ есть в вебе, даже если совместимость уже подтверждена
+_PROC_Q_RX = re.compile(r"чип|прошивк|перепрош|firmware|сброс\w*\s+сч[еёо]тчик|обнул\w+|"
+                        r"проверк\w*\s+чип|отключить\s+проверк|не\s+вид\w+\s+картридж|не\s+распозна\w*|"
+                        r"требует\s+оригинал|просит\s+оригинал|неоригинальн\w+", re.I)
+# та же тема уже раскрыта в ответе → повторно веб не нужен
+_PROC_A_RX = re.compile(r"чип|прошивк|перепрош|firmware|сброс|обнул|сч[еёо]тчик", re.I)
+# ложный отказ по НАЛИЧИЮ: модель говорит «в каталоге нет / нет в наличии / уточните наличие /
+# подходящего варианта нет» — если листинг под модель реально есть, это ошибка, чиним детерминированно
+_DENY_AVAIL_RX = re.compile(
+    r"в\s+(?:нашем\s+)?каталоге\s+[^.!?]*нет|нет\s+в\s+(?:нашем\s+)?каталоге|нет\s+в\s+наличии|"
+    r"уточнит[еь]\s+наличие|не\s+могу\s+подтвердить\s+наличие|в\s+ассортименте\s+(?:пока\s+)?нет|"
+    r"подходящ\w+\s+[^.!?]*?(?:сейчас\s+)?нет\b", re.I)
 
 
 def _needs_fact_web(question, reply):
@@ -84,6 +97,10 @@ def _needs_fact_web(question, reply):
         return True
     # 3) несовместимо, но модель принтера НАЗВАНА, а альтернатива НЕ предложена → веб-подбор картриджа
     if _asked_models(q) and _INCOMPAT_RX.search(a) and not re.search(r"артикул\s+ВБ|Ozon\s+SKU", a):
+        return True
+    # 4) процедурный вопрос (чип/прошивка/сброс): тема не раскрыта ЛИБО модель отфутболила
+    #    («напишите нам»/«в карточке нет») — веб знает ответ по конкретной модели
+    if _PROC_Q_RX.search(q) and (not _PROC_A_RX.search(a) or _DEFER_RX.search(a)):
         return True
     return False
 
@@ -199,6 +216,16 @@ def _code_guard(reply, allowed_text, note):
     return re.sub(r"\s{2,}", " ", out), True
 
 
+def _repair_denial(reply, offer):
+    """Убирает предложение с ложным «наличия нет» и дописывает реальный листинг из каталога."""
+    kept = [s for s in re.split(r"(?<=[.!?])\s+", reply or "") if not _DENY_AVAIL_RX.search(s)]
+    base = " ".join(kept).strip()
+    if len(base) < 15:
+        base = "Здравствуйте!"
+    return (base.rstrip(" .") + f". Для вашего принтера у нас есть подходящий картридж — "
+            f"{offer['ref']}, ссылка {offer['url']}.")
+
+
 def _presale_scrub(reply, r):
     """Пред-продажный вопрос: у покупателя нет коробки/чека — убираем ссылку на QR на упаковке/в чеке."""
     if r["kind"] != "question":
@@ -296,14 +323,26 @@ def _answer(client, r, cf, corpus):
         if r["kind"] == "question" and not used_web and _needs_fact_web(r["body"], reply):
             from reports.feedback_web import web_fact, WEB_MODEL
             from reports.llm_client import client_for
-            wf = web_fact(client_for(WEB_MODEL), r["body"], r["product_name"], cc)
+            base = (reply or "").strip()
+            # процедурный добор (чип/прошивка): к уже готовому ответу про совместимость дописываем веб-факт,
+            # НО выкидываем отфутболивающие предложения («напишите нам»/«в карточке нет») — их заменит веб.
+            proc_gap = bool(_PROC_Q_RX.search(r["body"] or ""))
+            keep_base = ""
+            if proc_gap:
+                kept = [s for s in re.split(r"(?<=[.!?])\s+", base) if not _DEFER_RX.search(s)]
+                keep_base = " ".join(kept).strip()
+            append = proc_gap and len(keep_base) >= 15
+            wf = web_fact(client_for(WEB_MODEL), r["body"], r["product_name"], cc,
+                          draft=keep_base if append else "")
             used_web = True
             if wf and (wf.get("answer") or "").strip():
-                reply = wf["answer"].strip()
+                ans = wf["answer"].strip()
+                reply = (keep_base + " " + ans) if append else ans
                 route = "review"
                 ground.update({"web": True, "source": "веб-факт", "grounded": True,
                                "sources": wf.get("sources", []),
-                               "note": "веб-факт: " + (wf.get("note") or "")[:220]})
+                               "note": ("веб-факт(добор): " if append else "веб-факт: ")
+                               + (wf.get("note") or "")[:220]})
             else:
                 ground.update({"note": "веб-факт без ответа; " + (ground.get("note") or "")[:200]})
     else:
@@ -312,6 +351,19 @@ def _answer(client, r, cf, corpus):
         cc, ground = "", {"llm": False, "note": "шаблон отзыва (ротация вариантов)", "source": "шаблон",
                           "template": True}
         cat = "review-empty"
+    # детерминированная страховка от ложного «в каталоге нет»: если КАТАЛОГ реально содержит листинг под
+    # модель принтера из вопроса, а модель ответила отказом по наличию — подставляем реальный артикул.
+    if r["kind"] == "question" and reply and _DENY_AVAIL_RX.search(reply):
+        from reports.catalog import catalog_offer
+        _fct = cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else cf.for_wb(r["item_id"])
+        off = catalog_offer(r["body"], r["product_name"], (_fct or {}).get("models"), r["platform"])
+        if off:
+            reply = _repair_denial(reply, off)
+            route = "review"
+            ground.update({"catalog": True, "grounded": True,
+                           "source": (ground.get("source") or "модель") + "+каталог-фикс",
+                           "note": "каталог-фикс: ложное «нет в наличии», подставлен листинг; "
+                           + (ground.get("note") or "")[:200]})
     # guardrail от выдуманных кодов расходников: любой код в ответе, которого нет в CARD_DATA/КАТАЛОГ
     # (и не из вопроса покупателя), — вырезаем предложение с ним. Только для вопросов (у отзывов cc пуст).
     if r["kind"] == "question" and cc:
