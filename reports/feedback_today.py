@@ -31,6 +31,7 @@ from reports.card_facts import CardFacts                                        
 from reports.feedback_corpus import load_corpus, intent                         # noqa: E402
 from reports.feedback_draft_run import draft_review, _first_name, _short, DEFECT_RX  # noqa: E402
 from reports.feedback_web import web_compat                                      # noqa: E402
+from reports.compat_cache import get as cc_get, put as cc_put                    # noqa: E402
 
 # сигнал, что товар УЖЕ куплен/используется (тогда уместен QR на упаковке/чеке); иначе — пред-продажа.
 # Широко: покупка + любой признак использования/поломки (печатает бело/пусто, «что делать», выдаёт ошибку).
@@ -49,6 +50,16 @@ def _base_model(m):
     """База модели: обрезаем короткий буквенный суффикс варианта серии (CX17NF→CX17, C1750N→C1750)."""
     s = re.sub(r"[^a-z0-9]", "", (m or "").lower())
     return re.sub(r"([0-9])[a-z]{1,4}$", r"\1", s)
+
+
+# вопрос про подбор/наличие картриджа под КОНКРЕТНУЮ модель принтера (даже если intent≠«совместимость»):
+# «есть ли для X», «имеются ли для X», «подойдёт для X», «какой нужен для X» — гоним через компат/веб/каталог
+_COMPAT_Q_RX = re.compile(r"есть\s+ли|имеют?ся?\s+ли|подойд|подход|совмест|"
+                          r"как(?:ой|ая|ое|ие)\b|нужен|нужна|чем\s+замен", re.I)
+
+
+def _is_compat_q(body):
+    return bool(_asked_models(body or "")) and bool(_COMPAT_Q_RX.search(body or ""))
 
 
 def _fam_status(question, card_models):
@@ -82,12 +93,8 @@ def _has_text(r):
 
 
 def _client():
-    from anthropic import Anthropic
-    import httpx
-    key = os.environ["ANTHROPIC_API_KEY"]
-    base = os.environ.get("ANTHROPIC_BASE_URL")
-    return (Anthropic(api_key=key, base_url=base, http_client=httpx.Client(verify=False))
-            if base else Anthropic(api_key=key))
+    from reports.llm_client import client_for
+    return client_for(MODEL)
 
 
 def _llm(client, r, cf, corpus):
@@ -95,7 +102,12 @@ def _llm(client, r, cf, corpus):
     cc = _card_data(r, cf)
     ex = corpus.retrieve(r["kind"], r["body"] or r["pros"] or r["cons"] or "", r["product_name"], k=5)
     content = _user_block(r, _name(r), cc, ex)
-    m = client.messages.create(model=MODEL, max_tokens=800, system=SYSTEM,
+    # thinking-модели (DeepSeek-v4 pro/flash) тратят output-токены на размышления до JSON —
+    # держим запас (env FEEDBACK_MAX_TOKENS). Кэш SYSTEM снимаем на не-Anthropic (DeepSeek его игнорит).
+    max_tok = int(os.environ.get("FEEDBACK_MAX_TOKENS", "3000"))
+    sysparam = ([{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
+                if not MODEL.lower().startswith("deepseek") else SYSTEM)
+    m = client.messages.create(model=MODEL, max_tokens=max_tok, system=sysparam,
                                messages=[{"role": "user", "content": content}])
     raw = _text_of(m)
     d = None
@@ -128,6 +140,37 @@ def _store(r, reply, route, conf, ground):
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (reply, route, conf, ("question" if r["kind"] == "question" else "review"),
          Json(ground), r["platform"], r["account"], r["kind"], r["ext_id"]))
+
+
+# код расходника/картриджа в тексте ответа: TK-435, LC-421, CF210A, CB540A, 106R03623, C-EXV65,
+# TN-241, 07232 (6-значные наши артикулы), S050614 и т.п. — то, что покупатель может «заказать по коду».
+_CODE_IN_REPLY = re.compile(
+    r"\b(?:TK|LC|CF|CE|CB|CLT|MLT|TN|DR|CRG|CLI|PGI|GPR|MK)-?\d{2,4}[A-Za-z]*\b|"
+    r"\bC-EXV\s?\d{1,2}\b|\b\d{3}R\d{4,5}\b|\bC13S\d{5}\b|\bS0?50\d{3}\b|\b\d{6}\b", re.I)
+
+
+def _codes(text):
+    return {re.sub(r"[\s-]", "", m.group(0)).upper() for m in _CODE_IN_REPLY.finditer(text or "")}
+
+
+def _code_guard(reply, allowed_text, note):
+    """Детерминированная страховка от ВЫДУМАННЫХ кодов (DeepSeek смелее Opus). Любой код-расходника в
+    ответе, которого НЕТ в CARD_DATA/КАТАЛОГ (allowed_text) — вырезаем предложение с ним. Возвращает
+    (очищенный reply, флаг сработал). Коды покупателя из его же вопроса допустимы (передаются в allowed)."""
+    allowed = _codes(allowed_text)
+    bad = _codes(reply) - allowed
+    if not bad:
+        return reply, False
+    kept = []
+    for sent in re.split(r"(?<=[.!?])\s+", reply):
+        if _codes(sent) & bad:
+            continue                       # предложение содержит выдуманный код — выкидываем
+        kept.append(sent)
+    out = " ".join(kept).strip()
+    if not out or len(out) < 20:           # если вырезали почти всё — безопасный фолбэк
+        out = ("Здравствуйте! Уточните, пожалуйста, точную модель вашего принтера — и мы подберём "
+               "подходящий картридж и подскажем артикул.")
+    return re.sub(r"\s{2,}", " ", out), True
 
 
 def _presale_scrub(reply, r):
@@ -169,7 +212,8 @@ def _answer(client, r, cf, corpus):
         cat = "question" if r["kind"] == "question" else "review-text"
         # СОВМЕСТИМОСТЬ: карточка-семья (вариант серии) → прямой ответ; регуляторный код или модель
         # вне карточки → веб (источник №3, объяснит напр. L662B = европейское обозначение CX17NF)
-        if r["kind"] == "question" and intent(r["body"]) == "совместимость модели":
+        if r["kind"] == "question" and (intent(r["body"]) == "совместимость модели"
+                                        or _is_compat_q(r["body"])):
             fct = cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else cf.for_wb(r["item_id"])
             code = (fct or {}).get("code")
             st, mm = _fam_status(r["body"], (fct or {}).get("models") or [])
@@ -179,24 +223,47 @@ def _answer(client, r, cf, corpus):
                    if _norm(x) not in _norm(cc or "")]
             fam_reply = (f"Здравствуйте! Да, подойдёт для {', '.join(mm)} — это вариант серии из списка "
                          f"совместимости карточки." + (f" Наш картридж — {code}." if code else "")) if mm else ""
-            # веб: регуляторный код ИЛИ модель есть, но карточка/серия её НЕ подтвердили (unknown/no_data)
-            want_web = (not defect) and (bool(reg) or (st != "yes" and bool(asked_m)))
-            if want_web:
-                wa = web_compat(client, r["body"], r["product_name"], cc)
-                used_web = True
-                if wa and wa.get("verdict") in ("yes", "no") and (wa.get("reply") or "").strip():
-                    reply = wa["reply"].strip()
-                    ground.update({"web": True, "source": "веб", "grounded": True,
-                                   "verdict": wa["verdict"], "sources": wa.get("sources", []),
-                                   "note": "веб: " + (wa.get("note") or "")[:220]})
-                elif st == "yes" and fam_reply:
-                    reply = fam_reply
-                    ground.update({"grounded": True, "source": "карточка-серия",
-                                   "note": f"вариант серии: {', '.join(mm)}; веб-вердикт неясен"})
-            elif st == "yes" and not defect and fam_reply:
+            if st == "yes" and not defect and fam_reply:
+                # карточка-серия: детерминированно и бесплатно — веб не нужен
                 reply = fam_reply
                 ground.update({"grounded": True, "source": "карточка-серия",
                                "note": f"вариант серии, совпало по базе: {', '.join(mm)}"})
+            elif not defect and bool(asked_m):
+                # MODEL-FIRST: ответ _llm по знанию модели + карточка/каталог уже готов (reply).
+                # Веб зовём РЕДКО — только если модель сама не уверена (need_web), низкая уверенность
+                # или тёмный регуляторный код (L662B-подобный). Это главный рычаг экономии.
+                need_web = bool(d.get("need_web")) or (0 < conf < 0.6) or bool(reg)
+                # КЭШ: до веба смотрим, отвечали ли уже по этой паре (товар × модель принтера).
+                # Хит → берём вердикт из БД, веб НЕ зовём (главная экономия). Первая asked-модель — ключ.
+                cached = None
+                if need_web and asked_m:
+                    cached = cc_get(r["platform"], r["item_id"], asked_m[0])
+                if cached:
+                    reply = (cached.get("reply") or reply).strip()
+                    ground.update({"web": False, "source": "кэш(" + (cached.get("source") or "веб") + ")",
+                                   "grounded": True, "verdict": cached.get("verdict"),
+                                   "sources": cached.get("sources") or [],
+                                   "note": "из кэша совместимости: " + (cached.get("note") or "")[:200]})
+                elif need_web:
+                    from reports.feedback_web import WEB_MODEL
+                    from reports.llm_client import client_for
+                    wa = web_compat(client_for(WEB_MODEL), r["body"], r["product_name"], cc)
+                    used_web = True
+                    if wa and wa.get("verdict") in ("yes", "no") and (wa.get("reply") or "").strip():
+                        reply = wa["reply"].strip()
+                        ground.update({"web": True, "source": "веб", "grounded": True,
+                                       "verdict": wa["verdict"], "sources": wa.get("sources", []),
+                                       "note": "веб: " + (wa.get("note") or "")[:220]})
+                        # сохраняем вердикт по КАЖДОЙ спрошенной модели → впредь бесплатно из кэша
+                        for am in asked_m:
+                            cc_put(r["platform"], r["item_id"], am, wa["verdict"], wa["reply"].strip(),
+                                   "веб", wa.get("sources", []), (wa.get("note") or "")[:200])
+                    else:
+                        ground.update({"source": "модель", "note": "модель неуверена, веб без вердикта; "
+                                       + (ground.get("note") or "")[:200]})
+                else:
+                    ground.update({"source": "модель", "note": "по знанию модели (совм. вне карточки); "
+                                   + (ground.get("note") or "")[:200]})
             route = "review"
     else:
         name = _first_name(r["payload"]) if r["platform"] == "wb" else None
@@ -204,7 +271,21 @@ def _answer(client, r, cf, corpus):
         cc, ground = "", {"llm": False, "note": "шаблон отзыва (ротация вариантов)", "source": "шаблон",
                           "template": True}
         cat = "review-empty"
+    # guardrail от выдуманных кодов расходников: любой код в ответе, которого нет в CARD_DATA/КАТАЛОГ
+    # (и не из вопроса покупателя), — вырезаем предложение с ним. Только для вопросов (у отзывов cc пуст).
+    if r["kind"] == "question" and cc:
+        reply, guarded = _code_guard(reply, (cc or "") + " " + (r["body"] or ""), ground.get("note", ""))
+        if guarded:
+            ground["note"] = "code-guard: убран непроверенный код; " + (ground.get("note") or "")[:220]
+            ground["code_guard"] = True
     reply = _presale_scrub(reply, r)
+    # финальная страховка: пустой/обрезанный ответ на вопрос (thinking съел max_tokens, JSON битый) →
+    # безопасный фолбэк вместо пустоты; всегда review (в фазе черновиков и так review)
+    if r["kind"] == "question" and len((reply or "").strip()) < 12:
+        reply = ("Здравствуйте! Уточните, пожалуйста, точную модель вашего принтера — и мы подберём "
+                 "подходящий картридж и подскажем артикул.")
+        route = "review"
+        ground["note"] = "фолбэк: пустой ответ модели; " + (ground.get("note") or "")[:220]
     outd = dict(r, cat=cat, reply=reply, route=route, conf=conf, card=cc,
                 note=ground.get("note", ""), grounded=ground.get("grounded", False),
                 catalog=ground.get("catalog", False), source=ground.get("source", ""),

@@ -26,6 +26,11 @@ L662B — это варианты одной линейки, картридж у
 
 Отвечай в НАШЕМ тоне: вежливо, кратко, на «Вы», 1–3 предложения, без ссылок и артикулов
 производителя в тексте ответа (просто «да, подойдёт»/«нет, для этой модели нужен другой картридж»).
+
+ЕСЛИ НАШ ТЕКУЩИЙ КАРТРИДЖ НЕ ПОДХОДИТ, но в присланных ФАКТАХ НАШЕЙ КАРТОЧКИ есть блок «КАТАЛОГ»
+с нашим листингом именно под модель принтера покупателя — предложи его: «нет, этот не подойдёт, но для
+вашего <модель> у нас есть подходящий — артикул <id/арт из КАТАЛОГ>». Артикул бери ТОЛЬКО из блока
+КАТАЛОГ, не выдумывай; выбирай строку-картридж (не фотобарабан, если спрашивали картридж).
 Это вопрос ДО покупки — у покупателя НЕТ коробки, упаковки и товарного чека: НЕ отправляй его «в чат
 по QR-коду на упаковке/в чеке». Если совместимость неясна — попроси уточнить точную модель прямо здесь.
 Утверждай «подойдёт», ТОЛЬКО если веб-источники ясно показывают, что принтер покупателя входит в ту
@@ -50,16 +55,25 @@ def _sources(message):
     return out[:6]
 
 
-def web_compat(client, question, product_name, card_summary, model="claude-sonnet-5"):
+# Веб — редкий фолбэк, читает страницы: держим ДЁШЕВО. Модель по env (дефолт sonnet, не Opus),
+# один поиск (max_uses=1) вместо трёх — именно агентный многораундовый цикл раздувал стоимость.
+WEB_MODEL = os.environ.get("FEEDBACK_WEB_MODEL", "claude-sonnet-5")
+WEB_MAX_USES = int(os.environ.get("FEEDBACK_WEB_MAX_USES", "1"))
+
+
+def web_compat(client, question, product_name, card_summary, model=None):
     """Веб-проверка совместимости. client — тот же Anthropic(relay). None если недоступно/пусто."""
+    model = model or WEB_MODEL
     prompt = (f"НАШ ТОВАР: {product_name}\n"
               f"ФАКТЫ НАШЕЙ КАРТОЧКИ (для сверки серии/ресурса):\n{(card_summary or '(нет)')[:1200]}\n\n"
               f"ВОПРОС ПОКУПАТЕЛЯ:\n\"\"\"{(question or '')[:600]}\"\"\"\n\n"
               f"Определи по вебу, подойдёт ли наш картридж этому принтеру. Верни JSON.")
     try:
+        sysparam = ([{"type": "text", "text": WEB_SYSTEM, "cache_control": {"type": "ephemeral"}}]
+                    if not model.lower().startswith("deepseek") else WEB_SYSTEM)
         m = client.messages.create(
-            model=model, max_tokens=900, system=WEB_SYSTEM,
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
+            model=model, max_tokens=int(os.environ.get("FEEDBACK_WEB_MAX_TOKENS", "2500")), system=sysparam,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": WEB_MAX_USES}],
             messages=[{"role": "user", "content": prompt}])
     except Exception as e:
         return {"verdict": "unclear", "reply": "", "sources": [], "note": f"web-error: {str(e)[:120]}", "error": True}
