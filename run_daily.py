@@ -23,6 +23,7 @@ sys.path.insert(0, str(BASE_DIR))
 import collectors.moysklad as ms          # noqa: E402
 import collectors.wb as wb                # noqa: E402
 import collectors.ms_demand_cogs as msdc  # noqa: E402
+import collectors.ms_return_cogs as msrc  # noqa: E402
 import collectors.ozon as oz              # noqa: E402
 import collectors.ozon_postings as ozp    # noqa: E402
 import reports.margin_by_sku as margin    # noqa: E402
@@ -86,6 +87,12 @@ def main():
         shipment_cogs_ok = step(
             f"Себест отгрузок МС {acc}",
             lambda a=acc, mf=recent: msdc.collect(a, moment_from=mf),
+        )
+        # Возвраты покупателей МС (salesreturn) → sellable-гейт для сторно COGS вернувшегося в сток
+        # товара. НЕ гейтит витрину: пустая таблица = сторно не применяется (безопасная деградация).
+        step(
+            f"Возвраты МС (сторно COGS) {acc}",
+            lambda a=acc, mf=recent: msrc.collect(a, moment_from=mf),
         )
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
