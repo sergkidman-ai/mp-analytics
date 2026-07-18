@@ -163,10 +163,32 @@ def collect_boost(months):
     return res
 
 
+MS_AGENTS_YA = ("Покупатель Маркет", "Я.Маркет Экспресс")
+RETURN_DEFECT_STORES = {"Брак"}   # не-сток бакет; всё прочее (Звездный/Кантемировская) — сток
+
+
+def _pos_cost(positions_obj, cost):
+    """Σ cost_seb × quantity по позициям МС-документа (positions развёрнуты expand)."""
+    tot = 0.0
+    for p in (positions_obj or {}).get("rows", []):
+        a = p.get("assortment") or {}
+        msid = a.get("id") or a.get("meta", {}).get("href", "").split("/")[-1].split("?")[0]
+        tot += cost.get(msid, 0.0) * (p.get("quantity", 0) or 0)
+    return tot
+
+
 def _ms_cogs_monthly(since="2026-01-01"):
     """ФАКТ себеста Маркета по месяцам из МС-заказов «Покупатель Маркет»/«Я.Маркет Экспресс»:
     Σ products.cost_seb × qty по позициям, месяц = moment заказа. Это те же продажи, что в
-    stats/orders (сверка ~600 API ≈ 587 МС за месяц), поэтому покрытие фактом ~100%."""
+    stats/orders (сверка ~600 API ≈ 587 МС за месяц), поэтому покрытие фактом ~100%.
+
+    СТОРНО ВОЗВРАТОВ В СТОК: товар, вернувшийся в продаваемый сток (склад ≠ «Брак»), при
+    перепродаже спишет себест повторно (новый customerorder перепродажи считается отдельно) →
+    реверсим себест вернувшихся единиц. Возврат = документ salesreturn с demand.name = имя
+    исходного customerorder (проверено: для ЯМ salesreturn.name == demand.name == номер заказа).
+    Вычитаем из МЕСЯЦА ЗАКАЗА (где себест и был учтён) — так реверс попадает ровно туда, где
+    возникло задвоение; возвраты по заказам вне окна `since` не трогаем (их себест не в окне).
+    Кап на заказ по его себесту (защита от рассинхрона cost_seb). Дефект («Брак») НЕ сторнируем."""
     tok = os.getenv("MOYSKLAD_TOKEN")
     if not tok:
         return {}
@@ -175,12 +197,16 @@ def _ms_cogs_monthly(since="2026-01-01"):
     cost = {r["ms_id"]: float(r["cost_seb"] or 0) for r in db.query(
         "SELECT ms_id, cost_seb FROM products WHERE cost_seb>0")}
     out = defaultdict(float)
-    for name in ("Покупатель Маркет", "Я.Маркет Экспресс"):
+    order_month = {}                    # customerorder.name -> "YYYY-MM-01"
+    order_cost = defaultdict(float)     # customerorder.name -> Σ себест заказа (кап сторно)
+    agent_href = {}
+    for name in MS_AGENTS_YA:
         rr = requests.get(f"{MS}/entity/counterparty", headers=H,
                           params={"filter": f"name={name}"}, timeout=60).json().get("rows", [])
         if not rr:
             continue
         href = rr[0]["meta"]["href"]
+        agent_href[name] = href
         offset = 0
         while True:
             r = requests.get(f"{MS}/entity/customerorder", headers=H, timeout=90, params={
@@ -193,13 +219,48 @@ def _ms_cogs_monthly(since="2026-01-01"):
                 mo = (o.get("moment") or "")[:7]
                 if len(mo) != 7:
                     continue
-                for p in (o.get("positions") or {}).get("rows", []):
-                    a = p.get("assortment") or {}
-                    msid = a.get("id") or a.get("meta", {}).get("href", "").split("/")[-1].split("?")[0]
-                    out[mo + "-01"] += cost.get(msid, 0.0) * (p.get("quantity", 0) or 0)
+                nm = o.get("name")
+                order_month[nm] = mo + "-01"
+                c = _pos_cost(o.get("positions"), cost)
+                out[mo + "-01"] += c
+                order_cost[nm] += c
             offset += 100
             if len(rows) < 100:
                 break
+
+    # --- сторно возвратов в продаваемый сток (в месяц заказа) ---
+    ret_cost = defaultdict(float)       # customerorder.name -> Σ себест вернувшихся единиц
+    for name, href in agent_href.items():
+        offset = 0
+        while True:
+            rows = requests.get(f"{MS}/entity/salesreturn", headers=H, timeout=90, params={
+                "filter": f"agent={href};moment>={since} 00:00:00", "limit": 100, "offset": offset,
+                "expand": "store,demand,positions.assortment"}).json().get("rows", [])
+            if not rows:
+                break
+            for d in rows:
+                store = ((d.get("store") or {}).get("name")) or None
+                # fail-closed: сторнируем ТОЛЬКО при известном не-дефектном складе
+                if not store or store in RETURN_DEFECT_STORES:
+                    continue
+                nm = (d.get("demand") or {}).get("name") or d.get("name")
+                ret_cost[nm] += _pos_cost(d.get("positions"), cost)
+            offset += 100
+            if len(rows) < 100:
+                break
+    storno = defaultdict(float)
+    for nm, rc in ret_cost.items():
+        mo = order_month.get(nm)        # заказ вне окна → себест не учтён, не вычитаем
+        if not mo:
+            continue
+        storno[mo] += min(rc, order_cost.get(nm, rc))   # кап по себесту заказа
+    for mo, s in storno.items():
+        out[mo] = out.get(mo, 0.0) - s
+    tot = sum(storno.values())
+    if tot:
+        print(f"  [ya monthly] сторно COGS возвратов в сток: −{tot:,.0f} ₽ "
+              f"по {sum(1 for nm in ret_cost if nm in order_month)} возвр.-заказам (склад ≠ Брак)"
+              .replace(",", " "), flush=True)
     return dict(out)
 
 
@@ -402,8 +463,10 @@ def _write_finance(fin, agg, since):
                       "shelf": round(f["shelf"], 2),
                       "unredeemed_orders": int(f["unredeemed_orders"]),
                       "unredeemed_cost": round(f["unredeemed_cost"], 2),
-                      "cogs": round(fact, 2) if fact else map_cogs,
-                      "cogs_cov_pct": 100.0 if fact else (
+                      # fact is not None (а не truthy): нетто-COGS после сторно возвратов может
+                      # оказаться ровно 0 за месяц — это валидный факт, не повод падать на map_cogs.
+                      "cogs": round(fact, 2) if fact is not None else map_cogs,
+                      "cogs_cov_pct": 100.0 if fact is not None else (
                           round(f["qty_cov"] / f["qty"] * 100, 1) if f["qty"] else 0)})
     if frecs:
         db.upsert("yandex_finance_monthly", frecs, conflict_cols=["account", "month"],
