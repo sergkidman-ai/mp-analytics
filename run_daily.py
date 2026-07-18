@@ -127,6 +127,12 @@ def main():
             f"Себест отгрузок Ozon (МС) {acc}",
             lambda a=acc, mf=recent: msdc.collect(a, platform="ozon", moment_from=mf),
         )
+        # Возвраты МС Ozon (salesreturn) → sellable-гейт для сторно COGS вернувшегося в сток товара.
+        # НЕ гейтит витрину (пустая таблица = сторно 0). Должен отработать ДО ozm.build.
+        step(
+            f"Возвраты МС Ozon (сторно COGS) {acc}",
+            lambda a=acc, mf=recent: msrc.collect(a, platform="ozon", moment_from=mf),
+        )
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
             failed_sources = []

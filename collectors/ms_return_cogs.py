@@ -1,22 +1,26 @@
 """collectors/ms_return_cogs.py — возвраты покупателей МойСклад (entity/salesreturn) для сторно COGS.
 
 Возврат покупателя оформляется документом salesreturn. У него есть ссылка `demand` на ИСХОДНУЮ
-отгрузку; `demand.name` = WB assembly_id — надёжный мост к себесту (ms_demand_cogs) и к nm
-(raw_wb_report). Внимание: сам `salesreturn.name` совпадает с assembly_id лишь частично (~26%),
-поэтому ключуемся ТОЛЬКО по demand.name (через expand=demand).
+отгрузку; `demand.name` — надёжный мост к себесту (ms_demand_cogs) и к товару:
+  * WB:   demand.name = assembly_id (мост к nm через raw_wb_report). Сам salesreturn.name совпадает
+          с assembly_id лишь ~26% → ключуемся ТОЛЬКО по demand.name (expand=demand).
+  * Ozon: demand.name = posting_number отгрузки (первые 2 сегмента = ключ витрины margin_ozon_sku).
 
-Склад назначения делит судьбу товара:
-  * всё, КРОМЕ «Брак» (Звездный/Дисквер/Кантемировская …) — продаваемый сток → сторнируем COGS
-    (иначе при перепродаже вернувшегося товара себест спишется дважды);
-  * «Брак» — дефект → себест остаётся расходом (не сторнируем).
+Склад назначения делит судьбу товара (сторнируем COGS только для продаваемого стока):
+  * WB   не-сток = {«Брак»};                    всё прочее (Звездный/Дисквер/Кантемировская) — сток.
+  * Ozon не-сток = {«Брак», «Озон»};            «Озон» = товар, удержанный на стороне Озона (не наш
+    сток, в наших отгрузках почти не встречается → задвоения COGS нет). Сток = Звездный/Дисквер/
+    Кантемировская.
+fail-closed: нет склада / склад не развернулся → НЕ сток (сторно не применяем).
 
 Пишет в ms_return_cogs (миграция 044) идемпотентно по return_id. unit_cogs/storno_cogs — МС-оценка
-для аудита; фактический вычет считает витрина margin_by_sku по строкам «Возврат» raw_wb_report
-(месяц возврата, per-nm), беря sellable-гейт и себест/шт отсюда и из кэша отгрузок.
+для аудита; фактический вычет считают витрины (margin_by_sku для WB, margin_ozon_sku для Ozon) по
+своим строкам возврата в месяце возврата, беря отсюда только sellable-гейт (posting/assembly → склад).
 
 ⚠ МС-грабли: `expand` на list-эндпоинте молча отключается при limit>100 → пагинируем по limit=100.
 
-Запуск:  ./venv/bin/python -m collectors.ms_return_cogs           # оба юрлица WB
+Запуск:  ./venv/bin/python -m collectors.ms_return_cogs                       # оба юрлица WB
+         ./venv/bin/python -m collectors.ms_return_cogs ozon oz_acc1 oz_acc2  # Ozon
 """
 import sys
 import urllib.parse
@@ -25,11 +29,15 @@ import pathlib
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
-# переиспользуем МС-клиент коллектора отгрузок (throttle + 429/5xx-ретраи) и резолверы
-from collectors.ms_demand_cogs import get, _resolve_href, _hid, ACC_ORG  # noqa: E402
+# переиспользуем МС-клиент коллектора отгрузок (throttle + 429/5xx-ретраи), резолверы и конфиг платформ
+from collectors.ms_demand_cogs import (  # noqa: E402
+    get, _resolve_href, _hid, _norm_posting, PLATFORM)
 
-AGENT = "Покупатель ВБ"
-DEFECT_STORES = {"Брак"}          # единственный не-сток бакет; всё прочее — продаваемый сток
+# не-сток склады по платформе (fail-closed по неизвестному складу)
+NON_STOCK = {
+    "wb": {"Брак"},
+    "ozon": {"Брак", "Озон"},   # «Озон» = удержано на стороне Озона, не наш продаваемый сток
+}
 
 
 def _positions_qty(d):
@@ -56,54 +64,74 @@ def list_salesreturns(org_href, agent_href, moment_from):
     return out
 
 
-def collect(account="wb_acc1", moment_from="2025-09-01"):
-    org_name = ACC_ORG[account]
-    print(f"[{account}] возвраты МС: юрлицо {org_name}; резолв org/agent…", flush=True)
-    org_href = _resolve_href("organization", org_name)
-    org_id = _hid(org_href)
-    agent_href = _resolve_href("counterparty", AGENT)
-
-    # себест/шт исходных отгрузок из кэша (мост demand_name = assembly_id)
+def _unit_cogs_map(org_id, agents, platform):
+    """{ключ: себест/шт исходной отгрузки} из кэша ms_demand_cogs — МС-оценка для аудита.
+    Ключ: WB — demand_name(assembly_id); Ozon — norm_posting(demand_name) (агрегируем по норме)."""
+    rows = db.query("""SELECT demand_name, cogs, qty FROM ms_demand_cogs
+                       WHERE org=%s AND agent = ANY(%s)""", (org_id, agents))
+    if platform == "ozon":
+        acc = {}
+        for r in rows:
+            k = _norm_posting(r["demand_name"])
+            c, q = acc.get(k, (0.0, 0.0))
+            acc[k] = (c + float(r["cogs"] or 0), q + float(r["qty"] or 0))
+        return {k: c / q for k, (c, q) in acc.items() if q > 0}
     unit = {}
-    for r in db.query("""SELECT demand_name, cogs, qty FROM ms_demand_cogs
-                         WHERE org=%s AND agent=%s""", (org_id, AGENT)):
+    for r in rows:
         c, q = float(r["cogs"] or 0), float(r["qty"] or 0)
         if q > 0:
             unit[r["demand_name"]] = c / q
+    return unit
 
-    rows = list_salesreturns(org_href, agent_href, moment_from)
-    print(f"[{account}] salesreturn'ов в окне (moment>={moment_from}): {len(rows)}", flush=True)
+
+def _unit_key(dem, platform):
+    return _norm_posting(dem) if platform == "ozon" else dem
+
+
+def collect(account="wb_acc1", platform="wb", moment_from="2025-09-01"):
+    config = PLATFORM[platform]
+    org_name = config["org_map"][account]
+    agents = config["agents"]
+    non_stock = NON_STOCK[platform]
+    print(f"[{account}/{platform}] возвраты МС: юрлицо {org_name}; агенты {agents}; "
+          f"резолв org…", flush=True)
+    org_href = _resolve_href("organization", org_name)
+    org_id = _hid(org_href)
+    unit = _unit_cogs_map(org_id, agents, platform)
 
     buf = []
     stores, n_sell, n_defect, n_nocost = {}, 0, 0, 0
-    for d in rows:
-        store = ((d.get("store") or {}).get("name")) or None
-        dem = (d.get("demand") or {}).get("name")
-        # fail-closed: сторнируем ТОЛЬКО при известном не-дефектном складе. Нет склада / склад не
-        # развернулся → НЕ сток (сторно не применяем), чтобы дефект не протёк в сторно по умолчанию.
-        sellable = bool(store) and store not in DEFECT_STORES
-        ret_qty = _positions_qty(d)
-        u = unit.get(dem)
-        storno = (u * ret_qty) if (sellable and u is not None) else 0.0
-        moment = d.get("moment")
-        stores[store or "—"] = stores.get(store or "—", 0) + 1
-        n_sell += sellable
-        n_defect += (not sellable)
-        if sellable and u is None:
-            n_nocost += 1
-        buf.append({
-            "return_id": d.get("id"), "return_name": d.get("name"),
-            "org": org_id, "agent": AGENT, "demand_name": dem,
-            "moment": moment, "ym": (moment or "")[:7] or None,
-            "store": store, "sellable": bool(sellable),
-            "ret_qty": ret_qty, "unit_cogs": u,
-            "storno_cogs": round(storno, 2),
-        })
+    for agent in agents:
+        agent_href = _resolve_href("counterparty", agent)
+        rows = list_salesreturns(org_href, agent_href, moment_from)
+        print(f"[{account}] агент «{agent}»: salesreturn'ов (moment>={moment_from}): {len(rows)}",
+              flush=True)
+        for d in rows:
+            store = ((d.get("store") or {}).get("name")) or None
+            dem = (d.get("demand") or {}).get("name")
+            sellable = bool(store) and store not in non_stock
+            ret_qty = _positions_qty(d)
+            u = unit.get(_unit_key(dem, platform)) if dem else None
+            storno = (u * ret_qty) if (sellable and u is not None) else 0.0
+            moment = d.get("moment")
+            stores[store or "—"] = stores.get(store or "—", 0) + 1
+            n_sell += sellable
+            n_defect += (not sellable)
+            if sellable and u is None:
+                n_nocost += 1
+            buf.append({
+                "return_id": d.get("id"), "return_name": d.get("name"),
+                "org": org_id, "agent": agent, "demand_name": dem,
+                "moment": moment, "ym": (moment or "")[:7] or None,
+                "store": store, "sellable": bool(sellable),
+                "ret_qty": ret_qty, "unit_cogs": u,
+                "storno_cogs": round(storno, 2),
+            })
     if buf:
         db.upsert("ms_return_cogs", buf, conflict_cols=["return_id"])
     tot_storno = sum(b["storno_cogs"] for b in buf)
     print(f"[{account}] склады: {stores}", flush=True)
-    print(f"[{account}] сток(сторно) {n_sell} | брак {n_defect} | "
+    print(f"[{account}] сток(сторно) {n_sell} | не-сток {n_defect} | "
           f"сток без себеста в кэше {n_nocost}", flush=True)
     print(f"[{account}] ГОТОВО: {len(buf)} возвратов, МС-оценка сторно {tot_storno:,.0f} ₽"
           .replace(",", " "), flush=True)
@@ -111,9 +139,15 @@ def collect(account="wb_acc1", moment_from="2025-09-01"):
 
 
 def main():
-    accounts = sys.argv[1:] or ["wb_acc1", "wb_acc2"]
+    args = sys.argv[1:]
+    if args and args[0] in PLATFORM:
+        platform = args[0]
+        accounts = args[1:] or (["wb_acc1", "wb_acc2"] if platform == "wb"
+                                else ["oz_acc1", "oz_acc2"])
+    else:
+        platform, accounts = "wb", (args or ["wb_acc1", "wb_acc2"])
     for acc in accounts:
-        collect(acc)
+        collect(acc, platform=platform)
 
 
 if __name__ == "__main__":
