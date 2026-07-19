@@ -55,6 +55,17 @@
   .legend span{display:inline-flex;align-items:center;gap:6px;color:var(--mut)}
   .legend i{width:12px;height:3px;border-radius:2px;display:inline-block}
   .note{color:var(--mut);font-size:12px;margin:8px 0 0}
+  #salesplit{margin:10px 0 0}
+  .splitwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 15px}
+  .splith{font-size:12px;color:var(--mut);margin-bottom:9px}
+  .splith b{color:var(--txt)}
+  .splitrow{display:flex;gap:10px;flex-wrap:wrap}
+  .splitcell{flex:1 1 150px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
+  .splitcell .sl{font-size:12px;color:var(--mut)}
+  .splitcell .sv{font-size:17px;font-weight:650;font-variant-numeric:tabular-nums;margin-top:2px}
+  .splitcell .sp{font-size:11px;color:var(--mut);margin-top:1px}
+  .splitbar{display:flex;height:6px;border-radius:4px;overflow:hidden;margin-top:10px}
+  .splitbar i{display:block}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:760px){.grid2{grid-template-columns:1fr}}
   .pill{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-left:6px}
@@ -99,6 +110,7 @@
     </div>
   </div>
   <div class="big" id="big"></div>
+  <div id="salesplit"></div>
   <p class="note" id="sub"></p>
 
   <h2>🔴 Расходы <span class="muted" style="font-weight:400;font-size:12px">(разложено по статьям; % — от выручки)</span></h2>
@@ -242,6 +254,26 @@ async function load(){
   ].map(([l,v,dl])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${dl}</div>`).join('');
   $('#sub').textContent=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} (текущий месяц неполный). `
     +`Выручка ${rub(s.revenue)} → Ozon перевёл ${rub(s.to_payout)} − COGS ${rub(s.cogs)} = чистая ${rub(s.net)}.`;
+
+  // Из чего складывается «Продажи» — сплит из отчёта о реализации Ozon (как в ЛК)
+  const sp=e.sales_split;
+  if(sp && sp.total){
+    const tot=sp.total||1, p=x=>Math.round(x/tot*1000)/10;
+    const cells=[
+      ['Выручка','покупатель заплатил',sp.revenue,'var(--pos)'],
+      ['Баллы за скидки','скидка за счёт Озон',sp.bonus,'var(--acc)'],
+      ['Программы партнёров','Озон Банк · ПВЗ · звёзды',sp.partners,'var(--warn)'],
+    ];
+    $('#salesplit').innerHTML=`<div class="splitwrap">`
+      +`<div class="splith">Из чего «Продажи» <b>${rub(sp.total)}</b> `
+      +`<span class="muted">· по отчёту о реализации Ozon</span></div>`
+      +`<div class="splitrow">`+cells.map(([l,d,v,c])=>
+        `<div class="splitcell"><div class="sl">${l}</div>`
+        +`<div class="sv" style="color:${c}">${rub(v)}</div>`
+        +`<div class="sp">${d} · ${p(v)}%</div></div>`).join('')
+      +`</div><div class="splitbar">`+cells.map(([l,d,v,c])=>
+        `<i style="width:${p(v)}%;background:${c}"></i>`).join('')+`</div></div>`;
+  } else $('#salesplit').innerHTML='';
 
   // Расходы = отрицательные статьи (категории; комиссия/логистика вынесены отдельно). % — от выручки
   $('#expense').innerHTML=e.items.filter(i=>i.amount<0).map(i=>

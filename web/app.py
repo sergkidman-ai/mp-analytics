@@ -715,6 +715,7 @@ def anomalies(account: str = "", limit: int = 50):
 import datetime as _dt  # noqa: E402
 from collections import defaultdict as _dd  # noqa: E402
 from collectors.ozon import categorize_operation, CATEGORIES  # noqa: E402
+from collectors.ozon_realization import sales_split as _oz_realization_split  # noqa: E402
 
 OZ_NAMES = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр"}
 OZ_RU = {"revenue": "Выручка", "commission": "Комиссия", "advertising": "Реклама/продвиж.",
@@ -1362,8 +1363,13 @@ def ozon_expenses_api(account: str = "", period: str = ""):
     total_sch = sum(s["schema_rev"].values()) or 1
     schemas = [{"schema": k, "revenue": v, "pct": round(v / total_sch * 100, 1)}
                for k, v in sorted(s["schema_rev"].items(), key=lambda x: -x[1]) if abs(v) >= 1]
+    # Сплит строки «Продажи» из отчёта о реализации Ozon (/v2/finance/realization) — точно как в ЛК:
+    # Выручка + Баллы за скидки + Программы партнёров. None, если отчёт за месяц ещё не собран.
+    split = None
+    if re.match(r"^\d{4}-\d{2}", period or ""):
+        split = _oz_realization_split(account or None, int(period[:4]), int(period[5:7]))
     return {"period": period, "revenue": s["revenue"], "overhead": s["overhead"],
-            "items": items, "schemas": schemas}
+            "items": items, "schemas": schemas, "sales_split": split}
 
 
 OZ_SKU_SORT = {"revenue_buyer": "m.revenue_buyer", "net_profit": "m.net_profit",
