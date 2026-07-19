@@ -26,6 +26,7 @@ import collectors.ms_demand_cogs as msdc  # noqa: E402
 import collectors.ms_return_cogs as msrc  # noqa: E402
 import collectors.ozon as oz              # noqa: E402
 import collectors.ozon_postings as ozp    # noqa: E402
+import collectors.ozon_realization as ozr  # noqa: E402
 import reports.margin_by_sku as margin    # noqa: E402
 import reports.margin_ozon_sku as ozm     # noqa: E402
 
@@ -120,6 +121,9 @@ def main():
             df, dt = f.isoformat(), l.isoformat()
             ozon_txn_ok[df] = step(f"Ozon транзакции {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: oz.main(x, y, a))
             ozon_post_ok[df] = step(f"Ozon постинги {acc} {df}", lambda a=acc, x=df, y=dt: ozp.main(x, y, a))
+            # Отчёт о реализации (сплит «Продажи»: Выручка/Баллы/Партнёры для дашборда). Не гейтит витрину.
+            step(f"Ozon отчёт о реализации {acc} {f.year}-{f.month:02d}",
+                 lambda a=acc, y=f.year, m=f.month: ozr.load_raw(a, y, m, ozr.fetch(a, y, m)))
         # Себест отгрузок Ozon (МС, report/stock/byoperation FIFO) — один раз на аккаунт ПОСЛЕ сбора
         # транзакций (нужны доставленные постинги). Агенты FBS «Покупатель Озон» + RFBS «Озон Экспресс».
         recent = (today - datetime.timedelta(days=80)).isoformat()
