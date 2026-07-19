@@ -289,6 +289,46 @@ def catalog_offer(text, product_name="", card_models=None, platform=None):
     return {"ref": ref, "url": url, "title": (h["title"] or "")[:80], "platform": h["platform"]}
 
 
+def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=None):
+    """Поиск НАШИХ листингов ПО КОДУ КАРТРИДЖА (не по модели принтера). Нужен для «каталог-после-веба»:
+    веб определил, какой картридж нужен принтеру покупателя (напр. T0731-T0734, 222A, CLP-510D7K) —
+    ищем его у нас и предлагаем площадочный артикул. codes — str или list. color — ключ цвета (уважаем,
+    если задан). exclude — коды, которые пропускать (напр. код текущей несовместимой карточки).
+    → {ref,url,title,platform,article} лучшего совпадения | None."""
+    if isinstance(codes, str):
+        codes = [codes]
+    excl = {re.sub(r"[\s-]", "", e).upper() for e in (exclude or []) if e}
+    # вытащить код-подобные токены из строк («серия T0731-T0734» → T0731, T0734; «222A» → 222A)
+    code_toks = []
+    for c in codes or []:
+        for m in re.finditer(r"[A-Za-z]{1,4}-?\d{2,5}[A-Za-z]{0,4}|\d{3,4}[A-Za-z]{1,3}", c or ""):
+            tok = m.group(0)
+            if re.search(r"\d", tok) and len(tok) >= 3 and re.sub(r"[\s-]", "", tok).upper() not in excl:
+                code_toks.append(tok)
+    seen, hits = set(), []
+    for t in dict.fromkeys(code_toks):
+        for h in _search([t], color):
+            key = (h["platform"], h["id"])
+            if key in seen or (exclude_id and str(h["id"]) == str(exclude_id)):
+                continue
+            # листинг, в НАЗВАНИИ которого исключённый код — это наш же несовместимый товар, пропускаем
+            tnorm = re.sub(r"[\s-]", "", (h["title"] or "")).upper()
+            if any(e in tnorm for e in excl):
+                continue
+            seen.add(key)
+            hits.append(h)
+        if hits and not color:          # первого кода с попаданиями достаточно (цвет — добираем все)
+            break
+    if not hits:
+        return None
+    if platform:
+        hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
+    h = hits[0]
+    ref, url = _plat_ref(h)
+    return {"ref": ref, "url": url, "title": (h["title"] or "")[:80],
+            "platform": h["platform"], "article": h.get("article")}
+
+
 if __name__ == "__main__":
     for q in ["Есть ли у вас этот картридж штучно чёрный?",
               "Нужен только голубой для Kyocera TK-5240, есть артикул?",

@@ -84,6 +84,13 @@ _DENY_AVAIL_RX = re.compile(
     r"в\s+(?:нашем\s+)?каталоге\s+[^.!?]*нет|нет\s+в\s+(?:нашем\s+)?каталоге|нет\s+в\s+наличии|"
     r"уточнит[еь]\s+наличие|не\s+могу\s+подтвердить\s+наличие|в\s+ассортименте\s+(?:пока\s+)?нет|"
     r"подходящ\w+\s+[^.!?]*?(?:сейчас\s+)?нет\b", re.I)
+# ответ уводит покупателя «на сторону», не предложив наш артикул (нашли серию по вебу — а нас не назвали)
+_REDIRECT_RX = re.compile(
+    r"поищите|поискать|в\s+поиске\s+(?:магазин|нашем)|найд[её]те\s+в\s+магазин|под\s+заказ|"
+    r"рекомендуем\s+поиск|в\s+ассортименте[^.!?]*нет|в\s+нашем\s+магазине[^.!?]*нет|"
+    r"у\s+нас\s+(?:пока\s+)?нет\b|уточнит[еь][^.!?]*налич", re.I)
+# уже назван НАШ площадочный артикул → добор не нужен
+_HAS_OUR_ART_RX = re.compile(r"артикул\s+ВБ|Ozon\s+SKU|wildberries\.ru/catalog|ozon\.ru/product", re.I)
 
 
 def _needs_fact_web(question, reply):
@@ -217,13 +224,30 @@ def _code_guard(reply, allowed_text, note):
 
 
 def _repair_denial(reply, offer):
-    """Убирает предложение с ложным «наличия нет» и дописывает реальный листинг из каталога."""
-    kept = [s for s in re.split(r"(?<=[.!?])\s+", reply or "") if not _DENY_AVAIL_RX.search(s)]
+    """Убирает предложения с ложным «наличия нет» / уводом «на сторону» и дописывает реальный листинг."""
+    kept = [s for s in re.split(r"(?<=[.!?])\s+", reply or "")
+            if not _DENY_AVAIL_RX.search(s) and not _REDIRECT_RX.search(s)]
     base = " ".join(kept).strip()
     if len(base) < 15:
         base = "Здравствуйте!"
     return (base.rstrip(" .") + f". Для вашего принтера у нас есть подходящий картридж — "
             f"{offer['ref']}, ссылка {offer['url']}.")
+
+
+def _our_offer(reply, question, product_name, models, platform, card_code=None, item_id=None):
+    """Каталог-после-веба: ищем НАШ листинг по кодам НУЖНОГО картриджа из веб-ответа, а если по коду не
+    нашли — по модели принтера из вопроса. Уважает цвет из вопроса. Коды берём ТОЛЬКО из «положительных»
+    фраз (не из «X не подходит» — там наш текущий несовместимый) и исключаем код/листинг текущей карточки."""
+    from reports.catalog import catalog_by_code, catalog_offer, _detect_color
+    color = _detect_color(question or "")
+    pos = " ".join(s for s in re.split(r"(?<=[.!?])\s+", reply or "")
+                   if not re.search(r"не\s+подход|не\s+подойд|не\s+совмест|не\s+взаимозамен|"
+                                    r"разн\w+\s+(?:сери|поколен|устройств)", s, re.I))
+    off = catalog_by_code(pos, platform=platform, color=color,
+                          exclude=[card_code] if card_code else None, exclude_id=item_id)
+    if not off:
+        off = catalog_offer(question or "", product_name or "", models, platform)
+    return off
 
 
 def _presale_scrub(reply, r):
@@ -351,18 +375,25 @@ def _answer(client, r, cf, corpus):
         cc, ground = "", {"llm": False, "note": "шаблон отзыва (ротация вариантов)", "source": "шаблон",
                           "template": True}
         cat = "review-empty"
-    # детерминированная страховка от ложного «в каталоге нет»: если КАТАЛОГ реально содержит листинг под
-    # модель принтера из вопроса, а модель ответила отказом по наличию — подставляем реальный артикул.
-    if r["kind"] == "question" and reply and _DENY_AVAIL_RX.search(reply):
-        from reports.catalog import catalog_offer
+    # КАТАЛОГ-ПОСЛЕ-ВЕБА + страховка от ложного «нет»: ответ отрицает наличие ИЛИ (после веба) уводит
+    # покупателя «на сторону»/говорит «не подходит» БЕЗ нашего артикула — а по коду картриджа из веб-ответа
+    # или по модели принтера у нас реально есть листинг → подставляем наш площадочный артикул.
+    if (r["kind"] == "question" and reply and not _HAS_OUR_ART_RX.search(reply)
+            and (_DENY_AVAIL_RX.search(reply)
+                 or (used_web and (_INCOMPAT_RX.search(reply) or _REDIRECT_RX.search(reply))))):
         _fct = cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else cf.for_wb(r["item_id"])
-        off = catalog_offer(r["body"], r["product_name"], (_fct or {}).get("models"), r["platform"])
+        off = _our_offer(reply, r["body"], r["product_name"], (_fct or {}).get("models"),
+                         r["platform"], (_fct or {}).get("code"), r["item_id"])
         if off:
-            reply = _repair_denial(reply, off)
+            if _DENY_AVAIL_RX.search(reply) or _REDIRECT_RX.search(reply):
+                reply = _repair_denial(reply, off)             # вырезаем отказ/увод, дописываем наш листинг
+            else:
+                reply = reply.rstrip(" .") + (f". В нашем магазине есть подходящий — "
+                                              f"{off['ref']}, ссылка {off['url']}.")
             route = "review"
             ground.update({"catalog": True, "grounded": True,
-                           "source": (ground.get("source") or "модель") + "+каталог-фикс",
-                           "note": "каталог-фикс: ложное «нет в наличии», подставлен листинг; "
+                           "source": (ground.get("source") or "модель") + "+каталог-после-веба",
+                           "note": "каталог-после-веба: подставлен наш листинг; "
                            + (ground.get("note") or "")[:200]})
     # guardrail от выдуманных кодов расходников: любой код в ответе, которого нет в CARD_DATA/КАТАЛОГ
     # (и не из вопроса покупателя), — вырезаем предложение с ним. Только для вопросов (у отзывов cc пуст).
