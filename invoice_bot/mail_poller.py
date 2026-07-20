@@ -17,7 +17,7 @@ mail_poller.py — IMAP-поллер: пересланные на выделен
 
 Запуск: python mail_poller.py   (в бою — под systemd, см. invoice-mail.service)
 """
-import os, sys, time, imaplib, email, json, urllib.request, traceback
+import os, sys, re, time, imaplib, email, json, urllib.request, traceback
 from email.header import decode_header
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -101,6 +101,12 @@ def attachments(msg):
     return res
 
 
+def _stem(fn):
+    """Имя файла без расширения, нормализованное (пробелы/подчёркивания схлопнуты) — для сверки дублей форматов."""
+    base = os.path.splitext(os.path.basename(fn or ""))[0]
+    return re.sub(r"[\s_]+", " ", base).strip().lower()
+
+
 def process_message(m, num, engine, kind):
     subj = _dec(m.get("Subject"))
     frm = _dec(m.get("From"))
@@ -109,11 +115,20 @@ def process_message(m, num, engine, kind):
         log(f"письмо {num.decode()} без вложений: {subj[:60]}")
         return
     log(f"письмо {num.decode()} [{kind}] от {frm[:40]} «{subj[:50]}» — вложений: {len(atts)}")
+    # Excel вперёд PDF: если тот же документ пришёл и Excel, и PDF (поставщик дублирует форматы),
+    # PDF-дубль тихо пропускаем — по Excel уже создан черновик, ошибка по PDF ложная.
+    atts = sorted(atts, key=lambda t: 0 if t[0].lower().endswith((".xls", ".xlsx")) else 1)
+    done_stems = set()
     for fn, data in atts:
+        if fn.lower().endswith(".pdf") and _stem(fn) in done_stems:
+            log(f"  пропуск PDF-дубля (есть Excel того же документа): {fn}")
+            continue
         safe = f"{int(time.time())}_{os.path.basename(fn)}"
         path = os.path.join(INBOX, safe)
         open(path, "wb").write(data)
         res = engine.process(path, create=True)
+        if fn.lower().endswith((".xls", ".xlsx")) and res.get("ok"):
+            done_stems.add(_stem(fn))       # Excel обработан → его PDF-двойник далее пропустим
         report = engine.format_report(res)
         head = f"📧 Из почты ({kind}) · {frm[:40]}\nФайл: {fn}\n\n"
         tg_send(head + report)

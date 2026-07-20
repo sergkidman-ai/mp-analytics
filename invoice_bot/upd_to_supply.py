@@ -502,6 +502,9 @@ def process(src, create=True, suffix=""):
         res["stats"] = {"positions": len(sup_pos), "matched": matched, "country": c_set,
                         "gtd": g_set, "buyPrice": bp, "code": code_set}
 
+        # НДС шапки приёмки — как в заказе-основании (поставщик без НДС → приёмка без НДС)
+        ve = bool(order.get("vatEnabled", True))
+        vi = bool(order.get("vatIncluded", True)) if ve else False
         payload_supply = {
             "organization": meta("organization", order["organization"]["id"]),
             "agent": meta("counterparty", order["agent"]["id"], "counterparty"),
@@ -510,7 +513,7 @@ def process(src, create=True, suffix=""):
             "incomingNumber": upd["number"] or "",
             "incomingDate": f"{inc_date} 00:00:00",
             "moment": moment, "applicable": False,
-            "vatEnabled": True, "vatIncluded": True,
+            "vatEnabled": ve, "vatIncluded": vi,
             "state": meta("supply/metadata/states", STATE_SOZDAN, "state"),
             "description": (f"УПД № {upd['number']} от {inc_date} на осн. заказа {order['name']}. "
                             f"Страна/ГТД перенесены построчно из УПД."),

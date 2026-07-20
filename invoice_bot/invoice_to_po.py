@@ -19,7 +19,8 @@ invoice_to_po.py — единый конвейер: файл счёта пост
   • Один article у товаров разных групп → берём товар своей группы (pick_in_group), факт — в «Комментарий».
   • Артикул не найден → строку пропускаем, показываем пользователю, итог подгоняем под (счёт − пропуски).
   • Доставка → услуга «Доставка заказа».
-  • НДС всегда 22% включ.; цены руб→коп (×100); «Ожидание»=inTransit=quantity.
+  • НДС 22% включ. по умолчанию; поставщик с профилем novat=True — «Без НДС» (vatEnabled=false, vat=0).
+  • Цены руб→коп (×100); «Ожидание»=inTransit=quantity.
   • moment = дата счёта + текущее время МСК; deliveryPlannedMoment = +1 рабочий день (workcal, праздники, 6-дневка).
   • Итог заказа подгоняем под сумму счёта (правка цены последней товарной строки).
   • name заказа = номер счёта; перед --create проверяем уникальность, при коллизии — СТОП.
@@ -58,6 +59,9 @@ SUPPLIERS = {
     "7736123276": {"name": "Позитив",           "article": "name_last"},
     "7840480595": {"name": "Колортек",          "article": "column"},
     "7722341813": {"name": "КВК Трейд",         "article": "column"},
+    "9718075418": {"name": "Картридж Трейд (Блоссом)", "article": "name_regex",
+                   "pattern": r"\bBS-[0-9A-Za-z]+(?:-[0-9A-Za-z]+)*", "novat": True,
+                   "year_suffix_on_collision": True},  # сбрасывает нумерацию по годам → развести суффиксом года
 }
 WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 MONTHS = {"января":1,"февраля":2,"марта":3,"апреля":4,"мая":5,"июня":6,"июля":7,
@@ -357,11 +361,12 @@ def build_payload(hdr, org, store, agent_id, positions, deliv_id, name, warns, s
     now = datetime.now(MSK)
     inv = hdr["inv_date"]
     six = hdr["supplier_inn"] in SIX_INN
+    novat = SUPPLIERS.get(hdr["supplier_inn"], {}).get("novat", False)  # поставщик без НДС
     pl = workcal.plan_date(inv, six)
     ms_positions = []
     for p in positions:
-        pos = {"quantity": p["qty"], "price": price_kop(p), "vat": 22,
-               "vatEnabled": True, "inTransit": p["qty"]}
+        pos = {"quantity": p["qty"], "price": price_kop(p),
+               "vat": 0 if novat else 22, "vatEnabled": not novat, "inTransit": p["qty"]}
         if p["_deliv"]:
             pos["assortment"] = meta("service", deliv_id, "service")
         else:
@@ -387,7 +392,7 @@ def build_payload(hdr, org, store, agent_id, positions, deliv_id, name, warns, s
         "moment": f"{inv:%Y-%m-%d} {now:%H:%M:%S}",
         "deliveryPlannedMoment": f"{pl:%Y-%m-%d} {now:%H:%M:%S}",
         "applicable": False,
-        "vatEnabled": True, "vatIncluded": True,
+        "vatEnabled": not novat, "vatIncluded": not novat,
         "state": meta("purchaseorder/metadata/states", STATE_CLOSED, "state"),
         "description": desc,
         "positions": ms_positions,
@@ -413,7 +418,12 @@ def process(src, create=True, suffix=""):
         prof = SUPPLIERS[hdr["supplier_inn"]]
 
         if kind == "pdf":
-            items = {"tonerstor": parse_pdf_tonerstor, "ferret": parse_pdf_ferret}[prof["pdf"]](text)
+            parser = {"tonerstor": parse_pdf_tonerstor, "ferret": parse_pdf_ferret}.get(prof.get("pdf"))
+            if parser is None:
+                res["error"] = (f"PDF-счёт от «{prof['name']}» не поддержан (нет PDF-парсера для этого "
+                                f"поставщика). Пришлите Excel (xls/xlsx).")
+                return res
+            items = parser(text)
         else:
             items = parse_table(grid)
         if not items:
@@ -456,6 +466,22 @@ def process(src, create=True, suffix=""):
             return res
 
         ex = get(f"/entity/purchaseorder?filter=name={urllib.parse.quote(name)}&limit=1")["rows"]
+        if ex and prof.get("year_suffix_on_collision") and not suffix:
+            # поставщик сбрасывает нумерацию по годам → развести именем с суффиксом года счёта
+            cand = hdr["number"] + f"-{hdr['inv_date']:%y}"
+            ex2 = get(f"/entity/purchaseorder?filter=name={urllib.parse.quote(cand)}&limit=1")["rows"]
+            if ex2:
+                res["stop"] = True
+                res["stop_msg"] = (f"Заказ «{name}» уже есть (id {ex[0]['id'][:8]}, {ex[0]['moment']}); "
+                                   f"вариант с суффиксом года «{cand}» тоже занят (id {ex2[0]['id'][:8]}). "
+                                   f"Не создаю — два счёта с одним номером за год, назови вручную.")
+                return res
+            res["auto_suffix_note"] = (f"Номер «{name}» уже занят (заказ от {ex[0]['moment'][:10]}) — "
+                                       f"переименовал в «{cand}» (суффикс года).")
+            name = cand
+            po["name"] = name
+            res["name"] = name
+            ex = []
         if ex:
             res["stop"] = True
             res["stop_msg"] = f"Заказ «{name}» уже существует (id {ex[0]['id'][:8]}, {ex[0]['moment']}). Не создаю."
@@ -498,6 +524,8 @@ def format_report(res):
         L.append("ℹ Предупреждения (в «Комментарий»):")
         for w in res["warns"]:
             L.append("   " + w)
+    if res.get("auto_suffix_note"):
+        L.append("ℹ " + res["auto_suffix_note"])
     if res.get("dry_run"):
         L.append("\n[DRY-RUN] заказ не создан.")
     elif res.get("stop"):
