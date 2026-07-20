@@ -1,0 +1,8 @@
+# входящие/выгруженные файлы и рантайм-кэш — не в git
+inbox/
+inbox_mail/
+__pycache__/
+_*.xls
+_*.xlsx
+*.fixed.xlsx
+workcal_cache.json
