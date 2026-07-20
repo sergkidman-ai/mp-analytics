@@ -716,6 +716,7 @@ import datetime as _dt  # noqa: E402
 from collections import defaultdict as _dd  # noqa: E402
 from collectors.ozon import categorize_operation, CATEGORIES  # noqa: E402
 from collectors.ozon_realization import sales_split as _oz_realization_split  # noqa: E402
+import reports.ozon_mp_report as _ozmp  # noqa: E402
 
 OZ_NAMES = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр"}
 OZ_RU = {"revenue": "Выручка", "commission": "Комиссия", "advertising": "Реклама/продвиж.",
@@ -1375,6 +1376,14 @@ def ozon_expenses_api(account: str = "", period: str = ""):
         split = _oz_realization_split(account or None, int(period[:4]), int(period[5:7]))
     return {"period": period, "revenue": s["revenue"], "overhead": s["overhead"],
             "items": items, "schemas": schemas, "sales_split": split}
+
+
+@app.get("/api/ozon/mp-current")
+def ozon_mp_current():
+    """Живой ТЕКУЩИЙ месяц (вне статического снапшота) + прогноз на конец месяца — для
+    вкладки «Отчёты МП». Готовые к вставке ячейки {jul,fc}: {txt, cls} по строкам Баланса
+    + операционным показателям. См. reports/ozon_mp_report."""
+    return _ozmp.current_report()
 
 
 OZ_SKU_SORT = {"revenue_buyer": "m.revenue_buyer", "net_profit": "m.net_profit",
