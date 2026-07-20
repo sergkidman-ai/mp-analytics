@@ -5,9 +5,10 @@
 ещё нет в статическом снапшоте (reports/data/mp_ozon_hist.json). Плюс прогноз на конец
 месяца линейным run-rate (factor = дней_в_месяце / прошло_дней).
 
-Закрытые месяцы (есть в hist period_keys, официальный Отчёт о реализации вышел) —
-статика. Живой месяц авто-определяется как максимальный месяц транзакций вне period_keys;
-после перезапекания в hist эндпоинт сам перейдёт на следующий.
+Закрытые месяцы (есть в hist period_keys) — статика. Живой месяц = календарный месяц
+после последнего замороженного (max period_keys); после дозаписи месяца в period_keys
+(reports/ozon_mp_freeze) эндпоинт сам перейдёт на следующий. hist читается через _hist()
+с перечиткой по mtime (файл — runtime state, переписывается заморозкой без рестарта).
 
 ⚠ Продажную сторону текущего месяца берём из транзакционных accruals (Отчёт о реализации
 выходит ~8–10 числа следующего месяца) — это ОЦЕНКА; сплит Продаж (Выручка/Баллы/Программы)
@@ -26,7 +27,22 @@ from collections import defaultdict
 from core import db
 
 HIST_PATH = pathlib.Path(__file__).resolve().parent / "data" / "mp_ozon_hist.json"
-HIST = json.loads(HIST_PATH.read_text(encoding="utf-8"))
+
+# hist JSON — RUNTIME STATE: run_daily/заморозка переписывают его без рестарта uvicorn.
+# Держим кэш с перечиткой по mtime, иначе веб-процесс залипнет на старом period_keys
+# (закрытый месяц отрендерился бы дважды: статикой И живым столбцом).
+_HIST_CACHE = {"mtime": None, "data": None}
+
+
+def _hist():
+    try:
+        mtime = HIST_PATH.stat().st_mtime
+    except OSError:
+        return _HIST_CACHE["data"] or {}
+    if _HIST_CACHE["mtime"] != mtime:
+        _HIST_CACHE["data"] = json.loads(HIST_PATH.read_text(encoding="utf-8"))
+        _HIST_CACHE["mtime"] = mtime
+    return _HIST_CACHE["data"]
 
 ACCOUNTS = ("oz_acc1", "oz_acc2")
 EXP = ["returns", "commission", "delivery", "partners", "fbo", "promo", "penalty"]
@@ -201,16 +217,36 @@ def _month_last_day(y, m):
     return r[0]["mx"]
 
 
-def _live_month():
-    """Максимальный месяц транзакций, которого нет в period_keys истории (или None)."""
-    hist_keys = set(HIST.get("period_keys", []))
-    rows = db.query("""SELECT DISTINCT to_char((payload->>'operation_date')::date,'YYYY-MM') ym
-        FROM raw_ozon_transaction""")
-    cand = sorted(x["ym"] for x in rows if x["ym"] and x["ym"] not in hist_keys)
-    if not cand:
+def realiz_sales(account, y, m):
+    """Продажи/Возвраты/Вознаграждение из ОФИЦИАЛЬНОГО Отчёта о реализации (как в ЛК Баланс).
+    (prod, ret, comm) или None если отчёта за месяц ещё нет. Порт scratchpad/oz_balance.py.
+    prod = Σ delivery_commission(amount+bonus+bank+pickup+stars) = sales_split.total;
+    ret  = Σ return_commission(те же поля); comm = Σ(dc.standard_fee − rc.standard_fee)."""
+    r = db.query("SELECT payload FROM raw_ozon_realization WHERE account=%s AND year=%s AND month=%s",
+                 (account, y, m))
+    if not r:
         return None
-    ym = cand[-1]
-    return int(ym[:4]), int(ym[5:7])
+    dc = defaultdict(float); rc = defaultdict(float)
+    for row in (r[0]["payload"].get("rows") or []):
+        for k, v in (row.get("delivery_commission") or {}).items():
+            if isinstance(v, (int, float)): dc[k] += v
+        for k, v in (row.get("return_commission") or {}).items():
+            if isinstance(v, (int, float)): rc[k] += v
+    P = lambda d: d["amount"] + d["bonus"] + d["bank_coinvestment"] + d["pick_up_point_coinvestment"] + d["stars"]
+    return round(P(dc)), round(P(rc)), round(dc["standard_fee"] - rc["standard_fee"])
+
+
+def _live_month():
+    """Живой месяц = календарный месяц СРАЗУ ПОСЛЕ последнего замороженного (max period_keys).
+    Так закрытый, но ещё не замороженный месяц НЕ пропадает со страницы (виден живым, а при
+    remaining=0 прогноз=факт), а после дозаписи в period_keys переход бесшовный. None — если
+    истории нет вовсе. Реальные данные месяца проверяются в current_report (last==None → пусто)."""
+    keys = _hist().get("period_keys", [])
+    if not keys:
+        return None
+    ym = max(keys)
+    y, m = int(ym[:4]), int(ym[5:7])
+    return (y + 1, 1) if m == 12 else (y, m + 1)
 
 
 # ---------- форматирование / подсветка (совпадает с gen_reports.py) ----------
@@ -239,9 +275,14 @@ def _good_up(key):
 
 
 def _hist_series(acc, key):
-    a = HIST["accounts"][acc]; L = a["lines"]; ob = L["sales"]; n = len(ob)
-    if key in ("returns", "commission", "delivery", "partners", "fbo", "promo", "penalty",
-               "sales", "compensation", "other"):
+    """Ряд значений (уже через _basis) для эталона подсветки — ТОЛЬКО по НЕ-provisional
+    (сверённым) месяцам, чтобы неполная оценка не смещала среднее/σ."""
+    H = _hist()
+    a = H["accounts"][acc]; L = a["lines"]; ob = L["sales"]; n = len(ob)
+    keys = H.get("period_keys", [])
+    prov = set(H.get("provisional", []))
+    idx = [i for i in range(n) if i >= len(keys) or keys[i] not in prov]
+    if key in _BAL_KEYS:
         vals = L[key]
     elif key == "itog":
         vals = [sum(L[x][i] for x in EXP) for i in range(n)]
@@ -251,17 +292,19 @@ def _hist_series(acc, key):
         vals = [L["sales"][i] / a["orders"][i] if a["orders"][i] else 0 for i in range(n)]
     elif key in ("rev", "bon", "par"):
         mk = {"rev": "rev", "bon": "bonus", "par": "part"}[key]
-        vals = [s[mk] for s in a["split"]]
+        vals = [(s[mk] if s else 0) for s in a["split"]]
     else:
         vals = [0] * n
-    return [_basis(key, vals[i], ob[i]) for i in range(n)]
+    return [_basis(key, vals[i], ob[i]) for i in idx]
 
 
 def _band(acc, key, v, oborot_cur):
-    """Класс ячейки vs исторический ряд янв–июнь: g/a (цвет) + up/dn (стрелка), '' = норма."""
+    """Класс ячейки vs исторический ряд сверённых месяцев: g/a (цвет) + up/dn (стрелка)."""
     if v is None:
         return ""
     hs = _hist_series(acc, key)
+    if not hs:
+        return ""
     mean = sum(hs) / len(hs)
     std = (sum((x - mean) ** 2 for x in hs) / len(hs)) ** 0.5
     if std == 0:
@@ -293,9 +336,11 @@ def current_report():
     if not lm:
         return {"month": None, "accounts": {}}
     y, m = lm
-    days_in = calendar.monthrange(y, m)[1]
     last = _month_last_day(y, m)
-    elapsed = last.day if last else days_in
+    if not last:                       # живой месяц ещё без транзакций — не показываем пустой столбец
+        return {"month": None, "accounts": {}}
+    days_in = calendar.monthrange(y, m)[1]
+    elapsed = last.day
     remaining = days_in - elapsed
     # окно скользящей дневной ставки: WINDOW_DAYS дней, кончая последним днём с данными.
     # Оно непрерывно и свободно пересекает границу месяца → «сплошной поток», переход

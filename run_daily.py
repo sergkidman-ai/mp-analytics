@@ -158,6 +158,11 @@ def main():
     # свежих месяцев из единого отчёта Партнёр-API (реклама/Полки/подписка/отзывы).
     step("Яндекс.Маркет: услуги", lambda: __import__("collectors.yandex_services", fromlist=["main"]).main())
     step("Яндекс.Маркет: помесячно", lambda: __import__("collectors.yandex_monthly", fromlist=["main"]).main())
+    # Вкладка «Отчёты МП · Ozon»: заморозить завершившиеся месяцы (оценка по транзакциям) и
+    # сверить provisional-месяцы с вышедшим Отчётом о реализации; перерисовать статику страницы.
+    step("Ozon Отчёты МП: заморозка/сверка",
+         lambda: print("[mp-freeze]", __import__("reports.ozon_mp_freeze",
+                       fromlist=["advance_and_reconcile"]).advance_and_reconcile(), flush=True))
     elapsed = (datetime.datetime.now()-t0).seconds
     if FAILED_STEPS:
         print(f"[run_daily] завершено с ошибками за {elapsed}с: упало {len(FAILED_STEPS)} шагов: "

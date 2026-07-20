@@ -15,3 +15,7 @@ feedback_run.html
 feedback_run_artifact.html
 docs/feedback_*.html
 docs/questions_*.html
+
+# Отчёты МП — runtime state (не коммитим)
+reports/data/.mp_ozon_hist.lock
+reports/data/backups/
