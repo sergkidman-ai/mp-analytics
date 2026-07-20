@@ -71,15 +71,19 @@ def _resid_line(ot):
     return "other"
 
 
-def balance(account, y, m):
-    """{line: magnitude} — 10 строк Финансы→Баланс за месяц (положительные величины,
-    как в снапшоте; знак/направление задаёт KIND при рендере)."""
+def _accumulate(account, y, m):
+    """(mags, sub) — 10 строк Баланса (положительные величины) + отдельно `sub`:
+    фиксированная абонплата подписки (operation_type `OperationSubscription*`), которая
+    сидит ВНУТРИ строки `promo`. Нужна для прогноза: подписка приходит пачкой (разово
+    ~раз в месяц), её нельзя растягивать run-rate'ом — держим плоско. %-подписка
+    (`PremiumMembershipCommission`) сюда НЕ входит: она идёт по дням, пропорц. продажам."""
     rows = db.query(
         """SELECT payload FROM raw_ozon_transaction WHERE account=%s
              AND (payload->>'operation_date')::date>=make_date(%s,%s,1)
              AND (payload->>'operation_date')::date<(make_date(%s,%s,1)+interval '1 month')""",
         (account, y, m, y, m))
     L = defaultdict(float)
+    sub = 0.0
     for r in rows:
         p = r["payload"]
         acc = float(p.get("accruals_for_sale") or 0)
@@ -95,10 +99,20 @@ def balance(account, y, m):
             pr = float(s.get("price") or 0); ss += pr
             L[_svc_line(s.get("name", ""))] += -pr
         res = am - acc - cm - ss
-        L[_resid_line(p.get("operation_type", ""))] += -res
-    return {k: abs(L.get(k, 0.0)) for k in
+        ot = p.get("operation_type", "")
+        L[_resid_line(ot)] += -res
+        if ot.startswith("OperationSubscription"):
+            sub += -res
+    mags = {k: abs(L.get(k, 0.0)) for k in
             ["sales", "returns", "commission", "delivery", "partners", "fbo",
              "promo", "penalty", "compensation", "other"]}
+    return mags, abs(sub)
+
+
+def balance(account, y, m):
+    """{line: magnitude} — 10 строк Финансы→Баланс за месяц (положительные величины,
+    как в снапшоте; знак/направление задаёт KIND при рендере)."""
+    return _accumulate(account, y, m)[0]
 
 
 def op_counts(account, y, m):
@@ -239,11 +253,16 @@ def current_report():
 
     out = {}
     for acc in ACCOUNTS:
-        mags = balance(acc, y, m)
+        mags, sub = _accumulate(acc, y, m)
         orders, retc = op_counts(acc, y, m)
         cogs = _cogs(acc, y, m)
         actual = _derive(mags, orders, retc, cogs)
-        fc_mags = {k: mags[k] * factor for k in mags}
+        # Прогноз: run-rate ×factor на всё, что идёт по дням (продажи, логистика,
+        # комиссия, COGS, заказы, реклама-CPC, эквайринг, %-подписка …). НО фиксированная
+        # абонплата подписки (`sub`, внутри promo) приходит ПАЧКОЙ (разово ~раз в месяц) —
+        # её не растягиваем, берём фактически: promo_fc = sub + (promo − sub)×factor.
+        fc_mags = {k: (sub + (mags[k] - sub) * factor) if k == "promo"
+                   else mags[k] * factor for k in mags}
         forecast = _derive(fc_mags, orders * factor, retc * factor, cogs * factor)
 
         cells = {}
