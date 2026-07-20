@@ -32,6 +32,7 @@ USER = os.getenv("MAIL_USER", "").strip()
 PASS = os.getenv("MAIL_PASS", "").strip()
 FOLDER = os.getenv("MAIL_FOLDER", "INBOX").strip()          # папка счетов → движок заказа
 FOLDER_UPD = os.getenv("MAIL_FOLDER_UPD", "").strip()       # папка УПД → движок приёмки (пусто = выкл)
+FOLDER_SPRINT = os.getenv("MAIL_FOLDER_SPRINT", "").strip() # папка ГТД-реестров Спринта → тот же движок (авто-детект)
 POLL = int(os.getenv("MAIL_POLL_SEC", "60"))
 TOKEN = os.getenv("TG_BOT_TOKEN", "").strip()
 NOTIFY = [x.strip() for x in os.getenv("TG_NOTIFY_ID", "").split(",") if x.strip()] or \
@@ -168,6 +169,8 @@ def main():
     routes = [(FOLDER, pipe, "Счёт→Заказ")]
     if FOLDER_UPD:
         routes.append((FOLDER_UPD, upd_pipe, "УПД→Приёмка"))
+    if FOLDER_SPRINT:
+        routes.append((FOLDER_SPRINT, upd_pipe, "Спринт ГТД→Приёмка"))
     log(f"mail-poller запущен: {USER}@{HOST}, интервал {POLL}с, notify={NOTIFY or 'НЕТ'}, "
         f"папки: {', '.join(f'{f} [{k}]' for f, _, k in routes)}")
     while True:

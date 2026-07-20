@@ -204,6 +204,7 @@ def parse_upd(rows):
         positions.append({
             "num": int(float(num_pp.replace(",", "."))) if re.match(r"^\d+([.,]0+)?$", num_pp or "") else len(positions) + 1,
             "kod": cell(row, "kod"),
+            "sup_code": cell(row, "kod"),      # код продавца → в «Код поставщика» (по умолч. = ключ матчинга)
             "name": name,
             "qty": qty,
             "sum_vat": sv,
@@ -280,6 +281,7 @@ def parse_upd_xml(raw):
         positions.append({
             "num": int(float(st.get("НомСтр"))) if (st.get("НомСтр") or "").strip() else len(positions) + 1,
             "kod": kod,
+            "sup_code": kod,
             "name": st.get("НаимТов") or "",
             "qty": inv._num(st.get("КолТов")),
             "sum_vat": inv._num(st.get("СтТовУчНал")),      # стоимость с НДС (гр.9)
@@ -287,6 +289,70 @@ def parse_upd_xml(raw):
             "gtd": gtd if (gtd and gtd not in DASH) else None,
         })
     return {"seller_inn": seller, "buyer_inn": buyer, "number": number, "date": dt, "positions": positions}
+
+
+# ═══════════════════════ 1c. Спринт: отдельный файл-реестр ГТД ═════════════════
+# Нестандартный поток: Солюшнс принт не проставляет ГТД в самом УПД, а присылает
+# отдельным Excel-реестром на почту (колонки «Код товара КИС»/«№ ГТД»/«Страна по ГТД»).
+# Приёмку строим из этого файла: продавец = Спринт (фикс), заказ — по сумме, ключ
+# матчинга строки ↔ позиции заказа = наш article SP{Код КИС}_MSK.
+SPRINT_INN = "7806486149"
+
+
+def _sprint_gtd_cols(rows):
+    """Карта колонок ГТД-реестра Спринта, если это он (иначе None)."""
+    for r, row in enumerate(rows):
+        cells = [_norm(v) for v in row]
+        joined = "".join(cells)
+        if "кодтоваракис" in joined and "странапогтд" in joined:
+            cmap = {"_hdr": r}
+            for c, v in enumerate(cells):
+                if not v:
+                    continue
+                if "кодтоваракис" in v and "kis" not in cmap:        cmap["kis"] = c
+                elif "странапогтд" in v and "country" not in cmap:   cmap["country"] = c
+                elif "гтд" in v and "gtd" not in cmap:               cmap["gtd"] = c
+                elif v.startswith("наимен") and "name" not in cmap:  cmap["name"] = c
+                elif ("колво" in v or "количество" in v) and "qty" not in cmap: cmap["qty"] = c
+                elif "сумма" in v and "sum" not in cmap:             cmap["sum"] = c
+                elif ("№поз" in v or v == "№") and "num" not in cmap: cmap["num"] = c
+            if all(k in cmap for k in ("kis", "name", "qty", "sum", "gtd")):
+                return cmap
+    return None
+
+
+def parse_sprint_gtd(rows):
+    """ГТД-реестр Спринта → dict формата parse_upd. seller фикс, номер/дата пустые."""
+    cmap = _sprint_gtd_cols(rows)
+    if not cmap:
+        raise ValueError("Не распознан ГТД-реестр Спринта")
+    hdr = cmap["_hdr"]
+
+    def cell(row, key):
+        c = cmap.get(key)
+        return _s(row[c]) if (c is not None and c < len(row)) else ""
+
+    positions = []
+    for row in rows[hdr + 1:]:
+        kis = cell(row, "kis")
+        if not re.match(r"^\d+$", kis):           # строка данных: «Код КИС» числовой (итог/пустые — мимо)
+            continue
+        qty = inv._num(cell(row, "qty")); sv = inv._num(cell(row, "sum"))
+        if qty is None or sv is None:
+            continue
+        num = cell(row, "num"); gtd = cell(row, "gtd"); cc = cell(row, "country")
+        positions.append({
+            "num": int(float(num)) if re.match(r"^\d+$", num or "") else len(positions) + 1,
+            "kod": f"SP{kis}_MSK",                 # ключ матчинга = наш article
+            "sup_code": kis,                        # «Код КИС» продавца → в «Код поставщика»
+            "name": cell(row, "name"),
+            "qty": qty,
+            "sum_vat": sv,
+            "country": cc if cc not in DASH else None,
+            "gtd": gtd if gtd not in DASH else None,
+        })
+    return {"seller_inn": SPRINT_INN, "buyer_inn": None, "number": None, "date": None,
+            "positions": positions}
 
 
 # ═══════════════════════ 2. Справочник стран (кэш) ═════════════════════════════
@@ -316,10 +382,14 @@ def _country_name_by_code(code):
 # ═══════════════════════ 3. Поиск заказа поставщику ════════════════════════════
 def find_order(seller_inn, total_kop, upd_date):
     """Заказы контрагента (ИНН продавца) с sum==total_kop. → (order|None, candidates[], agent)."""
-    cps = inv.get_r(f"/entity/counterparty?filter=inn={seller_inn}&limit=5").get("rows", [])
-    if not cps:
-        return None, [], None
-    agent = cps[0]
+    ov = inv.AGENT_OVERRIDE.get(seller_inn)      # Спринт: заказы под карточкой «МСК», не по ИНН
+    if ov:
+        agent = inv.get_r(f"/entity/counterparty/{ov}")
+    else:
+        cps = inv.get_r(f"/entity/counterparty?filter=inn={seller_inn}&limit=5").get("rows", [])
+        if not cps:
+            return None, [], None
+        agent = cps[0]
     href = f"{MSU}/entity/counterparty/{agent['id']}"
     flt = urllib.parse.quote(f"agent={href}", safe="=")
     order_q = urllib.parse.quote("moment,desc")
@@ -425,7 +495,10 @@ def process(src, create=True, suffix=""):
             if kind != "table":
                 raise ValueError("Ожидался Excel-УПД (xls/xlsx) или XML ЭДО (ФНС), "
                                  "получен PDF/иное — нужен отдельный адаптер.")
-            upd = parse_upd(payload)
+            if _sprint_gtd_cols(payload):         # нестандартный поток: ГТД-реестр Спринта
+                upd = parse_sprint_gtd(payload)
+            else:
+                upd = parse_upd(payload)
         res["upd"] = {"number": upd["number"], "date": upd["date"].isoformat() if upd["date"] else None,
                       "seller_inn": upd["seller_inn"], "buyer_inn": upd["buyer_inn"],
                       "positions": len(upd["positions"])}
@@ -458,7 +531,7 @@ def process(src, create=True, suffix=""):
         plan = (order.get("deliveryPlannedMoment") or "").split()[0] or \
                (upd["date"].isoformat() if upd["date"] else None)
         moment = f"{plan} 08:00:00"
-        inc_date = upd["date"].isoformat() if upd["date"] else plan
+        inc_date = upd["date"].isoformat() if upd["date"] else None   # нет даты (Спринт) → входящую не ставим
 
         sup_pos = []; c_set = g_set = bp = code_set = 0; matched = 0; unmatched = []
         for i, p in enumerate(opos):
@@ -489,11 +562,11 @@ def process(src, create=True, suffix=""):
                 cm = cur.get("buyPrice", {}).get("currency", {}).get("meta")
                 body["buyPrice"] = {"value": p["price"], **({"currency": {"meta": cm}} if cm else {})}
                 bp += 1
-                if u and u["kod"]:
+                if u and u.get("sup_code"):
                     body["attributes"] = [{
                         "meta": {"href": f"{MSU}/entity/product/metadata/attributes/{CODE_ATTR}",
                                  "type": "attributemetadata", "mediaType": "application/json"},
-                        "value": u["kod"]}]
+                        "value": u["sup_code"]}]
                     code_set += 1
                 put(f"/entity/product/{pid}", body)
 
@@ -505,20 +578,26 @@ def process(src, create=True, suffix=""):
         # НДС шапки приёмки — как в заказе-основании (поставщик без НДС → приёмка без НДС)
         ve = bool(order.get("vatEnabled", True))
         vi = bool(order.get("vatIncluded", True)) if ve else False
+        if upd["number"]:
+            desc = (f"УПД № {upd['number']} от {inc_date} на осн. заказа {order['name']}. "
+                    f"Страна/ГТД перенесены построчно из УПД.")
+        else:
+            desc = (f"Приёмка на осн. заказа {order['name']}; страна/ГТД проставлены из "
+                    f"ГТД-реестра Спринта. Входящий номер/дату проставить вручную.")
         payload_supply = {
             "organization": meta("organization", order["organization"]["id"]),
             "agent": meta("counterparty", order["agent"]["id"], "counterparty"),
             "store": meta("store", order["store"]["id"]),
             "purchaseOrder": meta("purchaseorder", oid),
             "incomingNumber": upd["number"] or "",
-            "incomingDate": f"{inc_date} 00:00:00",
             "moment": moment, "applicable": False,
             "vatEnabled": ve, "vatIncluded": vi,
             "state": meta("supply/metadata/states", STATE_SOZDAN, "state"),
-            "description": (f"УПД № {upd['number']} от {inc_date} на осн. заказа {order['name']}. "
-                            f"Страна/ГТД перенесены построчно из УПД."),
+            "description": desc,
             "positions": sup_pos,
         }
+        if inc_date:                              # входящую дату ставим только если она есть (в УПД)
+            payload_supply["incomingDate"] = f"{inc_date} 00:00:00"
         if suffix:
             payload_supply["name"] = f"{suffix}{order['name']}"
 
@@ -554,7 +633,10 @@ def format_report(res):
             L.append(f"УПД № {u.get('number')} от {u.get('date')} | продавец ИНН {u.get('seller_inn')}")
         return "\n".join(L)
 
-    L.append(f"📦 УПД № {u.get('number')} от {u.get('date')} | продавец ИНН {u.get('seller_inn')} | строк: {u.get('positions')}")
+    if u.get("number"):
+        L.append(f"📦 УПД № {u.get('number')} от {u.get('date')} | продавец ИНН {u.get('seller_inn')} | строк: {u.get('positions')}")
+    else:
+        L.append(f"📦 ГТД-реестр Спринта | продавец ИНН {u.get('seller_inn')} | строк: {u.get('positions')}")
     L.append(f"Сумма с НДС: {res.get('total')}")
 
     if res.get("stop"):
