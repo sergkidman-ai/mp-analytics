@@ -19,6 +19,7 @@ DB-only, вызывается на запросе из web/app.py (/api/ozon/mp-
 """
 import json
 import calendar
+import datetime as dt
 import pathlib
 from collections import defaultdict
 
@@ -29,6 +30,9 @@ HIST = json.loads(HIST_PATH.read_text(encoding="utf-8"))
 
 ACCOUNTS = ("oz_acc1", "oz_acc2")
 EXP = ["returns", "commission", "delivery", "partners", "fbo", "promo", "penalty"]
+WINDOW_DAYS = 14  # окно скользящей дневной ставки для прогноза («период в прошлом»)
+_BAL_KEYS = ["sales", "returns", "commission", "delivery", "partners", "fbo",
+             "promo", "penalty", "compensation", "other"]
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
              "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
@@ -71,17 +75,17 @@ def _resid_line(ot):
     return "other"
 
 
-def _accumulate(account, y, m):
-    """(mags, sub) — 10 строк Баланса (положительные величины) + отдельно `sub`:
-    фиксированная абонплата подписки (operation_type `OperationSubscription*`), которая
-    сидит ВНУТРИ строки `promo`. Нужна для прогноза: подписка приходит пачкой (разово
-    ~раз в месяц), её нельзя растягивать run-rate'ом — держим плоско. %-подписка
-    (`PremiumMembershipCommission`) сюда НЕ входит: она идёт по дням, пропорц. продажам."""
+def _balance_range(account, d1, d2):
+    """(mags, sub) за полуинтервал дат [d1, d2) — d1/d2 строки 'YYYY-MM-DD'.
+    `sub` = фиксированная абонплата подписки (operation_type `OperationSubscription*`),
+    сидящая ВНУТРИ строки `promo`: она приходит пачкой (разово ~раз в месяц), в прогнозе
+    её держим отдельно, не размазываем ставкой. %-подписка (`PremiumMembershipCommission`)
+    сюда НЕ входит — идёт по дням, пропорц. продажам, попадает в общий поток promo."""
     rows = db.query(
         """SELECT payload FROM raw_ozon_transaction WHERE account=%s
-             AND (payload->>'operation_date')::date>=make_date(%s,%s,1)
-             AND (payload->>'operation_date')::date<(make_date(%s,%s,1)+interval '1 month')""",
-        (account, y, m, y, m))
+             AND (payload->>'operation_date')::date>=%s
+             AND (payload->>'operation_date')::date<%s""",
+        (account, d1, d2))
     L = defaultdict(float)
     sub = 0.0
     for r in rows:
@@ -103,10 +107,19 @@ def _accumulate(account, y, m):
         L[_resid_line(ot)] += -res
         if ot.startswith("OperationSubscription"):
             sub += -res
-    mags = {k: abs(L.get(k, 0.0)) for k in
-            ["sales", "returns", "commission", "delivery", "partners", "fbo",
-             "promo", "penalty", "compensation", "other"]}
-    return mags, abs(sub)
+    return {k: abs(L.get(k, 0.0)) for k in _BAL_KEYS}, abs(sub)
+
+
+def _month_bounds(y, m):
+    d1 = f"{y}-{m:02d}-01"
+    d2 = f"{y + 1}-01-01" if m == 12 else f"{y}-{m + 1:02d}-01"
+    return d1, d2
+
+
+def _accumulate(account, y, m):
+    """(mags, sub) за календарный месяц — обёртка над _balance_range."""
+    d1, d2 = _month_bounds(y, m)
+    return _balance_range(account, d1, d2)
 
 
 def balance(account, y, m):
@@ -115,15 +128,43 @@ def balance(account, y, m):
     return _accumulate(account, y, m)[0]
 
 
-def op_counts(account, y, m):
-    """(заказы, возвраты) = distinct posting_number: accr>0 продажи / accr<0|товарный возврат."""
+def _sub_range(account, d1, d2):
+    """Фикс-абонплата подписки за [d1, d2): −Σ amount по OperationSubscription* (у них
+    нет accruals/комиссии/услуг → residual = amount)."""
+    r = db.query(
+        """SELECT coalesce(sum((payload->>'amount')::float), 0) s
+             FROM raw_ozon_transaction WHERE account=%s
+             AND payload->>'operation_type' LIKE 'OperationSubscription%%'
+             AND (payload->>'operation_date')::date>=%s
+             AND (payload->>'operation_date')::date<%s""",
+        (account, d1, d2))
+    return abs(float(r[0]["s"]))
+
+
+def _expected_monthly_sub(account, y, m):
+    """Ожидаемая фикс-подписка за месяц = медиана помесячных сумм OperationSubscription*
+    за 3 полных месяца до (y,m). Устойчива к разовым доплатам (напр. июнь ЦК: PremiumPlus +
+    PremiumPro = 49 980, тогда как обычный месяц = 24 990)."""
+    vals = []
+    yy, mm = y, m
+    for _ in range(3):
+        yy, mm = (yy - 1, 12) if mm == 1 else (yy, mm - 1)
+        d1, d2 = _month_bounds(yy, mm)
+        vals.append(_sub_range(account, d1, d2))
+    vals.sort()
+    return vals[len(vals) // 2]
+
+
+def op_counts_range(account, d1, d2):
+    """(заказы, возвраты) за [d1, d2) = distinct posting_number: accr>0 продажи /
+    accr<0|товарный возврат."""
     rows = db.query(
         """SELECT payload->'posting'->>'posting_number' post,
                   (payload->>'accruals_for_sale')::float accr, payload->>'operation_type' ot
              FROM raw_ozon_transaction WHERE account=%s
-             AND (payload->>'operation_date')::date>=make_date(%s,%s,1)
-             AND (payload->>'operation_date')::date<(make_date(%s,%s,1)+interval '1 month')""",
-        (account, y, m, y, m))
+             AND (payload->>'operation_date')::date>=%s
+             AND (payload->>'operation_date')::date<%s""",
+        (account, d1, d2))
     sales_p, ret_p = set(), set()
     for r in rows:
         p = r["post"]
@@ -135,6 +176,12 @@ def op_counts(account, y, m):
         elif a < 0 or r["ot"] == "OperationReturnGoodsFBSofRMS":
             ret_p.add(p)
     return len(sales_p), len(ret_p)
+
+
+def op_counts(account, y, m):
+    """(заказы, возвраты) за календарный месяц — обёртка над op_counts_range."""
+    d1, d2 = _month_bounds(y, m)
+    return op_counts_range(account, d1, d2)
 
 
 def _cogs(account, y, m):
@@ -249,21 +296,45 @@ def current_report():
     days_in = calendar.monthrange(y, m)[1]
     last = _month_last_day(y, m)
     elapsed = last.day if last else days_in
-    factor = days_in / elapsed if elapsed else 1.0
+    remaining = days_in - elapsed
+    # окно скользящей дневной ставки: WINDOW_DAYS дней, кончая последним днём с данными.
+    # Оно непрерывно и свободно пересекает границу месяца → «сплошной поток», переход
+    # месяца для прогноза незначим (в начале августа окно ещё захватывает июль).
+    if last:
+        w1 = (last - dt.timedelta(days=WINDOW_DAYS - 1)).isoformat()
+        w2 = (last + dt.timedelta(days=1)).isoformat()
+    else:
+        w1, w2 = _month_bounds(y, m)
 
     out = {}
     for acc in ACCOUNTS:
-        mags, sub = _accumulate(acc, y, m)
+        mags, sub = _accumulate(acc, y, m)              # факт с начала месяца (MTD)
         orders, retc = op_counts(acc, y, m)
         cogs = _cogs(acc, y, m)
         actual = _derive(mags, orders, retc, cogs)
-        # Прогноз: run-rate ×factor на всё, что идёт по дням (продажи, логистика,
-        # комиссия, COGS, заказы, реклама-CPC, эквайринг, %-подписка …). НО фиксированная
-        # абонплата подписки (`sub`, внутри promo) приходит ПАЧКОЙ (разово ~раз в месяц) —
-        # её не растягиваем, берём фактически: promo_fc = sub + (promo − sub)×factor.
-        fc_mags = {k: (sub + (mags[k] - sub) * factor) if k == "promo"
-                   else mags[k] * factor for k in mags}
-        forecast = _derive(fc_mags, orders * factor, retc * factor, cogs * factor)
+        # Прогноз = факт MTD + дневная_ставка(окно) × оставшиеся дни. Ставка берётся из
+        # скользящего окна прошлого (WINDOW_DAYS дн), а не из неполного месяца → нет взрыва
+        # factor в начале месяца, метод сходится к факту в конце. Пачечную фикс-подписку
+        # (`sub` внутри promo) не размазываем: уже списана в этом месяце → берём факт, иначе
+        # ждём один платёж (как в прошлом месяце). %-подписка идёт в общем потоке promo.
+        win, win_sub = _balance_range(acc, w1, w2)
+        rate = {k: win[k] / WINDOW_DAYS for k in win}
+        sub_exp = sub if sub > 0 else _expected_monthly_sub(acc, y, m)
+        fc_mags = {}
+        for k in mags:
+            if k == "promo":
+                rate_ex = (win[k] - win_sub) / WINDOW_DAYS     # ставка promo без подписки
+                fc_mags[k] = (mags[k] - sub) + rate_ex * remaining + sub_exp
+            else:
+                fc_mags[k] = mags[k] + rate[k] * remaining
+        win_o, win_r = op_counts_range(acc, w1, w2)
+        fc_orders = orders + win_o / WINDOW_DAYS * remaining
+        fc_retc = retc + win_r / WINDOW_DAYS * remaining
+        # COGS привязана к продажам (margin_by_sku помесячный, дневного среза нет):
+        # forecast_cogs = forecast_sales × (COGS ÷ Продажи текущего месяца).
+        cogs_ratio = cogs / mags["sales"] if mags["sales"] else 0
+        fc_cogs = fc_mags["sales"] * cogs_ratio
+        forecast = _derive(fc_mags, fc_orders, fc_retc, fc_cogs)
 
         cells = {}
         for key in KIND:
@@ -281,7 +352,7 @@ def current_report():
     return {
         "month": {"label": MONTHS_RU[m - 1], "month_key": f"{y}-{m:02d}",
                   "elapsed_days": elapsed, "days_in_month": days_in,
-                  "factor": round(factor, 2),
+                  "remaining_days": remaining, "window_days": WINDOW_DAYS,
                   "last_date": last.isoformat() if last else None, "estimate": True},
         "accounts": out,
     }
