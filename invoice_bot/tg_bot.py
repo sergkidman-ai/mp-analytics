@@ -24,8 +24,9 @@ load_dotenv("/opt/mp-analytics/.env")
 import invoice_to_po as pipe          # счёт → «Заказ поставщику»
 import upd_to_supply as upd_pipe       # УПД  → «Приёмка»
 
-# Роутинг по имени файла: «УПД»/«upd»/имя ЭДО-титула или .xml/.zip → приёмка, иначе → заказ по счёту.
-UPD_RE = re.compile(r"упд|upd|nschfdoppr", re.I)
+# Роутинг по имени файла: «УПД»/«upd»/«…передаточный документ»/имя ЭДО-титула или .xml/.zip
+# → приёмка, иначе → заказ по счёту. «передаточн» уникально для УПД (в счетах не встречается).
+UPD_RE = re.compile(r"упд|upd|nschfdoppr|передаточн", re.I)
 
 TOKEN = os.getenv("TG_BOT_TOKEN", "").strip()
 ALLOWED = {x.strip() for x in os.getenv("TG_ALLOWED_IDS", "").split(",") if x.strip()}
@@ -86,7 +87,7 @@ def handle(msg):
         if (msg.get("text") or "").startswith("/"):
             send(chat_id, "Пришли файл:\n"
                           "• счёт (xls / xlsx / pdf) → создам черновик «Заказ поставщику»;\n"
-                          "• УПД (xls / xlsx с «УПД»/«upd» в имени) → создам «Приёмку» на основании заказа;\n"
+                          "• УПД (xls / xlsx с «УПД»/«upd»/«передаточный документ» в имени) → создам «Приёмку» на основании заказа;\n"
                           "• УПД из ЭДО/Диадока (.xml или .zip выгрузки «в исходном формате») → тоже «Приёмку».\n"
                           "Пришлю ссылку; всё, что требует проверки, будет в комментарии/предупреждениях.", mid)
         else:
