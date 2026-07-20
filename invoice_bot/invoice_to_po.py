@@ -110,6 +110,36 @@ def _sig_ext(head):
     return ".bin"
 
 
+def _fix_sharedstrings(path):
+    """Пересобрать xlsx, переименовав xl/SharedStrings.xml → xl/sharedStrings.xml (регистр).
+    Некоторые не-Excel генераторы пишут заглавную S, а openpyxl читает строго строчную."""
+    import io, zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(path) as z, zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as o:
+        for it in z.infolist():
+            data = z.read(it.filename)
+            name = it.filename
+            if name.lower() == "xl/sharedstrings.xml":
+                name = "xl/sharedStrings.xml"
+                data = data.replace(b"SharedStrings.xml", b"sharedStrings.xml")
+            o.writestr(name, data)
+    fixed = path + ".fixed.xlsx"
+    open(fixed, "wb").write(buf.getvalue())
+    return fixed
+
+
+def _read_xlsx(path):
+    """xlsx → rows[][]; при заглавном SharedStrings.xml (KeyError) чиним и перечитываем."""
+    import openpyxl
+    try:
+        ws = openpyxl.load_workbook(path, data_only=True).worksheets[0]
+    except KeyError:
+        if open(path, "rb").read(2) != b"PK":
+            raise
+        ws = openpyxl.load_workbook(_fix_sharedstrings(path), data_only=True).worksheets[0]
+    return [list(r) for r in ws.iter_rows(values_only=True)]
+
+
 def read_grid(path):
     """→ (kind, payload): ('table', rows[][]) для xls/xlsx или ('pdf', text) для pdf."""
     head = open(path, "rb").read(8)
@@ -118,9 +148,7 @@ def read_grid(path):
                              capture_output=True, text=True).stdout
         return "pdf", txt
     if head[:2] == b"PK":
-        import openpyxl
-        ws = openpyxl.load_workbook(path, data_only=True).worksheets[0]
-        return "table", [list(r) for r in ws.iter_rows(values_only=True)]
+        return "table", _read_xlsx(path)
     if head[:4] == b"\xD0\xCF\x11\xE0":
         import xlrd
         sh = xlrd.open_workbook(path).sheet_by_index(0)
