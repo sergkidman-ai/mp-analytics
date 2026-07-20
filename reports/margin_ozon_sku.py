@@ -161,6 +161,12 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
     cpu_global = sku_unit_cost_global(account, org_id)  # sku → себест/шт (вся история) для сторно
     sku2offer = fetch_product_offer_map(account)   # sku → offer_id (=external_code)
     gmap = _group_price_map()
+    # Ручной слой COGS (как у ВБ): для отправлений без матча в МС и без импутации/группы —
+    # себест/ед. проставлена вручную в cogs_manual (ключ article = offer_id=external_code).
+    # Заполняется, когда товар в МС под другим контрагентом/не через МС (напр. декабрьские
+    # отгрузки в январском отчёте). НЕ перебивает реальный FIFO — только финальный fallback.
+    manual = {r["article"]: float(r["unit_cost"])
+              for r in db.query("SELECT article, unit_cost FROM cogs_manual WHERE platform='ozon'")}
 
     ops = _rows(account, date_from, date_to)
     sku_fin = defaultdict(lambda: {c: 0.0 for c in CATEGORIES})
@@ -209,7 +215,7 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
     # Единицы: items[] повторяется по штукам (qty 3 = 3 записи) → счёт по записям.
     sku_cogs = defaultdict(float)
     m_cogs, m_units = defaultdict(float), defaultdict(int)
-    cov = {"matched": 0, "imputed": 0, "grouped": 0, "missed": 0}
+    cov = {"matched": 0, "imputed": 0, "grouped": 0, "manual": 0, "missed": 0}
     rev_cov = {"covered": 0.0, "missed": 0.0}
     miss_schema = defaultdict(int)
     miss_detail, unmatched = [], []
@@ -229,7 +235,7 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
             unmatched.append((key, skus, info["schema"], rev))
     cpu_map = {s: m_cogs[s] / m_units[s] for s in m_units if m_units[s] > 0}
     for key, skus, schema, rev in unmatched:
-        used_impute = used_group = 0
+        used_impute = used_group = used_manual = 0
         for s in skus:
             if s in cpu_map:
                 sku_cogs[s] += cpu_map[s]
@@ -239,13 +245,20 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
                 if fc is not None:
                     sku_cogs[s] += fc
                     used_group += 1
-        if used_impute + used_group == 0:
+                else:
+                    mc = manual.get(sku2offer.get(s))
+                    if mc is not None:
+                        sku_cogs[s] += mc
+                        used_manual += 1
+        if used_impute + used_group + used_manual == 0:
             cov["missed"] += 1
             rev_cov["missed"] += rev
             miss_schema[schema] += 1
             miss_detail.append((key, schema, rev, len(skus)))
         else:
-            cov["imputed" if used_impute >= used_group else "grouped"] += 1
+            best = max((("imputed", used_impute), ("grouped", used_group),
+                        ("manual", used_manual)), key=lambda x: x[1])[0]
+            cov[best] += 1
             rev_cov["covered"] += rev
 
     # --- сторно COGS возвратов в продаваемый сток (в месяце возврата) ---
@@ -270,7 +283,8 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
             if take <= 0:
                 break
             used[key] += take
-            cpu = cpu_global.get(s) or _fallback_cpu(sku2offer.get(s), gmap)
+            cpu = (cpu_global.get(s) or _fallback_cpu(sku2offer.get(s), gmap)
+                   or manual.get(sku2offer.get(s)))
             if cpu:
                 storno[s] += cpu * take
 
@@ -308,8 +322,8 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
     rev_total = sum(rev_cov.values()) or 1
     print(f"\n  SKU с продажами: {sum(1 for f in sku_fin.values() if f['revenue']>0)}")
     print(f"  COGS-покрытие отправлений: {covered}/{total_p} ({covered/total_p*100:.0f}%) "
-          f"= МС {cov['matched']} + импутация {cov['imputed']} + группа {cov['grouped']}; "
-          f"без COGS {cov['missed']} {dict(miss_schema)}")
+          f"= МС {cov['matched']} + импутация {cov['imputed']} + группа {cov['grouped']} "
+          f"+ ручная {cov['manual']}; без COGS {cov['missed']} {dict(miss_schema)}")
     print(f"  COGS-покрытие ПО ВЫРУЧКЕ: {rev_cov['covered']/rev_total*100:.1f}% "
           f"(без COGS {rev_cov['missed']:,.0f} ₽)".replace(",", " "))
     if miss_detail:
