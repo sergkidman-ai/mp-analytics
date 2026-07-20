@@ -796,6 +796,11 @@ def ozon_page():
     return (STATIC / "ozon.html").read_text(encoding="utf-8")
 
 
+@app.get("/reports", response_class=HTMLResponse)
+def reports_page():
+    return (STATIC / "reports.html").read_text(encoding="utf-8")
+
+
 @app.get("/opex", response_class=HTMLResponse)
 def opex_page():
     return (STATIC / "opex.html").read_text(encoding="utf-8")
