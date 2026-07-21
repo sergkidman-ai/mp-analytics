@@ -21,3 +21,11 @@ reports/data/.mp_ozon_hist.lock
 reports/data/backups/
 reports/data/wb_reconcile_log.jsonl
 reports/data/.*.lock
+
+# Аналитические выгрузки docs/*.csv — одноразовый аудит-мусор, не коммитим.
+# Уже отслеживаемые нужные файлы оставлены явными исключениями ниже.
+docs/*.csv
+!docs/ms_zero_cogs_demands.csv
+!docs/ozon_dims_overpay.csv
+!docs/wb_logistics_overpay.csv
+!docs/wb_price_change_unit_econ.csv

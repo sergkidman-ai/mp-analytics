@@ -6,3 +6,4 @@ _*.xls
 _*.xlsx
 *.fixed.xlsx
 workcal_cache.json
+_*.bin
