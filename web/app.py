@@ -1589,6 +1589,70 @@ def ozon_bid_set(payload: BidSet):
     return {"ok": True, "bid": payload.bid}
 
 
+# --- Ozon: задача «вывоз со склада FBO» — список кандидатов + отметка «заявка оформлена» ---
+# Данные из ozon_removal_candidates (сборка недельная, вторник — reports/ozon_removal_candidates).
+# Отметки галочкой пишутся в ozon_removal_submitted — тот же реестр, что у Telegram-бота
+# (/oformleno). Так дашборд и бот держат единое состояние «что уже отправлено на вывоз».
+@app.get("/api/ozon/removal")
+def ozon_removal():
+    from reports.ozon_removal_candidates import _short_name, RULE_TXT, ACC_LABEL
+    rd = db.query("SELECT max(run_date)::text d FROM ozon_removal_candidates")[0]["d"]
+    if not rd:
+        return {"run_date": None, "accounts": [], "pending": 0, "done": 0}
+    rows = db.query("""SELECT c.account, c.warehouse, c.offer_id, c.qty, c.name, c.color,
+            c.days_without_sales, c.rules, (s.offer_id IS NOT NULL) AS done
+        FROM ozon_removal_candidates c
+        LEFT JOIN ozon_removal_submitted s
+          ON s.account=c.account AND s.offer_id=c.offer_id AND s.warehouse=c.warehouse
+        WHERE c.run_date=%s AND c.rules<>'W'
+        ORDER BY c.account, c.warehouse, c.offer_id""", (rd,))
+    accs = {}
+    for r in rows:
+        a = accs.setdefault(r["account"], {"account": r["account"],
+                                           "name": ACC_LABEL.get(r["account"], r["account"]),
+                                           "warehouses": {}})
+        wh = a["warehouses"].setdefault(r["warehouse"], [])
+        wh.append({"offer_id": r["offer_id"], "qty": r["qty"], "name": _short_name(r["name"]),
+                   "color": r["color"], "dws": r["days_without_sales"], "done": r["done"],
+                   "reasons": [RULE_TXT.get(t, t) for t in r["rules"].split(",")]})
+    out = [{"account": a["account"], "name": a["name"],
+            "warehouses": [{"warehouse": w, "items": items} for w, items in a["warehouses"].items()]}
+           for a in accs.values()]
+    pending = sum(1 for r in rows if not r["done"])
+    done = sum(1 for r in rows if r["done"])
+    return {"run_date": rd, "accounts": out, "pending": pending, "done": done,
+            "qty_pending": sum(r["qty"] for r in rows if not r["done"])}
+
+
+class RemovalMark(BaseModel):
+    account: str
+    offer_id: str
+    warehouse: str
+    done: bool
+
+
+@app.post("/api/ozon/removal/mark")
+def ozon_removal_mark(payload: RemovalMark):
+    """Отметить/снять «заявка на вывоз оформлена» по позиции (account, offer_id, warehouse)."""
+    if payload.done:
+        r = db.query("""SELECT sku, qty, name FROM ozon_removal_candidates
+            WHERE account=%s AND offer_id=%s AND warehouse=%s
+            ORDER BY run_date DESC LIMIT 1""", (payload.account, payload.offer_id, payload.warehouse))
+        if not r:
+            return {"ok": False, "error": "позиция не найдена в текущем списке"}
+        import datetime as _dt
+        db.upsert("ozon_removal_submitted", [{
+            "account": payload.account, "offer_id": payload.offer_id, "warehouse": payload.warehouse,
+            "sku": r[0]["sku"], "qty": r[0]["qty"], "name": r[0]["name"],
+            "submitted_at": _dt.date.today()}],
+            conflict_cols=["account", "offer_id", "warehouse"],
+            update_cols=["sku", "qty", "name", "submitted_at"])
+    else:
+        db.execute("DELETE FROM ozon_removal_submitted WHERE account=%s AND offer_id=%s AND warehouse=%s",
+                   (payload.account, payload.offer_id, payload.warehouse))
+    return {"ok": True, "done": payload.done}
+
+
 WB_ADV_TYPE = {4: "Каталог", 5: "Карточка", 6: "Поиск", 7: "Главная", 8: "Авто", 9: "Аукцион"}
 
 

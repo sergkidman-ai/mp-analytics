@@ -138,6 +138,16 @@
   <h2>📈 По неделям (Пн–Вс)</h2>
   <table id="wk"><thead><tr><th>Неделя</th><th>Выручка</th><th>Реклама</th><th>Чистая (оценка)</th></tr></thead><tbody></tbody></table>
 
+  <section id="removal-task" style="display:none;margin:22px 0;border:1px solid var(--line,#e2e2dc);border-radius:12px;padding:16px 18px;background:var(--card,#fff)">
+    <div class="row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <h2 style="margin:0">🚚 Задача: вывоз со склада FBO</h2>
+      <span id="rm-badge" style="background:#b02a2a;color:#fff;font-size:12px;font-weight:700;border-radius:20px;padding:2px 10px"></span>
+      <span class="muted" id="rm-sub" style="font-size:12px;font-weight:400"></span>
+    </div>
+    <p class="muted" style="font-size:12px;margin:6px 0 12px">Отметьте галочкой позиции, по которым оформили заявку в ЛК (FBO → Вывоз и утилизация → «Со стока»). Отмеченные не предлагаются повторно — состояние общее с Telegram-ботом. Список обновляется по вторникам.</p>
+    <div id="rm-body"></div>
+  </section>
+
   <div id="drillhint" class="hint"></div>
   <div id="l3detail">
   <div class="l3tabs">
@@ -232,7 +242,7 @@ async function initFilters(){
   period=per[0]||'';
   $('#f-account').innerHTML=`<option value="">Все юрлица</option><option value="oz_acc1">Цифровой квадрат</option><option value="oz_acc2">Дисквэр</option>`;
   $('#f-period').onchange=e=>{period=e.target.value;load();};
-  $('#f-account').onchange=e=>{account=e.target.value;load();};
+  $('#f-account').onchange=e=>{account=e.target.value;load();loadRemoval();};
 }
 
 async function load(){
@@ -368,7 +378,61 @@ document.querySelectorAll('.l3tab').forEach(t=>t.onclick=()=>{
   const p=t.dataset.tab;
   document.querySelectorAll('#l3detail .l3panel').forEach(pl=>{pl.style.display=pl.dataset.panel===p?'':'none';});
 });
-(async()=>{await initFilters();await load();})();
+
+// --- Задача «Вывоз со склада FBO»: список кандидатов + галочки «заявка оформлена» ---
+async function loadRemoval(){
+  const d=await api('/api/ozon/removal');
+  const sec=$('#removal-task');
+  if(!d||!d.run_date||!d.accounts.length){sec.style.display='none';return;}
+  sec.style.display='';
+  // показываем список только выбранной организации (пусто в фильтре = обе)
+  const accts = account ? d.accounts.filter(a=>a.account===account) : d.accounts;
+  const items = accts.flatMap(a=>a.warehouses.flatMap(w=>w.items));
+  const pending = items.filter(i=>!i.done).length;
+  const doneN = items.filter(i=>i.done).length;
+  const qtyPend = items.filter(i=>!i.done).reduce((s,i)=>s+i.qty,0);
+  $('#rm-badge').textContent = pending+' к вывозу'+(qtyPend?' · '+qtyPend+' шт':'');
+  $('#rm-sub').textContent = 'список на '+d.run_date+(doneN?(' · оформлено '+doneN):'')
+    + (account?'':' · обе организации');
+  const COLS = '<colgroup><col style="width:34px"><col style="width:96px"><col style="width:52px">'
+    + '<col><col style="width:230px"></colgroup>';
+  let html='';
+  if(!accts.length){html='<p class="muted" style="padding:8px 0">нет позиций к вывозу</p>';}
+  for(const a of accts){
+    if(!account) html+=`<h3 style="margin:14px 0 4px;font-size:14px">${a.name}</h3>`;
+    html+=`<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">${COLS}<tbody>`;
+    for(const w of a.warehouses){
+      html+=`<tr><td colspan="5" class="muted" style="font-size:12px;font-weight:600;padding:10px 6px 2px">🏬 ${w.warehouse}</td></tr>`;
+      for(const it of w.items){
+        const done=it.done?'checked':'';
+        const st=it.done?'text-decoration:line-through;opacity:.5':'';
+        html+=`<tr data-acc="${a.account}" data-off="${it.offer_id}" data-wh="${w.warehouse}" style="${st}">`+
+          `<td style="padding:4px 6px;text-align:center"><input type="checkbox" class="rm-chk" ${done}></td>`+
+          `<td style="padding:4px 6px;font-weight:600;text-align:left;white-space:nowrap">${it.offer_id}</td>`+
+          `<td style="padding:4px 6px;text-align:right;white-space:nowrap">×${it.qty}</td>`+
+          `<td style="padding:4px 6px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name||''}</td>`+
+          `<td class="muted" style="padding:4px 6px;text-align:left;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.reasons.join(', ')}${it.dws!=null?' · '+it.dws+'д':''}${it.color?' · '+it.color:''}</td>`+
+          `</tr>`;
+      }
+    }
+    html+=`</tbody></table>`;
+  }
+  $('#rm-body').innerHTML=html;
+}
+document.addEventListener('change',async e=>{
+  if(!e.target.classList.contains('rm-chk'))return;
+  const tr=e.target.closest('tr'), chk=e.target, done=chk.checked;
+  chk.disabled=true;
+  try{
+    const j=await (await fetch('/api/ozon/removal/mark',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({account:tr.dataset.acc,offer_id:tr.dataset.off,warehouse:tr.dataset.wh,done:done})})).json();
+    if(j.ok){tr.style.cssText=done?'text-decoration:line-through;opacity:.5':'';await loadRemoval();}
+    else{chk.checked=!done;alert('Ошибка: '+(j.error||''));}
+  }catch(err){chk.checked=!done;alert('Сбой запроса');}
+  finally{chk.disabled=false;}
+});
+
+(async()=>{await initFilters();await load();await loadRemoval();})();
 </script>
 </body>
 </html>

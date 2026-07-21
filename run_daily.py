@@ -116,6 +116,7 @@ def main():
     for acc in OZON_ACCOUNTS:
         ozon_catalog_ok = step(f"Ozon каталог {acc}", lambda a=acc: __import__("collectors.ozon_products", fromlist=["main"]).main(a))
         step(f"Ozon ФБО остатки {acc}", lambda a=acc: __import__("collectors.ozon_fbo_stock", fromlist=["main"]).main(a))
+        step(f"Ozon сигналы оборачиваемости {acc}", lambda a=acc: __import__("collectors.ozon_stock_signals", fromlist=["main"]).main(a))
         ozon_txn_ok, ozon_post_ok = {}, {}
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
@@ -153,6 +154,16 @@ def main():
                       f"(упал источник: {', '.join(failed_sources)})", flush=True)
                 continue
             step(f"Ozon маржа {acc} {df}", lambda a=acc, x=df, y=dt: ozm.build(x, y, a))
+    # Кандидаты на вывоз со склада Ozon FBO — пересбор РАЗ В НЕДЕЛЮ, по вторникам (weekday()==1),
+    # чтобы список на дашборде/в боте обновлялся еженедельно, а не дёргался ежедневно. Сигналы
+    # оборачиваемости (ozon_stock_signals) выше собираются ежедневно — к вторнику данные свежие.
+    # В сам вторник рассылку в Telegram делает ещё и cron → invoice_bot/ozon_removal_push.py.
+    if today.weekday() == 1:
+        def _ozon_removal():
+            orc = __import__("reports.ozon_removal_candidates", fromlist=["build"])
+            for a in OZON_ACCOUNTS:
+                orc.build(a, today)
+        step("Ozon кандидаты на вывоз (FBO, еженедельно вт)", _ozon_removal)
     step("Яндекс.Маркет: заказы", lambda: __import__("collectors.yandex", fromlist=["main"]).main())
     # Стоимость услуг: ручной файл ЛК (старые месяцы, если лежит в incoming/) + автосбор
     # свежих месяцев из единого отчёта Партнёр-API (реклама/Полки/подписка/отзывы).
