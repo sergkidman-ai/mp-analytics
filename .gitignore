@@ -29,3 +29,11 @@ docs/*.csv
 !docs/ozon_dims_overpay.csv
 !docs/wb_logistics_overpay.csv
 !docs/wb_price_change_unit_econ.csv
+
+# Разовые аналитические скрипты и их выгрузки — не в git
+scratch_*.py
+scratchpad_*.json
+reports/ms-recon.*
+# Выхлопы обслуживающих инструментов (tools/) — рантайм
+tools/*.out
+tools/purge_trash_log.jsonl
