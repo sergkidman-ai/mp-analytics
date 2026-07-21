@@ -163,6 +163,18 @@ def main():
     step("Ozon Отчёты МП: заморозка/сверка",
          lambda: print("[mp-freeze]", __import__("reports.ozon_mp_freeze",
                        fromlist=["advance_and_reconcile"]).advance_and_reconcile(), flush=True))
+    # Вкладка «Отчёты МП · WB»: заморозить завершившиеся месяцы формирования + освежить последний
+    # (ВБ дописывает недельные отчёты в начале следующего месяца); перерисовать статику страницы.
+    step("WB Отчёты МП: заморозка",
+         lambda: print("[wb-freeze]", __import__("reports.wb_mp_freeze",
+                       fromlist=["advance"]).advance(), flush=True))
+    # По понедельникам — реконсайл правок ВБ задним числом: перезабор 45-дн окна операций с ВБ +
+    # пересбор margin, дифф замороженных месяцев vs снапшот, авто-правка + список расхождений в лог.
+    if datetime.date.today().isoweekday() == 1:
+        def _wb_reconcile():
+            F = __import__("reports.wb_mp_freeze", fromlist=["reconcile_recent", "_fmt_recon"])
+            print("[wb-reconcile]\n" + F._fmt_recon(F.reconcile_recent(weeks=6)), flush=True)
+        step("WB Отчёты МП: понедельничный реконсайл", _wb_reconcile)
     elapsed = (datetime.datetime.now()-t0).seconds
     if FAILED_STEPS:
         print(f"[run_daily] завершено с ошибками за {elapsed}с: упало {len(FAILED_STEPS)} шагов: "

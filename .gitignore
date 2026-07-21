@@ -19,3 +19,5 @@ docs/questions_*.html
 # Отчёты МП — runtime state (не коммитим)
 reports/data/.mp_ozon_hist.lock
 reports/data/backups/
+reports/data/wb_reconcile_log.jsonl
+reports/data/.*.lock

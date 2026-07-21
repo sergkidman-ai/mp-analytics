@@ -135,16 +135,19 @@ def bars_line(oborot, net):
             "".join(o for o in out if o.startswith("<circle")) + '</svg>')
 
 
-def line2(a, b, amax=None):
+def line2(a, b, c=None, amax=None):
     M, N = _C["M"], _C["N"]
-    W, H = 500, 140; hi = amax or max(max(a), max(b)); lo = 0
+    W, H = 500, 140
+    ser = [(a, "var(--pos)"), (b, "var(--neg)")] + ([(c, "var(--acc)")] if c is not None else [])
+    hi = amax or max(max(s) for s, _ in ser); lo = 0
 
     def pl(vals, col):
         pts = [f"{24 + i * 90.4:.1f},{128 - ((v - lo) / ((hi - lo) or 1)) * 95:.1f}" for i, v in enumerate(vals)]
         cs = "".join(f'<circle cx="{p.split(",")[0]}" cy="{p.split(",")[1]}" r="2.3" fill="{col}"/>' for p in pts)
         return f'<polyline points="{" ".join(pts)}" fill="none" stroke="{col}" stroke-width="2"/>' + cs
     ax = "".join(f'<text x="{24 + i * 90.4:.1f}" y="138" text-anchor="middle" class="axt">{M[i]}</text>' for i in range(N))
-    return f'<svg viewBox="0 0 {W} {H}" width="100%">' + pl(a, "var(--pos)") + pl(b, "var(--neg)") + ax + '</svg>'
+    return (f'<svg viewBox="0 0 {W} {H}" width="100%">' + "".join(pl(s, col) for s, col in ser)
+            + ax + '</svg>')
 
 
 def build(acc):
@@ -153,6 +156,7 @@ def build(acc):
     cogs = a["cogs"]; net = a["net"]; margin = a["margin"]
     cogs_pct = [(cogs[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
     itog = [sum(L[k][i] for k in EXP) for i in range(N)]
+    itog_pct = [(itog[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
     # сплит может быть null у provisional-месяцев (нет Отчёта о реализации) → None → «—»
     rev = [(s["rev"] if s else None) for s in a["split"]]
     bon = [(s["bonus"] if s else None) for s in a["split"]]
@@ -177,9 +181,10 @@ def build(acc):
              f'<div class="chart"><h3>Оборот и чистая</h3>{bars_line(ob, net)}'
              '<div class="leg"><span><i style="border-color:var(--acc)"></i>оборот</span>'
              '<span><i style="border-color:var(--warn)"></i>чистая</span></div></div>'
-             f'<div class="chart"><h3>Маржа против доли COGS</h3>{line2(margin, cogs_pct)}'
+             f'<div class="chart"><h3>Маржа, COGS и расходы Ozon</h3>{line2(margin, cogs_pct, itog_pct)}'
              '<div class="leg"><span><i style="border-color:var(--pos)"></i>маржа %</span>'
-             '<span><i style="border-color:var(--neg)"></i>COGS %</span></div></div></div>')
+             '<span><i style="border-color:var(--neg)"></i>COGS %</span>'
+             '<span><i style="border-color:var(--acc)"></i>расходы Ozon %</span></div></div></div>')
     jul_ttl = "Текущий месяц — оценка по транзакциям до выхода Отчёта о реализации"
     fc_ttl = "Прогноз на конец месяца (факт + дневная ставка за скользящее окно × остаток дней)"
     prov_ttl = "Оценка по транзакциям — ещё не сверено с Отчётом о реализации"
@@ -277,10 +282,13 @@ REPORT_CSS = """
 #mpr tr.sub td.lbl.ind{padding-left:24px;position:relative}
 #mpr tr.sub td.lbl.ind::before{content:"└";position:absolute;left:10px;color:var(--line)}
 #mpr tr.sect td{background:var(--acc-s);color:var(--acc);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:6px 11px}
+#mpr td.num{position:relative;padding-right:22px}
 #mpr td.num.g{background:var(--pos-s)}
 #mpr td.num.a{background:var(--warn-s)}
-#mpr td.num.up::after{content:" ▲";font-size:9px}
-#mpr td.num.dn::after{content:" ▼";font-size:9px}
+/* стрелка тренда — в фикс. правом жёлобе (position:absolute), чтобы число было выровнено
+   одинаково и в ячейках со стрелкой, и без неё (иначе inline-стрелка сдвигает число влево) */
+#mpr td.num.up::after{content:"▲";position:absolute;right:7px;top:7px;font-size:9px}
+#mpr td.num.dn::after{content:"▼";position:absolute;right:7px;top:7px;font-size:9px}
 #mpr td.num.g.up::after,#mpr td.num.g.dn::after{color:var(--pos)}
 #mpr td.num.a.up::after,#mpr td.num.a.dn::after{color:var(--warn)}
 #mpr tr.subtot td{border-top:2px solid var(--acc);font-weight:700}
@@ -300,6 +308,14 @@ REPORT_CSS = """
 #mpr td.num.fc{color:var(--mut);font-style:italic}
 #mpr .livenote{margin:14px 2px 0;font-size:12.5px;color:var(--mut);line-height:1.6}
 #mpr .livenote b{color:var(--txt);font-weight:600}
+#mpr details.howto{margin:0 0 12px}
+#mpr details.howto>summary{cursor:pointer;color:var(--acc);font-size:13px;font-weight:600;
+  list-style:none;display:inline-flex;align-items:center;gap:6px;user-select:none}
+#mpr details.howto>summary::-webkit-details-marker{display:none}
+#mpr details.howto>summary::before{content:"▸";font-size:11px}
+#mpr details.howto[open]>summary::before{content:"▾"}
+#mpr details.howto>summary:hover{text-decoration:underline}
+#mpr details.howto .sub{margin-top:8px}
 """
 
 SIDEBAR = """  <a href="/" class="logo">🏢 Пульт бизнеса</a>
@@ -413,12 +429,12 @@ def render(hist=None):
   </nav>
   <div class="rtabs">
     <a class="rtab cur">🟦 Ozon</a>
-    <span class="rtab soon">🟣 Wildberries · скоро</span>
+    <a class="rtab" href="/reports/wb">🟣 Wildberries</a>
     <span class="rtab soon">🟡 Яндекс Маркет · скоро</span>
   </div>
   <p class="eyebrow">Отчёты МП · Ozon</p>
   <h1>Ozon — сводный отчёт по месяцам</h1>
-  <p class="sub">{SUB}</p>
+  <details class="howto"><summary>Как читать этот отчёт</summary><p class="sub">{SUB}</p></details>
   <div class="tlegend">
     <span><span class="sw" style="background:var(--pos-s)"></span>выше среднего — хорошо</span>
     <span><span class="sw" style="background:var(--warn-s)"></span>ниже среднего — обратить внимание</span>
