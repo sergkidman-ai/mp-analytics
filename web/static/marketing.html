@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Маркетинг — юнит-экономика SKU</title>
+<style>
+  :root{--bg:#eef1f6;--card:#ffffff;--line:#e2e8f0;--txt:#1e293b;--mut:#64748b;--acc:#2563eb;--pos:#16a34a;--neg:#dc2626;--warn:#d97706}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  select,input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1320px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:22px;font-weight:700;margin-top:4px}
+  .ctrls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .ctrls label{font-size:13px;color:var(--mut);display:flex;align-items:center;gap:6px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:13px}
+  th{color:var(--mut);font-weight:600;font-size:11px;cursor:pointer;user-select:none}
+  th:first-child,td:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  tbody tr.main{cursor:pointer}
+  tbody tr.main:hover{background:#f1f5f9}
+  .sku .nm{font-weight:600}.sku .vc{color:var(--mut);font-size:12px}
+  .price .l0{color:var(--mut);text-decoration:line-through;font-size:12px}
+  .price .pr{color:var(--warn)}.price .by{font-weight:600}
+  .badge{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;background:#eef2f7;color:var(--mut)}
+  .badge.sku{background:#dcfce7;color:#15803d}.badge.subject{background:#dbeafe;color:#1d4ed8}
+  .kpi{font-weight:700}
+  .pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;font-weight:600}
+  .pill.pos{background:#dcfce7;color:#15803d}.pill.warn{background:#fef3c7;color:#b45309}.pill.neg{background:#fee2e2;color:#b91c1c}
+  .scrow td{background:#f8fafc;padding:0}
+  .scen{padding:12px 16px}
+  .scen h4{margin:0 0 8px;font-size:13px;color:var(--mut);font-weight:600}
+  table.sc{background:transparent;border:none}
+  table.sc th,table.sc td{border-bottom:1px solid var(--line);padding:5px 12px}
+  table.sc tr.cur td{background:#eef2f7}
+  table.sc tr.cur td:first-child::after{content:' ← сейчас';color:var(--acc);font-size:11px}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .expand{color:var(--mut);font-size:11px;margin-left:6px}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Маркетинг</div>
+    <a href="/marketing" class="cur">📣 Юнит-экономика SKU</a>
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
+</header>
+<main>
+  <p class="note" style="margin-top:0">Юнит-экономика по всем SKU (ВБ, Цифровой). Форвард по <b>текущей цене</b> через payout-ratio.
+    <b>KPI — маржа ≥25% от нашей цены до акций.</b>
+    Нажми строку → сценарий по глубине акции. Замещающая себестоимость (перезакупка сейчас).</p>
+  <div class="big" id="big"></div>
+  <div class="ctrls">
+    <input id="q" placeholder="поиск: nm / артикул / предмет" style="min-width:240px">
+    <label><input type="checkbox" id="onlysold"> только продающиеся (90д)</label>
+    <label>сортировка
+      <select id="sort">
+        <option value="trail_qty">продажи 90д</option>
+        <option value="net_u">чистая/шт</option>
+        <option value="margin_own">маржа от нашей цены</option>
+        <option value="promo">глубина акции</option>
+      </select>
+    </label>
+    <span class="muted" id="cnt"></span>
+  </div>
+  <table id="tbl">
+    <thead><tr>
+      <th>SKU</th><th>Цена (list→акция→покупатель)</th><th>Акция</th><th>Себест</th>
+      <th>Чистая/шт</th><th>Маржа от нашей<br><span class="muted" style="font-weight:400">прогноз, KPI ≥25%</span></th>
+      <th>Маржа <span id="perm">—</span><br><span class="muted" style="font-weight:400">факт, от нашей</span></th>
+      <th>Прод. 90д</th><th>Посл.<br>прод.</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU');
+const pct=(v,d=0)=>v==null?'—':(+v).toFixed(d)+'%';
+async function api(p){const r=await fetch(p);return r.json();}
+let TARGET=25;
+
+function marginPill(v){
+  if(v==null) return '<span class="muted">—</span>';
+  const cls=v>=TARGET?'pos':(v>=15?'warn':'neg');
+  return `<span class="pill ${cls}">${(+v).toFixed(0)}%</span>`;
+}
+function ownActualCell(r){ // фактическая маржа месяца от НАШЕЙ промо-цены (net_profit/revenue_buyer)
+  if(r.margin_pct_own_actual==null) return '<span class="muted">—</span>';
+  return marginPill(r.margin_pct_own_actual);
+}
+function priceCell(r){
+  const list=r.price_before_promo, pr=r.promo_price, by=r.buyer_price;
+  const hasPromo=r.promo_pct>0.005;
+  return `<span class="price">${hasPromo?`<span class="l0">${rub(list)}</span> `:''}`+
+    `${hasPromo?`<span class="pr">${rub(pr)}</span> → `:''}`+
+    `<span class="by">${rub(by)}</span> ₽</span>`;
+}
+function saleCell(r){
+  if(!r.last_sale_date) return '<span class="muted">нет</span>';
+  const d=r.days_since_sale;
+  const cls=d>60?'neg':(d>30?'warn':'');
+  return `<span class="${cls}">${d}д</span>`;
+}
+function cogsCell(r){
+  if(r.cogs_u==null) return '<span class="muted">нет</span>';
+  const ic={shipment:'',barcode:'~',factual:'≈',set:'⊕',set_fact:'⊕≈'}[r.cogs_source]||'';
+  return `${rub(r.cogs_u)}${ic?`<span class="muted"> ${ic}</span>`:''}`;
+}
+
+function scenarioHtml(r){
+  const sc=r.scenario_promo; if(!sc||!sc.length) return '';
+  const rows=sc.map(x=>{
+    const mo=x.margin_own, cls=mo>=TARGET?'pos':(mo>=15?'warn':'neg');
+    return `<tr class="${x.current?'cur':''}"><td>${(x.promo_pct*100).toFixed(0)}%</td>`+
+      `<td>${rub(x.base)}</td><td>${rub(x.buyer_u)}</td><td>${rub(x.to_pay_u)}</td>`+
+      `<td class="${x.net_u<0?'neg':''}">${rub(x.net_u)}</td>`+
+      `<td class="${cls}" style="font-weight:600">${mo.toFixed(0)}%</td></tr>`;
+  }).join('');
+  return `<div class="scen"><h4>Сценарий: маржа vs глубина акции `+
+    `<span class="muted">(безубыток ${r.promo_breakeven_pct==null?'—':(r.promo_breakeven_pct*100).toFixed(0)+'%'})</span></h4>`+
+    `<table class="sc"><thead><tr><th style="text-align:left">Акция</th><th>База</th><th>Покупатель</th>`+
+    `<th>К нам</th><th>Чистая/шт</th><th>Маржа от нашей</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+let ROWS=[];
+function render(){
+  const tb=$('#tbl tbody');
+  tb.innerHTML=ROWS.map((r,i)=>{
+    return `<tr class="main" data-i="${i}">
+      <td class="sku"><div class="nm">${r.nm_id}<span class="expand">▸</span></div><div class="vc">${r.vendor_code||''} · ${(r.subject||'').replace('для принтеров','').replace('для принтера','')}</div></td>
+      <td>${priceCell(r)}</td>
+      <td>${r.promo_pct==null?'—':(r.promo_pct*100).toFixed(0)+'%'}</td>
+      <td>${cogsCell(r)}</td>
+      <td class="${r.net_u<0?'neg':''}" style="font-weight:600">${r.net_u==null?'—':rub(r.net_u)}</td>
+      <td class="kpi">${marginPill(r.margin_pct_own)}</td>
+      <td class="kpi">${ownActualCell(r)}</td>
+      <td>${r.trail_qty==null?'<span class="muted">0</span>':rub(r.trail_qty)}</td>
+      <td>${saleCell(r)}</td>
+    </tr>
+    <tr class="scrow" data-scen="${i}" style="display:none"><td colspan="9">${scenarioHtml(r)}</td></tr>`;
+  }).join('')||'<tr><td colspan="9" class="muted">нет данных</td></tr>';
+  tb.querySelectorAll('tr.main').forEach(tr=>tr.onclick=()=>{
+    const i=tr.dataset.i, sc=tb.querySelector(`tr[data-scen="${i}"]`);
+    const open=sc.style.display!=='none';
+    sc.style.display=open?'none':'table-row';
+    tr.querySelector('.expand').textContent=open?'▸':'▾';
+  });
+}
+
+async function load(){
+  const q=$('#q').value.trim(), sold=$('#onlysold').checked?1:0, sort=$('#sort').value;
+  const d=await api(`/api/marketing?q=${encodeURIComponent(q)}&only_sold=${sold}&sort=${sort}&limit=300`);
+  TARGET=d.target_margin||25;
+  const s=d.summary||{};
+  const MON=['','янв','фев','март','апр','май','июнь','июль','авг','сен','окт','ноя','дек'];
+  if(s.period_econ){const m=+s.period_econ.slice(5,7);$('#perm').textContent=MON[m]||'месяц';}
+  $('#big').innerHTML=[
+    ['SKU с себестом',rub(s.with_cogs)+' <span class="muted" style="font-size:13px">/ '+rub(s.tot)+'</span>'],
+    ['Продавались 90д',rub(s.sold)],
+    ['Держат KPI 25%','<span class="pos">'+rub(s.kpi_ok)+'</span>'],
+    ['Ниже 25%','<span class="neg">'+rub(s.kpi_bad)+'</span>'],
+    ['Медиана маржи<br><span class="muted" style="font-size:11px">от нашей цены</span>',pct(s.med_margin_own)],
+    ['Медиана payout',s.med_payout==null?'—':(+s.med_payout).toFixed(2)],
+  ].map(([l,v])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+  ROWS=d.rows||[];
+  $('#cnt').textContent=`показано ${ROWS.length}`;
+  render();
+  $('#foot').innerHTML=`Обе маржи — <b>от нашей ПРОМО-цены</b> (что задаём в акцию, до СПП), целевой KPI ≥${TARGET}% (зелёный). `+
+    `<b>«Маржа от нашей»</b> — прогноз по текущей промо-цене (модель); <b>«Маржа ${MON[+((s.period_econ||'--06').slice(5,7))]||'месяц'}»</b> — реально достигнутая за месяц (прибыль ÷ наша промо-цена того месяца, из отчёта ВБ). `+
+    `Себест — замещающая (перезакупка сейчас); <b>≈</b> — фактическая по отгрузкам за 90д; `+
+    `<b>⊕</b> — НАБОР (комплект): BOM по текущим ценам компонентов (ВБ отчитывает наборы построчно, себест оценочный). `+
+    `«Нет продаж» — форвард по медианам, осторожно.`;
+}
+$('#q').oninput=()=>{clearTimeout(window._t);window._t=setTimeout(load,300);};
+$('#onlysold').onchange=load;$('#sort').onchange=load;
+load();
+</script>
+</body>
+</html>

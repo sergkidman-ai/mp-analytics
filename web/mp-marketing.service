@@ -1,0 +1,12 @@
+[Unit]
+Description=mp-analytics marketing (mkt юнит-экономика SKU)
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/uvicorn web.marketing_app:app --host 127.0.0.1 --port 8092
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
