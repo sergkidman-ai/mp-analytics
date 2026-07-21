@@ -19,7 +19,7 @@ tmux attach -t <имя>    # подключиться (напр. tmux attach -t 
 
 | Поток | Каноничная tmux | Папка / worktree | Ключевые файлы | Статус | Где handoff |
 |---|---|---|---|---|---|
-| **fin** — финансы/счета, БИ, сверки, COGS/маржа, P&L | `fin` | `.claude/worktrees/fin-night` (ветка `fin/*`) + дашборд :8090 | `run_daily.py`, `reports/margin_by_sku.py`, `margin_ozon_sku.py`, `ozon_expenses.py`, `web/app.py`, `collectors/{moysklad,wb,ozon,yandex}*`, `migrations/0xx` | ⚠ **поток без живой сессии** (worktree есть, tmux — нет) | `docs/HANDOFF.md#финансы` + `BRIEF_FIN.md`, `FIN_DATA_FOR_MKT.md` |
+| **fin** — финансы/счета, БИ, сверки, COGS/маржа, P&L | `fin` | `.claude/worktrees/fin-night` (ветка `fin/*`) + дашборд :8090 | `run_daily.py`, `reports/margin_by_sku.py`, `margin_ozon_sku.py`, `ozon_expenses.py`, `web/app.py`, `collectors/{moysklad,wb,ozon,yandex}*`, `migrations/0xx` | ✅ живая (`fin`, заведена 2026-07-21) | `docs/HANDOFF.md#финансы` + `BRIEF_FIN.md`, `FIN_DATA_FOR_MKT.md` |
 | **mkt** — маркетинг: реклама/органика, Джем, воронка, ДРР, ABC, ставки | `mkt` | `.claude/worktrees/mkt` (ветка `mkt/start`) + сервис :8092 | `run_marketing.py`, `reports/sku_economics.py`, `web/marketing_app.py`, `collectors/{wb_jam,wb_prices,wb_market_price,*_ads,*_funnel}`, `migrations/1xx` | ✅ живая (`mkt4`) | `docs/HANDOFF.md#маркетинг` + `BRIEF_MKT.md`, `MKT_WB_UNIT_ECONOMICS.md`, `HANDOFF_MKT.md` |
 | **rev** — отзывы/вопросы/чаты, ответчик, ТГ-модерация | `rev` | `/opt/mp-analytics` (ветка `eng/deepseek-answer-engine`) | `reports/feedback_{llm,drafts,grounding,corpus,send,today,web,sample}.py`, `collectors/{wb,ozon}_feedbacks.py`, `raw_feedback` (мигр. 038), ТГ-бот модерации | ✅ живая (`review3`) | `docs/HANDOFF.md#отзывы` + `docs/review3_handoff.md` |
 | **gab** — габариты карточек, переплата логистики | `gab` | `/opt/mp-analytics` | `supplier_dims` (мигр. 036/037), `scratch_dims_*.py`, `docs/*dims*`, `docs/wb_logistics_overpay.*`, коллекторы поставщиков (RAPID/ГалаПринт/Солюшнс) | ✅ живая (`gabarity`) | `docs/HANDOFF.md#габариты` + `docs/GABARITY_CONTEXT.md` |
@@ -51,29 +51,23 @@ tmux attach -t <имя>    # подключиться (напр. tmux attach -t 
 6. **Ночные задания — в профильной сессии** (`fin`/`mkt`/`rev` под `IS_SANDBOX=1`, см. память «ночной режим»),
    отдельная постоянная «ночная» сессия не нужна.
 
-## Потоки-сироты (тема есть, хозяина нет) — **нужна сессия?**
-- **fin** — worktree `fin-night` (`fin/ozon-sales-3way`) есть, живой tmux-сессии нет. Финансы сейчас правятся
-  из чужих чекаутов (ветка `eng/...` на `/opt/mp-analytics`). → **нужна выделенная сессия `fin`.**
-- **inv** — сессия есть, но нет своего handoff-дока (ведётся только устно). → завести секцию `#invoice`.
+## Уборка выполнена 2026-07-21 ✅ — живые сессии: `china fin gab inv mkt rev`
+Снесены дубли `claude` (алиас mkt4), `mkt3`, `mp-mkt2`, `reviews` (мёртвый bash), `mp-night` (домен отзывов,
+влит в `rev`). Переименования: `mkt4→mkt`, `review3→rev`, `gabarity→gab`, `invoice→inv`. Заведена выделенная
+**`fin`** (поток был сиротой: worktree `fin-night` есть, сессии не было — теперь есть). Осталось: `inv` без
+своего handoff-дока (секция `#invoice` заведена в HANDOFF, вести там).
 
-## Инвентаризация на 2026-07-21 (снимок; уборку делает пользователь)
+Историческая инвентаризация (снимок ДО уборки, для справки):
 
-| tmux-имя | поток | актуальна / дубль | вердикт | каноничное имя / примечание |
+| tmux-имя | поток | было | вердикт | итог |
 |---|---|---|---|---|
-| `mkt4` | mkt | актуальна (живая, текущая) | **ОСТАВИТЬ** | → `mkt` |
-| `claude` | mkt | дубль `mkt4` (тот же pane_pid 1348531, tty pts/16) | **УБИТЬ** | лишнее имя; снос НЕ убьёт процесс |
-| `mkt3` | mkt | дубль-предшественник (HANDOFF_MKT4) | **УБИТЬ** | Фазы 2–4 уже в HANDOFF_MKT — не теряются |
-| `mp-mkt2` | mkt | дубль-предшественник | **УБИТЬ** | итоги в HANDOFF; проверить незакоммиченный scratch перед сносом |
-| `mp-mkt` | mkt | — | уже мертва | нет в `tmux ls` |
-| `review3` | rev | актуальна (живая, ТГ-модерация) | **ОСТАВИТЬ** | → `rev` |
-| `reviews` | — | мёртвый bash-шелл (не Claude) | **УБИТЬ** | имя освобождается под `rev` |
-| `mp-night` | rev | пересекается с `review3` (домен отзывов, не финансы) | **ОСТАВИТЬ → свернуть** | ⚠ незаверш.: ответ «записать память + Ozon/Яндекс». Доработать в `rev`, затем убить; ночные задания — в профильных сессиях |
-| `gabarity` | gab | актуальна (живая) | **ОСТАВИТЬ** | → `gab` |
-| `invoice` | inv | актуальна (живая) | **ОСТАВИТЬ** | → `inv` |
-| `china` | внешний | актуальна (живая) | **ОСТАВИТЬ** | → `china` (другой проект) |
-
-### Прямые ответы
-- **mkt3 / mkt4 / mp-mkt2 → живая `mkt4`.** mkt3 и mp-mkt2 — прогоревшие предшественники, снести.
-- **reviews / review3 → живая `review3`.** `reviews` — мёртвый bash-шелл.
-- **`mp-night` отдельно НЕ нужна:** финансы она не дублирует (делает отзывы, пересекается с `review3`).
-  Ночные задания запускать в профильных сессиях. Сейчас у неё живая незавершённая работа — доработать и свернуть.
+| `mkt4` | mkt | живая, текущая | ОСТАВИТЬ | → `mkt` ✅ |
+| `claude` | mkt | дубль `mkt4` (тот же pane_pid 1348531) | УБИТЬ | снесён ✅ |
+| `mkt3` | mkt | дубль-предшественник | УБИТЬ | снесён ✅ |
+| `mp-mkt2` | mkt | дубль-предшественник | УБИТЬ | снесён ✅ |
+| `review3` | rev | живая (ТГ-модерация) | ОСТАВИТЬ | → `rev` ✅ |
+| `reviews` | — | мёртвый bash-шелл | УБИТЬ | снесён ✅ |
+| `mp-night` | rev | пересекалась с review3 | СВЕРНУТЬ | влита в `rev` ✅ |
+| `gabarity` | gab | живая | ОСТАВИТЬ | → `gab` ✅ |
+| `invoice` | inv | живая | ОСТАВИТЬ | → `inv` ✅ |
+| `china` | внешний | живая | ОСТАВИТЬ | → `china` ✅ |
