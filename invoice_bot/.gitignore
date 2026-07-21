@@ -7,3 +7,5 @@ _*.xlsx
 *.fixed.xlsx
 workcal_cache.json
 _*.bin
+_*.json
+*.jsonl
