@@ -99,11 +99,10 @@ tmux attach -t <имя>    # напр. tmux attach -t mkt
 ### Ветки fin/* — статус
 - **Влиты в main (контент):** `ozon-sales-3way`, `ozon-cogs-shipment-date`, `wb/ozon/yandex-return-cogs-storno`,
   `wb-return-storno`, `yandex-revenue-closure` — можно удалять.
-- **Удалена 21.07 (поглощена main):** `fin/ozon-unallocated-note` — пометка «не разнесено по SKU» уже в
-  overhead-логике `margin_ozon_sku` (ветка была старее main).
-- **НЕ в main — ждут решения клиента (diff-резюме показано 21.07):**
-  - `fin/ozon-fifo-delta-report` — только `docs/ozon_fifo_margin_delta.md` (отчёт #8: топ-10 Ozon SKU по росту
-    маржи после `cost_seb`→FIFO, июнь; суммарная Δ ≈ **+3.16 млн ₽** на matched-постингах, 781 SKU лучше / 89 хуже).
+- **Удалены 21.07:** `fin/ozon-unallocated-note` (поглощена main — пометка «не разнесено по SKU» уже в
+  overhead-логике `margin_ozon_sku`); `fin/ozon-fifo-delta-report` (влита — отчёт в
+  `docs/reports/OZON_FIFO_DELTA_2026-06.md`, коммит `ca62845`).
+- **НЕ в main — ждёт решения клиента (diff-резюме показано 21.07):**
   - `fin/claude-md-api-rule` — правило CLAUDE.md «большие API-ответы не в чат» (`limit=10–20`, не дампить JSON);
     в main перекрыто rule 11 лишь частично (rule 11 про медиа/бинарники, про сужение API-запросов — нет).
 
