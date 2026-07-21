@@ -4,5 +4,7 @@ SQLAlchemy
 pandas
 python-dotenv
 openpyxl
+xlrd
+python-calamine
 fastapi
 uvicorn[standard]

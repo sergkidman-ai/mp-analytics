@@ -1,0 +1,16 @@
+[Unit]
+Description=Feedback moderation Telegram bot (ответы на вопросы WB/Ozon с ручным подтверждением)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mp-analytics/feedback_bot
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/feedback_bot/tg_moderation.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

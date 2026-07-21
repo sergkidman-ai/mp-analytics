@@ -35,25 +35,66 @@ _AVAIL_RX = re.compile(
     r"есть\s+ли|в\s+наличи|штучн|поштучн|по\s+отдельн|отдельн|раздельн|"
     r"продаёте|продаете|можно\s+(?:ли\s+)?купить|нужен\s+только|нужен\s+артикул|"
     r"артикул|каталог|другие\s+цвета|остальные\s+цвета", re.I)
+# компат/альтернатива: покупатель ищет ПОДХОДЯЩИЙ картридж под свою модель (в т.ч. «если нет — какой?»).
+# Триггерит поиск в НАШЕМ ассортименте по модели принтера из вопроса → предложить наш артикул.
+_ALT_RX = re.compile(
+    r"подойд|подход|совмест|как(?:ой|ая|ое|ие)\b|что\s+подойд|чем\s+замен|"
+    r"если\s+нет|имеют?ся?\s+ли|\bарт\b|подскажите|нужен\s+картридж|нужен\s+другой|"
+    r"что\s+(?:нужно|взять|купить)|какой\s+нужен", re.I)
+# сопутствующий расходник: покупатель спрашивает про фотобарабан/девелопер/печку — если он есть у нас
+# под ту же модель, предложим его площадочный артикул. Слово → ILIKE-синонимы для поиска по нашим листингам.
+_ACCESSORY = {
+    "фотобарабан": ["фотобарабан", "фотобарабана", "барабан", "drum", "имидж"],
+    "девелопер":   ["девелопер", "developer", "проявк", "фотовал"],
+    "печка":       ["печк", "термоуз", "термоблок", "fuser", "фьюзер"],
+}
+_ACC_RX = re.compile(r"фотобарабан|барабан|\bdrum\b|девелопер|проявк|фотовал|печк|термоуз|термоблок|фьюзер", re.I)
+# вопрос о ПОЛНОТЕ цветов: «достаточно ли одного?», «нужны ли другие цвета?», «нужен ли чёрный?».
+# Товар цветной (CMY) → печать чёрного текста требует отдельного чёрного; модель принтера знаем из
+# названия товара → подбираем чёрный из каталога, НЕ переспрашивая модель.
+_COMPLETE_RX = re.compile(r"достаточно|хватит\s+ли|нужны?\s+ли\s+(?:ещё|еще|други|отдельн|чёрн|черн)|"
+                          r"нужен\s+ли\s+(?:ещё|еще|отдельн|чёрн|черн|чб)|только\s+этот|одного\s+картридж", re.I)
 _BRANDS = ("canon", "hp", "kyocera", "epson", "brother", "samsung", "xerox",
            "pantum", "ricoh", "konica", "minolta", "oki", "lexmark", "sharp", "panasonic")
 
 
 _STOP = {"для", "мфу", "модель", "моделей", "серии", "при", "как", "под", "или", "это", "нет"}
 
+# кириллица→латиница для модель-кодов (покупатель пишет «сх3900», в наших title латиница «CX3900»)
+_CYR2LAT = str.maketrans({
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "з": "z", "и": "i",
+    "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "c", "т": "t",
+    "у": "u", "ф": "f", "х": "x", "ц": "c", "ч": "ch", "ш": "sh", "ы": "y", "э": "e", "ю": "yu", "я": "ya"})
+# бренды по-русски → латиница
+_BRAND_RU = {"эпсон": "epson", "кэнон": "canon", "кенон": "canon", "куосера": "kyocera", "куасера": "kyocera",
+             "ксерокс": "xerox", "бразер": "brother", "самсунг": "samsung", "рико": "ricoh", "пантум": "pantum",
+             "катюша": "katusha", "коника": "konica", "минолта": "minolta", "шарп": "sharp", "панасоник": "panasonic"}
+
+
+def _translit_code(w):
+    """Токен модели с кириллицей → латиница (сх3900→cx3900); латинский оставляем как есть."""
+    if re.search(r"[а-яё]", w.lower()):
+        return w.lower().translate(_CYR2LAT)
+    return w
+
 
 def _model_tokens(text):
     """Модель-подобные токены вопроса: цифросодержащие (MF3010, TK-1170, 737) + серия-префикс перед
-    числом (PSC 750 → psc, делает поиск строже, режет ложные матчи по одной цифре) + бренды."""
+    числом (PSC 750 → psc, делает поиск строже, режет ложные матчи по одной цифре) + бренды.
+    Кириллические модель-коды транслитерируются в латиницу (в наших title модели латиницей)."""
     t = text or ""
+    low = t.lower()
+    for ru, en in _BRAND_RU.items():          # эпсон→epson и т.п., чтобы бренд нашёлся
+        if ru in low:
+            t = t + " " + en
     toks = []
     for m in re.finditer(r"[A-Za-zА-Яа-я0-9][\w\-]*", t):
         w = m.group(0)
         if re.search(r"\d", w) and len(w) >= 2 and not re.fullmatch(r"\d{1,2}", w):
-            toks.append(w)
+            toks.append(_translit_code(w))    # кир→лат для поиска по латинскому title
     low = t.lower()
     brands = [b for b in _BRANDS if b in low]
-    prefixes = [m.group(1) for m in re.finditer(r"\b([A-Za-zА-Яа-я]{2,10})\s?-?\d{2,5}\b", t)
+    prefixes = [_translit_code(m.group(1)) for m in re.finditer(r"\b([A-Za-zА-Яа-я]{2,10})\s?-?\d{2,5}\b", t)
                 if m.group(1).lower() not in _STOP and m.group(1).lower() not in _BRANDS]
     seen, out = set(), []
     for x in prefixes + brands + toks:
@@ -110,21 +151,78 @@ def _nums(toks):
     return [t for t in toks if re.search(r"\d", t)]
 
 
-def catalog_block(text, product_name="", card_models=None):
+def _detect_accessory(text):
+    """Какой сопутствующий расходник спрашивают (фотобарабан/девелопер/печка) → ключ или None."""
+    low = (text or "").lower()
+    for key, syns in _ACCESSORY.items():
+        if any(s in low for s in syns):
+            return key
+    return None
+
+
+def _search_accessory(model_tokens, acc_key, limit=6):
+    """Наши листинги сопутствующего типа (фотобарабан/девелопер/печка) под модель принтера."""
+    syns = _ACCESSORY[acc_key]
+    out = []
+    for tbl, idc, artc, namec, extra in (
+            ("wb_cards", "nm_id", "vendor_code", "title", ""),
+            ("ozon_product", "sku", "offer_id", "name", "AND account='oz_acc1' AND NOT is_archived")):
+        conds, params = [], []
+        for t in model_tokens:
+            conds.append(f"{namec} ILIKE %s"); params.append("%" + t + "%")
+        conds.append("(" + " OR ".join([f"{namec} ILIKE %s"] * len(syns)) + ")")
+        params += ["%" + s + "%" for s in syns]
+        where = " AND ".join(conds)
+        for r in db.query(f"""SELECT {idc} id, {artc} art, {namec} nm FROM {tbl}
+            WHERE {where} AND coalesce({namec},'')<>'' {extra} ORDER BY {idc} DESC LIMIT %s""",
+                          tuple(params) + (limit,)):
+            plat = "wb" if tbl == "wb_cards" else "ozon"
+            out.append({"platform": plat, "id": r["id"], "article": r["art"], "title": r["nm"]})
+    return out
+
+
+def _plat_ref(h):
+    """Идентификатор ДЛЯ ПОКУПАТЕЛЯ (по нему реально найдёт), НЕ наш внутренний offer_id/vendorCode:
+    WB → артикул ВБ (nm_id) + ссылка; Ozon → SKU + ссылка."""
+    if h["platform"] == "wb":
+        return (f"артикул ВБ {h['id']}",
+                f"https://www.wildberries.ru/catalog/{h['id']}/detail.aspx")
+    return (f"Ozon SKU {h['id']}", f"https://www.ozon.ru/product/{h['id']}")
+
+
+def catalog_block(text, product_name="", card_models=None, platform=None, card_color=None):
     """Блок КАТАЛОГ для промпта или '' — если вопрос не про наличие/варианты либо ничего не нашлось.
 
     Модель принтера берём из ВОПРОСА, иначе из моделей карточки / названия товара (частый кейс:
-    «а цветной есть?» — модель мы уже знаем из карточки, спрашивать её у покупателя не нужно)."""
+    «а цветной есть?» — модель мы уже знаем из карточки, спрашивать её у покупателя не нужно).
+    platform — площадка покупателя (wb/ozon): её листинги показываем ПЕРВЫМИ (там он и купит)."""
     q = (text or "")
     color = _detect_color(q)
-    if not (_AVAIL_RX.search(q) or color):
+    acc = _detect_accessory(q)
+    # вопрос о полноте цветов у ЦВЕТНОГО товара → ищем чёрный под модель из названия товара
+    prod = (product_name or "").lower() + " " + (card_color or "").lower()
+    is_color_prod = bool(re.search(r"цветн|трёхцвет|трехцвет|cmy|многоцвет|color", prod))
+    if _COMPLETE_RX.search(q) and is_color_prod and not color:
+        color = "чёрный"
+    if not (_AVAIL_RX.search(q) or color or _ALT_RX.search(q) or acc):
         return ""
     brand = next((b for b in _BRANDS if b in (q + " " + (product_name or "")).lower()), None)
     # номер(а) модели: из вопроса → из моделей карточки → из названия товара
     nums = _nums(_model_tokens(q))
+    pool_nums = _nums(_model_tokens(" ".join([product_name or ""] + list(card_models or []))))
     if not nums:
-        pool = " ".join([product_name or ""] + list(card_models or []))
-        nums = _nums(_model_tokens(pool))
+        nums = pool_nums
+    # сопутствующий расходник (фотобарабан/девелопер) — модель принтера берём из карточки товара
+    acc_hits = []
+    if acc:
+        for num in ((nums or pool_nums)[:3] or [None]):
+            toks = [x for x in (brand, num) if x]
+            if toks:
+                acc_hits += _search_accessory(toks, acc)
+        seen_a = set()
+        acc_hits = [h for h in acc_hits if (h["platform"], h["id"]) not in seen_a and not seen_a.add((h["platform"], h["id"]))]
+        if platform:
+            acc_hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
     hits, seen = [], set()
     # поиск ПО КАЖДОЙ модели отдельно (brand+номер+цвет) — union, не жёсткий AND всех номеров
     for num in (nums[:3] or [None]):
@@ -142,15 +240,93 @@ def catalog_block(text, product_name="", card_models=None):
                 if key not in seen:
                     seen.add(key)
                     hits.append(h)
-    if not hits:
+    if not hits and not acc_hits:
         return ""
     want = f" ({color})" if color else ""
-    lines = [f"КАТАЛОГ — наши листинги под запрос{want} (можно назвать артикул/подтвердить наличие; "
-             "если подходящего варианта здесь нет — наличие НЕ утверждать, предложи уточнить):"]
-    for h in hits[:8]:
-        art = h["article"] or "—"
-        lines.append(f"- [{h['platform']} id {h['id']}] {(h['title'] or '')[:90]} — арт. {art}")
+    lines = []
+    if hits:
+        # площадку покупателя — вперёд (там он и оформит заказ)
+        if platform:
+            hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
+        lines.append(f"КАТАЛОГ — наши листинги под запрос{want}. Покупателю называй АРТИКУЛ ПЛОЩАДКИ (по "
+                     "нему он найдёт товар) и/или ссылку — НЕ наш внутренний код. Если подходящего варианта "
+                     "здесь нет — наличие НЕ утверждать, предложи уточнить:")
+        for h in hits[:8]:
+            ref, url = _plat_ref(h)
+            lines.append(f"- {(h['title'] or '')[:80]} — {ref}, ссылка {url}")
+    if acc_hits:
+        lines.append(f"КАТАЛОГ — сопутствующий товар ({acc}) у нас есть под эту модель, можно предложить "
+                     "(артикул площадки + ссылка):")
+        for h in acc_hits[:5]:
+            ref, url = _plat_ref(h)
+            lines.append(f"- {(h['title'] or '')[:80]} — {ref}, ссылка {url}")
     return "\n".join(lines)
+
+
+def catalog_offer(text, product_name="", card_models=None, platform=None):
+    """Детерминированная страховка: есть ли у нас листинг под модель ПРИНТЕРА из вопроса. → {ref,url,
+    title,platform} | None. Матчит строго (бренд AND номер модели из вопроса) — ложных не даёт. Нужна,
+    чтобы поймать ложное «в каталоге нет» от модели, когда листинг реально есть (площадка покупателя — вперёд)."""
+    q = text or ""
+    brand = next((b for b in _BRANDS if b in (q + " " + (product_name or "")).lower()), None)
+    nums = _nums(_model_tokens(q))
+    if not nums:
+        return None
+    hits, seen = [], set()
+    for num in nums[:3]:
+        toks = [x for x in (brand, num) if x]
+        for h in _search(toks, None):
+            key = (h["platform"], h["id"])
+            if key not in seen:
+                seen.add(key)
+                hits.append(h)
+    if not hits:
+        return None
+    if platform:
+        hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
+    h = hits[0]
+    ref, url = _plat_ref(h)
+    return {"ref": ref, "url": url, "title": (h["title"] or "")[:80], "platform": h["platform"]}
+
+
+def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=None):
+    """Поиск НАШИХ листингов ПО КОДУ КАРТРИДЖА (не по модели принтера). Нужен для «каталог-после-веба»:
+    веб определил, какой картридж нужен принтеру покупателя (напр. T0731-T0734, 222A, CLP-510D7K) —
+    ищем его у нас и предлагаем площадочный артикул. codes — str или list. color — ключ цвета (уважаем,
+    если задан). exclude — коды, которые пропускать (напр. код текущей несовместимой карточки).
+    → {ref,url,title,platform,article} лучшего совпадения | None."""
+    if isinstance(codes, str):
+        codes = [codes]
+    excl = {re.sub(r"[\s-]", "", e).upper() for e in (exclude or []) if e}
+    # вытащить код-подобные токены из строк («серия T0731-T0734» → T0731, T0734; «222A» → 222A)
+    code_toks = []
+    for c in codes or []:
+        for m in re.finditer(r"[A-Za-z]{1,4}-?\d{2,5}[A-Za-z]{0,4}|\d{3,4}[A-Za-z]{1,3}", c or ""):
+            tok = m.group(0)
+            if re.search(r"\d", tok) and len(tok) >= 3 and re.sub(r"[\s-]", "", tok).upper() not in excl:
+                code_toks.append(tok)
+    seen, hits = set(), []
+    for t in dict.fromkeys(code_toks):
+        for h in _search([t], color):
+            key = (h["platform"], h["id"])
+            if key in seen or (exclude_id and str(h["id"]) == str(exclude_id)):
+                continue
+            # листинг, в НАЗВАНИИ которого исключённый код — это наш же несовместимый товар, пропускаем
+            tnorm = re.sub(r"[\s-]", "", (h["title"] or "")).upper()
+            if any(e in tnorm for e in excl):
+                continue
+            seen.add(key)
+            hits.append(h)
+        if hits and not color:          # первого кода с попаданиями достаточно (цвет — добираем все)
+            break
+    if not hits:
+        return None
+    if platform:
+        hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
+    h = hits[0]
+    ref, url = _plat_ref(h)
+    return {"ref": ref, "url": url, "title": (h["title"] or "")[:80],
+            "platform": h["platform"], "article": h.get("article")}
 
 
 if __name__ == "__main__":

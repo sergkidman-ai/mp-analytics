@@ -27,7 +27,20 @@ from core import db                          # noqa: E402
 # --- карта attribute-id Ozon ---
 OZ = dict(name=4180, article=12141, vcode=9048, ptype=5708, kind=5713,
           resource=5709, color=9602, colormode=10472, annot=4191, rich=11254,
-          hashtags=23171, pack=22634)
+          hashtags=23171, pack=22634, setcode=22390, setname=4384, sheets=9628)
+
+# бренды для гарда при доборе карточки-варианта по префиксу кода
+_BRANDS_CF = ("canon", "hp", "kyocera", "epson", "brother", "samsung", "xerox",
+              "pantum", "ricoh", "konica", "minolta", "oki", "lexmark", "sharp",
+              "panasonic", "deli", "kyocera", "katusha", "катюша")
+
+
+def _brand_of(text):
+    low = (text or "").lower()
+    for b in _BRANDS_CF:
+        if b in low:
+            return "canon" if b == "canon" else b
+    return None
 
 
 def _oz_vals(attrs):
@@ -85,6 +98,36 @@ def _ptype(s):
     return None
 
 
+def _set_info(vals, name, annot):
+    """Комплектация набора фотопечати (Selphy KP/RP и т.п.): модель набора + число листов.
+    Возвращает строку «набор KP-108IN, листов фотобумаги: 108» или None (обычный картридж)."""
+    setcode = (_first(vals, OZ["setcode"]) or "").strip()          # 22390 «KP-108IN/ KP-36IP DS»
+    setname = (_first(vals, OZ["setname"]) or "").strip()          # 4384 «Комплект картриджей KP-108in»
+    pack = (_first(vals, OZ["pack"]) or "").strip()                # 22634 «Комплект картриджей»
+    sheets = _first(vals, OZ["sheets"])                            # 9628 число листов
+    blob = " ".join([setcode, setname, pack, name or "", annot or ""])
+    # набор фотопечати опознаём по коду KP/RP/KC или явному «комплект … фотобумаг/лист»
+    is_set = bool(re.search(r"K[PC]-?\d{2,3}I[PN]|RP-?\d{2,4}|фотобумаг|фотопечат", blob, re.I)) or \
+        ("комплект" in blob.lower() and re.search(r"лист|фотобумаг", blob.lower()) is not None)
+    if not is_set:
+        return None
+    # число листов: приоритет — цифра в коде набора (KP-108IN = 108 листов), затем «N листов», затем поле 9628
+    mc = re.search(r"K[PC]-?(\d{2,3})I[PN]|RP-?(\d{2,4})", blob, re.I)
+    ml = re.search(r"(\d{2,4})\s*лист", blob.lower())
+    sheets = (mc.group(1) or mc.group(2)) if mc else (ml.group(1) if ml else sheets)
+    setmodel = ""
+    m = re.search(r"(K[PC]-?\d{2,3}I[PN]|RP-?\d{2,4})", blob, re.I)
+    if m:
+        setmodel = m.group(1).upper().replace(" ", "")
+    parts = []
+    if setmodel:
+        parts.append(f"набор {setmodel}")
+    if sheets:
+        parts.append(f"листов фотобумаги в наборе: {sheets}")
+    parts.append("комплектация: картридж(и) + фотобумага")
+    return ", ".join(parts) if parts else None
+
+
 def facts_ozon(payload):
     attrs = payload.get("attributes") or []
     if not attrs:
@@ -105,8 +148,12 @@ def facts_ozon(payload):
     if not resource:
         resource = _first(vals, OZ["resource"])
     refill = "да" if re.search(r"заправочн|заправляем|для заправк|дозаправ", (annot + payload.get("name", "")).lower()) else None
+    # вес — из карточки это вес ТОВАРА С УПАКОВКОЙ (для набора — всей упаковки), НЕ граммы тонера в тубе
+    w = payload.get("weight")
+    weight_pkg = f"{w} {payload.get('weight_unit') or 'г'}" if w else None
     return {
         "platform": "ozon",
+        "weight_pkg": weight_pkg,
         "name": _first(vals, OZ["name"]) or payload.get("name"),
         "article": _first(vals, OZ["article"]) or _first(vals, OZ["vcode"]),
         "code": _cart_code(payload.get("name"), _first(vals, OZ["name"]), annot),
@@ -117,6 +164,7 @@ def facts_ozon(payload):
         "kind": _first(vals, OZ["kind"]),
         "color": _first(vals, OZ["color"]),
         "refillable": refill,
+        "set_info": _set_info(vals, payload.get("name"), annot),
         "annot": annot[:600],
     }
 
@@ -264,14 +312,60 @@ class CardFacts:
             self._wb = {str(r["nm_id"]): r["payload"]
                         for r in db.query("SELECT nm_id, payload FROM raw_wb_card_content WHERE account='wb_acc1'")}
 
+    def _oz_sibling(self, offer, name=None):
+        """Карточка-ВАРИАНТ того же товара по числовому префиксу кода (напр. 239329del→2393xx),
+        когда точной карточки нет в raw_ozon_attributes. Гард по бренду душит межтоварное протекание.
+        Богатые описания у нас лежат на вариантах поставщиков (memory: model МС) — берём ближайший."""
+        m = re.match(r"\d{4,}", str(offer or ""))
+        if not m:
+            return None
+        base = m.group(0)
+        brand = _brand_of(name)
+        best_cl, best_f = 0, None
+        for off, p in self._oz.items():
+            if off == str(offer):
+                continue
+            om = re.match(r"\d{4,}", off)
+            if not om:
+                continue
+            ob = om.group(0)
+            cl = 0
+            for a, b in zip(base, ob):
+                if a == b:
+                    cl += 1
+                else:
+                    break
+            if cl < 4 or cl < len(base) - 2:     # различие лишь в 1–2 последних цифрах кода
+                continue
+            if cl <= best_cl:
+                continue
+            f = facts_ozon(p)
+            if not f:
+                continue
+            fb = _brand_of(f.get("name"))
+            if brand and fb and fb != brand:     # другой бренд — не тот товар
+                continue
+            best_cl, best_f = cl, f
+        return best_f
+
     def for_ozon(self, sku):
         self._ensure_oz()
         p = self._oz_by_sku.get(str(sku))
+        offer = name = None
         if p is None:                      # sku→offer_id через ozon_product
-            r = db.query("SELECT offer_id FROM ozon_product WHERE sku=%s AND account='oz_acc1'", (str(sku),))
+            r = db.query("SELECT offer_id, name FROM ozon_product WHERE sku=%s AND account='oz_acc1'", (str(sku),))
             if r:
-                p = self._oz.get(str(r[0]["offer_id"]))
-        return facts_ozon(p) if p else None
+                offer = str(r[0]["offer_id"])
+                name = r[0].get("name")
+                p = self._oz.get(offer)
+        if p:
+            return facts_ozon(p)
+        if offer:                          # точной карточки нет — добираем вариант по префиксу кода
+            f = self._oz_sibling(offer, name)
+            if f:
+                f = dict(f, facts_src="ozon-вариант(код-префикс)")
+                return f
+        return None
 
     def for_wb(self, nm_id):
         self._ensure_wb()
