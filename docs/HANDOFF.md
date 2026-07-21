@@ -132,10 +132,6 @@ tmux attach -t <имя>    # напр. tmux attach -t mkt
   3 SKU с реальным объёмом, 1 с qty≥8) → **артефакт**, не рост прайса и не СПП. Правило: сравнивать ПОЛНЫЕ месяцы,
   брать `qty≥5`; «наша цена» из витрины = `revenue_buyer/qty` (до СПП), СПП = разница до `revenue_wb`. Память
   `feedback_incomplete_month_sku_trap`.
-- **Связь inv→fin (закупки→себест):** конвейер `invoice_bot` при создании **Приёмки** в МС сохраняет
-  **закупочную цену в карточку товара** — это свежий источник себеста для витрин fin (ср. память
-  `feedback_unit_economics_cost_source`, `project_mp_moysklad_products`). Детали автоматизации закупок — секция
-  **Invoice** ниже (поток inv, сессия `a5f40fc1`). Территориально это inv; fin только потребляет себест.
 
 ### Ветки fin/* — статус
 - **Влиты в main (контент):** `ozon-sales-3way`, `ozon-cogs-shipment-date`, `wb/ozon/yandex-return-cogs-storno`,
