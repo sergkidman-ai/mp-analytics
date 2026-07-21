@@ -169,6 +169,11 @@ def main():
     # свежих месяцев из единого отчёта Партнёр-API (реклама/Полки/подписка/отзывы).
     step("Яндекс.Маркет: услуги", lambda: __import__("collectors.yandex_services", fromlist=["main"]).main())
     step("Яндекс.Маркет: помесячно", lambda: __import__("collectors.yandex_monthly", fromlist=["main"]).main())
+    # Вкладка «Отчёты МП · Яндекс»: заморозить завершившиеся месяцы из витрины yandex_finance_monthly
+    # + освежить последний; перерисовать статику страницы. Живой месяц отдаёт /api/yandex/mp-current.
+    step("Яндекс Отчёты МП: заморозка",
+         lambda: print("[ya-freeze]", __import__("reports.yandex_mp_freeze",
+                       fromlist=["advance"]).advance(), flush=True))
     # Вкладка «Отчёты МП · Ozon»: заморозить завершившиеся месяцы (оценка по транзакциям) и
     # сверить provisional-месяцы с вышедшим Отчётом о реализации; перерисовать статику страницы.
     step("Ozon Отчёты МП: заморозка/сверка",

@@ -430,7 +430,7 @@ def render(hist=None):
   <div class="rtabs">
     <a class="rtab cur">🟦 Ozon</a>
     <a class="rtab" href="/reports/wb">🟣 Wildberries</a>
-    <span class="rtab soon">🟡 Яндекс Маркет · скоро</span>
+    <a class="rtab" href="/reports/yandex">🟡 Яндекс Маркет</a>
   </div>
   <p class="eyebrow">Отчёты МП · Ozon</p>
   <h1>Ozon — сводный отчёт по месяцам</h1>

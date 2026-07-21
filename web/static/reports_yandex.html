@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчёты МП · Яндекс · Пульт бизнеса</title>
+<style>
+:root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454;
+ --panel:#172230;--ink:#e6edf3;--acc-s:#16273c;--pos-s:#13291d;--neg-s:#2f1719;--warn-s:#2f2611}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.lvlnav{display:flex;flex-direction:column;gap:3px}
+.lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+.lvlnav a:hover{background:var(--bg);color:var(--txt)}
+.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+.logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+.logo:hover{background:var(--card)}
+.navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+main{flex:1;min-width:0;padding:22px 26px 60px;max-width:1200px}
+.mptabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:2px}
+.mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+.mptabs a:hover{background:var(--card);color:var(--txt)}
+.mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+.rtabs{display:flex;gap:4px;flex-wrap:wrap;margin:16px 0 2px;border-bottom:1px solid var(--line)}
+.rtab{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
+.rtab:hover{color:var(--txt);background:var(--card)}
+.rtab.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+.rtab.soon{opacity:.45;cursor:default}
+.rtab.soon:hover{background:none;color:var(--mut)}
+
+#mpr{padding-top:4px}
+#mpr .eyebrow{font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--acc);font-weight:700;margin:14px 0 9px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#mpr h1{font-size:clamp(22px,3vw,30px);line-height:1.1;margin:0 0 8px;font-weight:720;letter-spacing:-.02em}
+#mpr .sub{color:var(--mut);font-size:14px;margin:0 0 12px;max-width:84ch}
+#mpr .muted{color:var(--mut)}
+#mpr section.org{margin-top:30px;padding-top:8px}
+#mpr h2{font-size:18px;margin:0 0 14px;font-weight:680;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+#mpr .orgdot{width:10px;height:10px;border-radius:3px;background:var(--acc);display:inline-block}
+#mpr .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px}
+#mpr .cell{background:var(--card);padding:15px 17px}
+#mpr .big{font-size:clamp(19px,2.5vw,25px);font-weight:720;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+#mpr .cell .lbl{font-size:12px;color:var(--mut);margin-top:3px}
+#mpr .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:760px){#mpr .charts{grid-template-columns:1fr}}
+#mpr .chart{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px}
+#mpr .chart h3{margin:0 0 8px;font-size:13px;font-weight:640;color:var(--txt)}
+#mpr .axt{fill:var(--mut);font-size:9px}
+#mpr .leg{display:flex;gap:13px;font-size:11.5px;color:var(--mut);margin-top:5px;flex-wrap:wrap}
+#mpr .leg i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
+#mpr .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow-x:auto}
+#mpr table{width:100%;border-collapse:collapse;font-size:13px;min-width:860px}
+#mpr th,#mpr td{padding:7px 11px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+#mpr thead th{position:sticky;top:0;background:var(--card);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--mut);font-weight:650;z-index:2}
+#mpr th:first-child,#mpr td.lbl{text-align:left;white-space:normal}
+#mpr td.lbl{font-weight:560;min-width:205px}
+#mpr td.lbl.ind{font-weight:430}
+#mpr tr.sub td{color:var(--mut)}
+#mpr tr.sub td.lbl.ind{padding-left:24px;position:relative}
+#mpr tr.sub td.lbl.ind::before{content:"└";position:absolute;left:10px;color:var(--line)}
+#mpr tr.sect td{background:var(--acc-s);color:var(--acc);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:6px 11px}
+#mpr td.num{position:relative;padding-right:22px}
+#mpr td.num.g{background:var(--pos-s)}
+#mpr td.num.a{background:var(--warn-s)}
+/* стрелка тренда — в фикс. правом жёлобе (position:absolute), чтобы число было выровнено
+   одинаково и в ячейках со стрелкой, и без неё (иначе inline-стрелка сдвигает число влево) */
+#mpr td.num.up::after{content:"▲";position:absolute;right:7px;top:7px;font-size:9px}
+#mpr td.num.dn::after{content:"▼";position:absolute;right:7px;top:7px;font-size:9px}
+#mpr td.num.g.up::after,#mpr td.num.g.dn::after{color:var(--pos)}
+#mpr td.num.a.up::after,#mpr td.num.a.dn::after{color:var(--warn)}
+#mpr tr.subtot td{border-top:2px solid var(--acc);font-weight:700}
+#mpr tr.subtot td.lbl{color:var(--txt)}
+#mpr .pc{display:block;font-size:10px;color:var(--mut);font-weight:600;margin-top:1px}
+#mpr td.pctcol{color:var(--mut);font-weight:600;border-left:1px solid var(--line)}
+#mpr td.spk{padding:2px 8px}
+#mpr .tag{font-size:9.5px;padding:1px 6px;border-radius:20px;margin-left:6px;font-weight:600;vertical-align:middle}
+#mpr .tag.наша{background:var(--acc-s);color:var(--acc)}
+#mpr .tag.расчёт{background:var(--neg-s);color:var(--neg)}
+#mpr .tlegend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin:12px 2px 0}
+#mpr .tlegend b{color:var(--txt);font-weight:600}
+#mpr .sw{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:middle;margin-right:4px}
+#mpr .foot{margin-top:30px;padding-top:16px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px;line-height:1.7}
+#mpr th.live{color:var(--acc)}
+#mpr td.num.live{border-left:1px solid var(--line)}
+#mpr td.num.fc{color:var(--mut);font-style:italic}
+#mpr .livenote{margin:14px 2px 0;font-size:12.5px;color:var(--mut);line-height:1.6}
+#mpr .livenote b{color:var(--txt);font-weight:600}
+#mpr details.howto{margin:0 0 12px}
+#mpr details.howto>summary{cursor:pointer;color:var(--acc);font-size:13px;font-weight:600;
+  list-style:none;display:inline-flex;align-items:center;gap:6px;user-select:none}
+#mpr details.howto>summary::-webkit-details-marker{display:none}
+#mpr details.howto>summary::before{content:"▸";font-size:11px}
+#mpr details.howto[open]>summary::before{content:"▾"}
+#mpr details.howto>summary:hover{text-decoration:underline}
+#mpr details.howto .sub{margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports" class="cur">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main id="mpr">
+  <nav class="mptabs">
+    <a href="/">🏢 Главная</a>
+    <a href="/dashboard">🟣 Wildberries</a>
+    <a href="/ozon">🟦 Ozon</a>
+    <a href="/market">🟡 Маркет</a>
+    <a href="/sites">🌐 Сайты</a>
+  </nav>
+  <div class="rtabs">
+    <a class="rtab" href="/reports">🟦 Ozon</a>
+    <a class="rtab" href="/reports/wb">🟣 Wildberries</a>
+    <a class="rtab cur">🟡 Яндекс Маркет</a>
+  </div>
+  <p class="eyebrow">Отчёты МП · Яндекс Маркет</p>
+  <h1>Яндекс Маркет — сводный отчёт по месяцам</h1>
+  <details class="howto"><summary>Как читать этот отчёт</summary><p class="sub">Данные из <b>витрины Яндекс.Маркета</b> (Партнёр-API: заказы + отчёт услуг + закрытие месяца) + себестоимость из МойСклад. <b>Оборот = «Оплата покупателя» + «Субсидия Маркета»</b> — от него считаются все % и подсветка (субсидия у ЯМ значимая, до ~64% сверх оплаты). Строки — водопад: оборот → минус комиссия, логистика, перевод, продвижение, агентское, прочие, подписка, баллы → Итого к перечислению → минус COGS → Чистая. <b>Одно юрлицо (Цифровой квадрат) — одна таблица.</b> Столбцы — <b>календарные месяцы</b>. Справа — доля от оборота и тренд. <b>Подсветка — три блока относительно среднего:</b> <b style="color:var(--pos)">зелёное = выше среднего (хорошо)</b>, <b style="color:var(--warn)">янтарное = ниже среднего (обратить внимание)</b>, без заливки — норма. Для расходов инверсия (ниже — лучше). Два правых столбца — <b>текущий месяц (оценка)</b> и <b>прогноз на конец месяца</b>, живьём из БД.</p></details>
+  <div class="tlegend">
+    <span><span class="sw" style="background:var(--pos-s)"></span>выше среднего — хорошо</span>
+    <span><span class="sw" style="background:var(--warn-s)"></span>ниже среднего — обратить внимание</span>
+    <span><span class="sw" style="border:1px solid var(--line);background:transparent"></span>в норме (около среднего)</span>
+    <span><span class="tag наша" style="margin:0">наша</span> не из отчёта МП (МойСклад)</span>
+    <span><span class="tag расчёт" style="margin:0">расчёт</span> производная над константами</span>
+  </div>
+  <section class="org"><h2><span class="orgdot"></span>Цифровой квадрат <span class="muted" style="font-weight:400;font-size:13px">· Яндекс Маркет</span></h2><div class="hero"><div class="cell"><div class="big">9 552 848 ₽</div><div class="lbl">оборот 6 мес</div></div><div class="cell"><div class="big">4 064 692 ₽</div><div class="lbl">чистая 6 мес</div></div><div class="cell"><div class="big" style="color:var(--warn)">42.5%</div><div class="lbl">маржа средняя</div></div><div class="cell"><div class="big" style="color:var(--neg)">24.8%</div><div class="lbl">COGS от оборота</div></div></div><div class="charts"><div class="chart"><h3>Оборот и чистая</h3><svg viewBox="0 0 500 140" width="100%"><rect x="29.2" y="78.9" width="46.0" height="49.1" rx="3" fill="var(--acc)" opacity=".85"/><text x="52.2" y="138" text-anchor="middle" class="axt">Янв</text><rect x="105.9" y="89.4" width="46.0" height="38.6" rx="3" fill="var(--acc)" opacity=".85"/><text x="128.9" y="138" text-anchor="middle" class="axt">Фев</text><rect x="182.5" y="77.0" width="46.0" height="51.0" rx="3" fill="var(--acc)" opacity=".85"/><text x="205.5" y="138" text-anchor="middle" class="axt">Мар</text><rect x="259.2" y="58.5" width="46.0" height="69.5" rx="3" fill="var(--acc)" opacity=".85"/><text x="282.2" y="138" text-anchor="middle" class="axt">Апр</text><rect x="335.9" y="30.0" width="46.0" height="98.0" rx="3" fill="var(--acc)" opacity=".85"/><text x="358.9" y="138" text-anchor="middle" class="axt">Май</text><rect x="412.5" y="36.4" width="46.0" height="91.6" rx="3" fill="var(--acc)" opacity=".85"/><text x="435.5" y="138" text-anchor="middle" class="axt">Июн</text><polyline points="52.2,108.3 128.9,112.6 205.5,104.9 282.2,96.1 358.9,83.3 435.5,86.7" fill="none" stroke="var(--warn)" stroke-width="2"/><circle cx="52.2" cy="108.3" r="2.3" fill="var(--warn)"/><circle cx="128.9" cy="112.6" r="2.3" fill="var(--warn)"/><circle cx="205.5" cy="104.9" r="2.3" fill="var(--warn)"/><circle cx="282.2" cy="96.1" r="2.3" fill="var(--warn)"/><circle cx="358.9" cy="83.3" r="2.3" fill="var(--warn)"/><circle cx="435.5" cy="86.7" r="2.3" fill="var(--warn)"/></svg><div class="leg"><span><i style="border-color:var(--acc)"></i>оборот</span><span><i style="border-color:var(--warn)"></i>чистая</span></div></div><div class="chart"><h3>Маржа, COGS и расходы Маркета</h3><svg viewBox="0 0 500 140" width="100%"><polyline points="24.0,47.5 114.4,49.9 204.8,36.2 295.2,33.4 385.6,33.0 476.0,34.3" fill="none" stroke="var(--pos)" stroke-width="2"/><circle cx="24.0" cy="47.5" r="2.3" fill="var(--pos)"/><circle cx="114.4" cy="49.9" r="2.3" fill="var(--pos)"/><circle cx="204.8" cy="36.2" r="2.3" fill="var(--pos)"/><circle cx="295.2" cy="33.4" r="2.3" fill="var(--pos)"/><circle cx="385.6" cy="33.0" r="2.3" fill="var(--pos)"/><circle cx="476.0" cy="34.3" r="2.3" fill="var(--pos)"/><polyline points="24.0,88.3 114.4,85.6 204.8,82.0 295.2,73.2 385.6,64.0 476.0,72.8" fill="none" stroke="var(--neg)" stroke-width="2"/><circle cx="24.0" cy="88.3" r="2.3" fill="var(--neg)"/><circle cx="114.4" cy="85.6" r="2.3" fill="var(--neg)"/><circle cx="204.8" cy="82.0" r="2.3" fill="var(--neg)"/><circle cx="295.2" cy="73.2" r="2.3" fill="var(--neg)"/><circle cx="385.6" cy="64.0" r="2.3" fill="var(--neg)"/><circle cx="476.0" cy="72.8" r="2.3" fill="var(--neg)"/><polyline points="24.0,34.6 114.4,35.1 204.8,52.3 295.2,63.9 385.6,73.5 476.0,63.4" fill="none" stroke="var(--acc)" stroke-width="2"/><circle cx="24.0" cy="34.6" r="2.3" fill="var(--acc)"/><circle cx="114.4" cy="35.1" r="2.3" fill="var(--acc)"/><circle cx="204.8" cy="52.3" r="2.3" fill="var(--acc)"/><circle cx="295.2" cy="63.9" r="2.3" fill="var(--acc)"/><circle cx="385.6" cy="73.5" r="2.3" fill="var(--acc)"/><circle cx="476.0" cy="63.4" r="2.3" fill="var(--acc)"/><text x="24.0" y="138" text-anchor="middle" class="axt">Янв</text><text x="114.4" y="138" text-anchor="middle" class="axt">Фев</text><text x="204.8" y="138" text-anchor="middle" class="axt">Мар</text><text x="295.2" y="138" text-anchor="middle" class="axt">Апр</text><text x="385.6" y="138" text-anchor="middle" class="axt">Май</text><text x="476.0" y="138" text-anchor="middle" class="axt">Июн</text></svg><div class="leg"><span><i style="border-color:var(--pos)"></i>маржа %</span><span><i style="border-color:var(--neg)"></i>COGS %</span><span><i style="border-color:var(--acc)"></i>расходы Маркета %</span></div></div></div><div class="card"><table><thead><tr><th>Статья отчёта Яндекс.Маркета</th><th>Янв</th><th>Фев</th><th>Мар</th><th>Апр</th><th>Май</th><th>Июн</th><th class="live" title="Текущий месяц — факт с начала месяца (оценка, неполный месяц)">тек.</th><th class="live" title="Прогноз на конец месяца (проекция по юнит-экономике закрытых месяцев × ожидаемое число заказов)">прогноз</th><th>% Об.</th><th>Тренд</th></tr></thead><tbody><tr class="sect"><td colspan="11">Операционные показатели</td></tr><tr class="" data-k="orders"><td class="lbl">Продажи, шт</td><td class="num a dn">182</td><td class="num a dn">165</td><td class="num ">267</td><td class="num ">332</td><td class="num g up">453</td><td class="num g up">470</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">—</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,15.3 12.4,16.0 24.8,11.7 37.2,8.9 49.6,3.7 62.0,3.0" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="3.0" r="2" fill="var(--pos)"/></svg></td></tr><tr class="" data-k="returns_cnt"><td class="lbl">Возвраты, шт</td><td class="num g dn">5</td><td class="num g dn">3</td><td class="num a up">15</td><td class="num ">10</td><td class="num a up">15</td><td class="num a up">15</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">—</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,13.8 12.4,16.0 24.8,3.0 37.2,8.4 49.6,3.0 62.0,3.0" fill="none" stroke="var(--neg)" stroke-width="1.5"/><circle cx="62.0" cy="3.0" r="2" fill="var(--neg)"/></svg></td></tr><tr class="" data-k="check"><td class="lbl">Средний чек, ₽ <span class="tag расчёт">расчёт</span></td><td class="num g up">6 405</td><td class="num ">5 490</td><td class="num a dn">4 547</td><td class="num ">5 036</td><td class="num ">5 246</td><td class="num a dn">4 721</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">—</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,3.0 12.4,9.4 24.8,16.0 37.2,12.6 49.6,11.1 62.0,14.8" fill="none" stroke="var(--neg)" stroke-width="1.5"/><circle cx="62.0" cy="14.8" r="2" fill="var(--neg)"/></svg></td></tr><tr class="sect"><td colspan="11">Продажи и субсидия</td></tr><tr class="subtot" data-k="own"><td class="lbl">Оборот (выручка + субсидия) <span class="tag расчёт">расчёт</span></td><td class="num a dn">1 165 743</td><td class="num a dn">905 853</td><td class="num a dn">1 214 071</td><td class="num ">1 671 826</td><td class="num g up">2 376 618</td><td class="num g up">2 218 737</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">100.0%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,13.7 12.4,16.0 24.8,13.3 37.2,9.2 49.6,3.0 62.0,4.4" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="4.4" r="2" fill="var(--pos)"/></svg></td></tr><tr class="" data-k="revenue"><td class="lbl">Оплата покупателя</td><td class="num a dn">955 629<span class="pc">82.0%</span></td><td class="num a dn">729 776<span class="pc">80.6%</span></td><td class="num a dn">933 884<span class="pc">76.9%</span></td><td class="num ">1 084 486<span class="pc">64.9%</span></td><td class="num g up">1 482 492<span class="pc">62.4%</span></td><td class="num g up">1 441 719<span class="pc">65.0%</span></td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">69.4%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,12.1 12.4,16.0 24.8,12.5 37.2,9.9 49.6,3.0 62.0,3.7" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="3.7" r="2" fill="var(--pos)"/></svg></td></tr><tr class="" data-k="subsidy"><td class="lbl">Субсидия Маркета</td><td class="num a dn">210 114<span class="pc">18.0%</span></td><td class="num a dn">176 077<span class="pc">19.4%</span></td><td class="num a dn">280 187<span class="pc">23.1%</span></td><td class="num ">587 340<span class="pc">35.1%</span></td><td class="num g up">894 126<span class="pc">37.6%</span></td><td class="num g up">777 018<span class="pc">35.0%</span></td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">30.6%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,15.4 12.4,16.0 24.8,14.1 37.2,8.6 49.6,3.0 62.0,5.1" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="5.1" r="2" fill="var(--pos)"/></svg></td></tr><tr class="sect"><td colspan="11">Удержания площадки</td></tr><tr class="" data-k="fee"><td class="lbl">Комиссия Маркета</td><td class="num a up">−295 790<span class="pc">25.4%</span></td><td class="num a up">−175 182<span class="pc">19.3%</span></td><td class="num ">−208 033<span class="pc">17.1%</span></td><td class="num g dn">−211 812<span class="pc">12.7%</span></td><td class="num g dn">−288 438<span class="pc">12.1%</span></td><td class="num ">−337 041<span class="pc">15.2%</span></td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">15.9%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,3.0 12.4,8.9 24.8,11.1 37.2,15.5 49.6,16.0 62.0,13.0" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="13.0" r="2" fill="var(--pos)"/></svg></td></tr><tr class="" data-k="delivery"><td class="lbl">Логистика / доставка</td><td class="num ">−85 752<span class="pc">7.4%</span></td><td class="num a up">−106 669<span class="pc">11.8%</span></td><td class="num a up">−125 296<span class="pc">10.3%</span></td><td class="num ">−143 236<span class="pc">8.6%</span></td><td class="num g dn">−113 491<span class="pc">4.8%</span></td><td class="num g dn">−119 823<span class="pc">5.4%</span></td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">7.3%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,11.2 12.4,3.0 24.8,5.7 37.2,9.0 49.6,16.0 62.0,14.8" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="14.8" r="2" fill="var(--pos)"/></svg></td></tr><tr class="" data-k="transfer"><td class="lbl">Перевод / эквайринг</td><td class="num g dn">−12 351</td><td class="num a up">−16 454</td><td class="num ">−17 988</td><td class="num ">−25 546</td><td class="num ">−34 469</td><td class="num a up">−37 432</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">1.5%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,16.0 12.4,3.0 24.8,8.7 37.2,8.0 49.6,9.3 62.0,5.2" fill="none" stroke="var(--neg)" stroke-width="1.5"/><circle cx="62.0" cy="5.2" r="2" fill="var(--neg)"/></svg></td></tr><tr class="" data-k="promotion"><td class="lbl">Продвижение (буст + полки)</td><td class="num a up">−110 127<span class="pc">9.4%</span></td><td class="num a up">−88 744<span class="pc">9.8%</span></td><td class="num g dn">−73 188<span class="pc">6.0%</span></td><td class="num g dn">−107 920<span class="pc">6.5%</span></td><td class="num g dn">−156 499<span class="pc">6.6%</span></td><td class="num ">−162 964<span class="pc">7.3%</span></td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">7.3%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,4.2 12.4,3.0 24.8,16.0 37.2,14.5 49.6,14.1 62.0,11.5" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="11.5" r="2" fill="var(--pos)"/></svg></td></tr><tr class="sub" data-k="boost_sales"><td class="lbl ind">Буст-продажи</td><td class="num a up">−89 584</td><td class="num a up">−61 154</td><td class="num g dn">−55 462</td><td class="num g dn">−78 582</td><td class="num g dn">−119 596</td><td class="num ">−125 947</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">5.6%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,3.0 12.4,6.9 24.8,16.0 37.2,15.4 49.6,14.1 62.0,11.4" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="11.4" r="2" fill="var(--pos)"/></svg></td></tr><tr class="sub" data-k="boost_shows"><td class="lbl ind">Буст-показы</td><td class="num g dn">−10 552</td><td class="num a up">−16 449</td><td class="num ">−16 348</td><td class="num a up">−27 965</td><td class="num ">−36 468</td><td class="num a up">−37 017</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">1.5%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,16.0 12.4,3.0 24.8,9.7 37.2,5.0 49.6,7.0 62.0,5.1" fill="none" stroke="var(--neg)" stroke-width="1.5"/><circle cx="62.0" cy="5.1" r="2" fill="var(--neg)"/></svg></td></tr><tr class="sub" data-k="shelf"><td class="lbl ind">Полки</td><td class="num a up">−9 992</td><td class="num a up">−11 141</td><td class="num g dn">−1 379</td><td class="num g dn">−1 373</td><td class="num g dn">−436</td><td class="num g dn">−0</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">0.3%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,6.9 12.4,3.0 24.8,14.8 37.2,15.1 49.6,15.8 62.0,16.0" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="16.0" r="2" fill="var(--pos)"/></svg></td></tr><tr class="" data-k="agency"><td class="lbl">Агентское вознаграждение</td><td class="num g dn">−25</td><td class="num g dn">−22</td><td class="num a up">−34</td><td class="num ">−44</td><td class="num ">−63</td><td class="num a up">−63</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">0.0%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,16.0 12.4,10.7 24.8,3.7 37.2,6.9 49.6,6.5 62.0,3.0" fill="none" stroke="var(--neg)" stroke-width="1.5"/><circle cx="62.0" cy="3.0" r="2" fill="var(--neg)"/></svg></td></tr><tr class="" data-k="other_fee"><td class="lbl">Прочие удержания</td><td class="num a up">−600</td><td class="num g dn">−180</td><td class="num ">−390</td><td class="num ">−540</td><td class="num g dn">−495</td><td class="num a up">−855</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">0.0%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,3.0 12.4,16.0 24.8,11.0 37.2,10.9 49.6,15.6 62.0,8.3" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="8.3" r="2" fill="var(--pos)"/></svg></td></tr><tr class="" data-k="subscription_cost"><td class="lbl">Подписка (Маркет)</td><td class="num g dn">−0</td><td class="num g dn">−0</td><td class="num g dn">−0</td><td class="num a up">−6 990</td><td class="num a up">−6 990</td><td class="num a up">−6 990</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">0.2%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,16.0 12.4,16.0 24.8,16.0 37.2,3.0 49.6,6.9 62.0,6.2" fill="none" stroke="var(--neg)" stroke-width="1.5"/><circle cx="62.0" cy="6.2" r="2" fill="var(--neg)"/></svg></td></tr><tr class="" data-k="reviews_cost"><td class="lbl">Баллы за отзывы</td><td class="num ">−5 310</td><td class="num a up">−6 770</td><td class="num ">−5 345</td><td class="num ">−6 130</td><td class="num g dn">−6 320</td><td class="num g dn">−6 730</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">0.4%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,10.9 12.4,3.0 24.8,11.3 37.2,13.3 49.6,16.0 62.0,15.0" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="15.0" r="2" fill="var(--pos)"/></svg></td></tr><tr class="subtot" data-k="itog"><td class="lbl">Итого расходы Маркета <span class="tag расчёт">расчёт</span></td><td class="num a up">−509 955<span class="pc">43.7%</span></td><td class="num a up">−394 021<span class="pc">43.5%</span></td><td class="num ">−430 274<span class="pc">35.4%</span></td><td class="num g dn">−502 218<span class="pc">30.0%</span></td><td class="num g dn">−606 765<span class="pc">25.5%</span></td><td class="num g dn">−671 898<span class="pc">30.3%</span></td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">32.6%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,3.0 12.4,3.2 24.8,8.9 37.2,12.8 49.6,16.0 62.0,12.6" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="12.6" r="2" fill="var(--pos)"/></svg></td></tr><tr class="subtot" data-k="payout"><td class="lbl">Итого к перечислению <span class="tag расчёт">расчёт</span></td><td class="num a dn">655 788<span class="pc">56.3%</span></td><td class="num a dn">511 832<span class="pc">56.5%</span></td><td class="num a dn">783 797<span class="pc">64.6%</span></td><td class="num ">1 169 608<span class="pc">70.0%</span></td><td class="num g up">1 769 853<span class="pc">74.5%</span></td><td class="num g up">1 546 839<span class="pc">69.7%</span></td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">67.4%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,14.5 12.4,16.0 24.8,13.2 37.2,9.2 49.6,3.0 62.0,5.3" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="5.3" r="2" fill="var(--pos)"/></svg></td></tr><tr class="sect"><td colspan="11">Наши данные (не из отчёта МП)</td></tr><tr class="" data-k="cogs"><td class="lbl">Себестоимость (COGS) <span class="tag наша">наша</span></td><td class="num g dn">−216 540<span class="pc">18.6%</span></td><td class="num g dn">−179 988<span class="pc">19.9%</span></td><td class="num g dn">−261 675<span class="pc">21.6%</span></td><td class="num a up">−428 867<span class="pc">25.7%</span></td><td class="num a up">−712 546<span class="pc">30.0%</span></td><td class="num a up">−573 406<span class="pc">25.8%</span></td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">24.8%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,16.0 12.4,14.5 24.8,12.6 37.2,7.9 49.6,3.0 62.0,7.7" fill="none" stroke="var(--neg)" stroke-width="1.5"/><circle cx="62.0" cy="7.7" r="2" fill="var(--neg)"/></svg></td></tr><tr class="sect"><td colspan="11">Итог (расчёт над константами)</td></tr><tr class="" data-k="net"><td class="lbl">Чистая прибыль <span class="tag расчёт">расчёт</span></td><td class="num a dn">439 247</td><td class="num a dn">331 844</td><td class="num a dn">522 120</td><td class="num ">740 742</td><td class="num g up">1 057 306</td><td class="num g up">973 433</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">42.5%</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,14.1 12.4,16.0 24.8,12.6 37.2,8.7 49.6,3.0 62.0,4.5" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="4.5" r="2" fill="var(--pos)"/></svg></td></tr><tr class="" data-k="margin"><td class="lbl">Маржа <span class="tag расчёт">расчёт</span></td><td class="num a dn">37.7%</td><td class="num a dn">36.6%</td><td class="num ">43.0%</td><td class="num g up">44.3%</td><td class="num g up">44.5%</td><td class="num g up">43.9%</td><td class="num live" data-c="cur">·</td><td class="num live fc" data-c="fc">·</td><td class="num pctcol">—</td><td class="spk"><svg width="62" height="17" viewBox="0 0 62 17"><polyline points="0.0,14.2 12.4,16.0 24.8,5.5 37.2,3.3 49.6,3.0 62.0,4.0" fill="none" stroke="var(--pos)" stroke-width="1.5"/><circle cx="62.0" cy="4.0" r="2" fill="var(--pos)"/></svg></td></tr></tbody></table></div></section>
+  <p class="livenote" id="mpr-live-note"></p>
+  <div class="foot">Все строки — из витрины <b>Яндекс.Маркета</b> (Партнёр-API). <b>Оборот</b> = Оплата покупателя (payment) + Субсидия Маркета (subsidy) — субсидия у ЯМ идёт сверх оплаты и значима. <b>«Итого расходы Маркета»</b> = комиссия + логистика + перевод/эквайринг + продвижение (буст-продажи + буст-показы + полки) + агентское + прочие + подписка + баллы за отзывы. <b>«Итого к перечислению»</b> = Оборот − Итого расходы Маркета. Себестоимость — order-based из МойСклад (Σ себест×кол-во по позициям заказа в месяц заказа; сторно возвратов в месяц заказа, кроме склада «Брак»). <b>⚠ Живой месяц Яндекса структурно занижает маржу:</b> COGS списывается в месяц заказа целиком, а выручка/субсидия реализуются по мере доставки — часть заказов ещё «в пути» (несут себест до реализации выручки). Поэтому «тек.» — заниженный факт «пока набрано», а «прогноз» проецирует полный месяц по юнит-экономике закрытых месяцев × ожидаемое число заказов (маржа-прогноз сходится к норме). Данные Ozon и WB — на соседних вкладках.</div>
+</main>
+<script>
+(function(){
+  fetch('/api/yandex/mp-current').then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.month) return;
+    var mo=d.month;
+    document.querySelectorAll('#mpr section.org table').forEach(function(t){
+      var jh=t.querySelector('thead th.live'); if(jh) jh.textContent=mo.label;
+      var cells=(d.accounts||{})['ya_acc1']||{};
+      t.querySelectorAll('tr[data-k]').forEach(function(tr){
+        var c=cells[tr.getAttribute('data-k')]||{};
+        ['cur','fc'].forEach(function(cc){
+          var td=tr.querySelector('td.live[data-c="'+cc+'"]'); if(!td) return;
+          var base='num live'+(cc==='fc'?' fc':'');
+          if(c[cc]&&c[cc].txt&&c[cc].txt!=='—'){ td.className=base+(c[cc].cls?' '+c[cc].cls:''); td.innerHTML=c[cc].txt; }
+          else { td.className=base+' muted'; td.textContent='—'; }
+        });
+      });
+    });
+    var fn=document.getElementById('mpr-live-note');
+    if(fn){ fn.innerHTML='<b>'+mo.label+'</b> — текущий месяц по данным на '+(mo.last_date||'')+
+      ' ('+mo.elapsed_days+' дн из '+mo.days_in_month+'). '+
+      '<b>«тек.» — заниженный факт:</b> у Яндекса себест списывается в месяц заказа целиком, а выручка/субсидия добираются по мере доставки — заказы «в пути» несут COGS до реализации → маржа неполного месяца ниже нормы. '+
+      '<b>«прогноз»</b> — проекция на полный месяц по юнит-экономике закрытых месяцев × ожидаемое число заказов (заказы — дневная ставка за '+mo.window_days+' дн × оставшиеся '+mo.remaining_days+' дн), поэтому маржа-прогноз сходится к норме, а не к заниженной MTD.'; }
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>

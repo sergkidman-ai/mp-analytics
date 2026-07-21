@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 # поток: fin
-"""reports/wb_mp_page.py — генератор страницы «Отчёты МП · WB» (web/static/reports_wb.html)
-из reports/data/mp_wb_hist.json. Сестра ozon_mp_page.py: та же тёмная оболочка/подсветка,
-но WB-специфичная витрина (водопад Финансового отчёта ВБ) и БЕЗ сплита Продаж (у ВБ его нет).
+"""reports/yandex_mp_page.py — генератор страницы «Отчёты МП · Яндекс» (web/static/reports_yandex.html)
+из reports/data/mp_yandex_hist.json. Сестра ozon_mp_page/wb_mp_page: та же тёмная оболочка и
+подсветка, но витрина Яндекс.Маркета и ОДНА таблица (одно юрлицо ya_acc1).
 
-Водопад: Продажа(оборот) − Возврат − Комиссия(ВБ+СПП) = К перечислению за товар − Логистика −
-Хранение − Приёмка − Прочие удержания = Итого к оплате − COGS = Чистая. Два правых столбца
-(тек., прогноз) дорисовывает JS из /api/wb/mp-current. render() пишет файл атомарно.
+Водопад: Оплата покупателя + Субсидия = Оборот − Комиссия − Логистика − Перевод − Продвижение −
+Агентское − Прочие − Подписка − Баллы = Итого к перечислению − COGS = Чистая. Два правых столбца
+(тек., прогноз) дорисовывает JS из /api/yandex/mp-current. render() пишет файл атомарно.
 """
 import json
 import os
@@ -14,13 +14,13 @@ import tempfile
 import pathlib
 
 from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, SIDEBAR, MPTABS
+from reports.yandex_mp_report import MP_EXP
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
-HIST_PATH = BASE_DIR / "reports" / "data" / "mp_wb_hist.json"
-OUT = BASE_DIR / "web" / "static" / "reports_wb.html"
+HIST_PATH = BASE_DIR / "reports" / "data" / "mp_yandex_hist.json"
+OUT = BASE_DIR / "web" / "static" / "reports_yandex.html"
 
-ORG = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр"}
-EXP = ["delivery", "storage", "acceptance", "other"]
+ORG = {"ya_acc1": "Цифровой квадрат"}
 
 _C = {"data": None, "M": [], "N": 0, "base": []}
 
@@ -71,8 +71,6 @@ def bands(comp, good_up):
 
 
 def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False, sect_pct=None, k=""):
-    """kind: inflow|expense|margin|count_up|count_dn|check. k — line_key для JS-дозагрузки живых
-    столбцов (тек./прогноз) из /api/wb/mp-current."""
     N = _C["N"]
     shares = [(vals[i] / oborot[i] * 100 if (vals[i] is not None and oborot[i]) else None) for i in range(N)]
     if kind == "expense":
@@ -152,15 +150,13 @@ def line2(a, b, c=None, amax=None):
 def build(acc):
     data, M, N = _C["data"], _C["M"], _C["N"]
     a = data["accounts"][acc]; L = a["lines"]
-    ob = L["own_price"]                                     # ОБОРОТ = наша цена (база всех %)
-    sales = L["sales"]                                      # ВБ реализовал (retail_amount, после СПП)
-    spp = [ob[i] - sales[i] for i in range(N)]              # СПП = наша цена − ВБ реализовал
+    rev = L["revenue"]; sub = L["subsidy"]
+    ob = [rev[i] + sub[i] for i in range(N)]               # ОБОРОТ = выручка + субсидия (база всех %)
     cogs = a["cogs"]; net = a["net"]; margin = a["margin"]
-    commission = a["commission"]
     cogs_pct = [(cogs[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
-    itog = [L["to_pay"][i] - sum(L[k][i] for k in EXP) for i in range(N)]
-    wb_exp = [ob[i] - itog[i] for i in range(N)]                 # все удержания ВБ = наша цена − Итого к оплате
-    wb_exp_pct = [(wb_exp[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
+    itog = [sum(L[k][i] for k in MP_EXP) for i in range(N)]      # Итого расходы Маркета
+    payout = [ob[i] - itog[i] for i in range(N)]                 # Итого к перечислению
+    itog_pct = [(itog[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
     orders = a["orders"]; retc = a["returns_cnt"]
     check = [(ob[i] / orders[i] if orders[i] else 0) for i in range(N)]
     base = _C["base"] or list(range(N))
@@ -170,7 +166,7 @@ def build(acc):
     nmon = len(base)
     H = []
     H.append(f'<section class="org"><h2><span class="orgdot"></span>{ORG[acc]} '
-             f'<span class="muted" style="font-weight:400;font-size:13px">· Wildberries</span></h2>')
+             f'<span class="muted" style="font-weight:400;font-size:13px">· Яндекс Маркет</span></h2>')
     H.append('<div class="hero">'
              f'<div class="cell"><div class="big">{money(tot_ob)} ₽</div><div class="lbl">оборот {nmon} мес</div></div>'
              f'<div class="cell"><div class="big">{money(tot_net)} ₽</div><div class="lbl">чистая {nmon} мес</div></div>'
@@ -180,14 +176,14 @@ def build(acc):
              f'<div class="chart"><h3>Оборот и чистая</h3>{bars_line(ob, net)}'
              '<div class="leg"><span><i style="border-color:var(--acc)"></i>оборот</span>'
              '<span><i style="border-color:var(--warn)"></i>чистая</span></div></div>'
-             f'<div class="chart"><h3>Маржа, COGS и расходы ВБ</h3>{line2(margin, cogs_pct, wb_exp_pct)}'
+             f'<div class="chart"><h3>Маржа, COGS и расходы Маркета</h3>{line2(margin, cogs_pct, itog_pct)}'
              '<div class="leg"><span><i style="border-color:var(--pos)"></i>маржа %</span>'
              '<span><i style="border-color:var(--neg)"></i>COGS %</span>'
-             '<span><i style="border-color:var(--acc)"></i>расходы ВБ %</span></div></div></div>')
-    cur_ttl = "Текущий месяц — оценка по сформированным недельным отчётам"
-    fc_ttl = "Прогноз на конец месяца (факт + дневная ставка за скользящее окно × остаток дней)"
+             '<span><i style="border-color:var(--acc)"></i>расходы Маркета %</span></div></div></div>')
+    cur_ttl = "Текущий месяц — факт с начала месяца (оценка, неполный месяц)"
+    fc_ttl = "Прогноз на конец месяца (проекция по юнит-экономике закрытых месяцев × ожидаемое число заказов)"
     mth = "".join(f"<th>{M[i]}</th>" for i in range(N))
-    H.append('<div class="card"><table><thead><tr><th>Статья Финансового отчёта ВБ</th>'
+    H.append('<div class="card"><table><thead><tr><th>Статья отчёта Яндекс.Маркета</th>'
              + mth
              + f'<th class="live" title="{cur_ttl}">тек.</th>'
              + f'<th class="live" title="{fc_ttl}">прогноз</th>'
@@ -196,20 +192,24 @@ def build(acc):
     H.append(row("Продажи, шт", orders, "count_up", ob, k="orders"))
     H.append(row("Возвраты, шт", retc, "count_dn", ob, k="returns_cnt"))
     H.append(row("Средний чек, ₽", check, "check", ob, tag="расчёт", k="check"))
-    H.append(sect("Продажи и удержания площадки"))
-    H.append(row("Продажа — наша цена", ob, "inflow", ob, sect_pct="100.0%", k="own_price"))
-    H.append(row("ВБ реализовал (после СПП)", sales, "inflow", ob, showpc=True, k="sales"))
-    H.append(row("Возврат покупателю", L["returns"], "expense", ob, k="returns"))
-    H.append(row("СПП (скидка ВБ за свой счёт)", spp, "expense", ob, tag="расчёт", showpc=True, k="spp"))
-    H.append(row("Комиссия ВБ", commission, "expense", ob, tag="расчёт", showpc=True, k="commission"))
-    H.append(row("К перечислению за товар", L["to_pay"], "inflow", ob, tag="расчёт", subtot=True, k="to_pay"))
-    H.append(sect("Услуги и удержания"))
-    H.append(row("Логистика", L["delivery"], "expense", ob, showpc=True, k="delivery"))
-    H.append(row("Хранение", L["storage"], "expense", ob, k="storage"))
-    H.append(row("Приёмка", L["acceptance"], "expense", ob, k="acceptance"))
-    H.append(row("Прочие удержания (баллы, штрафы)", L["other"], "expense", ob, showpc=True, k="other"))
-    H.append(row("Итого расходы ВБ", wb_exp, "expense", ob, tag="расчёт", showpc=True, subtot=True, k="wb_exp"))
-    H.append(row("Итого к оплате", itog, "inflow", ob, tag="расчёт", showpc=True, subtot=True, k="itog"))
+    H.append(sect("Продажи и субсидия"))
+    H.append(row("Оборот (выручка + субсидия)", ob, "inflow", ob, sect_pct="100.0%", tag="расчёт", subtot=True, k="own"))
+    H.append(row("Оплата покупателя", rev, "inflow", ob, showpc=True, k="revenue"))
+    H.append(row("Субсидия Маркета", sub, "inflow", ob, showpc=True, k="subsidy"))
+    H.append(sect("Удержания площадки"))
+    H.append(row("Комиссия Маркета", L["fee"], "expense", ob, showpc=True, k="fee"))
+    H.append(row("Логистика / доставка", L["delivery"], "expense", ob, showpc=True, k="delivery"))
+    H.append(row("Перевод / эквайринг", L["transfer"], "expense", ob, k="transfer"))
+    H.append(row("Продвижение (буст + полки)", L["promotion"], "expense", ob, showpc=True, k="promotion"))
+    H.append(row("Буст-продажи", L["boost_sales"], "expense", ob, sub=True, k="boost_sales"))
+    H.append(row("Буст-показы", L["boost_shows"], "expense", ob, sub=True, k="boost_shows"))
+    H.append(row("Полки", L["shelf"], "expense", ob, sub=True, k="shelf"))
+    H.append(row("Агентское вознаграждение", L["agency"], "expense", ob, k="agency"))
+    H.append(row("Прочие удержания", L["other_fee"], "expense", ob, k="other_fee"))
+    H.append(row("Подписка (Маркет)", L["subscription_cost"], "expense", ob, k="subscription_cost"))
+    H.append(row("Баллы за отзывы", L["reviews_cost"], "expense", ob, k="reviews_cost"))
+    H.append(row("Итого расходы Маркета", itog, "expense", ob, tag="расчёт", showpc=True, subtot=True, k="itog"))
+    H.append(row("Итого к перечислению", payout, "inflow", ob, tag="расчёт", showpc=True, subtot=True, k="payout"))
     H.append(sect("Наши данные (не из отчёта МП)"))
     H.append(row("Себестоимость (COGS)", cogs, "expense", ob, tag="наша", showpc=True, k="cogs"))
     H.append(sect("Итог (расчёт над константами)"))
@@ -219,45 +219,39 @@ def build(acc):
     return "".join(H)
 
 
-SUB = ('Данные <b>1:1 из Финансового отчёта Wildberries (Баланс)</b> личного кабинета '
-       '(сверено с ЛК: К перечислению Δ&lt;0,05%, Итого к оплате +537 ₽ / +0,03% — в допуске) '
-       '+ операционные показатели (продажи, возвраты, средний чек) и себестоимость из МойСклад. '
-       '<b>Оборот = «Продажа — наша цена»</b> (цена после нашей скидки, ДО СПП) — от неё считаются '
-       'все % и подсветка. «ВБ реализовал» — это уже <b>после СПП</b> (что заплатил покупатель); '
-       'разница = <b>СПП</b> (скидка ВБ за свой счёт). Строки — водопад: наша цена → минус СПП, '
-       'возврат, комиссия ВБ → К перечислению → минус логистика, хранение, приёмка, удержания → '
-       'Итого к оплате → минус COGS → Чистая. <b>Каждое юрлицо — своя таблица, не суммируем.</b> '
-       'Столбцы — <b>месяцы формирования</b> отчётов (весь недельный отчёт падает в свой месяц '
-       'формирования — модель данных ВБ). Справа — доля от оборота и тренд. '
-       '<b>Подсветка — три блока относительно среднего:</b> '
+SUB = ('Данные из <b>витрины Яндекс.Маркета</b> (Партнёр-API: заказы + отчёт услуг + закрытие '
+       'месяца) + себестоимость из МойСклад. <b>Оборот = «Оплата покупателя» + «Субсидия Маркета»</b> '
+       '— от него считаются все % и подсветка (субсидия у ЯМ значимая, до ~64% сверх оплаты). '
+       'Строки — водопад: оборот → минус комиссия, логистика, перевод, продвижение, агентское, '
+       'прочие, подписка, баллы → Итого к перечислению → минус COGS → Чистая. '
+       '<b>Одно юрлицо (Цифровой квадрат) — одна таблица.</b> Столбцы — <b>календарные месяцы</b>. '
+       'Справа — доля от оборота и тренд. <b>Подсветка — три блока относительно среднего:</b> '
        '<b style="color:var(--pos)">зелёное = выше среднего (хорошо)</b>, '
        '<b style="color:var(--warn)">янтарное = ниже среднего (обратить внимание)</b>, без заливки — норма. '
        'Для расходов инверсия (ниже — лучше). Два правых столбца — <b>текущий месяц (оценка)</b> и '
        '<b>прогноз на конец месяца</b>, живьём из БД.')
 
-FOOT = ('Все строки воспроизводят <b>Финансовый отчёт ВБ → Баланс</b>. <b>Оборот</b> = «Продажа — '
-        'наша цена» (retail_price_withdisc_rub, ДО СПП). <b>«ВБ реализовал»</b> = retail_amount '
-        '(после СПП, что заплатил покупатель); <b>«СПП»</b> = наша цена − ВБ реализовал (скидка ВБ за '
-        'свой счёт, ≈28–29%). «Возврат» в сырье ВБ лежит с положительным ppvz_for_pay — в «К '
-        'перечислению» он вычитается (иначе завышение 2×). <b>«Комиссия ВБ»</b> = ВБ реализовал − '
-        'Возврат − К перечислению (реальная удержка площадки, без СПП; формулой не моделируется — '
-        'берём фактическую разницу). «Прочие удержания» = штрафы + удержания + баллы лояльности '
-        '(cashback). <b>«Итого расходы ВБ»</b> = наша цена − Итого к оплате (все удержания площадки: '
-        'СПП + возврат + комиссия + логистика + хранение + приёмка + прочие). '
-        '«Итого к оплате» = К перечислению − Логистика − Хранение − Приёмка − Прочие. '
-        'Себестоимость — FIFO из МойСклад по assembly_id (сторно COGS возвратов в продаваемый сток, '
-        'кроме склада «Брак»). Живой месяц оценивается по уже сформированным недельным отчётам; ВБ '
-        'дописывает отчёты в начале следующего месяца — страница их подхватывает. Данные Ozon и '
-        'Яндекс — на соседних вкладках.')
+FOOT = ('Все строки — из витрины <b>Яндекс.Маркета</b> (Партнёр-API). <b>Оборот</b> = Оплата '
+        'покупателя (payment) + Субсидия Маркета (subsidy) — субсидия у ЯМ идёт сверх оплаты и '
+        'значима. <b>«Итого расходы Маркета»</b> = комиссия + логистика + перевод/эквайринг + '
+        'продвижение (буст-продажи + буст-показы + полки) + агентское + прочие + подписка + баллы '
+        'за отзывы. <b>«Итого к перечислению»</b> = Оборот − Итого расходы Маркета. Себестоимость — '
+        'order-based из МойСклад (Σ себест×кол-во по позициям заказа в месяц заказа; сторно '
+        'возвратов в месяц заказа, кроме склада «Брак»). '
+        '<b>⚠ Живой месяц Яндекса структурно занижает маржу:</b> COGS списывается в месяц заказа '
+        'целиком, а выручка/субсидия реализуются по мере доставки — часть заказов ещё «в пути» '
+        '(несут себест до реализации выручки). Поэтому «тек.» — заниженный факт «пока набрано», а '
+        '«прогноз» проецирует полный месяц по юнит-экономике закрытых месяцев × ожидаемое число '
+        'заказов (маржа-прогноз сходится к норме). Данные Ozon и WB — на соседних вкладках.')
 
 JS = """<script>
 (function(){
-  fetch('/api/wb/mp-current').then(function(r){return r.json();}).then(function(d){
+  fetch('/api/yandex/mp-current').then(function(r){return r.json();}).then(function(d){
     if(!d||!d.month) return;
-    var mo=d.month, accs=['wb_acc1','wb_acc2'];
-    document.querySelectorAll('#mpr section.org table').forEach(function(t,ti){
+    var mo=d.month;
+    document.querySelectorAll('#mpr section.org table').forEach(function(t){
       var jh=t.querySelector('thead th.live'); if(jh) jh.textContent=mo.label;
-      var cells=(d.accounts||{})[accs[ti]]||{};
+      var cells=(d.accounts||{})['ya_acc1']||{};
       t.querySelectorAll('tr[data-k]').forEach(function(tr){
         var c=cells[tr.getAttribute('data-k')]||{};
         ['cur','fc'].forEach(function(cc){
@@ -270,10 +264,9 @@ JS = """<script>
     });
     var fn=document.getElementById('mpr-live-note');
     if(fn){ fn.innerHTML='<b>'+mo.label+'</b> — текущий месяц по данным на '+(mo.last_date||'')+
-      ' (оценка по уже сформированным недельным отчётам ВБ). '+
-      '<b>прогноз</b> — как закроется месяц: факт с начала месяца ('+mo.elapsed_days+' дн) + дневная ставка за скользящие '+mo.window_days+' дней × оставшиеся '+mo.remaining_days+' дн. '+
-      'ВБ формирует отчёты недельными пачками, поэтому текущий месяц и прогноз — оценка; окно непрерывно переходит через границу месяца. '+
-      'Подсветка «тек.» — только по относительным статьям (доли расходов, маржа, чек), т.к. абсолютные суммы за неполный месяц заведомо ниже; прогноз подсвечен целиком.'; }
+      ' ('+mo.elapsed_days+' дн из '+mo.days_in_month+'). '+
+      '<b>«тек.» — заниженный факт:</b> у Яндекса себест списывается в месяц заказа целиком, а выручка/субсидия добираются по мере доставки — заказы «в пути» несут COGS до реализации → маржа неполного месяца ниже нормы. '+
+      '<b>«прогноз»</b> — проекция на полный месяц по юнит-экономике закрытых месяцев × ожидаемое число заказов (заказы — дневная ставка за '+mo.window_days+' дн × оставшиеся '+mo.remaining_days+' дн), поэтому маржа-прогноз сходится к норме, а не к заниженной MTD.'; }
   }).catch(function(){});
 })();
 </script>"""
@@ -294,18 +287,16 @@ def _atomic_write(path, text):
 
 
 def render(hist=None):
-    """Собрать reports_wb.html из hist JSON (по умолчанию из HIST_PATH), записать атомарно. → путь."""
+    """Собрать reports_yandex.html из hist JSON (по умолчанию из HIST_PATH), записать атомарно. → путь."""
     data = hist if hist is not None else json.loads(HIST_PATH.read_text(encoding="utf-8"))
-    keys = data.get("period_keys", [])
     N = len(data["months"])
-    _C.update({"data": data, "M": data["months"], "N": N,
-               "base": list(range(N))})       # у ВБ все замороженные месяцы финальны (нет provisional)
+    _C.update({"data": data, "M": data["months"], "N": N, "base": list(range(N))})
     html = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Отчёты МП · WB · Пульт бизнеса</title>
+<title>Отчёты МП · Яндекс · Пульт бизнеса</title>
 <style>{SHELL_CSS}{REPORT_CSS}</style>
 </head>
 <body>
@@ -318,11 +309,11 @@ def render(hist=None):
   </nav>
   <div class="rtabs">
     <a class="rtab" href="/reports">🟦 Ozon</a>
-    <a class="rtab cur">🟣 Wildberries</a>
-    <a class="rtab" href="/reports/yandex">🟡 Яндекс Маркет</a>
+    <a class="rtab" href="/reports/wb">🟣 Wildberries</a>
+    <a class="rtab cur">🟡 Яндекс Маркет</a>
   </div>
-  <p class="eyebrow">Отчёты МП · Wildberries</p>
-  <h1>Wildberries — сводный отчёт по месяцам</h1>
+  <p class="eyebrow">Отчёты МП · Яндекс Маркет</p>
+  <h1>Яндекс Маркет — сводный отчёт по месяцам</h1>
   <details class="howto"><summary>Как читать этот отчёт</summary><p class="sub">{SUB}</p></details>
   <div class="tlegend">
     <span><span class="sw" style="background:var(--pos-s)"></span>выше среднего — хорошо</span>
@@ -331,8 +322,7 @@ def render(hist=None):
     <span><span class="tag наша" style="margin:0">наша</span> не из отчёта МП (МойСклад)</span>
     <span><span class="tag расчёт" style="margin:0">расчёт</span> производная над константами</span>
   </div>
-  {build("wb_acc1")}
-  {build("wb_acc2")}
+  {build("ya_acc1")}
   <p class="livenote" id="mpr-live-note"></p>
   <div class="foot">{FOOT}</div>
 </main>

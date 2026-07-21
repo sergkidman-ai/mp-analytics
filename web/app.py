@@ -718,6 +718,7 @@ from collectors.ozon import categorize_operation, CATEGORIES  # noqa: E402
 from collectors.ozon_realization import sales_split as _oz_realization_split  # noqa: E402
 import reports.ozon_mp_report as _ozmp  # noqa: E402
 import reports.wb_mp_report as _wbmp  # noqa: E402
+import reports.yandex_mp_report as _yamp  # noqa: E402
 
 OZ_NAMES = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр"}
 OZ_RU = {"revenue": "Выручка", "commission": "Комиссия", "advertising": "Реклама/продвиж.",
@@ -806,6 +807,11 @@ def reports_page():
 @app.get("/reports/wb", response_class=HTMLResponse)
 def reports_wb_page():
     return (STATIC / "reports_wb.html").read_text(encoding="utf-8")
+
+
+@app.get("/reports/yandex", response_class=HTMLResponse)
+def reports_yandex_page():
+    return (STATIC / "reports_yandex.html").read_text(encoding="utf-8")
 
 
 @app.get("/opex", response_class=HTMLResponse)
@@ -1398,6 +1404,15 @@ def wb_mp_current():
     вкладки «Отчёты МП · WB». Готовые к вставке ячейки {cur,fc}: {txt, cls} по строкам
     Финансового отчёта ВБ + операционным показателям. См. reports/wb_mp_report."""
     return _wbmp.current_report()
+
+
+@app.get("/api/yandex/mp-current")
+def yandex_mp_current():
+    """Живой ТЕКУЩИЙ месяц Яндекс.Маркета (вне статического снапшота) + прогноз на конец месяца —
+    для вкладки «Отчёты МП · Яндекс». Готовые ячейки {cur,fc}: {txt, cls} по строкам витрины ЯМ.
+    Живой месяц структурно занижает маржу (order-based COGS vs лаг доставки) — прогноз проецирует
+    полный месяц по юнит-экономике закрытых месяцев. См. reports/yandex_mp_report."""
+    return _yamp.current_report()
 
 
 OZ_SKU_SORT = {"revenue_buyer": "m.revenue_buyer", "net_profit": "m.net_profit",
