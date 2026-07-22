@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS mkt_margin_control (
     nm_id          bigint      NOT NULL,
     vendor_code    text,
     external_code  text,                 -- код платформы (маппинг nm→МС externalCode)
+    map_source     text,                 -- как смаплено: shipment|barcode|vendor|prefix|NULL
     subject        text,
     -- цена/экономика (форвард, из mkt_sku_economics)
     our_price      numeric,              -- наша промо-цена (до СПП) = база KPI-маржи

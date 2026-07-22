@@ -90,7 +90,14 @@ def _universe(all_codes=False):
            OR EXISTS (SELECT 1 FROM ozon_product o WHERE o.offer_id    = p.external_code)
            OR EXISTS (SELECT 1 FROM raw_yandex_offer y WHERE y.offer_id = p.external_code)
         )""")
-    return [r["ec"] for r in rows]
+    codes = {r["ec"] for r in rows}
+    # + префиксы vendorCode ВБ: 5+-значный числовой артикул = <4 цифры код товара платформы><цифра
+    #   цвета> (FBO-префиксное правило). Первые 4 знака — код товара; добавляем как валидный код.
+    for r in db.query("""
+        SELECT DISTINCT substr(vendor_code,1,4) ec FROM wb_cards
+        WHERE length(vendor_code)>=5 AND vendor_code ~ '^[0-9]+$'"""):
+        codes.add(r["ec"])
+    return sorted(codes)
 
 
 def main(all_codes=False, on_date=None):

@@ -42,9 +42,49 @@ def _f(v):
     return None if v is None else float(v)
 
 
-def _mapping(account):
-    """nm_id → external_code. Приоритет: путь отгрузки, фолбэк vendor_code=external_code."""
-    ship = {int(r["nm"]): r["ec"] for r in db.query("""
+def _mapping(account, valid_codes):
+    """nm_id → (external_code, source). Мосты по НАДЁЖНОСТИ (лучший перекрывает):
+       prefix < vendor < barcode < shipment.
+       • shipment — путь отгрузки nm→ms_demand_pos→ms_product (реальный отгружаемый товар);
+       • barcode  — баркод продажи → ms_barcode → ms_product;
+       • vendor   — vendor_code = external_code (4-значные карточки);
+       • prefix   — vendorCode ВБ = <4 цифры код товара платформы><цифра цвета>; первые 4 = код
+                    платформы (то же FBO-префиксное правило fin). Берём, только если [:4] — известный
+                    платформе код (valid_codes). Себест товар-уровня (варианты цвета делят базу).
+    """
+    m = {}  # nm -> (ec, src); присваиваем от слабого к сильному
+
+    # prefix (слабейший)
+    for r in db.query("""
+        SELECT c.nm_id nm, substr(c.vendor_code,1,4) ec
+        FROM wb_cards c
+        WHERE c.account=%s AND length(c.vendor_code)>=5 AND c.vendor_code ~ '^[0-9]+$'
+    """, (account,)):
+        ec = r["ec"]
+        if ec in valid_codes:
+            m[int(r["nm"])] = (ec, "prefix")
+
+    # vendor = external_code (4-значные карточки)
+    for r in db.query("""
+        SELECT c.nm_id nm, p.external_code ec
+        FROM wb_cards c JOIN ms_product p ON p.external_code = c.vendor_code
+        WHERE c.account=%s AND p.external_code IS NOT NULL AND NOT p.archived
+    """, (account,)):
+        m[int(r["nm"])] = (r["ec"], "vendor")
+
+    # barcode
+    for r in db.query("""
+        SELECT DISTINCT (w.payload->>'nm_id')::bigint nm, p.external_code ec
+        FROM raw_wb_report w
+        JOIN ms_barcode b ON b.barcode = w.payload->>'barcode'
+        JOIN ms_product p ON p.ms_id = b.ms_id
+        WHERE w.account=%s AND coalesce(w.payload->>'barcode','')<>''
+          AND p.external_code IS NOT NULL AND w.payload->>'nm_id' ~ '^[0-9]+$'
+    """, (account,)):
+        m[int(r["nm"])] = (r["ec"], "barcode")
+
+    # shipment (сильнейший)
+    for r in db.query("""
         WITH nm_ext AS (
           SELECT w.payload->>'nm_id' nm, p.external_code ec, sum(ps.qty) q
           FROM raw_wb_report w
@@ -55,23 +95,20 @@ def _mapping(account):
           GROUP BY 1, 2),
         ranked AS (SELECT nm, ec, row_number() OVER (PARTITION BY nm ORDER BY q DESC) rn FROM nm_ext)
         SELECT nm::bigint nm, ec FROM ranked WHERE rn = 1
-    """, (account,))}
-    card = {int(r["nm"]): r["ec"] for r in db.query("""
-        SELECT c.nm_id nm, p.external_code ec
-        FROM wb_cards c JOIN ms_product p ON p.external_code = c.vendor_code
-        WHERE c.account=%s AND p.external_code IS NOT NULL AND NOT p.archived
-    """, (account,))}
-    card.update(ship)   # путь отгрузки перекрывает фолбэк
-    return card
+    """, (account,)):
+        m[int(r["nm"])] = (r["ec"], "shipment")
+
+    return m
 
 
 def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
     day = on_date or datetime.date.today().isoformat()
 
-    nm_ec = _mapping(account)
     # живая закупка: последняя известная цена по коду (вью tc_buy_price_latest)
     live = {r["external_code"]: (_f(r["buy_price"]), r["status"])
             for r in db.query("SELECT external_code, buy_price, status FROM tc_buy_price_latest")}
+    valid_codes = set(live.keys())      # коды, известные платформе (для префиксного моста)
+    nm_ec = _mapping(account, valid_codes)
 
     econ = db.query("""
         SELECT nm_id, vendor_code, subject, promo_price, buyer_price, payout_ratio, to_pay_u,
@@ -83,7 +120,8 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
     recs = []
     for e in econ:
         nm = int(e["nm_id"])
-        ec = nm_ec.get(nm)
+        mapped = nm_ec.get(nm)
+        ec, map_src = (mapped if mapped else (None, None))
         bp_live, status = (None, "unmapped")
         if ec and ec in live:
             bp_live, st = live[ec]
@@ -110,7 +148,8 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
 
         recs.append({
             "captured_date": day, "account": account, "nm_id": nm,
-            "vendor_code": e["vendor_code"], "external_code": ec, "subject": e["subject"],
+            "vendor_code": e["vendor_code"], "external_code": ec, "map_source": map_src,
+            "subject": e["subject"],
             "our_price": (round(our_price, 2) if our_price else None),
             "buyer_price": _f(e["buyer_price"]),
             "payout_ratio": payout, "to_pay_u": to_pay,

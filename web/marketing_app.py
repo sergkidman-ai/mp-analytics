@@ -55,7 +55,7 @@ def margin_control(account: str = "wb_acc1", view: str = "below", q: str = "",
     order = ("margin_own_live ASC NULLS LAST" if view in ("below", "negative")
              else "nm_id" if view == "no_lu" else "margin_own_live ASC NULLS LAST")
     rows = db.query(f"""
-      SELECT nm_id, vendor_code, external_code, subject,
+      SELECT nm_id, vendor_code, external_code, map_source, subject,
              our_price, buyer_price, to_pay_u, logistics_u,
              buy_price_live, buy_status, fifo_cogs_u, cogs_delta,
              net_live, margin_own_live, net_fifo, margin_own_fifo,
@@ -70,6 +70,7 @@ def margin_control(account: str = "wb_acc1", view: str = "below", q: str = "",
              count(*) FILTER (WHERE buy_status='ok')       live_ok,
              count(*) FILTER (WHERE buy_status='no_lu')    no_lu,
              count(*) FILTER (WHERE buy_status='unmapped') unmapped,
+             count(*) FILTER (WHERE map_source='prefix' AND buy_status='ok') prefix_mapped,
              count(*) FILTER (WHERE below_threshold)       below,
              count(*) FILTER (WHERE is_negative)           negative,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY margin_own_live)
