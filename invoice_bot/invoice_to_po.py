@@ -57,7 +57,7 @@ SUPPLIERS = {
     "9731107362": {"name": "Феррет",            "article": "name_regex",
                    "pattern": r"\b(?:CS|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "pdf": "ferret"},
     "7736123276": {"name": "Позитив",           "article": "name_last"},
-    "7840480595": {"name": "Колортек",          "article": "column"},
+    "7840480595": {"name": "Колортек",          "article": "column", "auto_supply": True},  # без УПД → приёмку создаём сразу
     "7722341813": {"name": "КВК Трейд",         "article": "column"},
     "9718075418": {"name": "Картридж Трейд (Блоссом)", "article": "name_regex",
                    "pattern": r"\bBS-[0-9A-Za-z]+(?:-[0-9A-Za-z]+)*", "novat": True,
@@ -580,6 +580,14 @@ def process(src, create=True, suffix=""):
                         "order_sum": resp.get("sum", 0) / 100, "order_vatsum": resp.get("vatSum", 0) / 100,
                         "order_pos": resp.get("positions", {}).get("meta", {}).get("size"),
                         "order_url": "https://online.moysklad.ru/app/#purchaseorder/edit?id=" + resp.get("id")})
+            if prof.get("auto_supply"):               # поставщик без УПД → приёмку создаём сразу по заказу
+                try:
+                    import upd_to_supply as u2s
+                    res["auto_supply"] = u2s.create_supply_auto(
+                        resp.get("id"), seller_inn=hdr["supplier_inn"], incoming_number=hdr["number"],
+                        incoming_date=f"{hdr['inv_date']:%Y-%m-%d}", source="auto", fn=name)
+                except Exception as e:
+                    res["auto_supply"] = {"ok": False, "error": f"{e}"}
         else:
             res["post_error"] = f"HTTP {st}: " + json.dumps(resp, ensure_ascii=False)[:400]
         return res
@@ -621,6 +629,17 @@ def format_report(res):
     elif res.get("created"):
         L.append(f"\n✅ Черновик создан: {res['name']} · {res['order_sum']:.2f} ₽ (НДС {res['order_vatsum']:.2f})")
         L.append(res["order_url"])
+        asup = res.get("auto_supply")
+        if asup:
+            if asup.get("created"):
+                s = asup.get("supply", {})
+                L.append(f"📦 Автоприёмка (без УПД): {s.get('name')} · {s.get('sum', 0):.2f} ₽ — ГТД/страна не заполняются")
+                if asup.get("url"):
+                    L.append(asup["url"])
+            elif asup.get("stop"):
+                L.append("📦 Автоприёмка: " + (asup.get("error") or "уже существует"))
+            else:
+                L.append("⚠ Автоприёмка не создана: " + (asup.get("error") or "неизвестно"))
     elif res.get("post_error"):
         L.append("\n❌ Не создан: " + res["post_error"])
     return "\n".join(L)

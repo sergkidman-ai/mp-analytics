@@ -668,6 +668,87 @@ def match_rows(order_pos, upd_pos):
     return res, warns
 
 
+# ═══════════════════════ 4b. Автоприёмка без УПД (Колортек и пр.) ══════════════
+def create_supply_auto(oid, seller_inn=None, incoming_number="", incoming_date=None,
+                       source="auto", fn="", frm="", set_buyprice=True):
+    """Создать приёмку по заказу НАПРЯМУЮ, без УПД — для поставщиков, которые УПД не присылают
+    и ГТД/страну не проставляют (Колортек). Все позиции заказа копируются 1:1; ГТД/страна НЕ
+    заполняются. На успехе пишем upd-событие в proc_log, чтобы /report спарил счёт↔приёмку.
+    Возвращает res-словарь (никогда не бросает)."""
+    res = {"ok": False, "created": False, "stop": False, "error": None, "warns": []}
+    _id = lambda ref: (ref or {}).get("meta", {}).get("href", "").rstrip("/").split("/")[-1]
+    try:
+        order = inv.get_r(f"/entity/purchaseorder/{oid}")
+        if not order or "name" not in order:
+            res["error"] = f"Заказ {oid} не найден"; return res
+        oname = order["name"]
+        res["order"] = {"name": oname, "id": oid}
+        # дубль-проверка: приёмка на ЭТОТ заказ уже есть? (тёзки по автонумерации МС отсеиваем по purchaseOrder)
+        cand = inv.get_r(f"/entity/supply?filter=name={urllib.parse.quote(oname)}&limit=50").get("rows", [])
+        if [s for s in cand if _id(s.get("purchaseOrder")) == oid]:
+            res["stop"] = True
+            res["error"] = f"Приёмка «{oname}» уже существует — не создаю дубль."
+            return res
+        opos = inv.get_r(f"/entity/purchaseorder/{oid}/positions?expand=assortment&limit=200").get("rows", [])
+        if not opos:
+            res["error"] = f"У заказа {oname} нет позиций"; return res
+        plan = (order.get("deliveryPlannedMoment") or "").split()[0]
+        sup_pos, bp = [], 0
+        for p in opos:
+            a = p["assortment"]
+            sup_pos.append({"quantity": p["quantity"], "price": p["price"], "vat": p.get("vat", 22),
+                            "vatEnabled": p.get("vatEnabled", True), "discount": p.get("discount", 0),
+                            "assortment": {"meta": a["meta"]}})
+            if set_buyprice and a["meta"]["type"] == "product":   # закупочную цену — в карточку (как обычная приёмка)
+                try:
+                    pid = _id(a)
+                    cur = inv.get_r(f"/entity/product/{pid}")
+                    cm = cur.get("buyPrice", {}).get("currency", {}).get("meta")
+                    put(f"/entity/product/{pid}",
+                        {"buyPrice": {"value": p["price"], **({"currency": {"meta": cm}} if cm else {})}})
+                    bp += 1
+                except Exception:
+                    pass
+        ve = bool(order.get("vatEnabled", True))
+        vi = bool(order.get("vatIncluded", True)) if ve else False
+        payload = {
+            "organization": meta("organization", _id(order.get("organization"))),
+            "agent": meta("counterparty", _id(order.get("agent")), "counterparty"),
+            "store": meta("store", _id(order.get("store"))),
+            "purchaseOrder": meta("purchaseorder", oid),
+            "incomingNumber": incoming_number or "",
+            "applicable": False, "vatEnabled": ve, "vatIncluded": vi,
+            "state": meta("supply/metadata/states", STATE_SOZDAN, "state"),
+            "description": f"Автоприёмка по заказу {oname} (поставщик без УПД: ГТД/страна не заполняются).",
+            "positions": sup_pos, "name": oname,
+        }
+        if plan:
+            payload["moment"] = f"{plan} 08:00:00"
+        if incoming_date:
+            payload["incomingDate"] = f"{incoming_date} 00:00:00"
+        st, resp = post("/entity/supply", payload)
+        if st not in (200, 201):
+            res["error"] = f"HTTP {st}: " + json.dumps(resp, ensure_ascii=False)[:300]
+            return res
+        res.update({"ok": True, "created": True,
+                    "supply": {"name": resp.get("name"), "id": resp.get("id"), "sum": resp.get("sum", 0) / 100},
+                    "url": "https://online.moysklad.ru/app/#supply/edit?id=" + (resp.get("id") or ""),
+                    "stats": {"positions": len(sup_pos), "buyPrice": bp}})
+        try:                                          # журнал → пара счёт↔приёмка закрыта в /report
+            import proc_log
+            proc_log.log_event("upd", source, fn or oname, frm, {
+                "ok": True, "created": True,
+                "upd": {"number": incoming_number or oname, "seller_inn": seller_inn,
+                        "date": incoming_date or plan},
+                "order": {"name": oname, "id": oid}})
+        except Exception:
+            pass
+        return res
+    except Exception as e:
+        res["error"] = f"auto-приёмка: {e}"
+        return res
+
+
 # ═══════════════════════ 5. Основной конвейер ═════════════════════════════════
 def process(src, create=True, suffix=""):
     res = {"ok": False, "created": False, "stop": False, "error": None, "warns": []}
