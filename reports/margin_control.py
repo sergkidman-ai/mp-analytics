@@ -14,7 +14,8 @@ buy_price_live — «почём купим сегодня» (для решени
 Контроль «выпадаем по марже»:
   • below_threshold — margin_own_live < порога (по умолчанию 25% от нашей цены);
   • is_negative     — net_live < 0 (в отчёте красным);
-  • buy_status='no_lu' — продаём без ЛУ на платформе (отдельный список), 'unmapped' — нет кода.
+  • buy_status='stale' — цены сегодня нет, взята последняя известная; 'no_price' — цены не было
+  никогда (отдельный список); 'unmapped' — кода нет вовсе.
 Формат: файл reports/data/margin_control_<дата>.{csv,txt} + краткая сводка в чат (≤50 строк).
 
 Запуск:  ./venv/bin/python reports/margin_control.py [--threshold 25] [--date YYYY-MM-DD]
@@ -45,8 +46,8 @@ def _f(v):
 def _mapping(account, known_codes):
     """nm_id → (external_code, source). Мосты по НАДЁЖНОСТИ (лучший перекрывает):
        prefix < vendor < barcode < shipment. Резолвим против КОДОВ, ИЗВЕСТНЫХ ПЛАТФОРМЕ
-       (`known_codes` = все коды из tc_buy_price, вкл. no_lu) — не через ms_product, т.к. у платформы
-       бывают коды, которых нет в срезе ms_product (материнский артикул без ЛУ в моменте).
+       (`known_codes` = все коды из tc_buy_price, вкл. no_price) — не через ms_product, т.к. у платформы
+       бывают коды, которых нет в срезе ms_product (материнский артикул без цены в моменте).
        • shipment — путь отгрузки nm→ms_demand_pos→ms_product (реальный отгружаемый товар);
        • barcode  — баркод продажи → ms_barcode → ms_product;
        • vendor   — полный vendorCode ВБ = код платформы (4-значный материнский артикул);
@@ -104,10 +105,12 @@ def _mapping(account, known_codes):
 def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
     day = on_date or datetime.date.today().isoformat()
 
-    # живая закупка: последняя известная цена по коду (вью tc_buy_price_latest)
-    live = {r["external_code"]: (_f(r["buy_price"]), r["status"])
-            for r in db.query("SELECT external_code, buy_price, status FROM tc_buy_price_latest")}
-    known_codes = set(live.keys())      # все коды, известные платформе (ok + no_lu) — для маппинга
+    # статус кода на сегодня (есть/нет цены) + последняя ИЗВЕСТНАЯ цена (фолбэк для no_price).
+    today = {r["external_code"]: (_f(r["buy_price"]), r["status"])
+             for r in db.query("SELECT external_code, buy_price, status FROM tc_buy_price_latest")}
+    last_known = {r["external_code"]: (_f(r["buy_price"]), r["price_date"])
+                  for r in db.query("SELECT external_code, buy_price, price_date FROM tc_buy_price_last_known")}
+    known_codes = set(today.keys())     # все коды, известные платформе (ok + no_price) — для маппинга
     nm_ec = _mapping(account, known_codes)
 
     econ = db.query("""
@@ -122,10 +125,16 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
         nm = int(e["nm_id"])
         mapped = nm_ec.get(nm)
         ec, map_src = (mapped if mapped else (None, None))
-        bp_live, status = (None, "unmapped")
-        if ec and ec in live:
-            bp_live, st = live[ec]
-            status = "ok" if (bp_live is not None and st == "ok") else "no_lu"
+        bp_live, status, price_date = (None, "unmapped", None)
+        if ec and ec in today:
+            bp_today, st = today[ec]
+            if bp_today is not None and st == "ok":
+                bp_live, status, price_date = bp_today, "ok", day
+            elif ec in last_known:                       # сегодня нет цены → последняя известная
+                bp_lk, pd = last_known[ec]
+                bp_live, status, price_date = bp_lk, "stale", (pd.isoformat() if pd else None)
+            else:                                        # цены не было никогда
+                status = "no_price"
 
         our_price = _f(e["promo_price"])
         to_pay = _f(e["to_pay_u"])
@@ -154,7 +163,7 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
             "buyer_price": _f(e["buyer_price"]),
             "payout_ratio": payout, "to_pay_u": to_pay,
             "logistics_u": log_u, "storage_u": stor_u, "accept_u": acc_u,
-            "buy_price_live": bp_live, "buy_status": status,
+            "buy_price_live": bp_live, "buy_status": status, "price_date": price_date,
             "fifo_cogs_u": fifo,
             "cogs_delta": (round(cogs_delta, 2) if cogs_delta is not None else None),
             "net_live": (round(net_live, 2) if net_live is not None else None),
@@ -180,7 +189,8 @@ def _write_report(account, day, threshold, recs):
     below = sorted([r for r in priced if r["below_threshold"]],
                    key=lambda r: (r["margin_own_live"] if r["margin_own_live"] is not None else 999))
     negative = [r for r in below if r["is_negative"]]
-    no_lu = [r for r in recs if r["buy_status"] == "no_lu"]
+    no_price = [r for r in recs if r["buy_status"] == "no_price"]
+    stale = [r for r in recs if r["buy_status"] == "stale"]
     unmapped = [r for r in recs if r["buy_status"] == "unmapped"]
 
     # CSV — весь снимок (сырьё в файл, не в чат)
@@ -205,7 +215,7 @@ def _write_report(account, day, threshold, recs):
     lines = []
     lines.append(f"КОНТРОЛЬ МАРЖИ {account} · {day} · порог {threshold:.0f}% от нашей цены")
     lines.append(f"SKU всего {len(recs)}: с живой закупкой {len(priced)}, "
-                 f"без ЛУ {len(no_lu)}, без маппинга {len(unmapped)}")
+                 f"нет цены {len(no_price)}, послед.известная {len(stale)}, без маппинга {len(unmapped)}")
     lines.append(f"ВЫПАДАЕМ по марже (<{threshold:.0f}%): {len(below)}  "
                  f"| из них ОТРИЦАТЕЛЬНАЯ: {len(negative)}")
     if priced:
@@ -223,8 +233,8 @@ def _write_report(account, day, threshold, recs):
                      f"{r['fifo_cogs_u'] or 0:>6.0f} {r['cogs_delta'] or 0:>6.0f} {r['net_live'] or 0:>6.0f}  "
                      f"{(r['subject'] or '')[:22]}")
     lines.append("")
-    lines.append(f"── Продаём БЕЗ ЛУ (no_lu): {len(no_lu)} SKU (полный список в CSV) ──")
-    for r in no_lu[:10]:
+    lines.append(f"── Нет цены у платформы (no_price): {len(no_price)} SKU (полный список в CSV) ──")
+    for r in no_price[:10]:
         lines.append(f"{r['nm_id']:>10}  {r['vendor_code'] or '':<18} {(r['subject'] or '')[:30]}")
     txt = "\n".join(lines)
     txt_path.write_text(txt + "\n", encoding="utf-8")

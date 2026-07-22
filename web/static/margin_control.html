@@ -67,7 +67,7 @@
     <div class="tabs" id="tabs">
       <button data-v="below" class="cur">⚠️ Ниже порога</button>
       <button data-v="negative">🔴 Отрицательная</button>
-      <button data-v="no_lu">∅ Без ЛУ</button>
+      <button data-v="no_price">∅ Нет цены</button>
       <button data-v="all">Все</button>
     </div>
     <input id="q" placeholder="поиск: nm / артикул / предмет" style="min-width:220px">
@@ -92,20 +92,22 @@ async function load(){
   const s=d.summary, thr=s.threshold||25;
   $('#day').textContent=d.date||'—';
   $('#big').innerHTML=`
-    <div class="bi"><div class="l">SKU с живой закупкой</div><div class="v">${s.live_ok}</div></div>
+    <div class="bi"><div class="l">SKU с себестоимостью</div><div class="v">${s.live_ok}${s.stale?` <span class="muted" style="font-size:12px">(${s.stale} по прошлой)</span>`:''}</div></div>
     <div class="bi alert"><div class="l">Ниже ${(+thr).toFixed(0)}% маржи</div><div class="v">${s.below}</div></div>
     <div class="bi danger"><div class="l">Отрицательная маржа</div><div class="v">${s.negative}</div></div>
-    <div class="bi"><div class="l">Продаём без ЛУ</div><div class="v">${s.no_lu}</div></div>
+    <div class="bi"><div class="l">Нет цены у платформы</div><div class="v">${s.no_price}</div></div>
     <div class="bi"><div class="l">Медиана маржи-live</div><div class="v">${pct(s.med_margin_live)}</div></div>
     <div class="bi"><div class="l">Δсеб медиана (live−FIFO)</div><div class="v">${rub(s.med_delta)}₽</div></div>`;
-  const head=view==='no_lu'
+  const head=view==='no_price'
     ? ['SKU','предмет','наша цена','к перечисл.','FIFO-себест','маржа FIFO']
     : ['SKU','предмет','наша цена','к перечисл.','логист.','живая закуп.','FIFO','Δсеб','net-live','маржа-live','маржа-FIFO'];
   $('#tbl thead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
   const body=d.rows.map(r=>{
     const pfx=r.map_source==='prefix'?' <span class="badge" title="себест по 4-значному коду товара (варианты цвета делят базу)">прибл.</span>':'';
-    const sku=`<div class="sku"><div class="nm">${r.nm_id}</div><div class="vc">${r.vendor_code||''}${r.buy_status==='no_lu'?' <span class="badge">нет ЛУ</span>':''}${pfx}</div></div>`;
-    if(view==='no_lu')
+    const noprice=r.buy_status==='no_price'?' <span class="badge">нет цены</span>':'';
+    const stale=r.buy_status==='stale'?` <span class="badge" title="цены сегодня нет — последняя известная от ${r.price_date}">от ${r.price_date}</span>`:'';
+    const sku=`<div class="sku"><div class="nm">${r.nm_id}</div><div class="vc">${r.vendor_code||''}${noprice}${stale}${pfx}</div></div>`;
+    if(view==='no_price')
       return `<tr><td>${sku}</td><td style="text-align:left">${r.subject||''}</td><td>${rub(r.our_price)}</td><td>${rub(r.to_pay_u)}</td><td>${rub(r.fifo_cogs_u)}</td><td>${marginPill(r.margin_own_fifo,thr)}</td></tr>`;
     const dcls=r.cogs_delta==null?'':(r.cogs_delta>0?'up':'dn');
     return `<tr class="${r.is_negative?'neg':''}">

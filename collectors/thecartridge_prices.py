@@ -3,7 +3,8 @@
 платформы TheCartridge (thecartridge.ru /api/catalog/best).
 
 POST /api/catalog/best  {"external_codes":[...]}  header Api-Key  →  {код:{buy_price}}.
-  - buy_price число → status='ok';  buy_price=null → status='no_lu' (ЛУ нет в моменте, НЕ ноль).
+  - buy_price число → status='ok';  buy_price=null → status='no_price' (у платформы нет цены закупки
+    на этот код в моменте — НЕ ноль; храним как отдельный статус).
   - Жёсткий лимит API — 100 кодов/запрос (101 → HTTP 422 «Превышено допустимое количество»).
   - Цены динамичные → пишем ИСТОРИЮ по дням в tc_buy_price (PK captured_date+external_code).
 
@@ -141,7 +142,7 @@ def main(all_codes=False, on_date=None):
     for ec, bp in raw.items():
         if bp is None:
             recs.append({"captured_date": day, "external_code": ec,
-                         "buy_price": None, "status": "no_lu", "captured_at": now})
+                         "buy_price": None, "status": "no_price", "captured_at": now})
             n_null += 1
         else:
             recs.append({"captured_date": day, "external_code": ec,
@@ -158,8 +159,8 @@ def main(all_codes=False, on_date=None):
     raw_path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
 
     dt = time.time() - t0
-    print(f"[thecartridge {day}] записано {len(recs)}: ЛУ есть {n_ok}, "
-          f"нет ЛУ {n_null}; кодов не добрано {n_fail_batches}; {dt:.0f}с; сырьё → {raw_path.name}",
+    print(f"[thecartridge {day}] записано {len(recs)}: цена есть {n_ok}, "
+          f"нет цены {n_null}; кодов не добрано {n_fail_batches}; {dt:.0f}с; сырьё → {raw_path.name}",
           flush=True)
     return len(recs)
 

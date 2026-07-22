@@ -21,8 +21,9 @@ CREATE TABLE IF NOT EXISTS mkt_margin_control (
     storage_u      numeric,
     accept_u       numeric,
     -- ДВЕ себестоимости рядом
-    buy_price_live numeric,              -- живая закупочная (TheCartridge); NULL если no_lu/unmapped
-    buy_status     text        NOT NULL, -- 'ok' | 'no_lu' | 'unmapped'
+    buy_price_live numeric,              -- живая закупочная (TheCartridge); NULL если no_price/unmapped
+    buy_status     text        NOT NULL, -- 'ok'(цена сегодня) | 'stale'(послед. известная) | 'no_price' | 'unmapped'
+    price_date     date,                 -- дата цены (сегодня для ok; прошлая для stale)
     fifo_cogs_u    numeric,              -- FIFO из отгрузок МС (mkt_sku_economics.cogs_u), справочно
     cogs_delta     numeric,              -- buy_price_live − fifo_cogs_u (>0: перезакупка дороже факта)
     -- маржа на живой себестоимости (KPI: от нашей цены)
