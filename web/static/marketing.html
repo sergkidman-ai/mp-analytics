@@ -67,7 +67,8 @@
 <main>
   <p class="note" style="margin-top:0">Юнит-экономика по всем SKU (ВБ, Цифровой). Форвард по <b>текущей цене</b> через payout-ratio.
     <b>KPI — маржа ≥25% от нашей цены до акций.</b>
-    Нажми строку → сценарий по глубине акции. Замещающая себестоимость (перезакупка сейчас).</p>
+    Нажми строку → сценарий по глубине акции. <b>Себест</b> — FIFO по отгрузкам МС (факт);
+    <b>Живая закуп.</b> — перезакупка сейчас с нашей платформы TheCartridge, <b>Маржа-live</b> считается на ней.</p>
   <div class="big" id="big"></div>
   <div class="ctrls">
     <input id="q" placeholder="поиск: nm / артикул / предмет" style="min-width:240px">
@@ -84,7 +85,10 @@
   </div>
   <table id="tbl">
     <thead><tr>
-      <th>SKU</th><th>Цена (list→акция→покупатель)</th><th>Акция</th><th>Себест</th>
+      <th>SKU</th><th>Цена (list→акция→покупатель)</th><th>Акция</th>
+      <th>Себест<br><span class="muted" style="font-weight:400">FIFO, отгрузки МС</span></th>
+      <th>Живая закуп.<br><span class="muted" style="font-weight:400">перезакуп. сейчас</span></th>
+      <th>Маржа-live<br><span class="muted" style="font-weight:400">на живой себест.</span></th>
       <th>Чистая/шт</th><th>Маржа от нашей<br><span class="muted" style="font-weight:400">прогноз, KPI ≥25%</span></th>
       <th>Маржа <span id="perm">—</span><br><span class="muted" style="font-weight:400">факт, от нашей</span></th>
       <th>Прод. 90д</th><th>Посл.<br>прод.</th>
@@ -127,6 +131,16 @@ function cogsCell(r){
   const ic={shipment:'',barcode:'~',factual:'≈',set:'⊕',set_fact:'⊕≈'}[r.cogs_source]||'';
   return `${rub(r.cogs_u)}${ic?`<span class="muted"> ${ic}</span>`:''}`;
 }
+function liveBuyCell(r){ // живая (восстановительная) закупка TheCartridge + Δ к FIFO
+  if(r.buy_price_live==null){
+    const t=r.buy_status==='no_price'?'нет цены':'—';
+    return `<span class="muted">${t}</span>`;
+  }
+  const d=r.cogs_delta;
+  const dt=d==null?'':` <span class="${d>0?'neg':'pos'}" style="font-size:11px" title="живая − FIFO">${d>0?'+':''}${rub(d)}</span>`;
+  const st=r.buy_status==='stale'?` <span class="badge" title="цены сегодня нет — последняя от ${r.price_date}">от ${r.price_date}</span>`:'';
+  return `<b>${rub(r.buy_price_live)}</b>${dt}${st}`;
+}
 
 function scenarioHtml(r){
   const sc=r.scenario_promo; if(!sc||!sc.length) return '';
@@ -147,19 +161,22 @@ let ROWS=[];
 function render(){
   const tb=$('#tbl tbody');
   tb.innerHTML=ROWS.map((r,i)=>{
+    const nm=(r.title||r.subject||'').replace(/"/g,'&quot;');
     return `<tr class="main" data-i="${i}">
-      <td class="sku"><div class="nm">${r.nm_id}<span class="expand">▸</span></div><div class="vc">${r.vendor_code||''} · ${(r.subject||'').replace('для принтеров','').replace('для принтера','')}</div></td>
+      <td class="sku"><div class="nm">${r.nm_id}<span class="expand">▸</span></div><div class="vc" title="${nm}">${r.vendor_code||''} · ${r.title||r.subject||''}</div></td>
       <td>${priceCell(r)}</td>
       <td>${r.promo_pct==null?'—':(r.promo_pct*100).toFixed(0)+'%'}</td>
       <td>${cogsCell(r)}</td>
+      <td>${liveBuyCell(r)}</td>
+      <td class="kpi">${marginPill(r.margin_own_live)}</td>
       <td class="${r.net_u<0?'neg':''}" style="font-weight:600">${r.net_u==null?'—':rub(r.net_u)}</td>
       <td class="kpi">${marginPill(r.margin_pct_own)}</td>
       <td class="kpi">${ownActualCell(r)}</td>
       <td>${r.trail_qty==null?'<span class="muted">0</span>':rub(r.trail_qty)}</td>
       <td>${saleCell(r)}</td>
     </tr>
-    <tr class="scrow" data-scen="${i}" style="display:none"><td colspan="9">${scenarioHtml(r)}</td></tr>`;
-  }).join('')||'<tr><td colspan="9" class="muted">нет данных</td></tr>';
+    <tr class="scrow" data-scen="${i}" style="display:none"><td colspan="11">${scenarioHtml(r)}</td></tr>`;
+  }).join('')||'<tr><td colspan="11" class="muted">нет данных</td></tr>';
   tb.querySelectorAll('tr.main').forEach(tr=>tr.onclick=()=>{
     const i=tr.dataset.i, sc=tb.querySelector(`tr[data-scen="${i}"]`);
     const open=sc.style.display!=='none';
@@ -177,6 +194,7 @@ async function load(){
   if(s.period_econ){const m=+s.period_econ.slice(5,7);$('#perm').textContent=MON[m]||'месяц';}
   $('#big').innerHTML=[
     ['SKU с себестом',rub(s.with_cogs)+' <span class="muted" style="font-size:13px">/ '+rub(s.tot)+'</span>'],
+    ['Живая закуп.<br><span class="muted" style="font-size:11px">TheCartridge</span>',rub(s.with_live)+' <span class="muted" style="font-size:13px">/ '+rub(s.tot)+'</span>'],
     ['Продавались 90д',rub(s.sold)],
     ['Держат KPI 25%','<span class="pos">'+rub(s.kpi_ok)+'</span>'],
     ['Ниже 25%','<span class="neg">'+rub(s.kpi_bad)+'</span>'],
@@ -188,7 +206,7 @@ async function load(){
   render();
   $('#foot').innerHTML=`Обе маржи — <b>от нашей ПРОМО-цены</b> (что задаём в акцию, до СПП), целевой KPI ≥${TARGET}% (зелёный). `+
     `<b>«Маржа от нашей»</b> — прогноз по текущей промо-цене (модель); <b>«Маржа ${MON[+((s.period_econ||'--06').slice(5,7))]||'месяц'}»</b> — реально достигнутая за месяц (прибыль ÷ наша промо-цена того месяца, из отчёта ВБ). `+
-    `Себест — замещающая (перезакупка сейчас); <b>≈</b> — фактическая по отгрузкам за 90д; `+
+    `Себест — FIFO по отгрузкам МС (<b>≈</b> — фактическая за 90д); <b>Живая закуп.</b> — перезакупка сейчас (TheCartridge), Δ — к FIFO; `+
     `<b>⊕</b> — НАБОР (комплект): BOM по текущим ценам компонентов (ВБ отчитывает наборы построчно, себест оценочный). `+
     `«Нет продаж» — форвард по медианам, осторожно.`;
 }

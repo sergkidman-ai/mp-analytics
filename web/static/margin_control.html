@@ -59,9 +59,9 @@
 </header>
 <main>
   <p class="note" style="margin-top:0">Контроль маржи на <b>живой (восстановительной) себестоимости</b> TheCartridge —
-    «почём купим сегодня». Рядом FIFO-себест из отгрузок МС (факт для отчётности) и расхождение <b>Δсеб</b>.
-    Маржа-live = к перечислению − логистика − хранение − приёмка − живая закупка; <b>KPI — ≥порога от нашей цены</b>.
-    Данные на <b id="day">…</b>.</p>
+    «почём купим сегодня». <b>Маржа-live = наша цена − расходы площадки − живая себест.</b>
+    «Расходы площадки» — одной суммой комиссия+СПП+логистика+хранение+приёмка (себестоимость сюда НЕ входит).
+    Под живой себест. — FIFO из отгрузок МС (факт) и расхождение. <b>KPI — ≥порога от нашей цены</b>. Данные на <b id="day">…</b>.</p>
   <div class="big" id="big"></div>
   <div class="ctrls">
     <div class="tabs" id="tabs">
@@ -99,26 +99,33 @@ async function load(){
     <div class="bi"><div class="l">Медиана маржи-live</div><div class="v">${pct(s.med_margin_live)}</div></div>
     <div class="bi"><div class="l">Δсеб медиана (live−FIFO)</div><div class="v">${rub(s.med_delta)}₽</div></div>`;
   const head=view==='no_price'
-    ? ['SKU','предмет','наша цена','к перечисл.','FIFO-себест','маржа FIFO']
-    : ['SKU','предмет','наша цена','к перечисл.','логист.','живая закуп.','FIFO','Δсеб','net-live','маржа-live','маржа-FIFO'];
+    ? ['SKU','наименование','наша цена','расходы площадки','FIFO-себест','маржа FIFO']
+    : ['SKU','наименование','наша цена','расходы площадки','себест. (живая)','net-live','маржа-live','маржа-FIFO'];
   $('#tbl thead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
   const body=d.rows.map(r=>{
     const pfx=r.map_source==='prefix'?' <span class="badge" title="себест по 4-значному коду товара (варианты цвета делят базу)">прибл.</span>':'';
-    const noprice=r.buy_status==='no_price'?' <span class="badge">нет цены</span>':'';
     const stale=r.buy_status==='stale'?` <span class="badge" title="цены сегодня нет — последняя известная от ${r.price_date}">от ${r.price_date}</span>`:'';
-    const sku=`<div class="sku"><div class="nm">${r.nm_id}</div><div class="vc">${r.vendor_code||''}${noprice}${stale}${pfx}</div></div>`;
+    const nm=(r.title||'').replace(/"/g,'&quot;');
+    const sku=`<div class="sku"><div class="nm">${r.nm_id}</div><div class="vc">${r.vendor_code||''}${stale}${pfx}</div></div>`;
+    const name=`<td style="text-align:left" title="${nm}">${r.title||''}</td>`;
     if(view==='no_price')
-      return `<tr><td>${sku}</td><td style="text-align:left">${r.subject||''}</td><td>${rub(r.our_price)}</td><td>${rub(r.to_pay_u)}</td><td>${rub(r.fifo_cogs_u)}</td><td>${marginPill(r.margin_own_fifo,thr)}</td></tr>`;
-    const dcls=r.cogs_delta==null?'':(r.cogs_delta>0?'up':'dn');
+      return `<tr><td>${sku}</td>${name}<td>${rub(r.our_price)}</td><td>${rub(r.platform_costs)}</td><td>${rub(r.fifo_cogs_u)}</td><td>${marginPill(r.margin_own_fifo,thr)}</td></tr>`;
+    // себест. одной колонкой: живая жирным + под ней FIFO и Δ (сравнение)
+    const dcls=r.cogs_delta==null?'':(r.cogs_delta>0?'neg':'pos');
+    const fifoLine=r.fifo_cogs_u!=null
+      ? `<div class="muted" style="font-size:11px">FIFO ${rub(r.fifo_cogs_u)}`+
+        (r.cogs_delta!=null?` <span class="${dcls}">${r.cogs_delta>0?'+':''}${rub(r.cogs_delta)}</span>`:'')+`</div>`
+      : '';
+    const costCell=(r.buy_price_live!=null?`<b>${rub(r.buy_price_live)}</b>`
+      :`<span class="muted">${r.buy_status==='no_price'?'нет цены':'—'}</span>`)+fifoLine;
     return `<tr class="${r.is_negative?'neg':''}">
-      <td>${sku}</td><td style="text-align:left">${r.subject||''}</td>
-      <td>${rub(r.our_price)}</td><td>${rub(r.to_pay_u)}</td><td>${rub(r.logistics_u)}</td>
-      <td><b>${rub(r.buy_price_live)}</b></td><td class="muted">${rub(r.fifo_cogs_u)}</td>
-      <td class="dlt ${dcls}">${r.cogs_delta==null?'—':(r.cogs_delta>0?'+':'')+rub(r.cogs_delta)}</td>
+      <td>${sku}</td>${name}
+      <td>${rub(r.our_price)}</td><td>${rub(r.platform_costs)}</td>
+      <td>${costCell}</td>
       <td>${rub(r.net_live)}</td><td>${marginPill(r.margin_own_live,thr)}</td><td class="muted">${pct(r.margin_own_fifo)}</td>
     </tr>`;
   }).join('');
-  $('#tbl tbody').innerHTML=body||`<tr><td colspan="11" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
+  $('#tbl tbody').innerHTML=body||`<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
   $('#foot').textContent=`Показано ${d.rows.length}. Δсеб>0 (красным) — перезакупка сегодня дороже исторического FIFO; такие SKU — кандидаты на подъём цены/вывод из акции. Полный снимок — в reports/data/margin_control_${d.date}.csv`;
 }
 $('#tabs').addEventListener('click',e=>{
