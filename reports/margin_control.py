@@ -42,35 +42,33 @@ def _f(v):
     return None if v is None else float(v)
 
 
-def _mapping(account, valid_codes):
+def _mapping(account, known_codes):
     """nm_id → (external_code, source). Мосты по НАДЁЖНОСТИ (лучший перекрывает):
-       prefix < vendor < barcode < shipment.
+       prefix < vendor < barcode < shipment. Резолвим против КОДОВ, ИЗВЕСТНЫХ ПЛАТФОРМЕ
+       (`known_codes` = все коды из tc_buy_price, вкл. no_lu) — не через ms_product, т.к. у платформы
+       бывают коды, которых нет в срезе ms_product (материнский артикул без ЛУ в моменте).
        • shipment — путь отгрузки nm→ms_demand_pos→ms_product (реальный отгружаемый товар);
        • barcode  — баркод продажи → ms_barcode → ms_product;
-       • vendor   — vendor_code = external_code (4-значные карточки);
-       • prefix   — vendorCode ВБ = <4 цифры код товара платформы><цифра цвета>; первые 4 = код
-                    платформы (то же FBO-префиксное правило fin). Берём, только если [:4] — известный
-                    платформе код (valid_codes). Себест товар-уровня (варианты цвета делят базу).
+       • vendor   — полный vendorCode ВБ = код платформы (4-значный материнский артикул);
+       • prefix   — vendorCode ВБ = <4 цифры материнский код><цифра цвета/принтера>; дочерние листинги
+                    5597X делят цену материнского 5597 (то же FBO-префиксное правило fin, товар-уровень).
     """
     m = {}  # nm -> (ec, src); присваиваем от слабого к сильному
+    cards = db.query(
+        "SELECT nm_id, vendor_code vc FROM wb_cards WHERE account=%s AND vendor_code ~ '^[0-9]+$'",
+        (account,))
 
-    # prefix (слабейший)
-    for r in db.query("""
-        SELECT c.nm_id nm, substr(c.vendor_code,1,4) ec
-        FROM wb_cards c
-        WHERE c.account=%s AND length(c.vendor_code)>=5 AND c.vendor_code ~ '^[0-9]+$'
-    """, (account,)):
-        ec = r["ec"]
-        if ec in valid_codes:
-            m[int(r["nm"])] = (ec, "prefix")
+    # prefix (слабейший): 5+ цифр → первые 4, если материнский код известен платформе
+    for r in cards:
+        vc = r["vc"]
+        if len(vc) >= 5 and vc[:4] in known_codes:
+            m[int(r["nm_id"])] = (vc[:4], "prefix")
 
-    # vendor = external_code (4-значные карточки)
-    for r in db.query("""
-        SELECT c.nm_id nm, p.external_code ec
-        FROM wb_cards c JOIN ms_product p ON p.external_code = c.vendor_code
-        WHERE c.account=%s AND p.external_code IS NOT NULL AND NOT p.archived
-    """, (account,)):
-        m[int(r["nm"])] = (r["ec"], "vendor")
+    # vendor: полный vendorCode сам — известный платформе код (4-значный материнский)
+    for r in cards:
+        vc = r["vc"]
+        if vc in known_codes:
+            m[int(r["nm_id"])] = (vc, "vendor")
 
     # barcode
     for r in db.query("""
@@ -81,7 +79,8 @@ def _mapping(account, valid_codes):
         WHERE w.account=%s AND coalesce(w.payload->>'barcode','')<>''
           AND p.external_code IS NOT NULL AND w.payload->>'nm_id' ~ '^[0-9]+$'
     """, (account,)):
-        m[int(r["nm"])] = (r["ec"], "barcode")
+        if r["ec"] in known_codes:
+            m[int(r["nm"])] = (r["ec"], "barcode")
 
     # shipment (сильнейший)
     for r in db.query("""
@@ -96,7 +95,8 @@ def _mapping(account, valid_codes):
         ranked AS (SELECT nm, ec, row_number() OVER (PARTITION BY nm ORDER BY q DESC) rn FROM nm_ext)
         SELECT nm::bigint nm, ec FROM ranked WHERE rn = 1
     """, (account,)):
-        m[int(r["nm"])] = (r["ec"], "shipment")
+        if r["ec"] in known_codes:
+            m[int(r["nm"])] = (r["ec"], "shipment")
 
     return m
 
@@ -107,8 +107,8 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
     # живая закупка: последняя известная цена по коду (вью tc_buy_price_latest)
     live = {r["external_code"]: (_f(r["buy_price"]), r["status"])
             for r in db.query("SELECT external_code, buy_price, status FROM tc_buy_price_latest")}
-    valid_codes = set(live.keys())      # коды, известные платформе (для префиксного моста)
-    nm_ec = _mapping(account, valid_codes)
+    known_codes = set(live.keys())      # все коды, известные платформе (ok + no_lu) — для маппинга
+    nm_ec = _mapping(account, known_codes)
 
     econ = db.query("""
         SELECT nm_id, vendor_code, subject, promo_price, buyer_price, payout_ratio, to_pay_u,
