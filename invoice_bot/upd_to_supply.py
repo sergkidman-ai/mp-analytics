@@ -35,6 +35,12 @@ from ms import get, post, put, MS
 MSU = MS
 STATE_SOZDAN = "2beb6446-a9a3-11f0-0a80-0990001da0b2"   # статус приёмки «Создан»
 CODE_ATTR    = "efaefd7a-b130-11ea-0a80-0367000245f4"   # доп.поле товара «Код поставщика» (string)
+GTD_ATTR     = "b5a757d4-85ca-11f1-0a80-184f000fc818"   # доп.поле товара «последний ГТД» (string)
+
+
+def _attr_meta(attr_id):
+    return {"href": f"{MSU}/entity/product/metadata/attributes/{attr_id}",
+            "type": "attributemetadata", "mediaType": "application/json"}
 DASH = {"", "-", "--", "---", "----", "------", "–", "—"}   # варианты прочерка
 
 meta = inv.meta
@@ -729,7 +735,7 @@ def process(src, create=True, suffix=""):
         moment = f"{plan} 08:00:00"
         inc_date = upd["date"].isoformat() if upd["date"] else None   # нет даты (Спринт) → входящую не ставим
 
-        sup_pos = []; c_set = g_set = bp = code_set = 0; matched = 0; unmatched = []
+        sup_pos = []; c_set = g_set = bp = code_set = gtd_card = 0; matched = 0; unmatched = []
         for i, p in enumerate(opos):
             a = p["assortment"]; u = mp.get(i)
             is_prod = a["meta"]["type"] == "product"
@@ -760,18 +766,21 @@ def process(src, create=True, suffix=""):
                 cm = cur.get("buyPrice", {}).get("currency", {}).get("meta")
                 body["buyPrice"] = {"value": p["price"], **({"currency": {"meta": cm}} if cm else {})}
                 bp += 1
-                if u and u.get("sup_code"):
-                    body["attributes"] = [{
-                        "meta": {"href": f"{MSU}/entity/product/metadata/attributes/{CODE_ATTR}",
-                                 "type": "attributemetadata", "mediaType": "application/json"},
-                        "value": u["sup_code"]}]
+                attrs = []
+                if u and u.get("sup_code"):           # «Код поставщика»
+                    attrs.append({"meta": _attr_meta(CODE_ATTR), "value": u["sup_code"]})
                     code_set += 1
+                if u and u.get("gtd"):                # «последний ГТД» — последний известный из приёмки
+                    attrs.append({"meta": _attr_meta(GTD_ATTR), "value": u["gtd"]})
+                    gtd_card += 1
+                if attrs:
+                    body["attributes"] = attrs
                 put(f"/entity/product/{pid}", body)
 
         if unmatched:
             res["warns"].append(f"без матча со строкой УПД (страна/ГТД не проставлены): {unmatched}")
         res["stats"] = {"positions": len(sup_pos), "matched": matched, "country": c_set,
-                        "gtd": g_set, "buyPrice": bp, "code": code_set}
+                        "gtd": g_set, "buyPrice": bp, "code": code_set, "gtd_card": gtd_card}
 
         # НДС шапки приёмки — как в заказе-основании (поставщик без НДС → приёмка без НДС)
         ve = bool(order.get("vatEnabled", True))
@@ -858,7 +867,8 @@ def format_report(res):
     L.append(f"Заказ-основание: {o.get('name')} (сумма {o.get('sum')}, план приёмки {o.get('plan')})")
     s = res.get("stats", {})
     L.append(f"Позиции: {s.get('matched')}/{s.get('positions')} сматчено | "
-             f"страна: {s.get('country')} | ГТД: {s.get('gtd')} | buyPrice: {s.get('buyPrice')} | код: {s.get('code')}")
+             f"страна: {s.get('country')} | ГТД: {s.get('gtd')} | buyPrice: {s.get('buyPrice')} | "
+             f"код: {s.get('code')} | ГТД→карточка: {s.get('gtd_card')}")
     for w in res.get("warns", []):
         L.append(f"⚠ {w}")
     if res.get("dry"):
