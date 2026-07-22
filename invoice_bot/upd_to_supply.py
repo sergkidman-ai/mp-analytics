@@ -249,14 +249,33 @@ def _merge_thousands(ln):
     return ln
 
 
+def _stitch_gtd(lines, idxs, region_x):
+    """Собрать ГТД из зоны гр.11 по блоку строк вокруг товарной (номер часто переносится на
+    строки над/под товарной, т.к. длинный и в узкую колонку не влезает). → номер ДТ или None."""
+    frag = ""
+    for j in idxs:
+        if not (0 <= j < len(lines)) or region_x >= len(lines[j]):
+            continue
+        for tok in lines[j][region_x:].replace("-", " ").split():
+            if re.fullmatch(r"[\d/]+", tok):                  # фрагмент ГТД: цифры и слэши
+                frag += tok
+    m = re.search(r"\d{7,8}/\d{5,6}/\d{3,}", frag)            # формат ДТ: пост/дата/порядковый
+    return m.group(0) if m else None
+
+
 def _pdf_positions(text):
     """Товарные строки печатной УПД → список позиций (структурный разбор без абсолютных колонок).
 
     Якорь — ед.изм «<ОКЕИ> шт»: слева kod/№/наименование, справа числа. sum_vat (гр.9) =
     последнее 2-знач. число перед цифровым кодом страны; qty (гр.3) — первое число справа.
+    ГТД (гр.11) собирается по блоку строк — номер бывает перенесён над/под товарной строкой.
     """
-    positions, seen = [], set()
-    for raw in text.split("\n"):
+    lines = text.split("\n")
+    _, gpos = _pdf_graph_positions(lines)
+    gd = dict(gpos or [])
+    region_x = (gd["10а"] + gd["11"]) // 2 if ("10а" in gd and "11" in gd) else None  # начало зоны гр.11
+    anchors, seen = [], set()                                 # (индекс строки, позиция)
+    for i, raw in enumerate(lines):
         ln = _merge_thousands(raw)
         ln = re.sub(r"(\d[.,]\d{2})(\d{3})\b", r"\1 \2", ln)  # расклей «109,76156» → «109,76 156» (гр.9+код страны)
         m = re.search(r"\s(?:\d{3}\s+)?шт\.?(?=\s|$)", ln)    # ед.изм «796 шт» / «796 шт.» / «шт»
@@ -270,25 +289,34 @@ def _pdf_positions(text):
             name = ""
         rt = ln[m.end():].split()
         qty = inv._num(rt[0]) if rt else None                 # гр.3 — первое число справа
-        money = [i for i, t in enumerate(rt) if _MONEY.match(t)]
+        money = [j for j, t in enumerate(rt) if _MONEY.match(t)]
         if qty is None or len(money) < 2:                     # у товара минимум цена(гр.4) + сумма(гр.9)
             continue
         sum_vat = inv._num(rt[money[-1]])                     # гр.9 — последнее денежное перед страной
         country = None
-        for i in range(len(rt) - 1):                          # цифр. код страны + кириллич. название
-            if re.match(r"^\d{2,3}$", rt[i]) and re.match(r"^[А-Яа-я]", rt[i + 1]):
-                country = rt[i + 1]; break
-        gtd = rt[-1] if ("/" in rt[-1] and re.search(r"\d", rt[-1])) else None
+        for j in range(len(rt) - 1):                          # цифр. код страны + кириллич. название
+            if re.match(r"^\d{2,3}$", rt[j]) and re.match(r"^[А-Яа-я]", rt[j + 1]):
+                country = rt[j + 1]; break
+        gtd = rt[-1] if ("/" in rt[-1] and re.search(r"\d", rt[-1])) else None   # ГТД в товарной строке (fallback)
         if sum_vat is None or num_pp in seen:                 # антидубль по №п/п (повтор строки на стр.2)
             continue
         seen.add(num_pp)
-        positions.append({
+        anchors.append((i, {
             "num": num_pp, "kod": kod, "sup_code": kod, "name": name,
             "qty": qty, "sum_vat": sum_vat,
             "country": country if country not in DASH else None,
             "gtd": gtd if (gtd and gtd not in DASH) else None,
-        })
-    return positions
+        }))
+    if region_x is not None:                                  # сшить ГТД из блока ТОЛЬКО если в товарной
+        for k, (i, pos) in enumerate(anchors):                # строке его нет (перенос номера над/под строкой,
+            if pos["gtd"]:                                    # как у Булата); где ГТД инлайн — не трогаем,
+                continue                                      # иначе цифры из переносов наимен. приклеятся
+            lo = (anchors[k - 1][0] + 1) if k else max(0, i - 1)
+            hi = anchors[k + 1][0] if k + 1 < len(anchors) else i + 3
+            g = _stitch_gtd(lines, range(max(lo, i - 1), hi), region_x)
+            if g:
+                pos["gtd"] = g
+    return [p for _, p in anchors]
 
 
 def _pdf_inns(text):
