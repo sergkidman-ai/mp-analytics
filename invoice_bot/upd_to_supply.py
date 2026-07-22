@@ -214,6 +214,131 @@ def parse_upd(rows):
     return {"seller_inn": seller, "buyer_inn": buyer, "number": num, "date": dt, "positions": positions}
 
 
+# ═══════════════════════ 1d. Разбор УПД из PDF (печатная форма пост. 1137) ═════
+# Все УПД-PDF — стандартная форма (Прил.1 к пост.1137) с теми же номерами граф,
+# что и Excel-УПД. pdftotext -layout держит колонки → якоримся на строку граф,
+# режем позиции по x-границам колонок и переиспользуем parse_upd для разбора строк.
+_GRAPH_LABELS = ("А", "1", "1а", "1б", "2", "2а", "3", "4", "5", "6", "7", "8", "9", "10", "10а", "11")
+
+
+def _pdf_graph_positions(lines):
+    """Найти строку номеров граф → (индекс, [(label, x_start)...]) или (None, None)."""
+    for i, ln in enumerate(lines):
+        toks = list(re.finditer(r"\S+", ln))
+        labs = {t.group(0) for t in toks}
+        if {"1а", "10а", "11", "А"} <= labs:
+            pos, seen = [], set()
+            for t in toks:
+                l = t.group(0)
+                if l in _GRAPH_LABELS and l not in seen:
+                    pos.append((l, t.start())); seen.add(l)
+            if {"А", "1а", "3", "9"} <= {l for l, _ in pos}:   # ключевые графы на месте
+                return i, pos
+    return None, None
+
+
+_MONEY = re.compile(r"^\d+[.,]\d{2}$")            # денежное значение — ровно 2 знака после разделителя
+
+
+def _merge_thousands(ln):
+    """«3 998.32» → «3998.32» (после этого абсолютные x не важны). Пробел-тысячи только внутри чисел."""
+    prev = None
+    while prev != ln:                              # повтор для «1 234 567.00»
+        prev = ln
+        ln = re.sub(r"(?<=\d)[  ](?=\d{3}(?:[.,]|\s|$))", "", ln)
+    return ln
+
+
+def _pdf_positions(text):
+    """Товарные строки печатной УПД → список позиций (структурный разбор без абсолютных колонок).
+
+    Якорь — ед.изм «<ОКЕИ> шт»: слева kod/№/наименование, справа числа. sum_vat (гр.9) =
+    последнее 2-знач. число перед цифровым кодом страны; qty (гр.3) — первое число справа.
+    """
+    positions, seen = [], set()
+    for raw in text.split("\n"):
+        ln = _merge_thousands(raw)
+        ln = re.sub(r"(\d[.,]\d{2})(\d{3})\b", r"\1 \2", ln)  # расклей «109,76156» → «109,76 156» (гр.9+код страны)
+        m = re.search(r"\s(?:\d{3}\s+)?шт\.?(?=\s|$)", ln)    # ед.изм «796 шт» / «796 шт.» / «шт»
+        if not m:
+            continue
+        lm = re.match(r"^\s*(.+?)\s+(\d{1,3})\s+(\D.*)$", ln[:m.start()])   # kod, №п/п, наимен.
+        if not lm:
+            continue
+        kod, num_pp, name = lm.group(1).strip(), int(lm.group(2)), lm.group(3).strip()
+        if not re.search(r"[A-Za-zА-Яа-я]", name):            # у товара в наимен. есть буквы
+            continue
+        rt = ln[m.end():].split()
+        if not rt:
+            continue
+        qty = inv._num(rt[0])                                 # гр.3 — первое число справа
+        money = [i for i, t in enumerate(rt) if _MONEY.match(t)]
+        if qty is None or not money:
+            continue
+        sum_vat = inv._num(rt[money[-1]])                     # гр.9 — последнее денежное перед страной
+        country = None
+        for i in range(len(rt) - 1):                          # цифр. код страны + кириллич. название
+            if re.match(r"^\d{2,3}$", rt[i]) and re.match(r"^[А-Яа-я]", rt[i + 1]):
+                country = rt[i + 1]; break
+        gtd = rt[-1] if ("/" in rt[-1] and re.search(r"\d", rt[-1])) else None
+        if sum_vat is None or num_pp in seen:                 # антидубль по №п/п (повтор строки на стр.2)
+            continue
+        seen.add(num_pp)
+        positions.append({
+            "num": num_pp, "kod": kod, "sup_code": kod, "name": name,
+            "qty": qty, "sum_vat": sum_vat,
+            "country": country if country not in DASH else None,
+            "gtd": gtd if (gtd and gtd not in DASH) else None,
+        })
+    return positions
+
+
+def _pdf_inns(text):
+    """(seller_inn, buyer_inn): явные метки «продавца/покупателя» либо две голые «ИНН/КПП» (1-я=прод, 2-я=покуп)."""
+    seller = buyer = None
+    m = re.search(r"ИНН/КПП\s*продавца[:\s]*?(\d{10,12})", text, re.I)
+    if m: seller = m.group(1)
+    m = re.search(r"ИНН/КПП\s*покупателя[:\s]*?(\d{10,12})", text, re.I)
+    if m: buyer = m.group(1)
+    if not (seller and buyer):
+        bare = re.findall(r"ИНН/КПП\s+(\d{10,12})", text, re.I)
+        if not seller and bare: seller = bare[0]
+        if not buyer and len(bare) > 1: buyer = bare[1]
+    return seller, buyer
+
+
+def _pdf_number_date(text):
+    """№ и дата из строки «Счёт-фактура № … от …» (мультиформат даты: точки / рус. месяц)."""
+    m = re.search(r"Сч[её]т-фактура\s*№\s*(\S+)\s+от\s+(\d{1,2}[.\s][^\n(]*?\d{4})", text, re.I)
+    if not m:
+        return None, None
+    num = m.group(1).lstrip("№").strip() or None
+    try:
+        dt = inv._parse_date(m.group(2).strip())
+    except (Exception, SystemExit):
+        dt = None
+    return num, dt
+
+
+def parse_upd_pdf(text):
+    """PDF-УПД (печатная форма 1137) → тот же dict, что parse_upd/parse_upd_xml."""
+    _, gpos = _pdf_graph_positions(text.split("\n"))
+    if gpos is None:                                # гейт: это стандартная форма УПД (номера граф)
+        raise ValueError("PDF-УПД: не найдена строка номеров граф (1а/10а/11) — форма не распознана, нужен профиль")
+    positions = _pdf_positions(text)
+    if not positions:
+        raise ValueError("PDF-УПД: не распознано ни одной товарной строки")
+    num, dt = _pdf_number_date(text)
+    seller, buyer = _pdf_inns(text)
+    total = inv._parse_total(text)                  # Σ гр.9 = «Всего к оплате» — self-check
+    if total is not None:
+        s = round(sum(p["sum_vat"] or 0 for p in positions), 2)
+        if abs(s - total) > 0.05:
+            raise ValueError(f"PDF-УПД: Σ позиций {s} ≠ «Всего к оплате» {total} "
+                             f"({len(positions)} строк) — разбор ненадёжен, отказ")
+    return {"seller_inn": seller, "buyer_inn": buyer, "number": num, "date": dt, "positions": positions}
+
+
 # ═══════════════════════ 1b. Разбор УПД из XML ЭДО (формат ФНС ON_NSCHFDOPPR) ═══
 def upd_xml_bytes(path):
     """Если файл — УПД-XML ФНС (голый .xml или zip выгрузки Диадока «в исходном формате»),
@@ -490,15 +615,18 @@ def process(src, create=True, suffix=""):
         xml = upd_xml_bytes(path)
         if xml is not None:                       # УПД из ЭДО (Диадок): XML ФНС / zip выгрузки
             upd = parse_upd_xml(xml)
-        else:                                     # прежний путь: Excel-УПД (1С-форма)
+        else:
             kind, payload = read_grid_safe(path)
-            if kind != "table":
-                raise ValueError("Ожидался Excel-УПД (xls/xlsx) или XML ЭДО (ФНС), "
-                                 "получен PDF/иное — нужен отдельный адаптер.")
-            if _sprint_gtd_cols(payload):         # нестандартный поток: ГТД-реестр Спринта
-                upd = parse_sprint_gtd(payload)
+            if kind == "pdf":                     # PDF-УПД (печатная форма 1137)
+                upd = parse_upd_pdf(payload)
+            elif kind == "table":                 # Excel-УПД (1С-форма)
+                if _sprint_gtd_cols(payload):     # нестандартный поток: ГТД-реестр Спринта
+                    upd = parse_sprint_gtd(payload)
+                else:
+                    upd = parse_upd(payload)
             else:
-                upd = parse_upd(payload)
+                raise ValueError("Ожидался Excel-УПД (xls/xlsx), PDF или XML ЭДО (ФНС) — "
+                                 "нераспознанный формат.")
         res["upd"] = {"number": upd["number"], "date": upd["date"].isoformat() if upd["date"] else None,
                       "seller_inn": upd["seller_inn"], "buyer_inn": upd["buyer_inn"],
                       "positions": len(upd["positions"])}
