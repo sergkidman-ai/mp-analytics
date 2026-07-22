@@ -407,11 +407,15 @@ def adjust_total(positions, target_rub):
         return
     target = round(target_rub * 100)
     cur = sum(round(p["price"] * 100) * p["qty"] for p in positions)
-    # правим последнюю ТОВАРНУЮ позицию
     prod_idx = [i for i, p in enumerate(positions) if not p["_deliv"]]
     if not prod_idx:
         return
-    li = prod_idx[-1]
+    # Невязку гасим на товарной позиции с qty==1: шаг правки цены = 1 коп, поэтому итог
+    # сходится с суммой счёта ТОЧНО. На позиции qty>1 шаг = qty коп — в невязку в 1-2 коп
+    # (типична для Феррет: печатная сумма строки ≠ цена×кол-во) не попасть → и был разброс.
+    # Если товарных qty==1 нет — правим последнюю товарную (остаток может не закрыться нацело).
+    unit_idx = [i for i in prod_idx if positions[i]["qty"] == 1]
+    li = unit_idx[-1] if unit_idx else prod_idx[-1]
     last = positions[li]
     others = cur - round(last["price"] * 100) * last["qty"]
     new_last_kop = round((target - others) / last["qty"])
