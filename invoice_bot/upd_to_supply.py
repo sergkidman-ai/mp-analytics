@@ -273,7 +273,7 @@ def _pdf_positions(text):
     lines = text.split("\n")
     _, gpos = _pdf_graph_positions(lines)
     gd = dict(gpos or [])
-    region_x = (gd["10а"] + gd["11"]) // 2 if ("10а" in gd and "11" in gd) else None  # начало зоны гр.11
+    region_x = gd.get("10а") or gd.get("11")              # зона страны/ГТД (правее кода страны гр.10)
     anchors, seen = [], set()                                 # (индекс строки, позиция)
     for i, raw in enumerate(lines):
         ln = _merge_thousands(raw)
@@ -293,29 +293,48 @@ def _pdf_positions(text):
         if qty is None or len(money) < 2:                     # у товара минимум цена(гр.4) + сумма(гр.9)
             continue
         sum_vat = inv._num(rt[money[-1]])                     # гр.9 — последнее денежное перед страной
-        country = None
-        for j in range(len(rt) - 1):                          # цифр. код страны + кириллич. название
-            if re.match(r"^\d{2,3}$", rt[j]) and re.match(r"^[А-Яа-я]", rt[j + 1]):
-                country = rt[j + 1]; break
+        country = country_code = None                         # после гр.9 идёт код страны (гр.10) + название (гр.10а)
+        for j in range(money[-1] + 1, len(rt)):
+            if re.fullmatch(r"\d{2,3}", rt[j]):
+                country_code = rt[j]
+                if j + 1 < len(rt) and re.match(r"^[А-Яа-я]", rt[j + 1]) and rt[j + 1] not in DASH:
+                    country = rt[j + 1]
+                break
+        if not country and country_code:                      # название пусто, но есть код ОКСМ → резолвим (410→Корея)
+            country = _country_name_by_code(country_code)
         gtd = rt[-1] if ("/" in rt[-1] and re.search(r"\d", rt[-1])) else None   # ГТД в товарной строке (fallback)
         if sum_vat is None or num_pp in seen:                 # антидубль по №п/п (повтор строки на стр.2)
             continue
         seen.add(num_pp)
         anchors.append((i, {
             "num": num_pp, "kod": kod, "sup_code": kod, "name": name,
-            "qty": qty, "sum_vat": sum_vat,
+            "qty": qty, "sum_vat": sum_vat, "country_code": country_code,
             "country": country if country not in DASH else None,
             "gtd": gtd if (gtd and gtd not in DASH) else None,
         }))
-    if region_x is not None:                                  # сшить ГТД из блока ТОЛЬКО если в товарной
-        for k, (i, pos) in enumerate(anchors):                # строке его нет (перенос номера над/под строкой,
-            if pos["gtd"]:                                    # как у Булата); где ГТД инлайн — не трогаем,
-                continue                                      # иначе цифры из переносов наимен. приклеятся
+    _FULL = r"\d{8}/\d{6}/\d{3,}"
+    for k, (i, pos) in enumerate(anchors):                    # дотянуть ГТД, если в товарной строке его нет
+        g = pos["gtd"]                                        # либо он неполный (номер переносится на соседние
+        if g and re.fullmatch(_FULL, g):                      # строки) — уже полный ДТ не трогаем
+            continue
+        if g and re.fullmatch(r"\d{7,8}/\d{1,4}", g):         # инлайн-голова ДТ обрезана (пост+первые цифры даты),
+            for j in (i + 1, i + 2):                          # хвост «MMYY/серия» уехал на строку-продолжение
+                if not (0 <= j < len(lines)):
+                    continue
+                for mt in re.finditer(r"\b(\d{3,4}/\d{3,7})\b", lines[j]):
+                    cand = g + mt.group(1)
+                    if re.fullmatch(_FULL, cand):
+                        pos["gtd"] = cand
+                        break
+                if pos["gtd"] and re.fullmatch(_FULL, pos["gtd"]):
+                    break
+            continue
+        if region_x is not None:                              # инлайна нет (Булат): собрать номер из ГТД-колонки
             lo = (anchors[k - 1][0] + 1) if k else max(0, i - 1)
             hi = anchors[k + 1][0] if k + 1 < len(anchors) else i + 3
-            g = _stitch_gtd(lines, range(max(lo, i - 1), hi), region_x)
-            if g:
-                pos["gtd"] = g
+            gg = _stitch_gtd(lines, range(max(lo, i - 1), hi), region_x)
+            if gg:                                            # только валидный полный ДТ (иначе оставляем инлайн)
+                pos["gtd"] = gg
     return [p for _, p in anchors]
 
 
@@ -364,7 +383,15 @@ def parse_upd_pdf(text):
         if abs(s - total) > 0.05:
             raise ValueError(f"PDF-УПД: Σ позиций {s} ≠ «Всего к оплате» {total} "
                              f"({len(positions)} строк) — разбор ненадёжен, отказ")
-    return {"seller_inn": seller, "buyer_inn": buyer, "number": num, "date": dt, "positions": positions}
+    warns = []                                      # инвариант: страна ≠ РФ ⇒ полный номер ГТД обязателен
+    for p in positions:
+        cc, nm, g = p.get("country_code"), p.get("country"), p.get("gtd")
+        non_ru = (cc and cc != "643") or (nm and not re.search(r"росс|russ", nm, re.I))
+        if non_ru and not (g and re.fullmatch(r"\d{8}/\d{6}/\d{3,}", g)):
+            what = "ГТД не распознан" if not g else f"ГТД неполный ({g})"
+            warns.append(f"поз.{p['num']} «{p['kod']}»: страна {nm or cc} (не РФ), но {what} — впишите вручную")
+    return {"seller_inn": seller, "buyer_inn": buyer, "number": num, "date": dt,
+            "positions": positions, "warns": warns}
 
 
 # ═══════════════════════ 1b. Разбор УПД из XML ЭДО (формат ФНС ON_NSCHFDOPPR) ═══
@@ -658,6 +685,7 @@ def process(src, create=True, suffix=""):
         res["upd"] = {"number": upd["number"], "date": upd["date"].isoformat() if upd["date"] else None,
                       "seller_inn": upd["seller_inn"], "buyer_inn": upd["buyer_inn"],
                       "positions": len(upd["positions"])}
+        res["warns"] += upd.get("warns", [])         # предупреждения разбора (напр. страна не РФ без ГТД)
         if not upd["seller_inn"]:
             raise ValueError("Не распознан ИНН продавца в УПД")
         if not upd["positions"]:
