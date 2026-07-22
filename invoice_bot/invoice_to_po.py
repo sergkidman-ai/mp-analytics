@@ -623,6 +623,9 @@ def main():
     suffix = args[args.index("--suffix") + 1] if "--suffix" in args else ""
     res = process(args[0], create=create, suffix=suffix)
     print(format_report(res))
+    if create:                                    # ручной CLI-прогон тоже пишем в общий журнал /report
+        import proc_log
+        proc_log.log_event("invoice", "cli", os.path.basename(args[0]), "cli", res)
 
 
 if __name__ == "__main__":

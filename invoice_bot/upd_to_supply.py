@@ -700,6 +700,9 @@ def main():
             suffix = args[i + 1]
     res = process(src, create=create, suffix=suffix)
     print(format_report(res))
+    if create:                                    # ручной CLI-прогон тоже пишем в общий журнал /report
+        import proc_log
+        proc_log.log_event("upd", "cli", os.path.basename(src), "cli", res)
     if res.get("trace"):
         print("\n--- trace ---\n" + res["trace"])
 
