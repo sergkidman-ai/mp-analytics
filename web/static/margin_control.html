@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Контроль маржи — живая себестоимость</title>
+<style>
+  :root{--bg:#eef1f6;--card:#ffffff;--line:#e2e8f0;--txt:#1e293b;--mut:#64748b;--acc:#2563eb;--pos:#16a34a;--neg:#dc2626;--warn:#d97706}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  select,input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1320px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:22px;font-weight:700;margin-top:4px}
+  .bi.alert .v{color:var(--warn)}.bi.danger .v{color:var(--neg)}
+  .ctrls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap}
+  .tabs button{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font:inherit;color:var(--mut);cursor:pointer}
+  .tabs button.cur{background:var(--acc);color:#fff;border-color:var(--acc)}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:13px}
+  th{color:var(--mut);font-weight:600;font-size:11px}
+  th:first-child,td:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#f1f5f9}
+  tr.neg td{background:#fef2f2}
+  tr.neg:hover td{background:#fee2e2}
+  .sku .nm{font-weight:600}.sku .vc{color:var(--mut);font-size:12px}
+  .pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;font-weight:600}
+  .pill.pos{background:#dcfce7;color:#15803d}.pill.warn{background:#fef3c7;color:#b45309}.pill.neg{background:#fee2e2;color:#b91c1c}
+  .badge{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;background:#eef2f7;color:var(--mut)}
+  .dlt.up{color:var(--neg)}.dlt.dn{color:var(--pos)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Маркетинг</div>
+    <a href="/marketing">📣 Юнит-экономика SKU</a>
+    <a href="/margin-control" class="cur">🚦 Контроль маржи</a>
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+  </nav>
+</header>
+<main>
+  <p class="note" style="margin-top:0">Контроль маржи на <b>живой (восстановительной) себестоимости</b> TheCartridge —
+    «почём купим сегодня». Рядом FIFO-себест из отгрузок МС (факт для отчётности) и расхождение <b>Δсеб</b>.
+    Маржа-live = к перечислению − логистика − хранение − приёмка − живая закупка; <b>KPI — ≥порога от нашей цены</b>.
+    Данные на <b id="day">…</b>.</p>
+  <div class="big" id="big"></div>
+  <div class="ctrls">
+    <div class="tabs" id="tabs">
+      <button data-v="below" class="cur">⚠️ Ниже порога</button>
+      <button data-v="negative">🔴 Отрицательная</button>
+      <button data-v="no_lu">∅ Без ЛУ</button>
+      <button data-v="all">Все</button>
+    </div>
+    <input id="q" placeholder="поиск: nm / артикул / предмет" style="min-width:220px">
+  </div>
+  <table id="tbl"><thead></thead><tbody></tbody></table>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+let view="below";
+const rub=v=>v==null?'—':Math.round(v).toLocaleString('ru');
+const pct=v=>v==null?'—':v.toFixed(1)+'%';
+function marginPill(m,thr){
+  if(m==null)return '<span class="muted">—</span>';
+  const c=m<0?'neg':(m<thr?'warn':'pos');
+  return `<span class="pill ${c}">${m.toFixed(1)}%</span>`;
+}
+async function load(){
+  const q=$('#q').value.trim();
+  const r=await fetch(`/api/margin-control?view=${view}&q=${encodeURIComponent(q)}`);
+  const d=await r.json();
+  const s=d.summary, thr=s.threshold||25;
+  $('#day').textContent=d.date||'—';
+  $('#big').innerHTML=`
+    <div class="bi"><div class="l">SKU с живой закупкой</div><div class="v">${s.live_ok}</div></div>
+    <div class="bi alert"><div class="l">Ниже ${(+thr).toFixed(0)}% маржи</div><div class="v">${s.below}</div></div>
+    <div class="bi danger"><div class="l">Отрицательная маржа</div><div class="v">${s.negative}</div></div>
+    <div class="bi"><div class="l">Продаём без ЛУ</div><div class="v">${s.no_lu}</div></div>
+    <div class="bi"><div class="l">Медиана маржи-live</div><div class="v">${pct(s.med_margin_live)}</div></div>
+    <div class="bi"><div class="l">Δсеб медиана (live−FIFO)</div><div class="v">${rub(s.med_delta)}₽</div></div>`;
+  const head=view==='no_lu'
+    ? ['SKU','предмет','наша цена','к перечисл.','FIFO-себест','маржа FIFO']
+    : ['SKU','предмет','наша цена','к перечисл.','логист.','живая закуп.','FIFO','Δсеб','net-live','маржа-live','маржа-FIFO'];
+  $('#tbl thead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+  const body=d.rows.map(r=>{
+    const sku=`<div class="sku"><div class="nm">${r.nm_id}</div><div class="vc">${r.vendor_code||''}${r.buy_status==='no_lu'?' <span class="badge">нет ЛУ</span>':''}</div></div>`;
+    if(view==='no_lu')
+      return `<tr><td>${sku}</td><td style="text-align:left">${r.subject||''}</td><td>${rub(r.our_price)}</td><td>${rub(r.to_pay_u)}</td><td>${rub(r.fifo_cogs_u)}</td><td>${marginPill(r.margin_own_fifo,thr)}</td></tr>`;
+    const dcls=r.cogs_delta==null?'':(r.cogs_delta>0?'up':'dn');
+    return `<tr class="${r.is_negative?'neg':''}">
+      <td>${sku}</td><td style="text-align:left">${r.subject||''}</td>
+      <td>${rub(r.our_price)}</td><td>${rub(r.to_pay_u)}</td><td>${rub(r.logistics_u)}</td>
+      <td><b>${rub(r.buy_price_live)}</b></td><td class="muted">${rub(r.fifo_cogs_u)}</td>
+      <td class="dlt ${dcls}">${r.cogs_delta==null?'—':(r.cogs_delta>0?'+':'')+rub(r.cogs_delta)}</td>
+      <td>${rub(r.net_live)}</td><td>${marginPill(r.margin_own_live,thr)}</td><td class="muted">${pct(r.margin_own_fifo)}</td>
+    </tr>`;
+  }).join('');
+  $('#tbl tbody').innerHTML=body||`<tr><td colspan="11" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
+  $('#foot').textContent=`Показано ${d.rows.length}. Δсеб>0 (красным) — перезакупка сегодня дороже исторического FIFO; такие SKU — кандидаты на подъём цены/вывод из акции. Полный снимок — в reports/data/margin_control_${d.date}.csv`;
+}
+$('#tabs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  view=b.dataset.v;
+  [...$('#tabs').children].forEach(x=>x.classList.toggle('cur',x===b));
+  load();
+});
+let t; $('#q').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(load,300)});
+load();
+</script>
+</body>
+</html>

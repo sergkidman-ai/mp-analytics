@@ -41,6 +41,11 @@ def main():
         step(f"Ozon ставки {acc}", lambda a=acc: __import__("collectors.ozon_bids", fromlist=["main"]).main(a))
         if acc in PREMIUM_OZON:   # рейтинг недоступен без Премиум-Про
             step(f"Ozon отзывы/рейтинг {acc}", lambda a=acc: __import__("collectors.ozon_reviews", fromlist=["main"]).main(a))
+
+    # Живая себестоимость TheCartridge + ежедневный контроль маржи (WB acc1 пока).
+    step("TheCartridge живая закупка", lambda: __import__("collectors.thecartridge_prices", fromlist=["main"]).main())
+    step("Контроль маржи WB acc1", lambda: __import__("reports.margin_control", fromlist=["build"]).build())
+
     print(f"[run_marketing] готово за {(datetime.datetime.now()-t0).seconds}с", flush=True)
 
 

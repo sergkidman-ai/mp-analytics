@@ -27,6 +27,62 @@ def marketing_page():
     return (STATIC / "marketing.html").read_text(encoding="utf-8")
 
 
+@app.get("/margin-control", response_class=HTMLResponse)
+def margin_control_page():
+    return (STATIC / "margin_control.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/margin-control")
+def margin_control(account: str = "wb_acc1", view: str = "below", q: str = "",
+                   date: str = "", limit: int = 500):
+    """Ежедневный контроль маржи на ЖИВОЙ себестоимости TheCartridge (mkt_margin_control, домен mkt).
+    view: below (ниже порога) | negative | no_lu (продаём без ЛУ) | all. Читает снимок последнего дня
+    (или date=YYYY-MM-DD). Маржа-live = to_pay − логистика − хранение − приёмка − buy_price_live,
+    рядом FIFO-себест из отгрузок МС и расхождение cogs_delta (buy_price = «почём купим сегодня»)."""
+    day = date or db.query(
+        "SELECT max(captured_date)::text d FROM mkt_margin_control WHERE account=%s", (account,))[0]["d"]
+    where, params = ["account=%s", "captured_date=%s"], [account, day]
+    if view == "below":
+        where.append("below_threshold")
+    elif view == "negative":
+        where.append("is_negative")
+    elif view == "no_lu":
+        where.append("buy_status='no_lu'")
+    if q:
+        where.append("(nm_id::text LIKE %s OR vendor_code ILIKE %s OR subject ILIKE %s)")
+        like = f"%{q}%"
+        params += [like, like, like]
+    order = ("margin_own_live ASC NULLS LAST" if view in ("below", "negative")
+             else "nm_id" if view == "no_lu" else "margin_own_live ASC NULLS LAST")
+    rows = db.query(f"""
+      SELECT nm_id, vendor_code, external_code, subject,
+             our_price, buyer_price, to_pay_u, logistics_u,
+             buy_price_live, buy_status, fifo_cogs_u, cogs_delta,
+             net_live, margin_own_live, net_fifo, margin_own_fifo,
+             below_threshold, is_negative
+      FROM mkt_margin_control
+      WHERE {' AND '.join(where)}
+      ORDER BY {order}
+      LIMIT %s
+    """, tuple(params) + (limit,))
+    summ = db.query("""
+      SELECT count(*) tot,
+             count(*) FILTER (WHERE buy_status='ok')       live_ok,
+             count(*) FILTER (WHERE buy_status='no_lu')    no_lu,
+             count(*) FILTER (WHERE buy_status='unmapped') unmapped,
+             count(*) FILTER (WHERE below_threshold)       below,
+             count(*) FILTER (WHERE is_negative)           negative,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY margin_own_live)
+               FILTER (WHERE buy_status='ok')              med_margin_live,
+             max(threshold_pct)                            threshold,
+             count(*) FILTER (WHERE cogs_delta>0)          delta_pos,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY cogs_delta)
+               FILTER (WHERE buy_status='ok')              med_delta
+      FROM mkt_margin_control WHERE account=%s AND captured_date=%s
+    """, (account, day))[0]
+    return {"summary": summ, "rows": rows, "date": day, "view": view}
+
+
 @app.get("/api/marketing")
 def marketing(account: str = "wb_acc1", q: str = "", sort: str = "trail_qty",
               only_sold: int = 0, limit: int = 300):
