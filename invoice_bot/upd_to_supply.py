@@ -523,11 +523,18 @@ def process(src, create=True, suffix=""):
         res["order"] = {"name": order["name"], "id": order["id"], "sum": order["sum"] / 100,
                         "plan": (order.get("deliveryPlannedMoment") or "")[:10]}
         oid = order["id"]
-        # дубль-проверка ДО любых записей: приёмка с таким именем уже существует → не создаём
-        # (иначе МойСклад молча подставляет свой авто-номер TC... вместо имени заказа)
+        # дубль-проверка ДО любых записей: приёмка НА ЭТОТ ЖЕ заказ уже создана → не создаём.
+        # Ищем по имени (бот именует приёмку = имени заказа), НО отсеиваем тёзок: счётчик
+        # автонумерации приёмок МойСклада давно дошёл до тех же чисел, что и наши номера заказов,
+        # поэтому name-совпадение с чужой старой приёмкой (другой purchaseOrder) — НЕ дубль.
+        # Фильтровать supply по purchaseOrder на стороне МС нельзя (HTTP 412) → фильтруем локально.
         target_name = f"{suffix}{order['name']}"
-        dup = inv.get_r(f"/entity/supply?filter=name={urllib.parse.quote(target_name)}&limit=5").get("rows", []) \
-            if create else []
+        dup = []
+        if create:
+            cand = inv.get_r(f"/entity/supply?filter=name={urllib.parse.quote(target_name)}&limit=50").get("rows", [])
+            dup = [s for s in cand
+                   if ((s.get("purchaseOrder") or {}).get("meta", {}).get("href", "")
+                       .rstrip("/").split("/")[-1] == oid)]
         opos = inv.get_r(f"/entity/purchaseorder/{oid}/positions?expand=assortment&limit=200").get("rows", [])
         mp, warns = match_rows(opos, upd["positions"])
         res["warns"] += warns
