@@ -262,18 +262,16 @@ def _pdf_positions(text):
         m = re.search(r"\s(?:\d{3}\s+)?шт\.?(?=\s|$)", ln)    # ед.изм «796 шт» / «796 шт.» / «шт»
         if not m:
             continue
-        lm = re.match(r"^\s*(.+?)\s+(\d{1,3})\s+(\D.*)$", ln[:m.start()])   # kod, №п/п, наимен.
-        if not lm:
+        lm = re.match(r"^\s*(.+?)\s+(\d{1,3})\s+(.*)$", ln[:m.start()])     # kod, №п/п, наимен.(бывает пусто)
+        if not lm or not re.search(r"[A-Za-zА-Яа-я0-9]", lm.group(1)):     # kod непустой (буквоцифра)
             continue
         kod, num_pp, name = lm.group(1).strip(), int(lm.group(2)), lm.group(3).strip()
-        if not re.search(r"[A-Za-zА-Яа-я]", name):            # у товара в наимен. есть буквы
-            continue
+        if name in DASH:                                      # наименование пустое → убираем прочерк гр.1б
+            name = ""
         rt = ln[m.end():].split()
-        if not rt:
-            continue
-        qty = inv._num(rt[0])                                 # гр.3 — первое число справа
+        qty = inv._num(rt[0]) if rt else None                 # гр.3 — первое число справа
         money = [i for i, t in enumerate(rt) if _MONEY.match(t)]
-        if qty is None or not money:
+        if qty is None or len(money) < 2:                     # у товара минимум цена(гр.4) + сумма(гр.9)
             continue
         sum_vat = inv._num(rt[money[-1]])                     # гр.9 — последнее денежное перед страной
         country = None
@@ -308,8 +306,10 @@ def _pdf_inns(text):
 
 
 def _pdf_number_date(text):
-    """№ и дата из строки «Счёт-фактура № … от …» (мультиформат даты: точки / рус. месяц)."""
+    """№ и дата из «Счёт-фактура № … от …»; fallback — «Документ об отгрузке … УПД № … от …» (Булат)."""
     m = re.search(r"Сч[её]т-фактура\s*№\s*(\S+)\s+от\s+(\d{1,2}[.\s][^\n(]*?\d{4})", text, re.I)
+    if not m:                                         # Булат: № СФ пуст, номер в строке об отгрузке
+        m = re.search(r"УПД\s*№\s*(\S+)\s+от\s+(\d{1,2}[.\s][^\n;(]*?\d{4})", text, re.I)
     if not m:
         return None, None
     num = m.group(1).lstrip("№").strip() or None
