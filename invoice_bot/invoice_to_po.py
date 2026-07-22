@@ -64,6 +64,12 @@ SUPPLIERS = {
                    "year_suffix_on_collision": True},  # сбрасывает нумерацию по годам → развести суффиксом года
     "7719482878": {"name": "КПД",                "article": "column"},
 }
+# Ручные алиасы «артикул после resolve_article → наш артикул в МС» — для товаров, чей код
+# поставщика не сводится к нашему по стратегии (поставщик кладёт свой довесок со своим кодом).
+# Ключ — артикул ПОСЛЕ resolve_article; значение — реальный артикул карточки МС.
+ARTICLE_ALIAS = {
+    "SPS P G A6 20 180_MSK": "SP26351_MSK",  # Солюшнс принт: фотобумага-довесок 1₽ → Sprint Premium Glossy A6/20/180
+}
 WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 MONTHS = {"января":1,"февраля":2,"марта":3,"апреля":4,"мая":5,"июня":6,"июля":7,
           "августа":8,"сентября":9,"октября":10,"ноября":11,"декабря":12}
@@ -368,6 +374,7 @@ def match_products(items, prof, group):
         art = resolve_article(it, prof)
         if not art:
             skipped.append({**it, "art": "", "reason": "не извлечён артикул"}); continue
+        art = ARTICLE_ALIAS.get(art, art)          # ручной алиас для несводимых кодов поставщика
         cands = get_r(f"/entity/product?filter=article={urllib.parse.quote(art)}&limit=10&expand=supplier").get("rows", [])
         if not cands and "/" in art:
             # в каталоге артикул мультицветного набора иногда обрезан после первого доп. цвета
