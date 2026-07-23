@@ -48,6 +48,16 @@ def _digits(s):
     return re.sub(r"\D", "", s)
 
 
+def _clean_bank(s):
+    """Санитайзер имени банка: отбраковать мусор (пусто / без букв / началось с «БИК»)."""
+    if not s:
+        return None
+    s = s.strip().strip(",").strip()
+    if not re.search(r"[А-Яа-яA-Za-z]", s) or s.upper().startswith("БИК"):
+        return None
+    return s[:60]
+
+
 def _accounts(text):
     """Все 20-значные счета из текста (учёт пробелов-разделителей)."""
     out = []
@@ -93,11 +103,13 @@ def parse_requisites(text, supplier_inn):
     if m:
         r["kpp"] = m.group(1)
 
-    # имя банка — best-effort (в МС оно уже есть; для платёжки не обязательно)
-    for line in text.splitlines():
-        mm = re.search(r"Банк\s*получателя[:\s]+(.+?)(?:\s+БИК|\s+Сч|$)", line)
-        if mm and mm.group(1).strip():
-            r["bank"] = mm.group(1).strip()[:60]
+    # имя банка — best-effort (нужно только для НОВОГО счёта; у существующих в МС оно уже верное).
+    for pat in (r"в\s+((?:Филиал|ООО|ПАО|АО|Банк)[^,]+?)\s*,?\s*к/с",   # инлайн: «в <банк>, к/с …»
+                r"Банк\s*получателя[:\s]+(.+?)(?:\s{2,}БИК|\s+Сч|$)"):    # табличный «Банк получателя …»
+        mm = re.search(pat, text)
+        b = _clean_bank(mm.group(1)) if mm else None
+        if b:
+            r["bank"] = b
             break
 
     r["checks"] = {
@@ -254,14 +266,14 @@ def apply_to_ms(d):
         a2["isDefault"] = False
         new_list.append(a2)
     if target:
+        # счёт уже есть в МС — имя банка НЕ трогаем (там оно верное), правим только платёжные поля
         for a2 in new_list:
             if a2.get("id") == target.get("id"):
                 a2["correspondentAccount"] = r["corr"]
                 a2["bic"] = r["bic"]
-                if r["bank"]:
-                    a2["bankName"] = r["bank"]
                 a2["isDefault"] = True
     else:
+        # новый счёт (поставщик сменил банк) — имя банка из счёта (санитайзено); пусто → МС подставит по БИК
         new_list.append({"accountNumber": r["account"], "bic": r["bic"],
                          "correspondentAccount": r["corr"],
                          "bankName": r["bank"] or "", "isDefault": True})
@@ -304,7 +316,10 @@ def main():
     if a.apply:
         print("\n── применение в МС ──")
         for d in rows:
-            apply_to_ms(d)
+            try:
+                apply_to_ms(d)
+            except Exception as e:     # одна ошибка МС не должна ронять весь пакет
+                print(f"  [ОШИБКА] {d['name']}: {e!r}")
     else:
         print("\n(dry-run — в МС ничего не записано; для записи добавьте --apply)")
 
