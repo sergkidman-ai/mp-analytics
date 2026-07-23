@@ -125,7 +125,9 @@ def iter_invoice_files():
 
 
 def latest_invoice_by_supplier():
-    """Скан inbox → для каждого supplier_inn последний (по mtime) файл-СЧЁТ. → {inn: (path, header)}."""
+    """Скан inbox → для каждого supplier_inn ПОСЛЕДНИЙ СЧЁТ по ДАТЕ ДОКУМЕНТА → {inn: (path, header)}.
+    Ранжируем по (дата счёта, mtime): реквизиты берём из самого свежего ВЫСТАВЛЕННОГО счёта, а не
+    из последнего по времени файла (у старого счёта .fixed.xlsx может иметь более поздний mtime)."""
     best = {}
     for p in iter_invoice_files():
         try:
@@ -141,9 +143,9 @@ def latest_invoice_by_supplier():
             continue
         if is_upd(os.path.basename(p), text):
             continue
-        mt = os.path.getmtime(p)
-        if inn not in best or mt > best[inn][2]:
-            best[inn] = (p, text, mt)
+        rank = (h.get("inv_date"), os.path.getmtime(p))   # дата документа — главный ключ
+        if inn not in best or rank > best[inn][2]:
+            best[inn] = (p, text, rank)
     return {inn: (p, text) for inn, (p, text, _) in best.items()}
 
 
