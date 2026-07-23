@@ -25,7 +25,10 @@ from core import db  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
 REPORT_URL = "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod"
-STOCKS_URL = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"
+STOCKS_URL = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"  # отключён WB 20.07.2026 (PLUG-404)
+REMAINS_URL = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains"  # замена: асинхр. отчёт остатков
+# псевдо-склады отчёта warehouse_remains — не физ. склады, в wb_stocks не пишем (иначе двойной счёт)
+_PSEUDO_WH = {"Всего находится на складах", "В пути до получателей", "В пути возвраты на склад WB"}
 CARDS_URL = "https://content-api.wildberries.ru/content/v2/get/cards/list"
 TOKEN_ENV = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}
 
@@ -133,18 +136,55 @@ def normalize_sales(account, rows, date_from, date_to):
 
 
 def collect_stocks(account, captured_at, since="2025-01-01"):
-    """Остатки на складах WB (FBO) → wb_stocks. Снимок на captured_at."""
-    r = requests.get(STOCKS_URL, headers={"Authorization": _token(account)},
-                     params={"dateFrom": since}, timeout=120)
+    """Остатки на складах WB (FBO) → wb_stocks. Снимок на captured_at.
+
+    С 20.07.2026 старый /api/v1/supplier/stocks отключён WB (PLUG-404). Источник —
+    асинхронный отчёт warehouse_remains (seller-analytics): создать задачу → опрос → скачать.
+    Тот же токен _token(account). `since` игнорируется (совместимость сигнатуры).
+    """
+    H = {"Authorization": _token(account)}
+    params = {"groupByNm": "true", "groupBySa": "true"}
+    # 1) создать задачу
+    r = requests.get(REMAINS_URL, headers=H, params=params, timeout=120)
+    if r.status_code == 429:
+        time.sleep(int(r.headers.get("Retry-After", "60")) + 1)
+        r = requests.get(REMAINS_URL, headers=H, params=params, timeout=120)
     r.raise_for_status()
-    rows = r.json() or []
-    recs = [{
-        "account": account, "nm_id": x.get("nmId"), "vendor_code": x.get("supplierArticle"),
-        "warehouse": x.get("warehouseName"), "quantity": x.get("quantity"),
-        "quantity_full": x.get("quantityFull"), "in_way_to_client": x.get("inWayToClient"),
-        "in_way_from_client": x.get("inWayFromClient"), "brand": x.get("brand"),
-        "subject": x.get("subject"), "captured_at": captured_at,
-    } for x in rows if x.get("nmId") is not None]
+    task_id = r.json()["data"]["taskId"]
+    # 2) опрос статуса (отчёт готовится несколько секунд; лимит ~1 запрос/мин — щадящий poll)
+    status = None
+    for _ in range(40):
+        time.sleep(6)
+        s = requests.get(f"{REMAINS_URL}/tasks/{task_id}/status", headers=H, timeout=60)
+        if s.status_code == 429:
+            continue
+        s.raise_for_status()
+        status = (s.json().get("data") or {}).get("status")
+        if status == "done":
+            break
+    if status != "done":
+        raise RuntimeError(f"warehouse_remains не готов ({status}) для {account}")
+    # 3) скачать и развернуть warehouses[] (без псевдо-складов)
+    d = requests.get(f"{REMAINS_URL}/tasks/{task_id}/download", headers=H, timeout=180)
+    d.raise_for_status()
+    rows = d.json() or []
+    recs = []
+    for x in rows:
+        nm = x.get("nmId")
+        if nm is None:
+            continue
+        vc = x.get("vendorCode")
+        for w in (x.get("warehouses") or []):
+            wh = w.get("warehouseName")
+            if not wh or wh in _PSEUDO_WH:
+                continue
+            q = w.get("quantity")
+            recs.append({
+                "account": account, "nm_id": nm, "vendor_code": vc,
+                "warehouse": wh, "quantity": q, "quantity_full": q,
+                "in_way_to_client": None, "in_way_from_client": None,
+                "brand": None, "subject": None, "captured_at": captured_at,
+            })
     db.upsert("wb_stocks", recs, conflict_cols=["account", "nm_id", "warehouse", "captured_at"])
     return len(recs)
 

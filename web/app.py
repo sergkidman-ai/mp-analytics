@@ -814,6 +814,48 @@ def reports_yandex_page():
     return (STATIC / "reports_yandex.html").read_text(encoding="utf-8")
 
 
+@app.get("/reports/wb-clearance", response_class=HTMLResponse)
+def reports_wb_clearance_page():
+    return (STATIC / "reports_wb_clearance.html").read_text(encoding="utf-8")
+
+
+class ClearanceItem(BaseModel):
+    account: str
+    nm_id: int
+
+
+class ClearanceItems(BaseModel):
+    items: list[ClearanceItem] = []
+
+
+@app.post("/api/wb/clearance/dismiss")
+def wb_clearance_dismiss(payload: ClearanceItems):
+    """Сотрудник закрывает позиции распродажи (остаток ВБ=0, цену подняли) — прячем из таблицы.
+    Пишем в wb_clearance_dismissed (переживает ежедневный перезалив файла), затем перегенерируем страницу."""
+    rows = [{"account": it.account, "nm_id": int(it.nm_id)} for it in payload.items if it.account and it.nm_id]
+    if rows:
+        db.upsert("wb_clearance_dismissed", rows, conflict_cols=["account", "nm_id"])
+        import reports.wb_clearance_page as _clr
+        _clr.render()
+    return {"ok": True, "closed": len(rows)}
+
+
+@app.post("/api/wb/clearance/restore")
+def wb_clearance_restore(payload: ClearanceItems):
+    """Вернуть ошибочно закрытую позицию обратно в слежение."""
+    n = 0
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            for it in payload.items:
+                if it.account and it.nm_id:
+                    cur.execute("DELETE FROM wb_clearance_dismissed WHERE account=%s AND nm_id=%s",
+                                (it.account, int(it.nm_id)))
+                    n += 1
+    import reports.wb_clearance_page as _clr
+    _clr.render()
+    return {"ok": True, "restored": n}
+
+
 @app.get("/opex", response_class=HTMLResponse)
 def opex_page():
     return (STATIC / "opex.html").read_text(encoding="utf-8")
