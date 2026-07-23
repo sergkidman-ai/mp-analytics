@@ -816,20 +816,22 @@ def process(src, create=True, suffix=""):
         moment = f"{plan} 08:00:00"
         inc_date = upd["date"].isoformat() if upd["date"] else None   # нет даты (Спринт) → входящую не ставим
 
-        sup_pos = []; c_set = g_set = bp = code_set = gtd_card = 0; matched = 0; unmatched = []
+        sup_pos = []; c_set = g_set = bp = code_set = gtd_card = country_card = 0; matched = 0; unmatched = []
         for i, p in enumerate(opos):
             a = p["assortment"]; u = mp.get(i)
             is_prod = a["meta"]["type"] == "product"
             row = {"quantity": p["quantity"], "price": p["price"], "vat": p.get("vat", 22),
                    "vatEnabled": p.get("vatEnabled", True), "discount": p.get("discount", 0),
                    "assortment": {"meta": a["meta"]}}
+            row_country_meta = None                   # резолвнутая страна строки — и в позицию, и в карточку
             if u:
                 matched += 1
                 if is_prod:
                     if u["country"]:
                         cid = _country_id(u["country"])
                         if cid:
-                            row["country"] = meta("country", cid); c_set += 1
+                            row_country_meta = meta("country", cid)
+                            row["country"] = row_country_meta; c_set += 1
                         else:
                             res["warns"].append(f"страна «{u['country']}» не найдена в справочнике — пропущена")
                     if u["gtd"]:
@@ -854,6 +856,9 @@ def process(src, create=True, suffix=""):
                 if u and u.get("gtd"):                # «последний ГТД» — последний известный из приёмки
                     attrs.append({"meta": _attr_meta(GTD_ATTR), "value": u["gtd"]})
                     gtd_card += 1
+                if row_country_meta and u and u.get("gtd"):   # «Страна» пишем в пару к ГТД: только когда есть ГТД
+                    body["country"] = row_country_meta
+                    country_card += 1
                 if attrs:
                     body["attributes"] = attrs
                 put(f"/entity/product/{pid}", body)
@@ -861,7 +866,8 @@ def process(src, create=True, suffix=""):
         if unmatched:
             res["warns"].append(f"без матча со строкой УПД (страна/ГТД не проставлены): {unmatched}")
         res["stats"] = {"positions": len(sup_pos), "matched": matched, "country": c_set,
-                        "gtd": g_set, "buyPrice": bp, "code": code_set, "gtd_card": gtd_card}
+                        "gtd": g_set, "buyPrice": bp, "code": code_set, "gtd_card": gtd_card,
+                        "country_card": country_card}
 
         # НДС шапки приёмки — как в заказе-основании (поставщик без НДС → приёмка без НДС)
         ve = bool(order.get("vatEnabled", True))
@@ -949,7 +955,8 @@ def format_report(res):
     s = res.get("stats", {})
     L.append(f"Позиции: {s.get('matched')}/{s.get('positions')} сматчено | "
              f"страна: {s.get('country')} | ГТД: {s.get('gtd')} | buyPrice: {s.get('buyPrice')} | "
-             f"код: {s.get('code')} | ГТД→карточка: {s.get('gtd_card')}")
+             f"код: {s.get('code')} | ГТД→карточка: {s.get('gtd_card')} | "
+             f"страна→карточка: {s.get('country_card')}")
     for w in res.get("warns", []):
         L.append(f"⚠ {w}")
     if res.get("dry"):
