@@ -16,7 +16,10 @@ import sys
 import time
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DIRS = [os.path.join(BASE, "inbox"), os.path.join(BASE, "inbox_mail")]
+ROOT = os.path.dirname(BASE)                       # /opt/mp-analytics
+DIRS = [os.path.join(BASE, "inbox"),               # счета/УПД из Telegram
+        os.path.join(BASE, "inbox_mail"),          # счета/УПД из почты
+        os.path.join(ROOT, "dropbox")]             # ящик dropbox-bot (файлы/скриншоты на разбор)
 LOG = os.path.join(BASE, "cleanup.log")
 RETAIN_DAYS = int(os.getenv("RETAIN_DAYS", "7"))
 

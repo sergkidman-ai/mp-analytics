@@ -42,3 +42,6 @@ tools/purge_trash_log.jsonl
 reports/data/margin_control_*.csv
 reports/data/margin_control_*.txt
 reports/data/tc_best_raw_*.json
+
+# личный ящик dropbox-bot (входящие файлы/скриншоты) — не в git
+/dropbox/
