@@ -54,16 +54,23 @@ def main(account="oz_acc1"):
     names = _names(account)
     recs, un_r, un_q = [], 0, 0
     n_r = n_q = 0
-    for rv in _paginate(REVIEW_URL, H, "reviews", {"limit": 100, "sort_dir": "DESC", "status": "ALL"}):
-        answered = (rv.get("comments_amount") or 0) > 0
-        un_r += 0 if answered else 1
-        n_r += 1
-        recs.append({"platform": "ozon", "account": account, "kind": "review", "ext_id": str(rv["id"]),
-                     "item_id": str(rv.get("sku") or ""), "article": None,
-                     "product_name": names.get(str(rv.get("sku"))), "rating": rv.get("rating"),
-                     "body": rv.get("text") or "", "pros": None, "cons": None,
-                     "created_at": rv.get("published_at"), "is_answered": answered,
-                     "answer_text": None, "status": rv.get("status"), "payload": Json(rv)})
+    try:
+        for rv in _paginate(REVIEW_URL, H, "reviews", {"limit": 100, "sort_dir": "DESC", "status": "ALL"}):
+            answered = (rv.get("comments_amount") or 0) > 0
+            un_r += 0 if answered else 1
+            n_r += 1
+            recs.append({"platform": "ozon", "account": account, "kind": "review", "ext_id": str(rv["id"]),
+                         "item_id": str(rv.get("sku") or ""), "article": None,
+                         "product_name": names.get(str(rv.get("sku"))), "rating": rv.get("rating"),
+                         "body": rv.get("text") or "", "pros": None, "cons": None,
+                         "created_at": rv.get("published_at"), "is_answered": answered,
+                         "answer_text": None, "status": rv.get("status"), "payload": Json(rv)})
+    except requests.HTTPError as e:
+        # 403 = нет Premium Plus (отзывы недоступны, напр. oz_acc2) — не срываем сбор вопросов
+        if e.response is not None and e.response.status_code == 403:
+            print(f"  отзывы недоступны (нет Premium Plus): {e.response.text[:80]}", flush=True)
+        else:
+            raise
     for qn in _paginate(QUESTION_URL, H, "questions", {"limit": 100}):
         answered = (qn.get("answers_count") or 0) > 0
         un_q += 0 if answered else 1
