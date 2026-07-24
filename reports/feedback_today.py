@@ -144,7 +144,8 @@ def _fam_status(question, card_models):
 def _gather(since):
     # необработанные за окно (последний месяц) — и вопросы, и отзывы по дате created_at
     q = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,body,pros,cons,payload,
-        created_at FROM raw_feedback WHERE is_answered=false AND account IN ('wb_acc1','oz_acc1')
+        created_at FROM raw_feedback WHERE is_answered=false
+        AND account IN ('wb_acc1','wb_acc2','oz_acc1','oz_acc2','ya_acc1')
         AND created_at >= %s ORDER BY (kind='question') DESC, created_at DESC NULLS LAST""",
         (since,))
     return q
@@ -205,17 +206,25 @@ def _store(r, reply, route, conf, ground):
 
 
 def _enqueue_moderation(r, reply):
-    """Боевой режим: поставить ВОПРОС в очередь модерации (feedback_moderation). Черновик уже в
-    raw_feedback.draft_text — бот-модератор возьмёт его оттуда. Гейт FEEDBACK_MODERATION=1, иначе
-    прогон остаётся draft-only. Только вопросы; повтор не плодит дублей (UNIQUE-ключ)."""
+    """Боевой режим: поставить в очередь модерации (feedback_moderation) ВОПРОСЫ и ОТЗЫВЫ-С-ТЕКСТОМ.
+    Черновик уже в raw_feedback.draft_text — бот-модератор возьмёт его оттуда. Гейт FEEDBACK_MODERATION=1,
+    иначе прогон остаётся draft-only. Пустые оценки-звёзды (без текста) НЕ ставим в очередь — их ~2900,
+    там шаблон. Повтор не плодит дублей (UNIQUE-ключ)."""
     if os.environ.get("FEEDBACK_MODERATION", "0") != "1":
         return
-    if r["kind"] != "question" or not (reply or "").strip():
+    if not (reply or "").strip():
+        return
+    kind = r["kind"]
+    if kind == "question":
+        pass
+    elif kind == "review" and (r.get("body") or r.get("pros") or r.get("cons") or "").strip():
+        pass
+    else:
         return
     db.execute("""INSERT INTO feedback_moderation (platform, account, kind, ext_id, state)
-        VALUES (%s, %s, 'question', %s, 'queued')
+        VALUES (%s, %s, %s, %s, 'queued')
         ON CONFLICT (platform, account, kind, ext_id) DO NOTHING""",
-        (r["platform"], r["account"], r["ext_id"]))
+        (r["platform"], r["account"], kind, r["ext_id"]))
 
 
 # код расходника/картриджа в тексте ответа: TK-435, LC-421, CF210A, CB540A, 106R03623, C-EXV65,
