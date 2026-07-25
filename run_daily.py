@@ -184,6 +184,12 @@ def main():
     step("WB Отчёты МП: заморозка",
          lambda: print("[wb-freeze]", __import__("reports.wb_mp_freeze",
                        fromlist=["advance"]).advance(), flush=True))
+    # Распродажа остатков ВБ: подхватить свежие файлы из dropbox → перерисовать вкладку (сигнал по остаткам)
+    step("WB распродажа: загрузка файлов",
+         lambda: __import__("collectors.wb_clearance", fromlist=["main"]).main())
+    step("WB распродажа: страница",
+         lambda: print("[wb-clearance]", __import__("reports.wb_clearance_page",
+                       fromlist=["render"]).render(), flush=True))
     # По понедельникам — реконсайл правок ВБ задним числом: перезабор 45-дн окна операций с ВБ +
     # пересбор margin, дифф замороженных месяцев vs снапшот, авто-правка + список расхождений в лог.
     if datetime.date.today().isoweekday() == 1:

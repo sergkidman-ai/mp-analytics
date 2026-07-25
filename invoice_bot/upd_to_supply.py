@@ -591,7 +591,14 @@ def find_order(seller_inn, total_kop, upd_date):
         last = rows[-1].get("moment", "")[:10]
         if upd_date and last and last < _month_back(upd_date, 2):
             break
-    return (hits[0] if len(hits) == 1 else None), hits, agent
+    # Кандидаты — ТОЛЬКО заказы БЕЗ привязанной приёмки (supplies пусто): к остальным
+    # заказам с той же суммой УПД уже проведён, они не кандидаты (решение Сергея 24.07).
+    # Это снимает ложную неоднозначность, когда «двойник» по сумме уже закрыт приёмкой.
+    open_hits = [o for o in hits if not o.get("supplies")]
+    if len(open_hits) == 1:
+        return open_hits[0], open_hits, agent
+    # 0 открытых (все уже с приёмкой — вероятный дубль УПД) либо >1 открытых → не создаём
+    return None, (open_hits or hits), agent
 
 
 def _month_back(d, n):
@@ -783,12 +790,18 @@ def process(src, create=True, suffix=""):
         res["total"] = total
 
         order, cands, agent = find_order(upd["seller_inn"], total_kop, upd["date"])
-        res["candidates"] = [{"name": o["name"], "sum": o["sum"] / 100, "date": o.get("moment", "")[:10]}
+        res["candidates"] = [{"name": o["name"], "sum": o["sum"] / 100, "date": o.get("moment", "")[:10],
+                              "has_supply": bool(o.get("supplies"))}
                              for o in cands]
         if order is None:
             res["stop"] = True
-            res["error"] = ("Заказ не найден по сумме" if not cands
-                            else f"Неоднозначно: {len(cands)} заказов с суммой {total}")
+            if not cands:
+                res["error"] = "Заказ не найден по сумме"
+            elif all(c["has_supply"] for c in res["candidates"]):
+                res["error"] = (f"Все {len(cands)} заказ(ов) с суммой {total} уже имеют приёмку "
+                                f"— УПД, возможно, уже проведён (дубль).")
+            else:
+                res["error"] = f"Неоднозначно: {len(cands)} заказ(ов) БЕЗ приёмки с суммой {total}"
             return res
 
         res["order"] = {"name": order["name"], "id": order["id"], "sum": order["sum"] / 100,
@@ -816,20 +829,22 @@ def process(src, create=True, suffix=""):
         moment = f"{plan} 08:00:00"
         inc_date = upd["date"].isoformat() if upd["date"] else None   # нет даты (Спринт) → входящую не ставим
 
-        sup_pos = []; c_set = g_set = bp = code_set = gtd_card = 0; matched = 0; unmatched = []
+        sup_pos = []; c_set = g_set = bp = code_set = gtd_card = country_card = 0; matched = 0; unmatched = []
         for i, p in enumerate(opos):
             a = p["assortment"]; u = mp.get(i)
             is_prod = a["meta"]["type"] == "product"
             row = {"quantity": p["quantity"], "price": p["price"], "vat": p.get("vat", 22),
                    "vatEnabled": p.get("vatEnabled", True), "discount": p.get("discount", 0),
                    "assortment": {"meta": a["meta"]}}
+            row_country_meta = None                   # резолвнутая страна строки — и в позицию, и в карточку
             if u:
                 matched += 1
                 if is_prod:
                     if u["country"]:
                         cid = _country_id(u["country"])
                         if cid:
-                            row["country"] = meta("country", cid); c_set += 1
+                            row_country_meta = meta("country", cid)
+                            row["country"] = row_country_meta; c_set += 1
                         else:
                             res["warns"].append(f"страна «{u['country']}» не найдена в справочнике — пропущена")
                     if u["gtd"]:
@@ -854,6 +869,9 @@ def process(src, create=True, suffix=""):
                 if u and u.get("gtd"):                # «последний ГТД» — последний известный из приёмки
                     attrs.append({"meta": _attr_meta(GTD_ATTR), "value": u["gtd"]})
                     gtd_card += 1
+                if row_country_meta and u and u.get("gtd"):   # «Страна» пишем в пару к ГТД: только когда есть ГТД
+                    body["country"] = row_country_meta
+                    country_card += 1
                 if attrs:
                     body["attributes"] = attrs
                 put(f"/entity/product/{pid}", body)
@@ -861,7 +879,8 @@ def process(src, create=True, suffix=""):
         if unmatched:
             res["warns"].append(f"без матча со строкой УПД (страна/ГТД не проставлены): {unmatched}")
         res["stats"] = {"positions": len(sup_pos), "matched": matched, "country": c_set,
-                        "gtd": g_set, "buyPrice": bp, "code": code_set, "gtd_card": gtd_card}
+                        "gtd": g_set, "buyPrice": bp, "code": code_set, "gtd_card": gtd_card,
+                        "country_card": country_card}
 
         # НДС шапки приёмки — как в заказе-основании (поставщик без НДС → приёмка без НДС)
         ve = bool(order.get("vatEnabled", True))
@@ -939,7 +958,8 @@ def format_report(res):
         if res.get("candidates"):
             L.append("Кандидаты-заказы (проверьте вручную):")
             for c in res["candidates"]:
-                L.append(f"  • {c['name']} — {c['sum']} ₽ от {c['date']}")
+                mark = " · ✓ приёмка уже есть" if c.get("has_supply") else " · без приёмки"
+                L.append(f"  • {c['name']} — {c['sum']} ₽ от {c['date']}{mark}")
         else:
             L.append("Заказов с такой суммой у поставщика не найдено.")
         return "\n".join(L)
@@ -949,7 +969,8 @@ def format_report(res):
     s = res.get("stats", {})
     L.append(f"Позиции: {s.get('matched')}/{s.get('positions')} сматчено | "
              f"страна: {s.get('country')} | ГТД: {s.get('gtd')} | buyPrice: {s.get('buyPrice')} | "
-             f"код: {s.get('code')} | ГТД→карточка: {s.get('gtd_card')}")
+             f"код: {s.get('code')} | ГТД→карточка: {s.get('gtd_card')} | "
+             f"страна→карточка: {s.get('country_card')}")
     for w in res.get("warns", []):
         L.append(f"⚠ {w}")
     if res.get("dry"):
