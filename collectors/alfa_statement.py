@@ -53,13 +53,26 @@ PAGE_TIMEOUT = 60                    # сек на страницу
 
 # ── конфиг из .env ───────────────────────────────────────────────────────────
 def _cfg():
-    base = os.getenv("ALFA_API_BASE", "").rstrip("/")
-    key = os.getenv("ALFA_API_KEY", "")
-    cert = os.getenv("ALFA_CERT_PATH", "")
-    pkey = os.getenv("ALFA_KEY_PATH", "")
-    pwd = os.getenv("ALFA_KEY_PASSWORD") or None
-    ca = os.getenv("ALFA_CA_BUNDLE") or None
     env = (os.getenv("ALFA_ENV") or "sandbox").lower()
+    prod = env != "sandbox"
+
+    def ev(name, default=""):
+        """В проме сперва берём {NAME}_PROD, иначе обычную. Так боевые ключ/серт/хост
+        лежат в .env РЯДОМ с песочными, и переключение = один флаг ALFA_ENV, а не
+        перезапись четырёх строк (перезапишешь три из четырёх — пойдёшь в бой с
+        песочным сертификатом и будешь долго думать, почему TLS рвётся)."""
+        if prod:
+            v = os.getenv(f"{name}_PROD")
+            if v:
+                return v
+        return os.getenv(name, default)
+
+    base = ev("ALFA_API_BASE").rstrip("/")
+    key = ev("ALFA_API_KEY")
+    cert = ev("ALFA_CERT_PATH")
+    pkey = ev("ALFA_KEY_PATH")
+    pwd = ev("ALFA_KEY_PASSWORD") or None
+    ca = ev("ALFA_CA_BUNDLE") or None
     # sandbox: серверный серт от Минцифры, APICA-бандлом не проверяется → verify off.
     verify_server = os.getenv("ALFA_VERIFY_SERVER")
     verify = (verify_server == "1") if verify_server is not None else (env != "sandbox")
@@ -67,6 +80,17 @@ def _cfg():
                               ("ALFA_CERT_PATH", cert), ("ALFA_KEY_PATH", pkey)] if not v]
     if missing:
         sys.exit(f"нет в .env: {', '.join(missing)}")
+
+    if prod:
+        # В бой — только с БОЕВЫМИ кредами. Иначе фолбэк выше молча подставит песочные
+        # ключ/сертификат и мы пойдём с ними на baas.alfabank.ru: в лучшем случае рвётся
+        # TLS, в худшем — долгая отладка «почему не пускает». Лучше честно не стартовать.
+        need = [n for n in ("ALFA_API_KEY_PROD", "ALFA_CERT_PATH_PROD", "ALFA_KEY_PATH_PROD")
+                if not os.getenv(n)]
+        if need:
+            sys.exit("ALFA_ENV=prod, но нет боевых кредов в .env: " + ", ".join(need) +
+                     "\nПесочные ключ/серт в бой не годятся — получи прод-ключ и "
+                     "прод-сертификат в кабинете developers.alfabank.ru.")
     return dict(base=base, key=key, cert=cert, pkey=pkey, pwd=pwd, ca=ca,
                 env=env, verify=verify)
 
