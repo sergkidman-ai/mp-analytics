@@ -279,12 +279,20 @@ tmux attach -t <имя>    # напр. tmux attach -t mkt
 - **Разграничение ролей МС:** 1 аккаунт → 2 организации, общий каталог + Удалённый склад, изолированные данные —
   нужен план внедрения.
 - s-print: битые `.xls` от поставщика (`python-calamine` лечит), рассинхрон артикулов/строк — донастроить парсер.
-- **Alfa API (Альфа-Банк H2H)** — новая интеграция, ветка `inv/alfa-bank` (draft PR). Задачи: выписки по
-  расписанию → МойСклад (`paymentin`/`paymentout`), черновики платёжек (`POST /jp/v2/payments` без подписи →
-  человек подписывает в вебе). Это современный REST Alfa API (`baas/sandbox.alfabank.ru`, OIDC+mTLS), НЕ
-  1С-DirectBank. Карта эндпоинтов + архитектура + `.env`-ключи — `docs/ALFA_BANK_API.md`.
-  **БЛОКЕР:** архив `test_cert.zip` запаролен (пароль — `alfa_api@alfabank.ru`); без серта живых вызовов нет.
-  Получено: `client_id 5052e56f…`, scopes, серт-бандл (в dropbox). Код коллекторов — после распаковки.
+- **Alfa API (Альфа-Банк H2H)** — ветка `inv/alfa-bank`, НЕ в main (ждёт «ок»). Современный REST Alfa API
+  (`baas/sandbox.alfabank.ru`, API Key + mTLS), НЕ 1С-DirectBank. Карта — `docs/ALFA_BANK_API.md`.
+  **Готово и проверено живьём на песочнице (2026-07-25):**
+  - `collectors/alfa_statement.py` — выписка `GET /api/jp/v1/statement/transactions` (**jp**, не pp; scope
+    `transactions`), mTLS с зашифрованным ключом, пагинация, сырьё на диск в `incoming/alfa/`.
+  - `collectors/alfa_ms.py` — CREDIT→`paymentin`, DEBIT→`paymentout`; идемпотентность банковский `uuid` →
+    МС `syncId` через `PUT /entity/{type}/syncid/{uuid}`; контрагент по ИНН→имени→создание.
+  - `run_inv.py` — суточный прогон за ВЧЕРА, крон **07:00 МСК** (в crontab уже `CRON_TZ=Europe/Moscow`).
+    Запись в МС под двойным предохранителем: `ALFA_MS_APPLY=1` И `ALFA_ENV≠sandbox` (песочница фейковая).
+  **Почему по расписанию, а не по событию:** вебхуков/колбэков у Альфы в этом продукте нет (проверено по
+  докам), об операции узнаём только опросом; выписка посуточная, не дельта.
+  **Следующее:** (1) мерж ветки в main + строка в crontab; (2) первый `--apply` на БОЕВОЙ выписке (в
+  песочницу не льём); (3) raw-слой `raw_alfa_transaction` в PG (дельта по uuid, чтобы не молотить МС);
+  (4) черновики платёжек `POST /jp/v2/payments` без подписи. Для прома — корни Минцифры + `ALFA_VERIFY_SERVER=1`.
 
 ### Безопасность (флаг)
 - В транскриптах сессий (`-root/a5f40fc1`, возможно Codex) TG-токен и IMAP-пароли засветились ОТКРЫТЫМ текстом.
