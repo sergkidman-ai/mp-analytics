@@ -38,12 +38,15 @@ from requests.adapters import HTTPAdapter
 from dotenv import load_dotenv
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
-# .env gitignored → в git-worktree его нет; фолбэк на канонический чекаут проекта.
-_ENV = BASE_DIR / ".env"
-load_dotenv(_ENV if _ENV.exists() else pathlib.Path("/opt/mp-analytics/.env"))
+CANON = pathlib.Path("/opt/mp-analytics")          # канонический чекаут проекта
+# .env и incoming/ gitignored → в git-worktree (в т.ч. deploy-worktree крона) их нет.
+# Признак «мы в канонич. чекауте» — наличие .env рядом; иначе всё берём из CANON,
+# чтобы сырьё выписок копилось в ОДНОМ месте, а не расползалось по воркtree.
+PROJECT_ROOT = BASE_DIR if (BASE_DIR / ".env").exists() else CANON
+load_dotenv(PROJECT_ROOT / ".env")
 
 STATEMENT_PATH = "/jp/v1/statement/transactions"
-RAW_DIR = BASE_DIR / "incoming" / "alfa"
+RAW_DIR = PROJECT_ROOT / "incoming" / "alfa"
 MAX_PAGES = 100                      # предохранитель от бесконечной пагинации
 PAGE_TIMEOUT = 60                    # сек на страницу
 
