@@ -591,7 +591,14 @@ def find_order(seller_inn, total_kop, upd_date):
         last = rows[-1].get("moment", "")[:10]
         if upd_date and last and last < _month_back(upd_date, 2):
             break
-    return (hits[0] if len(hits) == 1 else None), hits, agent
+    # Кандидаты — ТОЛЬКО заказы БЕЗ привязанной приёмки (supplies пусто): к остальным
+    # заказам с той же суммой УПД уже проведён, они не кандидаты (решение Сергея 24.07).
+    # Это снимает ложную неоднозначность, когда «двойник» по сумме уже закрыт приёмкой.
+    open_hits = [o for o in hits if not o.get("supplies")]
+    if len(open_hits) == 1:
+        return open_hits[0], open_hits, agent
+    # 0 открытых (все уже с приёмкой — вероятный дубль УПД) либо >1 открытых → не создаём
+    return None, (open_hits or hits), agent
 
 
 def _month_back(d, n):
@@ -783,12 +790,18 @@ def process(src, create=True, suffix=""):
         res["total"] = total
 
         order, cands, agent = find_order(upd["seller_inn"], total_kop, upd["date"])
-        res["candidates"] = [{"name": o["name"], "sum": o["sum"] / 100, "date": o.get("moment", "")[:10]}
+        res["candidates"] = [{"name": o["name"], "sum": o["sum"] / 100, "date": o.get("moment", "")[:10],
+                              "has_supply": bool(o.get("supplies"))}
                              for o in cands]
         if order is None:
             res["stop"] = True
-            res["error"] = ("Заказ не найден по сумме" if not cands
-                            else f"Неоднозначно: {len(cands)} заказов с суммой {total}")
+            if not cands:
+                res["error"] = "Заказ не найден по сумме"
+            elif all(c["has_supply"] for c in res["candidates"]):
+                res["error"] = (f"Все {len(cands)} заказ(ов) с суммой {total} уже имеют приёмку "
+                                f"— УПД, возможно, уже проведён (дубль).")
+            else:
+                res["error"] = f"Неоднозначно: {len(cands)} заказ(ов) БЕЗ приёмки с суммой {total}"
             return res
 
         res["order"] = {"name": order["name"], "id": order["id"], "sum": order["sum"] / 100,
@@ -945,7 +958,8 @@ def format_report(res):
         if res.get("candidates"):
             L.append("Кандидаты-заказы (проверьте вручную):")
             for c in res["candidates"]:
-                L.append(f"  • {c['name']} — {c['sum']} ₽ от {c['date']}")
+                mark = " · ✓ приёмка уже есть" if c.get("has_supply") else " · без приёмки"
+                L.append(f"  • {c['name']} — {c['sum']} ₽ от {c['date']}{mark}")
         else:
             L.append("Заказов с такой суммой у поставщика не найдено.")
         return "\n".join(L)
