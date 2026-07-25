@@ -12,9 +12,12 @@
 ключ (пароль в ALFA_KEY_PASSWORD). requests не умеет пароль на ключе напрямую, поэтому
 поднимаем свой SSLContext через HTTPAdapter (load_cert_chain(..., password=...)).
 
-Серверный серт песочницы подписан CA Минцифры (не APICA), поэтому в sandbox серверную
-проверку отключаем (как `curl -k`); для ПРОМА добавить корни Минцифры в доверенные и
-включить verify. Управляется ALFA_ENV (sandbox → verify off) / ALFA_VERIFY_SERVER.
+Серверный серт Альфы (и песочницы, и прома `baas.alfabank.ru`) подписан CA **Минцифры**
+(Russian Trusted Root CA → Sub CA), а НЕ цепочкой APICA из серт-бандла — потому проверка
+APICA-бандлом падала. Корни Минцифры лежат в `secrets/alfa/mincifry_bundle.pem`
+(ALFA_CA_BUNDLE), отпечаток корня сверен с тем, что отдаёт сам baas.alfabank.ru.
+С ними проверка проходит на ОБОИХ хостах → `ALFA_VERIFY_SERVER=1`, verify off больше не
+нужен нигде. Фолбэк логики: без ALFA_VERIFY_SERVER решает ALFA_ENV (sandbox → off).
 
 Гигиена контекста (правило 11): сырой ответ ПИШЕТСЯ НА ДИСК (incoming/alfa/), в чат —
 только агрегаты. Никогда не дампить сырой JSON и не печатать ключ/пароль.
