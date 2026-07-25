@@ -58,6 +58,57 @@ def _sync_id(op):
     return str(_uuid.uuid5(_NS, seed))
 
 
+def _day_bounds(day):
+    return f"{day} 00:00:00", f"{day} 23:59:59"
+
+
+def existing_index(typ, day):
+    """Индекс платежей, УЖЕ лежащих в МС за этот день.
+
+    Зачем: выписку по счёту в МС годами заводили руками (загрузка банк-файла), у таких
+    документов нет нашего `syncId` — по нему мы их не увидим и завели бы вторые копии.
+    Поэтому перед записью сверяемся ещё и «по-человечески»: сумма + номер банковского
+    документа + день. Ключ `sync` — наши собственные документы, их PUT просто обновит.
+    """
+    lo, hi = _day_bounds(day)
+    flt = urllib.parse.quote(f"moment>={lo};moment<={hi}")
+    idx = {"by_num": {}, "by_sum": {}, "sync": set(), "total": 0}
+    offset = 0
+    while True:
+        r = get(f"/entity/{typ}?filter={flt}&limit=100&offset={offset}")
+        rows = r.get("rows", [])
+        for d in rows:
+            s = d.get("sum")
+            if d.get("syncId"):
+                idx["sync"].add(d["syncId"])
+            for num in {str(d.get("name") or "").strip(),
+                        str(d.get("incomingNumber") or "").strip()}:
+                if num:
+                    idx["by_num"].setdefault((s, num), []).append(d)
+            idx["by_sum"].setdefault(s, []).append(d)
+        idx["total"] += len(rows)
+        if len(rows) < 100:
+            break
+        offset += 100
+    return idx
+
+
+def find_existing(idx, op, sync_id):
+    """→ (документ|None, причина). None = такого платежа в МС ещё нет."""
+    if sync_id in idx["sync"]:
+        return None, "ours"                       # наш же документ, PUT его обновит
+    s = round((op.get("amount") or 0) * 100)
+    num = str(op.get("document_number") or "").strip()
+    if num and (s, num) in idx["by_num"]:
+        return idx["by_num"][(s, num)][0], "номер+сумма"
+    same_sum = idx["by_sum"].get(s) or []
+    if same_sum:
+        # Номер не сошёлся, но сумма за тот же день уже есть. Осознанно считаем дублем:
+        # пропущенный платёж виден при сверке, задвоенный — портит учёт молча.
+        return same_sum[0], "сумма+день"
+    return None, ""
+
+
 def resolve_org():
     rows = get("/entity/organization")["rows"]
     for o in rows:
@@ -111,11 +162,37 @@ def build_payment(op, org, agent):
 def sync(normalized, apply=False):
     org = resolve_org()
     stats = {"paymentin": 0, "paymentout": 0, "matched": 0, "created": 0,
-             "would_create": 0, "errors": 0}
+             "would_create": 0, "errors": 0, "existing": 0, "before_cutoff": 0}
     plan = []
+    idx_cache = {}
+    # дата отсечки: операции раньше неё не пишем (до неё документы заводились руками)
+    since = os.getenv("ALFA_MS_SINCE") or None
     for op in normalized:
         typ = "paymentin" if op["direction"] == "CREDIT" else "paymentout"
         stats[typ] += 1                                    # намеченный тип всегда
+        day = (op.get("operation_date") or "")[:10]
+        sid = _sync_id(op)
+
+        if since and day and day < since:
+            stats["before_cutoff"] += 1
+            plan.append({"dir": op["direction"], "sum": op["amount"], "typ": typ,
+                         "agent": op["counterparty_name"], "agent_status": "до отсечки",
+                         "written": False, "syncId": sid})
+            continue
+
+        if day:                                            # антидубль с ручной загрузкой
+            key = (typ, day)
+            if key not in idx_cache:
+                idx_cache[key] = existing_index(typ, day)
+            dup, why = find_existing(idx_cache[key], op, sid)
+            if dup is not None:
+                stats["existing"] += 1
+                plan.append({"dir": op["direction"], "sum": op["amount"], "typ": typ,
+                             "agent": op["counterparty_name"],
+                             "agent_status": f"уже есть ({why})", "written": False,
+                             "syncId": sid})
+                continue
+
         agent, ast = resolve_agent(op["counterparty_inn"], op["counterparty_name"], apply)
         if agent is None:
             # без агента платёж в МС не создать — фиксируем в плане, но не пишем
@@ -151,6 +228,7 @@ def main(argv):
     mode = "APPLY (запись в МС)" if apply else "DRY-RUN (только план)"
     print(f"[{mode}] счёт {account} дата {res['date']} — операций {len(res['normalized'])}")
     print(f"paymentin(приход) {stats['paymentin']}  paymentout(расход) {stats['paymentout']}  "
+          f"уже в МС {stats['existing']}  до отсечки {stats['before_cutoff']}  "
           f"агент: matched {stats['matched']} / created {stats['created']} / "
           f"would-create {stats['would_create']}  ошибок {stats['errors']}")
     print("--- план (напр, сумма, контрагент, тип, агент-статус, записан) ---")

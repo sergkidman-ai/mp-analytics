@@ -58,13 +58,17 @@ def log(msg):
 
 
 def accounts():
-    raw = os.getenv("ALFA_ACCOUNT") or ""
+    """Счета для выписки. В проме берём ALFA_ACCOUNT_PROD (боевой р/с), в песочнице —
+    ALFA_ACCOUNT (тестовые счета банка). Разведены нарочно: так песочный ключ не уйдёт
+    по боевому счёту, а боевой — по тестовому, даже если забыть поправить вторую строку."""
+    prod = (os.getenv("ALFA_ENV") or "sandbox").lower() != "sandbox"
+    raw = (os.getenv("ALFA_ACCOUNT_PROD") if prod else os.getenv("ALFA_ACCOUNT")) or ""
     accs = [a.strip() for a in raw.split(",") if a.strip()]
     if accs:
         return accs
-    if (os.getenv("ALFA_ENV") or "sandbox").lower() == "sandbox":
+    if not prod:
         return [SANDBOX_ACCOUNT]
-    raise SystemExit("нет ALFA_ACCOUNT в .env — не знаю, по какому счёту брать выписку")
+    raise SystemExit("нет ALFA_ACCOUNT_PROD в .env — не знаю, по какому боевому счёту брать выписку")
 
 
 def apply_mode():
@@ -109,6 +113,7 @@ def run_day(account, date, apply):
     stats, _plan = alfa_ms.sync(ops, apply=apply)
     log(f"счёт {account} {date}: операций {len(ops)} | "
         f"приход {stats['paymentin']} / расход {stats['paymentout']} | "
+        f"уже в МС {stats['existing']}, до отсечки {stats['before_cutoff']} | "
         f"контрагент: найден {stats['matched']}, создан {stats['created']}, "
         f"будет создан {stats['would_create']} | ошибок {stats['errors']}")
     return len(ops), stats
