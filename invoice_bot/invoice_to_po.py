@@ -53,7 +53,7 @@ BUYERS = {
 # article: column | sp | name_last | name_regex(pattern) ; six берётся из SIX_INN.
 SUPPLIERS = {
     "7806486149": {"name": "Солюшнс принт МСК", "article": "sp"},
-    "7730244274": {"name": "Одиссей",           "article": "column"},
+    "7730244274": {"name": "Одиссей",           "article": "column", "num_prefix": "ОД", "num_pad": 8},
     "9717092410": {"name": "Тонерстор",         "article": "column", "pdf": "tonerstor"},
     "7718978470": {"name": "Блоссом",           "article": "column"},
     "7725744338": {"name": "Тонеропттторг",     "article": "column"},
@@ -80,6 +80,41 @@ MONTHS = {"января":1,"февраля":2,"марта":3,"апреля":4,"�
 
 def meta(ent, i, t=None):
     return {"meta": {"href": f"{MSU}/entity/{ent}/{i}", "type": t or ent, "mediaType": "application/json"}}
+
+
+def _order_agent_id(o):
+    """id контрагента-поставщика заказа (из expand=agent или из meta.href)."""
+    ag = o.get("agent") or {}
+    if ag.get("id"):
+        return ag["id"]
+    href = (ag.get("meta") or {}).get("href", "")
+    return href.rstrip("/").split("/")[-1] if href else None
+
+
+def _supplier_tag(inn, group):
+    """Короткий тег поставщика для уникализации имени заказа (напр. «Одиссей»)."""
+    t = (group or SUPPLIERS.get(inn, {}).get("name", "") or inn or "x").split()[0]
+    return re.sub(r"[^0-9A-Za-zА-Яа-яЁё]", "", t) or (inn or "x")
+
+
+def normalize_order_number(number, prof):
+    """Каноничный номер заказа по профилю поставщика: prefix + число с ведущими нулями до num_pad.
+    Одиссей: 4753 → ОД00004753, ОД00004567 → ОД00004567 (идемпотентно). Единый формат убирает
+    короткие номера, которые коллизят с чужими поставщиками. Без num_prefix — номер как есть."""
+    pref = prof.get("num_prefix")
+    if not pref:
+        return number
+    digits = re.sub(r"\D", "", number or "")
+    if not digits:
+        return number
+    return f"{pref}{int(digits):0{prof.get('num_pad', 0)}d}"
+
+
+def _name_taken(name):
+    """True, если в МС уже есть «Заказ поставщику» с ТОЧНО таким именем (любого поставщика).
+    MoySklad требует глобальную уникальность name у purchaseorder."""
+    rows = get_r(f"/entity/purchaseorder?filter=name={urllib.parse.quote(name)}&limit=100").get("rows", [])
+    return any(str(o.get("name", "")).strip() == name for o in rows)
 
 
 def get_r(path, tries=6):
@@ -532,7 +567,8 @@ def process(src, create=True, suffix=""):
                 "итог не сошёлся с суммой счёта" if (hdr["total"] is not None and not sum_ok) else "",
             ])) or "нужна ручная проверка"
 
-        name = (hdr["number"] + suffix) if suffix else hdr["number"]
+        canon = normalize_order_number(hdr["number"], prof)   # каноничное имя заказа (Одиссей: ОД0000NNNN)
+        name = (canon + suffix) if suffix else canon
         po, plan_dt, six = build_payload(hdr, org, store, agent_id, positions, deliv_id, name,
                                          warns, skipped, applicable=auto_post)
         json.dump(po, open(os.path.join(os.path.dirname(path), "_last_payload.json"), "w"),
@@ -563,8 +599,12 @@ def process(src, create=True, suffix=""):
         # Правило для ВСЕХ поставщиков: если «Заказ поставщику» с таким номером уже есть и он
         # ДРУГОГО года — СТАРОМУ дописываем его год (6262 → 6262-2025), а новый заводим под чистым
         # номером (чтобы входящая УПД нашла его по номеру). Тот же год = повтор/дубль → не создаём.
-        ex = [o for o in get(f"/entity/purchaseorder?filter=name={urllib.parse.quote(name)}&limit=100")["rows"]
-              if str(o.get("name", "")).strip() == name]
+        # ВАЖНО: коллизию ищем ТОЛЬКО среди заказов ЭТОГО ЖЕ поставщика (agent). Короткие номера
+        # счетов (напр. «4753») не уникальны между поставщиками — заказ Феррета «4753» не должен
+        # ложно блокировать создание заказа Одиссея «4753» (был баг ложного «дубля»).
+        ex = [o for o in get(f"/entity/purchaseorder?filter=name={urllib.parse.quote(name)}"
+                             f"&limit=100&expand=agent")["rows"]
+              if str(o.get("name", "")).strip() == name and _order_agent_id(o) == agent_id]
         if ex and not suffix:
             new_year = hdr["inv_date"].year
             same_year = [o for o in ex if str(o.get("moment", ""))[:4] == str(new_year)]
@@ -577,8 +617,9 @@ def process(src, create=True, suffix=""):
             for o in ex:                                    # старые заказы прошлых лет — переименовать с их годом
                 oy = str(o.get("moment", ""))[:4] or "----"
                 cand = f"{name}-{oy}"
-                busy = [b for b in get(f"/entity/purchaseorder?filter=name={urllib.parse.quote(cand)}&limit=1")["rows"]
-                        if str(b.get("name", "")).strip() == cand]
+                busy = [b for b in get(f"/entity/purchaseorder?filter=name={urllib.parse.quote(cand)}"
+                                       f"&limit=100&expand=agent")["rows"]
+                        if str(b.get("name", "")).strip() == cand and _order_agent_id(b) == agent_id]
                 if busy:
                     res["stop"] = True
                     res["stop_msg"] = (f"Заказ «{name}» занят старым (id {o['id'][:8]}, {oy}), "
@@ -598,6 +639,19 @@ def process(src, create=True, suffix=""):
             res["stop"] = True
             res["stop_msg"] = f"Заказ «{name}» уже существует (id {ex[0]['id'][:8]}, {ex[0]['moment']}). Не создаю."
             return res
+        # Глобальная уникальность имени (MS enforce'ит unique name у purchaseorder). Если имя всё
+        # ещё занято — это заказ ДРУГОГО поставщика с тем же коротким номером (напр. «4753» есть у
+        # Феррета). Чужой заказ не трогаем — уникализируем НАШ тегом поставщика: «4753-Одиссей».
+        if not suffix and _name_taken(name):
+            tag = _supplier_tag(hdr["supplier_inn"], group)
+            base, cand, k = name, f"{name}-{tag}", 1
+            while _name_taken(cand):
+                k += 1; cand = f"{base}-{tag}-{k}"
+            res["renamed_new_note"] = (f"Номер «{base}» уже занят заказом другого поставщика в МС — "
+                                       f"новый заказ создан под «{cand}» (чужой не тронут).")
+            name = cand
+            po["name"] = name
+            res["name"] = name
         st, resp = post("/entity/purchaseorder", po)
         if st in (200, 201):
             res.update({"created": True, "order_id": resp.get("id"),
@@ -646,6 +700,8 @@ def format_report(res):
             L.append("   " + w)
     if res.get("auto_suffix_note"):
         L.append("ℹ " + res["auto_suffix_note"])
+    if res.get("renamed_new_note"):
+        L.append("ℹ " + res["renamed_new_note"])
     if res.get("dry_run"):
         L.append("\n[DRY-RUN] заказ не создан.")
     elif res.get("stop"):
