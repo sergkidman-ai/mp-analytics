@@ -819,6 +819,20 @@ def reports_wb_clearance_page():
     return (STATIC / "reports_wb_clearance.html").read_text(encoding="utf-8")
 
 
+@app.get("/reports/cost", response_class=HTMLResponse)
+def reports_cost_page():
+    """Раздел «Себестоимость» — сводка по отчётам-месяцам (себест по отгрузкам, Яндекс.Маркет)."""
+    import reports.ya_cogs_page as _yc
+    return _yc.overview_html("ya_acc1")
+
+
+@app.get("/reports/cost/{ym}", response_class=HTMLResponse)
+def reports_cost_detail(ym: str):
+    """Провал внутрь отчёта: себестоимость по заказам месяца ym (YYYY-MM)."""
+    import reports.ya_cogs_page as _yc
+    return _yc.detail_html("ya_acc1", ym)
+
+
 class ClearanceItem(BaseModel):
     account: str
     nm_id: int
