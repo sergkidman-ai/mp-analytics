@@ -328,6 +328,7 @@ SIDEBAR = """  <a href="/" class="logo">🏢 Пульт бизнеса</a>
     <a href="/opex">💼 Опер. расходы</a>
     <div class="navgroup">Отчёты</div>
     <a href="/reports" class="cur">📋 Отчёты МП</a>
+    <a href="/reports/cost">💰 Себестоимость</a>
   </nav>"""
 
 MPTABS = """    <a href="/">🏢 Главная</a>
