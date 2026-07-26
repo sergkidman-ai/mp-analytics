@@ -43,6 +43,35 @@ def _cost_seb_map():
         "SELECT ms_id, cost_seb FROM products WHERE cost_seb>0")}
 
 
+def _manual_map():
+    """{demand_name: cogs} — ручной себест сотрудника (побеждает FIFO/импутацию).
+    Ставится там, где FIFO=0 И товара нет в справочнике (импутация пуста). Метод → 'manual'."""
+    return {r["demand_name"]: float(r["cogs"] or 0) for r in db.query(
+        "SELECT demand_name, cogs FROM ya_cogs_manual WHERE account=%s", (ACCOUNT,))}
+
+
+def _frozen_set():
+    """{'YYYY-MM', …} — закрытые (замороженные) месяцы: их коллектор не пересобирает (МС не дёргает)."""
+    return {r["ym"].strftime("%Y-%m") for r in db.query(
+        "SELECT ym FROM ya_cogs_frozen WHERE account=%s", (ACCOUNT,))}
+
+
+def _eff_since(since, frozen):
+    """Поднять since до первого дня самого раннего НЕзакрытого месяца (сплошной закрытый префикс
+    от min(ym) в данных пропускаем — чтобы не листать в МС заведомо закрытые месяцы)."""
+    if not frozen:
+        return since
+    row = db.query("SELECT min(ym) mn FROM ya_cogs_demand WHERE account=%s", (ACCOUNT,))
+    mn = row[0]["mn"] if row else None
+    if not mn:
+        return since
+    y, m = mn.year, mn.month
+    while f"{y:04d}-{m:02d}" in frozen:          # шагаем по сплошному закрытому префиксу
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    prefix_since = f"{y:04d}-{m:02d}-01"
+    return max(since, prefix_since)
+
+
 def _order_status_map():
     """{order_id(str): status} из raw_yandex_stats_order (DELIVERED/RETURNED/CANCELLED_*/...)."""
     rows = db.query("SELECT order_id, payload->>'status' st FROM raw_yandex_stats_order WHERE account=%s",
@@ -110,6 +139,12 @@ def collect(since="2026-01-01"):
     cost_seb = _cost_seb_map()
     order_st = _order_status_map()
     fullprice = _ya_fullprice_map()   # для заказов с номинальной суммой в МС (<100 ₽)
+    manual = _manual_map()            # ручной себест сотрудника (побеждает FIFO/импутацию)
+    frozen = _frozen_set()            # закрытые месяцы — не пересобираем (МС не дёргаем)
+    eff_since = _eff_since(since, frozen)
+    if frozen:
+        print(f"[ya-cogs] закрыто: {len(frozen)} мес, собираю с {eff_since}")
+    since = eff_since
     recs = []
     stats = defaultdict(int)
     for name in AGENTS:
@@ -131,6 +166,9 @@ def collect(since="2026-01-01"):
                 moment = (d.get("moment") or "")[:10]
                 if len(moment) != 10 or not nm:
                     continue
+                if moment[:7] in frozen:                 # закрытый месяц — не трогаем МС и строку
+                    stats["skipped_frozen"] += 1
+                    continue
                 our_sum = (d.get("sum") or 0) / 100.0
                 if our_sum < 100:                       # номинал в МС → полная цена по данным Маркета
                     our_sum = fullprice.get(str(nm), our_sum)
@@ -146,6 +184,9 @@ def collect(since="2026-01-01"):
                     method = "imputed"
                     if not qty:
                         qty = sum(p["qty"] for p in pos)
+                if nm in manual:                        # ручной себест — истина, побеждает всё
+                    cogs = manual[nm]
+                    method = "manual"
                 st_raw = order_st.get(str(nm))
                 status = _classify(st_raw, ret_store.get(nm))
                 stats[method] += 1
@@ -161,7 +202,8 @@ def collect(since="2026-01-01"):
     if recs:
         db.upsert("ya_cogs_demand", recs, conflict_cols=["account", "demand_name"])
     print(f"[ya-cogs] отгрузок записано: {len(recs)} "
-          f"(FIFO {stats['ms_fifo']}, импутация {stats['imputed']})")
+          f"(FIFO {stats['ms_fifo']}, импутация {stats['imputed']}, ручной {stats['manual']}"
+          f"; пропущено закрытых {stats['skipped_frozen']})")
     return len(recs)
 
 
