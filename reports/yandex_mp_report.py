@@ -50,10 +50,11 @@ _BAL_KEYS = ["revenue", "subsidy", "fee", "delivery", "transfer", "promotion",
              "agency", "other_fee", "subscription_cost", "reviews_cost",
              "boost_sales", "boost_shows", "shelf", "returns_money"]
 # расходы площадки, из которых складывается «Итого расходы Маркета» (= mp_cost в _ya_business).
-# promotion — родительская строка (= boost_sales+boost_shows+shelf), в сумму берём ЕЁ, а бусты
-# показываем под-строками (не суммируем дважды).
+# promotion — родительская строка (= boost_sales+boost_shows+shelf+reviews_cost «лояльность»),
+# в сумму берём ЕЁ, а компоненты показываем под-строками (не суммируем дважды). reviews_cost
+# сюда НЕ входит отдельно — он уже внутри promotion (иначе двойной счёт).
 MP_EXP = ["fee", "delivery", "transfer", "promotion", "agency", "other_fee",
-          "subscription_cost", "reviews_cost"]
+          "subscription_cost"]
 WINDOW_DAYS = 14
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
              "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
@@ -113,14 +114,14 @@ def _cogs(y, m):
 def _derive(m, orders, retc, cogs):
     """Оборот = оплата покупателя (subsidy — доплата Маркета, отдельными деньгами НЕ поступает,
     держим справочно, в деньги/чистую не берём — сверено с ЛК «Подлежит перечислению»).
-    Итого удержания Маркета = услуги + деньги за возвраты → Итого к перечислению → минус COGS = Чистая.
-    Формула ЛК: Подлежит перечислению = оплата − возвраты − услуги (июнь-2026: 1 441 719 − 92 478
-    − 591 459 = 757 782 ≈ 760к, совпало)."""
+    Итого удержания Маркета = ТОЛЬКО услуги (без возвратов); возвраты — отдельная строка. Итого к
+    перечислению = Оборот − услуги − возвраты (возвраты учитываются здесь). Формула ЛК: Подлежит
+    перечислению = оплата − услуги − возвраты (июнь-2026: 1 441 719 − 591 460 − 92 478 = 757 781 ≈ ЛК)."""
     own = m["revenue"]
     ret_money = m.get("returns_money", 0.0)
     services = sum(m[k] for k in MP_EXP)
-    itog = ret_money + services
-    payout = own - itog
+    itog = services                      # Итого удержания Маркета = услуги (без возвратов)
+    payout = own - services - ret_money  # к перечислению: возвраты вычитаются
     net = payout - cogs
     return {**m, "own": own, "itog": itog, "payout": payout, "cogs": cogs,
             "returns_money": ret_money, "services": services,
@@ -215,8 +216,9 @@ def current_report():
     if per and proj_orders > 0:
         fc_mags = {k: per[k] * proj_orders for k in _BAL_KEYS}
         fc_mags["subscription_cost"] = per["_sub_month"]     # фикс-подписка, не масштабируем
-        # promotion держим согласованной с бустами (родитель = сумма частей)
-        fc_mags["promotion"] = fc_mags["boost_sales"] + fc_mags["boost_shows"] + fc_mags["shelf"]
+        # promotion держим согласованной с частями (родитель = бусты + полки + лояльность)
+        fc_mags["promotion"] = (fc_mags["boost_sales"] + fc_mags["boost_shows"]
+                                + fc_mags["shelf"] + fc_mags["reviews_cost"])
         fc_cogs = per["cogs"] * proj_orders
         fc_retc = per["_ret_rate"] * proj_orders
         forecast = _derive(fc_mags, proj_orders, fc_retc, fc_cogs)
@@ -279,9 +281,10 @@ def _hist_series(key):
     elif key in _BAL_KEYS:
         vals = L[key]
     elif key == "itog":
-        vals = [sum(L[x][i] for x in MP_EXP) for i in range(n)]
+        vals = [sum(L[x][i] for x in MP_EXP) for i in range(n)]   # услуги (без возвратов)
     elif key == "payout":
-        vals = [ob[i] - sum(L[x][i] for x in MP_EXP) for i in range(n)]
+        rm = L.get("returns_money", [0] * n)
+        vals = [ob[i] - sum(L[x][i] for x in MP_EXP) - rm[i] for i in range(n)]  # − услуги − возвраты
     elif key in ("cogs", "net", "margin", "orders", "returns_cnt"):
         vals = a[key]
     elif key == "check":

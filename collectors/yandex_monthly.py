@@ -441,14 +441,17 @@ def _write_finance(fin, agg, since):
             f["transfer"] = s["acquiring"]
         if s.get("misc") is not None:
             f["other_fee"] = s["misc"]
-        # реклама раздельно (Fix 3)
+        # реклама раздельно (Fix 3). «Программа лояльности и отзывы» (категория reviews) —
+        # это тоже продвижение: включаем её в promotion как компонент (наравне с бустами/полками),
+        # а reviews_cost остаётся справочной под-строкой (НЕ отдельным удержанием, иначе двойной счёт).
         f["boost_sales"] = s.get("boost_sales") or 0.0
         f["boost_shows"] = s.get("boost_shows") or 0.0
         f["shelf"] = s.get("shelf") or 0.0
+        loyalty = s.get("reviews") or 0.0        # Программа лояльности и отзывы → в продвижение
         if s.get("ad") is not None:      # отчёт услуг за месяц собран (даже если реклама = 0)
-            f["promotion"] = s["ad"]
+            f["promotion"] = s["ad"] + loyalty
         elif mo in boost:                # иначе фолбэк на API продвижения
-            f["promotion"] = boost[mo]
+            f["promotion"] = boost[mo] + loyalty
         frecs.append({"account": ACCOUNT, "month": mo,
                       "revenue": round(f["revenue"], 2), "subsidy": round(f["subsidy"], 2),
                       "orders": int(f["orders"]),
@@ -478,13 +481,13 @@ def _write_finance(fin, agg, since):
         db.execute("UPDATE yandex_finance_monthly SET updated_at=now() WHERE account=%s", (ACCOUNT,))
     for r in frecs:
         mp = (r["fee"] + r["delivery"] + r["transfer"] + r["promotion"] + r["agency"]
-              + r["other_fee"] + r["subscription_cost"] + r["reviews_cost"])
+              + r["other_fee"] + r["subscription_cost"])  # reviews_cost уже внутри promotion
         print(f"  {r['month'][:7]}: выручка {r['revenue']:,.0f} | субсидия {r['subsidy']:,.0f} | "
               f"заказов {r['orders']} | возвратов {r['returns_orders']} ({r['returns_sum']:,.0f}) | "
               f"незаборов {r['unredeemed_orders']} ({r['unredeemed_cost']:,.0f}) | "
               f"расходы МП {mp:,.0f} (комиссия {r['fee']:,.0f}, логистика {r['delivery']:,.0f}, "
-              f"эквайринг {r['transfer']:,.0f}, реклама {r['promotion']:,.0f}, "
-              f"подписка {r['subscription_cost']:,.0f}, отзывы {r['reviews_cost']:,.0f}) | "
+              f"эквайринг {r['transfer']:,.0f}, продвижение {r['promotion']:,.0f} "
+              f"(вкл. лояльность {r['reviews_cost']:,.0f}), подписка {r['subscription_cost']:,.0f}) | "
               f"COGS {r['cogs']:,.0f} ({r['cogs_cov_pct']:.0f}%)", flush=True)
     return frecs
 
