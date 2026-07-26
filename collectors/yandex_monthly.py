@@ -330,6 +330,17 @@ def _fold_order(o, fin, agg, comm_types, cost):
     mo = cd + "-01"
     st = o.get("status") or ""
     f = fin[mo]
+    # Счётчик «Возвраты, шт» = ФИЗИЧЕСКИЙ возврат товара на склад: товарные возвраты (RETURNED)
+    # + невыкупы (CANCELLED_IN_DELIVERY — покупатель не забрал, товар вернулся на сток). Считаем по
+    # МЕСЯЦУ ВОЗВРАТА (statusUpdateDate = когда заказ стал возвратом/невыкупом), а НЕ по месяцу заказа —
+    # сверено с МС salesreturn (июнь: RETURNED 17 + невыкуп 27 = 44 ≈ МС 39). Невыкуп остаётся ещё и
+    # отдельной метрикой убытка логистики (unredeemed_*, по месяцу заказа, ниже). Деньги возвратов
+    # (returns_sum) идут из closure ЛК строкой «Возвращено потребителям» — шире (все возвраты покупателям,
+    # вкл. невыкупы и отмены), поэтому счётчик и деньги намеренно в разных осях: склад vs касса.
+    if st in RETURN_STATUSES or st == "CANCELLED_IN_DELIVERY":
+        sud = (o.get("statusUpdateDate") or "")[:7]
+        rmo = (sud + "-01") if len(sud) == 7 else mo
+        fin[rmo]["returns_orders"] += 1
     # ОТМЕНЫ: статусы CANCELLED_* (ровно 'CANCELLED' не бывает!). Деньги покупателя
     # самокорректны (PAYMENT−REFUND=0), но субсидию и счётчик заказов НЕ включаем.
     # Комиссии отменённых (логистика незабора) — реальный расход, учитываем;
@@ -354,8 +365,6 @@ def _fold_order(o, fin, agg, comm_types, cost):
     f["revenue"] += pay
     f["subsidy"] += sub
     f["orders"] += 1
-    if st in RETURN_STATUSES:
-        f["returns_orders"] += 1
     f["returns_sum"] += refund
     for c in (o.get("commissions") or []):
         comm_types[c.get("type")] += 1
