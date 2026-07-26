@@ -151,11 +151,12 @@ def build(acc):
     data, M, N = _C["data"], _C["M"], _C["N"]
     a = data["accounts"][acc]; L = a["lines"]
     rev = L["revenue"]; sub = L["subsidy"]
-    ob = [rev[i] + sub[i] for i in range(N)]               # ОБОРОТ = выручка + субсидия (база всех %)
+    ob = [rev[i] for i in range(N)]                        # ОБОРОТ = оплата покупателя (субсидия — не деньги)
     cogs = a["cogs"]; net = a["net"]; margin = a["margin"]
     cogs_pct = [(cogs[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
-    itog = [sum(L[k][i] for k in MP_EXP) for i in range(N)]      # Итого расходы Маркета
-    payout = [ob[i] - itog[i] for i in range(N)]                 # Итого к перечислению
+    ret_money = L.get("returns_money", [0] * N)
+    itog = [ret_money[i] + sum(L[k][i] for k in MP_EXP) for i in range(N)]  # удержания = услуги + возвраты
+    payout = [ob[i] - itog[i] for i in range(N)]                 # Итого к перечислению ≈ ЛК «Подлежит перечислению»
     itog_pct = [(itog[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
     orders = a["orders"]; retc = a["returns_cnt"]
     check = [(ob[i] / orders[i] if orders[i] else 0) for i in range(N)]
@@ -192,11 +193,11 @@ def build(acc):
     H.append(row("Продажи, шт", orders, "count_up", ob, k="orders"))
     H.append(row("Возвраты, шт", retc, "count_dn", ob, k="returns_cnt"))
     H.append(row("Средний чек, ₽", check, "check", ob, tag="расчёт", k="check"))
-    H.append(sect("Продажи и субсидия"))
-    H.append(row("Оборот (выручка + субсидия)", ob, "inflow", ob, sect_pct="100.0%", tag="расчёт", subtot=True, k="own"))
-    H.append(row("Оплата покупателя", rev, "inflow", ob, showpc=True, k="revenue"))
-    H.append(row("Субсидия Маркета", sub, "inflow", ob, showpc=True, k="subsidy"))
+    H.append(sect("Продажи"))
+    H.append(row("Оборот (оплата покупателя)", ob, "inflow", ob, sect_pct="100.0%", tag="расчёт", subtot=True, k="own"))
+    H.append(row("Субсидия Маркета (справочно, не деньги)", sub, "inflow", ob, showpc=True, tag="справка", k="subsidy"))
     H.append(sect("Удержания площадки"))
+    H.append(row("Возвраты (удержано)", ret_money, "expense", ob, showpc=True, k="returns_money"))
     H.append(row("Комиссия Маркета", L["fee"], "expense", ob, showpc=True, k="fee"))
     H.append(row("Логистика / доставка", L["delivery"], "expense", ob, showpc=True, k="delivery"))
     H.append(row("Перевод / эквайринг", L["transfer"], "expense", ob, k="transfer"))
@@ -208,8 +209,8 @@ def build(acc):
     H.append(row("Прочие удержания", L["other_fee"], "expense", ob, k="other_fee"))
     H.append(row("Подписка (Маркет)", L["subscription_cost"], "expense", ob, k="subscription_cost"))
     H.append(row("Баллы за отзывы", L["reviews_cost"], "expense", ob, k="reviews_cost"))
-    H.append(row("Итого расходы Маркета", itog, "expense", ob, tag="расчёт", showpc=True, subtot=True, k="itog"))
-    H.append(row("Итого к перечислению", payout, "inflow", ob, tag="расчёт", showpc=True, subtot=True, k="payout"))
+    H.append(row("Итого удержания Маркета (услуги + возвраты)", itog, "expense", ob, tag="расчёт", showpc=True, subtot=True, k="itog"))
+    H.append(row("Итого к перечислению", payout, "inflow", ob, tag="ЛК", showpc=True, subtot=True, k="payout"))
     H.append(sect("Наши данные (не из отчёта МП)"))
     H.append(row("Себестоимость (COGS)", cogs, "expense", ob, tag="наша", showpc=True, k="cogs"))
     H.append(sect("Итог (расчёт над константами)"))
@@ -220,10 +221,12 @@ def build(acc):
 
 
 SUB = ('Данные из <b>витрины Яндекс.Маркета</b> (Партнёр-API: заказы + отчёт услуг + закрытие '
-       'месяца) + себестоимость из МойСклад. <b>Оборот = «Оплата покупателя» + «Субсидия Маркета»</b> '
-       '— от него считаются все % и подсветка (субсидия у ЯМ значимая, до ~64% сверх оплаты). '
-       'Строки — водопад: оборот → минус комиссия, логистика, перевод, продвижение, агентское, '
-       'прочие, подписка, баллы → Итого к перечислению → минус COGS → Чистая. '
+       'месяца) + себестоимость из МойСклад. <b>Оборот = «Оплата покупателя»</b> — от него считаются '
+       'все % и подсветка. <b>Субсидия Маркета — справочно</b> (доплата за скидку покупателю, '
+       'отдельными деньгами на счёт не поступает, в деньги/чистую не берётся). '
+       'Строки — водопад: оборот → минус возвраты, комиссия, логистика, перевод, продвижение, '
+       'агентское, прочие, подписка, баллы → <b>Итого к перечислению</b> (сверено с ЛК «Подлежит '
+       'перечислению на счёт Заказчика») → минус COGS → Чистая. '
        '<b>Одно юрлицо (Цифровой квадрат) — одна таблица.</b> Столбцы — <b>календарные месяцы</b>. '
        'Справа — доля от оборота и тренд. <b>Подсветка — три блока относительно среднего:</b> '
        '<b style="color:var(--pos)">зелёное = выше среднего (хорошо)</b>, '
@@ -232,10 +235,12 @@ SUB = ('Данные из <b>витрины Яндекс.Маркета</b> (П�
        '<b>прогноз на конец месяца</b>, живьём из БД.')
 
 FOOT = ('Все строки — из витрины <b>Яндекс.Маркета</b> (Партнёр-API). <b>Оборот</b> = Оплата '
-        'покупателя (payment) + Субсидия Маркета (subsidy) — субсидия у ЯМ идёт сверх оплаты и '
-        'значима. <b>«Итого расходы Маркета»</b> = комиссия + логистика + перевод/эквайринг + '
+        'покупателя (payment). <b>Субсидия Маркета (subsidy)</b> — доплата за скидку покупателю, '
+        'показана справочно: отдельными деньгами на счёт не приходит (сверено с ЛК), в чистую не берём. '
+        '<b>«Итого удержания Маркета»</b> = возвраты + комиссия + логистика + перевод/эквайринг + '
         'продвижение (буст-продажи + буст-показы + полки) + агентское + прочие + подписка + баллы '
-        'за отзывы. <b>«Итого к перечислению»</b> = Оборот − Итого расходы Маркета. Себестоимость — '
+        'за отзывы. <b>«Итого к перечислению»</b> = Оборот − Итого удержания = ЛК «Подлежит '
+        'перечислению на счёт Заказчика» (июнь-2026 ≈ 758к, Δ к ЛК &lt;0.5%). Себестоимость — '
         'order-based из МойСклад (Σ себест×кол-во по позициям заказа в месяц заказа; сторно '
         'возвратов в месяц заказа, кроме склада «Брак»). '
         '<b>⚠ Живой месяц Яндекса структурно занижает маржу:</b> COGS списывается в месяц заказа '
