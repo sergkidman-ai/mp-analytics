@@ -285,6 +285,31 @@ def _reconcile_open(pending, bad_inv, bad_upd):
     return pend_out, bi_out, bu_out, n_pend_resolved, ms_partial
 
 
+def _report_window():
+    """(ts_начала, date_начала) окна отчёта: предыдущий рабочий день 00:00 … сейчас.
+
+    «Свежие данные за вчера и сегодня» = предыдущий рабочий день + текущий. Суббота —
+    рабочая (приёмки идут → six=True), поэтому выходные между предыдущим рабочим днём и
+    сегодня тоже попадают в окно (шагаем назад от вчера до ближайшего рабочего дня,
+    всё от него до «сейчас» — внутри окна)."""
+    import datetime
+    today = datetime.date.today()
+    d = today - datetime.timedelta(days=1)
+    try:
+        import workcal
+        for _ in range(14):
+            if workcal.is_working(d, six=True):
+                break
+            d -= datetime.timedelta(days=1)
+    except Exception:
+        for _ in range(14):                     # фолбэк без workcal: только воскресенье — не рабочее
+            if d.weekday() != 6:
+                break
+            d -= datetime.timedelta(days=1)
+    ts = time.mktime(datetime.datetime(d.year, d.month, d.day).timetuple())
+    return ts, d
+
+
 def build_report(path=None):
     """Отчёт по счетам и УПД: пары «счёт → УПД» по заказам поставщикам.
 
@@ -372,11 +397,22 @@ def build_report(path=None):
     def sup(ev):
         return ev.get("supplier") or ev.get("supplier_inn") or "?"
 
+    # Окно «свежих» закрытий: предыдущий рабочий день + сегодня (+ выходные между ними).
+    # Раздел «Закрыто» больше не копит всю историю — только закрытые в этом окне.
+    # Открытые (ждут УПД) и ошибки по дате НЕ режем: это актуальные дыры, сверяются с МС.
+    import datetime as _dt
+    win_ts, win_date = _report_window()
+    period = f"{win_date:%d.%m}–{_dt.date.today():%d.%m}"
+
+    def _slot_ts(sl):
+        return max((sl.get("inv") or {}).get("ts", 0) or 0,
+                   (sl.get("upd") or {}).get("ts", 0) or 0)
+    closed = [sl for sl in closed if _slot_ts(sl) >= win_ts]
+
     L = []
     n_pending = len(pending)
-    head = "📊 Отчёт по счетам и УПД"
-    L.append(head)
-    L.append(f"Заказов закрыто (счёт+УПД): {len(closed)}  ·  ждут УПД: {n_pending}"
+    L.append("📊 Отчёт по счетам и УПД")
+    L.append(f"Заказов закрыто за {period}: {len(closed)}  ·  ждут УПД: {n_pending}"
              + (f"  ·  ошибок: {len(bad_inv) + len(bad_upd)}" if (bad_inv or bad_upd) else ""))
 
     # ── ГЛАВНОЕ: счёт есть, УПД ещё нет (держим, пока не придёт приёмка) ──
@@ -418,21 +454,14 @@ def build_report(path=None):
             L.append(f"   • [{t}] {sup(ev)} · {ev.get('number') or ev.get('fn')}: "
                      f"{(ev.get('error') or '—')[:90]}")
 
-    # ── закрытые пары (компактно) ──
+    # ── закрытые пары за окно (компактно) ──
     if closed:
         L.append("")
-        L.append(f"✅ Закрыто полностью — счёт + УПД ({len(closed)}):")
+        L.append(f"✅ Закрыто за {period} — счёт + УПД ({len(closed)}):")
         for s, n in by_supplier(closed, lambda sl: sl["inv"]):
             L.append(f"   • {s}: {n}")
 
-    # ── УПД без счёта через бота (пришли сразу приёмкой) ──
-    if solo_upd:
-        L.append("")
-        L.append(f"ℹ️ УПД без счёта через бота — приёмка загружена ({len(solo_upd)}):")
-        for s, n in by_supplier(solo_upd, lambda ev: ev):
-            L.append(f"   • {s}: {n}")
-
-    if not (pending or bad_inv or bad_upd or closed or solo_upd):
+    if not (pending or bad_inv or bad_upd or closed):
         L.append("")
         L.append("Пока ни счетов, ни УПД в журнале не по чему собрать пары.")
 
