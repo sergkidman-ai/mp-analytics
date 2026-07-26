@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 invoice_to_po.py — единый конвейер: файл счёта поставщика (XLS/XLSX/PDF или ссылка Я.Диска)
-                   → черновик «Заказ поставщику» в МойСклад.
+                   → «Заказ поставщику» в МойСклад.
 
-Фаза 1. Создаём ТОЛЬКО purchaseorder, applicable=false (черновик). Счёт/УПД не трогаем.
+Создаём ТОЛЬКО purchaseorder. Счёт/УПД не трогаем. Статус проведения зависит от чистоты
+документа: все товары сматчены + итог сошёлся с суммой счёта ⇒ сразу «Проведён»
+(applicable=true); иначе — черновик (applicable=false), человек дорабатывает и проводит сам.
 
 Запуск:
   python invoice_to_po.py <файл|ссылка Я.Диска> [--create] [--suffix ТЕСТ]
@@ -24,7 +26,8 @@ invoice_to_po.py — единый конвейер: файл счёта пост
   • moment = дата счёта + текущее время МСК; deliveryPlannedMoment = +1 рабочий день (workcal, праздники, 6-дневка).
   • Итог заказа подгоняем под сумму счёта (правка цены последней товарной строки).
   • name заказа = номер счёта; перед --create проверяем уникальность, при коллизии — СТОП.
-  • state = «Закрыт»; applicable=false.
+  • state = «Закрыт»; applicable = true ТОЛЬКО для чистого документа (нет пропусков/предупреждений
+    и итог сошёлся с суммой счёта), иначе false (черновик на ручную правку).
 """
 import os, sys, re, json, gzip, time, subprocess, urllib.request, urllib.parse, urllib.error
 from datetime import datetime, date, timedelta
@@ -427,7 +430,7 @@ def price_kop(p):
 
 
 # ═══════════════════════ 8. Сборка и создание ═════════════════════════════════
-def build_payload(hdr, org, store, agent_id, positions, deliv_id, name, warns, skipped):
+def build_payload(hdr, org, store, agent_id, positions, deliv_id, name, warns, skipped, applicable=False):
     now = datetime.now(MSK)
     inv = hdr["inv_date"]
     six = hdr["supplier_inn"] in SIX_INN
@@ -461,7 +464,7 @@ def build_payload(hdr, org, store, agent_id, positions, deliv_id, name, warns, s
         "store": meta("store", store["id"]),
         "moment": f"{inv:%Y-%m-%d} {now:%H:%M:%S}",
         "deliveryPlannedMoment": f"{pl:%Y-%m-%d} {now:%H:%M:%S}",
-        "applicable": False,
+        "applicable": applicable,        # True = сразу «Проведён» (документ чист); иначе черновик
         "vatEnabled": not novat, "vatIncluded": not novat,
         "state": meta("purchaseorder/metadata/states", STATE_CLOSED, "state"),
         "description": desc,
@@ -509,9 +512,29 @@ def process(src, create=True, suffix=""):
         target = round(sum(p["line_sum"] for p in positions), 2) if positions else None
         adjust_total(positions, target)
         all_items_sum = round(sum((it.get("sum") if it.get("sum") is not None else it["qty"] * it["price"]) for it in items), 2)
+        ordersum = round(sum(price_kop(p) * p["qty"] for p in positions) / 100, 2)
+        hdr_mismatch = (hdr["total"] is not None and abs(hdr["total"] - all_items_sum) > 0.02)
+
+        # ── Автопроведение (создать сразу «Проведён», а не черновик) ──
+        # Только когда документ полностью готов и ручная правка НЕ нужна:
+        #  • все товары сматчены — нет пропущенных строк (skipped);
+        #  • нет предупреждений (товар вне группы / неоднозначный артикул → нужна проверка);
+        #  • есть сумма счёта и итог заказа сошёлся с ней до копейки.
+        # Иначе оставляем черновик (applicable=false) — человек дорабатывает и проводит сам.
+        sum_ok = (hdr["total"] is not None and not hdr_mismatch
+                  and abs(ordersum - hdr["total"]) <= 0.02)
+        auto_post = bool(not skipped and not warns and sum_ok)
+        post_reason = "чисто: все товары сматчены, итог сошёлся со счётом" if auto_post else \
+            "; ".join(filter(None, [
+                f"не сматчено строк: {len(skipped)}" if skipped else "",
+                f"предупреждений: {len(warns)}" if warns else "",
+                "нет суммы счёта для сверки" if hdr["total"] is None else "",
+                "итог не сошёлся с суммой счёта" if (hdr["total"] is not None and not sum_ok) else "",
+            ])) or "нужна ручная проверка"
 
         name = (hdr["number"] + suffix) if suffix else hdr["number"]
-        po, plan_dt, six = build_payload(hdr, org, store, agent_id, positions, deliv_id, name, warns, skipped)
+        po, plan_dt, six = build_payload(hdr, org, store, agent_id, positions, deliv_id, name,
+                                         warns, skipped, applicable=auto_post)
         json.dump(po, open(os.path.join(os.path.dirname(path), "_last_payload.json"), "w"),
                   ensure_ascii=False, indent=1)
 
@@ -523,9 +546,10 @@ def process(src, create=True, suffix=""):
             "n_items": len(items), "n_matched": len(matched),
             "n_deliv": sum(1 for p in positions if p["_deliv"]), "n_skipped": len(skipped),
             "moment": po["moment"], "plan": f"{plan_dt:%d.%m.%Y}", "plan_wd": WD[plan_dt.weekday()],
-            "ordersum": round(sum(price_kop(p) * p["qty"] for p in positions) / 100, 2),
+            "ordersum": ordersum,
             "target": target, "all_items_sum": all_items_sum, "hdr_total": hdr["total"],
-            "hdr_mismatch": (hdr["total"] is not None and abs(hdr["total"] - all_items_sum) > 0.02),
+            "hdr_mismatch": hdr_mismatch,
+            "applicable": auto_post, "post_reason": post_reason,
             "skipped": [{"num": s["num"], "art": s.get("art") or "—", "name": s["name"][:60],
                          "sum": s.get("sum"), "reason": s["reason"]} for s in skipped],
             "warns": warns, "created": False, "stop": False, "post_error": None,
@@ -627,7 +651,11 @@ def format_report(res):
     elif res.get("stop"):
         L.append("\n⛔ " + res["stop_msg"])
     elif res.get("created"):
-        L.append(f"\n✅ Черновик создан: {res['name']} · {res['order_sum']:.2f} ₽ (НДС {res['order_vatsum']:.2f})")
+        if res.get("applicable"):
+            L.append(f"\n✅ Проведён: {res['name']} · {res['order_sum']:.2f} ₽ (НДС {res['order_vatsum']:.2f})")
+        else:
+            L.append(f"\n📝 Черновик (нужна правка — {res.get('post_reason')}): "
+                     f"{res['name']} · {res['order_sum']:.2f} ₽ (НДС {res['order_vatsum']:.2f})")
         L.append(res["order_url"])
         asup = res.get("auto_supply")
         if asup:
