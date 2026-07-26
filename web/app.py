@@ -870,6 +870,116 @@ def wb_clearance_restore(payload: ClearanceItems):
     return {"ok": True, "restored": n}
 
 
+# ── Ручной себест Маркета (раздел «Себестоимость», поток rev) ───────────────────
+class YaCostManual(BaseModel):
+    account: str = "ya_acc1"
+    demand_name: str
+    cogs: float
+    note: str | None = None
+    author: str | None = None
+
+
+class YaCostReset(BaseModel):
+    account: str = "ya_acc1"
+    demand_name: str
+
+
+@app.post("/api/ya-cost/manual")
+def ya_cost_manual(p: YaCostManual):
+    """Сотрудник вручную задаёт себест отгрузки (там, где FIFO=0 и импутация пуста).
+    Пишем в устойчивую ya_cogs_manual (переживает перезапуск коллектора) + сразу правим кэш."""
+    nm = (p.demand_name or "").strip()
+    if not nm:
+        return {"ok": False, "error": "demand_name пуст"}
+    cogs = round(float(p.cogs or 0), 2)
+    db.upsert("ya_cogs_manual", [{
+        "account": p.account, "demand_name": nm, "cogs": cogs,
+        "note": (p.note or None), "author": (p.author or None)}],
+        conflict_cols=["account", "demand_name"])
+    db.execute("UPDATE ya_cogs_demand SET cogs=%s, method='manual' "
+               "WHERE account=%s AND demand_name=%s", (cogs, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs}
+
+
+@app.post("/api/ya-cost/reset")
+def ya_cost_reset(p: YaCostReset):
+    """Убрать ручной себест и пересчитать ОДНУ отгрузку через FIFO/импутацию (откат)."""
+    nm = (p.demand_name or "").strip()
+    db.execute("DELETE FROM ya_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
+    row = db.query("SELECT demand_id FROM ya_cogs_demand WHERE account=%s AND demand_name=%s",
+                   (p.account, nm))
+    if not row or not row[0]["demand_id"]:
+        return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
+    from collectors import ms_demand_cogs as MDC
+    from collectors.ya_cogs_demand import _cost_seb_map
+    cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
+    if cogs > 0:
+        method = "ms_fifo"
+    else:
+        cost_seb = _cost_seb_map()
+        cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+        method = "imputed"
+    db.execute("UPDATE ya_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
+               (cogs, method, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
+
+
+class YaCostMonth(BaseModel):
+    account: str = "ya_acc1"
+    ym: str                       # YYYY-MM
+    closed_by: str | None = None
+
+
+@app.post("/api/ya-cost/freeze")
+def ya_cost_freeze(p: YaCostMonth):
+    """Закрыть месяц себеста: человек проверил → себест финальный, коллектор его не пересобирает.
+    Гейт: нельзя закрыть, пока есть реальные продажи с 0 себеста (сначала заполнить вручную)."""
+    ym1 = p.ym[:7] + "-01"
+    zero = db.query("""
+        SELECT demand_name, coalesce(our_sum,0)::float our_sum FROM ya_cogs_demand
+        WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
+          AND coalesce(cogs,0)=0 AND status IN ('done','return_defect')
+        ORDER BY demand_name LIMIT 50""", (p.account, p.ym[:7]))
+    if zero:
+        return {"ok": False, "reason": "zero_cogs", "zero": zero,
+                "msg": f"Нельзя закрыть {p.ym}: {len(zero)} заказ(ов) без себеста — заполните вручную."}
+    db.upsert("ya_cogs_frozen", [{"account": p.account, "ym": ym1,
+                                  "closed_by": (p.closed_by or "сотрудник")}],
+              conflict_cols=["account", "ym"])
+    return {"ok": True, "ym": p.ym[:7], "closed": True}
+
+
+@app.post("/api/ya-cost/unfreeze")
+def ya_cost_unfreeze(p: YaCostMonth):
+    """Разморозить месяц — следующий прогон коллектора соберёт его заново из МС."""
+    db.execute("DELETE FROM ya_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
+    return {"ok": True, "ym": p.ym[:7], "closed": False}
+
+
+@app.get("/api/yandex/cost-tasks")
+def ya_cost_tasks(account: str = "ya_acc1"):
+    """Задачи проверки для дашборда Маркета: заказы с 0 себеста + невыкупы без возврата в МС."""
+    zero = db.query("""
+        SELECT demand_name, to_char(ym,'YYYY-MM') ym, coalesce(our_sum,0)::float our_sum
+        FROM ya_cogs_demand
+        WHERE account=%s AND coalesce(cogs,0)=0 AND status IN ('done','return_defect')
+        ORDER BY ym DESC, demand_name LIMIT 50
+    """, (account,))
+    zero_n = db.query("""SELECT count(*) n FROM ya_cogs_demand
+        WHERE account=%s AND coalesce(cogs,0)=0 AND status IN ('done','return_defect')""",
+        (account,))[0]["n"]
+    unred = db.query("""
+        SELECT demand_name, to_char(ym,'YYYY-MM') ym, coalesce(our_sum,0)::float our_sum
+        FROM ya_cogs_demand WHERE account=%s AND status='unredeemed'
+        ORDER BY ym DESC, demand_name LIMIT 50
+    """, (account,))
+    unred_n = db.query("SELECT count(*) n FROM ya_cogs_demand WHERE account=%s AND status='unredeemed'",
+                       (account,))[0]["n"]
+    return {"ok": True,
+            "zero_cogs": {"count": zero_n, "items": zero},
+            "unredeemed_no_return": {"count": unred_n, "items": unred}}
+
+
 @app.get("/opex", response_class=HTMLResponse)
 def opex_page():
     return (STATIC / "opex.html").read_text(encoding="utf-8")

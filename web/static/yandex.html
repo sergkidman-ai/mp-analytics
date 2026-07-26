@@ -33,6 +33,20 @@
   td.name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   tr:last-child td{border-bottom:none}
   .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .tasks{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:6px 0 4px}
+  .task{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .task .th{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .task .tt{font-weight:600}
+  .task .cnt{font-size:26px;font-weight:700}
+  .task .cnt.warn2{color:var(--warn)} .task .cnt.ok{color:var(--pos)}
+  .task .desc{color:var(--mut);font-size:12px;margin:2px 0 8px}
+  .task ul{list-style:none;margin:0;padding:0}
+  .task li{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .task li:last-child{border-bottom:none}
+  .task a.oo{color:var(--txt);text-decoration:none;font-variant-numeric:tabular-nums}
+  .task a.oo:hover{color:var(--acc)}
+  .task a.go{color:var(--acc);text-decoration:none;font-size:12.5px;display:inline-block;margin-top:9px}
+  .task a.go:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -64,6 +78,9 @@
   <div class="big" id="big"></div>
   <h2>💸 Расходы Маркета</h2>
   <div class="big" id="costs"></div>
+
+  <h2>✅ Задачи проверки себестоимости <span class="muted" style="font-weight:400;font-size:12px">(раздел «Себестоимость» → провал в заказ)</span></h2>
+  <div class="tasks" id="costtasks"></div>
 
   <h2>🏪 По магазинам</h2>
   <table id="stores"><thead><tr><th>Магазин (campaignId)</th><th>Заказов</th><th>Выручка</th></tr></thead><tbody></tbody></table>
@@ -148,7 +165,28 @@ async function load(){
     `<tr><td class="name" title="${(r.name||'').replace(/"/g,'&quot;')}">${r.name||'—'}</td><td class="muted">${r.offer||''}</td><td>${num(r.qty)}</td><td>${rub(r.revenue)}</td><td>${r.cogs!=null?rub(r.cogs):'<span class="muted">нет себест.</span>'}</td><td class="${r.margin_pct!=null&&r.margin_pct<15?'warn':''}">${r.margin_pct!=null?r.margin_pct+'%':'—'}</td></tr>`).join('');
   $('#foot').textContent='Источник: Яндекс.Маркет Partner API (бизнес-уровень, все магазины кабинета). Обновляется в дневном прогоне. COGS/маржа — следующим шагом.';
 }
+async function loadCostTasks(){
+  const t=await api('/api/yandex/cost-tasks');
+  const box=$('#costtasks'); if(!t.ok){box.innerHTML='<div class="muted">Себестоимость ещё не собрана.</div>';return;}
+  const card=(icon,title,desc,goodmsg,task)=>{
+    const n=task.count||0, items=task.items||[], show=items.slice(0,8);
+    const li=show.map(x=>`<li><a class="oo" href="/reports/cost/${x.ym}">${x.demand_name}</a>`+
+      `<span class="muted">${x.ym} · ${rub(x.our_sum)} →</span></li>`).join('');
+    const more=n>show.length?`<li class="muted">…ещё ${n-show.length}</li>`:'';
+    return `<div class="task"><div class="th"><span class="tt">${icon} ${title}</span>`+
+      `<span class="cnt ${n>0?'warn2':'ok'}">${n}</span></div>`+
+      `<div class="desc">${n>0?desc:goodmsg}</div>`+
+      (n>0?`<ul>${li}${more}</ul><a class="go" href="/reports/cost">Открыть раздел «Себестоимость» →</a>`:'')+
+      `</div>`;
+  };
+  box.innerHTML=
+    card('⚠','Проверить 0 себестоимости','заказов без себеста — заполнить вручную в отчёте',
+      'все заказы с себестоимостью — 0 нет',t.zero_cogs)+
+    card('🔙','Проверить возвраты (невыкуп)','Маркет вернул товар нам, в МС возврат не проведён',
+      'невыкупов без возврата в МС нет',t.unredeemed_no_return);
+}
 load();
+loadCostTasks();
 </script>
 </body>
 </html>
