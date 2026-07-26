@@ -48,7 +48,7 @@ ACCOUNTS = ("ya_acc1",)
 # сырые строки витрины yandex_finance_monthly (положительные величины)
 _BAL_KEYS = ["revenue", "subsidy", "fee", "delivery", "transfer", "promotion",
              "agency", "other_fee", "subscription_cost", "reviews_cost",
-             "boost_sales", "boost_shows", "shelf"]
+             "boost_sales", "boost_shows", "shelf", "returns_money"]
 # расходы площадки, из которых складывается «Итого расходы Маркета» (= mp_cost в _ya_business).
 # promotion — родительская строка (= boost_sales+boost_shows+shelf), в сумму берём ЕЁ, а бусты
 # показываем под-строками (не суммируем дважды).
@@ -64,7 +64,7 @@ KIND = {
     "fee": "expense", "delivery": "expense", "transfer": "expense", "promotion": "expense",
     "boost_sales": "expense", "boost_shows": "expense", "shelf": "expense",
     "agency": "expense", "other_fee": "expense", "subscription_cost": "expense",
-    "reviews_cost": "expense", "itog": "expense", "cogs": "expense",
+    "reviews_cost": "expense", "returns_money": "expense", "itog": "expense", "cogs": "expense",
     "payout": "inflow", "net": "inflow", "margin": "margin",
 }
 
@@ -78,7 +78,8 @@ def _row(y, m):
     """Строка yandex_finance_monthly за месяц (month = дата YYYY-MM-01) или None."""
     r = db.query(
         """SELECT revenue::float revenue, subsidy::float subsidy, orders,
-                  returns_orders, fee::float fee, delivery::float delivery,
+                  returns_orders, returns_sum::float returns_money,
+                  fee::float fee, delivery::float delivery,
                   transfer::float transfer, promotion::float promotion, agency::float agency,
                   other_fee::float other_fee, subscription_cost::float subscription_cost,
                   reviews_cost::float reviews_cost, cogs::float cogs,
@@ -110,12 +111,19 @@ def _cogs(y, m):
 
 # ---------- деривативы (та же формула, что _ya_business) ----------
 def _derive(m, orders, retc, cogs):
-    """own(оборот=выручка+субсидия) → Итого расходы Маркета → К перечислению → минус COGS = Чистая."""
-    own = m["revenue"] + m["subsidy"]
-    itog = sum(m[k] for k in MP_EXP)
+    """Оборот = оплата покупателя (subsidy — доплата Маркета, отдельными деньгами НЕ поступает,
+    держим справочно, в деньги/чистую не берём — сверено с ЛК «Подлежит перечислению»).
+    Итого удержания Маркета = услуги + деньги за возвраты → Итого к перечислению → минус COGS = Чистая.
+    Формула ЛК: Подлежит перечислению = оплата − возвраты − услуги (июнь-2026: 1 441 719 − 92 478
+    − 591 459 = 757 782 ≈ 760к, совпало)."""
+    own = m["revenue"]
+    ret_money = m.get("returns_money", 0.0)
+    services = sum(m[k] for k in MP_EXP)
+    itog = ret_money + services
     payout = own - itog
     net = payout - cogs
     return {**m, "own": own, "itog": itog, "payout": payout, "cogs": cogs,
+            "returns_money": ret_money, "services": services,
             "orders": orders, "returns_cnt": retc, "net": net,
             "margin": (net / own * 100 if own else 0),
             "check": (own / orders if orders else 0)}
