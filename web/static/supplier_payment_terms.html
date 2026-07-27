@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Поставщики · График оплаты</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  select,input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1100px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  h2{font-size:15px;margin:22px 0 12px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
+  td:first-child,td:nth-child(2){text-align:left}
+  tr:last-child td{border-bottom:none}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  .whtabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
+  .whtabs a:hover{color:var(--txt);background:var(--card)}
+  .whtabs a.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+  table.pt input,table.pt select{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;width:100%}
+  table.pt input[type=number]{text-align:right}
+  table.pt td{vertical-align:middle}
+  .ebtn{background:transparent;border:1px solid var(--line);color:var(--acc);border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer}
+  .ebtn:hover{background:var(--bg)}
+  .ebtn.primary{background:var(--acc);color:#06223c;border-color:var(--acc);font-weight:600}
+  .del{color:var(--neg);border:none;background:none;cursor:pointer;font-size:15px}
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;background:#3a2027;color:var(--neg)}
+  .tag.ok{background:#1c3a24;color:var(--pos)}
+  .tag.w{background:#3a3120;color:var(--warn)}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers" class="cur">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main>
+  <nav class="whtabs">
+    <a href="/suppliers">📦 Остатки</a>
+    <a href="/suppliers/payment-terms" class="cur">💳 График оплаты</a>
+  </nav>
+  <p class="note" style="margin-top:0">Условия оплаты по поставщику (ИНН). <b>Отсрочка</b> — при наступлении срока
+    оплаты хотя бы одного заказа собирается ОДНА пачка всех неоплаченных заказов поставщика, урезанная по текущему
+    остатку на р/с. <b>Предоплата по счёту</b> — черновик сразу на сумму каждого нового заказа. <b>Аванс/баланс</b> —
+    пополнение на фикс. сумму, когда расчётный баланс падает ниже порога. Черновики создаёт поллер автоматически;
+    подпись — вручную в вебе банка. Сейчас только песочница Альфы (см. HANDOFF).</p>
+
+  <h2>⚙️ Условия оплаты</h2>
+  <table class="pt" id="terms"><thead><tr>
+    <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Сумма аванса ₽</th><th>Порог баланса ₽</th><th>Активен</th><th></th>
+  </tr></thead><tbody></tbody></table>
+  <div style="margin-top:12px"><button class="ebtn" onclick="addRow()">+ поставщик</button>
+    <button class="ebtn primary" onclick="saveAll()">💾 Сохранить</button></div>
+
+  <h2>📋 Очередь черновиков <span class="muted" style="font-weight:400;font-size:12px">(последнее, что поллер запланировал/отправил)</span></h2>
+  <table id="queue"><thead><tr><th>Когда</th><th>ИНН</th><th>Вид</th><th>Заказов</th><th>Сумма ₽</th><th>Статус</th></tr></thead><tbody></tbody></table>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const esc=s=>(s==null?'':String(s)).replace(/"/g,'&quot;');
+async function api(p){const r=await fetch(p);return r.json();}
+let rows=[];
+
+const METHODS={deferred:'Отсрочка',prepayment_per_order:'Предоплата по счёту',prepayment_balance:'Аванс/баланс'};
+const QSTATUS={planned:['tag w','запланирован'],sent_sandbox:['tag ok','отправлен (песочница)'],sent_prod:['tag ok','отправлен (прод)'],error:['tag','ошибка']};
+
+function renderTerms(){
+  $('#terms tbody').innerHTML=rows.map((r,i)=>`<tr>
+    <td><input value="${esc(r.inn)}" placeholder="10 цифр" maxlength="12" oninput="rows[${i}].inn=this.value"></td>
+    <td><input value="${esc(r.name)}" placeholder="название" oninput="rows[${i}].name=this.value"></td>
+    <td><select onchange="rows[${i}].method=this.value;renderTerms()">
+      ${Object.entries(METHODS).map(([k,v])=>`<option value="${k}"${r.method===k?' selected':''}>${v}</option>`).join('')}
+    </select></td>
+    <td>${r.method==='deferred'?`<input type="number" value="${r.deferral_days??''}" placeholder="дней" oninput="rows[${i}].deferral_days=+this.value||null">`:'<span class="muted">—</span>'}</td>
+    <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.advance_amount??''}" placeholder="₽" oninput="rows[${i}].advance_amount=+this.value||null">`:'<span class="muted">—</span>'}</td>
+    <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.balance_threshold??''}" placeholder="₽" oninput="rows[${i}].balance_threshold=+this.value||null">`:'<span class="muted">—</span>'}</td>
+    <td style="text-align:center"><input type="checkbox" ${r.active!==false?'checked':''} onchange="rows[${i}].active=this.checked"></td>
+    <td><button class="del" onclick="delRow(${i})" title="удалить">✕</button></td>
+  </tr>`).join('')||'<tr><td colspan="8" class="muted">поставщиков не задано</td></tr>';
+}
+function addRow(){rows.push({inn:'',name:'',method:'deferred',deferral_days:14,advance_amount:null,balance_threshold:null,active:true});renderTerms();}
+function delRow(i){rows.splice(i,1);renderTerms();}
+async function saveAll(){
+  for(const r of rows){
+    const inn=(r.inn||'').trim();
+    if(!inn||!/^\d{10,12}$/.test(inn)){alert('ИНН должен быть 10-12 цифр: "'+inn+'"');return;}
+  }
+  for(const r of rows){
+    await fetch('/api/suppliers/payment-terms/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
+  }
+  await loadTerms();
+  alert('Сохранено');
+}
+async function loadTerms(){
+  const d=await api('/api/suppliers/payment-terms');
+  rows=(d.items||[]).map(r=>({...r}));
+  renderTerms();
+}
+async function loadQueue(){
+  const d=await api('/api/suppliers/payment-terms/queue');
+  $('#queue tbody').innerHTML=(d.items||[]).map(q=>{
+    const [cls,lbl]=QSTATUS[q.status]||['tag',q.status];
+    return `<tr><td>${(q.created_at||'').slice(0,16).replace('T',' ')}</td><td>${esc(q.inn)}</td><td>${q.kind}</td><td>${(q.covers_po_ids||[]).length||'—'}</td><td>${rub(q.amount)}</td><td><span class="${cls}">${lbl}</span></td></tr>`;
+  }).join('')||'<tr><td colspan="6" class="muted">очередь пуста</td></tr>';
+  $('#foot').textContent=`Черновиков в очереди: ${(d.items||[]).length}.`;
+}
+(async()=>{await loadTerms();await loadQueue();})();
+</script>
+</body>
+</html>

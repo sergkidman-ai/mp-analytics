@@ -995,6 +995,55 @@ def suppliers_page():
     return (STATIC / "suppliers.html").read_text(encoding="utf-8")
 
 
+# ── График оплаты поставщикам (поток: inv) ──────────────────────────────────
+@app.get("/suppliers/payment-terms", response_class=HTMLResponse)
+def suppliers_payment_terms_page():
+    return (STATIC / "supplier_payment_terms.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/suppliers/payment-terms")
+def suppliers_payment_terms_list():
+    rows = db.query("""SELECT inn, name, method, deferral_days,
+        advance_amount::float advance_amount, balance_threshold::float balance_threshold, active
+        FROM supplier_payment_terms ORDER BY name""")
+    return {"items": rows}
+
+
+class SupplierPaymentTerm(BaseModel):
+    inn: str
+    name: str = ""
+    method: str
+    deferral_days: int | None = None
+    advance_amount: float | None = None
+    balance_threshold: float | None = None
+    active: bool = True
+
+
+@app.post("/api/suppliers/payment-terms/save")
+def suppliers_payment_terms_save(p: SupplierPaymentTerm):
+    inn = (p.inn or "").strip()
+    if not inn or not re.fullmatch(r"\d{10,12}", inn):
+        return {"ok": False, "error": "inn должен быть 10-12 цифр"}
+    if p.method not in ("deferred", "prepayment_per_order", "prepayment_balance"):
+        return {"ok": False, "error": "неизвестный method"}
+    import datetime
+    db.upsert("supplier_payment_terms", [{
+        "inn": inn, "name": (p.name or inn).strip(), "method": p.method,
+        "deferral_days": p.deferral_days, "advance_amount": p.advance_amount,
+        "balance_threshold": p.balance_threshold, "active": p.active,
+        "updated_at": datetime.datetime.now(),
+    }], conflict_cols=["inn"])
+    return {"ok": True, "inn": inn}
+
+
+@app.get("/api/suppliers/payment-terms/queue")
+def suppliers_payment_terms_queue():
+    rows = db.query("""SELECT id, inn, kind, amount::float amount, covers_po_ids,
+        status, alfa_external_id, note, created_at::text created_at
+        FROM payment_draft_queue ORDER BY created_at DESC LIMIT 100""")
+    return {"items": rows}
+
+
 @app.get("/stale", response_class=HTMLResponse)
 def stale_page():
     return (STATIC / "stale.html").read_text(encoding="utf-8")
