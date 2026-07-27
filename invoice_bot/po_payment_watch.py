@@ -1,13 +1,18 @@
 # поток: inv
 """invoice_bot/po_payment_watch.py — поллер «Заказ поставщику» → очередь черновиков оплаты.
 
+Факт оплаты берём из МС (`payedSum` заказа) — счета платят и вручную, поэтому в пул попадают
+только недоплаченные заказы, на сумму остатка; закрывшиеся снимаются в 'paid' (см. _sync_pending).
+
 Только чтение МойСклад + запись в Postgres (payment_draft_queue/po_payment_status). Никаких
 обращений к банку на ЗАПИСЬ — только read-only проверка живого остатка (get_balance из
 alfa_payment_draft.py) для метода «отсрочка». Дневной крон, отдельный лог.
 
 Три метода (supplier_payment_terms.method), см. CLAUDE.md/докстринг миграции 200:
   • deferred              — пул неоплаченных заказов; при наступлении срока хотя бы одного —
-                            ОДНА пачка (старые вперёд), урезанная по живому остатку на р/с.
+                            ОДНА пачка (старые вперёд), урезанная по МЕНЬШЕМУ из двух: лимит
+                            платежа по договорённости (payment_cap, миграция 201; NULL = вся
+                            сумма задолженности) и живой остаток на р/с.
   • prepayment_per_order  — каждый новый заказ сразу отдельным черновиком (без пачек/остатка).
   • prepayment_balance    — аванс наперёд; баланс считается на лету (Σ отправленных авансов −
                             Σ сумм заказов с момента последнего аванса), пополняем при просадке
@@ -46,14 +51,21 @@ def get_r(path, tries=6):
             raise
 
 
-def _counterparty_id(inn):
+def _counterparty_id(inn, agent_id=None):
+    """id карточки контрагента. ИНН в МС НЕ уникален (у Солюшнс принт две карточки, заказы
+    только в «МСК»), поэтому явный ms_agent_id из supplier_payment_terms имеет приоритет."""
+    if agent_id:
+        return agent_id
     rows = get_r(f"/entity/counterparty?filter=inn={inn}").get("rows", [])
+    if len(rows) > 1:
+        print(f"[{inn}] ВНИМАНИЕ: карточек в МС несколько ({len(rows)}), ms_agent_id не задан — "
+              f"беру «{rows[0]['name']}». Проставьте карточку в условиях оплаты.")
     return rows[0]["id"] if rows else None
 
 
-def _fetch_purchase_orders(inn, since):
+def _fetch_purchase_orders(inn, since, agent_id=None):
     """Проведённые заказы поставщику (agent=inn) с moment>=since. Постранично (limit=100)."""
-    cid = _counterparty_id(inn)
+    cid = _counterparty_id(inn, agent_id)
     if not cid:
         print(f"[{inn}] контрагент не найден в МС — пропуск")
         return []
@@ -70,20 +82,34 @@ def _fetch_purchase_orders(inn, since):
     return out
 
 
-def _sync_pending(inn, deferral_days):
+def _sync_pending(inn, deferral_days, agent_id=None):
     """Новые заказы поставщика → po_payment_status(status='pending'), если их там ещё нет.
-    Возвращает список НОВЫХ po_id (антидубль по po_id PRIMARY KEY)."""
+    Возвращает список НОВЫХ po_id (антидубль по po_id PRIMARY KEY).
+
+    Источник правды об оплате — `payedSum` заказа в МойСкладе (счета платят и вручную, и до
+    внедрения этого модуля). Поэтому:
+      • в пул берём только НЕДОплаченные заказы, сумма = остаток (sum − payedSum);
+      • уже отслеживаемые заказы, которые в МС закрылись оплатой, снимаем в status='paid'.
+    Без этого гейта первый прогон планирует повторную оплату всего исторического хвоста
+    (проверено на Феррете: 54 из 56 заказов за 45 дней уже оплачены на 428 505 ₽)."""
     since = date.today() - timedelta(days=LOOKBACK_DAYS)
-    orders = _fetch_purchase_orders(inn, since)
+    orders = _fetch_purchase_orders(inn, since, agent_id)
     if not orders:
         return []
-    existing = {r["po_id"] for r in db.query(
-        "SELECT po_id FROM po_payment_status WHERE inn=%s", (inn,))}
-    new_rows, new_ids = [], []
+    tracked = {r["po_id"]: r["status"] for r in db.query(
+        "SELECT po_id, status FROM po_payment_status WHERE inn=%s", (inn,))}
+    new_rows, new_ids, closed = [], [], []
     for o in orders:
         po_id = o["id"]
-        if po_id in existing:
+        total = round(o.get("sum", 0) / 100, 2)
+        payed = round(o.get("payedSum", 0) / 100, 2)
+        due_amount = round(total - payed, 2)
+        if po_id in tracked:
+            if due_amount <= 0 and tracked[po_id] != "paid":
+                closed.append(po_id)     # оплатили (в т.ч. вручную) — снимаем из пула
             continue
+        if due_amount <= 0:
+            continue                     # оплачен ещё до того, как попал к нам в отслеживание
         order_date = o.get("moment", "")[:10]
         if not order_date:
             continue
@@ -91,17 +117,25 @@ def _sync_pending(inn, deferral_days):
         due = d + timedelta(days=deferral_days) if deferral_days else d
         new_rows.append({
             "po_id": po_id, "inn": inn, "order_date": d, "due_date": due,
-            "amount": round(o.get("sum", 0) / 100, 2),
+            "amount": due_amount,
         })
         new_ids.append(po_id)
+    if closed:
+        # у 'queued' черновик уже создан — помечаем его, чтобы человек не подписал повторную оплату
+        db.execute("""UPDATE payment_draft_queue SET note = coalesce(note,'') ||
+                      ' | ВНИМАНИЕ: часть заказов оплачена вне системы — проверить перед подписью'
+                      WHERE status='planned' AND id IN (SELECT draft_id FROM po_payment_status
+                      WHERE po_id = ANY(%s) AND status='queued' AND draft_id IS NOT NULL)""", (closed,))
+        db.execute("UPDATE po_payment_status SET status='paid' WHERE po_id = ANY(%s)", (closed,))
+        print(f"[{inn}] снято как оплаченные в МС: {len(closed)}")
     if new_rows:
         db.upsert("po_payment_status", new_rows, conflict_cols=["po_id"],
                   update_cols=[])   # DO NOTHING на конфликте — не трогаем уже отслеживаемые
     return new_ids
 
 
-def process_prepayment_per_order(inn, deferral_days=0):
-    new_ids = _sync_pending(inn, deferral_days=0)
+def process_prepayment_per_order(inn, agent_id=None):
+    new_ids = _sync_pending(inn, deferral_days=0, agent_id=agent_id)
     if not new_ids:
         return 0
     n = 0
@@ -120,8 +154,8 @@ def process_prepayment_per_order(inn, deferral_days=0):
     return n
 
 
-def process_deferred(inn, deferral_days):
-    _sync_pending(inn, deferral_days)
+def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
+    _sync_pending(inn, deferral_days, agent_id)
     pending = db.query("""SELECT po_id, amount FROM po_payment_status
         WHERE inn=%s AND status='pending' ORDER BY due_date, order_date""", (inn,))
     if not pending:
@@ -137,28 +171,42 @@ def process_deferred(inn, deferral_days):
         print(f"[{inn}] отсрочка: наступил срок по {due_now} заказ(ам), НО не смог узнать остаток "
               f"на р/с ({e}) — пропускаю прогон (безопасно: ничего не пачкуем без остатка).")
         return 0
+    # Два независимых ограничителя: договорённость с поставщиком (payment_cap) и живые деньги
+    # на счёте. Режем по меньшему; в note фиксируем, какой из них сработал — иначе потом не
+    # разобрать, почему пачка вышла короткой.
+    limit, binding = float(balance), "остаток на р/с"
+    if payment_cap and float(payment_cap) < limit:
+        limit, binding = float(payment_cap), "лимит платежа"
     picked, total = [], 0.0
     for r in pending:
         amt = float(r["amount"])
-        if total + amt > balance and picked:
-            break   # первый заказ включаем всегда (иначе пачка никогда не соберётся при малом остатке)
+        if total + amt > limit and picked:
+            break   # первый заказ включаем всегда (иначе пачка никогда не соберётся при малом лимите)
         picked.append(r["po_id"]); total += amt
     if not picked:
         return 0
+    over = total > limit   # сработало правило «первый заказ всегда»: один заказ дороже лимита
+    if len(picked) == len(pending) and not over:
+        binding = "не урезано (весь долг влез)"
+    note = (f"кап: {binding} {limit:.0f}₽" +
+            (f"; ПРЕВЫШЕН на {total-limit:.0f}₽ — один заказ дороже лимита" if over else ""))
     with db.get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("""INSERT INTO payment_draft_queue(inn, kind, amount, covers_po_ids, status)
-                VALUES (%s, 'deferred_batch', %s, %s, 'planned') RETURNING id""",
-                (inn, round(total, 2), picked))
+            cur.execute("""INSERT INTO payment_draft_queue(inn, kind, amount, covers_po_ids, status, note)
+                VALUES (%s, 'deferred_batch', %s, %s, 'planned', %s) RETURNING id""",
+                (inn, round(total, 2), picked, note))
             draft_id = cur.fetchone()[0]
             cur.execute("""UPDATE po_payment_status SET status='queued', draft_id=%s
                 WHERE po_id = ANY(%s)""", (draft_id, picked))
+    cap_s = f"{float(payment_cap):.0f}₽" if payment_cap else "вся сумма"
     print(f"[{inn}] отсрочка: пачка {len(picked)}/{len(pending)} заказ(ов) на {round(total,2)}₽ "
-          f"(остаток на р/с {balance}₽); не влезло {len(pending)-len(picked)}")
+          f"(лимит платежа {cap_s}, остаток на р/с {balance}₽, режет: {binding}"
+          f"{'; ПРЕВЫШЕНИЕ — один заказ дороже лимита' if over else ''}); "
+          f"не влезло {len(pending)-len(picked)}")
     return len(picked)
 
 
-def process_prepayment_balance(inn, advance_amount, balance_threshold):
+def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=None):
     if not advance_amount or not balance_threshold:
         print(f"[{inn}] аванс/баланс: не задана сумма аванса или порог — пропуск")
         return 0
@@ -173,7 +221,7 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold):
         balance = 0.0
     else:
         since = last[0]["created_at"]
-        orders = _fetch_purchase_orders(inn, since.date())
+        orders = _fetch_purchase_orders(inn, since.date(), agent_id)
         consumed = sum(o.get("sum", 0) / 100 for o in orders if o.get("moment", "") >= since.strftime("%Y-%m-%d %H:%M:%S"))
         balance = round(last[0]["amount"] - consumed, 2)
     if balance >= balance_threshold:
@@ -196,13 +244,16 @@ def run(only_inn=None):
         return
     for t in terms:
         inn, method = t["inn"], t["method"]
+        agent_id = t.get("ms_agent_id")
         try:
             if method == "deferred":
-                process_deferred(inn, t.get("deferral_days") or 0)
+                process_deferred(inn, t.get("deferral_days") or 0,
+                                 payment_cap=t.get("payment_cap"), agent_id=agent_id)
             elif method == "prepayment_per_order":
-                process_prepayment_per_order(inn)
+                process_prepayment_per_order(inn, agent_id=agent_id)
             elif method == "prepayment_balance":
-                process_prepayment_balance(inn, t.get("advance_amount"), t.get("balance_threshold"))
+                process_prepayment_balance(inn, t.get("advance_amount"),
+                                           t.get("balance_threshold"), agent_id=agent_id)
         except Exception as e:
             print(f"[{inn}] ОШИБКА ({method}): {type(e).__name__}: {e}")
 
