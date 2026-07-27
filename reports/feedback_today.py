@@ -45,6 +45,49 @@ _QR_RX = re.compile(r"(?:по\s*)?QR[-\s]?код\w*"
 
 ART = BASE_DIR / "docs" / "feedback_today_artifact.html"
 
+# ВОПРОСЫ — финальная сборка ответа теперь на Claude Opus 5 (веб-поиск/веб-факт остаются на
+# WEB_MODEL/DeepSeek, отзывы — на общей MODEL/DeepSeek, как раньше). Sonnet-сплит в feedback_web.py убран.
+QUESTION_MODEL = os.environ.get("FEEDBACK_QUESTION_MODEL", "claude-opus-5")
+
+# $ за 1M токенов (in, out) — для оценки стоимости прогона. DeepSeek не тарифицируем (нет цены в контуре
+# задачи, отдельный биллинг), Opus/Sonnet — по прайсу Anthropic.
+_PRICING = {
+    "claude-opus-5": (5.00, 25.00),
+    "claude-opus-4-8": (5.00, 25.00),
+    "claude-sonnet-5": (3.00, 15.00),
+}
+
+
+class _CostTracker:
+    """Счётчик токенов/стоимости по вызовам _llm() (сборка ответа на ВОПРОСЫ на Opus)."""
+
+    def __init__(self):
+        self.calls = {}
+
+    def add(self, model, usage):
+        it = getattr(usage, "input_tokens", 0) or 0
+        ot = getattr(usage, "output_tokens", 0) or 0
+        c = self.calls.setdefault(model, {"in": 0, "out": 0, "n": 0})
+        c["in"] += it
+        c["out"] += ot
+        c["n"] += 1
+
+    def summary(self):
+        if not self.calls:
+            return "  (вызовов не было)"
+        lines, total = [], 0.0
+        for model, c in self.calls.items():
+            pin, pout = _PRICING.get(model, (0.0, 0.0))
+            cost = c["in"] / 1e6 * pin + c["out"] / 1e6 * pout
+            total += cost
+            avg = f", ≈${cost / c['n']:.4f}/ответ" if c["n"] and cost else ""
+            lines.append(f"  {model}: {c['n']} вызовов · {c['in']}+{c['out']} ток. · ≈${cost:.4f}{avg}")
+        lines.append(f"  ИТОГО ≈${total:.4f}")
+        return "\n".join(lines)
+
+
+_COST = _CostTracker()
+
 
 def _base_model(m):
     """База модели: обрезаем короткий буквенный суффикс варианта серии (CX17NF→CX17, C1750N→C1750)."""
@@ -161,17 +204,23 @@ def _client():
 
 
 def _llm(client, r, cf, corpus):
-    """ИИ-черновик: карточка+каталог+few-shot → JSON {reply,route,confidence,grounded,note}."""
+    """ИИ-черновик: карточка+каталог+few-shot → JSON {reply,route,confidence,grounded,note}.
+    ВОПРОСЫ — финальная сборка на QUESTION_MODEL (Claude Opus 5); ОТЗЫВЫ — на общей MODEL (как раньше)."""
     cc = _card_data(r, cf)
     ex = corpus.retrieve(r["kind"], r["body"] or r["pros"] or r["cons"] or "", r["product_name"], k=5)
     content = _user_block(r, _name(r), cc, ex)
     # thinking-модели (DeepSeek-v4 pro/flash) тратят output-токены на размышления до JSON —
     # держим запас (env FEEDBACK_MAX_TOKENS). Кэш SYSTEM снимаем на не-Anthropic (DeepSeek его игнорит).
     max_tok = int(os.environ.get("FEEDBACK_MAX_TOKENS", "3000"))
+    model = QUESTION_MODEL if r["kind"] == "question" else MODEL
+    if model != MODEL:
+        from reports.llm_client import client_for
+        client = client_for(model)
     sysparam = ([{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
-                if not MODEL.lower().startswith("deepseek") else SYSTEM)
-    m = client.messages.create(model=MODEL, max_tokens=max_tok, system=sysparam,
+                if not model.lower().startswith("deepseek") else SYSTEM)
+    m = client.messages.create(model=model, max_tokens=max_tok, system=sysparam,
                                messages=[{"role": "user", "content": content}])
+    _COST.add(model, getattr(m, "usage", None))
     raw = _text_of(m)
     d = None
     mm = re.search(r"\{.*\}", raw, re.S)
@@ -180,10 +229,11 @@ def _llm(client, r, cf, corpus):
             d = json.loads(mm.group(0))
         except Exception:
             d = None
-    if d is None:                                    # JSON битый (обрезка) — спасаем текст reply регексом
-        rep = re.search(r'"reply"\s*:\s*"(.+?)"\s*,\s*"route"', raw, re.S)
-        reply_txt = rep.group(1).replace('\\"', '"').replace("\\n", " ") if rep else raw[:400]
-        d = {"reply": reply_txt, "route": "review", "confidence": 0, "grounded": False, "note": "parse-salvage"}
+    if d is None:                                    # JSON битый (обрезка/мусор) — НЕ салважим текст в
+        # ответ покупателю (утекала служебная разметка). Маркер + на человека, оператор ответит вручную.
+        return ({"reply": "⚠️ Ошибка парсинга ответа модели — нужен ручной ответ оператора.",
+                 "route": "human", "confidence": 0, "grounded": False,
+                 "note": "ошибка парсинга JSON модели"}, cc, model)
     # guardrail совместимости: утвердительное «да, подойдёт» без модели в карточке → review
     if r["kind"] == "question":
         asked = _asked_models(r["body"])
@@ -193,7 +243,7 @@ def _llm(client, r, cf, corpus):
             d["route"], d["grounded"] = "review", False
             d["note"] = "guardrail: совместимость не подтверждена карточкой; " + (d.get("note") or "")
         d["route"] = "review"                      # фаза «только черновики»: вопросы всегда на вычитку
-    return d, cc
+    return d, cc, model
 
 
 def _store(r, reply, route, conf, ground):
@@ -364,15 +414,19 @@ def _answer(client, r, cf, corpus):
         used_llm = _has_text(r) and (not _neg) and (bool(DEFECT_RX.search(_txt)) or "?" in _txt)
     if used_llm:
         try:
-            d, cc = _llm(client, r, cf, corpus)
+            d, cc, used_model = _llm(client, r, cf, corpus)
         except Exception as e:
-            d, cc = {"reply": f"[ошибка вызова: {str(e)[:120]}]", "route": "review",
-                     "confidence": 0, "grounded": False, "note": ""}, ""
+            d, cc, used_model = {"reply": f"[ошибка вызова: {str(e)[:120]}]", "route": "review",
+                                 "confidence": 0, "grounded": False, "note": ""}, "", MODEL
+        # Битый JSON модели → _llm вернул route=human с маркером: на человека, БЕЗ обогащения/утечек.
+        if r["kind"] == "question" and d.get("route") == "human":
+            return _early_human(r, cc, (d.get("reply") or "").strip(),
+                                d.get("note") or "ошибка парсинга", used_llm=True)
         reply = (d.get("reply") or "").strip()
         route = "auto" if d.get("route") == "auto" else "review"
         conf = float(d.get("confidence") or 0)
         ground = {"llm": True, "grounded": bool(d.get("grounded")), "note": (d.get("note") or "")[:300],
-                  "model": MODEL, "catalog": "КАТАЛОГ" in (cc or ""), "source": "карточка"}
+                  "model": used_model, "catalog": "КАТАЛОГ" in (cc or ""), "source": "карточка"}
         cat = "question" if r["kind"] == "question" else "review-text"
         # СОВМЕСТИМОСТЬ: карточка-семья (вариант серии) → прямой ответ; регуляторный код или модель
         # вне карточки → веб (источник №3, объяснит напр. L662B = европейское обозначение CX17NF)
@@ -543,6 +597,8 @@ def run(since="2026-06-17"):
     c = Counter(o["cat"] for o in out)
     print(f"\nИТОГ: {len(out)} черновиков · ИИ-вызовов {nllm} · веб-проверок {nweb} · вопросов {c['question']} · "
           f"отзывов-с-текстом {c['review-text']} · пустых-шаблоном {c['review-empty']}", flush=True)
+    print("Токены/стоимость (сборка ответа _llm):", flush=True)
+    print(_COST.summary(), flush=True)
     print(f"Артефакт-файл: {ART}", flush=True)
     return out
 
@@ -612,9 +668,9 @@ h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--acce
 .foot{color:var(--muted);font-size:13px;margin-top:24px;max-width:78ch;border-top:1px dashed var(--dash);padding-top:14px}"""
     body = f"""<div class="wrap"><p class="eyebrow">Цифровой квадрат · черновики на свежий поток</p>
 <h1>Ответы-черновики: необработанные отзывы и вопросы</h1>
-<p class="sub">Свежий необработанный поток с {_e(since)}. Вопросы и отзывы-с-текстом — ИИ-слой
-(claude-sonnet-5) на фактах карточки (card_facts v2: WB-модели из описания, чип из Ozon-двойника)
-+ каталог наших листингов + few-shot из наших прошлых ответов. Совместимость: сначала карточка
+<p class="sub">Свежий необработанный поток с {_e(since)}. Вопросы — ИИ-слой ({_e(QUESTION_MODEL)}) на
+фактах карточки (card_facts v2: WB-модели из описания, чип из Ozon-двойника) + каталог наших листингов
++ few-shot из наших прошлых ответов; отзывы-с-текстом — та же схема на {_e(MODEL)}. Совместимость: сначала карточка
 с учётом <b>вариантов серии</b> (CX17→CX17NF), затем <b>веб-поиск</b> для моделей, которых в карточке
 нет. Пустые 5★ — шаблон. <b>Это черновики — на площадках ничего не опубликовано.</b></p>
 <div class="tiles">
