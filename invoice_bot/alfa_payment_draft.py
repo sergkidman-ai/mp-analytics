@@ -153,14 +153,17 @@ def send_planned(dry_run=True, cfg=None):
         status = "sent_prod" if prod else "sent_sandbox"
         if r.status_code in (200, 201):
             ext_id = (r.json() or {}).get("externalId") or (r.json() or {}).get("id")
-            with db.get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("UPDATE payment_draft_queue SET status=%s, alfa_external_id=%s WHERE id=%s",
-                               (status, ext_id, draft["id"]))
-                    po_ids = draft.get("covers_po_ids") or []
-                    if po_ids:
-                        cur.execute("UPDATE po_payment_status SET status='paid' WHERE po_id = ANY(%s)", (po_ids,))
-            print(f"[draft {draft['id']}] отправлен ({status}) externalId={ext_id}")
+            # ЗАКАЗЫ НЕ ПОМЕЧАЕМ 'paid' ПРИ ОТПРАВКЕ. Отправлен НЕПОДПИСАННЫЙ черновик — деньги
+            # уйдут только когда человек подпишет его в вебе банка, а может и не подписать.
+            # Факт оплаты приходит из МС (payedSum) — его ловит гейт в po_payment_watch._sync_pending
+            # и сам переводит заказ в 'paid'. Раньше здесь стоял 'paid' на отправке: заказ пропадал
+            # из пула, даже если черновик так и остался неподписанным (тихая потеря долга), а в
+            # песочнице тестовый прогон портил реальный пул.
+            db.execute("UPDATE payment_draft_queue SET status=%s, alfa_external_id=%s WHERE id=%s",
+                       (status, ext_id, draft["id"]))
+            print(f"[draft {draft['id']}] отправлен ({status}) externalId={ext_id}"
+                  f"{' — ПЕСОЧНИЦА, реальных денег нет' if not prod else ''}; "
+                  f"заказы остаются в пуле до факта оплаты в МС")
         else:
             note = f"HTTP {r.status_code}: {r.text[:300]}"
             with db.get_conn() as conn:
