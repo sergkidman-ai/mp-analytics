@@ -33,6 +33,10 @@
   .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;background:#3a2027;color:var(--neg)}
   .tag.w{background:#3a3120;color:var(--warn)}
   .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  .whtabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
+  .whtabs a:hover{color:var(--txt);background:var(--card)}
+  .whtabs a.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
 </style>
 </head>
 <body>
@@ -50,6 +54,10 @@
   </nav>
 </header>
 <main>
+  <nav class="whtabs">
+    <a href="/suppliers" class="cur">📦 Остатки</a>
+    <a href="/suppliers/payment-terms">💳 График оплаты</a>
+  </nav>
   <p class="note" style="margin-top:0">Поставщики и их «Удалённый склад» (что у них есть → основа для арбитража/докупки). Дубли названий одного поставщика слиты в один. «Последняя закупка» — из приёмок МойСклад. Свои склады и дефицит — на странице «Склад».</p>
   <div style="margin:10px 0 14px"><input id="q" placeholder="поиск поставщика" style="min-width:260px"></div>
   <div class="big" id="big"></div>
