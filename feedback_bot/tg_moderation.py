@@ -190,6 +190,8 @@ def _card(row):
     banner = _mode_banner(row.get("account"))
     if row.get("draft_route") == "human":          # домен-фильтр / ошибка парсинга — только вручную
         banner += "⚠️ <b>НА ЧЕЛОВЕКА</b> — авто-ответа нет, ответьте через «✏️ Ответить вручную»\n"
+    elif isinstance(g, dict) and g.get("no_card"):  # профильный товар, но карточка пустая
+        banner += "🔍 <b>БЕЗ ДАННЫХ КАРТОЧКИ</b> — ответ собран по каталогу/вебу, проверьте внимательнее\n"
     dt = row.get("created_at")
     ds = dt.strftime("%d.%m.%Y") if dt else "—"
     if row.get("kind") == "review":

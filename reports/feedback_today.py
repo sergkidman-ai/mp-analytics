@@ -401,8 +401,13 @@ def _presale_scrub(reply, r):
     return reply
 
 
-# ДОМЕН-ФИЛЬТР. Наш профиль — картриджи/расходники печати. На вопрос по не-расходнику ИЛИ по товару
-# без данных карточки (CARD_DATA) отвечать по общему знанию ЗАПРЕЩЕНО — такой вопрос идёт на человека.
+# ДОМЕН-ФИЛЬТР. Наш профиль — картриджи/расходники печати.
+#   • НЕ расходник → жёстко на человека, всегда (ответ по общему знанию запрещён — это не наша тема).
+#   • Расходник БЕЗ данных карточки → раньше тоже уходил на человека, и это была ложная отбраковка:
+#     реальный кейс CF540A-CF543A (вопрос про M254nw, wb_acc2) — товар профильный, а CARD_DATA пуст
+#     только потому, что контент карточек Дисквэра мы не собирали. Теперь такой вопрос идёт обычной
+#     цепочкой каталог → веб (DeepSeek) → сборка Opus, с пометкой «без данных карточки, проверьте
+#     внимательнее» в карточке модератора; на человека — только если цепочка ничего не дала.
 _CONSUMABLE_RX = re.compile(
     r"картридж|тонер|чернил|фото[-\s]?барабан|\bбарабан\b|драм|\bdrum\b|туб[аы]|фьюзер|"
     r"термопл[её]нк|термопленк|девелопер|снпч|заправк|риббон|печат\w*\s*головк|ракель|"
@@ -413,9 +418,7 @@ def _is_consumable(product_name):
     return bool(_CONSUMABLE_RX.search(product_name or ""))
 
 
-def _off_profile(product_name, cc):
-    """True, если вопрос вне профиля: товар не расходник ИЛИ нет данных карточки (CARD_DATA пуст)."""
-    return (not _is_consumable(product_name)) or (not (cc and cc.strip()))
+NO_CARD_NOTE = "без данных карточки, проверьте внимательнее"
 
 
 def _early_human(r, cc, reply, note, used_llm):
@@ -431,14 +434,16 @@ def _early_human(r, cc, reply, note, used_llm):
 def _answer(client, r, cf, corpus):
     """Полный движок ответа на ОДИН элемент. → (out_dict, reply, route, conf, ground, used_llm, used_web)."""
     used_web = False
-    # Домен-фильтр (только вопросы): вне профиля / нет карточки → на человека, БЕЗ вызова модели.
+    no_card = False
+    # Домен-фильтр (только вопросы). НЕ расходник → на человека сразу, БЕЗ вызова модели.
+    # Расходник без CARD_DATA → пропускаем в цепочку, но помечаем (no_card) для карточки модератора.
     if r["kind"] == "question":
         cc0 = _card_data(r, cf)
-        if _off_profile(r.get("product_name"), cc0):
-            why = "не расходник" if not _is_consumable(r.get("product_name")) else "нет данных карточки"
-            marker = (f"⚠️ Вне профиля / нет данных карточки ({why}) — ответ по общему знанию запрещён, "
-                      f"нужен ручной ответ оператора.")
-            return _early_human(r, cc0, marker, f"домен-фильтр: {why}", used_llm=False)
+        if not _is_consumable(r.get("product_name")):
+            marker = ("⚠️ Вне профиля (товар не расходник печати) — ответ по общему знанию запрещён, "
+                      "нужен ручной ответ оператора.")
+            return _early_human(r, cc0, marker, "домен-фильтр: не расходник", used_llm=False)
+        no_card = not (cc0 and cc0.strip())
     if r["kind"] == "question":
         used_llm = True
     else:
@@ -620,6 +625,33 @@ def _answer(client, r, cf, corpus):
                  "подходящий картридж и подскажем артикул.")
         route = "review"
         ground["note"] = "фолбэк: пустой ответ модели; " + (ground.get("note") or "")[:220]
+    # ПРОФИЛЬНЫЙ ТОВАР БЕЗ CARD_DATA. Опереться не на что, поэтому веб-добор зовём БЕЗУСЛОВНО (обычный
+    # `_needs_fact_web` рассчитан на случай, когда карточка есть и просто молчит по теме). Порядок тот
+    # же: каталог/модель уже отработали выше → веб (DeepSeek) → что получилось, то и показываем.
+    # Оператору отдаём только если не осталось содержательного ответа (пусто или дежурный фолбэк).
+    if r["kind"] == "question" and no_card:
+        ground["no_card"] = True
+        if not used_web and not (ground.get("grounded") or ground.get("catalog")):
+            from reports.feedback_web import web_fact, WEB_MODEL
+            from reports.llm_client import client_for
+            wf = web_fact(client_for(WEB_MODEL), r["body"], r["product_name"], cc)
+            used_web = True
+            if wf and (wf.get("answer") or "").strip():
+                reply = wf["answer"].strip()
+                ground.update({"web": True, "source": "веб-факт (без карточки)", "grounded": True,
+                               "sources": wf.get("sources", []),
+                               "note": "веб-факт: " + (wf.get("note") or "")[:200]})
+            else:
+                ground["note"] = "веб-факт без ответа; " + (ground.get("note") or "")[:200]
+        fallback = str(ground.get("note") or "").startswith("фолбэк")
+        if not (reply or "").strip() or fallback:
+            marker = ("⚠️ Нет данных карточки, и цепочка каталог → веб → ИИ не дала ответа — "
+                      "нужен ручной ответ оператора.")
+            return _early_human(r, cc, marker, f"{NO_CARD_NOTE}: цепочка без результата", used_llm)
+        route = "review"                                   # без карточки — никогда не auto
+        src = ground.get("source") or "—"
+        ground["source"] = src if "без карточки" in src else src + " (без карточки)"
+        ground["note"] = NO_CARD_NOTE + "; " + (ground.get("note") or "")[:200]
     outd = dict(r, cat=cat, reply=reply, route=route, conf=conf, card=cc,
                 note=ground.get("note", ""), grounded=ground.get("grounded", False),
                 catalog=ground.get("catalog", False), source=ground.get("source", ""),

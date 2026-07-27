@@ -4,6 +4,8 @@
 Шаги строго последовательно, каждый в своём try/except (частичный сбой не должен ронять весь цикл —
 как в collectors/feedback_collect_all.py):
   1. Сбор по всем каналам (collectors.feedback_collect_all).
+  1b. Обновление контента карточек WB, если он старше FEEDBACK_CARDS_MAX_AGE_DAYS — без него у части
+     SKU (весь wb_acc2 до 27.07) CARD_DATA пуст и вопрос уходит на человека без нужды.
   2. Пометка старых неотвеченных вопросов (>30 дней) флагом skipped_old — не генерируем, не шлём
      в модерацию (отзывам возрастной лимит не нужен, весь бэклог отзывов разбирается капельно).
   3. Генерация черновиков (reports.feedback_today.run) — draft_route auto/review/human.
@@ -58,6 +60,9 @@ def main():
 
     from collectors import feedback_collect_all
     _step("1/5 сбор по каналам", feedback_collect_all.main)
+
+    from collectors import wb_card_content
+    _step("1b/5 контент карточек WB (по гейту свежести)", wb_card_content.refresh_if_stale)
 
     _step("2/5 skipped_old для старых вопросов", _mark_skipped_old)
 
