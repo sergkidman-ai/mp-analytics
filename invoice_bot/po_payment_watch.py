@@ -4,6 +4,9 @@
 Факт оплаты берём из МС (`payedSum` заказа) — счета платят и вручную, поэтому в пул попадают
 только недоплаченные заказы, на сумму остатка; закрывшиеся снимаются в 'paid' (см. _sync_pending).
 
+Работаем ТОЛЬКО по организации «Цифровой квадрат» (BUYER_INN): счета на Дисквэр в этот контур
+не входят — его р/с в Сбере, Альфа-интеграция его не видит.
+
 Только чтение МойСклад + запись в Postgres (payment_draft_queue/po_payment_status). Никаких
 обращений к банку на ЗАПИСЬ — только read-only проверка живого остатка (get_balance из
 alfa_payment_draft.py) для метода «отсрочка». Дневной крон, отдельный лог.
@@ -39,6 +42,23 @@ from core import db                    # noqa: E402
 
 LOOKBACK_DAYS = 45   # горизонт заказов, за которым не гоняемся (закрытые старые долги руками)
 
+# Платим ТОЛЬКО за «Цифровой квадрат» (решение Сергея 2026-07-27): счета на Дисквэр в этот
+# контур не входят — у Дисквэра счёт в Сбере, интеграция с Альфой его в принципе не видит.
+# Заказы второй организации отсекаются на стороне МС-фильтра, а не постфактум.
+BUYER_INN = os.getenv("ALFA_BUYER_INN", "7807355364")   # ООО «ЦИФРОВОЙ КВАДРАТ»
+_ORG_ID = None
+
+
+def _org_id():
+    """id организации-плательщика в МС (кэш на процесс)."""
+    global _ORG_ID
+    if _ORG_ID is None:
+        rows = [o for o in get_r("/entity/organization").get("rows", []) if o.get("inn") == BUYER_INN]
+        if not rows:
+            raise RuntimeError(f"организация с ИНН {BUYER_INN} не найдена в МС")
+        _ORG_ID = rows[0]["id"]
+    return _ORG_ID
+
 
 def get_r(path, tries=6):
     """get() с ретраем/backoff на 429 (rate limit МС) — как в invoice_to_po.py."""
@@ -64,13 +84,16 @@ def _counterparty_id(inn, agent_id=None):
 
 
 def _fetch_purchase_orders(inn, since, agent_id=None):
-    """Проведённые заказы поставщику (agent=inn) с moment>=since. Постранично (limit=100)."""
+    """Проведённые заказы поставщику (agent=inn) ОТ НАШЕЙ организации (BUYER_INN), moment>=since.
+    Постранично (limit=100)."""
     cid = _counterparty_id(inn, agent_id)
     if not cid:
         print(f"[{inn}] контрагент не найден в МС — пропуск")
         return []
     href = f"{MSU}/entity/counterparty/{cid}"
-    flt = urllib.parse.quote(f"agent={href};applicable=true;moment>={since:%Y-%m-%d} 00:00:00", safe="=;:")
+    org = f"{MSU}/entity/organization/{_org_id()}"
+    flt = urllib.parse.quote(
+        f"agent={href};organization={org};applicable=true;moment>={since:%Y-%m-%d} 00:00:00", safe="=;:")
     out, offset = [], 0
     while True:
         page = get_r(f"/entity/purchaseorder?filter={flt}&limit=100&offset={offset}")
