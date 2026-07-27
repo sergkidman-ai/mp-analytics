@@ -159,6 +159,26 @@ def _kb(mod_id, allow_send=True):
          {"text": "🚫 Пропустить", "callback_data": f"skp:{mod_id}"}]]}
 
 
+def _mode_banner(account):
+    """ЧЕСТНЫЙ статус режима ДЛЯ ЭТОЙ карточки: что реально произойдёт по кнопке ✅.
+
+    Раньше баннер смотрел только на глобальный fs._live() и врал в обе стороны: показывал «DRY-RUN»
+    на живом канале (бот держал устаревший снимок .env — инцидент 27.07) и НЕ показывал dry-run, когда
+    аккаунт вне FEEDBACK_LIVE_ACCOUNTS или исчерпан дневной лимит. Проверяем те же три гейта, что и
+    сам post_answer(), в том же порядке — тогда метка совпадает с фактом по построению."""
+    if not fs._live():
+        return "🧪 <b>DRY-RUN</b> (реальной отправки нет: FEEDBACK_LIVE_SEND выключен)\n"
+    if account and account not in fs._live_accounts():
+        return f"🧪 <b>DRY-RUN</b> (канал {html.escape(str(account))} вне списка живых)\n"
+    cap = fs._daily_cap()
+    if cap is not None:
+        used = fs._sent_today()
+        if used >= cap:
+            return f"🧪 <b>DRY-RUN</b> (дневной лимит исчерпан: {used}/{cap})\n"
+        return f"🔴 <b>БОЕВОЙ РЕЖИМ</b> — по ✅ ответ уйдёт покупателю (лимит {used}/{cap})\n"
+    return "🔴 <b>БОЕВОЙ РЕЖИМ</b> — по ✅ ответ уйдёт покупателю\n"
+
+
 def _card(row):
     e = html.escape
     note = ""
@@ -167,7 +187,7 @@ def _card(row):
         src = g.get("source") or ("веб" if g.get("web") else "")
         if src or g.get("note"):
             note = f"\n<i>источник: {e(src or '—')}{'; ' + e((g.get('note') or ''))[:120] if g.get('note') else ''}</i>"
-    banner = "" if fs._live() else "🧪 <b>DRY-RUN</b> (реальной отправки нет)\n"
+    banner = _mode_banner(row.get("account"))
     if row.get("draft_route") == "human":          # домен-фильтр / ошибка парсинга — только вручную
         banner += "⚠️ <b>НА ЧЕЛОВЕКА</b> — авто-ответа нет, ответьте через «✏️ Ответить вручную»\n"
     dt = row.get("created_at")
@@ -220,7 +240,14 @@ def _dashboard():
             a["question"] = r["un"]
         elif r["kind"] == "review":
             a["review"] = r["un"]; a["review_txt"] = r["un_txt"]
-    lines = [f"📊 <b>Сводка за {WINDOW_DAYS} дней</b> · режим " + ("LIVE" if fs._live() else "DRY-RUN"), "",
+    if fs._live():
+        _la = sorted(fs._live_accounts())
+        _cap = fs._daily_cap()
+        mode = ("🔴 БОЕВОЙ: " + (", ".join(_la) if _la else "нет живых каналов")
+                + (f" · лимит {fs._sent_today()}/{_cap}" if _cap is not None else ""))
+    else:
+        mode = "🧪 DRY-RUN"
+    lines = [f"📊 <b>Сводка за {WINDOW_DAYS} дней</b> · режим {e(mode)}", "",
              "<b>Неотвечено на площадках:</b>"]
     for (plat, acc), a in sorted(agg.items()):
         lines.append(f"• {e(plat)} ({e(acc)}): вопросов <b>{a['question']}</b> · "

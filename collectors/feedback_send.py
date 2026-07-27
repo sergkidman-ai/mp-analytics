@@ -39,18 +39,33 @@ OZ_REVIEW_COMMENT_URL = "https://api-seller.ozon.ru/v1/review/comment/create"
 YA_API = "https://api.partner.market.yandex.ru"
 
 
+def _reload_env():
+    """Перечитать .env ПЕРЕД каждой проверкой гейта.
+
+    Зачем: бот модерации — ДОЛГОЖИВУЩИЙ процесс (systemd, недели аптайма), а load_dotenv отрабатывает
+    один раз при импорте. Реальный инцидент 27.07: бот стартовал 23.07, живые флаги дописаны в .env
+    27.07 — процесс их не увидел, `_live()` в нём остался False, и кнопка ✅ молча уходила в dry-run
+    (карточка помечалась state='sent', а на площадку НИЧЕГО не уходило: posted_at=NULL). Циклы этого
+    не показывали — каждый цикл это НОВЫЙ процесс со свежим .env, поэтому автоотправка работала живьём,
+    а модерация нет. override=True обязателен: без него dotenv не перезаписывает уже загруженные ключи."""
+    load_dotenv(BASE_DIR / ".env", override=True)
+
+
 def _live():
+    _reload_env()
     return os.environ.get("FEEDBACK_LIVE_SEND", "0") == "1"
 
 
 def _live_accounts():
     """Аллоу-лист аккаунтов для поэтапного включения (FEEDBACK_LIVE_ACCOUNTS=wb_acc1,oz_acc1).
     Пусто при FEEDBACK_LIVE_SEND=1 = ничего не льём нигде (безопасный дефолт, не «все аккаунты»)."""
+    _reload_env()
     raw = os.environ.get("FEEDBACK_LIVE_ACCOUNTS", "")
     return {a.strip() for a in raw.split(",") if a.strip()}
 
 
 def _daily_cap():
+    _reload_env()
     raw = os.environ.get("FEEDBACK_DAILY_SEND_CAP", "")
     return int(raw) if raw.strip() else None
 
