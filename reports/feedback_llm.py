@@ -184,7 +184,7 @@ def _fewshot(examples):
     return "\n".join(lines)
 
 
-def _user_block(r, name, compat, examples):
+def _user_block(r, name, compat, examples, hint=None):
     kind = "ВОПРОС" if r["kind"] == "question" else f"ОТЗЫВ {r['rating']}★"
     text = (r["body"] or "").strip()
     if r["pros"]:
@@ -192,11 +192,21 @@ def _user_block(r, name, compat, examples):
     if r["cons"]:
         text += f"\n[недостатки]: {r['cons']}"
     card = compat.strip() if compat else "(нет данных карточки)"
+    hint_block = ""
+    if hint:
+        hint_block = (
+            f"\nСОВМЕСТИМОСТЬ УЖЕ ПОДТВЕРЖДЕНА (вариант серии по базе совместимости, это факт, "
+            f"используй как есть, не подвергай сомнению): \"{hint}\"\n"
+            f"В вопросе покупателя ЕСТЬ ЕЩЁ ДРУГАЯ ТЕМА помимо совместимости (например заправка/ресурс/"
+            f"чип/комплектация/гарантия) — обязательно ответь И на неё тоже по CARD_DATA, не только на "
+            f"совместимость. Если по этой второй теме данных в CARD_DATA нет — не выдумывай и не молчи, "
+            f"а честно предложи покупателю уточнить у нас.\n")
     return (f"{_fewshot(examples)}\n\n"
             f"ПЛОЩАДКА: {r['platform']}\nТОВАР: {r['product_name']}\n"
             f"ИМЯ ПОКУПАТЕЛЯ: {name}\n"
             f"CARD_DATA (характеристики/совместимость карточки, единственный источник фактов):\n"
-            f"\"\"\"{card[:2500]}\"\"\"\n\n"
+            f"\"\"\"{card[:2500]}\"\"\"\n"
+            f"{hint_block}\n"
             f"{kind} ОТ ПОКУПАТЕЛЯ:\n\"\"\"{text[:1500]}\"\"\"\n\n"
             f"Составь ответ строго в формате JSON.")
 

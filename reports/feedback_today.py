@@ -182,6 +182,11 @@ def _needs_fact_web(question, reply):
     return False
 
 
+# вопрос НЕ только про совместимость — есть ещё тема (заправка/ресурс/чип/комплектация/гарантия):
+# серия-shortcut в этом случае НЕЛЬЗЯ отдавать как весь ответ, он покрывает только совместимость.
+_EXTRA_TOPIC_RX = re.compile(r"заправ|дозаправ|ресурс|\bчип\w*|компл[ек]т|гаранти", re.I)
+
+
 def _fam_status(question, card_models):
     """Совместимость с учётом ВАРИАНТОВ серии. → ('yes',matched)|('unknown',asked)|('no_data'|'no_ask',[])."""
     asked = _asked_models(question)
@@ -222,12 +227,14 @@ def _client():
     return client_for(MODEL)
 
 
-def _llm(client, r, cf, corpus):
+def _llm(client, r, cf, corpus, hint=None):
     """ИИ-черновик: карточка+каталог+few-shot → JSON {reply,route,confidence,grounded,note}.
-    ВОПРОСЫ — финальная сборка на QUESTION_MODEL (Claude Opus 5); ОТЗЫВЫ — на общей MODEL (как раньше)."""
+    ВОПРОСЫ — финальная сборка на QUESTION_MODEL (Claude Opus 5); ОТЗЫВЫ — на общей MODEL (как раньше).
+    hint — подсказка по совместимости (напр. серия-shortcut), когда вопрос ЕЩЁ про что-то помимо
+    совместимости: LLM собирает полный ответ, а не только компат."""
     cc = _card_data(r, cf)
     ex = corpus.retrieve(r["kind"], r["body"] or r["pros"] or r["cons"] or "", r["product_name"], k=5)
-    content = _user_block(r, _name(r), cc, ex)
+    content = _user_block(r, _name(r), cc, ex, hint=hint)
     # thinking-модели (DeepSeek-v4 pro/flash) тратят output-токены на размышления до JSON —
     # держим запас (env FEEDBACK_MAX_TOKENS). Кэш SYSTEM снимаем на не-Anthropic (DeepSeek его игнорит).
     max_tok = int(os.environ.get("FEEDBACK_MAX_TOKENS", "3000"))
@@ -466,11 +473,33 @@ def _answer(client, r, cf, corpus):
                 r"как\w*\s+цвет|каком\s+цвете|на\s+самом\s+деле|это\s+(?:чёрн|черн|цветн)", r["body"] or "", re.I))
             fam_reply = (f"Здравствуйте! Да, подойдёт для {', '.join(mm)} — это вариант серии из списка "
                          f"совместимости карточки." + (f" Наш картридж — {code}." if code else "")) if mm else ""
-            if st == "yes" and not defect and not color_q and fam_reply:
-                # карточка-серия: детерминированно и бесплатно — веб не нужен
+            # shortcut = ТОЛЬКО совместимость. Если в вопросе есть ещё тема (заправка/ресурс/чип/
+            # комплектация/гарантия), детерминированный шаблон её проигнорирует — вместо него полный
+            # ответ собирает Opus по CARD_DATA/каталогу, а fam_reply идёт ему подсказкой по совместимости.
+            extra_topic = bool(_EXTRA_TOPIC_RX.search(r["body"] or ""))
+            if st == "yes" and not defect and not color_q and fam_reply and not extra_topic:
+                # карточка-серия, вопрос целиком про совместимость: детерминированно и бесплатно — веб не нужен
                 reply = fam_reply
                 ground.update({"grounded": True, "source": "карточка-серия",
                                "note": f"вариант серии, совпало по базе: {', '.join(mm)}"})
+            elif st == "yes" and not defect and not color_q and fam_reply and extra_topic:
+                # совместимость подтверждена + доп. тема — полный ответ через Opus с подсказкой по совместимости
+                try:
+                    d2, _cc2, model2 = _llm(client, r, cf, corpus, hint=fam_reply)
+                except Exception as e:
+                    d2, model2 = {"reply": ""}, used_model
+                reply2 = (d2.get("reply") or "").strip()
+                if reply2:
+                    reply = reply2
+                    ground.update({"grounded": True, "source": "карточка-серия+llm", "model": model2,
+                                   "note": f"серия подтверждена ({', '.join(mm)}) + доп. тема через LLM"})
+                else:
+                    # LLM не вернул ответ — fallback на shortcut, лучше частичный ответ, чем ничего
+                    reply = fam_reply
+                    ground.update({"grounded": True, "source": "карточка-серия",
+                                   "note": f"вариант серии, совпало по базе: {', '.join(mm)} "
+                                           f"(доп.тема: LLM без ответа, fallback на shortcut)"})
+                route = "review"
             elif not defect and bool(asked_m):
                 # MODEL-FIRST: ответ _llm по знанию модели + карточка/каталог уже готов (reply).
                 # Веб зовём РЕДКО — только если модель сама не уверена (need_web), низкая уверенность
