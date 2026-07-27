@@ -174,7 +174,9 @@ def _mode_banner(account):
     if cap is not None:
         used = fs._sent_today()
         if used >= cap:
-            return f"🧪 <b>DRY-RUN</b> (дневной лимит исчерпан: {used}/{cap})\n"
+            # НЕ dry-run: канал боевой, ответ одобрен и уйдёт — просто не сегодня. Путать эти два
+            # состояния нельзя: «DRY-RUN» читается как «канал выключен, отправки не будет вообще».
+            return f"⏸ <b>ЛИМИТ ДНЯ {used}/{cap}</b> — ответ одобрен, уйдёт завтра\n"
         return f"🔴 <b>БОЕВОЙ РЕЖИМ</b> — по ✅ ответ уйдёт покупателю (лимит {used}/{cap})\n"
     return "🔴 <b>БОЕВОЙ РЕЖИМ</b> — по ✅ ответ уйдёт покупателю\n"
 
@@ -205,6 +207,41 @@ def _card(row):
     return (f"{banner}{head} · {e(row['platform'])} · 📅 {ds} · {e(row.get('product_name') or '')[:70]}\n\n"
             f"<b>Покупатель:</b> {e(txt)[:600]}\n\n"
             f"<b>Наш ответ:</b>\n{e((row.get('draft_text') or '').strip())[:1500]}{note}")
+
+
+def flush_deferred(limit=20):
+    """Дослать одобренные ответы, которые упёрлись в дневной лимит (state='deferred').
+
+    Шаг цикла, идёт ПЕРЕД авто-отправкой позитив-шаблонов: ручное решение оператора важнее массовой
+    рассылки, поэтому лимит нового дня первым делом тратим на него. Всё ещё упирается в лимит —
+    просто остаётся 'deferred' до следующего цикла. Возвращает число реально ушедших."""
+    rows = db.query("""SELECT m.id, m.final_text, m.tg_chat_id, m.tg_msg_id,
+        f.platform, f.account, f.kind, f.ext_id, f.item_id, f.payload, f.body
+        FROM feedback_moderation m
+        JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
+             AND f.kind=m.kind AND f.ext_id=m.ext_id
+        WHERE m.state='deferred' AND m.final_text IS NOT NULL
+        ORDER BY m.decided_at LIMIT %s""", (limit,))
+    sent = 0
+    for r in rows:
+        ok, detail = fs.post_answer(dict(r), r["final_text"])
+        if ok and detail == "dry-run:daily-cap":
+            log(f"deferred {r['platform']}/{r['account']} {r['ext_id']}: лимит дня всё ещё исчерпан")
+            break                                  # лимит общий — остальным тоже не пройти
+        if ok:
+            _set(r["id"], "sent", error=None)
+            sent += 1
+            log(f"deferred → отправлено mod={r['id']} {r['platform']} {r['ext_id']} ({detail})")
+            if r["tg_chat_id"] and r["tg_msg_id"]:  # закрываем ту же карточку в TG, чтобы не гадать
+                edit_text(r["tg_chat_id"], r["tg_msg_id"],
+                          "✅ Отправлено (отложенное — ждало сброса дневного лимита)\n\n"
+                          f"<b>Вопрос:</b> {html.escape((r.get('body') or '')[:300])}\n"
+                          f"<b>Ответ:</b> {html.escape((r['final_text'] or '')[:800])}")
+        else:
+            _set(r["id"], "failed", error=detail)
+            log(f"deferred → ОШИБКА mod={r['id']} {r['platform']} {r['ext_id']}: {detail[:150]}")
+        time.sleep(1.2)                            # лимитер площадок (WB — 1 rps на категорию)
+    return sent
 
 
 def send_batch(limit=5, days=None):
@@ -265,7 +302,8 @@ def _dashboard():
     lines += ["", f"<b>Очередь модерации (за {WINDOW_DAYS} дней):</b>",
               f"• ждут показа: <b>{ready}</b>",
               f"• уже показано: {st.get('carded', 0)} · отправлено: {st.get('sent', 0)} · "
-              f"пропущено: {st.get('skipped', 0)} · отложено: {st.get('snoozed', 0)}",
+              f"пропущено: {st.get('skipped', 0)} · отложено: {st.get('snoozed', 0)} · "
+              f"ждут лимита дня: {st.get('deferred', 0)}",
               "", f"«Показать всё» пришлёт все {ready} карточек за {WINDOW_DAYS} дней (по одной, с датой)."]
     kb = {"inline_keyboard": [[
         {"text": f"📥 Показать всё за {WINDOW_DAYS} дн.", "callback_data": "more:all"}],
@@ -291,8 +329,17 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
     em = message_id or m["tg_msg_id"]
     ok, detail = fs.post_answer(fr, text)
     if ok:
-        _set(mod_id, "sent", final_text=text, error=None, decided_at="now()", decided_by=int(from_id))
-        tail = "🧪 (dry-run) ушло бы" if detail == "dry-run" else "✅ Отправлено"
+        # Лимит дня — НЕ отказ и не dry-run: канал боевой, текст одобрен, отправку надо ДОСЛАТЬ.
+        # Помечать такое 'sent' нельзя (так делалось раньше) — ответ навсегда пропадал: на площадку
+        # ничего не ушло, а очередь считала карточку закрытой. Кладём в 'deferred', цикл дошлёт.
+        if detail == "dry-run:daily-cap":
+            _set(mod_id, "deferred", final_text=text, error=None,
+                 decided_at="now()", decided_by=int(from_id))
+            tail = "⏸ Одобрено, лимит дня исчерпан — уйдёт автоматически после сброса"
+        else:
+            _set(mod_id, "sent", final_text=text, error=None,
+                 decided_at="now()", decided_by=int(from_id))
+            tail = "🧪 (dry-run) ушло бы" if detail.startswith("dry-run") else "✅ Отправлено"
         edit_text(ec, em,
                   f"{tail}\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
                   f"<b>Ответ:</b> {html.escape(text[:800])}")

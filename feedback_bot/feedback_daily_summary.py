@@ -24,13 +24,17 @@ def _counts():
         WHERE state='sent' AND decided_at::date = current_date - 1""")[0]["n"]
     queued = db.query("""SELECT count(*) AS n FROM feedback_moderation
         WHERE state IN ('queued', 'carded', 'snoozed')""")[0]["n"]
+    # 'deferred' — одобрено оператором, но упёрлось в дневной лимит; НЕ ошибка и не очередь на решение,
+    # отдельная строка: цикл дошлёт сам, когда лимит сбросится (tg_moderation.flush_deferred).
+    deferred = db.query("""SELECT count(*) AS n FROM feedback_moderation
+        WHERE state='deferred'""")[0]["n"]
     errors = db.query("""SELECT
         (SELECT count(*) FROM raw_feedback WHERE posted_ok=false AND posted_at::date = current_date - 1)
       + (SELECT count(*) FROM feedback_moderation WHERE state='failed' AND decided_at::date = current_date - 1)
         AS n""")[0]["n"]
     cost = db.query("""SELECT coalesce(sum(cost_usd), 0) AS usd, coalesce(sum(calls), 0) AS calls
         FROM feedback_llm_cost_log WHERE day = current_date - 1""")[0]
-    return {"sent": sent, "published_mod": published_mod, "queued": queued,
+    return {"sent": sent, "published_mod": published_mod, "queued": queued, "deferred": deferred,
             "errors": errors, "cost_usd": float(cost["usd"]), "llm_calls": cost["calls"]}
 
 
@@ -39,6 +43,7 @@ def build_text(c):
             f"Отправлено (авто+модерация): <b>{c['sent']}</b>\n"
             f"Опубликовано после ✅ модерации: <b>{c['published_mod']}</b>\n"
             f"В очереди модерации сейчас: <b>{c['queued']}</b>\n"
+            f"Одобрено, ждёт сброса лимита дня: <b>{c['deferred']}</b>\n"
             f"Ошибок отправки: <b>{c['errors']}</b>\n"
             f"Потрачено на LLM: <b>${c['cost_usd']:.4f}</b> ({c['llm_calls']} вызовов)")
 

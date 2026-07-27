@@ -8,6 +8,8 @@ reports/feedback_today.py). Вопросы и любой отзыв с текс�
 одновременно закрывает и «сначала свежие», и «затем старые от новых к старым», весь бэклог
 капельно по вызовам). Отправка — через collectors.feedback_send.post_answer (единый choke point:
 FEEDBACK_LIVE_SEND + FEEDBACK_LIVE_ACCOUNTS + FEEDBACK_DAILY_SEND_CAP применяются автоматически).
+Перед раздачей слотов run() снимает с очереди неотвечаемые по правилам площадки (пустые Ozon-отзывы,
+см. mark_no_text) — иначе порция канала сгорала бы на заведомо отбойных вызовах API.
 
 Запуск:  ./venv/bin/python collectors/feedback_autosend.py
 """
@@ -32,11 +34,34 @@ def _log(msg):
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] feedback_autosend: {msg}", flush=True)
 
 
+# Ozon НЕ принимает ответ на отзыв без текста: /v1/review/comment/create → 400 «cannot comment on
+# empty review». Это ограничение площадки, а не наша ошибка, поэтому такие отзывы снимаем с очереди
+# флагом skipped_no_text (миграция 061), а не копим как неудачные отправки. У WB и Яндекса пустые ★5
+# отвечаются нормально — фильтр строго по Озону.
+_NO_TEXT_SQL = """platform='ozon' AND kind='review'
+    AND coalesce(body,'')='' AND coalesce(pros,'')='' AND coalesce(cons,'')=''"""
+
+
+def mark_no_text():
+    """Пометить неотвечаемые (пустые Ozon-отзывы) до раздачи слотов. Возвращает число новых пометок.
+
+    Заодно чинит уже сгоревшие: строки, которые до появления флага получили posted_ok=false по этой
+    самой причине, переводим в skipped_no_text и обнуляем posted_at/posted_ok — иначе они навсегда
+    висят в суточной сводке как ошибки отправки. Повторно в очередь они не вернутся (фильтр ниже)."""
+    healed = db.execute(f"""UPDATE raw_feedback SET posted_at=NULL, posted_ok=NULL, skipped_no_text=true
+                            WHERE {_NO_TEXT_SQL} AND posted_ok=false""")
+    fresh = db.execute(f"""UPDATE raw_feedback SET skipped_no_text=true
+                           WHERE {_NO_TEXT_SQL} AND NOT skipped_no_text AND posted_at IS NULL""")
+    if healed or fresh:
+        _log(f"неотвечаемых (Ozon без текста): помечено {fresh}, снято с ошибок отправки {healed}")
+    return fresh
+
+
 def _candidates():
     rows = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,payload,
         draft_text,created_at FROM raw_feedback
         WHERE draft_route='auto' AND is_answered=false AND posted_at IS NULL
-        AND draft_text IS NOT NULL AND NOT skipped_old
+        AND draft_text IS NOT NULL AND NOT skipped_old AND NOT skipped_no_text
         ORDER BY created_at DESC""")
     by_channel = defaultdict(list)
     for r in rows:
@@ -45,6 +70,7 @@ def _candidates():
 
 
 def run():
+    mark_no_text()                                # слоты цикла — только на отвечаемые отзывы
     by_channel = _candidates()
     total_sent, total_fail = 0, 0
     if not by_channel:

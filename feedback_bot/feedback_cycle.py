@@ -9,7 +9,10 @@
   2. Пометка старых неотвеченных вопросов (>30 дней) флагом skipped_old — не генерируем, не шлём
      в модерацию (отзывам возрастной лимит не нужен, весь бэклог отзывов разбирается капельно).
   3. Генерация черновиков (reports.feedback_today.run) — draft_route auto/review/human.
-  4. Автоотправка позитив-шаблонов отзывов (collectors.feedback_autosend) — пейсинг 5/канал/цикл.
+  3b. Досыл одобренных операторов ответов, упёршихся в дневной лимит (state='deferred') — ПЕРЕД
+     авто-отправкой: ручное решение важнее массовой рассылки, лимит нового дня тратим на него первым.
+  4. Автоотправка позитив-шаблонов отзывов (collectors.feedback_autosend) — пейсинг 5/канал/цикл,
+     пустые Ozon-отзывы отсеиваются заранее (площадка их не принимает).
   5. Пуш карточек модерации в Telegram капом FEEDBACK_MOD_CYCLE_BATCH/цикл (переиспользуем
      tg_moderation.send_batch — раньше авторассылку карточек убирали из-за флуда, теперь капается).
 
@@ -70,10 +73,12 @@ def main():
     since = time.strftime("%Y-%m-%d", time.localtime(time.time() - DRAFT_SINCE_DAYS * 86400))
     _step("3/5 генерация черновиков", feedback_today.run, since=since)
 
+    from feedback_bot import tg_moderation
+    _step("3b/5 дослать одобренное, что упёрлось в лимит дня", tg_moderation.flush_deferred)
+
     from collectors import feedback_autosend
     _step("4/5 авто-отправка позитив-шаблонов", feedback_autosend.run)
 
-    from feedback_bot import tg_moderation
     sent = _step("5/5 карточки модерации в Telegram", tg_moderation.send_batch, limit=MOD_CYCLE_BATCH)
     _log(f"карточек отправлено: {sent if sent is not None else 0}")
 
