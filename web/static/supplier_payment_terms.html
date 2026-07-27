@@ -61,20 +61,21 @@
     <a href="/suppliers/payment-terms" class="cur">💳 График оплаты</a>
   </nav>
   <p class="note" style="margin-top:0">Условия оплаты по поставщику (ИНН). <b>Отсрочка</b> — при наступлении срока
-    оплаты хотя бы одного заказа собирается ОДНА пачка всех неоплаченных заказов поставщика, урезанная по текущему
-    остатку на р/с. <b>Предоплата по счёту</b> — черновик сразу на сумму каждого нового заказа. <b>Аванс/баланс</b> —
+    оплаты хотя бы одного заказа собирается ОДНА пачка всех неоплаченных заказов поставщика, урезанная по меньшему из
+    двух: <b>размер платежа</b> по договорённости (пусто = вся сумма задолженности) и текущий остаток на р/с.
+    <b>Предоплата по счёту</b> — черновик сразу на сумму каждого нового заказа. <b>Аванс/баланс</b> —
     пополнение на фикс. сумму, когда расчётный баланс падает ниже порога. Черновики создаёт поллер автоматически;
     подпись — вручную в вебе банка. Сейчас только песочница Альфы (см. HANDOFF).</p>
 
   <h2>⚙️ Условия оплаты</h2>
   <table class="pt" id="terms"><thead><tr>
-    <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Сумма аванса ₽</th><th>Порог баланса ₽</th><th>Активен</th><th></th>
+    <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th><th>Сумма аванса ₽</th><th>Порог баланса ₽</th><th>Активен</th><th></th>
   </tr></thead><tbody></tbody></table>
   <div style="margin-top:12px"><button class="ebtn" onclick="addRow()">+ поставщик</button>
     <button class="ebtn primary" onclick="saveAll()">💾 Сохранить</button></div>
 
   <h2>📋 Очередь черновиков <span class="muted" style="font-weight:400;font-size:12px">(последнее, что поллер запланировал/отправил)</span></h2>
-  <table id="queue"><thead><tr><th>Когда</th><th>ИНН</th><th>Вид</th><th>Заказов</th><th>Сумма ₽</th><th>Статус</th></tr></thead><tbody></tbody></table>
+  <table id="queue"><thead><tr><th>Когда</th><th>ИНН</th><th>Вид</th><th>Заказов</th><th>Сумма ₽</th><th>Статус</th><th>Чем урезано</th></tr></thead><tbody></tbody></table>
   <p class="note" id="foot"></p>
 </main>
 <script>
@@ -95,13 +96,14 @@ function renderTerms(){
       ${Object.entries(METHODS).map(([k,v])=>`<option value="${k}"${r.method===k?' selected':''}>${v}</option>`).join('')}
     </select></td>
     <td>${r.method==='deferred'?`<input type="number" value="${r.deferral_days??''}" placeholder="дней" oninput="rows[${i}].deferral_days=+this.value||null">`:'<span class="muted">—</span>'}</td>
+    <td>${r.method==='deferred'?`<input type="number" value="${r.payment_cap??''}" placeholder="вся сумма" oninput="rows[${i}].payment_cap=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.advance_amount??''}" placeholder="₽" oninput="rows[${i}].advance_amount=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.balance_threshold??''}" placeholder="₽" oninput="rows[${i}].balance_threshold=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td style="text-align:center"><input type="checkbox" ${r.active!==false?'checked':''} onchange="rows[${i}].active=this.checked"></td>
     <td><button class="del" onclick="delRow(${i})" title="удалить">✕</button></td>
-  </tr>`).join('')||'<tr><td colspan="8" class="muted">поставщиков не задано</td></tr>';
+  </tr>`).join('')||'<tr><td colspan="9" class="muted">поставщиков не задано</td></tr>';
 }
-function addRow(){rows.push({inn:'',name:'',method:'deferred',deferral_days:14,advance_amount:null,balance_threshold:null,active:true});renderTerms();}
+function addRow(){rows.push({inn:'',name:'',method:'deferred',deferral_days:14,payment_cap:null,advance_amount:null,balance_threshold:null,active:true});renderTerms();}
 function delRow(i){rows.splice(i,1);renderTerms();}
 async function saveAll(){
   for(const r of rows){
@@ -123,8 +125,9 @@ async function loadQueue(){
   const d=await api('/api/suppliers/payment-terms/queue');
   $('#queue tbody').innerHTML=(d.items||[]).map(q=>{
     const [cls,lbl]=QSTATUS[q.status]||['tag',q.status];
-    return `<tr><td>${(q.created_at||'').slice(0,16).replace('T',' ')}</td><td>${esc(q.inn)}</td><td>${q.kind}</td><td>${(q.covers_po_ids||[]).length||'—'}</td><td>${rub(q.amount)}</td><td><span class="${cls}">${lbl}</span></td></tr>`;
-  }).join('')||'<tr><td colspan="6" class="muted">очередь пуста</td></tr>';
+    const warn=(q.note||'').includes('ПРЕВЫШЕН');
+    return `<tr><td>${(q.created_at||'').slice(0,16).replace('T',' ')}</td><td>${esc(q.inn)}</td><td>${q.kind}</td><td>${(q.covers_po_ids||[]).length||'—'}</td><td>${rub(q.amount)}</td><td><span class="${cls}">${lbl}</span></td><td style="text-align:left" class="${warn?'warn':'muted'}">${esc(q.note)||'—'}</td></tr>`;
+  }).join('')||'<tr><td colspan="7" class="muted">очередь пуста</td></tr>';
   $('#foot').textContent=`Черновиков в очереди: ${(d.items||[]).length}.`;
 }
 (async()=>{await loadTerms();await loadQueue();})();

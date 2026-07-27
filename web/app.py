@@ -1004,7 +1004,9 @@ def suppliers_payment_terms_page():
 @app.get("/api/suppliers/payment-terms")
 def suppliers_payment_terms_list():
     rows = db.query("""SELECT inn, name, method, deferral_days,
-        advance_amount::float advance_amount, balance_threshold::float balance_threshold, active
+        payment_cap::float payment_cap,
+        advance_amount::float advance_amount, balance_threshold::float balance_threshold,
+        ms_agent_id, active
         FROM supplier_payment_terms ORDER BY name""")
     return {"items": rows}
 
@@ -1014,6 +1016,7 @@ class SupplierPaymentTerm(BaseModel):
     name: str = ""
     method: str
     deferral_days: int | None = None
+    payment_cap: float | None = None      # потолок платежа, ₽; None = вся сумма задолженности
     advance_amount: float | None = None
     balance_threshold: float | None = None
     active: bool = True
@@ -1029,7 +1032,8 @@ def suppliers_payment_terms_save(p: SupplierPaymentTerm):
     import datetime
     db.upsert("supplier_payment_terms", [{
         "inn": inn, "name": (p.name or inn).strip(), "method": p.method,
-        "deferral_days": p.deferral_days, "advance_amount": p.advance_amount,
+        "deferral_days": p.deferral_days, "payment_cap": p.payment_cap,
+        "advance_amount": p.advance_amount,
         "balance_threshold": p.balance_threshold, "active": p.active,
         "updated_at": datetime.datetime.now(),
     }], conflict_cols=["inn"])
