@@ -43,6 +43,24 @@ def _live():
     return os.environ.get("FEEDBACK_LIVE_SEND", "0") == "1"
 
 
+def _live_accounts():
+    """Аллоу-лист аккаунтов для поэтапного включения (FEEDBACK_LIVE_ACCOUNTS=wb_acc1,oz_acc1).
+    Пусто при FEEDBACK_LIVE_SEND=1 = ничего не льём нигде (безопасный дефолт, не «все аккаунты»)."""
+    raw = os.environ.get("FEEDBACK_LIVE_ACCOUNTS", "")
+    return {a.strip() for a in raw.split(",") if a.strip()}
+
+
+def _daily_cap():
+    raw = os.environ.get("FEEDBACK_DAILY_SEND_CAP", "")
+    return int(raw) if raw.strip() else None
+
+
+def _sent_today():
+    r = db.query("""SELECT count(*) AS n FROM raw_feedback
+        WHERE posted_ok=true AND posted_at::date = current_date""")
+    return r[0]["n"] if r else 0
+
+
 def _log(msg):
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] feedback_send: {msg}", flush=True)
 
@@ -138,6 +156,8 @@ def post_answer(row, text):
     text = (text or "").strip()
     if not text:
         return False, "пустой текст"
+    if text.startswith("⚠️"):                       # маркер «на человека» — не ответ покупателю
+        return False, "маркер-заглушка (на человека), не отправляется — ответьте вручную"
     kind = row["kind"]
     if kind not in ("question", "review"):
         return False, f"kind={kind} вне охвата (вопросы и отзывы)"
@@ -146,6 +166,13 @@ def post_answer(row, text):
     if not _live():
         _log(f"DRY-RUN {plat}/{acc} {kind}={ext}: ушло бы «{text[:80]}»")
         return True, "dry-run"
+    if acc not in _live_accounts():
+        _log(f"DRY-RUN(acct) {plat}/{acc} {kind}={ext}: аккаунт вне FEEDBACK_LIVE_ACCOUNTS")
+        return True, "dry-run:acct-not-live"
+    cap = _daily_cap()
+    if cap is not None and _sent_today() >= cap:
+        _log(f"DRY-RUN(cap) {plat}/{acc} {kind}={ext}: дневной лимит {cap} исчерпан")
+        return True, "dry-run:daily-cap"
 
     try:
         payload = row.get("payload") or {}

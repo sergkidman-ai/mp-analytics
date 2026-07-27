@@ -85,6 +85,21 @@ class _CostTracker:
         lines.append(f"  ИТОГО ≈${total:.4f}")
         return "\n".join(lines)
 
+    def persist(self):
+        """Upsert в feedback_llm_cost_log (текущие сутки) — суточная сводка агрегирует по дню,
+        т.к. _CostTracker живёт только в памяти одного процесса, а циклов в сутках ~12."""
+        for model, c in self.calls.items():
+            pin, pout = _PRICING.get(model, (0.0, 0.0))
+            cost = c["in"] / 1e6 * pin + c["out"] / 1e6 * pout
+            db.execute("""INSERT INTO feedback_llm_cost_log (day, model, calls, tokens_in, tokens_out, cost_usd)
+                VALUES (current_date, %s, %s, %s, %s, %s)
+                ON CONFLICT (day, model) DO UPDATE SET
+                    calls = feedback_llm_cost_log.calls + EXCLUDED.calls,
+                    tokens_in = feedback_llm_cost_log.tokens_in + EXCLUDED.tokens_in,
+                    tokens_out = feedback_llm_cost_log.tokens_out + EXCLUDED.tokens_out,
+                    cost_usd = feedback_llm_cost_log.cost_usd + EXCLUDED.cost_usd""",
+                (model, c["n"], c["in"], c["out"], cost))
+
 
 _COST = _CostTracker()
 
@@ -185,10 +200,14 @@ def _fam_status(question, card_models):
 
 
 def _gather(since):
-    # необработанные за окно (последний месяц) — и вопросы, и отзывы по дате created_at
+    # необработанные за окно (последний месяц) — и вопросы, и отзывы по дате created_at.
+    # posted_at IS NULL — не пере-драфтить/не пере-класть в очередь то, что этот же цикл уже реально
+    # отправил (auto-send/модерация), а сборщик ещё не подтвердил is_answered. skipped_old=false —
+    # вопросы старше 30 дней помечены отдельным циклом (feedback_cycle.py) и сюда не попадают.
     q = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,body,pros,cons,payload,
         created_at FROM raw_feedback WHERE is_answered=false
         AND account IN ('wb_acc1','wb_acc2','oz_acc1','oz_acc2','ya_acc1')
+        AND posted_at IS NULL AND NOT skipped_old
         AND created_at >= %s ORDER BY (kind='question') DESC, created_at DESC NULLS LAST""",
         (since,))
     return q
@@ -599,6 +618,7 @@ def run(since="2026-06-17"):
           f"отзывов-с-текстом {c['review-text']} · пустых-шаблоном {c['review-empty']}", flush=True)
     print("Токены/стоимость (сборка ответа _llm):", flush=True)
     print(_COST.summary(), flush=True)
+    _COST.persist()
     print(f"Артефакт-файл: {ART}", flush=True)
     return out
 

@@ -105,7 +105,8 @@ def _pending(limit=5, days=None):
     `days` дней (по дате отзыва/вопроса). Отдаём порцией (limit) — рассылка только по кнопке."""
     days = WINDOW_DAYS if days is None else days
     return db.query("""SELECT m.id, m.platform, m.account, m.kind, m.ext_id,
-        f.product_name, f.body, f.pros, f.cons, f.rating, f.created_at, f.draft_text, f.draft_grounding
+        f.product_name, f.body, f.pros, f.cons, f.rating, f.created_at,
+        f.draft_text, f.draft_route, f.draft_grounding
         FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
              AND f.kind=m.kind AND f.ext_id=m.ext_id
@@ -146,13 +147,16 @@ def _set(mod_id, state, **f):
     db.execute(f"UPDATE feedback_moderation SET {', '.join(cols)} WHERE id=%s", tuple(vals))
 
 
-def _kb(mod_id):
-    return {"inline_keyboard": [
-        [{"text": "✅ Отправить", "callback_data": f"snd:{mod_id}"},
-         {"text": "✏️ Править", "callback_data": f"edt:{mod_id}"}],
+def _kb(mod_id, allow_send=True):
+    # Для route=human (домен-фильтр / ошибка парсинга) кнопки ✅ НЕТ — черновик это маркер, не ответ;
+    # оператор отвечает только через ✏️ Править.
+    top = ([{"text": "✅ Отправить", "callback_data": f"snd:{mod_id}"},
+            {"text": "✏️ Править", "callback_data": f"edt:{mod_id}"}]
+           if allow_send else
+           [{"text": "✏️ Ответить вручную", "callback_data": f"edt:{mod_id}"}])
+    return {"inline_keyboard": [top,
         [{"text": "🕒 Позже", "callback_data": f"lat:{mod_id}"},
-         {"text": "🚫 Пропустить", "callback_data": f"skp:{mod_id}"}],
-    ]}
+         {"text": "🚫 Пропустить", "callback_data": f"skp:{mod_id}"}]]}
 
 
 def _card(row):
@@ -164,6 +168,8 @@ def _card(row):
         if src or g.get("note"):
             note = f"\n<i>источник: {e(src or '—')}{'; ' + e((g.get('note') or ''))[:120] if g.get('note') else ''}</i>"
     banner = "" if fs._live() else "🧪 <b>DRY-RUN</b> (реальной отправки нет)\n"
+    if row.get("draft_route") == "human":          # домен-фильтр / ошибка парсинга — только вручную
+        banner += "⚠️ <b>НА ЧЕЛОВЕКА</b> — авто-ответа нет, ответьте через «✏️ Ответить вручную»\n"
     dt = row.get("created_at")
     ds = dt.strftime("%d.%m.%Y") if dt else "—"
     if row.get("kind") == "review":
@@ -183,7 +189,7 @@ def send_batch(limit=5, days=None):
     """Разослать ПОРЦИЮ карточек за окно `days` (по кнопке). Возвращает число реально отправленных."""
     sent = 0
     for row in _pending(limit, days):
-        card, kb = _card(row), _kb(row["id"])
+        card, kb = _card(row), _kb(row["id"], allow_send=(row.get("draft_route") != "human"))
         canon = None                              # первый успешный (chat_id,msg_id) — канонический для правок
         for cid in NOTIFY_IDS:
             mid = send(cid, card, reply_markup=kb)
@@ -366,7 +372,8 @@ def main():
     except Exception as e:
         log(f"setMyCommands: {e}")
     log(f"bot @{me.get('username')} запущен. live={fs._live()} allowed={sorted(ALLOWED) or 'ПУСТО'} "
-        f"notify={NOTIFY} · доставка карточек ТОЛЬКО по кнопке (авто-рассылки нет)")
+        f"notify={NOTIFY} · карточки этот бот шлёт только по кнопке; авто-порции — отдельный цикл "
+        f"feedback_cycle.py (send_batch по таймеру)")
     offset = None
     while True:
         try:
@@ -375,14 +382,8 @@ def main():
                 params["offset"] = offset
             upd = api("getUpdates", params, timeout=30)
             res = upd.get("result", [])
-            if res:
-                log(f"получено апдейтов: {len(res)}")
             for u in res:
                 offset = u["update_id"] + 1
-                if "message" in u:
-                    log(f"  msg от {u['message'].get('from',{}).get('id')}: {(u['message'].get('text') or '')[:40]!r}")
-                elif "callback_query" in u:
-                    log(f"  cb от {u['callback_query'].get('from',{}).get('id')}: {u['callback_query'].get('data')!r}")
                 try:
                     if "callback_query" in u:
                         handle_callback(u["callback_query"])

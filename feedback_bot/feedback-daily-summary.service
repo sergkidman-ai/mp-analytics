@@ -1,0 +1,11 @@
+[Unit]
+Description=Feedback daily summary → Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/feedback_bot/feedback_daily_summary.py
+StandardOutput=journal
+StandardError=journal
