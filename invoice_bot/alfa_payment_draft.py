@@ -69,12 +69,30 @@ def _payer_block(buyer_inn, cfg):
         raise RuntimeError(f"организация с ИНН {buyer_inn} не найдена в МС")
     prod = cfg["env"] != "sandbox"
     account = os.getenv("ALFA_ACCOUNT_PROD" if prod else "ALFA_ACCOUNT")
-    bic = os.getenv("ALFA_PAYER_BANK_BIC_PROD" if prod else "ALFA_PAYER_BANK_BIC")
-    corr = os.getenv("ALFA_PAYER_BANK_CORR_ACCOUNT_PROD" if prod else "ALFA_PAYER_BANK_CORR_ACCOUNT")
-    missing = [n for n, v in [("ALFA_ACCOUNT", account), ("ALFA_PAYER_BANK_BIC", bic),
-                              ("ALFA_PAYER_BANK_CORR_ACCOUNT", corr)] if not v]
-    if missing:
-        raise RuntimeError("нет в .env (реквизиты плательщика): " + ", ".join(missing))
+    if not account:
+        raise RuntimeError("нет в .env: ALFA_ACCOUNT" + ("_PROD" if prod else ""))
+    # БИК/корсчёт берём из карточки организации в МС — по ТОМУ ЖЕ номеру счёта, с которого платим
+    # (МС — источник правды по реквизитам, правило 1; заодно исключает рассинхрон, когда счёт
+    # поменяли, а .env забыли). .env оставлен как ручной override/фолбэк.
+    accs = get(f"/entity/organization/{org['id']}/accounts").get("rows", [])
+    ms_acc = next((a for a in accs if (a.get("accountNumber") or "") == account), None)
+    if not ms_acc and not prod:
+        # В песочнице номер счёта тестовый и в МС его нет по определению — берём реквизиты
+        # основного счёта организации, чтобы проверить сборку payload. В проме такой подмены
+        # НЕТ: там несовпадение счёта = ошибка (чужой БИК на реальном платеже недопустим).
+        ms_acc = next((a for a in accs if a.get("isDefault")), None)
+        if ms_acc:
+            print(f"[песочница] счёт {account} в МС не найден — БИК/корсчёт взяты с основного "
+                  f"счёта организации (только для проверки сборки)")
+    bic = (os.getenv("ALFA_PAYER_BANK_BIC_PROD" if prod else "ALFA_PAYER_BANK_BIC")
+           or (ms_acc or {}).get("bic"))
+    corr = (os.getenv("ALFA_PAYER_BANK_CORR_ACCOUNT_PROD" if prod else "ALFA_PAYER_BANK_CORR_ACCOUNT")
+            or (ms_acc or {}).get("correspondentAccount"))
+    if not bic or not corr:
+        raise RuntimeError(
+            f"нет БИК/корсчёта плательщика: счёт {account} не найден в карточке «{org.get('name')}» "
+            f"в МС (или у него пустые реквизиты). Либо добавь счёт в МС, либо задай "
+            f"ALFA_PAYER_BANK_BIC/ALFA_PAYER_BANK_CORR_ACCOUNT в .env")
     return {
         "payerName": org.get("legalTitle") or org.get("name"),
         "payerInn": org.get("inn"), "payerKpp": org.get("kpp"),
@@ -128,7 +146,9 @@ def build_payment(draft, cfg):
 def send_planned(dry_run=True, cfg=None):
     cfg = cfg or _cfg()
     prod = cfg["env"] != "sandbox"
-    if prod and os.getenv("ALFA_PAYMENT_PROD_READY") != "1":
+    # Гейт прода стоит только на РЕАЛЬНОЙ отправке: dry-run банк не трогает, а проверить сборку
+    # боевого payload (реквизиты плательщика/получателя) нужно ДО того, как банк выдаст скоуп.
+    if prod and not dry_run and os.getenv("ALFA_PAYMENT_PROD_READY") != "1":
         sys.exit("ALFA_ENV=prod для платежей ЗАБЛОКИРОВАН программно: банк ещё не выдал прод-скоуп "
                  "`signature`. Разблокировка вручную ТОЛЬКО после подтверждения банком — "
                  "выставить ALFA_PAYMENT_PROD_READY=1 в .env. См. docs/HANDOFF.md.")
@@ -142,8 +162,11 @@ def send_planned(dry_run=True, cfg=None):
             payload = build_payment(draft, cfg)
         except Exception as e:
             print(f"[draft {draft['id']}] не смог собрать payload: {e}")
-            db.execute("UPDATE payment_draft_queue SET status='error', note=%s WHERE id=%s",
-                      (str(e)[:500], draft["id"]))
+            if not dry_run:
+                # в dry-run очередь НЕ трогаем: проверка сборки не должна оставлять
+                # реальные черновики в статусе 'error' (ловилось на себе)
+                db.execute("UPDATE payment_draft_queue SET status='error', note=%s WHERE id=%s",
+                           (str(e)[:500], draft["id"]))
             continue
         if dry_run:
             print(f"[DRY-RUN] draft {draft['id']} ({draft['kind']}, {draft['amount']}₽) → "
