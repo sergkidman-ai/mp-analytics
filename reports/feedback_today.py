@@ -209,10 +209,16 @@ def _gather(since):
     # posted_at IS NULL — не пере-драфтить/не пере-класть в очередь то, что этот же цикл уже реально
     # отправил (auto-send/модерация), а сборщик ещё не подтвердил is_answered. skipped_old=false —
     # вопросы старше 30 дней помечены отдельным циклом (feedback_cycle.py) и сюда не попадают.
+    # КЭШ ПО СОДЕРЖИМОМУ: draft_src_hash = md5(body+pros+cons) на момент драфта (см. _store). Если
+    # хэш совпадает — содержимое не менялось с прошлого драфта, генерацию (в т.ч. вызов Opus на
+    # вопросы) пропускаем. Без этого условия цикл каждые 2ч перегенерил ВЕСЬ неотвеченный бэклог
+    # заново (было: 3 цикла за день = 3× одинаковых 15 ИИ-вызовов на те же 16 вопросов).
     q = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,body,pros,cons,payload,
         created_at FROM raw_feedback WHERE is_answered=false
         AND account IN ('wb_acc1','wb_acc2','oz_acc1','oz_acc2','ya_acc1')
         AND posted_at IS NULL AND NOT skipped_old
+        AND (draft_src_hash IS NULL
+             OR draft_src_hash IS DISTINCT FROM md5(coalesce(body,'')||coalesce(pros,'')||coalesce(cons,'')))
         AND created_at >= %s ORDER BY (kind='question') DESC, created_at DESC NULLS LAST""",
         (since,))
     return q
@@ -274,8 +280,11 @@ def _llm(client, r, cf, corpus, hint=None):
 
 def _store(r, reply, route, conf, ground):
     from psycopg2.extras import Json
+    # draft_src_hash считаем от ЖИВЫХ колонок body/pros/cons в БД (не от объекта r), чтобы хэш всегда
+    # был согласован с тем, что видит фильтр в _gather() — тот же md5(...) над теми же полями.
     db.execute("""UPDATE raw_feedback SET draft_text=%s, draft_route=%s, draft_confidence=%s,
-        draft_category=%s, draft_grounding=%s, draft_at=now()
+        draft_category=%s, draft_grounding=%s, draft_at=now(),
+        draft_src_hash=md5(coalesce(body,'')||coalesce(pros,'')||coalesce(cons,''))
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (reply, route, conf, ("question" if r["kind"] == "question" else "review"),
          Json(ground), r["platform"], r["account"], r["kind"], r["ext_id"]))
