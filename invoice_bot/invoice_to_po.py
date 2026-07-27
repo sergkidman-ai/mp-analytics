@@ -58,7 +58,7 @@ SUPPLIERS = {
     "7718978470": {"name": "Блоссом",           "article": "column"},
     "7725744338": {"name": "Тонеропттторг",     "article": "column"},
     "9731107362": {"name": "Феррет",            "article": "name_regex",
-                   "pattern": r"\b(?:CS|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "pdf": "ferret"},
+                   "pattern": r"\b(?:CSP?|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "pdf": "ferret"},
     "7736123276": {"name": "Позитив",           "article": "name_last"},
     "7840480595": {"name": "Колортек",          "article": "column", "auto_supply": True},  # без УПД → приёмку создаём сразу
     "7722341813": {"name": "КВК Трейд",         "article": "column"},
@@ -262,12 +262,26 @@ def _parse_date(s):
 
 def _parse_total(text):
     pats = [r"Итого\s*с\s*НДС", r"Всего\s*к\s*оплате", r"Итого\s*к\s*оплате", r"Итого,?\s*руб", r"Итого"]
-    for p in pats:
-        for line in text.splitlines():
-            if re.search(p, line, re.I):
-                nums = re.findall(r"(\d[\d ]*[.,]\d{2})", line)
-                if nums:
-                    return float(nums[-1].replace(" ", "").replace(",", "."))
+
+    def pick(line, allow_int):
+        # Отсечь разбивку НДС в этой же строке («…, в том числе НДС 2620,76», «в т.ч. НДС …»):
+        # после «в том числе» стоит сумма НАЛОГА, а не итог — иначе ловим НДС вместо суммы счёта.
+        line = re.split(r"в\s+т(?:ом\s+числе|\.?\s*ч\.?)", line, maxsplit=1, flags=re.I)[0]
+        nums = re.findall(r"\d[\d ]*[.,]\d{2}", line)                # суммы с копейками — приоритет (точнее)
+        if not nums and allow_int:
+            # целые суммы без копеек («Всего к оплате 27589»). Порог ≥100 отсекает «34 копейки»,
+            # «НДС (22%)», кол-во и прочие мелкие числа в строке-итоге.
+            nums = [x for x in re.findall(r"\d[\d ]*\d|\d", line) if float(x.replace(" ", "")) >= 100]
+        return nums
+
+    # Два прохода: сперва ищем сумму С КОПЕЙКАМИ по всем ключам (точнее), затем допускаем целые.
+    for allow_int in (False, True):
+        for p in pats:
+            for line in text.splitlines():
+                if re.search(p, line, re.I):
+                    nums = pick(line, allow_int)
+                    if nums:
+                        return float(nums[-1].replace(" ", "").replace(",", "."))
     return None
 
 
@@ -336,9 +350,10 @@ def parse_pdf_tonerstor(text):
 
 
 def parse_pdf_ferret(text):
-    # CS/GG — Cactus, CR — CopyRite (Феррет продаёт обе линейки в одном счёте);
-    # артикул может быть многосоставным через дефис и/или слэш (CS-M21-250C342, CS-PGI2400BK/C/M/Y) — берём целиком
-    arts = re.findall(r"\b(?:CS|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", text)
+    # CS/CSP — Cactus (CSP = наборы, напр. CSP-W2030XSET), GG — G&G, CR — CopyRite (Феррет продаёт
+    # линейки в одном счёте); артикул может быть многосоставным через дефис/слэш (CS-M21-250C342,
+    # CS-PGI2400BK/C/M/Y) — берём целиком. CSP? = «CS» с опциональной «P» (CS-… и CSP-…).
+    arts = re.findall(r"\b(?:CSP?|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", text)
     rows = []
     # код номенклатуры (2-я колонка) бывает буквенно-цифровым (напр. S24199174609), не только \d+
     for m in re.finditer(r"^\s*(\d+)\s+([0-9A-Za-z]+)\s+.*?(\d+,\d{2})\s+(\d+)\s+шт\s+(\d+,\d{2})\s*$", text, re.M):
