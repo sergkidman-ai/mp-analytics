@@ -316,9 +316,44 @@ def _presale_scrub(reply, r):
     return reply
 
 
+# ДОМЕН-ФИЛЬТР. Наш профиль — картриджи/расходники печати. На вопрос по не-расходнику ИЛИ по товару
+# без данных карточки (CARD_DATA) отвечать по общему знанию ЗАПРЕЩЕНО — такой вопрос идёт на человека.
+_CONSUMABLE_RX = re.compile(
+    r"картридж|тонер|чернил|фото[-\s]?барабан|\bбарабан\b|драм|\bdrum\b|туб[аы]|фьюзер|"
+    r"термопл[её]нк|термопленк|девелопер|снпч|заправк|риббон|печат\w*\s*головк|ракель|"
+    r"\bролик\b|блок\s+проявк|узел\s+закреп|скребок|\bчип\b|cartridge|toner", re.I)
+
+
+def _is_consumable(product_name):
+    return bool(_CONSUMABLE_RX.search(product_name or ""))
+
+
+def _off_profile(product_name, cc):
+    """True, если вопрос вне профиля: товар не расходник ИЛИ нет данных карточки (CARD_DATA пуст)."""
+    return (not _is_consumable(product_name)) or (not (cc and cc.strip()))
+
+
+def _early_human(r, cc, reply, note, used_llm):
+    """Ранний возврат «на человека» с маркером-черновиком (домен-фильтр / ошибка парсинга).
+    Маркер попадёт в очередь модерации, но отправку кнопкой ✅ бот для route=human блокирует."""
+    ground = {"llm": used_llm, "grounded": False, "source": "—", "route": "human", "note": note}
+    outd = dict(r, cat="question", reply=reply, route="human", conf=0, card=cc,
+                note=note, grounded=False, catalog=False, source="—", web=False, sources=[],
+                intent=intent(r["body"]) if r["kind"] == "question" else "")
+    return outd, reply, "human", 0, ground, used_llm, False
+
+
 def _answer(client, r, cf, corpus):
     """Полный движок ответа на ОДИН элемент. → (out_dict, reply, route, conf, ground, used_llm, used_web)."""
     used_web = False
+    # Домен-фильтр (только вопросы): вне профиля / нет карточки → на человека, БЕЗ вызова модели.
+    if r["kind"] == "question":
+        cc0 = _card_data(r, cf)
+        if _off_profile(r.get("product_name"), cc0):
+            why = "не расходник" if not _is_consumable(r.get("product_name")) else "нет данных карточки"
+            marker = (f"⚠️ Вне профиля / нет данных карточки ({why}) — ответ по общему знанию запрещён, "
+                      f"нужен ручной ответ оператора.")
+            return _early_human(r, cc0, marker, f"домен-фильтр: {why}", used_llm=False)
     if r["kind"] == "question":
         used_llm = True
     else:
