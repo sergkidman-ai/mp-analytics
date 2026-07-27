@@ -55,88 +55,10 @@ def _sources(message):
     return out[:6]
 
 
-def _snippets(message):
-    """Как _sources, но тянет и тело сниппета выдачи, если провайдер его отдаёт открытым текстом
-    (у web_search тело часто лежит в encrypted_content — тогда останется только title/url).
-    → [{title,url,text}] для передачи анализатору без повторного веб-поиска."""
-    out = []
-    for b in message.content:
-        if getattr(b, "type", None) == "web_search_tool_result":
-            for res in (getattr(b, "content", None) or []):
-                u = getattr(res, "url", None)
-                if not u:
-                    continue
-                txt = getattr(res, "text", None) or getattr(res, "snippet", None) or ""
-                out.append({"url": u, "title": (getattr(res, "title", None) or "")[:120],
-                            "text": (txt or "")[:500]})
-    return out[:6]
-
-
 # Веб — редкий фолбэк, читает страницы: держим ДЁШЕВО. Модель по env (дефолт sonnet, не Opus),
 # один поиск (max_uses=1) вместо трёх — именно агентный многораундовый цикл раздувал стоимость.
 WEB_MODEL = os.environ.get("FEEDBACK_WEB_MODEL", "claude-sonnet-5")
 WEB_MAX_USES = int(os.environ.get("FEEDBACK_WEB_MAX_USES", "1"))
-
-# Разделение веб-кейса совместимости: ПОИСК (чтение страниц = основная стоимость) остаётся на
-# дешёвой модели WEB_MODEL, а РАССУЖДЕНИЕ по найденному отдаём более сильной модели (в A/B она
-# лучше ловит неоднозначные модели принтеров). Только для web_compat; web_fact целиком на WEB_MODEL.
-WEB_ANALYSIS_MODEL = os.environ.get("FEEDBACK_WEB_ANALYSIS_MODEL", "claude-sonnet-5")
-WEB_SPLIT = os.environ.get("FEEDBACK_WEB_SPLIT", "0") == "1"
-_ANALYSIS_CLIENT = None
-
-
-def _analysis_client():
-    """Свой клиент под WEB_ANALYSIS_MODEL: клиент из web_compat — дипсиковый, им Sonnet не позвать."""
-    global _ANALYSIS_CLIENT
-    if _ANALYSIS_CLIENT is None:
-        from reports.llm_client import client_for
-        _ANALYSIS_CLIENT = client_for(WEB_ANALYSIS_MODEL)
-    return _ANALYSIS_CLIENT
-
-
-REANALYZE_SYSTEM = """Ты — старший специалист поддержки магазина совместимых картриджей «Цифровой
-квадрат». Младший специалист уже нашёл в вебе информацию и вынес ЧЕРНОВОЙ вердикт «подойдёт ли наш
-картридж принтеру покупателя». Твоя задача — вынести БЕЗОПАСНЫЙ финальный вердикт по фактам карточки,
-вопросу, найденным источникам и черновику.
-
-ГЛАВНОЕ ПРАВИЛО — неоднозначная модель. Если номер модели покупателя встречается в РАЗНЫХ линейках
-(например «7510» есть и у HP Photosmart, и у HP OfficeJet — это РАЗНЫЕ картриджи), НЕ подтверждай
-совместимость вслепую: verdict=unclear и вежливо попроси уточнить точную модель/серию прямо здесь.
-Подтверждай «yes» ТОЛЬКО если источники ясно показывают, что принтер покупателя входит в ту же
-серию/список совместимости, что и наш картридж. Варианты одной линейки (суффиксы -N/-NF/-WF/-DN/-DW
-и служебные коды) — это «yes». Если наш не подходит, а в фактах карточки есть блок «КАТАЛОГ» с нашим
-листингом под эту модель — предложи его. Данные противоречивы → unclear.
-
-Тон: вежливо, на «Вы», 1–3 предложения, без ссылок и артикулов производителя в тексте. Это вопрос ДО
-покупки — НЕ отправляй «в чат по QR-коду на упаковке/в чеке». Верни СТРОГО один JSON без markdown:
-{"verdict":"yes|no|unclear","reply":"<текст ответа покупателю>","note":"<на чём основан вывод>"}"""
-
-
-def _reanalyze_compat(question, product_name, card_summary, snippets, draft):
-    """Второй проход по web_compat более сильной моделью БЕЗ инструментов (без повторного поиска).
-    → {verdict,reply,note} | None (тогда web_compat оставит дипсиковый черновик)."""
-    src = "\n".join(f"- {s.get('title') or s['url']}: {(s.get('text') or '')[:300]}"
-                    for s in (snippets or [])) or "(источники без открытого текста — опирайся на черновик)"
-    prompt = (f"НАШ ТОВАР: {product_name}\n"
-              f"ФАКТЫ НАШЕЙ КАРТОЧКИ:\n{(card_summary or '(нет)')[:1200]}\n\n"
-              f"ВОПРОС ПОКУПАТЕЛЯ:\n\"\"\"{(question or '')[:600]}\"\"\"\n\n"
-              f"НАЙДЕНО В ВЕБЕ:\n{src[:1600]}\n\n"
-              f"ЧЕРНОВОЙ ВЫВОД МЛАДШЕГО СПЕЦИАЛИСТА:\n"
-              f"verdict={draft.get('verdict')}; {(draft.get('reply') or '')[:400]}\n"
-              f"обоснование: {(draft.get('note') or '')[:200]}\n\n"
-              f"Вынеси безопасный финальный вердикт. Верни JSON.")
-    m = _analysis_client().messages.create(
-        model=WEB_ANALYSIS_MODEL, max_tokens=1200,
-        system=[{"type": "text", "text": REANALYZE_SYSTEM, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": prompt}])
-    txt = "".join(b.text for b in _text_blocks(m)).strip()
-    mm = re.search(r"\{.*\}", txt, re.S)
-    if not mm:
-        return None
-    try:
-        return json.loads(mm.group(0))
-    except Exception:
-        return None
 
 
 def web_compat(client, question, product_name, card_summary, model=None):
@@ -167,17 +89,6 @@ def web_compat(client, question, product_name, card_summary, model=None):
         return {"verdict": "unclear", "reply": txt[:300], "sources": _sources(m), "note": "parse-fail"}
     data["sources"] = _sources(m)
     data.setdefault("note", "")
-    # Разделение: поиск отработал на дешёвой модели, рассуждение отдаём WEB_ANALYSIS_MODEL.
-    if WEB_SPLIT and not WEB_ANALYSIS_MODEL.lower().startswith("deepseek"):
-        try:
-            re2 = _reanalyze_compat(question, product_name, card_summary, _snippets(m), data)
-            if re2 and (re2.get("reply") or "").strip():
-                data["verdict"] = re2.get("verdict", data.get("verdict"))
-                data["reply"] = re2["reply"]
-                data["note"] = "web-analysis: " + (re2.get("note") or "")
-        except Exception as e:
-            # тихий фолбэк: остаётся дипсиковый черновик
-            data["note"] = (data.get("note") or "") + f" | reanalyze-skip: {str(e)[:80]}"
     return data
 
 
