@@ -233,12 +233,68 @@ tmux attach -t <имя>    # напр. tmux attach -t mkt
 ## Отзывы
 `поток rev · сессия rev · /opt/mp-analytics (eng/deepseek-answer-engine) · docs/review3_handoff.md`
 
-- **Состояние:** ответчик отзывов/вопросов; ТГ-модерация ответов — всё за гейтами (`.env` флаги), живые
-  прогоны не меняются. Детали запуска (FEEDBACK_WEB_SPLIT / TG_FEEDBACK_BOT_TOKEN / FEEDBACK_MODERATION /
-  FEEDBACK_LIVE_SEND) — в `docs/review3_handoff.md`.
-- **Открытые вопросы:** нужен токен ТГ-бота от @BotFather для smoke-теста модерации.
+- **Состояние (07-27):** боевой режим ответов с ТГ-модерацией РАБОТАЕТ end-to-end в **dry-run**
+  (`FEEDBACK_LIVE_SEND` не задан → реальных отправок нет). Бот `@reviewswbozon2_bot`, systemd
+  `feedback-moderation.service`. Всё за гейтами (`.env`): `FEEDBACK_MODERATION=1`,
+  `TG_FEEDBACK_BOT_TOKEN`, `TG_FEEDBACK_ALLOWED_IDS`/`TG_FEEDBACK_NOTIFY_ID`=1031321444 (свои, не общие с invoice_bot).
+- **07-27 — вопросы переведены на Claude Opus 5 + домен-фильтр + parse-salvage (закоммичено, НЕ в main):**
+  ветка `eng/deepseek-answer-engine` (origin `rev/feedback-multichannel`), 4 коммита
+  (`e555917` домен-фильтр, `4265df1` Opus+счётчик стоимости, `aeb6a2e` убран Sonnet-сплит, `f5bf3b0` доки).
+  Финальная сборка ответа на ВОПРОСЫ — `QUESTION_MODEL=claude-opus-5` (было DeepSeek); веб-поиск и отзывы
+  без изменений (DeepSeek). Domain-фильтр (не-расходник / нет CARD_DATA → route=human без вызова модели)
+  и parse-salvage (битый JSON модели → маркер «⚠️...» + route=human, НЕ публикуется) — оба проверены:
+  фильтр и парсинг живыми вызовами на кейсе Deli M2000DNWs, parse-salvage дополнительно юнит-тестом с
+  мок-клиентом (битый JSON → route=human подтверждён). Сравнение DeepSeek/Opus на 4 вопросах: 3 из 4
+  совпали (детерминированный shortcut по серии), 1 — Opus дал более полезный ответ с конкретной
+  альтернативой из каталога вместо «уточните модель». Раскладка на 20 вопросах: review 19 / human 1.
+  Стоимость Opus ≈$0.02/ответ (диапазон $0.01–$0.036). `docs/rev_closing_package/` (4 файла) обновлён.
+  Push в origin — следующий шаг.
+- **Бот (pull-режим, авто-рассылки НЕТ — был флуд, убрано):** `/menu` → сводка за 30 дней по всем 5
+  каналам + очередь; кнопка «Показать всё за 30 дн.» / `/all` / «5»/«10» шлют карточки порцией. Карточка:
+  тип (вопрос/⭐отзыв N★), 📅 дата, текст, черновик, кнопки ✅Отправить/✏️Править/🕒Позже(5ч)/🚫Пропустить.
+  Окно `FEEDBACK_MOD_WINDOW_DAYS=30` (env), предохранитель `FEEDBACK_MOD_BATCH_CAP=60`.
+- **Слой отправки** `collectors/feedback_send.py` (dry-run гейт `FEEDBACK_LIVE_SEND`): вопросы WB/Ozon +
+  отзывы WB (`/feedbacks/answer`), Ozon (`/review/comment/create` +mark_processed), Яндекс
+  (`/v2/.../goods-feedback/comments/update`). Миграции 040 (`feedback_moderation`) + 041 (`snooze_until`).
+- **Sonnet-сплит веба УБРАН (07-27):** второй проход на `claude-sonnet-5` (`_reanalyze_compat`) удалён —
+  вопросы теперь целиком собираются на Opus (`QUESTION_MODEL`), split избыточен. Веб-поиск (`WEB_MODEL`)
+  без изменений, одноступенчатый.
+- **ПОДКЛЮЧЕНО 07-23 (сбор):** новый единый runner `collectors/feedback_collect_all.py` (все каналы,
+  изолированы try/except). Доступ по факту API: wb_acc1 ✅, **wb_acc2 ⛔ 401 «token scope not allowed»
+  (нужен перевыпуск токена в ЛК WB со scope «Вопросы и отзывы»)**, oz_acc1 ✅, **oz_acc2 ✅ только вопросы**
+  (отзывы 403 нет Premium — коллектор сам пропускает), **ya_acc1 ✅ отзывы** (новый
+  `collectors/yandex_feedbacks.py`; вопросов в API Яндекса нет; is_answered = statistics.commentsCount>0,
+  needReaction на аккаунте всегда false — не флаг). Пайплайн (`_gather`/дашборд/send) расширен на все 5.
+- **Открытые вопросы:** (a) WB acc2 — ждёт токен со scope; (b) бэклог новых каналов почти весь >30 дней
+  (oz_acc2 2 вопроса март/апр, yandex 6-с-текстом фев–май) — окно 30д их скрывает; хочешь разобрать —
+  временно поднять `FEEDBACK_MOD_WINDOW_DAYS`; (c) живой тест (`FEEDBACK_LIVE_SEND=1`, 1 ответ) — только по ОК;
+  (d) генерация новых черновиков пока запускается вручную: автоматизировать LLM-прогон только после решения
+  по частоте/бюджету; сам сбор API автоматизирован отдельным systemd-таймером раз в 30 минут.
+- **Автоматизация сбора 07-24:** `feedback_bot/feedback-collect.{service,timer}` запускает
+  `collectors/feedback_collect_all.py` каждые 30 минут, независимо от финансового `run_daily`.
+  Runner пишет итог `успешно N/5` и возвращает ошибку только если не сработал ни один канал; частично
+  недоступные кабинеты по-прежнему не срывают остальные.
 - **Незаверш. (сессия `mp-night`, свернуть в `rev`):** дописать в память ловушку «неполный месяц × модель
   формирования на уровне SKU» + симметричный раздел Ozon/Яндекс в `FIN_DATA_FOR_MKT.md`.
+
+### ⚠️ Заход rev в fin-территорию (Яндекс) — для сессии fin
+- **Себестоимость Маркета (rev, per-shipment FIFO):** витрина `ya_cogs_demand` (месяц = дата отгрузки),
+  ручной ввод себеста (`ya_cogs_manual`, миграция 055, precedence manual>fifo>imputed) + **ручное
+  закрытие месяца** (`ya_cogs_frozen`, миграция 056): человек закрыл месяц → коллектор
+  `collectors/ya_cogs_demand.py` его не пересобирает (МС не дёргает), кнопка «Разморозить». API
+  `/api/ya-cost/{manual,reset,freeze,unfreeze}` + `/api/yandex/cost-tasks`. Всё **# поток: rev**,
+  закоммичено+в main. НЕ добавлять коллектор себеста в `run_daily` (МС не дёргать).
+- **Яндекс-отчёт (правки в fin-файлах, коммит `23a86d1` на eng):** задачи 2–3 —
+  (2) лоялти `reviews_cost` теперь в Продвижении (июнь 6870→14062), (3) «Итого Удержания Маркета» =
+  только услуги без возвратов; возвраты вычитаются отдельно в «Итого к перечислению». Тронуты fin-файлы:
+  `collectors/yandex_monthly.py`, `reports/yandex_mp_report.py`, `reports/yandex_mp_page.py`, `web/app.py`.
+  **Переклассификация — net/маржа месяца не изменились** (июнь net 212144, 14.7% до/после). В main НЕ лил.
+- **✅ ВОЗВРАТЫ СВЕДЕНЫ (коммит `b07eae4`, решение Сергея):** `returns_orders` в `yandex_monthly.py`
+  теперь = RETURNED + невыкуп (CANCELLED_IN_DELIVERY) по **месяцу возврата** (`statusUpdateDate`), а не по
+  месяцу заказа. Июнь 15→44 ≈ МС salesreturn 39. Обоснование: невыкуп — тоже физический возврат товара на
+  склад (МС так и считает). Невыкуп остаётся ещё и отдельной метрикой убытка логистики (`unredeemed_*`).
+  Деньги `returns_sum` НЕ тронуты (ЛК «Возвращено потребителям» 92478 шире, уже включают невыкупы: RETURNED-
+  рефанды 31502 << ЛК 92478). Счётчик=склад, деньги=касса — намеренно разные оси, отражено в футере/ноте.
 
 ## Габариты
 `поток gab · сессия gab · /opt/mp-analytics · docs/GABARITY_CONTEXT.md`
