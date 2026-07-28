@@ -159,26 +159,33 @@ def _kb(mod_id, allow_send=True):
          {"text": "🚫 Пропустить", "callback_data": f"skp:{mod_id}"}]]}
 
 
+def _published_today_line(account):
+    """«📤 Опубликовано сегодня: N (этот канал) / M всего» — календарные сутки МОСКВЫ, только успехи."""
+    by = fs.sent_today_by_channel()
+    total = sum(by.values())
+    mine = sum(n for (_p, a), n in by.items() if a == account) if account else 0
+    if account:
+        return f"📤 Опубликовано сегодня: <b>{mine}</b> ({html.escape(str(account))}) / {total} всего\n"
+    return f"📤 Опубликовано сегодня: <b>{total}</b>\n"
+
+
 def _mode_banner(account):
     """ЧЕСТНЫЙ статус режима ДЛЯ ЭТОЙ карточки: что реально произойдёт по кнопке ✅.
 
     Раньше баннер смотрел только на глобальный fs._live() и врал в обе стороны: показывал «DRY-RUN»
     на живом канале (бот держал устаревший снимок .env — инцидент 27.07) и НЕ показывал dry-run, когда
-    аккаунт вне FEEDBACK_LIVE_ACCOUNTS или исчерпан дневной лимит. Проверяем те же три гейта, что и
-    сам post_answer(), в том же порядке — тогда метка совпадает с фактом по построению."""
+    аккаунт вне FEEDBACK_LIVE_ACCOUNTS. Проверяем те же гейты, что и сам post_answer().
+
+    Дневного лимита здесь БОЛЬШЕ НЕТ и в баннере он не упоминается (решение Сергея 28.07): лимит
+    действует только на авто-ответы по бэклогу отзывов, а всё, что одобрил оператор кнопкой ✅ или
+    прислал руками, уходит сразу в ближайшем цикле. Показывать «⏸ лимит дня» на такой карточке было бы
+    прямой ложью. Второй строкой — ФАКТ публикаций за сегодня (Москва) по этому каналу и всего."""
+    fact = _published_today_line(account)
     if not fs._live():
-        return "🧪 <b>DRY-RUN</b> (реальной отправки нет: FEEDBACK_LIVE_SEND выключен)\n"
+        return "🧪 <b>DRY-RUN</b> (реальной отправки нет: FEEDBACK_LIVE_SEND выключен)\n" + fact
     if account and account not in fs._live_accounts():
-        return f"🧪 <b>DRY-RUN</b> (канал {html.escape(str(account))} вне списка живых)\n"
-    cap = fs._daily_cap()
-    if cap is not None:
-        used = fs._sent_today()
-        if used >= cap:
-            # НЕ dry-run: канал боевой, ответ одобрен и уйдёт — просто не сегодня. Путать эти два
-            # состояния нельзя: «DRY-RUN» читается как «канал выключен, отправки не будет вообще».
-            return f"⏸ <b>ЛИМИТ ДНЯ {used}/{cap}</b> — ответ одобрен, уйдёт завтра\n"
-        return f"🔴 <b>БОЕВОЙ РЕЖИМ</b> — по ✅ ответ уйдёт покупателю (лимит {used}/{cap})\n"
-    return "🔴 <b>БОЕВОЙ РЕЖИМ</b> — по ✅ ответ уйдёт покупателю\n"
+        return f"🧪 <b>DRY-RUN</b> (канал {html.escape(str(account))} вне списка живых)\n" + fact
+    return "🔴 <b>БОЕВОЙ РЕЖИМ</b> — по ✅ ответ уйдёт покупателю сразу (без дневного лимита)\n" + fact
 
 
 def _card(row):
@@ -210,11 +217,12 @@ def _card(row):
 
 
 def flush_deferred(limit=20):
-    """Дослать одобренные ответы, которые упёрлись в дневной лимит (state='deferred').
+    """ХВОСТ СТАРОЙ СХЕМЫ: дослать одобренные ответы, застрявшие в state='deferred'.
 
-    Шаг цикла, идёт ПЕРЕД авто-отправкой позитив-шаблонов: ручное решение оператора важнее массовой
-    рассылки, поэтому лимит нового дня первым делом тратим на него. Всё ещё упирается в лимит —
-    просто остаётся 'deferred' до следующего цикла. Возвращает число реально ушедших."""
+    С 28.07.2026 дневной лимит применяется ТОЛЬКО к авто-ответам на старый бэклог отзывов, решения
+    оператора им не режутся — новые карточки в 'deferred' не попадают. Функция осталась как слив
+    остатка (её ещё зовёт цикл, шаг 3b): что было отложено при старой логике, уходит без лимита.
+    Пустой 'deferred' = no-op. Возвращает число реально ушедших."""
     rows = db.query("""SELECT m.id, m.final_text, m.tg_chat_id, m.tg_msg_id,
         f.platform, f.account, f.kind, f.ext_id, f.item_id, f.payload, f.body
         FROM feedback_moderation m
@@ -224,17 +232,14 @@ def flush_deferred(limit=20):
         ORDER BY m.decided_at LIMIT %s""", (limit,))
     sent = 0
     for r in rows:
-        ok, detail = fs.post_answer(dict(r), r["final_text"])
-        if ok and detail == "dry-run:daily-cap":
-            log(f"deferred {r['platform']}/{r['account']} {r['ext_id']}: лимит дня всё ещё исчерпан")
-            break                                  # лимит общий — остальным тоже не пройти
+        ok, detail = fs.post_answer(dict(r), r["final_text"])   # без apply_cap — лимит тут не при чём
         if ok:
             _set(r["id"], "sent", error=None)
             sent += 1
             log(f"deferred → отправлено mod={r['id']} {r['platform']} {r['ext_id']} ({detail})")
             if r["tg_chat_id"] and r["tg_msg_id"]:  # закрываем ту же карточку в TG, чтобы не гадать
                 edit_text(r["tg_chat_id"], r["tg_msg_id"],
-                          "✅ Отправлено (отложенное — ждало сброса дневного лимита)\n\n"
+                          "✅ Отправлено (отложенное с прежней схемы лимита)\n\n"
                           f"<b>Вопрос:</b> {html.escape((r.get('body') or '')[:300])}\n"
                           f"<b>Ответ:</b> {html.escape((r['final_text'] or '')[:800])}")
         else:
@@ -281,9 +286,7 @@ def _dashboard():
             a["review"] = r["un"]; a["review_txt"] = r["un_txt"]
     if fs._live():
         _la = sorted(fs._live_accounts())
-        _cap = fs._daily_cap()
-        mode = ("🔴 БОЕВОЙ: " + (", ".join(_la) if _la else "нет живых каналов")
-                + (f" · лимит {fs._sent_today()}/{_cap}" if _cap is not None else ""))
+        mode = "🔴 БОЕВОЙ: " + (", ".join(_la) if _la else "нет живых каналов")
     else:
         mode = "🧪 DRY-RUN"
     lines = [f"📊 <b>Сводка за {WINDOW_DAYS} дней</b> · режим {e(mode)}", "",
@@ -291,6 +294,15 @@ def _dashboard():
     for (plat, acc), a in sorted(agg.items()):
         lines.append(f"• {e(plat)} ({e(acc)}): вопросов <b>{a['question']}</b> · "
                      f"отзывов с текстом <b>{a['review_txt']}</b> (всего отзывов {a['review']})")
+    # ФАКТ публикаций за сегодня (Москва) по каналам — квота показывает остаток, а не то, сколько
+    # ответов реально увидели покупатели. Для бэклога рядом — расход дневного лимита канала.
+    pub = fs.sent_today_by_channel()
+    lines += ["", f"<b>Опубликовано сегодня (МСК): {sum(pub.values())}</b>"]
+    cap = fs._backlog_cap()
+    for (p, a), n in sorted(pub.items()):
+        lines.append(f"• {e(p)} ({e(a)}): <b>{n}</b> · бэклог {fs.backlog_sent_today(p, a)}/{cap}")
+    if not pub:
+        lines.append("• пока ничего")
     # сколько СОДЕРЖАТЕЛЬНЫХ карточек ждёт показа в окне
     ready = db.query("""SELECT count(*) c FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
@@ -302,8 +314,10 @@ def _dashboard():
     lines += ["", f"<b>Очередь модерации (за {WINDOW_DAYS} дней):</b>",
               f"• ждут показа: <b>{ready}</b>",
               f"• уже показано: {st.get('carded', 0)} · отправлено: {st.get('sent', 0)} · "
-              f"пропущено: {st.get('skipped', 0)} · отложено: {st.get('snoozed', 0)} · "
-              f"ждут лимита дня: {st.get('deferred', 0)}",
+              f"пропущено: {st.get('skipped', 0)} · отложено: {st.get('snoozed', 0)}"
+              # 'deferred' — наследие старой схемы (лимит резал и ручные ответы). Новые карточки в
+              # него не попадают, показываем строку только пока хвост не дошлётся flush_deferred.
+              + (f" · хвост старого лимита: {st['deferred']}" if st.get("deferred") else ""),
               "", f"«Показать всё» пришлёт все {ready} карточек за {WINDOW_DAYS} дней (по одной, с датой)."]
     kb = {"inline_keyboard": [[
         {"text": f"📥 Показать всё за {WINDOW_DAYS} дн.", "callback_data": "more:all"}],
@@ -327,19 +341,14 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
     # каноническую сохранённую карточку.
     ec = chat_id if message_id else (m["tg_chat_id"] or chat_id)
     em = message_id or m["tg_msg_id"]
+    # apply_cap НЕ передаём: решение оператора дневным лимитом не режется (лимит — только для
+    # авто-ответов на старый бэклог отзывов, см. collectors/feedback_send.py). Поэтому ветки
+    # 'deferred' здесь больше нет: одобренное уходит в этом же вызове либо честно падает в 'failed'.
     ok, detail = fs.post_answer(fr, text)
     if ok:
-        # Лимит дня — НЕ отказ и не dry-run: канал боевой, текст одобрен, отправку надо ДОСЛАТЬ.
-        # Помечать такое 'sent' нельзя (так делалось раньше) — ответ навсегда пропадал: на площадку
-        # ничего не ушло, а очередь считала карточку закрытой. Кладём в 'deferred', цикл дошлёт.
-        if detail == "dry-run:daily-cap":
-            _set(mod_id, "deferred", final_text=text, error=None,
-                 decided_at="now()", decided_by=int(from_id))
-            tail = "⏸ Одобрено, лимит дня исчерпан — уйдёт автоматически после сброса"
-        else:
-            _set(mod_id, "sent", final_text=text, error=None,
-                 decided_at="now()", decided_by=int(from_id))
-            tail = "🧪 (dry-run) ушло бы" if detail.startswith("dry-run") else "✅ Отправлено"
+        _set(mod_id, "sent", final_text=text, error=None,
+             decided_at="now()", decided_by=int(from_id))
+        tail = "🧪 (dry-run) ушло бы" if detail.startswith("dry-run") else "✅ Отправлено"
         edit_text(ec, em,
                   f"{tail}\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
                   f"<b>Ответ:</b> {html.escape(text[:800])}")

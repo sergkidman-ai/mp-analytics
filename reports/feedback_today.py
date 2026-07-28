@@ -401,6 +401,92 @@ def _presale_scrub(reply, r):
     return reply
 
 
+# ВНУТРЕННИЕ ОГОВОРКИ. «В карточке характеристика не указана», «в описании нет данных» — это наша
+# кухня: покупателю она ничего не даёт и читается как отписка. Правило Сергея (28.07): в ответе либо
+# ФАКТ, либо предложение уточнить у нас в чате. Промпт это запрещает (см. feedback_llm.SYSTEM), но
+# модель срывается — поэтому детерминированная зачистка ПОСЛЕ генерации.
+#   • КОРОТКУЮ клаузу-оговорку («по модели C2504 данных нет», «у нас в карточке нет») вырезаем;
+#     длинную содержательную клаузу не трогаем — в ней обычно факт, а не отписка (там только чистим
+#     ссылку на источник), иначе зачистка съедает половину ответа;
+#   • ссылку на источник («в карточке», «в характеристиках») вырезаем даже у ПОЛОЖИТЕЛЬНОГО факта
+#     («в карточке подтверждена совместимость» → «подтверждена совместимость»);
+#   • подлежащее вырезанной оговорки («Точных дат, указанных на упаковке партии, …нет») уносим вместе
+#     с ней: без своего сказуемого голова предложения превращается в обрубок;
+#   • если что-то вырезали и приглашения написать нам в ответе не осталось — дописываем его.
+# Источник — только про НАШУ кухню: карточка, характеристики, «описание товара», наши данные/база.
+# «в описании комплекта» и прочие описания, которые видит сам покупатель, не трогаем.
+_SRC_REF_RX = re.compile(r"\s*(?:у\s+нас\s+)?(?:в|по)\s+(?:наш\w+\s+)?"
+                         r"(?:карточк\w+|характеристик\w+|описани\w+\s+товара|данных|базе)\s*", re.I)
+_NODATA_RX = re.compile(r"не\s+указан\w*|не\s+уточн[яё]\w*|не\s+прописан\w*|"
+                        r"нет\s+(?:данных|информац\w*|сведений)|данн\w*\s+нет|информац\w*\s+нет|"
+                        r"отсутству\w*\s+(?:данн|информац|сведени)", re.I)
+_PREDICATE_RX = re.compile(r"\b\w{2,}(?:ем|ешь|ет|ете|ут|ют|ит|ят|им|ите|ла|ло|ли|на|но|ны|ся|сь)\b", re.I)
+_HAS_INVITE_RX = re.compile(r"напиш\w+|уточните|обратитесь|свяжитесь|в\s+чат", re.I)
+_INVITE = "Напишите нам в чат — уточним и подскажем."
+_CAVEAT_MAX_WORDS = 9                                      # длиннее — это уже содержательная фраза
+
+
+def _is_caveat(clause):
+    """Клауза-оговорка: явное «нет данных / не указано» или ссылка на источник с отрицанием
+    («у нас в карточке нет» — отрицание голое, шаблоном _NODATA_RX не ловится). Только короткие:
+    в длинной клаузе рядом с оговоркой обычно стоит факт, ради которого ответ и написан."""
+    if len(clause.split()) > _CAVEAT_MAX_WORDS:
+        return False
+    return bool(_NODATA_RX.search(clause)
+                or (_SRC_REF_RX.search(clause) and re.search(r"\bнет\b|\bне\s", clause)))
+
+
+def _has_own_predicate(text):
+    """Кусок предложения читается самостоятельно: есть глагольная форма, число или тире-сказуемое
+    («ресурс 1500 страниц», «производство — Китай»). Без этого — обрубок вроде «Точных дат»."""
+    return bool(_PREDICATE_RX.search(text) or re.search(r"\d|\s[—–]\s", text))
+
+
+def _no_internal_caveats(reply):
+    """Вырезать внутренние оговорки про источник данных. → очищенный текст.
+
+    Предложение, которое НЕ трогали, остаётся как есть (иначе тест на обрубок съедал бы
+    «Здравствуйте!»)."""
+    if not reply or reply.lstrip().startswith("⚠️"):       # маркер «на человека» — служебный, не текст
+        return reply
+    if not (_NODATA_RX.search(reply) or _SRC_REF_RX.search(reply)):
+        return reply
+    kept_sents, cut = [], False
+    for sent in re.split(r"(?<=[.!?])\s+", reply.strip()):
+        toks = re.split(r"(\s*[—–]\s*|,\s+)", sent)       # чётные — клаузы, нечётные — разделители
+        clauses, seps = toks[0::2], toks[1::2]
+        bad = [i for i, cl in enumerate(clauses) if _is_caveat(cl)]
+        keep = [i for i in range(len(clauses)) if i not in bad]
+        if bad:
+            # голова предложения до первой оговорки без своего сказуемого = её подлежащее, уносим тоже
+            head = [i for i in keep if i < bad[0]]
+            if head and not _has_own_predicate(" ".join(clauses[i] for i in head)):
+                keep = [i for i in keep if i not in head]
+        parts = []
+        for i in keep:
+            parts.append(("" if not parts else (seps[i - 1] if i - 1 < len(seps) else ", ")) + clauses[i])
+        rest = "".join(parts).strip(" ,;—–")
+        touched = bool(bad)
+        if _SRC_REF_RX.search(rest):
+            rest = _SRC_REF_RX.sub(" ", rest).strip(" ,;—–")
+            touched = True
+        if not touched:
+            kept_sents.append(sent)
+            continue
+        cut = True
+        rest = re.sub(r"^(?:но|однако|а|и|при\s+этом|хотя)\s+", "", rest.strip(), flags=re.I)
+        rest = re.sub(r"\s{2,}", " ", rest).replace(" ,", ",").replace(" .", ".").strip(" ,;—–")
+        if not rest or (bad and not _has_own_predicate(rest)):
+            continue                                       # обрубок — сносим предложение целиком
+        if not re.search(r"[.!?]$", rest):
+            rest += sent[-1] if sent[-1] in "!?" else "."
+        kept_sents.append(rest[0].upper() + rest[1:])
+    out = " ".join(kept_sents).strip()
+    if cut and out and not _HAS_INVITE_RX.search(out):
+        out = out.rstrip() + " " + _INVITE
+    return out
+
+
 # ДОМЕН-ФИЛЬТР. Наш профиль — картриджи/расходники печати.
 #   • НЕ расходник → жёстко на человека, всегда (ответ по общему знанию запрещён — это не наша тема).
 #   • Расходник БЕЗ данных карточки → раньше тоже уходил на человека, и это была ложная отбраковка:
@@ -618,6 +704,10 @@ def _answer(client, r, cf, corpus):
             ground["note"] = "code-guard: убран непроверенный код; " + (ground.get("note") or "")[:220]
             ground["code_guard"] = True
     reply = _presale_scrub(reply, r)
+    scrubbed = _no_internal_caveats(reply)               # внутренние оговорки покупателю не показываем
+    if scrubbed != reply:
+        reply = scrubbed
+        ground["note"] = "scrub: убрана оговорка про карточку/данные; " + (ground.get("note") or "")[:220]
     # финальная страховка: пустой/обрезанный ответ на вопрос (thinking съел max_tokens, JSON битый) →
     # безопасный фолбэк вместо пустоты; всегда review (в фазе черновиков и так review)
     if r["kind"] == "question" and len((reply or "").strip()) < 12:

@@ -64,16 +64,69 @@ def _live_accounts():
     return {a.strip() for a in raw.split(",") if a.strip()}
 
 
-def _daily_cap():
+def _backlog_cap():
+    """Дневной лимит НА КАНАЛ и ТОЛЬКО для авто-ответов на СТАРЫЙ бэклог отзывов (решение Сергея
+    28.07). Вопросы, ответы оператора из Telegram и авто-ответы на свежие отзывы лимитом не режутся —
+    они уходят сразу в ближайшем цикле. Анти-залповая механика (порции по 5 + паузы 3–5 с) остаётся
+    для всех: лимит защищает от массовой заливки старья, а не от нормальной работы."""
     _reload_env()
-    raw = os.environ.get("FEEDBACK_DAILY_SEND_CAP", "")
-    return int(raw) if raw.strip() else None
+    raw = os.environ.get("FEEDBACK_BACKLOG_DAILY_CAP", "")
+    return int(raw) if raw.strip() else 150
+
+
+def backlog_days():
+    """Граница «свежий отзыв / бэклог» в днях (по created_at отзыва)."""
+    _reload_env()
+    raw = os.environ.get("FEEDBACK_BACKLOG_DAYS", "")
+    return int(raw) if raw.strip() else 7
+
+
+def is_backlog(row):
+    """True для отзыва старше backlog_days() — только такие тратят дневной лимит канала."""
+    if row.get("kind") != "review":
+        return False
+    ts = row.get("created_at")
+    if not ts:
+        return False
+    return (time.time() - ts.timestamp()) > backlog_days() * 86400
+
+
+# Календарные сутки МОСКВЫ, а не сервера. Таймзона БД = Etc/UTC, поэтому `posted_at::date =
+# current_date` сбрасывал дневной лимит в 03:00 МСК, а отправки с 21:00 до 24:00 МСК списывались
+# с квоты УЖЕ ПРОШЕДШЕГО дня. posted_at — timestamptz, так что AT TIME ZONE переводит корректно.
+MSK_TODAY_SQL = ("(posted_at AT TIME ZONE 'Europe/Moscow')::date"
+                 " = (now() AT TIME ZONE 'Europe/Moscow')::date")
 
 
 def _sent_today():
-    r = db.query("""SELECT count(*) AS n FROM raw_feedback
-        WHERE posted_ok=true AND posted_at::date = current_date""")
+    """Сколько ответов РЕАЛЬНО опубликовано за сегодня (Москва) — ФАКТ для баннеров и сводок.
+
+    Считаем строго успехи: posted_ok=true. Неудачные попытки пишут posted_ok=false и сюда не
+    попадают; dry-run вообще ничего не пишет в raw_feedback (_mark_posted вызывается только после
+    реального вызова API) — то есть ни отбойные вызовы, ни холостой режим счётчик не двигают."""
+    r = db.query(f"""SELECT count(*) AS n FROM raw_feedback
+        WHERE posted_ok=true AND {MSK_TODAY_SQL}""")
     return r[0]["n"] if r else 0
+
+
+def backlog_sent_today(platform, account):
+    """Сколько авто-ответов по бэклогу отзывов ушло сегодня (Москва) в ЭТОМ канале — база лимита.
+    Считаем по факту публикации: успех + отзыв + старше границы + маршрут auto."""
+    r = db.query(f"""SELECT count(*) AS n FROM raw_feedback
+        WHERE posted_ok=true AND {MSK_TODAY_SQL} AND kind='review' AND draft_route='auto'
+          AND platform=%s AND account=%s
+          AND created_at < now() - make_interval(days => %s)""",
+        (platform, account, backlog_days()))
+    return r[0]["n"] if r else 0
+
+
+def sent_today_by_channel():
+    """{(platform, account): n} — опубликовано сегодня (Москва) по каналам. Для баннера карточки
+    и суточной сводки: показываем ФАКТ публикаций, а не только остаток лимита."""
+    rows = db.query(f"""SELECT platform, account, count(*) AS n FROM raw_feedback
+        WHERE posted_ok=true AND {MSK_TODAY_SQL}
+        GROUP BY platform, account ORDER BY platform, account""")
+    return {(r["platform"], r["account"]): r["n"] for r in rows}
 
 
 def _log(msg):
@@ -164,9 +217,11 @@ def _mark_posted(row, text, ok, err=None):
         (ok, ok, text, row["platform"], row["account"], row["kind"], row["ext_id"]))
 
 
-def post_answer(row, text):
-    """Диспетчер отправки ответа на ВОПРОС. row — строка raw_feedback (dict с platform/account/
-    kind/ext_id/item_id/payload). text — финальный текст (одобренный/исправленный).
+def post_answer(row, text, apply_cap=False):
+    """Диспетчер отправки ответа. row — строка raw_feedback (dict с platform/account/kind/ext_id/
+    item_id/payload). text — финальный текст (одобренный/исправленный). apply_cap=True ставит
+    вызов под дневной лимит канала — его передаёт ТОЛЬКО авто-отправка бэклога отзывов
+    (collectors/feedback_autosend.py). Ручные ответы оператора и свежие отзывы идут без лимита.
     → (ok: bool, detail: str). В dry-run реально не шлёт и НЕ помечает posted."""
     text = (text or "").strip()
     if not text:
@@ -184,10 +239,12 @@ def post_answer(row, text):
     if acc not in _live_accounts():
         _log(f"DRY-RUN(acct) {plat}/{acc} {kind}={ext}: аккаунт вне FEEDBACK_LIVE_ACCOUNTS")
         return True, "dry-run:acct-not-live"
-    cap = _daily_cap()
-    if cap is not None and _sent_today() >= cap:
-        _log(f"DRY-RUN(cap) {plat}/{acc} {kind}={ext}: дневной лимит {cap} исчерпан")
-        return True, "dry-run:daily-cap"
+    if apply_cap:
+        cap = _backlog_cap()
+        used = backlog_sent_today(plat, acc)
+        if used >= cap:
+            _log(f"DRY-RUN(cap) {plat}/{acc} {kind}={ext}: лимит бэклога канала {used}/{cap} исчерпан")
+            return True, "dry-run:daily-cap"
 
     try:
         payload = row.get("payload") or {}
