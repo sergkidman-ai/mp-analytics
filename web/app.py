@@ -1040,6 +1040,17 @@ def suppliers_payment_terms_save(p: SupplierPaymentTerm):
     return {"ok": True, "inn": inn}
 
 
+@app.post("/api/suppliers/payment-terms/delete")
+def suppliers_payment_terms_delete(p: dict):
+    """Удаление поставщика из графика. Нужен, потому что кнопка «✕» в таблице иначе убирала
+    строку только с экрана — после перезагрузки условие возвращалось из БД."""
+    inn = (p.get("inn") or "").strip()
+    if not inn or not re.fullmatch(r"\d{10,12}", inn):
+        return {"ok": False, "error": "inn должен быть 10-12 цифр"}
+    db.execute("DELETE FROM supplier_payment_terms WHERE inn = %s", (inn,))
+    return {"ok": True, "inn": inn}
+
+
 @app.get("/api/suppliers/payment-terms/queue")
 def suppliers_payment_terms_queue():
     rows = db.query("""SELECT id, inn, kind, amount::float amount, covers_po_ids,

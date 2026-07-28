@@ -67,12 +67,11 @@
     пополнение на фикс. сумму, когда расчётный баланс падает ниже порога. Черновики создаёт поллер автоматически;
     подпись — вручную в вебе банка. Сейчас только песочница Альфы (см. HANDOFF).</p>
 
-  <h2>⚙️ Условия оплаты</h2>
+  <h2>⚙️ Условия оплаты <span id="mode" class="tag" style="font-weight:400;vertical-align:middle"></span></h2>
   <table class="pt" id="terms"><thead><tr>
     <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th><th>Сумма аванса ₽</th><th>Порог баланса ₽</th><th>Активен</th><th></th>
   </tr></thead><tbody></tbody></table>
-  <div style="margin-top:12px"><button class="ebtn" onclick="addRow()">+ поставщик</button>
-    <button class="ebtn primary" onclick="saveAll()">💾 Сохранить</button></div>
+  <div style="margin-top:12px" id="actions"></div>
 
   <h2>📋 Очередь черновиков <span class="muted" style="font-weight:400;font-size:12px">(последнее, что поллер запланировал/отправил)</span></h2>
   <table id="queue"><thead><tr><th>Когда</th><th>ИНН</th><th>Вид</th><th>Заказов</th><th>Сумма ₽</th><th>Статус</th><th>Чем урезано</th></tr></thead><tbody></tbody></table>
@@ -88,8 +87,13 @@ let rows=[];
 const METHODS={deferred:'Отсрочка',prepayment_per_order:'Предоплата по счёту',prepayment_balance:'Аванс/баланс'};
 const QSTATUS={planned:['tag w','запланирован'],sent_sandbox:['tag ok','отправлен (песочница)'],sent_prod:['tag ok','отправлен (прод)'],error:['tag','ошибка']};
 
+// Таблица по умолчанию ТОЛЬКО ДЛЯ ЧТЕНИЯ — правка условий меняет реальные платежи поставщикам,
+// поэтому поля открываются лишь по кнопке «Редактировать» (защита от случайного изменения).
+let editing=false;
+let deleted=[];                       // ИНН, удалённые в текущем сеансе правки (применяются при «Сохранить»)
+
 function renderTerms(){
-  $('#terms tbody').innerHTML=rows.map((r,i)=>`<tr>
+  $('#terms tbody').innerHTML=rows.map((r,i)=>editing?`<tr>
     <td><input value="${esc(r.inn)}" placeholder="10 цифр" maxlength="12" oninput="rows[${i}].inn=this.value"></td>
     <td><input value="${esc(r.name)}" placeholder="название" oninput="rows[${i}].name=this.value"></td>
     <td><select onchange="rows[${i}].method=this.value;renderTerms()">
@@ -101,18 +105,48 @@ function renderTerms(){
     <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.balance_threshold??''}" placeholder="₽" oninput="rows[${i}].balance_threshold=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td style="text-align:center"><input type="checkbox" ${r.active!==false?'checked':''} onchange="rows[${i}].active=this.checked"></td>
     <td><button class="del" onclick="delRow(${i})" title="удалить">✕</button></td>
+  </tr>`:`<tr>
+    <td class="muted">${esc(r.inn)}</td>
+    <td>${esc(r.name)}</td>
+    <td>${METHODS[r.method]||esc(r.method)}</td>
+    <td>${r.method==='deferred'?(r.deferral_days??'—'):'<span class="muted">—</span>'}</td>
+    <td>${r.method==='deferred'?(r.payment_cap==null?'<span class="muted">вся сумма</span>':rub(r.payment_cap)):'<span class="muted">—</span>'}</td>
+    <td>${r.method==='prepayment_balance'?rub(r.advance_amount):'<span class="muted">—</span>'}</td>
+    <td>${r.method==='prepayment_balance'?rub(r.balance_threshold):'<span class="muted">—</span>'}</td>
+    <td style="text-align:center">${r.active!==false?'✓':'<span class="muted">выкл</span>'}</td>
+    <td></td>
   </tr>`).join('')||'<tr><td colspan="9" class="muted">поставщиков не задано</td></tr>';
+
+  $('#mode').textContent=editing?'режим правки':'только просмотр';
+  $('#mode').className=editing?'tag w':'tag ok';
+  $('#actions').innerHTML=editing
+    ? `<button class="ebtn" onclick="addRow()">+ поставщик</button>
+       <button class="ebtn primary" onclick="saveAll()">💾 Сохранить</button>
+       <button class="ebtn" onclick="cancelEdit()">Отмена</button>`
+    : `<button class="ebtn primary" onclick="startEdit()">✏️ Редактировать</button>`;
 }
+function startEdit(){editing=true;deleted=[];renderTerms();}
+async function cancelEdit(){editing=false;deleted=[];await loadTerms();}
 function addRow(){rows.push({inn:'',name:'',method:'deferred',deferral_days:14,payment_cap:null,advance_amount:null,balance_threshold:null,active:true});renderTerms();}
-function delRow(i){rows.splice(i,1);renderTerms();}
+function delRow(i){
+  const r=rows[i];
+  if(!confirm(`Удалить «${r.name||r.inn}» из графика оплаты?`))return;
+  if((r.inn||'').trim())deleted.push(r.inn.trim());   // из БД снесём при сохранении
+  rows.splice(i,1);renderTerms();
+}
 async function saveAll(){
   for(const r of rows){
     const inn=(r.inn||'').trim();
     if(!inn||!/^\d{10,12}$/.test(inn)){alert('ИНН должен быть 10-12 цифр: "'+inn+'"');return;}
   }
+  for(const inn of deleted){
+    if(rows.some(r=>(r.inn||'').trim()===inn))continue;  // строку вернули обратно — не удаляем
+    await fetch('/api/suppliers/payment-terms/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({inn})});
+  }
   for(const r of rows){
     await fetch('/api/suppliers/payment-terms/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
   }
+  editing=false;deleted=[];
   await loadTerms();
   alert('Сохранено');
 }
