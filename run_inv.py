@@ -115,6 +115,8 @@ def run_day(account, date, apply):
         log(f"счёт {account} {date}: операций нет")
         return 0, None
     stats, _plan = alfa_ms.sync(ops, apply=apply)
+    for msg in (stats.get("error_msgs") or [])[:10]:        # почему именно упало — в крон-лог
+        log(f"  ✗ {msg}")
     log(f"счёт {account} {date}: операций {len(ops)} | "
         f"приход {stats['paymentin']} / расход {stats['paymentout']} | "
         f"уже в МС {stats['existing']}, до отсечки {stats['before_cutoff']} | "

@@ -25,12 +25,13 @@ import sys
 import uuid as _uuid
 import pathlib
 import urllib.parse
+import urllib.error
 
 HERE = pathlib.Path(__file__).resolve().parent           # каталог collectors/
 BASE_DIR = HERE.parent
 sys.path.insert(0, str(HERE))                            # сосед alfa_statement.py
 sys.path.insert(0, "/opt/mp-analytics/invoice_bot")
-from ms import get, post, put, MS                        # noqa: E402  invoice_bot/ms.py
+from ms import get, post, MS                             # noqa: E402  invoice_bot/ms.py
 from alfa_statement import fetch_statement               # noqa: E402  сосед по каталогу
 
 ORG_INN = os.getenv("ALFA_ORG_INN", "7807355364")        # Цифровой Квадрат
@@ -46,9 +47,23 @@ def _norm(s):
     return " ".join((s or "").lower().split())
 
 
+def _err_text(resp):
+    """Короткий человекочитаемый текст ошибки МС из тела ответа."""
+    try:
+        errs = resp.get("errors") or []
+        return "; ".join(str(e.get("error") or e)[:160] for e in errs[:2]) or str(resp)[:200]
+    except Exception:
+        return str(resp)[:200]
+
+
 def _ms_dt(iso):
     # "2026-07-22T00:00:00Z" → "2026-07-22 00:00:00"
-    return (iso or "").replace("T", " ").replace("Z", "")[:19] or None
+    # Голая дата "2026-07-22" (так приходит documentDate выписки) → добиваем полночью:
+    # МС принимает только полный дата-время, иначе 400 «не соответствует типу дата-время».
+    s = (iso or "").replace("T", " ").replace("Z", "")[:19]
+    if not s:
+        return None
+    return f"{s} 00:00:00" if len(s) == 10 else s
 
 
 def _sync_id(op):
@@ -109,12 +124,40 @@ def find_existing(idx, op, sync_id):
     return None, ""
 
 
+def get_opt(path):
+    """GET, который на 404 отдаёт None вместо исключения (проверка «есть ли объект»)."""
+    try:
+        return get(path)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+
+
 def resolve_org():
     rows = get("/entity/organization")["rows"]
     for o in rows:
         if o.get("inn") == ORG_INN:
             return o
     raise SystemExit(f"организация с ИНН {ORG_INN} не найдена в МС")
+
+
+_expense_cache = {}
+
+
+def resolve_expense_item():
+    """Статья расходов для paymentout — в этом аккаунте МС поле ОБЯЗАТЕЛЬНО (POST иначе 412/3000).
+    Имя берём из ALFA_MS_EXPENSE_ITEM, по умолчанию «Закупка товаров»: так проставлены 100 из 100
+    исходящих платежей июля-2026, заведённых руками (включая банковские комиссии и эквайринг),
+    т.е. это фактическая учётная практика владельца, а не наше допущение. Меняется через .env."""
+    want = os.getenv("ALFA_MS_EXPENSE_ITEM", "Закупка товаров")
+    if want in _expense_cache:
+        return _expense_cache[want]
+    for r in get("/entity/expenseitem?limit=100")["rows"]:
+        if _norm(r.get("name")) == _norm(want):
+            _expense_cache[want] = r
+            return r
+    raise SystemExit(f"статья расходов «{want}» не найдена в МС (ALFA_MS_EXPENSE_ITEM)")
 
 
 def resolve_agent(inn, name, apply):
@@ -156,13 +199,17 @@ def build_payment(op, org, agent):
         idate = _ms_dt(op.get("document_date") or op["operation_date"])
         if idate:
             body["incomingDate"] = idate
+    else:                                                   # paymentout: статья расходов обязательна
+        item = resolve_expense_item()
+        body["expenseItem"] = _meta("expenseitem", item["id"], "expenseitem")
     return typ, body
 
 
 def sync(normalized, apply=False):
     org = resolve_org()
     stats = {"paymentin": 0, "paymentout": 0, "matched": 0, "created": 0,
-             "would_create": 0, "errors": 0, "existing": 0, "before_cutoff": 0}
+             "would_create": 0, "errors": 0, "existing": 0, "before_cutoff": 0,
+             "error_msgs": []}          # тексты ошибок МС — иначе крон-лог немой (был «ошибок 3»)
     plan = []
     idx_cache = {}
     # дата отсечки: операции раньше неё не пишем (до неё документы заводились руками)
@@ -205,11 +252,23 @@ def sync(normalized, apply=False):
         _, body = build_payment(op, org, agent)
         written = False
         if apply:
-            st, resp = put(f"/entity/{typ}/syncid/{body['syncId']}", body)
+            # Идемпотентность: PUT /entity/{typ}/syncid/{uuid} НЕ создаёт объект (404, code 1021 —
+            # проверено на боевом прогоне 2026-07-28), это только обновление существующего.
+            # Поэтому: есть по syncId → пропускаем, нет → создаём POST'ом.
+            if get_opt(f"/entity/{typ}/syncid/{body['syncId']}") is not None:
+                stats["existing"] += 1
+                plan.append({"dir": op["direction"], "sum": op["amount"], "typ": typ,
+                             "agent": agent["name"], "agent_status": "уже есть (syncId)",
+                             "written": False, "syncId": body["syncId"]})
+                continue
+            st, resp = post(f"/entity/{typ}", body)
             if st in (200, 201):
                 written = True
             else:
                 stats["errors"] += 1
+                stats["error_msgs"].append(
+                    f"{typ} {op['amount']} {(op.get('counterparty_name') or '')[:24]}: "
+                    f"HTTP {st} — {_err_text(resp)}")
         plan.append({"dir": op["direction"], "sum": op["amount"],
                      "agent": agent["name"], "agent_status": ast, "typ": typ,
                      "written": written, "syncId": body["syncId"]})
