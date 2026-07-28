@@ -640,13 +640,30 @@ def match_rows(order_pos, upd_pos):
             return scored[0][1]
         return None
 
+    def order_keys(p):
+        a = p["assortment"]
+        return {str(a.get("article") or "").strip().upper(), str(a.get("code") or "").strip().upper()} - {""}
+
     # 1) по артикулу/коду товара == код [1] УПД
     for i, p in enumerate(order_pos):
-        a = p["assortment"]
-        keys = {str(a.get("article") or "").strip().upper(), str(a.get("code") or "").strip().upper()} - {""}
+        keys = order_keys(p)
         for ui, u in enumerate(upd_pos):
             if ui not in used and u["kod"] and u["kod"].strip().upper() in keys:
                 take(i, ui); break
+    # 1b) артикул/код позиции заказа встречается ТОКЕНОМ в наименовании строки УПД.
+    #     Поставщик пишет свой артикул в названии («… Blossom BS-X106R01206 …»), а карточка МС
+    #     названа иначе (Xerox), поэтому токены имён не пересекаются, а kod в УПД бывает пуст —
+    #     но артикул заказа = артикул из имени УПД. Берём при УНИКАЛЬНОМ совпадении (обе стороны).
+    for i, p in enumerate(order_pos):
+        if i in res:
+            continue
+        keys = order_keys(p)
+        if not keys:
+            continue
+        hits = [ui for ui, u in enumerate(upd_pos)
+                if ui not in used and (keys & (_tok_strong(u["name"]) | _tok_weak(u["name"])))]
+        if len(hits) == 1:
+            take(i, hits[0])
     # 2) по сильному артикульному токену (уникальный максимум пересечения)
     for i in range(len(order_pos)):
         if i not in res:
