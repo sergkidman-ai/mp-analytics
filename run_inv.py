@@ -117,11 +117,16 @@ def run_day(account, date, apply):
     stats, _plan = alfa_ms.sync(ops, apply=apply)
     for msg in (stats.get("error_msgs") or [])[:10]:        # почему именно упало — в крон-лог
         log(f"  ✗ {msg}")
+    for msg in (stats.get("link_msgs") or [])[:10]:         # платежи, требующие ручной привязки
+        log(f"  ⚠ привязка вручную: {msg}")
+    link_part = f"привязано к приёмкам {stats.get('linked', 0)}"
+    if stats.get("link_errors"):
+        link_part += f", на ручную {stats['link_errors']}"
     log(f"счёт {account} {date}: операций {len(ops)} | "
         f"приход {stats['paymentin']} / расход {stats['paymentout']} | "
         f"уже в МС {stats['existing']}, до отсечки {stats['before_cutoff']} | "
         f"контрагент: найден {stats['matched']}, создан {stats['created']}, "
-        f"будет создан {stats['would_create']} | ошибок {stats['errors']}")
+        f"будет создан {stats['would_create']} | {link_part} | ошибок {stats['errors']}")
     return len(ops), stats
 
 

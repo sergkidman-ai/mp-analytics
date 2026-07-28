@@ -205,11 +205,32 @@ def build_payment(op, org, agent):
     return typ, body
 
 
+def _link_supplies(payment, stats):
+    """Привязать созданный исходящий платёж к приёмкам (contract: collectors/alfa_link).
+    Привязка — вторичный шаг: её сбой НЕ должен ронять уже записанный платёж, поэтому
+    любое исключение уходит в счётчик и лог, а не наружу."""
+    try:
+        from alfa_link import link_payment                # сосед по каталогу
+        status, note = link_payment(payment, apply=True)
+    except Exception as e:                                # noqa: BLE001 — см. докстринг
+        stats["link_errors"] += 1
+        stats["link_msgs"].append(f"платёж №{payment.get('name')}: {type(e).__name__}: {e}")
+        return
+    if status == "linked":
+        stats["linked"] += 1
+    elif status in ("partial", "error"):
+        stats["link_errors"] += 1
+        stats["link_msgs"].append(
+            f"платёж №{payment.get('name')} {payment.get('sum', 0)/100:.2f} ₽ → {note}")
+    # no-match (комиссии банка, авансы без номеров в назначении) — штатно, молча
+
+
 def sync(normalized, apply=False):
     org = resolve_org()
     stats = {"paymentin": 0, "paymentout": 0, "matched": 0, "created": 0,
              "would_create": 0, "errors": 0, "existing": 0, "before_cutoff": 0,
-             "error_msgs": []}          # тексты ошибок МС — иначе крон-лог немой (был «ошибок 3»)
+             "error_msgs": [],         # тексты ошибок МС — иначе крон-лог немой (был «ошибок 3»)
+             "linked": 0, "link_errors": 0, "link_msgs": []}   # привязка платежей к приёмкам
     plan = []
     idx_cache = {}
     # дата отсечки: операции раньше неё не пишем (до неё документы заводились руками)
@@ -264,6 +285,8 @@ def sync(normalized, apply=False):
             st, resp = post(f"/entity/{typ}", body)
             if st in (200, 201):
                 written = True
+                if typ == "paymentout":
+                    _link_supplies(resp, stats)          # замкнуть контур: платёж → приёмка
             else:
                 stats["errors"] += 1
                 stats["error_msgs"].append(
