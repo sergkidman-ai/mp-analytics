@@ -4,19 +4,23 @@
 Сейчас один шаг: **выписка Альфа-Банка за ВЧЕРА → МойСклад** (paymentin/paymentout).
 Раз в сутки, утром: к 07:00 МСК банковский день закрыт, все операции проставлены.
 
-Расписание (crontab; в файле уже задан CRON_TZ=Europe/Moscow, время = МСК):
-    0 7 * * * cd /opt/mp-analytics && ./venv/bin/python run_inv.py \
-        >> /opt/mp-analytics/alfa_statement.log 2>&1
+Расписание (crontab). ВНИМАНИЕ: **`CRON_TZ` этим cron НЕ поддерживается** (`3.0pl1-137ubuntu3`,
+система `Etc/UTC`; проверено 2026-07-28 по syslog — строка `CRON_TZ=Europe/Moscow` стояла и была
+инертной, снята). **Время в crontab = UTC**, МСК = UTC+3, т.е. 07:00 МСК = `0 4`.
+Запуск — из deploy-worktree на main, а не из основного чекаута (там часто ветка чужого потока):
+    0 4 * * * cd /opt/mp-analytics/.deploy/inv && { git checkout --detach -q main 2>/dev/null; \
+        /opt/mp-analytics/venv/bin/python run_inv.py; } >> /opt/mp-analytics/alfa_statement.log 2>&1
 
-Счета — `ALFA_ACCOUNT` в .env (можно несколько через запятую).
+Счета — в .env: `ALFA_ACCOUNT` (песочница) / `ALFA_ACCOUNT_PROD` (бой), выбор по `ALFA_ENV`;
+в каждой можно несколько через запятую.
 
 ЗАПИСЬ В МС — двойной предохранитель:
   1) пишем только при `ALFA_MS_APPLY=1` в .env (по умолчанию dry-run: читаем банк,
      считаем план, ничего не создаём);
   2) при `ALFA_ENV=sandbox` запись ЗАПРЕЩЕНА жёстко, даже с APPLY=1 — контрагенты
      песочницы фейковые, в боевой МС их лить нельзя.
-Переключение на бой = поменять ALFA_ENV/ALFA_ACCOUNT и выставить ALFA_MS_APPLY=1;
-crontab при этом трогать не нужно.
+Переключение на бой = `ALFA_ENV=prod` (+ заполненные `ALFA_*_PROD`) и `ALFA_MS_APPLY=1`;
+crontab при этом трогать не нужно. Бой включён 2026-07-28 (ОК владельца), отсечка `ALFA_MS_SINCE`.
 
 Повторный прогон за ту же дату безопасен: идемпотентность по банковскому `uuid`
 операции → МС `syncId` (см. collectors/alfa_ms.py), дублей не будет.
