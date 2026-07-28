@@ -233,6 +233,30 @@ tmux attach -t <имя>    # напр. tmux attach -t mkt
 ## Отзывы
 `поток rev · сессия rev · /opt/mp-analytics (eng/deepseek-answer-engine) · docs/review3_handoff.md`
 
+- **07-28 — ВОПРОСЫ ЯНДЕКС.МАРКЕТА подключены + пуш всех вопросов в модерацию:**
+  1) Новый коллектор `collectors/yandex_questions.py` (ya_acc1, тот же Api-Key/businessId, что у
+  отзывов). Путь у вопросов ТОЛЬКО с версией: `POST /v1/businesses/{biz}/goods-questions` (без `/v1`
+  — 404, `/v2` — 404). Фильтр `{"answered": false}` тело принимает, но **игнорирует** → «отвечен»
+  выводим сами: по каждому вопросу дочитываем `/goods-questions/answers` и ищем НАШ ответ (author.name
+  = имя магазина, статус ≠ DELETED). Окно 30 дней, старьё в БД не тянем.
+  2) Отправка — `feedback_send.send_yandex_question()`: `/v1/.../goods-questions/update`,
+  `operationType=CREATE`, `parentEntityId` = id вопроса. Ветка `yandex/question` в `post_answer`,
+  значит все гейты (LIVE_SEND, LIVE_ACCOUNTS, паузы) действуют автоматически. Маршрут ВСЕГДА
+  `review` — вопросы в auto не уходят никогда.
+  3) Шаг `ya_acc1:questions` встроен в `collectors/feedback_collect_all.py` → работает в общем цикле.
+  4) **Починен `product_name` Маркета:** `offerId` = `ms_product.external_code`, а не `article`
+  (собирали по article → имя NULL → домен-фильтр гнал ВСЕ вопросы/отзывы Маркета на человека).
+  Правка в `yandex_questions._names()`, `yandex_feedbacks._names()` переиспользует её.
+  5) **CARD_DATA для Маркета:** `CardFacts.for_yandex(offerId)` — карточка-двойник ВБ по vendorCode
+  (точное совпадение, иначе префикс с отсечкой по НЕ-цифре: `'0996'`→nm 1055733312,
+  `'23937'`→nm 216460101). Плюс в `feedback_today._answer` имя товара добирается с двойника, если в МС
+  offerId нет вовсе. Итог: черновики Маркета грунтованные (ресурс/код/чип), а не «⚠️ Вне профиля».
+  6) `tg_moderation._pending()`: фильтр `kind` + **гейт актуальности** — карточка не уходит, если
+  на площадке уже отвечено (`is_answered` / `posted_at`). Ловушка: 3 вопроса WB, отвеченных 16.07,
+  висели в `queued` и всплыли карточками; закрыты как `skipped`.
+  7) Факты 28.07: все **8** неотвеченных вопросов за 30 дней (oz_acc1 4, oz_acc2 1, wb_acc1 3) ушли
+  в ТГ на модерацию. У Маркета в окне **2** вопроса, оба уже отвечены нами на площадке → в очередь
+  не попадают (сбор их пишет, черновики проверены вручную — грунтованные).
 - **07-28 — НОВАЯ МОДЕЛЬ ЛИМИТА (решение Сергея) + счётчик по календарю МСК + чистка ответов:**
   1) **Дневной лимит применяется ТОЛЬКО к авто-ответам на СТАРЫЙ бэклог отзывов** (старше
   `FEEDBACK_BACKLOG_DAYS`=7 дней), кап `FEEDBACK_BACKLOG_DAILY_CAP`=**150 НА КАНАЛ**. Вопросы, всё

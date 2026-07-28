@@ -381,6 +381,24 @@ class CardFacts:
                 return f
         return None
 
+    def for_yandex(self, offer_id):
+        """Факты по offerId Яндекса — через карточку ВБ того же товара.
+
+        Своей карточки-сырья у Маркета мы не собираем, но offerId = код товара платформы и совпадает
+        с vendorCode ВБ либо является его началом (сверено 28.07: '0996'→nm 1055733312 / '0996WY63PELM',
+        '23937'→nm 216460101). Хвост после кода отсекаем регексом по НЕ-цифре — иначе '2393' поймал бы
+        чужой '23937'. Приоритет — точное совпадение (wb_acc1), затем префиксное (wb_acc2)."""
+        off = str(offer_id or "").strip()
+        if not off:
+            return None
+        rows = db.query("""SELECT nm_id FROM raw_wb_card_content
+            WHERE vendor_code = %s OR vendor_code ~ ('^' || %s || '[^0-9]')
+            ORDER BY (vendor_code = %s) DESC, nm_id LIMIT 1""", (off, re.escape(off), off))
+        if not rows:
+            return None
+        f = self.for_wb(rows[0]["nm_id"])
+        return dict(f, facts_src="wb-двойник(offerId)") if f else None
+
     def for_wb(self, nm_id):
         p = self._wb_payload(nm_id)
         if not p:

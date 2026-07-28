@@ -525,6 +525,10 @@ def _answer(client, r, cf, corpus):
     # Расходник без CARD_DATA → пропускаем в цепочку, но помечаем (no_card) для карточки модератора.
     if r["kind"] == "question":
         cc0 = _card_data(r, cf)
+        if not r.get("product_name") and r["platform"] == "yandex":
+            # у Маркета offerId не всегда есть в МС (напр. '23937') — имя берём с карточки-двойника ВБ,
+            # иначе домен-фильтр отправит на человека любой вопрос из-за пустого названия
+            r["product_name"] = ((cf.for_yandex(r["item_id"]) or {}).get("name") or None)
         if not _is_consumable(r.get("product_name")):
             marker = ("⚠️ Вне профиля (товар не расходник печати) — ответ по общему знанию запрещён, "
                       "нужен ручной ответ оператора.")

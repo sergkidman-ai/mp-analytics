@@ -56,8 +56,10 @@ def _pages(key, biz, limit=50):
 
 
 def _names():
-    return {r["article"]: r["name"] for r in
-            db.query("SELECT article, name FROM ms_product WHERE article IS NOT NULL")}
+    """offerId Яндекса → название товара МС (ключ = external_code, article — запасной).
+    Единая логика с collectors/yandex_questions.py — см. комментарий там."""
+    from collectors.yandex_questions import _names as _n
+    return _n()
 
 
 def _text_parts(desc):

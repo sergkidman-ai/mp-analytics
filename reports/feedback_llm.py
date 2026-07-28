@@ -36,7 +36,8 @@ def _card_data(r, cf):
     """CARD_DATA для промпта: чистые факты карточки (card_facts v2, offline из raw_*_card_content /
     raw_ozon_attributes). Чип — 3 корректных состояния, модели — чистый список. '' если карточки нет."""
     f = (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon"
-         else cf.for_wb(r["item_id"]) if r["platform"] == "wb" else None)
+         else cf.for_wb(r["item_id"]) if r["platform"] == "wb"
+         else cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else None)
     # каталог наших листингов — для вопросов о наличии/цвете/артикуле (источник №3); модель принтера
     # берём из карточки, если в вопросе её нет («а цветной есть?» — модель уже известна)
     cat = (catalog_block(r.get("body") or "", r.get("product_name") or "", (f or {}).get("models"),

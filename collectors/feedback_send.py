@@ -12,6 +12,9 @@
   Ozon: POST  https://api-seller.ozon.ru/v1/question/answer/create
         {"question_id": <payload.id=ext_id>, "sku": <payload.sku=item_id, int>, "text": <text>}
         headers Client-Id + Api-Key (collectors.ozon._headers)
+  Яндекс: POST https://api.partner.market.yandex.ru/v1/businesses/{biz}/goods-questions/update
+        {"operationType": "CREATE", "parentEntityId": <ext_id = id вопроса>, "text": <text>}
+        header Api-Key (у ВОПРОСОВ версия /v1 в пути обязательна, у отзывов путь /v2)
 
 Постинг фиксируется в raw_feedback.posted_at/posted_ok/answer_text (только в live-режиме).
 Охват — вопросы аккаунтов wb_acc1 / oz_acc1 (только у них доступ к ответам).
@@ -209,6 +212,27 @@ def send_yandex_review(account, feedback_id, text):
     raise RuntimeError("Yandex goods-feedback/comments: исчерпаны ретраи по лимиту")
 
 
+def send_yandex_question(account, question_id, text):
+    """POST ответа продавца на ВОПРОС о товаре Яндекс.Маркета.
+
+    /v1/businesses/{biz}/goods-questions/update, operationType=CREATE, parentEntityId = id вопроса
+    (у вопросов версия в пути обязательна — без /v1 путь отдаёт 404, в отличие от отзывов).
+    Бросает исключение при не-2xx. Возвращает True."""
+    key = os.environ["YANDEX_API_KEY_ACC1"]
+    biz = os.environ["YANDEX_BUSINESS_ID_ACC1"]
+    h = {"Api-Key": key, "Content-Type": "application/json"}
+    url = f"{YA_API}/v1/businesses/{biz}/goods-questions/update"
+    body = {"operationType": "CREATE", "parentEntityId": int(question_id), "text": text}
+    for _ in range(4):
+        r = requests.post(url, headers=h, json=body, timeout=60)
+        if r.status_code in (420, 429):
+            time.sleep(int(r.headers.get("Retry-After", "3")) + 1)
+            continue
+        r.raise_for_status()
+        return True
+    raise RuntimeError("Yandex goods-questions/update: исчерпаны ретраи по лимиту")
+
+
 def _mark_posted(row, text, ok, err=None):
     """Зафиксировать результат живой отправки в raw_feedback (posted_*/answer_text)."""
     db.execute("""UPDATE raw_feedback SET posted_at=now(), posted_ok=%s,
@@ -262,9 +286,11 @@ def post_answer(row, text, apply_cap=False):
             else:
                 send_ozon_review(acc, payload.get("id") or ext, text)  # review_id = payload.id
         elif plat == "yandex":
-            if kind != "review":
-                return False, "у Яндекса только отзывы"
-            send_yandex_review(acc, payload.get("feedbackId") or ext, text)
+            if kind == "question":
+                # ext_id = questionIdentifiers.id (см. collectors/yandex_questions.py)
+                send_yandex_question(acc, ext, text)
+            else:
+                send_yandex_review(acc, payload.get("feedbackId") or ext, text)
         else:
             return False, f"неизвестная площадка {plat}"
     except Exception as e:

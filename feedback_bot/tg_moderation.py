@@ -100,9 +100,11 @@ WINDOW_DAYS = int(os.getenv("FEEDBACK_MOD_WINDOW_DAYS", "30"))
 BATCH_CAP = int(os.getenv("FEEDBACK_MOD_BATCH_CAP", "60"))   # предохранитель от флуда на «показать всё»
 
 
-def _pending(limit=5, days=None):
+def _pending(limit=5, days=None, kind=None):
     """Карточки, готовые к показу: свежие 'queued' + проснувшиеся 'snoozed', ТОЛЬКО за последние
-    `days` дней (по дате отзыва/вопроса). Отдаём порцией (limit) — рассылка только по кнопке."""
+    `days` дней (по дате отзыва/вопроса). Отдаём порцией (limit) — рассылка только по кнопке.
+    `kind` ('question'/'review') сужает выборку — чтобы можно было прогнать очередь вопросов
+    отдельно от отзывов (вопросы срочнее: покупатель ждёт ответа до покупки)."""
     days = WINDOW_DAYS if days is None else days
     return db.query("""SELECT m.id, m.platform, m.account, m.kind, m.ext_id,
         f.product_name, f.body, f.pros, f.cons, f.rating, f.created_at,
@@ -112,8 +114,12 @@ def _pending(limit=5, days=None):
              AND f.kind=m.kind AND f.ext_id=m.ext_id
         WHERE ((m.state='queued' AND m.tg_msg_id IS NULL)
                OR (m.state='snoozed' AND m.snooze_until <= now()))
+          -- уже отвеченное на площадке (или отправленное нами, но ещё не подтверждённое площадкой)
+          -- в карточки не тянем: очередь модерации живёт дольше, чем актуальность вопроса
+          AND COALESCE(f.is_answered, false) = false AND f.posted_at IS NULL
           AND f.created_at >= now() - make_interval(days => %s)
-        ORDER BY f.created_at DESC LIMIT %s""", (days, limit))
+          AND (%s IS NULL OR m.kind = %s)
+        ORDER BY f.created_at DESC LIMIT %s""", (days, kind, kind, limit))
 
 
 def _mod(mod_id):
@@ -249,10 +255,10 @@ def flush_deferred(limit=20):
     return sent
 
 
-def send_batch(limit=5, days=None):
+def send_batch(limit=5, days=None, kind=None):
     """Разослать ПОРЦИЮ карточек за окно `days` (по кнопке). Возвращает число реально отправленных."""
     sent = 0
-    for row in _pending(limit, days):
+    for row in _pending(limit, days, kind):
         card, kb = _card(row), _kb(row["id"], allow_send=(row.get("draft_route") != "human"))
         canon = None                              # первый успешный (chat_id,msg_id) — канонический для правок
         for cid in NOTIFY_IDS:
