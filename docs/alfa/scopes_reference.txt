@@ -1,0 +1,356 @@
+Scopes (области применения)
+Scope
+Description
+Resourses
+transactions	Выписки по счетам ЮЛ	
+GET /jp/v1/statement/transactions
+GET /jp/v2/accounts/{accountNumber}/transactions/1C
+GET /jp/v1/accounts/{accountNumber}/transactions/MT940
+GET /jp/v1/correspondent-accounts/{accountNumber}/transactions
+GET /jp/v1/statement/summary
+POST /jp/v1/accounts/{accountNumber}/transactions/files/requests
+GET /jp/v1/accounts/transactions/files/requests/{requestId}
+GET /jp/open-banking/v1.3/external/accounts
+POST /jp/open-banking/v1.3/external/statements
+GET /jp/open-banking/v1.3/external/statements/{statementId}
+escrow	Эскроу-счета 214-ФЗ. Резервирование	
+GET /build-projects
+POST /escrow-orders
+GET /jp/v1/escrow-orders/{referenceID}
+GET /jp/v1/escrow-orders
+PATCH /escrow-orders/{referenceID}/execute
+DELETE /escrow-orders/{referenceID}
+POST /jp/v1/escrow-orders/{referenceID}/cancel
+POST /jp/v1/escrow-orders-full
+escrow-reports	Эскроу-счета 214-ФЗ. Формирование отчётов	
+GET /jp/v1/escrow-reports/developers/build-projects
+POST /jp/v1/escrow-reports
+customer	Профиль организации	
+GET /jp/v2/customer-info
+payment	Платёжные поручения	
+POST /jp/v2/payments
+GET /jp/v2/payments/{externalId}/state
+GET /jp/v2/payments/{externalId}
+GET /jp/v2/payments/{externalId}/print-form
+GET /jp/v2/payments/{externalId}/print-form/download
+PATCH /jp/v2/payments/{externalId}/state
+as-operation-with-selfemployed	Добавление самозанятых, получение справочных данных	
+POST /semp/v1/agreement-pages
+POST /semp/v1/selfemployed/registries/add-selfemployed
+GET /semp/v1/selfemployed/registries/add-selfemployed/{requestId}
+GET /semp/v1/dictionary/activities
+GET /semp/v1/dictionary/regions
+GET /semp/v1/selfemployed/lists
+GET /semp/v1/selfemployed/{vatin}
+PUT /semp/v1/selfemployed/{vatin}
+GET /semp/v1/selfemployed/onboarding-statuses/{phone}
+GET /semp/v1/selfemployed/{requestId}/status
+POST /semp/v1/selfemployed/{vatin}/permissions
+GET /semp/v1/selfemployed/{vatin}/permissions/{requestId}
+as-selfemployed-fts-status	Статус самозанятого	
+POST /semp/v1/selfemployed/taxpayer-statuses
+GET /semp/v1/selfemployed/taxpayer-statuses/{requestId}
+as-accrual-and-debt	Налоговые начисления, задолженности и пени самозанятого	
+POST /semp/v1/selfemployed/accruals-and-debts
+GET /semp/v1/selfemployed/accruals-and-debts/{requestId}
+POST /semp/v1/selfemployed/payment-documents
+GET /semp/v1/selfemployed/payment-documents/{requestId}
+POST /semp/v1/selfemployed/income-for-period
+GET /semp/v1/selfemployed/income-for-period/{requestId}
+POST /semp/v1/selfemployed/income
+GET /semp/v1/selfemployed/income/{requestId}
+POST /semp/v1/selfemployed/taxpayer-account-info
+GET /semp/v1/selfemployed/taxpayer-account-info/{requestId}
+as-receipt-and-payout	Проведение выплат и формирование чеков, список банков-участников СБП	
+POST /semp/v1/payouts/registries/receipts-and-payouts
+GET /semp/v1/payouts/registries/{requestId}
+GET /semp/v1/payouts
+GET /semp/v1/dictionary/sbp-banks
+GET /semp/v1/payouts/lists
+GET /semp/v1/payouts/selfemployed/{vatin}
+POST /semp/v1/payouts/registries/cancel-receipts
+POST /semp/v1/payouts/registries/accept/{requestId}
+POST /semp/v1/payouts/registries/payments-check
+GET /semp/v1/payouts/registries/payments-check/{checkId}
+as-receipt	Декларация доходов, аннулирование чеков	
+POST /semp/v1/payouts/registries/receipts
+POST /semp/v1/payouts/registries/cancel-receipts
+GET /semp/v1/payouts/registries/cancel-receipts/{requestId}
+GET /semp/v1/payouts/registries/{requestId}
+GET /semp/v1/payouts
+GET /semp/v1/payouts/lists
+GET /semp/v1/payouts/selfemployed/{vatin}
+POST /semp/v1/payouts/registries/accept/{requestId}
+as-payout-with-check-status	Проведение выплат самозанятым, список банков-участников СБП	
+POST /semp/v1/payouts/registries/with-selfemployed-check-status
+GET /semp/v1/payouts/registries/{requestId}
+GET /semp/v1/payouts
+GET /semp/v1/dictionary/sbp-banks
+GET /semp/v1/payouts/lists
+GET /semp/v1/payouts/selfemployed/{vatin}
+POST /semp/v1/payouts/registries/accept/{requestId}
+POST /semp/v1/payouts/registries/payments-check
+GET /semp/v1/payouts/registries/payments-check/{checkId}
+as-payout	Осуществление выплат самозанятым	
+POST /semp/v1/payouts/registries/payouts
+GET /semp/v1/payouts/registries/{requestId}
+GET /semp/v1/payouts
+GET /semp/v1/dictionary/sbp-banks
+GET /semp/v1/payouts/lists
+GET /semp/v1/payouts/selfemployed/{vatin}
+POST /semp/v1/payouts/registries/accept/{requestId}
+POST /semp/v1/payouts/registries/payments-check
+GET /semp/v1/payouts/registries/payments-check/{checkId}
+sbp_terminals_reg	Приём оплаты через СБП	
+GET /jp/v1/legal
+GET /jp/v1/merchants/{merchantId}
+POST /jp/v1/terminals
+loan-applications	Кредиты для бизнеса	
+POST /smart-loans/jp/v1/loan-applications
+POST /loan-applications
+GET /smart-loans/jp/v1/loan-applications/{dealId}/status
+GET /loans/jp/v1/applications/eligibility
+POST /loans/jp/v1/applications
+GET /loans/jp/v1/applications/{applicationId}/status-history
+PATCH /loans/jp/v1/applications/{applicationId}/status
+GET /loans/jp/v1/applications/{applicationId}/decision
+POST /loans/jp/v1/applications/{applicationId}/decision
+GET /loans/jp/v1/applications/{applicationId}/files/download-links
+GET /loans/jp/v1/applications/{applicationId}/files/upload-links
+signature	Электронная подпись	
+GET /jp/v3/signature/dn
+GET /jp/v3/signature/dn/file
+POST /jp/v3/signature/rsa-certificates/requests/issue
+POST /jp/v3/signature/requests/{id}/operations
+PUT /jp/v3/signature/requests/operations/{id}
+GET /jp/v3/signature/requests/{id}
+GET /jp/v3/signature/rsa-certificates/{id}
+GET /jp/v3/signature/rsa-certificates
+POST /jp/v3/signature/rsa-certificates/{id}/requests/activation
+PUT /jp/v3/signature/sign-settings
+POST /jp/v3/signature/rsa-certificates/{id}/requests/switch
+POST /jp/v3/signature/rsa-certificates/{id}/requests/reissue
+POST /jp/v3/signature/rsa-certificates/{id}/requests/revocation
+POST /jp/v3/signature/qes/requests
+POST /jp/v3/signature/qes/requests/{id}
+PATCH /jp/v3/signature/qes/requests/{id}
+POST /jp/v3/signature/powers-of-attorney/requests
+GET /jp/v3/signature/powers-of-attorney/requests/{id}/status
+GET /jp/v3/signature/powers-of-attorney/requests/{id}
+accounts	Счета	
+GET /pp/v1/accounts
+GET /pp/v1/accounts/{accountNumber}
+GET /pp/v1/accounts/{accountNumber}/requisites
+GET /jp/open-banking/v1.3/accounts
+GET /jp/open-banking/v1.3/accounts/{accountId}/statements
+POST /jp/open-banking/v1.3/statements
+GET /jp/open-banking/v1.3/statements/{statementId}
+cards	Работа с картами	
+GET /pp/v1/cards
+GET /pp/v1/cards/{cardId}/tariffs
+GET /pp/v1/cards/{cardId}/subscriptions
+GET /pp/v1/limits/general
+card-sec-actions	Тарифы и операции по карте	
+GET /pp/v1/cards/{cardId}/actions
+POST /pp/v1/cards/{cardId}/actions
+PUT /pp/v1/cards/{cardId}/actions
+operations-history	Истории операций	
+GET /pp/v1/operations
+GET /pp/v1/operations/{id}
+reports-downloading	Получение документов	
+GET /pp/v1/reports
+GET /pp/v1/reports/{reportId}/body
+debit-statements	Выписки по счёту	
+POST /pp/v1/reports/type/account
+POST /pp/v1/reports/type/account/balance/eng
+POST /pp/v1/reports/type/account/balance/rus
+credit-statements	Справки по кредитам	
+POST /pp/v1/reports/type/credit/closed
+POST /pp/v1/reports/type/credit/info
+POST /pp/v1/reports/type/credit/statement
+deposit-statements	Справка по депозиту	
+POST /pp/v1/reports/type/deposit
+limits-control	Лимиты по операциям	
+GET /pp/v1/cards/{cardId}/user-limits
+POST /pp/v1/cards/{cardId}/user-limits
+DELETE /pp/v1/cards/{cardId}/user-limits/{limitId}
+loyalty	Программа лояльности	
+POST /pp/v1/bonus-account-transactions
+GET /pp/v1/bonus-accounts
+GET /pp/v1/bonus-accounts/{accountNumber}
+b2c_sbp_payments	Платежи через СБП	
+POST /b2cpay/jp/v1/payments
+GET /b2cpay/jp/v1/payments
+GET /b2cpay/jp/v1/payments/packages/{packageId}
+POST /b2cpay/jp/v1/clients/checks
+GET /b2cpay/jp/v1/clients/checks/{checkId}
+GET /b2cpay/jp/v1/clients/info
+GET /b2cpay/jp/v1/banks
+GET /b2cpay/jp/v1/payments/download/{transactionId}
+credit	Кредитные предложения	
+GET /pp/v1/credit-offers
+c2b-sbp	Оплата покупок через СБП	
+POST /sbp/jp/v1/qrcs
+POST /sbp/jp/v1/subscriptions
+GET /sbp/jp/v1/qrc-status
+POST /sbp/jp/v1/petitions
+POST /sbp/jp/v1/terminals/{termNo}/cash-qrcs
+POST /sbp/jp/v1/terminals/{termNo}/cash-qrcs/{qrcId}/activation
+DELETE /sbp/jp/v1/terminals/{termNo}/cash-qrcs/{qrcId}/activation
+POST /sbp/jp/v1/refund
+GET /sbp/jp/v1/refund/status
+b2b-sbp	Операции СБП для ЮЛ	
+POST /sbp/jp/v1/payment-urls/one-time-use
+POST /sbp/jp/v1/payment-urls/reusable
+GET /sbp/jp/v1/payment-urls
+GET /sbp/jp/v1/payment-urls/{qrcId}/data
+GET /sbp/jp/v1/incoming-payments
+POST /sbp/jp/v1/outgoing-payments/one-pay
+GET /sbp/jp/v1/outgoing-payments
+GET /sbp/jp/v1/outgoing-payments/{outgoingPaymentId}/status
+POST /sbp/jp/v1/payment-urls/batch
+GET /sbp/jp/v1/payment-urls/batch/{batchId}
+PATCH /sbp/jp/v1/payment-urls
+digital-tariff	Выпуск дебетовых карт	
+POST /pp/v1/debit-cards/forms
+POST /pp/v1/debit-cards/forms/{formId}/verification-sms
+POST /pp/v1/debit-cards/forms/{formId}/resending-sms
+POST /pp/v1/debit-cards/forms/{formId}/verification-passport
+plastic-delivery	Доставка дебетовой карты	
+POST /pp/v1/debit-cards/forms/{formId}/verification-sms
+POST /pp/v1/debit-cards/forms/{formId}/resending-sms
+GET /pp/v1/debit-cards/forms/{formId}/draft
+GET /pp/v1/debit-cards/forms/{formId}/delivery-type
+GET /pp/v1/debit-cards/forms/{formId}/time-slots
+POST /pp/v1/debit-cards/forms/{formId}/time-slots
+POST /pp/v1/debit-cards/forms/{formId}/confirmation
+dfa	Цифровые финансовые активы (ЦФА)	
+GET /dfa/gd/v1/dfa-profile/initial-placement-list
+salary-project	Зарплатный проект	
+POST /jp/v1/salary-project/accounts/applications
+GET /jp/v1/salary-project/accounts/applications/{applicationId}
+POST /jp/v1/salary-project/payroll/applications
+GET /jp/v1/salary-project/payroll/applications/{applicationId}
+loyalty-program	Получение бонусных номеров	
+GET /pp/v1/bonus-numbers
+payment-registries	Реестры платежей	
+POST /jp/v1/registries
+PATCH /jp/v1/registries/{registryId}
+POST /jp/v1/registries/{registryId}/signatures
+GET /jp/v1/registries/{registryId}/signatures/{signatureId}
+GET /jp/v1/registries/{registryId}
+GET /jp/v1/registries/{registryId}/payments
+invoices	Выставление счёта клиенту	
+POST /jp/v2/payments/from-invoice
+POST /jp/v2/payments/from-invoice-any
+POST /jp/v2/payments/from-invoice-budget
+factoring	Факторинг	
+GET /aff/jp/v1/creditors/compliance
+POST /aff/jp/v1/payments
+POST /aff/jp/v1/registers
+POST /aff/jp/v1/registers/sign
+GET /aff/jp/v1/payments/{paymentId}
+GET /aff/jp/v1/registers/{registerId}
+GET /aff/jp/v1/registers/{registerId}/documents
+beneficiaries	Информация о номинальных счетах и их контрагенты	
+GET /na/jp/v1/nominal-accounts
+GET /na/jp/v1/beneficiaries/requests/{requestId}/status
+POST /na/jp/v1/beneficiaries
+GET /na/jp/v1/beneficiaries
+GET /na/jp/v1/beneficiaries/{beneficiaryId}
+PUT /na/jp/v1/beneficiaries/{beneficiaryId}
+POST /na/jp/v1/beneficiaries/{beneficiaryId}/scoring
+POST /na/jp/v1/beneficiaries/{beneficiaryId}/requisites
+GET /na/jp/v1/beneficiaries/{beneficiaryId}/requisites
+PATCH /na/jp/v1/beneficiaries/{beneficiaryId}/requisites/{requisiteId}
+GET /na/jp/v1/beneficiaries/{beneficiaryId}/balance
+GET /na/jp/v1/beneficiaries/{beneficiaryId}/transactions
+POST /na/jp/v1/universal-recipients
+GET /na/jp/v1/universal-recipients
+GET/na/jp/v1/universal-recipients/{universalRecipientId}
+POST /na/jp/v1/universal-recipients/{universalRecipientId}/requisites
+GET /na/jp/v1/universal-recipients/{universalRecipientId}/requisites
+PATCH /na/jp/v1/universal-recipients/{universalRecipientId}/requisites/{requisiteId}
+GET /na/jp/v1/dictionary/sbp-banks
+deals	Безопасные сделки	
+POST /na/jp/v1/deals
+GET /na/jp/v1/deals
+GET /na/jp/v1/deals/{dealId}
+PATCH /na/jp/v1/deals/{dealId}/is-valid
+GET /na/jp/v1/deals/{dealId}/payoffs
+PATCH /na/jp/v1/deals/action
+POST /na/jp/v1/deals/steps
+GET /na/jp/v1/deals/{dealId}/requests/{requestId}/status
+GET /na/jp/v1/deals/{dealId}/steps
+GET /na/jp/v1/deals/{dealId}/steps/{stepId}
+PATCH /na/jp/v1/deals/steps/contractors
+GET /na/jp/v1/deals/{dealId}/steps/{stepId}/contractors
+GET /na/jp/v1/dictionary/countries
+beneficiary-payments	Идентификация пополнений номинального счёта и выплаты с него	
+GET /na/jp/v1/unidentified-transactions
+POST /na/jp/v1/unidentified-transactions/{id}/identify
+GET /na/jp/v1/unidentified-transactions/{id}/identify/{identifyId}
+POST /na/jp/v1/unidentified-transactions/{id}/refunds
+GET /na/jp/v1/unidentified-transactions/{id}/refunds/{refundId}
+POST /na/jp/v1/payoffs
+GET /na/jp/v1/payoffs/{payoffId}/status
+PATCH /na/jp/v1/payoffs/{payoffId}/accept
+GET /na/jp/v1/payoffs/{payoffId}
+POST /na/jp/v1/tax-refund
+GET /na/jp/v1/tax-refund/{taxRefundId}/status
+PATCH /na/jp/v1/tax-refund/{taxRefundId}/accept
+GET /na/jp/v1/payoffs
+mathmod-scorings	Проверка контрагентов	
+GET /mathmod-scorings/jp/v1/compliance
+subscriptions	Нефинансовые продукты для бизнеса	
+GET /nfs/jp/v1/products/{productId}
+svoy	События партнёров проекта «Свой в Альфе»	
+POST /svoy/jp/v1/events
+offices-rates	Курсы валют в отделениях Альфа-Банка	
+GET /rates/gd/v1/offices-rates
+cpa-transactions	Партнёрская программа кэшбэка	
+POST /cpa-transactions/pp/v1/cashbacks
+travelorder	Управление заказами в Альфа-Тревел	
+POST /order-core/pp/v1/travel/orders
+PUT /order-core/pp/v1/travel/orders/{orderId}
+PUT /order-core/pp/v1/travel/orders/{orderId}/content
+afishaorder	Управление заказами в Альфа-Афише	
+POST /order-core/pp/v1/afisha/orders
+coreorders	Управление заказами в Альфа-Тревел и Альфа-Афише	
+POST /order-core/pp/v1/orders/{orderId}/confirmations
+PATCH /order-core/pp/v1/orders/{orderId}
+GET /order-core/pp/v1/bonus-accounts
+PATCH /order-core/pp/v1/orders/{orderId}/payment-structure
+POST /order-core/pp/v1/orders/{orderId}/additional-up
+PATCH /order-core/pp/v1/orders/{orderId}/additional-up/{additionalId}/confirmations
+PATCH /order-core/pp/v1/orders/{orderId}/additional-up/{additionalId}/cancellations
+POST /order-core/pp/v1/orders/{orderId}/refunds
+system-core-orders	Информация о бонусных счетах и заказах в Альфа-Тревел и Альфа-Афише	
+GET /order-core/pp/v1/orders/{orderId}/status
+GET /order-core/pp/v1/users/{userId}/bonus-accounts
+GET /order-core/pp/v1/orders/{orderId}/payment-details
+promocodes	Промокоды клиента в Альфа-Тревел и Альфа-Афише	
+PATCH /order-core/pp/v1/promocodes/{promocode}/apply
+GET /order-core/pp/v1/promocodes
+
+obru_accounts_le	Выписка по счетам ЮЛ по стандартам Банка России (третья версия)	
+GET /jp/open-banking/v3.0/aisp-le/accounts
+GET /jp/open-banking/v3.0/aisp-le/accounts/{accountId}/statements
+POST /jp/open-banking/v3.0/aisp-le/statements
+GET /jp/open-banking/v3.0/aisp-le/statements/{statementId}
+esop	Опционные программы (ESOP)	
+POST /jp/v1/esop/programs
+GET /jp/v1/esop/programs
+PATCH /jp/v1/esop/programs/{programId}
+POST /jp/v1/esop/programs/{programId}/participants/batch
+GET /jp/v1/esop/programs/{programId}/participants
+DELETE /jp/v1/esop/programs/{programId}/participants/{participantId}
+PATCH /jp/v1/esop/programs/{programId}/participants/{participantId}
+GET /jp/v1/esop/programs/{programId}/documents
+POST /jp/v1/esop/programs/{programId}/documents/batch
+POST /jp/v1/esop/programs/{programId}/participants/depo-orders/batch
+PATCH /jp/v1/esop/programs/{programId}/participants/{participantId}/depo-orders
+digital-ruble	Цифровой рубль	
+GET /jp/v1/digital-ruble/wallet-context
+GET /jp/v1/digital-ruble/certificates
+POST /jp/v1/digital-ruble/statement/transactions
