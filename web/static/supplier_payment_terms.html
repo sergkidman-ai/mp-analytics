@@ -69,7 +69,7 @@
 
   <h2>⚙️ Условия оплаты <span id="mode" class="tag" style="font-weight:400;vertical-align:middle"></span></h2>
   <table class="pt" id="terms"><thead><tr>
-    <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th><th>Сумма аванса ₽</th><th>Порог баланса ₽</th><th>Активен</th><th></th>
+    <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th><th>Сумма аванса ₽</th><th>Порог баланса ₽</th><th title="Ставка НДС поставщика — из неё собирается НДС-оговорка в назначении платежа">НДС</th><th>Активен</th><th></th>
   </tr></thead><tbody></tbody></table>
   <div style="margin-top:12px" id="actions"></div>
 
@@ -85,6 +85,11 @@ async function api(p){const r=await fetch(p);return r.json();}
 let rows=[];
 
 const METHODS={deferred:'Отсрочка',prepayment_per_order:'Предоплата по счёту',prepayment_balance:'Аванс/баланс'};
+// Ставка НДС поставщика: из неё собирается НДС-оговорка в назначении платежа. Пусто ≠ «без НДС»:
+// пусто = не выяснено (платёжка тогда возьмёт НДС из заказа МС, как раньше), 0 = не облагается.
+const VAT_RATES=[['','не задано'],['0','без НДС'],['5','5%'],['7','7%'],['10','10%'],['20','20%'],['22','22%']];
+const vatLabel=v=>v==null?'<span class="muted">не задано</span>':(v===0?'без НДС':v+'%');
+
 const QSTATUS={planned:['tag w','запланирован'],sent_sandbox:['tag ok','отправлен (песочница)'],sent_prod:['tag ok','отправлен (прод)'],error:['tag','ошибка']};
 
 // Таблица по умолчанию ТОЛЬКО ДЛЯ ЧТЕНИЯ — правка условий меняет реальные платежи поставщикам,
@@ -103,6 +108,9 @@ function renderTerms(){
     <td>${r.method==='deferred'?`<input type="number" value="${r.payment_cap??''}" placeholder="вся сумма" oninput="rows[${i}].payment_cap=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.advance_amount??''}" placeholder="₽" oninput="rows[${i}].advance_amount=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.balance_threshold??''}" placeholder="₽" oninput="rows[${i}].balance_threshold=+this.value||null">`:'<span class="muted">—</span>'}</td>
+    <td><select onchange="rows[${i}].vat_rate=this.value===''?null:+this.value">
+      ${VAT_RATES.map(([v,t])=>`<option value="${v}"${String(r.vat_rate??'')===v?' selected':''}>${t}</option>`).join('')}
+    </select></td>
     <td style="text-align:center"><input type="checkbox" ${r.active!==false?'checked':''} onchange="rows[${i}].active=this.checked"></td>
     <td><button class="del" onclick="delRow(${i})" title="удалить">✕</button></td>
   </tr>`:`<tr>
@@ -113,9 +121,10 @@ function renderTerms(){
     <td>${r.method==='deferred'?(r.payment_cap==null?'<span class="muted">вся сумма</span>':rub(r.payment_cap)):'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?rub(r.advance_amount):'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?rub(r.balance_threshold):'<span class="muted">—</span>'}</td>
+    <td>${vatLabel(r.vat_rate)}</td>
     <td style="text-align:center">${r.active!==false?'✓':'<span class="muted">выкл</span>'}</td>
     <td></td>
-  </tr>`).join('')||'<tr><td colspan="9" class="muted">поставщиков не задано</td></tr>';
+  </tr>`).join('')||'<tr><td colspan="10" class="muted">поставщиков не задано</td></tr>';
 
   $('#mode').textContent=editing?'режим правки':'только просмотр';
   $('#mode').className=editing?'tag w':'tag ok';

@@ -1006,7 +1006,7 @@ def suppliers_payment_terms_list():
     rows = db.query("""SELECT inn, name, method, deferral_days,
         payment_cap::float payment_cap,
         advance_amount::float advance_amount, balance_threshold::float balance_threshold,
-        ms_agent_id, active
+        ms_agent_id, vat_rate, active
         FROM supplier_payment_terms ORDER BY name""")
     return {"items": rows}
 
@@ -1019,6 +1019,7 @@ class SupplierPaymentTerm(BaseModel):
     payment_cap: float | None = None      # потолок платежа, ₽; None = вся сумма задолженности
     advance_amount: float | None = None
     balance_threshold: float | None = None
+    vat_rate: int | None = None           # ставка НДС, %: 22 / 0 = не облагается / None = не задано
     active: bool = True
 
 
@@ -1029,11 +1030,13 @@ def suppliers_payment_terms_save(p: SupplierPaymentTerm):
         return {"ok": False, "error": "inn должен быть 10-12 цифр"}
     if p.method not in ("deferred", "prepayment_per_order", "prepayment_balance"):
         return {"ok": False, "error": "неизвестный method"}
+    if p.vat_rate is not None and not 0 <= p.vat_rate <= 100:
+        return {"ok": False, "error": "ставка НДС вне 0…100"}
     import datetime
     db.upsert("supplier_payment_terms", [{
         "inn": inn, "name": (p.name or inn).strip(), "method": p.method,
         "deferral_days": p.deferral_days, "payment_cap": p.payment_cap,
-        "advance_amount": p.advance_amount,
+        "advance_amount": p.advance_amount, "vat_rate": p.vat_rate,
         "balance_threshold": p.balance_threshold, "active": p.active,
         "updated_at": datetime.datetime.now(),
     }], conflict_cols=["inn"])
