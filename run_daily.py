@@ -67,8 +67,19 @@ def main():
     print(f"[run_daily] старт {t0:%Y-%m-%d %H:%M}", flush=True)
     today = datetime.date.today()
     months = rolling_months(today)
-    step("МойСклад: товары + себестоимость", ms.main)
-    step("Справочник товаров МС (закупочные/баркоды)", lambda: __import__("collectors.ms_products", fromlist=["main"]).main())
+    # Дедуп каталога: /entity/product (~45k карточек) тянем ОДИН раз за прогон и кормим
+    # оба коллектора (moysklad + ms_products), вместо двух независимых полных выкачек.
+    # Если общая выгрузка не удалась (каталог не наполнился) — каждый шаг сам дотянет
+    # (products=None), безопасная деградация, не хуже прежнего поведения.
+    catalog = {}
+
+    def _ms_catalog():
+        catalog["products"] = ms.fetch_all_products()
+        ms.main(products=catalog["products"])
+
+    step("МойСклад: товары + себестоимость", _ms_catalog)
+    step("Справочник товаров МС (закупочные/баркоды)",
+         lambda: __import__("collectors.ms_products", fromlist=["main"]).main(products=catalog.get("products")))
     step("Себест наборов (mix_data + МС)", lambda: __import__("collectors.set_cost", fromlist=["main"]).main())
     step("Поставщики/остатки МС", lambda: __import__("collectors.suppliers", fromlist=["main"]).main())
     step("Даты закупок (приёмки МС)", lambda: __import__("collectors.supplier_purchases", fromlist=["main"]).main())

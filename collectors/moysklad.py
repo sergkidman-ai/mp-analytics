@@ -164,14 +164,19 @@ def collect_cost():
     return len(pairs)
 
 
-def main():
+def main(products=None):
+    """products=None → тянем сами; иначе используем уже выгруженный список
+    (дедуп: /entity/product тянется один раз на прогон и кормит и этот коллектор,
+    и ms_products — см. run_daily). Возвращаем список карточек для переиспользования."""
     print("Сбор товаров МойСклад…", flush=True)
-    products = fetch_all_products()
+    if products is None:
+        products = fetch_all_products()
     n_raw = load_raw(products)
     n_active = normalize_products(products)
     n_cost = collect_cost()
     print(f"\nИтого: получено {len(products)} карточек → raw {n_raw}, "
           f"активных в products {n_active}, себест из остатков {n_cost}", flush=True)
+    return products
 
 
 if __name__ == "__main__":

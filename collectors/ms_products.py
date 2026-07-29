@@ -41,30 +41,24 @@ def _get(path):
             raise
 
 
-def main():
-    off, n = 0, 0
-    prod_recs, bc_recs = [], []
-    while True:
-        j = _get(f"/entity/product?limit=1000&offset={off}")
-        rows = j.get("rows", [])
-        for r in rows:
-            bp = (r.get("buyPrice") or {}).get("value", 0) / 100
-            sp = next((p.get("value", 0) / 100 for p in r.get("salePrices", [])), 0)
-            msid = r["id"]
-            prod_recs.append({
-                "ms_id": msid, "name": r.get("name"), "article": r.get("article"),
-                "code": r.get("code"), "external_code": r.get("externalCode"),
-                "buy_price": round(bp, 2) or None, "sale_price": round(sp, 2) or None,
-                "archived": bool(r.get("archived")),
-            })
-            for b in r.get("barcodes", []):
-                for v in b.values():
-                    bc_recs.append({"barcode": str(v).strip(), "ms_id": msid})
-        n += len(rows); off += 1000
-        if n % 5000 < 1000:
-            print(f"  [ms] {n} товаров…", flush=True)
-        if len(rows) < 1000:
-            break
+def _build(rows, prod_recs, bc_recs):
+    """Строки /entity/product → записи ms_product и ms_barcode (аккумулируем в списки)."""
+    for r in rows:
+        bp = (r.get("buyPrice") or {}).get("value", 0) / 100
+        sp = next((p.get("value", 0) / 100 for p in r.get("salePrices", [])), 0)
+        msid = r["id"]
+        prod_recs.append({
+            "ms_id": msid, "name": r.get("name"), "article": r.get("article"),
+            "code": r.get("code"), "external_code": r.get("externalCode"),
+            "buy_price": round(bp, 2) or None, "sale_price": round(sp, 2) or None,
+            "archived": bool(r.get("archived")),
+        })
+        for b in r.get("barcodes", []):
+            for v in b.values():
+                bc_recs.append({"barcode": str(v).strip(), "ms_id": msid})
+
+
+def _write(prod_recs, bc_recs):
     db.upsert("ms_product", prod_recs, conflict_cols=["ms_id"],
               update_cols=["name", "article", "code", "external_code", "buy_price", "sale_price", "archived"])
     # дедуп баркодов (PK barcode)
@@ -75,6 +69,27 @@ def main():
     db.upsert("ms_barcode", ded, conflict_cols=["barcode"], update_cols=["ms_id"])
     withbuy = sum(1 for r in prod_recs if r["buy_price"])
     print(f"Записано: {len(prod_recs)} товаров (с закупочной {withbuy}) | баркодов {len(ded)}", flush=True)
+
+
+def main(products=None):
+    """products=None → тянем /entity/product сами (автономный запуск); иначе используем
+    уже выгруженный список из moysklad.fetch_all_products (дедуп в run_daily — один запрос
+    каталога на оба коллектора)."""
+    prod_recs, bc_recs = [], []
+    if products is not None:
+        _build(products, prod_recs, bc_recs)
+    else:
+        off, n = 0, 0
+        while True:
+            j = _get(f"/entity/product?limit=1000&offset={off}")
+            rows = j.get("rows", [])
+            _build(rows, prod_recs, bc_recs)
+            n += len(rows); off += 1000
+            if n % 5000 < 1000:
+                print(f"  [ms] {n} товаров…", flush=True)
+            if len(rows) < 1000:
+                break
+    _write(prod_recs, bc_recs)
 
 
 if __name__ == "__main__":
