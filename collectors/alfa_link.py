@@ -29,9 +29,13 @@
 приёмкам ПОЛНОСТЬЮ (остаток 0). Частичная привязка молча исказит учёт — такой платёж честно
 остаётся непривязанным и попадает в лог на ручной разбор.
 
+КОГО ПРИВЯЗЫВАЕМ: только контрагентов из `supplier_payment_terms` (см. `supplier_agents`).
+Платёж кому угодно ещё — не наш случай, разбор даже не начинается.
+
 Запуск отдельно (добор ранее созданных платежей):
     ./venv/bin/python collectors/alfa_link.py 2026-07-01            # dry-run с даты
     ./venv/bin/python collectors/alfa_link.py 2026-07-01 --apply    # записать
+    ./venv/bin/python collectors/alfa_link.py 2026-07-01 --all      # + отсеянные строки
 """
 import os
 import re
@@ -44,8 +48,10 @@ import urllib.parse
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent))                     # core.db — гейт по таблице поставщиков
 sys.path.insert(0, "/opt/mp-analytics/invoice_bot")
 from ms import get as _ms_get, put, MS                   # noqa: E402
+import core.db as db                                     # noqa: E402
 
 # токен-кандидат: необязательный буквенный префикс + разделитель + 3..12 цифр (KV00009220, 6307)
 _TOKEN = re.compile(r"\b([A-Za-zА-Яа-я]{0,6})([- ]?)(\d{3,12})\b")
@@ -107,6 +113,37 @@ def purpose_tokens(purpose):
 
 def _agent_href(payment):
     return ((payment.get("agent") or {}).get("meta") or {}).get("href")
+
+
+def _agent_id(payment):
+    return (_agent_href(payment) or "").rsplit("/", 1)[-1].split("?")[0]
+
+
+_SUPPLIER_AGENTS = None
+
+
+def supplier_agents():
+    """id контрагентов МС из `supplier_payment_terms` — ЕДИНСТВЕННЫЕ, чьи платежи привязываем
+    (правило Сергея 2026-07-29). Таблица условий оплаты и есть список наших поставщиков: всё
+    остальное (налоги, банк, аренда, зарплата, разовые контрагенты) к приёмкам не относится, и
+    угадывать там нечего. Гейт стоит ПЕРЕД разбором назначения, поэтому лишних запросов в МС по
+    чужим платежам не будет.
+
+    Берём строки независимо от `active`: флаг выключает автосоздание черновиков платёжек, а не
+    отменяет факт поставки — по старому поставщику приёмки и платежи привязывать по-прежнему надо.
+
+    Кэш на процесс: прогон крона живёт минуты, а таблицу правит человек в дашборде.
+    ПУСТАЯ таблица — не повод привязывать всё подряд: это сломанная конфигурация, и молчаливый
+    «привязываем всех» опаснее шумной ошибки, поэтому падаем."""
+    global _SUPPLIER_AGENTS
+    if _SUPPLIER_AGENTS is None:
+        rows = db.query("SELECT ms_agent_id FROM supplier_payment_terms "
+                        "WHERE ms_agent_id IS NOT NULL AND ms_agent_id <> ''")
+        if not rows:
+            raise RuntimeError("supplier_payment_terms пуста (или без ms_agent_id) — "
+                               "привязка платежей отключена до заполнения таблицы")
+        _SUPPLIER_AGENTS = {r["ms_agent_id"] for r in rows}
+    return _SUPPLIER_AGENTS
 
 
 def _find(entity, name, agent_href):
@@ -282,7 +319,12 @@ def link_payment(payment, apply=False):
     раскладка по нему сошлась, привязка по документу точнее любого FIFO. Наши собственные платёжки
     сюда не попадают: предоплата по конкретному счёту слово «Аванс» не пишет (решение Сергея
     2026-07-29) — «Аванс» только у метода аванс/баланс, где основания нет.
+
+    Перед обоими путями — гейт `supplier_agents()`: платежи не-поставщиков не разбираем вообще.
     """
+    if _agent_id(payment) not in supplier_agents():
+        return "not-supplier", "контрагента нет в таблице условий оплаты"
+
     advance = is_advance(payment)
     if payment.get("operations") and not advance:
         return "already", "уже привязан"        # дёшево: без похода в МС за приёмками
@@ -310,12 +352,12 @@ def link_payment(payment, apply=False):
 def link_new(payments, apply=False):
     """Привязка пачки платежей (вызывается из alfa_ms.sync). → (stats, строки лога)."""
     stats, lines = {"linked": 0, "would_link": 0, "already": 0, "no_match": 0,
-                    "partial": 0, "errors": 0, "advance_off": 0}, []
+                    "partial": 0, "errors": 0, "advance_off": 0, "not_supplier": 0}, []
     for p in payments:
         status, note = link_payment(p, apply=apply)
         key = {"linked": "linked", "would-link": "would_link", "already": "already",
                "no-match": "no_match", "partial": "partial", "error": "errors",
-               "advance-off": "advance_off"}[status]
+               "advance-off": "advance_off", "not-supplier": "not_supplier"}[status]
         stats[key] += 1
         if status in ("partial", "error"):
             lines.append(f"платёж №{p.get('name')} {p['sum']/100:.2f} ₽: {note}")
@@ -332,10 +374,10 @@ def main(argv):
     print(f"исходящих платежей с {since}: {len(rows)} — {'ЗАПИСЬ' if apply else 'DRY-RUN'}")
     for p in rows:
         status, note = link_payment(p, apply=apply)
-        if status == "already":
+        if status in ("already", "not-supplier") and "--all" not in argv:
             continue
         mark = {"linked": "✓", "would-link": "•", "partial": "⚠", "error": "✗",
-                "no-match": "·", "advance-off": "○"}[status]
+                "no-match": "·", "advance-off": "○", "not-supplier": "–"}[status]
         print(f"  {mark} №{p.get('name'):>8} {p['sum']/100:>11.2f} ₽ "
               f"{((p.get('agent') or {}).get('name') or '')[:26]:26} {status}: {note}")
 

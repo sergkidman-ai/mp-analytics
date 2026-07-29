@@ -150,7 +150,8 @@ def relink(apply):
     for msg in lines[:10]:
         log(f"  ⚠ привязка вручную: {msg}")
     done = stats["linked"] if apply else stats["would_link"]
-    log(f"добор привязок с {since}: платежей {len(rows)} | "
+    log(f"добор привязок с {since}: платежей {len(rows)} "
+        f"(не поставщики {stats.get('not_supplier', 0)}) | "
         f"{'привязано' if apply else 'привязалось бы'} {done}, уже было {stats['already']}, "
         f"без документов {stats['no_match']}, на ручную {stats['partial'] + stats['errors']}"
         + (f", авансы отложены {stats['advance_off']}" if stats.get("advance_off") else ""))
