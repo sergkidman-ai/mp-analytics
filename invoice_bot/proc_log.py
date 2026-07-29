@@ -120,6 +120,19 @@ def _number_from_fn(fn):
     return None
 
 
+def _norm_fn(fn):
+    """Имя файла без ведущего таймстамп-префикса, который бот добавляет при сохранении
+    в inbox («1785157098_СЧЕТ-ДОГОВОР-6307.pdf» → «СЧЕТ-ДОГОВОР-6307.pdf»). Один документ,
+    пришедший разными путями (TG-оригинал без префикса vs сохранённая копия / CLI-реран
+    с префиксом), должен схлопываться при дедупе успех↔провал — иначе провал висит в
+    ошибках, хотя тот же файл уже создал заказ (напр. 4-значные номера Феррета, которые
+    _number_from_fn не ловит, а number/inn у провального события = null)."""
+    import re
+    if not fn:
+        return fn
+    return re.sub(r"^\d{9,}_", "", fn)
+
+
 def _load_resolved():
     try:
         with open(_RESOLVED_PATH, encoding="utf-8") as f:
@@ -378,9 +391,9 @@ def build_report(path=None):
     # Шум одного документа по нескольким каналам/форматам: если файл с таким именем
     # где-то отработал УСПЕШНО (напр. .xls через почту создал заказ), то провалы того
     # же файла (TG/PDF-дубль) — не дыра. Убираем их без обращения к МС.
-    ok_fns = {e.get("fn") for e in (inv_ev + upd_ev) if _ok(e) and e.get("fn")}
-    bad_inv = [e for e in bad_inv if e.get("fn") not in ok_fns]
-    bad_upd = [e for e in bad_upd if e.get("fn") not in ok_fns]
+    ok_fns = {_norm_fn(e.get("fn")) for e in (inv_ev + upd_ev) if _ok(e) and e.get("fn")}
+    bad_inv = [e for e in bad_inv if _norm_fn(e.get("fn")) not in ok_fns]
+    bad_upd = [e for e in bad_upd if _norm_fn(e.get("fn")) not in ok_fns]
 
     # СВЕРКА С МС на момент отчёта: молча убрать кейсы, уже закрытые в МойСклад
     # (приёмка/заказ созданы вручную/повтором). Раздел ошибок — только реальные дыры.
