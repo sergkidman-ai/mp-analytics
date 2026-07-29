@@ -67,19 +67,28 @@ def main():
     print(f"[run_daily] старт {t0:%Y-%m-%d %H:%M}", flush=True)
     today = datetime.date.today()
     months = rolling_months(today)
-    # Дедуп каталога: /entity/product (~45k карточек) тянем ОДИН раз за прогон и кормим
-    # оба коллектора (moysklad + ms_products), вместо двух независимых полных выкачек.
-    # Если общая выгрузка не удалась (каталог не наполнился) — каждый шаг сам дотянет
-    # (products=None), безопасная деградация, не хуже прежнего поведения.
-    catalog = {}
-
+    # Потоковый сбор каталога МС (дедуп + фикс OOM): /entity/product (~45k карточек)
+    # тянем ОДИН раз постранично и КАЖДУЮ страницу сразу отдаём обоим потребителям —
+    # moysklad (raw + products + себест) и ms_products (справочник закупочных/баркодов),
+    # не накапливая полные JSON-карточки в памяти. Справочник копит лишь узкие записи
+    # (без вложенного JSON) и пишет одним upsert в конце. load_raw/normalize идемпотентны:
+    # если выкачка оборвётся — уже записанные страницы остаются, справочник просто не
+    # обновится в этот прогон (безопасная деградация, следующий прогон добьёт).
     def _ms_catalog():
-        catalog["products"] = ms.fetch_all_products()
-        ms.main(products=catalog["products"])
+        import collectors.ms_products as msp
+        prod_recs, bc_recs = [], []
+        n_raw = n_active = n_cards = 0
+        for page in ms.iter_product_pages():
+            n_raw += ms.load_raw(page)
+            n_active += ms.normalize_products(page)
+            msp._build(page, prod_recs, bc_recs)
+            n_cards += len(page)
+        n_cost = ms.collect_cost()
+        msp._write(prod_recs, bc_recs)
+        print(f"[ms] потоково: {n_cards} карточек → raw {n_raw}, активных {n_active}, "
+              f"себест {n_cost}", flush=True)
 
-    step("МойСклад: товары + себестоимость", _ms_catalog)
-    step("Справочник товаров МС (закупочные/баркоды)",
-         lambda: __import__("collectors.ms_products", fromlist=["main"]).main(products=catalog.get("products")))
+    step("МойСклад: каталог потоково (товары+себест+справочник)", _ms_catalog)
     step("Себест наборов (mix_data + МС)", lambda: __import__("collectors.set_cost", fromlist=["main"]).main())
     step("Поставщики/остатки МС", lambda: __import__("collectors.suppliers", fromlist=["main"]).main())
     step("Даты закупок (приёмки МС)", lambda: __import__("collectors.supplier_purchases", fromlist=["main"]).main())

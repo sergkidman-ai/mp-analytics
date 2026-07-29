@@ -64,18 +64,30 @@ def _get(url, params=None, _tries=0):
     return r.json()
 
 
-def fetch_all_products():
-    """Все товары МойСклада постранично (limit/offset)."""
-    out, offset = [], 0
+def iter_product_pages():
+    """Генератор страниц /entity/product (limit/offset). Отдаёт по PAGE_LIMIT карточек
+    за раз и НЕ копит их в памяти — потоковая обработка каталога (~45k карточек), фикс OOM.
+    Потребитель обрабатывает страницу и отпускает её до следующей итерации."""
+    offset, seen = 0, 0
     while True:
         data = _get(f"{API}/entity/product", params={"limit": PAGE_LIMIT, "offset": offset})
         rows = data.get("rows", [])
-        out.extend(rows)
         size = data.get("meta", {}).get("size", 0)
-        print(f"  [fetch] offset={offset} +{len(rows)} (всего {len(out)} из {size})", flush=True)
+        seen += len(rows)
+        print(f"  [fetch] offset={offset} +{len(rows)} (обработано {seen} из {size})", flush=True)
+        yield rows
         offset += PAGE_LIMIT
         if not rows or offset >= size:
             break
+
+
+def fetch_all_products():
+    """Все товары одним списком (аккумулирует в память). ВНИМАНИЕ: на большом каталоге
+    держит все карточки разом — для прогонов предпочтителен iter_product_pages()
+    (потоковая обработка). Оставлено для обратной совместимости/разовых вызовов."""
+    out = []
+    for page in iter_product_pages():
+        out.extend(page)
     return out
 
 
@@ -165,18 +177,31 @@ def collect_cost():
 
 
 def main(products=None):
-    """products=None → тянем сами; иначе используем уже выгруженный список
-    (дедуп: /entity/product тянется один раз на прогон и кормит и этот коллектор,
-    и ms_products — см. run_daily). Возвращаем список карточек для переиспользования."""
+    """Сбор каталога МС → raw + products + себест.
+
+    products=<список> → используем готовую выгрузку (обратная совместимость с дедуп-вызовом
+    и тестами), возвращаем этот же список для переиспользования.
+    products=None → тянем постранично и обрабатываем КАЖДУЮ страницу сразу, не копя все
+    ~45k карточек в памяти (фикс OOM). Список не возвращаем (не накапливаем) → None.
+    load_raw/normalize_products/collect_cost идемпотентны, поэтому постраничные upsert-ы
+    безопасны; при обрыве середины уже записанные страницы остаются (безопасная деградация)."""
     print("Сбор товаров МойСклад…", flush=True)
-    if products is None:
-        products = fetch_all_products()
-    n_raw = load_raw(products)
-    n_active = normalize_products(products)
+    if products is not None:
+        n_raw = load_raw(products)
+        n_active = normalize_products(products)
+        n_cost = collect_cost()
+        print(f"\nИтого: получено {len(products)} карточек → raw {n_raw}, "
+              f"активных в products {n_active}, себест из остатков {n_cost}", flush=True)
+        return products
+    n_raw = n_active = n_cards = 0
+    for page in iter_product_pages():
+        n_raw += load_raw(page)
+        n_active += normalize_products(page)
+        n_cards += len(page)
     n_cost = collect_cost()
-    print(f"\nИтого: получено {len(products)} карточек → raw {n_raw}, "
+    print(f"\nИтого (потоково): {n_cards} карточек → raw {n_raw}, "
           f"активных в products {n_active}, себест из остатков {n_cost}", flush=True)
-    return products
+    return None
 
 
 if __name__ == "__main__":
