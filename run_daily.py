@@ -33,7 +33,7 @@ import reports.margin_ozon_sku as ozm     # noqa: E402
 ACCOUNTS = ["wb_acc1", "wb_acc2"]
 OZON_ACCOUNTS = ["oz_acc1", "oz_acc2"]
 FAILED_STEPS = []
-# Маркер «полный каталог МС собран сегодня» — гейт «раз в сутки» (см. main()).
+# Маркер «полный каталог МС собран сегодня» — гейт «раз в сутки, вечерним прогоном» (см. main()).
 # Рантайм-стейт в reports/data/, gitignored. Дата ISO последнего успешного синка.
 MS_CATALOG_MARK = BASE_DIR / "reports" / "data" / ".ms_catalog_last_sync"
 
@@ -91,23 +91,35 @@ def main():
         print(f"[ms] потоково: {n_cards} карточек → raw {n_raw}, активных {n_active}, "
               f"себест {n_cost}", flush=True)
 
-    # Каталог МС внутри дня меняется редко, а run_daily идёт 2×/сутки (утро+вечер) ради
-    # маркетплейс-данных. Поэтому полный каталог+себест тянем РАЗ В СУТКИ, а не в каждый
-    # прогон — снимаем половину нагрузки на МС по этому блоку. Самовосстановление: маркер
-    # пишем ТОЛЬКО после успеха, поэтому если утренний прогон упал — вечерний доберёт.
-    def _ms_synced_today():
+    # Каталог+себест МС внутри дня меняются редко, а run_daily идёт 2×/сутки (утро+вечер)
+    # ради маркетплейс-данных. Поэтому полный каталог+себест тянем РАЗ В СУТКИ — и именно
+    # ВЕЧЕРНИМ прогоном (16:07 UTC): утром МойСклад нагружен рабочими процессами склада,
+    # вечером свободнее. Утренний прогон (08:07 UTC) полный синк пропускает. Страховка: если
+    # вечер накануне не отработал и маркер устарел на 2+ суток — утро подхватывает синк, чтобы
+    # каталог не завис надолго (нет маркера вовсе → НЕ страховка: ждём первый вечер, а не
+    # грузим МС с утра). Сервер = UTC, порог часа 12 делит утро(8)/вечер(16) (и в МСК-часах
+    # 11 vs 19 — тоже). Маркер пишем ТОЛЬКО после успеха → сбойный прогон синк не «съедает».
+    def _ms_last_sync():
         try:
-            return MS_CATALOG_MARK.read_text().strip() == today.isoformat()
+            return datetime.date.fromisoformat(MS_CATALOG_MARK.read_text().strip())
         except Exception:
-            return False
+            return None
 
-    if _ms_synced_today():
-        print("[ms] каталог+себест уже собраны сегодня — пропуск полной выгрузки (раз в сутки)", flush=True)
-    elif step("МойСклад: каталог потоково (товары+себест+справочник)", _ms_catalog):
-        try:
-            MS_CATALOG_MARK.write_text(today.isoformat())
-        except Exception as e:
-            print(f"[ms] маркер синка не записан: {type(e).__name__}: {e}", flush=True)
+    _last = _ms_last_sync()
+    _is_evening = datetime.datetime.now().hour >= 12
+    _stale = (_last is not None) and ((today - _last).days >= 2)   # вечер накануне пропущен
+    if _last == today:
+        print("[ms] каталог+себест уже собраны сегодня — пропуск (раз в сутки)", flush=True)
+    elif _is_evening or _stale:
+        print("[ms] полный синк каталога+себеста: "
+              + ("вечерний прогон" if _is_evening else "утро-страховка (вечер пропущен)"), flush=True)
+        if step("МойСклад: каталог потоково (товары+себест+справочник)", _ms_catalog):
+            try:
+                MS_CATALOG_MARK.write_text(today.isoformat())
+            except Exception as e:
+                print(f"[ms] маркер синка не записан: {type(e).__name__}: {e}", flush=True)
+    else:
+        print("[ms] утренний прогон — каталог свежий, полный синк отложен на вечер (16:07 UTC)", flush=True)
     step("Себест наборов (mix_data + МС)", lambda: __import__("collectors.set_cost", fromlist=["main"]).main())
     step("Поставщики/остатки МС", lambda: __import__("collectors.suppliers", fromlist=["main"]).main())
     step("Даты закупок (приёмки МС)", lambda: __import__("collectors.supplier_purchases", fromlist=["main"]).main())
