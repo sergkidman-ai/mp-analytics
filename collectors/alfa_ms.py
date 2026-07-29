@@ -21,6 +21,7 @@ transactionId.
     ./venv/bin/python collectors/alfa_ms.py <accountNumber> [YYYY-MM-DD] --apply   # запись
 """
 import os
+import re
 import sys
 import uuid as _uuid
 import pathlib
@@ -36,6 +37,32 @@ from alfa_statement import fetch_statement               # noqa: E402  сосе�
 
 ORG_INN = os.getenv("ALFA_ORG_INN", "7807355364")        # Цифровой Квадрат
 _NS = _uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")  # namespace для uuid5
+
+# ── что НЕ заводим в МС из выписки (решение Сергея 2026-07-29) ────────────────────────────
+# Зарплата/отпускные и выплаты самозанятым в МС не ведутся — это не движение товара и не
+# расчёты с поставщиками; их учёт идёт вне МС. Плюс поимённый список ИНН.
+IGNORE_INN = {"280803483344"}
+# Признак «расход физлицу»: ИНН 12 знаков И в названии нет организационно-правовой формы.
+# ИП тоже 12-значный, поэтому ловим форму по названию — платёж ИП-поставщику НЕ должен попасть
+# под правило (в выписке он приходит как «ИП Иванов Иван Иванович»).
+_LEGAL_FORM = re.compile(
+    r"(?i)(?:^|[\s\"«(])(ООО|ОАО|ЗАО|ПАО|АО|НАО|НКО|ИП|КФХ|ПК|АНО|ФГУП|ГУП|МУП|"
+    r"УФК|ФНС|БАНК|ФИЛИАЛ|ГУФССП|УФССП)(?:$|[\s\".»)])")
+
+
+def skip_reason(op):
+    """→ причина, по которой операцию не заводим в МС, либо None (заводим).
+
+    Гейт стоит ПЕРЕД антидублем и созданием контрагента: игнорируемые операции не должны ни
+    плодить карточки контрагентов, ни попадать в счётчики прихода/расхода.
+    """
+    inn = (op.get("counterparty_inn") or "").strip()
+    if inn in IGNORE_INN:
+        return "ИНН в списке игнора"
+    if op.get("direction") == "DEBIT" and len(inn) == 12 and not _LEGAL_FORM.search(
+            op.get("counterparty_name") or ""):
+        return "выплата физлицу (зарплата/самозанятый)"
+    return None
 
 
 def _meta(ent, i, t=None):
@@ -228,7 +255,7 @@ def _link_supplies(payment, stats):
 def sync(normalized, apply=False):
     org = resolve_org()
     stats = {"paymentin": 0, "paymentout": 0, "matched": 0, "created": 0,
-             "would_create": 0, "errors": 0, "existing": 0, "before_cutoff": 0,
+             "would_create": 0, "errors": 0, "existing": 0, "before_cutoff": 0, "ignored": 0,
              "error_msgs": [],         # тексты ошибок МС — иначе крон-лог немой (был «ошибок 3»)
              "linked": 0, "link_errors": 0, "link_msgs": []}   # привязка платежей к приёмкам
     plan = []
@@ -236,6 +263,15 @@ def sync(normalized, apply=False):
     # дата отсечки: операции раньше неё не пишем (до неё документы заводились руками)
     since = os.getenv("ALFA_MS_SINCE") or None
     for op in normalized:
+        why_skip = skip_reason(op)
+        if why_skip:
+            stats["ignored"] += 1
+            plan.append({"dir": op["direction"], "sum": op["amount"],
+                         "typ": "paymentin" if op["direction"] == "CREDIT" else "paymentout",
+                         "agent": op["counterparty_name"], "agent_status": f"игнор: {why_skip}",
+                         "written": False, "syncId": _sync_id(op)})
+            continue
+
         typ = "paymentin" if op["direction"] == "CREDIT" else "paymentout"
         stats[typ] += 1                                    # намеченный тип всегда
         day = (op.get("operation_date") or "")[:10]

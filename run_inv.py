@@ -47,8 +47,13 @@ load_dotenv(_ENV if _ENV.exists() else pathlib.Path("/opt/mp-analytics/.env"))
 
 import collectors.alfa_statement as alfa             # noqa: E402
 import collectors.alfa_ms as alfa_ms                 # noqa: E402
+import collectors.alfa_link as alfa_link             # noqa: E402
 
 MSK = dt.timezone(dt.timedelta(hours=3))
+# Окно добора привязок. Предоплата уходит РАНЬШЕ поставки (Феррет: платёж 28.07, приёмка 29.07),
+# поэтому попытки в момент записи платежа мало — возвращаемся к непривязанным ещё N дней.
+# 14 дней с запасом кроют лаг «оплатили счёт → привезли товар → провели приёмку».
+LINK_LOOKBACK_DAYS = 14
 # счёт песочницы из доки «Тестирование выписок ЮЛ» — чтобы прогон работал до боя
 SANDBOX_ACCOUNT = "40702810102300000001"
 
@@ -124,10 +129,31 @@ def run_day(account, date, apply):
         link_part += f", на ручную {stats['link_errors']}"
     log(f"счёт {account} {date}: операций {len(ops)} | "
         f"приход {stats['paymentin']} / расход {stats['paymentout']} | "
-        f"уже в МС {stats['existing']}, до отсечки {stats['before_cutoff']} | "
+        f"уже в МС {stats['existing']}, до отсечки {stats['before_cutoff']}, "
+        f"игнор {stats.get('ignored', 0)} | "
         f"контрагент: найден {stats['matched']}, создан {stats['created']}, "
         f"будет создан {stats['would_create']} | {link_part} | ошибок {stats['errors']}")
     return len(ops), stats
+
+
+def relink(apply):
+    """Добор привязок: платежи за последние LINK_LOOKBACK_DAYS дней, которые в момент записи
+    привязать было не к чему (приёмки ещё не было). Идемпотентно: уже привязанные пропускаются
+    (`already`), авансы добираются до израсходования. Сбой добора не должен ронять прогон —
+    деньги в МС уже записаны, привязка вторична."""
+    import urllib.parse
+    since = (dt.datetime.now(MSK).date() - dt.timedelta(days=LINK_LOOKBACK_DAYS)).isoformat()
+    flt = urllib.parse.quote(f"moment>={since} 00:00:00", safe="=;:")
+    rows = alfa_link.get(
+        f"/entity/paymentout?filter={flt}&expand=agent,operations&limit=100").get("rows", [])
+    stats, lines = alfa_link.link_new(rows, apply=apply)
+    for msg in lines[:10]:
+        log(f"  ⚠ привязка вручную: {msg}")
+    done = stats["linked"] if apply else stats["would_link"]
+    log(f"добор привязок с {since}: платежей {len(rows)} | "
+        f"{'привязано' if apply else 'привязалось бы'} {done}, уже было {stats['already']}, "
+        f"без документов {stats['no_match']}, на ручную {stats['partial'] + stats['errors']}"
+        + (f", авансы отложены {stats['advance_off']}" if stats.get("advance_off") else ""))
 
 
 def main(argv):
@@ -146,6 +172,11 @@ def main(argv):
                 failed += 1
                 log(f"ОШИБКА счёт {account} {date}: {type(e).__name__}: {e}")
                 traceback.print_exc()
+
+    try:
+        relink(apply)
+    except Exception as e:
+        log(f"ОШИБКА добора привязок: {type(e).__name__}: {e}")   # не роняем прогон: деньги записаны
 
     log(f"финиш inv: операций {total_ops}, ошибок записи {total_err}, "
         f"упавших прогонов {failed}")

@@ -7,15 +7,15 @@
 Работаем ТОЛЬКО по организации «Цифровой квадрат» (BUYER_INN): счета на Дисквэр в этот контур
 не входят — его р/с в Сбере, Альфа-интеграция его не видит.
 
-Только чтение МойСклад + запись в Postgres (payment_draft_queue/po_payment_status). Никаких
-обращений к банку на ЗАПИСЬ — только read-only проверка живого остатка (get_balance из
-alfa_payment_draft.py) для метода «отсрочка». Дневной крон, отдельный лог.
+Только чтение МойСклад + запись в Postgres (payment_draft_queue/po_payment_status). К банку не
+обращается вообще. Дневной крон, отдельный лог.
 
 Три метода (supplier_payment_terms.method), см. CLAUDE.md/докстринг миграции 200:
   • deferred              — пул неоплаченных заказов; при наступлении срока хотя бы одного —
-                            ОДНА пачка (старые вперёд), урезанная по МЕНЬШЕМУ из двух: лимит
-                            платежа по договорённости (payment_cap, миграция 201; NULL = вся
-                            сумма задолженности) и живой остаток на р/с.
+                            ОДНА пачка (старые вперёд), урезанная по лимиту платежа из
+                            договорённости (payment_cap, миграция 201; NULL = вся сумма
+                            задолженности). Гейта по живому остатку на р/с НЕТ: банк не даёт
+                            ЮЛ метод остатка (см. alfa_payment_draft.get_balance).
   • prepayment_per_order  — каждый новый заказ сразу отдельным черновиком (без пачек/остатка).
   • prepayment_balance    — аванс наперёд; баланс считается на лету (Σ отправленных авансов −
                             Σ сумм заказов с момента последнего аванса), пополняем при просадке
@@ -187,18 +187,14 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
         WHERE inn=%s AND status='pending' AND due_date<=%s""", (inn, date.today()))[0]["n"]
     if not due_now:
         return 0   # ни по одному заказу срок ещё не наступил — ждём
-    try:
-        from alfa_payment_draft import get_balance
-        balance = get_balance()
-    except Exception as e:
-        print(f"[{inn}] отсрочка: наступил срок по {due_now} заказ(ам), НО не смог узнать остаток "
-              f"на р/с ({e}) — пропускаю прогон (безопасно: ничего не пачкуем без остатка).")
-        return 0
-    # Два независимых ограничителя: договорённость с поставщиком (payment_cap) и живые деньги
-    # на счёте. Режем по меньшему; в note фиксируем, какой из них сработал — иначе потом не
-    # разобрать, почему пачка вышла короткой.
-    limit, binding = float(balance), "остаток на р/с"
-    if payment_cap and float(payment_cap) < limit:
+    # Ограничитель ОДИН — договорённость с поставщиком (payment_cap). Гейт по живому остатку на
+    # р/с убран (решение Сергея 2026-07-29): банк не даёт ЮЛ метод остатка (`accounts` — только
+    # для физлиц), а fail-closed на его отсутствии глушил метод «отсрочка» целиком.
+    # ВАЖНО: пачка больше НЕ ограничена живыми деньгами. Защита осталась в том, что черновик
+    # НЕПОДПИСАННЫЙ — человек видит сумму в вебе банка и не подпишет то, чего нет на счету.
+    if not payment_cap:
+        limit, binding = float("inf"), "не урезано (лимит платежа не задан)"
+    else:
         limit, binding = float(payment_cap), "лимит платежа"
     picked, total = [], 0.0
     for r in pending:
@@ -211,7 +207,7 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
     over = total > limit   # сработало правило «первый заказ всегда»: один заказ дороже лимита
     if len(picked) == len(pending) and not over:
         binding = "не урезано (весь долг влез)"
-    note = (f"кап: {binding} {limit:.0f}₽" +
+    note = (f"кап: {binding}" + (f" {limit:.0f}₽" if limit != float("inf") else "") +
             (f"; ПРЕВЫШЕН на {total-limit:.0f}₽ — один заказ дороже лимита" if over else ""))
     with db.get_conn() as conn:
         with conn.cursor() as cur:
@@ -223,7 +219,7 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
                 WHERE po_id = ANY(%s)""", (draft_id, picked))
     cap_s = f"{float(payment_cap):.0f}₽" if payment_cap else "вся сумма"
     print(f"[{inn}] отсрочка: пачка {len(picked)}/{len(pending)} заказ(ов) на {round(total,2)}₽ "
-          f"(лимит платежа {cap_s}, остаток на р/с {balance}₽, режет: {binding}"
+          f"(лимит платежа {cap_s}, режет: {binding}"
           f"{'; ПРЕВЫШЕНИЕ — один заказ дороже лимита' if over else ''}); "
           f"не влезло {len(pending)-len(picked)}")
     return len(picked)
