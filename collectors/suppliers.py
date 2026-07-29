@@ -51,6 +51,19 @@ def supplier_map():
     return out
 
 
+def last_supplier_map():
+    """{ms_id: (supplier_name, buy_price)} из ПОСЛЕДНЕГО снимка supplier_stock, где
+    поставщики заполнены. Лёгкий режим: переносим поставщика/закупочную вперёд БЕЗ
+    обращения к МС (тяжёлый expand=supplier ~450 запросов гоняем лишь раз в неделю).
+    Поставщик — медленно-меняющийся справочник, ежедневный его перезабор из МС не нужен."""
+    rows = db.query("""
+        SELECT ms_id, supplier, buy_price FROM supplier_stock
+        WHERE supplier IS NOT NULL AND captured_at = (
+            SELECT max(captured_at) FROM supplier_stock WHERE supplier IS NOT NULL)""")
+    return {r["ms_id"]: (r["supplier"],
+            float(r["buy_price"]) if r["buy_price"] is not None else None) for r in rows}
+
+
 def fetch_stock_store(store_href):
     """Остатки на конкретном складе (filter=store)."""
     out, off = [], 0
@@ -84,10 +97,24 @@ def fetch_turnover(days=30):
     return out
 
 
-def main(captured=None):
+def main(captured=None, with_suppliers=True):
+    """Снимок остатков по складам МС + поставщик каждой позиции.
+
+    with_suppliers=True  — поставщика/закупочную тянем из МС (`supplier_map`, тяжёлый
+                           expand=supplier). Гоняем РАЗ В НЕДЕЛЮ (run_daily, воскресенье).
+    with_suppliers=False — лёгкий ежедневный режим: сток снимаем как обычно, а поставщика
+                           ПЕРЕНОСИМ из последнего снимка БД (`last_supplier_map`), МС не
+                           дёргаем этим тяжёлым проходом. Так /suppliers и /brak не пустеют,
+                           а «Наш сток»/неликвид (считаются от cost_seb) обновляются ежедневно.
+    Ручной/CLI-запуск по умолчанию полный (with_suppliers=True)."""
     captured = captured or datetime.date.today().isoformat()
-    print(f"Остатки по складам МС на {captured}", flush=True)
-    sup = supplier_map()
+    print(f"Остатки по складам МС на {captured} "
+          f"({'полный: поставщики из МС' if with_suppliers else 'лёгкий: поставщики из БД'})", flush=True)
+    if with_suppliers:
+        sup = supplier_map()
+    else:
+        sup = last_supplier_map()
+        print(f"  поставщики перенесены из последнего снимка: {len(sup)} товаров", flush=True)
     turn = fetch_turnover()
     print(f"  оборачиваемость: {len(turn)} товаров с продажами/30д", flush=True)
     stores = {s["name"]: s["meta"]["href"] for s in _ms("entity/store", limit=100).get("rows", [])}
