@@ -17,6 +17,7 @@ docs/feedback_*.html
 docs/questions_*.html
 
 # Отчёты МП — runtime state (не коммитим)
+reports/data/.ms_catalog_last_sync
 reports/data/.mp_ozon_hist.lock
 reports/data/backups/
 reports/data/wb_reconcile_log.jsonl

@@ -33,6 +33,9 @@ import reports.margin_ozon_sku as ozm     # noqa: E402
 ACCOUNTS = ["wb_acc1", "wb_acc2"]
 OZON_ACCOUNTS = ["oz_acc1", "oz_acc2"]
 FAILED_STEPS = []
+# Маркер «полный каталог МС собран сегодня» — гейт «раз в сутки» (см. main()).
+# Рантайм-стейт в reports/data/, gitignored. Дата ISO последнего успешного синка.
+MS_CATALOG_MARK = BASE_DIR / "reports" / "data" / ".ms_catalog_last_sync"
 
 
 def step(name, fn):
@@ -88,7 +91,23 @@ def main():
         print(f"[ms] потоково: {n_cards} карточек → raw {n_raw}, активных {n_active}, "
               f"себест {n_cost}", flush=True)
 
-    step("МойСклад: каталог потоково (товары+себест+справочник)", _ms_catalog)
+    # Каталог МС внутри дня меняется редко, а run_daily идёт 2×/сутки (утро+вечер) ради
+    # маркетплейс-данных. Поэтому полный каталог+себест тянем РАЗ В СУТКИ, а не в каждый
+    # прогон — снимаем половину нагрузки на МС по этому блоку. Самовосстановление: маркер
+    # пишем ТОЛЬКО после успеха, поэтому если утренний прогон упал — вечерний доберёт.
+    def _ms_synced_today():
+        try:
+            return MS_CATALOG_MARK.read_text().strip() == today.isoformat()
+        except Exception:
+            return False
+
+    if _ms_synced_today():
+        print("[ms] каталог+себест уже собраны сегодня — пропуск полной выгрузки (раз в сутки)", flush=True)
+    elif step("МойСклад: каталог потоково (товары+себест+справочник)", _ms_catalog):
+        try:
+            MS_CATALOG_MARK.write_text(today.isoformat())
+        except Exception as e:
+            print(f"[ms] маркер синка не записан: {type(e).__name__}: {e}", flush=True)
     step("Себест наборов (mix_data + МС)", lambda: __import__("collectors.set_cost", fromlist=["main"]).main())
     step("Поставщики/остатки МС", lambda: __import__("collectors.suppliers", fromlist=["main"]).main())
     step("Даты закупок (приёмки МС)", lambda: __import__("collectors.supplier_purchases", fromlist=["main"]).main())
