@@ -150,6 +150,21 @@ def _inn(val):
     return m.group(1) if m else None
 
 
+def _inn_by_label(rows, label):
+    """ИНН из строки с меткой label. Значение бывает в ТОЙ ЖЕ ячейке
+    («ИНН/КПП продавца: 7720494564/772001001» — печатная 1С-форма) либо в
+    соседних справа (старые шаблоны, где метка и значение разнесены). → ИНН или None."""
+    lab = label.lower()
+    for row in rows:
+        for c, v in enumerate(row):
+            s = _s(v)
+            if s and lab in s.lower():
+                got = _inn(s) or _inn(" ".join(_s(x) for x in row[c + 1:]))
+                if got:
+                    return got
+    return None
+
+
 def parse_upd(rows):
     """→ dict(seller_inn, buyer_inn, number, date, positions[...])."""
     cmap = _columns(rows)
@@ -164,18 +179,33 @@ def parse_upd(rows):
         c = cmap.get(key)
         return _s(row[c]) if (c is not None and c < len(row)) else ""
 
-    seller = _inn((_label_row(rows, "ИНН/КПП продавца")[0]) or "")
-    buyer  = _inn((_label_row(rows, "ИНН/КПП покупателя")[0]) or "")
+    seller = _inn_by_label(rows, "ИНН/КПП продавца")
+    buyer  = _inn_by_label(rows, "ИНН/КПП покупателя")
 
-    # № и дата УПД — из строки «Счет-фактура №»
+    # № и дата УПД — из строки «Счет-фактура №». Значение бывает в ТОЙ ЖЕ ячейке
+    # («Счет-фактура № НР-0004721 от 29 июля 2026 г.» — печатная 1С-форма) или в соседних справа.
     num = None; dt = None
     for row in rows:
-        joined = " ".join(_s(v) for v in row)
-        if re.search(r"Счет-фактура\s*№", joined, re.I):
-            cells = [_s(v) for v in row if _s(v)]
+        cells = [_s(v) for v in row if _s(v)]
+        if not any(re.search(r"Сч[её]т-фактура\s*№", v, re.I) for v in cells):
+            continue
+        # (а) инлайн: номер и дата целиком в одной ячейке с меткой
+        for v in cells:
+            m = re.search(r"Сч[её]т-фактура\s*№\s*(\S+)\s*от\s+(.+)$", v, re.I)
+            if m:
+                cand = m.group(1).lstrip("№ ").strip()
+                if cand.lower() != "от" and "исправл" not in cand.lower():
+                    num = cand
+                try:
+                    dt = inv._parse_date(m.group(2))
+                except (Exception, SystemExit):
+                    pass
+                break
+        # (б) значение в соседних ячейках справа (прежние шаблоны)
+        if num is None:
             after = []
             for i, v in enumerate(cells):
-                if re.search(r"Счет-фактура", v, re.I):
+                if re.search(r"Сч[её]т-фактура", v, re.I):
                     after = cells[i + 1:]; break
             for v in after:
                 if num is None and re.match(r"^[\wА-Яа-я/№.\-]+$", v) and v.lower() != "от" and "исправл" not in v.lower():
@@ -184,8 +214,8 @@ def parse_upd(rows):
                     dt = inv._parse_date(v); break
                 except (Exception, SystemExit):
                     pass
-            if num or dt:
-                break
+        if num or dt:
+            break
 
     positions = []
     for row in rows:
