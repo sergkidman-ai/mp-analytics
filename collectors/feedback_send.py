@@ -13,8 +13,10 @@
         {"question_id": <payload.id=ext_id>, "sku": <payload.sku=item_id, int>, "text": <text>}
         headers Client-Id + Api-Key (collectors.ozon._headers)
   Яндекс: POST https://api.partner.market.yandex.ru/v1/businesses/{biz}/goods-questions/update
-        {"operationType": "CREATE", "parentEntityId": <ext_id = id вопроса>, "text": <text>}
+        {"operationType": "CREATE",
+         "parentEntityId": {"id": <ext_id = id вопроса>, "type": "QUESTION"}, "text": <text>}
         header Api-Key (у ВОПРОСОВ версия /v1 в пути обязательна, у отзывов путь /v2)
+        ВНИМАНИЕ: parentEntityId — ОБЪЕКТ {id,type}, не число (см. send_yandex_question).
 
 Постинг фиксируется в raw_feedback.posted_at/posted_ok/answer_text (только в live-режиме).
 Охват — вопросы аккаунтов wb_acc1 / oz_acc1 (только у них доступ к ответам).
@@ -215,20 +217,42 @@ def send_yandex_review(account, feedback_id, text):
 def send_yandex_question(account, question_id, text):
     """POST ответа продавца на ВОПРОС о товаре Яндекс.Маркета.
 
-    /v1/businesses/{biz}/goods-questions/update, operationType=CREATE, parentEntityId = id вопроса
-    (у вопросов версия в пути обязательна — без /v1 путь отдаёт 404, в отличие от отзывов).
-    Бросает исключение при не-2xx. Возвращает True."""
+    /v1/businesses/{biz}/goods-questions/update, operationType=CREATE (у вопросов версия в пути
+    обязательна — без /v1 путь отдаёт 404, в отличие от отзывов).
+
+    `parentEntityId` — ОБЪЕКТ `TypedQuestionsTextEntityIdDTO` {"id": <int64>, "type": "QUESTION"},
+    а НЕ голое число. Инцидент 29–30.07: слали `parentEntityId: <int>` и получали
+    400 BAD_REQUEST «Illegal input at parentEntityId» на каждый ответ (3 вопроса подряд).
+    Сверено 30.07 с официальной OpenAPI-схемой Маркета (github.com/yandex-market/
+    yandex-market-partner-api → components/schemas/UpdateGoodsQuestionTextEntityRequest.yaml +
+    TypedQuestionsTextEntityIdDTO.yaml): для ответа на вопрос type=QUESTION, id = questionIdentifiers.id
+    (тот самый ext_id из collectors/yandex_questions.py); для комментария к ответу — type=ANSWER.
+
+    Бросает исключение при не-2xx; тело запроса при этом уходит в лог (без него разбор формата
+    был вслепую). Возвращает True."""
     key = os.environ["YANDEX_API_KEY_ACC1"]
     biz = os.environ["YANDEX_BUSINESS_ID_ACC1"]
     h = {"Api-Key": key, "Content-Type": "application/json"}
     url = f"{YA_API}/v1/businesses/{biz}/goods-questions/update"
-    body = {"operationType": "CREATE", "parentEntityId": int(question_id), "text": text}
+    body = {"operationType": "CREATE",
+            "parentEntityId": {"id": int(question_id), "type": "QUESTION"},
+            "text": text}
     for _ in range(4):
         r = requests.post(url, headers=h, json=body, timeout=60)
         if r.status_code in (420, 429):
             time.sleep(int(r.headers.get("Retry-After", "3")) + 1)
             continue
+        if r.status_code >= 400:
+            _log(f"REQ-BODY yandex goods-questions/update ({r.status_code}): "
+                 f"{json.dumps(body, ensure_ascii=False)[:500]}")
         r.raise_for_status()
+        # ответ содержит id созданной сущности (result.entity {id,type}) — логируем: без него
+        # «2xx» ничего не доказывает, а по id ответ потом можно найти/поправить/удалить
+        try:
+            ent = ((r.json() or {}).get("result") or {}).get("entity") or {}
+        except ValueError:
+            ent = {}
+        _log(f"yandex answer created: question={question_id} → entity={ent or r.text[:200]}")
         return True
     raise RuntimeError("Yandex goods-questions/update: исчерпаны ретраи по лимиту")
 
@@ -239,6 +263,67 @@ def _mark_posted(row, text, ok, err=None):
         answer_text=CASE WHEN %s THEN %s ELSE answer_text END
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (ok, ok, text, row["platform"], row["account"], row["kind"], row["ext_id"]))
+
+
+SEND_MAX_ATTEMPTS = int(os.environ.get("FEEDBACK_SEND_MAX_ATTEMPTS", "3"))
+
+
+def _key(row):
+    return (row["platform"], row["account"], row["kind"], row["ext_id"])
+
+
+def attempts_state(row):
+    """(attempts, blocked) по строке. Нет записи — (0, False)."""
+    r = db.query("""SELECT attempts, blocked FROM feedback_send_attempts
+        WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""", _key(row))
+    return (r[0]["attempts"], r[0]["blocked"]) if r else (0, False)
+
+
+def _bump_attempt(row, detail, terminal):
+    """Записать неудачу. terminal=True — исход неизвестен (таймаут/обрыв), повторять нельзя:
+    площадка могла ответ и принять, повтор дал бы дубль. Возвращает (attempts, blocked)."""
+    r = db.query("""INSERT INTO feedback_send_attempts (platform,account,kind,ext_id,attempts,last_error)
+        VALUES (%s,%s,%s,%s,1,%s)
+        ON CONFLICT (platform,account,kind,ext_id) DO UPDATE
+          SET attempts = feedback_send_attempts.attempts + 1,
+              last_error = EXCLUDED.last_error, last_at = now()
+        RETURNING attempts""", _key(row) + (detail[:500],))
+    n = r[0]["attempts"]
+    blocked = terminal or n >= SEND_MAX_ATTEMPTS
+    if blocked:
+        db.execute("""UPDATE feedback_send_attempts SET blocked=true
+            WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""", _key(row))
+    return n, blocked
+
+
+def _clear_attempts(row):
+    db.execute("""DELETE FROM feedback_send_attempts
+        WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""", _key(row))
+
+
+def _alert_stuck(row, detail, attempts):
+    """⛔ в Telegram: отправка застряла, повторы прекращены. Одно сообщение на застрявшую строку."""
+    already = db.query("""SELECT alerted_at FROM feedback_send_attempts
+        WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""", _key(row))
+    if already and already[0]["alerted_at"]:
+        return
+    kind_ru = "вопрос" if row["kind"] == "question" else "отзыв"
+    txt = (f"⛔ <b>Отправка застряла</b> — повторы прекращены\n"
+           f"Канал: <b>{row['platform']} / {row['account']}</b>\n"
+           f"{kind_ru} id: <code>{row['ext_id']}</code> · попыток: <b>{attempts}</b>\n"
+           f"Ошибка: <code>{_html_esc(detail[:400])}</code>")
+    try:
+        from feedback_bot import tg_moderation as tm
+        for cid in tm.NOTIFY_IDS:
+            tm.send(cid, txt)
+    except Exception as e:                       # телега не должна ронять отправку
+        _log(f"alert_stuck: не удалось отправить ⛔ в Telegram: {type(e).__name__}: {e}")
+    db.execute("""UPDATE feedback_send_attempts SET alerted_at=now()
+        WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""", _key(row))
+
+
+def _html_esc(s):
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def post_answer(row, text, apply_cap=False):
@@ -260,6 +345,12 @@ def post_answer(row, text, apply_cap=False):
     if not _live():
         _log(f"DRY-RUN {plat}/{acc} {kind}={ext}: ушло бы «{text[:80]}»")
         return True, "dry-run"
+    # Стоп-кран: после SEND_MAX_ATTEMPTS неудач подряд повторы прекращены (⛔ уже ушло в Telegram).
+    # Снять — DELETE из feedback_send_attempts по ключу (после починки причины).
+    n_att, blocked = attempts_state(row)
+    if blocked:
+        _log(f"BLOCKED {plat}/{acc} {kind}={ext}: отправка застряла ({n_att} неудач), повтор не делаем")
+        return False, f"застряло: {n_att} неудач подряд, повторы прекращены"
     if acc not in _live_accounts():
         _log(f"DRY-RUN(acct) {plat}/{acc} {kind}={ext}: аккаунт вне FEEDBACK_LIVE_ACCOUNTS")
         return True, "dry-run:acct-not-live"
@@ -296,14 +387,24 @@ def post_answer(row, text, apply_cap=False):
     except Exception as e:
         detail = f"{type(e).__name__}: {str(e)[:200]}"
         # тело ответа площадки — часто полезно для разбора формата
-        if isinstance(e, requests.HTTPError) and e.response is not None:
+        http = isinstance(e, requests.HTTPError) and e.response is not None
+        if http:
             detail += f" | {e.response.text[:200]}"
-        _log(f"FAIL {plat}/{acc} {kind}={ext}: {detail}")
-        _mark_posted(row, text, False, detail)
-        return False, detail
+        # Площадка ЯВНО отвергла запрос (есть HTTP-код) — на площадке точно ничего не создалось,
+        # повтор безопасен. Таймаут/обрыв — исход неизвестен, повторять нельзя (риск дубля).
+        n_att, blocked = _bump_attempt(row, detail, terminal=not http)
+        _log(f"FAIL {plat}/{acc} {kind}={ext} (попытка {n_att}/{SEND_MAX_ATTEMPTS}): {detail}")
+        if blocked:
+            # закрываем строку, чтобы очереди не крутили её вечно, и зовём человека
+            _mark_posted(row, text, False, detail)
+            _alert_stuck(row, detail, n_att)
+            return False, f"{detail} — повторы прекращены ({n_att} попыток)"
+        # posted_at НЕ ставим: строка остаётся к повтору следующим циклом
+        return False, f"{detail} (попытка {n_att}/{SEND_MAX_ATTEMPTS}, будет повтор)"
 
     _log(f"SENT {plat}/{acc} {kind}={ext}: «{text[:80]}»")
     _mark_posted(row, text, True)
+    _clear_attempts(row)
     return True, "sent"
 
 

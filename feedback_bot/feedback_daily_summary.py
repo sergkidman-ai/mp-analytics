@@ -34,12 +34,25 @@ def _counts():
     # не попадают; остаток цикл дошлёт сам (tg_moderation.flush_deferred), строку показываем пока он есть.
     deferred = db.query("""SELECT count(*) AS n FROM feedback_moderation
         WHERE state='deferred'""")[0]["n"]
+    # Ошибки отправки БЕЗ застрявших: разовый сбой (повтор будет) и «повторы прекращены» — разные
+    # вещи, второе требует ручного вмешательства и не должно тонуть в общем счётчике.
     errors = db.query(f"""SELECT
-        (SELECT count(*) FROM raw_feedback WHERE posted_ok=false
-            AND (posted_at AT TIME ZONE 'Europe/Moscow')::date = {_MSK_YDAY})
-      + (SELECT count(*) FROM feedback_moderation WHERE state='failed'
-            AND (decided_at AT TIME ZONE 'Europe/Moscow')::date = {_MSK_YDAY})
+        (SELECT count(*) FROM raw_feedback f WHERE f.posted_ok=false
+            AND (f.posted_at AT TIME ZONE 'Europe/Moscow')::date = {_MSK_YDAY}
+            AND NOT EXISTS (SELECT 1 FROM feedback_send_attempts a
+                WHERE (a.platform,a.account,a.kind,a.ext_id)=(f.platform,f.account,f.kind,f.ext_id)
+                  AND a.blocked))
+      + (SELECT count(*) FROM feedback_moderation m WHERE m.state='failed'
+            AND (m.decided_at AT TIME ZONE 'Europe/Moscow')::date = {_MSK_YDAY}
+            AND NOT EXISTS (SELECT 1 FROM feedback_send_attempts a
+                WHERE (a.platform,a.account,a.kind,a.ext_id)=(m.platform,m.account,m.kind,m.ext_id)
+                  AND a.blocked))
         AS n""")[0]["n"]
+    # Застрявшие: повторы прекращены после FEEDBACK_SEND_MAX_ATTEMPTS неудач — отдельной строкой.
+    stuck_yday = db.query(f"""SELECT count(*) AS n FROM feedback_send_attempts
+        WHERE blocked AND (last_at AT TIME ZONE 'Europe/Moscow')::date = {_MSK_YDAY}""")[0]["n"]
+    stuck_open = db.query("""SELECT platform, account, kind, ext_id, attempts, last_error
+        FROM feedback_send_attempts WHERE blocked ORDER BY last_at DESC""")
     cost = db.query(f"""SELECT coalesce(sum(cost_usd), 0) AS usd, coalesce(sum(calls), 0) AS calls
         FROM feedback_llm_cost_log WHERE day = {_MSK_YDAY}""")[0]
     # ФАКТ по каналам: за отчётные сутки и за сегодня (день сводки ещё идёт) — видно не только
@@ -52,7 +65,8 @@ def _counts():
         GROUP BY 1,2 ORDER BY 1,2""")
     return {"sent": sent, "published_mod": published_mod, "queued": queued, "deferred": deferred,
             "errors": errors, "cost_usd": float(cost["usd"]), "llm_calls": cost["calls"],
-            "by_yday": by_yday, "by_today": by_today}
+            "by_yday": by_yday, "by_today": by_today,
+            "stuck_yday": stuck_yday, "stuck_open": stuck_open}
 
 
 def _chan_lines(rows):
@@ -70,8 +84,26 @@ def build_text(c):
             f"В очереди модерации сейчас: <b>{c['queued']}</b>\n"
             + (f"Хвост старой схемы лимита (дошлётся сам): <b>{c['deferred']}</b>\n"
                if c["deferred"] else "")
-            + f"Ошибок отправки: <b>{c['errors']}</b>\n"
-            f"Потрачено на LLM: <b>${c['cost_usd']:.4f}</b> ({c['llm_calls']} вызовов)")
+            + f"Ошибок отправки (разовые, повтор будет): <b>{c['errors']}</b>\n"
+            + _stuck_line(c)
+            + f"Потрачено на LLM: <b>${c['cost_usd']:.4f}</b> ({c['llm_calls']} вызовов)")
+
+
+def _stuck_line(c):
+    """⛔ Застрявшие отправки — ОТДЕЛЬНОЙ строкой, не в общем счётчике ошибок: повторы по ним
+    прекращены и без человека они не уйдут никогда."""
+    if not c["stuck_open"] and not c["stuck_yday"]:
+        return ""
+    head = (f"⛔ <b>Застряло (повторы прекращены): {len(c['stuck_open'])}</b>"
+            + (f" · за отчётные сутки: {c['stuck_yday']}" if c["stuck_yday"] else "") + "\n")
+    body = ""
+    for r in c["stuck_open"][:5]:
+        err = (r["last_error"] or "")[:90].replace("<", "&lt;").replace(">", "&gt;")
+        body += (f"  • {r['platform']}/{r['account']} {r['kind']}=<code>{r['ext_id']}</code> "
+                 f"({r['attempts']} поп.): {err}\n")
+    if len(c["stuck_open"]) > 5:
+        body += f"  • …и ещё {len(c['stuck_open']) - 5}\n"
+    return head + body
 
 
 def main():
