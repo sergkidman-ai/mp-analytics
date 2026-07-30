@@ -32,6 +32,10 @@
 КОГО ПРИВЯЗЫВАЕМ: только контрагентов из `supplier_payment_terms` (см. `supplier_agents`).
 Платёж кому угодно ещё — не наш случай, разбор даже не начинается.
 
+К ЧЕМУ ПРИВЯЗЫВАЕМ: только к приёмкам ПРОВЕДЁННЫМ и в статусе «Принят/ на оплату» (`linkable`).
+Черновик ещё правят — деньги на нём исказят учёт; непринятая приёмка деньги пока не ждёт.
+Внутри одного юрлица: организация платежа = организация приёмки (`_org_href`).
+
 Запуск отдельно (добор ранее созданных платежей):
     ./venv/bin/python collectors/alfa_link.py 2026-07-01            # dry-run с даты
     ./venv/bin/python collectors/alfa_link.py 2026-07-01 --apply    # записать
@@ -162,9 +166,48 @@ def _find(entity, name, agent_href, org_href):
     return rows
 
 
+# Единственный статус приёмки, к которой можно привязывать деньги (решение Сергея 2026-07-30).
+# В МС это ОДНО значение с косой чертой, а не два: «Принят/ на оплату».
+LINKABLE_STATE = "Принят/ на оплату"
+_STATE_NAMES = None
+
+
+def _state_names():
+    """id статуса приёмки → имя (из метаданных сущности). Если статуса `LINKABLE_STATE` в МС нет —
+    падаем: значит его переименовали, и молчаливая деградация превратила бы гейт в «не привязывать
+    вообще никогда», что выглядит как исправная работа."""
+    global _STATE_NAMES
+    if _STATE_NAMES is None:
+        names = {s["id"]: s["name"] for s in get("/entity/supply/metadata").get("states", [])}
+        if LINKABLE_STATE not in names.values():
+            raise RuntimeError(f"в МС нет статуса приёмки «{LINKABLE_STATE}» — переименовали? "
+                               "привязка остановлена, пока статус не сверен")
+        _STATE_NAMES = names
+    return _STATE_NAMES
+
+
+def linkable(supply):
+    """Можно ли привязывать деньги к этой приёмке (решение Сергея 2026-07-30):
+    **проведена** (`applicable`) И в статусе «Принят/ на оплату».
+
+    Черновик — не обязательство: пока флажок «Проведён» не стоит, документ правят, и привязанный
+    к нему платёж исказит учёт. Статус отсекает проведённые, но ещё не принятые («Создан»,
+    «Идет приемка») и те, что платить не нужно («Не оплачивать»). «Оплачен» сюда не входит
+    осознанно: у него неоплаченного остатка нет, деньги ему не нужны.
+
+    Срез на 30.07 (приёмки с 01.05): из 107 с неоплаченным остатком проходят 94, отсекаются 13 —
+    10 черновиков и 3 проведённых в статусе «Создан»."""
+    if not supply.get("applicable"):
+        return False
+    sid = (((supply.get("state") or {}).get("meta") or {}).get("href") or "") \
+        .rsplit("/", 1)[-1].split("?")[0]
+    return _state_names().get(sid) == LINKABLE_STATE
+
+
 def _full_supply(s):
-    """У заказа приёмки приходят кратко — догружаем документ ради sum/payedSum."""
-    if "sum" in s and "payedSum" in s:
+    """У заказа приёмки приходят кратко — догружаем документ ради sum/payedSum и `applicable`
+    (без него `linkable` приняла бы черновик за непроведённый только по отсутствию поля)."""
+    if "sum" in s and "payedSum" in s and "applicable" in s:
         return s
     href = (s.get("meta") or {}).get("href")
     return get(href.replace(MS, "")) if href else None
@@ -182,14 +225,19 @@ def resolve_supplies(payment):
             for po in _find("purchaseorder", tok, agent_href, org_href):
                 po_full = get(f"/entity/purchaseorder/{po['id']}?expand=supplies")
                 rows.extend(po_full.get("supplies") or [])
-        if not rows:
-            missed.append(tok)
-            continue
+        got = False
         for r in rows:
             full = _full_supply(r)
-            if full and full.get("id") and full["id"] not in seen:
+            if not (full and full.get("id") and linkable(full)):
+                continue
+            got = True                          # номер разобран, даже если приёмку дал сосед-токен
+            if full["id"] not in seen:
                 seen.add(full["id"])
                 found.append(full)
+        # приёмка-черновик = как будто её ещё нет: платёж останется непривязанным и добор
+        # подхватит его на следующем прогоне, когда документ проведут
+        if not got:
+            missed.append(tok)
     return found, missed
 
 
@@ -219,9 +267,10 @@ def is_advance(payment):
 
 
 def agent_supplies(agent_href, since, org_href):
-    """Все приёмки контрагента с даты `since` (включая появившиеся ПОЗЖЕ платежа — аванс
-    закрывает будущие поставки), по возрастанию даты. Фильтр по юрлицу обязателен: деньги
-    Цифрового не гасят поставки Дисквэра (см. `_org_href`)."""
+    """Приёмки контрагента с даты `since` (включая появившиеся ПОЗЖЕ платежа — аванс закрывает
+    будущие поставки), по возрастанию даты. Фильтр по юрлицу обязателен: деньги Цифрового не гасят
+    поставки Дисквэра (см. `_org_href`). Черновики и не-«Принят/ на оплату» отсеиваются
+    (`linkable`) — аванс подождёт, пока документ проведут."""
     flt = urllib.parse.quote(
         f"agent={agent_href};organization={org_href};moment>={since} 00:00:00", safe="=;:")
     out, off = [], 0
@@ -232,7 +281,7 @@ def agent_supplies(agent_href, since, org_href):
         if len(rows) < 100:
             break
         off += 100
-    return sorted(out, key=lambda s: s.get("moment") or "")
+    return sorted((s for s in out if linkable(s)), key=lambda s: s.get("moment") or "")
 
 
 def plan_advance(payment):
