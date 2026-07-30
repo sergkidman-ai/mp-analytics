@@ -45,6 +45,64 @@ _QR_RX = re.compile(r"(?:по\s*)?QR[-\s]?код\w*"
 
 ART = BASE_DIR / "docs" / "feedback_today_artifact.html"
 
+# ВОПРОСЫ — финальная сборка ответа теперь на Claude Opus 5 (веб-поиск/веб-факт остаются на
+# WEB_MODEL/DeepSeek, отзывы — на общей MODEL/DeepSeek, как раньше). Sonnet-сплит в feedback_web.py убран.
+QUESTION_MODEL = os.environ.get("FEEDBACK_QUESTION_MODEL", "claude-opus-5")
+
+# $ за 1M токенов (in, out) — для оценки стоимости прогона. DeepSeek не тарифицируем (нет цены в контуре
+# задачи, отдельный биллинг), Opus/Sonnet — по прайсу Anthropic.
+_PRICING = {
+    "claude-opus-5": (5.00, 25.00),
+    "claude-opus-4-8": (5.00, 25.00),
+    "claude-sonnet-5": (3.00, 15.00),
+}
+
+
+class _CostTracker:
+    """Счётчик токенов/стоимости по вызовам _llm() (сборка ответа на ВОПРОСЫ на Opus)."""
+
+    def __init__(self):
+        self.calls = {}
+
+    def add(self, model, usage):
+        it = getattr(usage, "input_tokens", 0) or 0
+        ot = getattr(usage, "output_tokens", 0) or 0
+        c = self.calls.setdefault(model, {"in": 0, "out": 0, "n": 0})
+        c["in"] += it
+        c["out"] += ot
+        c["n"] += 1
+
+    def summary(self):
+        if not self.calls:
+            return "  (вызовов не было)"
+        lines, total = [], 0.0
+        for model, c in self.calls.items():
+            pin, pout = _PRICING.get(model, (0.0, 0.0))
+            cost = c["in"] / 1e6 * pin + c["out"] / 1e6 * pout
+            total += cost
+            avg = f", ≈${cost / c['n']:.4f}/ответ" if c["n"] and cost else ""
+            lines.append(f"  {model}: {c['n']} вызовов · {c['in']}+{c['out']} ток. · ≈${cost:.4f}{avg}")
+        lines.append(f"  ИТОГО ≈${total:.4f}")
+        return "\n".join(lines)
+
+    def persist(self):
+        """Upsert в feedback_llm_cost_log (текущие сутки) — суточная сводка агрегирует по дню,
+        т.к. _CostTracker живёт только в памяти одного процесса, а циклов в сутках ~12."""
+        for model, c in self.calls.items():
+            pin, pout = _PRICING.get(model, (0.0, 0.0))
+            cost = c["in"] / 1e6 * pin + c["out"] / 1e6 * pout
+            db.execute("""INSERT INTO feedback_llm_cost_log (day, model, calls, tokens_in, tokens_out, cost_usd)
+                VALUES (current_date, %s, %s, %s, %s, %s)
+                ON CONFLICT (day, model) DO UPDATE SET
+                    calls = feedback_llm_cost_log.calls + EXCLUDED.calls,
+                    tokens_in = feedback_llm_cost_log.tokens_in + EXCLUDED.tokens_in,
+                    tokens_out = feedback_llm_cost_log.tokens_out + EXCLUDED.tokens_out,
+                    cost_usd = feedback_llm_cost_log.cost_usd + EXCLUDED.cost_usd""",
+                (model, c["n"], c["in"], c["out"], cost))
+
+
+_COST = _CostTracker()
+
 
 def _base_model(m):
     """База модели: обрезаем короткий буквенный суффикс варианта серии (CX17NF→CX17, C1750N→C1750)."""
@@ -124,6 +182,11 @@ def _needs_fact_web(question, reply):
     return False
 
 
+# вопрос НЕ только про совместимость — есть ещё тема (заправка/ресурс/чип/комплектация/гарантия):
+# серия-shortcut в этом случае НЕЛЬЗЯ отдавать как весь ответ, он покрывает только совместимость.
+_EXTRA_TOPIC_RX = re.compile(r"заправ|дозаправ|ресурс|\bчип\w*|компл[ек]т|гаранти", re.I)
+
+
 def _fam_status(question, card_models):
     """Совместимость с учётом ВАРИАНТОВ серии. → ('yes',matched)|('unknown',asked)|('no_data'|'no_ask',[])."""
     asked = _asked_models(question)
@@ -142,9 +205,20 @@ def _fam_status(question, card_models):
 
 
 def _gather(since):
-    # необработанные за окно (последний месяц) — и вопросы, и отзывы по дате created_at
+    # необработанные за окно (последний месяц) — и вопросы, и отзывы по дате created_at.
+    # posted_at IS NULL — не пере-драфтить/не пере-класть в очередь то, что этот же цикл уже реально
+    # отправил (auto-send/модерация), а сборщик ещё не подтвердил is_answered. skipped_old=false —
+    # вопросы старше 30 дней помечены отдельным циклом (feedback_cycle.py) и сюда не попадают.
+    # КЭШ ПО СОДЕРЖИМОМУ: draft_src_hash = md5(body+pros+cons) на момент драфта (см. _store). Если
+    # хэш совпадает — содержимое не менялось с прошлого драфта, генерацию (в т.ч. вызов Opus на
+    # вопросы) пропускаем. Без этого условия цикл каждые 2ч перегенерил ВЕСЬ неотвеченный бэклог
+    # заново (было: 3 цикла за день = 3× одинаковых 15 ИИ-вызовов на те же 16 вопросов).
     q = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,body,pros,cons,payload,
-        created_at FROM raw_feedback WHERE is_answered=false AND account IN ('wb_acc1','oz_acc1')
+        created_at FROM raw_feedback WHERE is_answered=false
+        AND account IN ('wb_acc1','wb_acc2','oz_acc1','oz_acc2','ya_acc1')
+        AND posted_at IS NULL AND NOT skipped_old
+        AND (draft_src_hash IS NULL
+             OR draft_src_hash IS DISTINCT FROM md5(coalesce(body,'')||coalesce(pros,'')||coalesce(cons,'')))
         AND created_at >= %s ORDER BY (kind='question') DESC, created_at DESC NULLS LAST""",
         (since,))
     return q
@@ -159,18 +233,26 @@ def _client():
     return client_for(MODEL)
 
 
-def _llm(client, r, cf, corpus):
-    """ИИ-черновик: карточка+каталог+few-shot → JSON {reply,route,confidence,grounded,note}."""
+def _llm(client, r, cf, corpus, hint=None):
+    """ИИ-черновик: карточка+каталог+few-shot → JSON {reply,route,confidence,grounded,note}.
+    ВОПРОСЫ — финальная сборка на QUESTION_MODEL (Claude Opus 5); ОТЗЫВЫ — на общей MODEL (как раньше).
+    hint — подсказка по совместимости (напр. серия-shortcut), когда вопрос ЕЩЁ про что-то помимо
+    совместимости: LLM собирает полный ответ, а не только компат."""
     cc = _card_data(r, cf)
     ex = corpus.retrieve(r["kind"], r["body"] or r["pros"] or r["cons"] or "", r["product_name"], k=5)
-    content = _user_block(r, _name(r), cc, ex)
+    content = _user_block(r, _name(r), cc, ex, hint=hint)
     # thinking-модели (DeepSeek-v4 pro/flash) тратят output-токены на размышления до JSON —
     # держим запас (env FEEDBACK_MAX_TOKENS). Кэш SYSTEM снимаем на не-Anthropic (DeepSeek его игнорит).
     max_tok = int(os.environ.get("FEEDBACK_MAX_TOKENS", "3000"))
+    model = QUESTION_MODEL if r["kind"] == "question" else MODEL
+    if model != MODEL:
+        from reports.llm_client import client_for
+        client = client_for(model)
     sysparam = ([{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
-                if not MODEL.lower().startswith("deepseek") else SYSTEM)
-    m = client.messages.create(model=MODEL, max_tokens=max_tok, system=sysparam,
+                if not model.lower().startswith("deepseek") else SYSTEM)
+    m = client.messages.create(model=model, max_tokens=max_tok, system=sysparam,
                                messages=[{"role": "user", "content": content}])
+    _COST.add(model, getattr(m, "usage", None))
     raw = _text_of(m)
     d = None
     mm = re.search(r"\{.*\}", raw, re.S)
@@ -179,10 +261,11 @@ def _llm(client, r, cf, corpus):
             d = json.loads(mm.group(0))
         except Exception:
             d = None
-    if d is None:                                    # JSON битый (обрезка) — спасаем текст reply регексом
-        rep = re.search(r'"reply"\s*:\s*"(.+?)"\s*,\s*"route"', raw, re.S)
-        reply_txt = rep.group(1).replace('\\"', '"').replace("\\n", " ") if rep else raw[:400]
-        d = {"reply": reply_txt, "route": "review", "confidence": 0, "grounded": False, "note": "parse-salvage"}
+    if d is None:                                    # JSON битый (обрезка/мусор) — НЕ салважим текст в
+        # ответ покупателю (утекала служебная разметка). Маркер + на человека, оператор ответит вручную.
+        return ({"reply": "⚠️ Ошибка парсинга ответа модели — нужен ручной ответ оператора.",
+                 "route": "human", "confidence": 0, "grounded": False,
+                 "note": "ошибка парсинга JSON модели"}, cc, model)
     # guardrail совместимости: утвердительное «да, подойдёт» без модели в карточке → review
     if r["kind"] == "question":
         asked = _asked_models(r["body"])
@@ -192,30 +275,41 @@ def _llm(client, r, cf, corpus):
             d["route"], d["grounded"] = "review", False
             d["note"] = "guardrail: совместимость не подтверждена карточкой; " + (d.get("note") or "")
         d["route"] = "review"                      # фаза «только черновики»: вопросы всегда на вычитку
-    return d, cc
+    return d, cc, model
 
 
 def _store(r, reply, route, conf, ground):
     from psycopg2.extras import Json
+    # draft_src_hash считаем от ЖИВЫХ колонок body/pros/cons в БД (не от объекта r), чтобы хэш всегда
+    # был согласован с тем, что видит фильтр в _gather() — тот же md5(...) над теми же полями.
     db.execute("""UPDATE raw_feedback SET draft_text=%s, draft_route=%s, draft_confidence=%s,
-        draft_category=%s, draft_grounding=%s, draft_at=now()
+        draft_category=%s, draft_grounding=%s, draft_at=now(),
+        draft_src_hash=md5(coalesce(body,'')||coalesce(pros,'')||coalesce(cons,''))
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (reply, route, conf, ("question" if r["kind"] == "question" else "review"),
          Json(ground), r["platform"], r["account"], r["kind"], r["ext_id"]))
 
 
 def _enqueue_moderation(r, reply):
-    """Боевой режим: поставить ВОПРОС в очередь модерации (feedback_moderation). Черновик уже в
-    raw_feedback.draft_text — бот-модератор возьмёт его оттуда. Гейт FEEDBACK_MODERATION=1, иначе
-    прогон остаётся draft-only. Только вопросы; повтор не плодит дублей (UNIQUE-ключ)."""
+    """Боевой режим: поставить в очередь модерации (feedback_moderation) ВОПРОСЫ и ОТЗЫВЫ-С-ТЕКСТОМ.
+    Черновик уже в raw_feedback.draft_text — бот-модератор возьмёт его оттуда. Гейт FEEDBACK_MODERATION=1,
+    иначе прогон остаётся draft-only. Пустые оценки-звёзды (без текста) НЕ ставим в очередь — их ~2900,
+    там шаблон. Повтор не плодит дублей (UNIQUE-ключ)."""
     if os.environ.get("FEEDBACK_MODERATION", "0") != "1":
         return
-    if r["kind"] != "question" or not (reply or "").strip():
+    if not (reply or "").strip():
+        return
+    kind = r["kind"]
+    if kind == "question":
+        pass
+    elif kind == "review" and (r.get("body") or r.get("pros") or r.get("cons") or "").strip():
+        pass
+    else:
         return
     db.execute("""INSERT INTO feedback_moderation (platform, account, kind, ext_id, state)
-        VALUES (%s, %s, 'question', %s, 'queued')
+        VALUES (%s, %s, %s, %s, 'queued')
         ON CONFLICT (platform, account, kind, ext_id) DO NOTHING""",
-        (r["platform"], r["account"], r["ext_id"]))
+        (r["platform"], r["account"], kind, r["ext_id"]))
 
 
 # код расходника/картриджа в тексте ответа: TK-435, LC-421, CF210A, CB540A, 106R03623, C-EXV65,
@@ -307,9 +401,139 @@ def _presale_scrub(reply, r):
     return reply
 
 
+# ВНУТРЕННИЕ ОГОВОРКИ. «В карточке характеристика не указана», «в описании нет данных» — это наша
+# кухня: покупателю она ничего не даёт и читается как отписка. Правило Сергея (28.07): в ответе либо
+# ФАКТ, либо предложение уточнить у нас в чате. Промпт это запрещает (см. feedback_llm.SYSTEM), но
+# модель срывается — поэтому детерминированная зачистка ПОСЛЕ генерации.
+#   • КОРОТКУЮ клаузу-оговорку («по модели C2504 данных нет», «у нас в карточке нет») вырезаем;
+#     длинную содержательную клаузу не трогаем — в ней обычно факт, а не отписка (там только чистим
+#     ссылку на источник), иначе зачистка съедает половину ответа;
+#   • ссылку на источник («в карточке», «в характеристиках») вырезаем даже у ПОЛОЖИТЕЛЬНОГО факта
+#     («в карточке подтверждена совместимость» → «подтверждена совместимость»);
+#   • подлежащее вырезанной оговорки («Точных дат, указанных на упаковке партии, …нет») уносим вместе
+#     с ней: без своего сказуемого голова предложения превращается в обрубок;
+#   • если что-то вырезали и приглашения написать нам в ответе не осталось — дописываем его.
+# Источник — только про НАШУ кухню: карточка, характеристики, «описание товара», наши данные/база.
+# «в описании комплекта» и прочие описания, которые видит сам покупатель, не трогаем.
+_SRC_REF_RX = re.compile(r"\s*(?:у\s+нас\s+)?(?:в|по)\s+(?:наш\w+\s+)?"
+                         r"(?:карточк\w+|характеристик\w+|описани\w+\s+товара|данных|базе)\s*", re.I)
+_NODATA_RX = re.compile(r"не\s+указан\w*|не\s+уточн[яё]\w*|не\s+прописан\w*|"
+                        r"нет\s+(?:данных|информац\w*|сведений)|данн\w*\s+нет|информац\w*\s+нет|"
+                        r"отсутству\w*\s+(?:данн|информац|сведени)", re.I)
+_PREDICATE_RX = re.compile(r"\b\w{2,}(?:ем|ешь|ет|ете|ут|ют|ит|ят|им|ите|ла|ло|ли|на|но|ны|ся|сь)\b", re.I)
+_HAS_INVITE_RX = re.compile(r"напиш\w+|уточните|обратитесь|свяжитесь|в\s+чат", re.I)
+_INVITE = "Напишите нам в чат — уточним и подскажем."
+_CAVEAT_MAX_WORDS = 9                                      # длиннее — это уже содержательная фраза
+
+
+def _is_caveat(clause):
+    """Клауза-оговорка: явное «нет данных / не указано» или ссылка на источник с отрицанием
+    («у нас в карточке нет» — отрицание голое, шаблоном _NODATA_RX не ловится). Только короткие:
+    в длинной клаузе рядом с оговоркой обычно стоит факт, ради которого ответ и написан."""
+    if len(clause.split()) > _CAVEAT_MAX_WORDS:
+        return False
+    return bool(_NODATA_RX.search(clause)
+                or (_SRC_REF_RX.search(clause) and re.search(r"\bнет\b|\bне\s", clause)))
+
+
+def _has_own_predicate(text):
+    """Кусок предложения читается самостоятельно: есть глагольная форма, число или тире-сказуемое
+    («ресурс 1500 страниц», «производство — Китай»). Без этого — обрубок вроде «Точных дат»."""
+    return bool(_PREDICATE_RX.search(text) or re.search(r"\d|\s[—–]\s", text))
+
+
+def _no_internal_caveats(reply):
+    """Вырезать внутренние оговорки про источник данных. → очищенный текст.
+
+    Предложение, которое НЕ трогали, остаётся как есть (иначе тест на обрубок съедал бы
+    «Здравствуйте!»)."""
+    if not reply or reply.lstrip().startswith("⚠️"):       # маркер «на человека» — служебный, не текст
+        return reply
+    if not (_NODATA_RX.search(reply) or _SRC_REF_RX.search(reply)):
+        return reply
+    kept_sents, cut = [], False
+    for sent in re.split(r"(?<=[.!?])\s+", reply.strip()):
+        toks = re.split(r"(\s*[—–]\s*|,\s+)", sent)       # чётные — клаузы, нечётные — разделители
+        clauses, seps = toks[0::2], toks[1::2]
+        bad = [i for i, cl in enumerate(clauses) if _is_caveat(cl)]
+        keep = [i for i in range(len(clauses)) if i not in bad]
+        if bad:
+            # голова предложения до первой оговорки без своего сказуемого = её подлежащее, уносим тоже
+            head = [i for i in keep if i < bad[0]]
+            if head and not _has_own_predicate(" ".join(clauses[i] for i in head)):
+                keep = [i for i in keep if i not in head]
+        parts = []
+        for i in keep:
+            parts.append(("" if not parts else (seps[i - 1] if i - 1 < len(seps) else ", ")) + clauses[i])
+        rest = "".join(parts).strip(" ,;—–")
+        touched = bool(bad)
+        if _SRC_REF_RX.search(rest):
+            rest = _SRC_REF_RX.sub(" ", rest).strip(" ,;—–")
+            touched = True
+        if not touched:
+            kept_sents.append(sent)
+            continue
+        cut = True
+        rest = re.sub(r"^(?:но|однако|а|и|при\s+этом|хотя)\s+", "", rest.strip(), flags=re.I)
+        rest = re.sub(r"\s{2,}", " ", rest).replace(" ,", ",").replace(" .", ".").strip(" ,;—–")
+        if not rest or (bad and not _has_own_predicate(rest)):
+            continue                                       # обрубок — сносим предложение целиком
+        if not re.search(r"[.!?]$", rest):
+            rest += sent[-1] if sent[-1] in "!?" else "."
+        kept_sents.append(rest[0].upper() + rest[1:])
+    out = " ".join(kept_sents).strip()
+    if cut and out and not _HAS_INVITE_RX.search(out):
+        out = out.rstrip() + " " + _INVITE
+    return out
+
+
+# ДОМЕН-ФИЛЬТР. Наш профиль — картриджи/расходники печати.
+#   • НЕ расходник → жёстко на человека, всегда (ответ по общему знанию запрещён — это не наша тема).
+#   • Расходник БЕЗ данных карточки → раньше тоже уходил на человека, и это была ложная отбраковка:
+#     реальный кейс CF540A-CF543A (вопрос про M254nw, wb_acc2) — товар профильный, а CARD_DATA пуст
+#     только потому, что контент карточек Дисквэра мы не собирали. Теперь такой вопрос идёт обычной
+#     цепочкой каталог → веб (DeepSeek) → сборка Opus, с пометкой «без данных карточки, проверьте
+#     внимательнее» в карточке модератора; на человека — только если цепочка ничего не дала.
+_CONSUMABLE_RX = re.compile(
+    r"картридж|тонер|чернил|фото[-\s]?барабан|\bбарабан\b|драм|\bdrum\b|туб[аы]|фьюзер|"
+    r"термопл[её]нк|термопленк|девелопер|снпч|заправк|риббон|печат\w*\s*головк|ракель|"
+    r"\bролик\b|блок\s+проявк|узел\s+закреп|скребок|\bчип\b|cartridge|toner", re.I)
+
+
+def _is_consumable(product_name):
+    return bool(_CONSUMABLE_RX.search(product_name or ""))
+
+
+NO_CARD_NOTE = "без данных карточки, проверьте внимательнее"
+
+
+def _early_human(r, cc, reply, note, used_llm):
+    """Ранний возврат «на человека» с маркером-черновиком (домен-фильтр / ошибка парсинга).
+    Маркер попадёт в очередь модерации, но отправку кнопкой ✅ бот для route=human блокирует."""
+    ground = {"llm": used_llm, "grounded": False, "source": "—", "route": "human", "note": note}
+    outd = dict(r, cat="question", reply=reply, route="human", conf=0, card=cc,
+                note=note, grounded=False, catalog=False, source="—", web=False, sources=[],
+                intent=intent(r["body"]) if r["kind"] == "question" else "")
+    return outd, reply, "human", 0, ground, used_llm, False
+
+
 def _answer(client, r, cf, corpus):
     """Полный движок ответа на ОДИН элемент. → (out_dict, reply, route, conf, ground, used_llm, used_web)."""
     used_web = False
+    no_card = False
+    # Домен-фильтр (только вопросы). НЕ расходник → на человека сразу, БЕЗ вызова модели.
+    # Расходник без CARD_DATA → пропускаем в цепочку, но помечаем (no_card) для карточки модератора.
+    if r["kind"] == "question":
+        cc0 = _card_data(r, cf)
+        if not r.get("product_name") and r["platform"] == "yandex":
+            # у Маркета offerId не всегда есть в МС (напр. '23937') — имя берём с карточки-двойника ВБ,
+            # иначе домен-фильтр отправит на человека любой вопрос из-за пустого названия
+            r["product_name"] = ((cf.for_yandex(r["item_id"]) or {}).get("name") or None)
+        if not _is_consumable(r.get("product_name")):
+            marker = ("⚠️ Вне профиля (товар не расходник печати) — ответ по общему знанию запрещён, "
+                      "нужен ручной ответ оператора.")
+            return _early_human(r, cc0, marker, "домен-фильтр: не расходник", used_llm=False)
+        no_card = not (cc0 and cc0.strip())
     if r["kind"] == "question":
         used_llm = True
     else:
@@ -320,15 +544,19 @@ def _answer(client, r, cf, corpus):
         used_llm = _has_text(r) and (not _neg) and (bool(DEFECT_RX.search(_txt)) or "?" in _txt)
     if used_llm:
         try:
-            d, cc = _llm(client, r, cf, corpus)
+            d, cc, used_model = _llm(client, r, cf, corpus)
         except Exception as e:
-            d, cc = {"reply": f"[ошибка вызова: {str(e)[:120]}]", "route": "review",
-                     "confidence": 0, "grounded": False, "note": ""}, ""
+            d, cc, used_model = {"reply": f"[ошибка вызова: {str(e)[:120]}]", "route": "review",
+                                 "confidence": 0, "grounded": False, "note": ""}, "", MODEL
+        # Битый JSON модели → _llm вернул route=human с маркером: на человека, БЕЗ обогащения/утечек.
+        if r["kind"] == "question" and d.get("route") == "human":
+            return _early_human(r, cc, (d.get("reply") or "").strip(),
+                                d.get("note") or "ошибка парсинга", used_llm=True)
         reply = (d.get("reply") or "").strip()
         route = "auto" if d.get("route") == "auto" else "review"
         conf = float(d.get("confidence") or 0)
         ground = {"llm": True, "grounded": bool(d.get("grounded")), "note": (d.get("note") or "")[:300],
-                  "model": MODEL, "catalog": "КАТАЛОГ" in (cc or ""), "source": "карточка"}
+                  "model": used_model, "catalog": "КАТАЛОГ" in (cc or ""), "source": "карточка"}
         cat = "question" if r["kind"] == "question" else "review-text"
         # СОВМЕСТИМОСТЬ: карточка-семья (вариант серии) → прямой ответ; регуляторный код или модель
         # вне карточки → веб (источник №3, объяснит напр. L662B = европейское обозначение CX17NF)
@@ -349,11 +577,33 @@ def _answer(client, r, cf, corpus):
                 r"как\w*\s+цвет|каком\s+цвете|на\s+самом\s+деле|это\s+(?:чёрн|черн|цветн)", r["body"] or "", re.I))
             fam_reply = (f"Здравствуйте! Да, подойдёт для {', '.join(mm)} — это вариант серии из списка "
                          f"совместимости карточки." + (f" Наш картридж — {code}." if code else "")) if mm else ""
-            if st == "yes" and not defect and not color_q and fam_reply:
-                # карточка-серия: детерминированно и бесплатно — веб не нужен
+            # shortcut = ТОЛЬКО совместимость. Если в вопросе есть ещё тема (заправка/ресурс/чип/
+            # комплектация/гарантия), детерминированный шаблон её проигнорирует — вместо него полный
+            # ответ собирает Opus по CARD_DATA/каталогу, а fam_reply идёт ему подсказкой по совместимости.
+            extra_topic = bool(_EXTRA_TOPIC_RX.search(r["body"] or ""))
+            if st == "yes" and not defect and not color_q and fam_reply and not extra_topic:
+                # карточка-серия, вопрос целиком про совместимость: детерминированно и бесплатно — веб не нужен
                 reply = fam_reply
                 ground.update({"grounded": True, "source": "карточка-серия",
                                "note": f"вариант серии, совпало по базе: {', '.join(mm)}"})
+            elif st == "yes" and not defect and not color_q and fam_reply and extra_topic:
+                # совместимость подтверждена + доп. тема — полный ответ через Opus с подсказкой по совместимости
+                try:
+                    d2, _cc2, model2 = _llm(client, r, cf, corpus, hint=fam_reply)
+                except Exception as e:
+                    d2, model2 = {"reply": ""}, used_model
+                reply2 = (d2.get("reply") or "").strip()
+                if reply2:
+                    reply = reply2
+                    ground.update({"grounded": True, "source": "карточка-серия+llm", "model": model2,
+                                   "note": f"серия подтверждена ({', '.join(mm)}) + доп. тема через LLM"})
+                else:
+                    # LLM не вернул ответ — fallback на shortcut, лучше частичный ответ, чем ничего
+                    reply = fam_reply
+                    ground.update({"grounded": True, "source": "карточка-серия",
+                                   "note": f"вариант серии, совпало по базе: {', '.join(mm)} "
+                                           f"(доп.тема: LLM без ответа, fallback на shortcut)"})
+                route = "review"
             elif not defect and bool(asked_m):
                 # MODEL-FIRST: ответ _llm по знанию модели + карточка/каталог уже готов (reply).
                 # Веб зовём РЕДКО — только если модель сама не уверена (need_web), низкая уверенность
@@ -458,6 +708,10 @@ def _answer(client, r, cf, corpus):
             ground["note"] = "code-guard: убран непроверенный код; " + (ground.get("note") or "")[:220]
             ground["code_guard"] = True
     reply = _presale_scrub(reply, r)
+    scrubbed = _no_internal_caveats(reply)               # внутренние оговорки покупателю не показываем
+    if scrubbed != reply:
+        reply = scrubbed
+        ground["note"] = "scrub: убрана оговорка про карточку/данные; " + (ground.get("note") or "")[:220]
     # финальная страховка: пустой/обрезанный ответ на вопрос (thinking съел max_tokens, JSON битый) →
     # безопасный фолбэк вместо пустоты; всегда review (в фазе черновиков и так review)
     if r["kind"] == "question" and len((reply or "").strip()) < 12:
@@ -465,6 +719,33 @@ def _answer(client, r, cf, corpus):
                  "подходящий картридж и подскажем артикул.")
         route = "review"
         ground["note"] = "фолбэк: пустой ответ модели; " + (ground.get("note") or "")[:220]
+    # ПРОФИЛЬНЫЙ ТОВАР БЕЗ CARD_DATA. Опереться не на что, поэтому веб-добор зовём БЕЗУСЛОВНО (обычный
+    # `_needs_fact_web` рассчитан на случай, когда карточка есть и просто молчит по теме). Порядок тот
+    # же: каталог/модель уже отработали выше → веб (DeepSeek) → что получилось, то и показываем.
+    # Оператору отдаём только если не осталось содержательного ответа (пусто или дежурный фолбэк).
+    if r["kind"] == "question" and no_card:
+        ground["no_card"] = True
+        if not used_web and not (ground.get("grounded") or ground.get("catalog")):
+            from reports.feedback_web import web_fact, WEB_MODEL
+            from reports.llm_client import client_for
+            wf = web_fact(client_for(WEB_MODEL), r["body"], r["product_name"], cc)
+            used_web = True
+            if wf and (wf.get("answer") or "").strip():
+                reply = wf["answer"].strip()
+                ground.update({"web": True, "source": "веб-факт (без карточки)", "grounded": True,
+                               "sources": wf.get("sources", []),
+                               "note": "веб-факт: " + (wf.get("note") or "")[:200]})
+            else:
+                ground["note"] = "веб-факт без ответа; " + (ground.get("note") or "")[:200]
+        fallback = str(ground.get("note") or "").startswith("фолбэк")
+        if not (reply or "").strip() or fallback:
+            marker = ("⚠️ Нет данных карточки, и цепочка каталог → веб → ИИ не дала ответа — "
+                      "нужен ручной ответ оператора.")
+            return _early_human(r, cc, marker, f"{NO_CARD_NOTE}: цепочка без результата", used_llm)
+        route = "review"                                   # без карточки — никогда не auto
+        src = ground.get("source") or "—"
+        ground["source"] = src if "без карточки" in src else src + " (без карточки)"
+        ground["note"] = NO_CARD_NOTE + "; " + (ground.get("note") or "")[:200]
     outd = dict(r, cat=cat, reply=reply, route=route, conf=conf, card=cc,
                 note=ground.get("note", ""), grounded=ground.get("grounded", False),
                 catalog=ground.get("catalog", False), source=ground.get("source", ""),
@@ -499,6 +780,9 @@ def run(since="2026-06-17"):
     c = Counter(o["cat"] for o in out)
     print(f"\nИТОГ: {len(out)} черновиков · ИИ-вызовов {nllm} · веб-проверок {nweb} · вопросов {c['question']} · "
           f"отзывов-с-текстом {c['review-text']} · пустых-шаблоном {c['review-empty']}", flush=True)
+    print("Токены/стоимость (сборка ответа _llm):", flush=True)
+    print(_COST.summary(), flush=True)
+    _COST.persist()
     print(f"Артефакт-файл: {ART}", flush=True)
     return out
 
@@ -568,9 +852,9 @@ h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--acce
 .foot{color:var(--muted);font-size:13px;margin-top:24px;max-width:78ch;border-top:1px dashed var(--dash);padding-top:14px}"""
     body = f"""<div class="wrap"><p class="eyebrow">Цифровой квадрат · черновики на свежий поток</p>
 <h1>Ответы-черновики: необработанные отзывы и вопросы</h1>
-<p class="sub">Свежий необработанный поток с {_e(since)}. Вопросы и отзывы-с-текстом — ИИ-слой
-(claude-sonnet-5) на фактах карточки (card_facts v2: WB-модели из описания, чип из Ozon-двойника)
-+ каталог наших листингов + few-shot из наших прошлых ответов. Совместимость: сначала карточка
+<p class="sub">Свежий необработанный поток с {_e(since)}. Вопросы — ИИ-слой ({_e(QUESTION_MODEL)}) на
+фактах карточки (card_facts v2: WB-модели из описания, чип из Ozon-двойника) + каталог наших листингов
++ few-shot из наших прошлых ответов; отзывы-с-текстом — та же схема на {_e(MODEL)}. Совместимость: сначала карточка
 с учётом <b>вариантов серии</b> (CX17→CX17NF), затем <b>веб-поиск</b> для моделей, которых в карточке
 нет. Пустые 5★ — шаблон. <b>Это черновики — на площадках ничего не опубликовано.</b></p>
 <div class="tiles">

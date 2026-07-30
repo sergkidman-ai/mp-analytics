@@ -1,0 +1,11 @@
+[Unit]
+Description=Feedback cycle: сбор → черновики → авто-отправка → карточки модерации
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/feedback_bot/feedback_cycle.py
+StandardOutput=journal
+StandardError=journal

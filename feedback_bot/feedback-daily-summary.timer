@@ -1,0 +1,11 @@
+[Unit]
+Description=Feedback daily summary once a day at 09:00
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+RandomizedDelaySec=5min
+Persistent=true
+Unit=feedback-daily-summary.service
+
+[Install]
+WantedBy=timers.target

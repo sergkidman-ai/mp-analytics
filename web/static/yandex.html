@@ -86,6 +86,7 @@
   <table id="stores"><thead><tr><th>Магазин (campaignId)</th><th>Заказов</th><th>Выручка</th></tr></thead><tbody></tbody></table>
 
   <h2>📅 Экономика по месяцам <span class="muted" style="font-weight:400;font-size:12px">(выручка = payment, возвраты вычтены; субсидия Маркета сверху; расходы МП по факту stats/orders; COGS с импутацией)</span></h2>
+  <p class="muted" style="font-size:12px;margin:-6px 0 8px">«Возвраты» = физический возврат товара на склад (товарные возвраты + невыкупы), по месяцу возврата. «Незаборы» — те же невыкупы в разрезе убытка логистики (доставка туда-обратно без выручки); это подсветка убытка, <b>не складывать с «Возвраты»</b>.</p>
   <table id="ymonthly"><thead><tr><th>Месяц</th><th>Заказов</th><th>Выручка</th><th>Субсидия</th><th>Комиссия</th><th>Логистика</th><th>Эквайринг</th><th>Буст</th><th>Возвраты</th><th>Незаборы</th><th>COGS</th><th>Чистая</th><th>Маржа</th></tr></thead><tbody></tbody></table>
 
   <h2>📈 По неделям <span class="muted" style="font-weight:400;font-size:12px">(заказы + выручка, без отменённых)</span></h2>

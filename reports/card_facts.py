@@ -284,7 +284,7 @@ class CardFacts:
         self._oz = None      # offer_id -> payload
         self._oz_by_sku = None
         self._oz_by_art = None   # норм-артикул -> facts (для WB-двойника)
-        self._wb = None      # nm_id -> payload
+        self._wb = {}        # nm_id -> payload | None (кэш точечных чтений, см. _wb_payload)
 
     def _ensure_oz(self):
         if self._oz is None:
@@ -307,10 +307,24 @@ class CardFacts:
                 if a and a not in self._oz_by_art:
                     self._oz_by_art[a] = f
 
-    def _ensure_wb(self):
-        if self._wb is None:
-            self._wb = {str(r["nm_id"]): r["payload"]
-                        for r in db.query("SELECT nm_id, payload FROM raw_wb_card_content WHERE account='wb_acc1'")}
+    def _wb_payload(self, nm_id):
+        """Карточка WB по nmID — точечным чтением с кэшем.
+
+        Без фильтра по аккаунту: nmID у ВБ глобально уникален, а карточки Дисквэра (wb_acc2) нужны —
+        вопросы там есть, и раньше они все падали в «нет данных карточки» из-за `WHERE account='wb_acc1'`.
+        Но bulk-загрузка всей таблицы после подключения второго аккаунта — это 29k карточек (63 МБ
+        JSONB, в разы больше в питоновских dict) и прогон падал по OOM. За прогон нужны десятки-сотни
+        nmID, поэтому точечный запрос с кэшем дешевле по памяти и достаточен по скорости."""
+        k = str(nm_id)
+        if k not in self._wb:
+            try:
+                nm = int(nm_id)
+            except (TypeError, ValueError):
+                self._wb[k] = None
+                return None
+            rows = db.query("SELECT payload FROM raw_wb_card_content WHERE nm_id=%s LIMIT 1", (nm,))
+            self._wb[k] = rows[0]["payload"] if rows else None
+        return self._wb[k]
 
     def _oz_sibling(self, offer, name=None):
         """Карточка-ВАРИАНТ того же товара по числовому префиксу кода (напр. 239329del→2393xx),
@@ -367,9 +381,26 @@ class CardFacts:
                 return f
         return None
 
+    def for_yandex(self, offer_id):
+        """Факты по offerId Яндекса — через карточку ВБ того же товара.
+
+        Своей карточки-сырья у Маркета мы не собираем, но offerId = код товара платформы и совпадает
+        с vendorCode ВБ либо является его началом (сверено 28.07: '0996'→nm 1055733312 / '0996WY63PELM',
+        '23937'→nm 216460101). Хвост после кода отсекаем регексом по НЕ-цифре — иначе '2393' поймал бы
+        чужой '23937'. Приоритет — точное совпадение (wb_acc1), затем префиксное (wb_acc2)."""
+        off = str(offer_id or "").strip()
+        if not off:
+            return None
+        rows = db.query("""SELECT nm_id FROM raw_wb_card_content
+            WHERE vendor_code = %s OR vendor_code ~ ('^' || %s || '[^0-9]')
+            ORDER BY (vendor_code = %s) DESC, nm_id LIMIT 1""", (off, re.escape(off), off))
+        if not rows:
+            return None
+        f = self.for_wb(rows[0]["nm_id"])
+        return dict(f, facts_src="wb-двойник(offerId)") if f else None
+
     def for_wb(self, nm_id):
-        self._ensure_wb()
-        p = self._wb.get(str(nm_id))
+        p = self._wb_payload(nm_id)
         if not p:
             return None
         f = facts_wb(p)

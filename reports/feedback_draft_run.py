@@ -204,14 +204,32 @@ def draft_question(body, product_name, facts):
     return ("", "human", 0.15, f"{it}: нужен каталог/контекст → человек")
 
 
+# нейтральная благодарность для 4★ без жалоб — БЕЗ формулировок вида «работает как надо»
+# (см. решение Сергея 2026-07-27: 4★ и любой текст с жалобой/критикой не идут в auto-позитив)
+NEUTRAL4_WB = "{name}, спасибо за обратную связь! Учтём ваше мнение — будем стараться ещё лучше 🙏"
+NEUTRAL4_OZ = "Спасибо за обратную связь! Учтём ваше мнение — будем стараться ещё лучше 🙏"
+
+
 # ─────────────────────── композитор ОТЗЫВА ───────────────────────
 def draft_review(r, name, prod):
     rating = r["rating"] or 0
     empty = not (r["body"] or "").strip() and not (r["pros"] or "").strip() and not (r["cons"] or "").strip()
+    txt = " ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))
+    complaint = bool(DEFECT_RX.search(txt))
     if rating <= 3:
         cat = "negative"
         draft = (NEG_WB.format(name=name or "Здравствуйте", product=prod) if r["platform"] == "wb" else NEG_OZ)
         return cat, draft, "review", 0.5
+    # жалоба/критика в тексте — независимо от звёзд — не подставляем позитивный шаблон, на модерацию
+    if complaint:
+        cat = "negative"
+        draft = (NEG_WB.format(name=name or "Здравствуйте", product=prod) if r["platform"] == "wb" else NEG_OZ)
+        return cat, draft, "review", 0.5
+    # 4★ без явных претензий — нейтральная благодарность, тоже на модерацию (не auto)
+    if rating == 4:
+        cat = "neutral4"
+        draft = (NEUTRAL4_WB.format(name=name or "Здравствуйте") if r["platform"] == "wb" else NEUTRAL4_OZ)
+        return cat, draft, "review", 0.6
     cat = "empty5" if empty else "positive"
     if r["platform"] == "wb":
         draft = _pick(POS_WB, r["ext_id"]).format(name=name or "Здравствуйте", product=prod)
