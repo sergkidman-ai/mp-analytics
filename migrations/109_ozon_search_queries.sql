@@ -63,7 +63,9 @@ CREATE TABLE IF NOT EXISTS ozon_search_run (
     skus_total INTEGER,         -- сколько SKU отправлено в сводку
     skus_with_data INTEGER,     -- сколько вернулось со сводкой
     skus_detailed INTEGER,      -- по скольким брали фразы (прошли порог MIN_SEARCH)
-    queries_rows INTEGER,       -- строк фраз записано
+    queries_rows INTEGER,       -- строк фраз ПОЛУЧЕНО в этом прогоне (не итог по таблице:
+                                -- повторный забор той же недели присылает свой срез, часть
+                                -- строк совпадает с уже накопленными — см. ozon_search_query)
     api_calls INTEGER,
     tail_dropped INTEGER,       -- сторож целостности: недобрано строк против total (в норме 0)
     finished_at TIMESTAMPTZ DEFAULT now(),
