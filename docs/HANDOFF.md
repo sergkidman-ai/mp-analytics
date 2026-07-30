@@ -256,6 +256,19 @@ tmux attach -t <имя>    # напр. tmux attach -t mkt
 ## Отзывы
 `поток rev · сессия rev · /opt/mp-analytics (eng/deepseek-answer-engine) · docs/review3_handoff.md`
 
+- **✅ 2026-07-30 — ВСЁ ВЛИТО В MAIN (merge-коммит `cdeb541`, запушено github-mp).** Ветка
+  `origin/rev/feedback-multichannel` (HEAD `01a71a5`) смёржена в `main` 3-way через изолированный
+  worktree. Влилось 44 файла: автоматизация отзывов/вопросов WB/Ozon/Yandex (`feedback_bot/`,
+  `collectors/*feedbacks*`, `yandex_questions.py`, миграции 053/057–061), себест Маркета `ya_cogs`
+  + nav-ссылка «💰 Себестоимость», фиксы отчёта ЯМ (водопад удержаний/возвратов, task-3),
+  `docs/rev_closing_package/`, отчёты 08/09. Конфликты: `invoice_to_po.py`→main (новее),
+  `yandex_mp_{page,report}.py`→rev (task-3), `HANDOFF.md`→объединение inv+rev. Сохранены
+  inv-роуты `/suppliers/payment-terms`, миграции 200/201/202, inv-правка НДС (`5c7b66b`).
+  Пометки «НЕ в main / origin rev/feedback-multichannel» ниже — **исторические** (на момент записи);
+  теперь всё в main. **Живой :8090** подхватит после того, как обслуживаемый чекаут `/opt/mp-analytics`
+  (сейчас на `fin/ms-stream-catalog`) подтянет main — открытый архитектурный вопрос (прод отдаётся с
+  ветки потока, не с main), решать вместе с fin.
+
 - **07-28 — ВОПРОСЫ ЯНДЕКС.МАРКЕТА подключены + пуш всех вопросов в модерацию:**
   1) Новый коллектор `collectors/yandex_questions.py` (ya_acc1, тот же Api-Key/businessId, что у
   отзывов). Путь у вопросов ТОЛЬКО с версией: `POST /v1/businesses/{biz}/goods-questions` (без `/v1`
