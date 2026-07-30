@@ -1057,10 +1057,12 @@ def suppliers_payment_terms_delete(p: dict):
 @app.get("/api/suppliers/payment-terms/queue")
 def suppliers_payment_terms_queue():
     # name — из условий оплаты по ИНН: в таблице показываем контрагента, а не голый ИНН.
+    # Песочницу не показываем: это следы отладки контура, к деньгам отношения не имеют.
     rows = db.query("""SELECT q.id, q.inn, t.name, q.kind, q.amount::float amount, q.covers_po_ids,
         q.status, q.alfa_external_id, q.note, q.created_at::text created_at
         FROM payment_draft_queue q
         LEFT JOIN supplier_payment_terms t USING (inn)
+        WHERE q.status <> 'sent_sandbox'
         ORDER BY q.created_at DESC LIMIT 100""")
     return {"items": rows}
 

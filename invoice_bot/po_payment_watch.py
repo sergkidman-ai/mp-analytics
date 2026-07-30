@@ -10,6 +10,9 @@
 Только чтение МойСклад + запись в Postgres (payment_draft_queue/po_payment_status). К банку не
 обращается вообще. Дневной крон, отдельный лог.
 
+Отправленный черновик снимается в 'paid', когда МС подтвердил оплату всех его заказов
+(`mark_paid_drafts`) — так очередь сама расчищается после утренней выписки.
+
 Три метода (supplier_payment_terms.method), см. CLAUDE.md/докстринг миграции 200:
   • deferred              — платим за ПРИНЯТЫЙ товар: заказ без проведённой приёмки в пачку не
                             идёт (status='waiting_receipt', гейт `require_receipt`); далее пул
@@ -312,6 +315,27 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=
     return 1
 
 
+def mark_paid_drafts(inn):
+    """Отправленный черновик → 'paid', когда МС подтвердил оплату ВСЕХ его заказов.
+
+    Факт оплаты приходит не из банка, а из МС: утренняя выписка Альфы разносится в
+    paymentin/paymentout, привязка закрывает `payedSum` заказа, `_sync_pending` снимает заказ
+    в 'paid'. Значит черновик оплачен ровно тогда, когда среди covers_po_ids не осталось
+    неоплаченных заказов. Работает и для оплаты ВРУЧНУЮ мимо системы — источник один и тот же.
+    Авансы (kind='advance') так не отследить: заказов под ними нет, они остаются 'sent_prod'.
+    """
+    done = db.query("""UPDATE payment_draft_queue q SET status='paid'
+        WHERE q.inn=%s AND q.status='sent_prod'
+          AND coalesce(array_length(q.covers_po_ids, 1), 0) > 0
+          AND EXISTS (SELECT 1 FROM po_payment_status p WHERE p.po_id = ANY(q.covers_po_ids))
+          AND NOT EXISTS (SELECT 1 FROM po_payment_status p
+                          WHERE p.po_id = ANY(q.covers_po_ids) AND p.status <> 'paid')
+        RETURNING q.id, q.amount::float amount""", (inn,))
+    for d in done:
+        print(f"[{inn}] черновик #{d['id']} на {d['amount']}₽ оплачен (все заказы закрыты в МС)")
+    return len(done)
+
+
 def run(only_inn=None):
     terms = db.query("SELECT * FROM supplier_payment_terms WHERE active")
     if only_inn:
@@ -331,6 +355,7 @@ def run(only_inn=None):
             elif method == "prepayment_balance":
                 process_prepayment_balance(inn, t.get("advance_amount"),
                                            t.get("balance_threshold"), agent_id=agent_id)
+            mark_paid_drafts(inn)   # после синка статусов заказов: отправленное → 'paid'
         except Exception as e:
             print(f"[{inn}] ОШИБКА ({method}): {type(e).__name__}: {e}")
 

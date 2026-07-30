@@ -39,7 +39,10 @@
   .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;background:#3a2027;color:var(--neg)}
   .tag.ok{background:#1c3a24;color:var(--pos)}
   .tag.w{background:#3a3120;color:var(--warn)}
-  #queue td:first-child{white-space:nowrap}                    /* дата целиком в одну строку */
+  /* Ширины колонок очереди фиксированные: дата и сумма (со знаком ₽) целиком в одну строку,
+     контрагенту хватает на две. Остаток ширины забирает «Чем урезано». */
+  #queue{table-layout:fixed}
+  #queue td:first-child,#queue td:nth-child(5){white-space:nowrap}
   tr.filters th{padding:5px 8px}
   tr.filters select{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:6px;
     padding:4px 7px;font:inherit;font-size:12px;font-weight:400;width:100%;max-width:100%}
@@ -65,7 +68,12 @@
     <a href="/suppliers/payment-terms" class="cur">💳 График оплаты</a>
   </nav>
   <h2 style="margin-top:0">📋 Очередь черновиков <span class="muted" style="font-weight:400;font-size:12px">(последнее, что поллер запланировал/отправил)</span></h2>
-  <table id="queue"><thead>
+  <table id="queue">
+  <colgroup>
+    <col style="width:104px"><col style="width:224px"><col style="width:152px"><col style="width:74px">
+    <col style="width:126px"><col style="width:132px"><col>
+  </colgroup>
+  <thead>
     <tr><th>Когда</th><th>Контрагент</th><th>Метод</th><th>Заказов</th><th>Сумма ₽</th><th>Статус</th><th>Чем урезано</th></tr>
     <tr class="filters">
       <th></th>
@@ -106,8 +114,13 @@ const vatLabel=v=>v==null?'<span class="muted">не задано</span>':(v===0?
 
 // Метод очереди (payment_draft_queue.kind) — те же названия, что в условиях оплаты выше.
 const KINDS={deferred_batch:'Отсрочка',prepayment_order:'Предоплата по счёту',advance:'Аванс/баланс'};
-const QSTATUS={planned:['tag w','запланирован'],sent_sandbox:['tag ok','отправлен (песочница)'],
-  sent_prod:['tag ok','отправлен'],error:['tag','ошибка'],cancelled:['tag','снят']};
+const QSTATUS={planned:['tag w','запланирован'],sent_prod:['tag ok','отправлен'],
+  paid:['tag ok','оплачен'],error:['tag','ошибка'],cancelled:['tag','снят']};
+// Порядок по умолчанию: сначала то, что требует действия (запланировано, ошибка), потом
+// отправленное и уже оплаченное, в самом низу снятое. Внутри группы — свежие сверху.
+const SORT_RANK={planned:0,error:1,sent_prod:2,paid:3,cancelled:4};
+const byStatus=(a,b)=>(SORT_RANK[a.status]??9)-(SORT_RANK[b.status]??9)
+  || String(b.created_at||'').localeCompare(String(a.created_at||''));
 
 // Таблица по умолчанию ТОЛЬКО ДЛЯ ЧТЕНИЯ — правка условий меняет реальные платежи поставщикам,
 // поэтому поля открываются лишь по кнопке «Редактировать» (защита от случайного изменения).
@@ -213,7 +226,7 @@ function renderQueue(){
 
 async function loadQueue(){
   const d=await api('/api/suppliers/payment-terms/queue');
-  queue=d.items||[];
+  queue=(d.items||[]).sort(byStatus);
   fillFilters();
   renderQueue();
 }
