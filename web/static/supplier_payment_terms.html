@@ -39,6 +39,10 @@
   .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;background:#3a2027;color:var(--neg)}
   .tag.ok{background:#1c3a24;color:var(--pos)}
   .tag.w{background:#3a3120;color:var(--warn)}
+  #queue td:first-child{white-space:nowrap}                    /* дата целиком в одну строку */
+  tr.filters th{padding:5px 8px}
+  tr.filters select{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:6px;
+    padding:4px 7px;font:inherit;font-size:12px;font-weight:400;width:100%;max-width:100%}
 </style>
 </head>
 <body>
@@ -60,22 +64,32 @@
     <a href="/suppliers">📦 Остатки</a>
     <a href="/suppliers/payment-terms" class="cur">💳 График оплаты</a>
   </nav>
-  <p class="note" style="margin-top:0">Условия оплаты по поставщику (ИНН). <b>Отсрочка</b> — при наступлении срока
-    оплаты хотя бы одного заказа собирается ОДНА пачка всех неоплаченных заказов поставщика, урезанная по меньшему из
-    двух: <b>размер платежа</b> по договорённости (пусто = вся сумма задолженности) и текущий остаток на р/с.
-    <b>Предоплата по счёту</b> — черновик сразу на сумму каждого нового заказа. <b>Аванс/баланс</b> —
-    пополнение на фикс. сумму, когда расчётный баланс падает ниже порога. Черновики создаёт поллер автоматически;
-    подпись — вручную в вебе банка. Сейчас только песочница Альфы (см. HANDOFF).</p>
+  <h2 style="margin-top:0">📋 Очередь черновиков <span class="muted" style="font-weight:400;font-size:12px">(последнее, что поллер запланировал/отправил)</span></h2>
+  <table id="queue"><thead>
+    <tr><th>Когда</th><th>Контрагент</th><th>Метод</th><th>Заказов</th><th>Сумма ₽</th><th>Статус</th><th>Чем урезано</th></tr>
+    <tr class="filters">
+      <th></th>
+      <th><select id="f-name" onchange="setFilter('name',this.value)"></select></th>
+      <th><select id="f-kind" onchange="setFilter('kind',this.value)"></select></th>
+      <th></th><th></th>
+      <th><select id="f-status" onchange="setFilter('status',this.value)"></select></th>
+      <th></th>
+    </tr>
+  </thead><tbody></tbody></table>
+  <p class="note" id="foot"></p>
 
   <h2>⚙️ Условия оплаты <span id="mode" class="tag" style="font-weight:400;vertical-align:middle"></span></h2>
+  <p class="note" style="margin:0 0 12px">Условия оплаты по поставщику (ИНН). <b>Отсрочка</b> — при наступлении срока
+    оплаты хотя бы одного заказа собирается ОДНА пачка всех неоплаченных заказов поставщика, урезанная по
+    <b>размеру платежа</b> из договорённости (пусто = вся сумма задолженности); заказы, по которым приёмка ещё не
+    проведена, в пачку не идут — ждут приёмки. <b>Предоплата по счёту</b> — черновик сразу на сумму каждого нового
+    заказа. <b>Аванс/баланс</b> — пополнение на фикс. сумму, когда расчётный баланс падает ниже порога.
+    Черновики создаёт поллер автоматически и отправляет в боевой контур Альфы <b>неподписанными</b> —
+    деньги уходят только после подписи человеком в вебе банка.</p>
   <table class="pt" id="terms"><thead><tr>
     <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th><th>Сумма аванса ₽</th><th>Порог баланса ₽</th><th title="Ставка НДС поставщика — из неё собирается НДС-оговорка в назначении платежа">НДС</th><th>Активен</th><th></th>
   </tr></thead><tbody></tbody></table>
   <div style="margin-top:12px" id="actions"></div>
-
-  <h2>📋 Очередь черновиков <span class="muted" style="font-weight:400;font-size:12px">(последнее, что поллер запланировал/отправил)</span></h2>
-  <table id="queue"><thead><tr><th>Когда</th><th>ИНН</th><th>Вид</th><th>Заказов</th><th>Сумма ₽</th><th>Статус</th><th>Чем урезано</th></tr></thead><tbody></tbody></table>
-  <p class="note" id="foot"></p>
 </main>
 <script>
 const $=s=>document.querySelector(s);
@@ -90,7 +104,10 @@ const METHODS={deferred:'Отсрочка',prepayment_per_order:'Предопл�
 const VAT_RATES=[['','не задано'],['0','без НДС'],['5','5%'],['7','7%'],['10','10%'],['20','20%'],['22','22%']];
 const vatLabel=v=>v==null?'<span class="muted">не задано</span>':(v===0?'без НДС':v+'%');
 
-const QSTATUS={planned:['tag w','запланирован'],sent_sandbox:['tag ok','отправлен (песочница)'],sent_prod:['tag ok','отправлен (прод)'],error:['tag','ошибка']};
+// Метод очереди (payment_draft_queue.kind) — те же названия, что в условиях оплаты выше.
+const KINDS={deferred_batch:'Отсрочка',prepayment_order:'Предоплата по счёту',advance:'Аванс/баланс'};
+const QSTATUS={planned:['tag w','запланирован'],sent_sandbox:['tag ok','отправлен (песочница)'],
+  sent_prod:['tag ok','отправлен'],error:['tag','ошибка'],cancelled:['tag','снят']};
 
 // Таблица по умолчанию ТОЛЬКО ДЛЯ ЧТЕНИЯ — правка условий меняет реальные платежи поставщикам,
 // поэтому поля открываются лишь по кнопке «Редактировать» (защита от случайного изменения).
@@ -164,14 +181,41 @@ async function loadTerms(){
   rows=(d.items||[]).map(r=>({...r}));
   renderTerms();
 }
+// Очередь фильтруется на странице (записей ≤100, сервер отдаёт их одним куском).
+let queue=[], qf={name:'',kind:'',status:''};
+function setFilter(k,v){qf[k]=v;renderQueue();}
+
+function fillFilters(){
+  const uniq=k=>[...new Set(queue.map(q=>q[k]).filter(v=>v!=null&&v!==''))].sort();
+  const opts=(vals,cur,all,fmt)=>`<option value="">${all}</option>`+vals.map(v=>
+    `<option value="${esc(v)}"${v===cur?' selected':''}>${esc(fmt?fmt(v):v)}</option>`).join('');
+  $('#f-name').innerHTML=opts(uniq('name'),qf.name,'все контрагенты');
+  $('#f-kind').innerHTML=opts(uniq('kind'),qf.kind,'все методы',v=>KINDS[v]||v);
+  $('#f-status').innerHTML=opts(uniq('status'),qf.status,'все статусы',v=>QSTATUS[v]?QSTATUS[v][1]:v);
+}
+
+function renderQueue(){
+  const items=queue.filter(q=>(!qf.name||q.name===qf.name)&&(!qf.kind||q.kind===qf.kind)&&(!qf.status||q.status===qf.status));
+  $('#queue tbody').innerHTML=items.map(q=>{
+    const [cls,lbl]=QSTATUS[q.status]||['tag',q.status];
+    const note=q.note||'';
+    const warn=note.includes('ПРЕВЫШЕН')||note.includes('ВНИМАНИЕ');
+    return `<tr><td>${(q.created_at||'').slice(0,10)}</td><td>${esc(q.name||q.inn)}</td>`
+      +`<td>${esc(KINDS[q.kind]||q.kind)}</td><td>${(q.covers_po_ids||[]).length||'—'}</td>`
+      +`<td>${rub(q.amount)}</td><td><span class="${cls}">${lbl}</span></td>`
+      +`<td class="${warn?'warn':'muted'}">${esc(note)||'—'}</td></tr>`;
+  }).join('')||'<tr><td colspan="7" class="muted">под фильтр ничего не попало</td></tr>';
+  const sum=items.reduce((s,q)=>s+(q.amount||0),0);
+  $('#foot').textContent=items.length===queue.length
+    ? `Черновиков в очереди: ${queue.length} на ${rub(sum)}.`
+    : `Показано ${items.length} из ${queue.length} на ${rub(sum)}.`;
+}
+
 async function loadQueue(){
   const d=await api('/api/suppliers/payment-terms/queue');
-  $('#queue tbody').innerHTML=(d.items||[]).map(q=>{
-    const [cls,lbl]=QSTATUS[q.status]||['tag',q.status];
-    const warn=(q.note||'').includes('ПРЕВЫШЕН');
-    return `<tr><td>${(q.created_at||'').slice(0,16).replace('T',' ')}</td><td>${esc(q.inn)}</td><td>${q.kind}</td><td>${(q.covers_po_ids||[]).length||'—'}</td><td>${rub(q.amount)}</td><td><span class="${cls}">${lbl}</span></td><td style="text-align:left" class="${warn?'warn':'muted'}">${esc(q.note)||'—'}</td></tr>`;
-  }).join('')||'<tr><td colspan="7" class="muted">очередь пуста</td></tr>';
-  $('#foot').textContent=`Черновиков в очереди: ${(d.items||[]).length}.`;
+  queue=d.items||[];
+  fillFilters();
+  renderQueue();
 }
 (async()=>{await loadTerms();await loadQueue();})();
 </script>
