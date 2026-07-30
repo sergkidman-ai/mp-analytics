@@ -10,7 +10,7 @@ run_daily и в API dismiss/restore.
 import sys
 import html
 import pathlib
-from datetime import datetime
+from datetime import datetime, date
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -61,6 +61,9 @@ table.clr input[type=checkbox]{width:16px;height:16px;cursor:pointer}
 .closed-box table{border-collapse:collapse;width:100%;font-size:12px;max-width:720px}
 .closed-box td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left}
 .closed-box td.n{text-align:right;font-variant-numeric:tabular-nums}
+.upd{font-size:12px;font-weight:600;color:var(--muted,#667)}
+.upd.stale{color:#b21f1f;font-weight:700}
+@media(prefers-color-scheme:dark){.upd.stale{color:#ff8f8f}}
 """
 
 SCRIPT = """
@@ -153,6 +156,15 @@ def _rows():
     return out
 
 
+def _stamps():
+    """{account: date последнего снимка wb_stocks} — «время последнего обновления»
+    остатков ВБ по каждому юрлицу. Это и есть свежесть данных таблицы (live_wb), а не
+    время рендера страницы: если у юрлица встал токен, снимок не обновляется и штамп
+    честно отстаёт (напр. Дисквэр застрял, пока не перевыпущен WB_TOKEN_ACC2)."""
+    rows = db.query("SELECT account, max(captured_at) AS last FROM wb_stocks GROUP BY account")
+    return {r["account"]: r["last"] for r in rows}
+
+
 def _closed_rows():
     q = """
     SELECT d.account, d.nm_id, c.vendor_code, c.brand, c.category, c.clearance_price, t.title
@@ -164,9 +176,17 @@ def _closed_rows():
     return db.query(q)
 
 
-def _block(acc, rows, closed):
+def _block(acc, rows, closed, last):
     esc = html.escape
     n = len(rows)
+    # штамп «обновлено» = дата последнего снимка wb_stocks по этому юрлицу; если не сегодня —
+    # данные несвежие (застрявший токен и т.п.), подсвечиваем красным.
+    if last:
+        stale = (last < date.today())
+        upd = (f'<span class="upd{" stale" if stale else ""}">обновлено {last.strftime("%d.%m.%Y")}'
+               f'{" ⚠ данные не обновляются" if stale else ""}</span>')
+    else:
+        upd = '<span class="upd stale">нет данных остатков</span>'
     red = sum(1 for r in rows if r["rank"] == 0)
     amber = sum(1 for r in rows if r["rank"] == 1)
     green = sum(1 for r in rows if r["rank"] == 2)
@@ -203,7 +223,7 @@ def _block(acc, rows, closed):
         closed_html = '<p class="sub">Закрытых позиций нет.</p>'
 
     return f"""<section class="clr-block" data-acc="{acc}">
-  <h2 class="blk-h">🏷️ {ACC_FULL.get(acc, acc)} <span class="cnt">{n} позиций в распродаже</span></h2>
+  <h2 class="blk-h">🏷️ {ACC_FULL.get(acc, acc)} <span class="cnt">{n} позиций в распродаже</span> {upd}</h2>
   <div class="clr-cards">
     <div class="clr-kc red"><div class="l">🔴 Поднять цену (WB = 0)</div><div class="v">{red}</div></div>
     <div class="clr-kc amber"><div class="l">🟡 Заканчивается (≤{LOW_THRESHOLD})</div><div class="v">{amber}</div></div>
@@ -231,15 +251,15 @@ def _block(acc, rows, closed):
 def render():
     all_rows = _rows()
     all_closed = _closed_rows()
+    stamps = _stamps()
     blocks = []
     for acc in ACCOUNTS:
         rws = [r for r in all_rows if r["account"] == acc]
         cls = [c for c in all_closed if c["account"] == acc]
         if not rws and not cls:
             continue
-        blocks.append(_block(acc, rws, cls))
+        blocks.append(_block(acc, rws, cls, stamps.get(acc)))
     blocks_html = "\n".join(blocks) or '<p class="sub">Список распродажи пуст — загрузите файлы через dropbox_bot.</p>'
-    stamp = datetime.now().strftime("%d.%m.%Y %H:%M")
 
     html_doc = f"""<!DOCTYPE html>
 <html lang="ru">
@@ -263,7 +283,7 @@ def render():
   <p class="sub">Следим за живым остатком на складе WB по двум юрлицам. Как только остаток SKU стал <b>0</b> —
   сигнал <span class="sig red">🔴 Поднять цену</span>, чтобы не продавать товар с нашего склада по скидке.
   Отработанные позиции отмечайте галочкой и закрывайте — за ними перестанем следить.
-  Остатки WB — снимок {stamp} (обновляется ежедневно).</p>
+  Дата последнего обновления остатков указана в заголовке каждого юрлица.</p>
 {blocks_html}
 </main>
 {SCRIPT}
