@@ -115,6 +115,14 @@ def _agent_href(payment):
     return ((payment.get("agent") or {}).get("meta") or {}).get("href")
 
 
+def _org_href(payment):
+    """Юрлицо платежа. Привязка ВСЕГДА внутри одного юрлица: у нас их два (Цифровой квадрат и
+    Дисквэр), общий каталог и пересекающиеся номера документов, а деньги и товар у каждого свои.
+    Контроль на живых данных 2026-07-30: 945 ручных привязок владельца — все внутри своего
+    юрлица, межъюрлицных ноль."""
+    return ((payment.get("organization") or {}).get("meta") or {}).get("href")
+
+
 def _agent_id(payment):
     return (_agent_href(payment) or "").rsplit("/", 1)[-1].split("?")[0]
 
@@ -146,9 +154,10 @@ def supplier_agents():
     return _SUPPLIER_AGENTS
 
 
-def _find(entity, name, agent_href):
-    """Документ с таким номером у ЭТОГО контрагента (иначе можно схватить чужой)."""
-    flt = urllib.parse.quote(f"name={name};agent={agent_href}")
+def _find(entity, name, agent_href, org_href):
+    """Документ с таким номером у ЭТОГО контрагента И ЭТОГО юрлица (иначе можно схватить чужой).
+    Фильтр по организации обязателен: номера документов у Цифрового и Дисквэра пересекаются."""
+    flt = urllib.parse.quote(f"name={name};agent={agent_href};organization={org_href}")
     rows = get(f"/entity/{entity}?filter={flt}&limit=5").get("rows", [])
     return rows
 
@@ -163,14 +172,14 @@ def _full_supply(s):
 
 def resolve_supplies(payment):
     """→ (список приёмок, список нерезолвленных номеров). Номер = приёмка, либо заказ→его приёмки."""
-    agent_href = _agent_href(payment)
-    if not agent_href:
+    agent_href, org_href = _agent_href(payment), _org_href(payment)
+    if not agent_href or not org_href:
         return [], []
     found, missed, seen = [], [], set()
     for tok in purpose_tokens(payment.get("paymentPurpose")):
-        rows = _find("supply", tok, agent_href)
+        rows = _find("supply", tok, agent_href, org_href)
         if not rows:
-            for po in _find("purchaseorder", tok, agent_href):
+            for po in _find("purchaseorder", tok, agent_href, org_href):
                 po_full = get(f"/entity/purchaseorder/{po['id']}?expand=supplies")
                 rows.extend(po_full.get("supplies") or [])
         if not rows:
@@ -209,10 +218,12 @@ def is_advance(payment):
     return bool(_ADVANCE.search(payment.get("paymentPurpose") or ""))
 
 
-def agent_supplies(agent_href, since):
+def agent_supplies(agent_href, since, org_href):
     """Все приёмки контрагента с даты `since` (включая появившиеся ПОЗЖЕ платежа — аванс
-    закрывает будущие поставки), по возрастанию даты."""
-    flt = urllib.parse.quote(f"agent={agent_href};moment>={since} 00:00:00", safe="=;:")
+    закрывает будущие поставки), по возрастанию даты. Фильтр по юрлицу обязателен: деньги
+    Цифрового не гасят поставки Дисквэра (см. `_org_href`)."""
+    flt = urllib.parse.quote(
+        f"agent={agent_href};organization={org_href};moment>={since} 00:00:00", safe="=;:")
     out, off = [], 0
     while True:
         page = get(f"/entity/supply?filter={flt}&limit=100&offset={off}")
@@ -244,9 +255,9 @@ def plan_advance(payment):
     двойной счёт. В `--apply` этого не происходит: платежи обрабатываются последовательно, и второй
     уже видит `payedSum`, обновлённый записью первого.
     """
-    agent_href = _agent_href(payment)
-    if not agent_href:
-        return [], payment["sum"], "у платежа нет контрагента"
+    agent_href, org_href = _agent_href(payment), _org_href(payment)
+    if not agent_href or not org_href:
+        return [], payment["sum"], "у платежа нет контрагента или юрлица"
     pdate = (payment.get("moment") or "")[:10]
     since = (dt.date.fromisoformat(pdate) - dt.timedelta(days=ADVANCE_LOOKBACK)).isoformat()
     # уже привязанное этим же платежом: и остаток аванса, и база для слияния
@@ -258,7 +269,7 @@ def plan_advance(payment):
     if left <= 0:
         return [], 0, "аванс уже разнесён полностью"
     merged, added, taken = dict(own), 0, 0
-    for s in agent_supplies(agent_href, since):
+    for s in agent_supplies(agent_href, since, org_href):
         # payedSum уже включает наш собственный вклад — берём только реально неоплаченный остаток
         unpaid = (s.get("sum") or 0) - (s.get("payedSum") or 0)
         take = min(unpaid, left)
@@ -301,6 +312,38 @@ def _ops_map(operations):
     return out
 
 
+def unlinked_sum(payment):
+    """Сколько денег платежа ещё НЕ привязано ни к одной приёмке (копейки).
+    У аванса это нормальное состояние: деньги ушли вперёд и ждут будущих поставок."""
+    return (payment.get("sum") or 0) - sum(_ops_map(payment.get("operations")).values())
+
+
+def payments_since(since, limit=100):
+    """Исходящие платежи с даты `since`, ПОСТРАНИЧНО. Постранично не для красоты: исходящих
+    ~100 в месяц, и на широком окне добора авансов одна страница молча обрезала бы хвост."""
+    out, off = [], 0
+    flt = urllib.parse.quote(f"moment>={since} 00:00:00", safe="=;:")
+    while True:
+        page = get(f"/entity/paymentout?filter={flt}"
+                   f"&expand=agent,operations&limit={limit}&offset={off}")
+        rows = page.get("rows", [])
+        out.extend(rows)
+        if len(rows) < limit:
+            break
+        off += limit
+    return out
+
+
+def open_advances(payments):
+    """Авансы с неизрасходованным остатком — кандидаты на ДОБОР на каждом прогоне (правило
+    Сергея 2026-07-30): приёмка может прийти намного позже денег, поэтому такой платёж нельзя
+    считать «разобранным» и забыть, пока остаток не исчерпан.
+
+    Только авансы: у остальных платежей остаток означает частичную привязку РУКАМИ владельца
+    (сами мы частичную не пишем — см. предохранитель в шапке модуля), туда лезть нельзя."""
+    return [p for p in payments if unlinked_sum(p) > 0 and is_advance(p)]
+
+
 def _write(payment, ops, note):
     st, resp = put(f"/entity/paymentout/{payment['id']}", {"operations": ops})
     return ("linked", note) if st in (200, 201) else ("error", f"HTTP {st}: {str(resp)[:200]}")
@@ -340,7 +383,8 @@ def link_payment(payment, apply=False):
             return "advance-off", "аванс: разнос выключен (ALFA_LINK_ADVANCE≠1)"
         a_ops, a_left, a_note = plan_advance(payment)
         if not a_ops:
-            return "no-match", a_note
+            # остаток исчерпан — аванс закрыт; остаток есть, но приёмок нет — ждём поставки
+            return ("already" if a_left <= 0 else "no-match"), a_note
         return ("would-link", a_note) if not apply else _write(payment, a_ops, a_note)
 
     if not ops:

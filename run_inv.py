@@ -54,6 +54,12 @@ MSK = dt.timezone(dt.timedelta(hours=3))
 # поэтому попытки в момент записи платежа мало — возвращаемся к непривязанным ещё N дней.
 # 14 дней с запасом кроют лаг «оплатили счёт → привезли товар → провели приёмку».
 LINK_LOOKBACK_DAYS = 14
+# Авансы с неизрасходованным остатком добираем на широком окне: поставка приходит намного позже
+# денег. Стоит МС-запрос только по авансам с реальным остатком, остальное отсеивается локально.
+# 90 дней — решение Сергея 2026-07-30 (180 признано избыточным). Цена решения: аванс старше 90
+# дней перестаёт добираться автоматически — на 30.07 это №59530 КОМПАНИЯ РМ от 14.04 (остаток
+# 15 000 ₽); такие разбираются руками.
+ADVANCE_SWEEP_DAYS = 90
 # счёт песочницы из доки «Тестирование выписок ЮЛ» — чтобы прогон работал до боя
 SANDBOX_ACCOUNT = "40702810102300000001"
 
@@ -137,23 +143,38 @@ def run_day(account, date, apply):
 
 
 def relink(apply):
-    """Добор привязок: платежи за последние LINK_LOOKBACK_DAYS дней, которые в момент записи
-    привязать было не к чему (приёмки ещё не было). Идемпотентно: уже привязанные пропускаются
-    (`already`), авансы добираются до израсходования. Сбой добора не должен ронять прогон —
-    деньги в МС уже записаны, привязка вторична."""
-    import urllib.parse
-    since = (dt.datetime.now(MSK).date() - dt.timedelta(days=LINK_LOOKBACK_DAYS)).isoformat()
-    flt = urllib.parse.quote(f"moment>={since} 00:00:00", safe="=;:")
-    rows = alfa_link.get(
-        f"/entity/paymentout?filter={flt}&expand=agent,operations&limit=100").get("rows", [])
-    stats, lines = alfa_link.link_new(rows, apply=apply)
+    """Добор привязок в ДВА захода — оба на каждом прогоне, идемпотентно:
+
+      1. **свежее окно** `LINK_LOOKBACK_DAYS` — полный разбор всех платежей: в момент записи
+         привязывать бывает не к чему (предоплата уходит раньше поставки);
+      2. **авансы с неизрасходованным остатком** за `ADVANCE_SWEEP_DAYS` — правило Сергея
+         2026-07-30. Аванс не «разбирается» один раз: пока остаток не исчерпан, платёж на каждом
+         прогоне проверяется заново и добирает новые неоплаченные приёмки. Окно шире свежего,
+         потому что поставка может прийти месяцами позже денег (у аванса №498 остаток висел с 22.07).
+
+    Почему второй заход только про авансы: остаток у обычного платежа = частичная привязка руками
+    владельца, наша логика частичную не пишет вообще — туда лезть нельзя.
+
+    Стоимость шире окна почти нулевая: гейт по таблице поставщиков и исчерпанные авансы считаются
+    из уже полученных `operations`, в МС идут только авансы с реальным остатком.
+
+    Сбой добора не должен ронять прогон — деньги в МС уже записаны, привязка вторична."""
+    today = dt.datetime.now(MSK).date()
+    fresh_since = (today - dt.timedelta(days=LINK_LOOKBACK_DAYS)).isoformat()
+    sweep_since = (today - dt.timedelta(days=ADVANCE_SWEEP_DAYS)).isoformat()
+    rows = alfa_link.payments_since(sweep_since)          # одна выборка на оба захода
+    fresh = [p for p in rows if (p.get("moment") or "")[:10] >= fresh_since]
+    older_open = alfa_link.open_advances(
+        [p for p in rows if (p.get("moment") or "")[:10] < fresh_since])
+    stats, lines = alfa_link.link_new(fresh + older_open, apply=apply)
     for msg in lines[:10]:
         log(f"  ⚠ привязка вручную: {msg}")
     done = stats["linked"] if apply else stats["would_link"]
-    log(f"добор привязок с {since}: платежей {len(rows)} "
-        f"(не поставщики {stats.get('not_supplier', 0)}) | "
-        f"{'привязано' if apply else 'привязалось бы'} {done}, уже было {stats['already']}, "
-        f"без документов {stats['no_match']}, на ручную {stats['partial'] + stats['errors']}"
+    log(f"добор привязок с {fresh_since}: платежей {len(fresh)} "
+        f"(не поставщики {stats.get('not_supplier', 0)}) + авансов с остатком с {sweep_since}: "
+        f"{len(older_open)} | {'привязано' if apply else 'привязалось бы'} {done}, "
+        f"уже закрыто {stats['already']}, ждут поставки {stats['no_match']}, "
+        f"на ручную {stats['partial'] + stats['errors']}"
         + (f", авансы отложены {stats['advance_off']}" if stats.get("advance_off") else ""))
 
 
