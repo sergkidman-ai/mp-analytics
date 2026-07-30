@@ -132,9 +132,9 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
     orders = _fetch_purchase_orders(inn, since, agent_id)
     if not orders:
         return []
-    tracked = {r["po_id"]: r["status"] for r in db.query(
-        "SELECT po_id, status FROM po_payment_status WHERE inn=%s", (inn,))}
-    new_rows, new_ids, closed, held, released = [], [], [], [], []
+    tracked = {r["po_id"]: r for r in db.query(
+        "SELECT po_id, status, amount::float amount FROM po_payment_status WHERE inn=%s", (inn,))}
+    new_rows, new_ids, closed, held, released, repriced, stale = [], [], [], [], [], [], []
     for o in orders:
         po_id = o["id"]
         total = round(o.get("sum", 0) / 100, 2)
@@ -144,13 +144,21 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
         base = min(total, received) if require_receipt else total
         due_amount = round(base - payed, 2)
         if po_id in tracked:
-            st = tracked[po_id]
+            st, was = tracked[po_id]["status"], tracked[po_id]["amount"]
             if round(total - payed, 2) <= 0 and st != "paid":
                 closed.append(po_id)     # оплатили (в т.ч. вручную) — снимаем из пула
             elif require_receipt and st == "pending" and due_amount <= 0:
                 held.append(po_id)       # приёмку ещё не провели (или отменили) — придержать
             elif require_receipt and st == "waiting_receipt" and due_amount > 0:
                 released.append((po_id, due_amount))   # приёмку провели — в пул на сумму принятого
+            elif st == "pending" and abs(was - due_amount) >= 0.01:
+                # ЧАСТИЧНАЯ оплата пришла ПОСЛЕ того, как заказ попал в пул: сумма в пуле
+                # застыла на момент заведения и завышена на уже оплаченное. Пересчитываем по
+                # живому остатку (иначе переплата — поймано вручную 30.07 на KV00009784: пул
+                # держал 45840.11 при уже привязанных 5049.96).
+                repriced.append((po_id, due_amount))
+            elif st == "queued" and abs(was - due_amount) >= 0.01:
+                stale.append(po_id)      # черновик уже собран на старую сумму — предупредить
             continue
         if round(total - payed, 2) <= 0:
             continue                     # оплачен ещё до того, как попал к нам в отслеживание
@@ -176,6 +184,17 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
                    (amt, po_id))
     if released:
         print(f"[{inn}] приёмка проведена, в пул: {len(released)}")
+    for po_id, amt in repriced:
+        db.execute("UPDATE po_payment_status SET amount=%s WHERE po_id=%s", (amt, po_id))
+    if repriced:
+        print(f"[{inn}] сумма пересчитана по живому остатку: {len(repriced)}")
+    if stale:
+        # черновик на эти заказы уже собран — сам он не пересчитается, помечаем для человека
+        db.execute("""UPDATE payment_draft_queue SET note = coalesce(note,'') ||
+                      ' | ВНИМАНИЕ: остаток по части заказов изменился в МС — сверить сумму перед подписью'
+                      WHERE status='planned' AND id IN (SELECT draft_id FROM po_payment_status
+                      WHERE po_id = ANY(%s) AND draft_id IS NOT NULL)""", (stale,))
+        print(f"[{inn}] у {len(stale)} заказ(ов) в уже собранных черновиках изменился остаток — помечено")
     if new_rows:
         n_wait = sum(1 for r in new_rows if r["status"] == "waiting_receipt")
         if n_wait:
