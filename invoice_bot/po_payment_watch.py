@@ -11,7 +11,9 @@
 обращается вообще. Дневной крон, отдельный лог.
 
 Три метода (supplier_payment_terms.method), см. CLAUDE.md/докстринг миграции 200:
-  • deferred              — пул неоплаченных заказов; при наступлении срока хотя бы одного —
+  • deferred              — платим за ПРИНЯТЫЙ товар: заказ без проведённой приёмки в пачку не
+                            идёт (status='waiting_receipt', гейт `require_receipt`); далее пул
+                            неоплаченных заказов; при наступлении срока хотя бы одного —
                             ОДНА пачка (старые вперёд), урезанная по лимиту платежа из
                             договорённости (payment_cap, миграция 201; NULL = вся сумма
                             задолженности). Гейта по живому остатку на р/с НЕТ: банк не даёт
@@ -105,7 +107,7 @@ def _fetch_purchase_orders(inn, since, agent_id=None):
     return out
 
 
-def _sync_pending(inn, deferral_days, agent_id=None):
+def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
     """Новые заказы поставщика → po_payment_status(status='pending'), если их там ещё нет.
     Возвращает список НОВЫХ po_id (антидубль по po_id PRIMARY KEY).
 
@@ -114,35 +116,89 @@ def _sync_pending(inn, deferral_days, agent_id=None):
       • в пул берём только НЕДОплаченные заказы, сумма = остаток (sum − payedSum);
       • уже отслеживаемые заказы, которые в МС закрылись оплатой, снимаем в status='paid'.
     Без этого гейта первый прогон планирует повторную оплату всего исторического хвоста
-    (проверено на Феррете: 54 из 56 заказов за 45 дней уже оплачены на 428 505 ₽)."""
+    (проверено на Феррете: 54 из 56 заказов за 45 дней уже оплачены на 428 505 ₽).
+
+    `require_receipt` — ГЕЙТ ПРИЁМКИ (решение Сергея 2026-07-30, только для отсрочки): по отсрочке
+    платим за ПРИНЯТЫЙ товар, поэтому база платежа — проведённая приёмка, а не сам заказ.
+    Мера приёмки — `shippedSum` заказа: он считает ТОЛЬКО ПРОВЕДЁННЫЕ приёмки (проверено живьём —
+    у заказов с приёмкой-черновиком `shippedSum = 0`), поэтому отдельный запрос за приёмками не
+    нужен. `applicable=true` в фильтре заказов — это проведённость ЗАКАЗА, товар по нему может
+    быть ещё не принят (на 30.07 таких в пуле было 3 шт).
+      • товар не принят  → заказ заводится/висит в status='waiting_receipt' и в пачку НЕ идёт;
+      • принят частично  → к оплате идёт принятая часть (min(sum, shippedSum) − payedSum);
+      • приёмку провели  → на следующем прогоне 'waiting_receipt' → 'pending' с суммой по приёмке.
+    Для предоплаты (prepayment_*) гейт ВЫКЛЮЧЕН: там платёж по определению идёт ДО приёмки."""
     since = date.today() - timedelta(days=LOOKBACK_DAYS)
     orders = _fetch_purchase_orders(inn, since, agent_id)
     if not orders:
         return []
-    tracked = {r["po_id"]: r["status"] for r in db.query(
-        "SELECT po_id, status FROM po_payment_status WHERE inn=%s", (inn,))}
-    new_rows, new_ids, closed = [], [], []
+    tracked = {r["po_id"]: r for r in db.query(
+        "SELECT po_id, status, amount::float amount FROM po_payment_status WHERE inn=%s", (inn,))}
+    new_rows, new_ids, closed, held, released, repriced, stale = [], [], [], [], [], [], []
     for o in orders:
         po_id = o["id"]
         total = round(o.get("sum", 0) / 100, 2)
         payed = round(o.get("payedSum", 0) / 100, 2)
-        due_amount = round(total - payed, 2)
+        received = round(o.get("shippedSum", 0) / 100, 2)
+        # база платежа: по отсрочке — принятое, по предоплате — весь заказ
+        base = min(total, received) if require_receipt else total
+        due_amount = round(base - payed, 2)
         if po_id in tracked:
-            if due_amount <= 0 and tracked[po_id] != "paid":
+            st, was = tracked[po_id]["status"], tracked[po_id]["amount"]
+            if round(total - payed, 2) <= 0 and st != "paid":
                 closed.append(po_id)     # оплатили (в т.ч. вручную) — снимаем из пула
+            elif require_receipt and st == "pending" and due_amount <= 0:
+                held.append(po_id)       # приёмку ещё не провели (или отменили) — придержать
+            elif require_receipt and st == "waiting_receipt" and due_amount > 0:
+                released.append((po_id, due_amount))   # приёмку провели — в пул на сумму принятого
+            elif st == "pending" and abs(was - due_amount) >= 0.01:
+                # ЧАСТИЧНАЯ оплата пришла ПОСЛЕ того, как заказ попал в пул: сумма в пуле
+                # застыла на момент заведения и завышена на уже оплаченное. Пересчитываем по
+                # живому остатку (иначе переплата — поймано вручную 30.07 на KV00009784: пул
+                # держал 45840.11 при уже привязанных 5049.96).
+                repriced.append((po_id, due_amount))
+            elif st == "queued" and abs(was - due_amount) >= 0.01:
+                stale.append(po_id)      # черновик уже собран на старую сумму — предупредить
             continue
-        if due_amount <= 0:
+        if round(total - payed, 2) <= 0:
             continue                     # оплачен ещё до того, как попал к нам в отслеживание
         order_date = o.get("moment", "")[:10]
         if not order_date:
             continue
         d = datetime.strptime(order_date, "%Y-%m-%d").date()
         due = d + timedelta(days=deferral_days) if deferral_days else d
+        waiting = due_amount <= 0        # только при require_receipt: товар ещё не принят
         new_rows.append({
             "po_id": po_id, "inn": inn, "order_date": d, "due_date": due,
-            "amount": due_amount,
+            "amount": due_amount if not waiting else round(total - payed, 2),
+            "status": "waiting_receipt" if waiting else "pending",
         })
-        new_ids.append(po_id)
+        if not waiting:
+            new_ids.append(po_id)
+    if held:
+        db.execute("UPDATE po_payment_status SET status='waiting_receipt' WHERE po_id = ANY(%s)",
+                   (held,))
+        print(f"[{inn}] придержано до приёмки: {len(held)}")
+    for po_id, amt in released:
+        db.execute("UPDATE po_payment_status SET status='pending', amount=%s WHERE po_id=%s",
+                   (amt, po_id))
+    if released:
+        print(f"[{inn}] приёмка проведена, в пул: {len(released)}")
+    for po_id, amt in repriced:
+        db.execute("UPDATE po_payment_status SET amount=%s WHERE po_id=%s", (amt, po_id))
+    if repriced:
+        print(f"[{inn}] сумма пересчитана по живому остатку: {len(repriced)}")
+    if stale:
+        # черновик на эти заказы уже собран — сам он не пересчитается, помечаем для человека
+        db.execute("""UPDATE payment_draft_queue SET note = coalesce(note,'') ||
+                      ' | ВНИМАНИЕ: остаток по части заказов изменился в МС — сверить сумму перед подписью'
+                      WHERE status='planned' AND id IN (SELECT draft_id FROM po_payment_status
+                      WHERE po_id = ANY(%s) AND draft_id IS NOT NULL)""", (stale,))
+        print(f"[{inn}] у {len(stale)} заказ(ов) в уже собранных черновиках изменился остаток — помечено")
+    if new_rows:
+        n_wait = sum(1 for r in new_rows if r["status"] == "waiting_receipt")
+        if n_wait:
+            print(f"[{inn}] новых заказов без проведённой приёмки: {n_wait} (ждут, в пачку не идут)")
     if closed:
         # у 'queued' черновик уже создан — помечаем его, чтобы человек не подписал повторную оплату
         db.execute("""UPDATE payment_draft_queue SET note = coalesce(note,'') ||
@@ -178,7 +234,9 @@ def process_prepayment_per_order(inn, agent_id=None):
 
 
 def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
-    _sync_pending(inn, deferral_days, agent_id)
+    # require_receipt=True: по отсрочке платим только за принятый товар (см. _sync_pending).
+    # Заказы в status='waiting_receipt' в выборку 'pending' ниже не попадают by design.
+    _sync_pending(inn, deferral_days, agent_id, require_receipt=True)
     pending = db.query("""SELECT po_id, amount FROM po_payment_status
         WHERE inn=%s AND status='pending' ORDER BY due_date, order_date""", (inn,))
     if not pending:
