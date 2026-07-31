@@ -1,0 +1,4 @@
+# Выгрузки шага 1 — производные артефакты, в git не хранятся.
+# Пересобираются: ./venv/bin/python tools/rebuild/run_step1.py
+*
+!.gitignore
