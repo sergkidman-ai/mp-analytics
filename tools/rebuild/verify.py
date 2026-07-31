@@ -80,7 +80,9 @@ def _probes_from_csv(path: Path):
                     for f, r in zip(fs, rs):
                         if f:
                             probe[f] = r
-            for fkey, rkey in (('weight_field', 'weight_raw'), ('volume_field', 'volume_raw')):
+            for fkey, rkey in (('weight_field', 'weight_raw'), ('volume_field', 'volume_raw'),
+                               ('code_field', 'supplier_code'), ('oem_field', 'oem_code'),
+                               ('barcode_field', 'barcode_raw')):
                 if row[fkey]:
                     probe[row[fkey]] = row[rkey]
             yield row['src_locator'], probe

@@ -65,6 +65,8 @@ def stats_for(name: str, rows, meta: dict, info: dict) -> dict:
         'дубль_короба_сходится': alt_ok,
         'дубль_короба_расходится': alt_bad,
         'мк_на_шт_сходится_с_объёмом': mk_diag,
+        'в_карантине': sum(1 for r in rows if r.quarantine == '1'),
+        'проверка_единицы': info.get('проверка_единицы'),
         'старое_число_supplier_dims': OLD_SUPPLIER_DIMS.get(name),
     }
 

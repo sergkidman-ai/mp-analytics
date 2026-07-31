@@ -92,8 +92,14 @@ class Row:
     src_sha256: str = ''
     status: str = ''
     reason: str = ''
+    # карантин: размеры прочитаны, но источником размера карточки быть не могут
+    quarantine: str = ''
     supplier_code: str = ''
+    code_field: str = ''
     oem_code: str = ''
+    oem_field: str = ''
+    barcode_raw: str = ''
+    barcode_field: str = ''
     name: str = ''
     brand: str = ''
     # индивидуальная упаковка (единственный источник размера карточки)
@@ -139,10 +145,11 @@ class Row:
                 for f, r in zip(fs, rs):
                     if f:
                         out[f] = r
-        if self.weight_field:
-            out[self.weight_field] = self.weight_raw
-        if self.volume_field:
-            out[self.volume_field] = self.volume_raw
+        for f, v in ((self.weight_field, self.weight_raw), (self.volume_field, self.volume_raw),
+                     (self.code_field, self.supplier_code), (self.oem_field, self.oem_code),
+                     (self.barcode_field, self.barcode_raw)):
+            if f:
+                out[f] = v
         return out
 
 
