@@ -10,8 +10,9 @@
 Только чтение МойСклад + запись в Postgres (payment_draft_queue/po_payment_status). К банку не
 обращается вообще. Дневной крон, отдельный лог.
 
-Отправленный черновик снимается в 'paid', когда МС подтвердил оплату всех его заказов
-(`mark_paid_drafts`) — так очередь сама расчищается после утренней выписки.
+Черновик снимается в 'paid' («проведён»), когда деньги видны в МС: по заказам — когда оплачены
+все covers_po_ids, по авансу — когда нашёлся paymentout на ту же сумму (`mark_executed_drafts`).
+Так очередь сама расчищается после утренней выписки, включая застрявшие в 'error'.
 
 Три метода (supplier_payment_terms.method), см. CLAUDE.md/докстринг миграции 200:
   • deferred              — платим за ПРИНЯТЫЙ товар: заказ без проведённой приёмки в пачку не
@@ -295,7 +296,7 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=
     if already_planned:
         return 0   # уже есть неотправленный черновик аванса — не плодим второй
     last = db.query("""SELECT amount::float amount, created_at FROM payment_draft_queue
-        WHERE inn=%s AND kind='advance' AND status IN ('sent_sandbox','sent_prod')
+        WHERE inn=%s AND kind='advance' AND status IN ('sent_sandbox','sent_prod','paid')
         ORDER BY created_at DESC LIMIT 1""", (inn,))
     if not last:
         balance = 0.0
@@ -315,25 +316,80 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=
     return 1
 
 
-def mark_paid_drafts(inn):
-    """Отправленный черновик → 'paid', когда МС подтвердил оплату ВСЕХ его заказов.
+def _ms_payouts_since(inn, since, agent_id=None):
+    """Исходящие платежи (paymentout) нашей организации этому контрагенту с даты `since`."""
+    cid = _counterparty_id(inn, agent_id)
+    if not cid:
+        return []
+    href = f"{MSU}/entity/counterparty/{cid}"
+    org = f"{MSU}/entity/organization/{_org_id()}"
+    flt = urllib.parse.quote(
+        f"agent={href};organization={org};moment>={since:%Y-%m-%d} 00:00:00", safe="=;:")
+    out, offset = [], 0
+    while True:
+        page = get_r(f"/entity/paymentout?filter={flt}&limit=100&offset={offset}")
+        rows = page.get("rows", [])
+        out.extend(rows)
+        if len(rows) < 100:
+            break
+        offset += 100
+    return out
+
+
+def mark_executed_drafts(inn, agent_id=None):
+    """Черновик → 'paid' («проведён»), когда деньги видны в МС.
 
     Факт оплаты приходит не из банка, а из МС: утренняя выписка Альфы разносится в
-    paymentin/paymentout, привязка закрывает `payedSum` заказа, `_sync_pending` снимает заказ
-    в 'paid'. Значит черновик оплачен ровно тогда, когда среди covers_po_ids не осталось
-    неоплаченных заказов. Работает и для оплаты ВРУЧНУЮ мимо системы — источник один и тот же.
-    Авансы (kind='advance') так не отследить: заказов под ними нет, они остаются 'sent_prod'.
+    paymentin/paymentout. Отсюда два пути, по одному на форму черновика:
+
+    • Черновик ПОД ЗАКАЗЫ (отсрочка / по счёту). Привязка платежа закрывает `payedSum` заказа,
+      `_sync_pending` снимает заказ в 'paid' — значит черновик проведён ровно тогда, когда среди
+      covers_po_ids не осталось неоплаченных. Ловим ЛЮБОЙ незавершённый статус, не только
+      'sent_prod': 'error' (банк не принял, но счёт оплатили руками) и 'planned' (заплатили
+      раньше, чем поллер отправил) — деньги ушли, черновику в очереди делать нечего.
+    • АВАНС. Заказов под ним нет, `payedSum` закрывать нечему, поэтому ищем сам платёж: paymentout
+      этому контрагенту на ТУ ЖЕ сумму, датированный не раньше черновика. Найденный платёж
+      закрепляется за черновиком (`ms_payment_id`, миграция 206) — иначе второй аванс той же
+      суммы отметился бы тем же самым платежом.
     """
     done = db.query("""UPDATE payment_draft_queue q SET status='paid'
-        WHERE q.inn=%s AND q.status='sent_prod'
+        WHERE q.inn=%s AND q.status IN ('planned', 'sent_prod', 'error')
           AND coalesce(array_length(q.covers_po_ids, 1), 0) > 0
           AND EXISTS (SELECT 1 FROM po_payment_status p WHERE p.po_id = ANY(q.covers_po_ids))
           AND NOT EXISTS (SELECT 1 FROM po_payment_status p
                           WHERE p.po_id = ANY(q.covers_po_ids) AND p.status <> 'paid')
         RETURNING q.id, q.amount::float amount""", (inn,))
     for d in done:
-        print(f"[{inn}] черновик #{d['id']} на {d['amount']}₽ оплачен (все заказы закрыты в МС)")
-    return len(done)
+        print(f"[{inn}] черновик #{d['id']} на {d['amount']}₽ проведён (все заказы закрыты в МС)")
+    n = len(done)
+
+    adv = db.query("""SELECT id, amount::float amount, created_at FROM payment_draft_queue
+        WHERE inn=%s AND kind='advance' AND status IN ('planned', 'sent_prod', 'error')
+        ORDER BY created_at""", (inn,))
+    if not adv:
+        return n
+    # Занятые платежи — по всем поставщикам сразу: один paymentout не может закрыть два черновика.
+    used = {r["ms_payment_id"] for r in db.query(
+        "SELECT ms_payment_id FROM payment_draft_queue WHERE ms_payment_id IS NOT NULL")}
+    pays = sorted(_ms_payouts_since(inn, min(a["created_at"] for a in adv).date(), agent_id),
+                  key=lambda p: p.get("moment", ""))
+    for a in adv:
+        born = a["created_at"].strftime("%Y-%m-%d")
+        for p in pays:
+            if p["id"] in used or p.get("moment", "")[:10] < born:
+                continue
+            if abs(round(p.get("sum", 0) / 100, 2) - a["amount"]) > 0.01:
+                continue
+            db.execute("""UPDATE payment_draft_queue
+                SET status='paid', ms_payment_id=%s, note = coalesce(note || ' | ', '') || %s
+                WHERE id=%s""",
+                (p["id"], f"проведён: платёж МС №{p.get('name', '?')} от {p.get('moment', '')[:10]}",
+                 a["id"]))
+            used.add(p["id"]); n += 1
+            print(f"[{inn}] аванс #{a['id']} на {a['amount']}₽ проведён "
+                  f"(платёж МС №{p.get('name', '?')} от {p.get('moment', '')[:10]})")
+            break
+    return n
 
 
 def run(only_inn=None):
@@ -355,7 +411,7 @@ def run(only_inn=None):
             elif method == "prepayment_balance":
                 process_prepayment_balance(inn, t.get("advance_amount"),
                                            t.get("balance_threshold"), agent_id=agent_id)
-            mark_paid_drafts(inn)   # после синка статусов заказов: отправленное → 'paid'
+            mark_executed_drafts(inn, agent_id=agent_id)   # деньги видны в МС → черновик 'paid'
         except Exception as e:
             print(f"[{inn}] ОШИБКА ({method}): {type(e).__name__}: {e}")
 

@@ -43,6 +43,9 @@
      контрагенту хватает на две. Остаток ширины забирает «Чем урезано». */
   #queue{table-layout:fixed}
   #queue td:first-child,#queue td:nth-child(5){white-space:nowrap}
+  /* Итоговая строка: при фильтре показывает сумму именно отфильтрованных строк. */
+  #queue tfoot td{border-top:2px solid var(--line);border-bottom:none;font-weight:600;white-space:nowrap}
+  #queue tfoot td:first-child{text-align:right;font-weight:400;color:var(--mut)}
   tr.filters th{padding:5px 8px}
   tr.filters select{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:6px;
     padding:4px 7px;font:inherit;font-size:12px;font-weight:400;width:100%;max-width:100%}
@@ -83,7 +86,10 @@
       <th><select id="f-status" onchange="setFilter('status',this.value)"></select></th>
       <th></th>
     </tr>
-  </thead><tbody></tbody></table>
+  </thead><tbody></tbody>
+  <tfoot><tr>
+    <td colspan="4" id="q-total-label"></td><td id="q-total"></td><td colspan="2"></td>
+  </tr></tfoot></table>
   <p class="note" id="foot"></p>
 
   <h2>⚙️ Условия оплаты <span id="mode" class="tag" style="font-weight:400;vertical-align:middle"></span></h2>
@@ -113,11 +119,13 @@ const VAT_RATES=[['','не задано'],['0','без НДС'],['5','5%'],['7',
 const vatLabel=v=>v==null?'<span class="muted">не задано</span>':(v===0?'без НДС':v+'%');
 
 // Метод очереди (payment_draft_queue.kind) — те же названия, что в условиях оплаты выше.
-const KINDS={deferred_batch:'Отсрочка',prepayment_order:'Предоплата по счёту',advance:'Аванс/баланс'};
+const KINDS={deferred_batch:'Отсрочка',prepayment_order:'По счёту',advance:'Аванс/баланс'};
+// «проведён» = деньги видны в МС (выписка привязалась к заказу / нашёлся платёж под аванс),
+// а не «банк принял черновик» — это 'отправлен'.
 const QSTATUS={planned:['tag w','запланирован'],sent_prod:['tag ok','отправлен'],
-  paid:['tag ok','оплачен'],error:['tag','ошибка'],cancelled:['tag','снят']};
+  paid:['tag ok','проведён'],error:['tag','ошибка'],cancelled:['tag','снят']};
 // Порядок по умолчанию: сначала то, что требует действия (запланировано, ошибка), потом
-// отправленное и уже оплаченное, в самом низу снятое. Внутри группы — свежие сверху.
+// отправленное и уже проведённое, в самом низу снятое. Внутри группы — свежие сверху.
 const SORT_RANK={planned:0,error:1,sent_prod:2,paid:3,cancelled:4};
 const byStatus=(a,b)=>(SORT_RANK[a.status]??9)-(SORT_RANK[b.status]??9)
   || String(b.created_at||'').localeCompare(String(a.created_at||''));
@@ -219,9 +227,12 @@ function renderQueue(){
       +`<td class="${warn?'warn':'muted'}">${esc(note)||'—'}</td></tr>`;
   }).join('')||'<tr><td colspan="7" class="muted">под фильтр ничего не попало</td></tr>';
   const sum=items.reduce((s,q)=>s+(q.amount||0),0);
-  $('#foot').textContent=items.length===queue.length
-    ? `Черновиков в очереди: ${queue.length} на ${rub(sum)}.`
-    : `Показано ${items.length} из ${queue.length} на ${rub(sum)}.`;
+  const filtered=items.length!==queue.length;
+  $('#q-total-label').textContent=filtered?`Итого по фильтру (строк: ${items.length}):`:`Итого (строк: ${items.length}):`;
+  $('#q-total').textContent=rub(sum);
+  $('#foot').textContent=filtered
+    ? `Показано ${items.length} из ${queue.length} черновиков.`
+    : `Черновиков в очереди: ${queue.length}.`;
 }
 
 async function loadQueue(){
