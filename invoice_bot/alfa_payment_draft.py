@@ -124,18 +124,56 @@ def _payer_block(buyer_inn, cfg):
     }
 
 
-def _payee_block(inn):
+def _payee_card(inn, draft=None):
+    """Карточка контрагента, которому платим. ИНН её НЕ определяет: у одного юрлица в МС бывает
+    несколько карточек (у «Солюшнс принт» — питерская с 2012 и московская «МСК» с 2025), и
+    основной счёт у них РАЗНЫЙ. `rows[0]` брать нельзя: порядок — по дате создания, то есть
+    всегда старая карточка → платёж уйдёт на её счёт. Определяем по делу, а не по ИНН:
+
+    1) агент заказов черновика — за что платим, тому и платим (единственный надёжный признак);
+    2) `supplier_payment_terms.name` — имя карточки, на которую заведены условия оплаты
+       (нужно авансам: заказов под ними нет);
+    3) карточка одна — она и есть.
+
+    Ничего не подошло — ОШИБКА, а не «возьмём первую»: молча уплаченные не туда деньги
+    возвращать через банк дороже, чем разобрать черновик руками."""
     rows = get(f"/entity/counterparty?filter=inn={inn}").get("rows", [])
     if not rows:
         raise RuntimeError(f"контрагент с ИНН {inn} не найден в МС")
-    cp = rows[0]
+    if len(rows) == 1:
+        return rows[0]
+
+    po_ids = (draft or {}).get("covers_po_ids") or []
+    if po_ids:
+        po = get(f"/entity/purchaseorder/{po_ids[0]}?expand=agent")
+        agent_id = ((po.get("agent") or {}).get("id"))
+        cp = next((r for r in rows if r["id"] == agent_id), None)
+        if cp:
+            return cp
+
+    want = db.query("SELECT name FROM supplier_payment_terms WHERE inn=%s", (inn,))
+    want = (want[0]["name"] or "").strip() if want else ""
+    if want:
+        cp = next((r for r in rows if (r.get("name") or "").strip() == want), None)
+        if cp:
+            return cp
+
+    raise RuntimeError(
+        f"у ИНН {inn} в МС {len(rows)} карточек ({', '.join(r.get('name') or '?' for r in rows)}) "
+        f"— непонятно, чей счёт брать. Заведи имя нужной карточки в supplier_payment_terms.name")
+
+
+def _payee_block(inn, draft=None):
+    cp = _payee_card(inn, draft)
     accs = get(f"/entity/counterparty/{cp['id']}/accounts").get("rows", [])
     acc = next((a for a in accs if a.get("isDefault")), accs[0] if accs else None)
     if not acc:
         raise RuntimeError(f"у контрагента {cp.get('name')} (ИНН {inn}) нет банковских реквизитов в МС "
                            f"— прогони invoice_bot/supplier_requisites.py --apply")
     return {
-        "payeeName": cp.get("name"), "payeeInn": inn, "payeeKpp": cp.get("kpp"),
+        # В поручение идёт ЮРИДИЧЕСКОЕ название, а не имя карточки: суффикс «МСК» — наша
+        # внутренняя пометка, в реквизитах платежа ей не место.
+        "payeeName": cp.get("legalTitle") or cp.get("name"), "payeeInn": inn, "payeeKpp": cp.get("kpp"),
         "payeeAccount": acc.get("accountNumber"), "payeeBankBic": acc.get("bic"),
         "payeeBankCorrAccount": acc.get("correspondentAccount"),
     }
@@ -252,7 +290,7 @@ def _ru_date(iso):
 
 def build_payment(draft, cfg):
     payer = _payer_block(_buyer_inn_for_draft(draft), cfg)
-    payee = _payee_block(draft["inn"])
+    payee = _payee_block(draft["inn"], draft)
     docs = _po_docs(draft.get("covers_po_ids"))
     return {
         # number НЕ шлём — номер платёжки присваивает банк (см. докстринг модуля)
