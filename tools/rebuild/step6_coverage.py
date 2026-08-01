@@ -3,7 +3,8 @@
 
 Правило выбора: у модели берём коробку с НАИБОЛЬШИМ объёмом целиком (три габарита
 из одной строки одного файла). Ничего не считаем, не усредняем, не смешиваем оси.
-Приоритет источников: прайс > наш ручной размер (own_manual) > НЕ НАЙДЕНО.
+Приоритет источников: прайс > НЕ НАЙДЕНО. Источник own_manual (доп. поля МойСклада
+«Длина/Ширина/Высота, см.») ОТМЕНЁН 2026-08-01 и из сборки удалён.
 rapid остаётся в карантине — считается отдельно, в покрытие не входит.
 """
 import csv
@@ -57,10 +58,8 @@ def db():
         'attrs': q(f"""select r.ms_id, trim(a->>'value') from raw_moysklad_product r,
                             jsonb_array_elements(r.payload->'attributes') a
                        where a->>'name' = '{ATTR}' and coalesce(trim(a->>'value'),'') <> ''"""),
-        # наш ручной размер в МойСкладе: атрибуты «Длина, см.» / «Ширина, см.» / «Высота, см.»
-        'ms_dims': q("""select r.ms_id, a->>'name', a->>'value', r.loaded_at::date
-                          from raw_moysklad_product r, jsonb_array_elements(r.payload->'attributes') a
-                         where a->>'name' in ('Длина, см.','Ширина, см.','Высота, см.')"""),
+        # атрибуты «Длина, см.»/«Ширина, см.»/«Высота, см.» (own_manual) НЕ читаем:
+        # источник отменён 2026-08-01, см. блок 3.
         'brand': q("""select r.ms_id, trim(a->>'value') from raw_moysklad_product r,
                            jsonb_array_elements(r.payload->'attributes') a
                       where a->>'name' = 'Бренд' and coalesce(trim(a->>'value'),'') <> ''"""),
@@ -204,50 +203,12 @@ def main() -> int:
          'step6_gap_over50.csv', H)
     dump(sorted(same_code, key=lambda x: -x[0]), 'step6_samecode_gap.csv', H)
 
-    # ---------- 3. наш ручной размер (own_manual) -----------------------------
-    ms_raw = defaultdict(dict)
-    ms_date = None
-    for ms_id, nm, val, ld in d['ms_dims']:
-        try:
-            ms_raw[ms_id][nm] = float(str(val).replace(',', '.'))
-        except (TypeError, ValueError):
-            continue
-        ms_date = max(ms_date, ld) if ms_date else ld
-    own = {}                       # ext -> (dims_mm, ms_id, число товаров)
-    own_cnt = Counter()
-    for ms_id, code, ext, art, name in prods:
-        a = ms_raw.get(ms_id)
-        if not ext or not a or len(a) < 3:
-            continue
-        dd = tuple(sorted((a['Длина, см.'] * 10, a['Ширина, см.'] * 10, a['Высота, см.'] * 10),
-                          reverse=True))
-        if min(dd) <= 0:
-            continue
-        own_cnt[ext] += 1
-        if ext not in own or vol_l(dd) > vol_l(own[ext][0]):
-            own[ext] = (dd, ms_id, code)
-    own_only = [e for e in own if e not in chosen]
-    ob = Counter()
-    for e, (dd, ms_id, code) in own.items():
-        if e in chosen:
-            ob[basket(gap(dd, chosen[e][3]))] += 1
-    # тот же ручной размер, но уже залитый на карточки WB — контрольный срез
-    wb_by_model = {}
-    for acc, nm, vc, l, wd, h, upd in d['wb']:
-        m = P4.match((vc or '').strip())
-        if m:
-            wb_by_model.setdefault(m.group(1), (float(l) * 10, float(wd) * 10, float(h) * 10))
-    st['3'] = {'источник': 'МойСклад, атрибуты «Длина, см.»/«Ширина, см.»/«Высота, см.» '
-                           '(raw_moysklad_product.payload→attributes, указатель = ms_id + имя атрибута)',
-               'товаров с тремя атрибутами': len([1 for a in ms_raw.values() if len(a) >= 3]),
-               'дата среза (loaded_at)': str(ms_date),
-               'моделей с нашим размером': len(own),
-               'из них закрываются ИМ ОДНИМ (в прайсах размера нет)': len(own_only),
-               'четырёхзначных среди них': sum(1 for e in own_only if IS4.match(e)),
-               'расхождение с выбранной коробкой прайса': dict(ob),
-               'контроль — карточки WB с габаритами': {
-                   'строк': len(d['wb']), 'моделей по 4-значному префиксу': len(wb_by_model),
-                   'дата': str(max(r[6] for r in d['wb']))}}
+    # ---------- 3. own_manual — ИСТОЧНИК ОТМЕНЁН ------------------------------
+    # Решение Сергея от 2026-08-01: доп. поля МойСклада «Длина, см.» / «Ширина, см.» /
+    # «Высота, см.» — запрещённый источник. Это те же значения, что уже стоят на наших
+    # карточках, проверять карточки ими же бессмысленно. Из сборки, таблиц и отчётов
+    # удалено; к этим полям не возвращаемся.
+    st['3'] = {'источник own_manual': 'ОТМЕНЁН 2026-08-01, в сборке и покрытии не участвует'}
 
     # ---------- 4. rapid ------------------------------------------------------
     conf = {}
@@ -276,8 +237,7 @@ def main() -> int:
                'моделей rapid×подтверждённая ИУ': len(rr), 'распределение': dict(band),
                'медиана отношения': round(statistics.median([x[0] for x in rr]), 2) if rr else None,
                'rapid добавит моделей сверх прайсов': len(rapid_new),
-               'из них четырёхзначных': sum(1 for e in rapid_new if IS4.match(e)),
-               'из них нет и ручного размера': len([e for e in rapid_new if e not in own])}
+               'из них четырёхзначных': sum(1 for e in rapid_new if IS4.match(e))}
     with (DATA / 'step6_rapid_ratio.csv').open('w', encoding='utf-8', newline='') as fh:
         w = csv.writer(fh, delimiter=';')
         w.writerow(['модель', 'наш_код', 'отношение_объёмов', 'rapid_мм', 'ИУ_мм', 'rapid_iu_raw',
@@ -315,9 +275,9 @@ def main() -> int:
     # ---------- 6. итоговая таблица покрытия ----------------------------------
     all_ext = {e for m, c, e, a, n in prods if e}
     ext4 = {e for e in all_ext if IS4.match(e)}
-    cover = {'закрыты прайсами': set(chosen), 'закрыты только ручным': set(own_only),
-             'потенциально добавит rapid': {e for e in rapid_new if e not in own}}
-    cover['без размера'] = all_ext - cover['закрыты прайсами'] - cover['закрыты только ручным']
+    cover = {'закрыты прайсами': set(chosen),
+             'потенциально добавит rapid': set(rapid_new)}
+    cover['без размера'] = all_ext - cover['закрыты прайсами']
     st['6'] = {'моделей всего (уникальных external_code)': len(all_ext),
                'четырёхзначных': len(ext4),
                'строки': {k: {'всего': len(v), '4-значных': len(v & ext4),
@@ -351,8 +311,7 @@ def main() -> int:
                'причина: нет в прайсах': sum(1 for e in cover['без размера'] if not hit_any.get(e))}
 
     (DATA / 'step6_stats.json').write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding='utf-8')
-    print('1:', st['1'], '\n3:', st['3']['моделей с нашим размером'],
-          'только им:', st['3']['из них закрываются ИМ ОДНИМ (в прайсах размера нет)'],
+    print('1:', st['1'], '\n3:', st['3'],
           '\n6:', {k: v['4-значных'] for k, v in st['6']['строки'].items()})
     return 0
 
