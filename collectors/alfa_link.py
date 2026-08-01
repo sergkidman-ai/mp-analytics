@@ -241,6 +241,125 @@ def resolve_supplies(payment):
     return found, missed
 
 
+# ───────────────────── путь 1: состав платежа из ЧЕРНОВИКА платёжки ─────────────────────
+# Черновик знает, ЗА ЧТО платили: `covers_po_ids` — список заказов поставщику, под которые он
+# собран. Это ПЕРВИЧНЫЙ источник состава (решение Сергея 2026-08-01), а разбор назначения —
+# запасной: назначение лишь текстовое отражение того же списка, и на нём мы теряли номера
+# (кириллический префикс без разделителя «ОД00004103», суффикс «326006/И», разрядность
+# «КТ-00097» ≠ «КТ-000097» в МС). Замер 01.08.2026: черновик #13 (Одиссей, 474 950,87 ₽) даёт
+# 23 приёмки из 23, разбор назначения — 1, из-за чего 468 060,75 ₽ ушли в ручной разбор.
+# Снят: черновики, отменённые владельцем (`cancelled`) — по ним денег не ждём.
+DRAFT_STATUSES = ("planned", "sent_sandbox", "sent_prod", "error", "paid")
+
+
+def _inn_of(payment):
+    """ИНН поставщика по контрагенту МС — ключ, которым черновики связаны с платежами."""
+    aid = _agent_id(payment)
+    rows = db.query("SELECT inn FROM supplier_payment_terms WHERE ms_agent_id=%s",
+                    (aid,)) if aid else []
+    return rows[0]["inn"] if rows else None
+
+
+def find_draft(payment):
+    """Черновик платёжки, из которого вырос этот платёж, либо None.
+
+    Ключ — ИНН + сумма ДО КОПЕЙКИ + «черновик не позже платежа». Сумму сверяем точно: черновик
+    считаем мы сами, и банк платит ровно его сумму; приблизительный матч тут опаснее промаха —
+    он привяжет деньги к чужому списку заказов.
+
+    Черновик, уже закреплённый за ДРУГИМ платежом (`ms_payment_id`, миграция 206), не берём:
+    иначе два одинаковых платежа одному поставщику разобрались бы одним и тем же черновиком.
+    Авансовые черновики сюда не попадают — у них `covers_po_ids` пуст, состав определяется
+    не списком заказов, а FIFO по приёмкам (см. `plan_advance`)."""
+    inn = _inn_of(payment)
+    if not inn:
+        return None
+    rows = db.query(
+        """SELECT id, covers_po_ids FROM payment_draft_queue
+            WHERE inn = %s AND round(amount * 100) = %s
+              AND status = ANY(%s)
+              AND coalesce(array_length(covers_po_ids, 1), 0) > 0
+              AND (ms_payment_id IS NULL OR ms_payment_id = %s)
+              AND created_at::date <= %s::date
+            ORDER BY (ms_payment_id = %s) DESC NULLS LAST, created_at DESC
+            LIMIT 1""",
+        (inn, payment["sum"], list(DRAFT_STATUSES), payment["id"],
+         (payment.get("moment") or "")[:10], payment["id"]))
+    return rows[0] if rows else None
+
+
+def draft_supplies(draft):
+    """Приёмки под заказами черновика. → (приёмки по возрастанию даты, заказы без годной приёмки).
+
+    Заказ без приёмки — не ошибка: товар оплачен, но ещё не приехал (или документ не проведён).
+    Такие заказы возвращаем отдельным списком, чтобы честно показать в логе, чего ждём."""
+    found, waiting, seen = [], [], set()
+    for po_id in draft["covers_po_ids"]:
+        try:
+            po = get(f"/entity/purchaseorder/{po_id}?expand=supplies")
+        except urllib.error.HTTPError:
+            waiting.append(str(po_id)[:8])
+            continue
+        got = False
+        for s in po.get("supplies") or []:
+            full = _full_supply(s)
+            if not (full and full.get("id") and linkable(full)):
+                continue
+            got = True
+            if full["id"] not in seen:
+                seen.add(full["id"])
+                found.append(full)
+        if not got:
+            waiting.append(po.get("name") or str(po_id)[:8])
+    return sorted(found, key=lambda s: s.get("moment") or ""), waiting
+
+
+def plan_draft(payment):
+    """Раскладка ПО ЧЕРНОВИКУ. → (operations | None, остаток_копеек, пояснение, id черновика).
+    `operations is None` ⇒ черновика нет, разбираем платёж прежними путями.
+
+    Остаток здесь НЕ запрет на запись — в отличие от разбора назначения (`plan`). Там остаток
+    означает «мы не поняли состав платежа», и привязывать вслепую нельзя. Здесь состав известен
+    точно, а остаток говорит лишь «приёмку по оплаченному заказу ещё не провели»: привязываем
+    то, что уже есть, и ДОБИРАЕМ на следующих прогонах, как у аванса. Иначе один непроведённый
+    документ снова заблокировал бы платёж целиком.
+
+    Как и у аванса, возвращаем ПОЛНЫЙ массив operations (старое + новое): МС принимает
+    `operations` целиком, а не дельтой."""
+    draft = find_draft(payment)
+    if not draft:
+        return None, payment["sum"], "черновика нет", None
+    own = _ops_map(payment.get("operations"))
+    left = payment["sum"] - sum(own.values())
+    if left <= 0:                                # дёшево: без похода в МС за приёмками
+        return [], 0, f"черновик #{draft['id']}: платёж уже разнесён", draft["id"]
+    supplies, waiting = draft_supplies(draft)
+    merged, added, taken = dict(own), 0, 0
+    for s in supplies:
+        # payedSum уже включает наш собственный вклад — берём реально неоплаченный остаток
+        unpaid = (s.get("sum") or 0) - (s.get("payedSum") or 0)
+        take = min(unpaid, left)
+        if take <= 0:
+            continue
+        merged[s["id"]] = merged.get(s["id"], 0) + take
+        left -= take
+        added += 1
+        taken += take
+        if left <= 0:
+            break
+    note = f"черновик #{draft['id']}: приёмок +{added} на {taken/100:,.2f} ₽"
+    if waiting:
+        note += f", ждут приёмки заказов: {len(waiting)}"
+    if left > 0:
+        note += f", не разнесено {left/100:,.2f} ₽"
+    if not added:
+        return [], left, note, draft["id"]
+    ops = [{"meta": {"href": f"{MS}/entity/supply/{sid}", "type": "supply",
+                     "mediaType": "application/json"}, "linkedSum": v}
+           for sid, v in merged.items()]
+    return ops, left, note, draft["id"]
+
+
 def distribute(total, supplies, paid_override=None):
     """Разложить сумму платежа по приёмкам: каждой — её неоплаченный остаток, пока деньги есть.
     → (operations, нераспределённый остаток). `paid_override` {supply_id: payedSum} нужен тестам,
@@ -402,9 +521,16 @@ def link_payment(payment, apply=False):
     """→ (статус, пояснение). Статусы: linked / would-link / already / no-match / partial / error.
 
     Порядок разбора — сначала точный, потом приблизительный:
+      0. **по черновику платёжки** (`payment_draft_queue.covers_po_ids`): состав платежа известен
+         точно — мы сами его собрали; добирается на последующих прогонах;
       1. **по номерам документов** в назначении: раскладка обязана сойтись БЕЗ остатка;
       2. **аванс** (слово «аванс» в назначении): раскладка частичная по определению и
          ДОБИРАЕТСЯ на последующих прогонах.
+
+    Черновик идёт первым (решение Сергея 2026-08-01): назначение платежа — лишь текстовое
+    отражение того же списка заказов, а разбор текста хрупок (см. комментарий у `find_draft`).
+    Разбор назначения остаётся для платежей, сделанных мимо наших черновиков (владелец платит
+    из банка руками), и для старых платежей до появления очереди.
 
     Номер идёт первым нарочно: назначение может содержать И слово «аванс», И номер основания
     («Авансовый платеж по счету № …» — так пишут некоторые поставщики). Когда номер есть и
@@ -418,10 +544,27 @@ def link_payment(payment, apply=False):
         return "not-supplier", "контрагента нет в таблице условий оплаты"
 
     advance = is_advance(payment)
+
+    # 1) черновик платёжки — состав платежа известен точно, потому что мы его и составляли
+    d_ops, d_left, d_note, d_id = plan_draft(payment)
+    if d_ops is not None:
+        if not d_ops:
+            return ("already" if d_left <= 0 else "no-match"), d_note
+        if _ops_map(payment.get("operations")) == _ops_map(d_ops):
+            return "already", d_note
+        if not apply:
+            return "would-link", d_note
+        st, msg = _write(payment, d_ops, d_note)
+        if st == "linked":
+            # закрепляем черновик за платежом: второй платёж той же суммы его уже не возьмёт
+            db.execute("UPDATE payment_draft_queue SET ms_payment_id=%s WHERE id=%s",
+                       (payment["id"], d_id))
+        return st, msg
+
     if payment.get("operations") and not advance:
         return "already", "уже привязан"        # дёшево: без похода в МС за приёмками
 
-    ops, left, note = plan(payment)              # 1) точный путь — по номерам документов
+    ops, left, note = plan(payment)              # 2) по номерам документов из назначения
     if ops and left == 0:
         if _ops_map(payment.get("operations")) == _ops_map(ops):
             return "already", "уже привязан по номеру документа"
