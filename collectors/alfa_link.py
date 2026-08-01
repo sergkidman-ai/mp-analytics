@@ -94,9 +94,11 @@ def purpose_tokens(purpose):
         pref = pref.strip()
         if not pref and len(digits) == 4 and digits.startswith(("19", "20")):
             continue                                     # похоже на год
-        if pref and not sep and _CYR.search(pref):
+        if pref and not sep and _CYR.search(pref) and pref != pref.upper():
             continue                                     # «карте220015», «счет1234» — слово+число,
-            #                                              номера документов так не пишут
+            #                                              номера документов так не пишут.
+            #                                              ЗАГЛАВНЫЕ без разделителя — наоборот,
+            #                                              обычный номер («ОД00004103», «КТ00097»)
         sep = sep if pref else ""                        # разделитель значим только при префиксе
         if pref and pattern is None:
             pattern = (pref, sep, len(digits))           # образец полного номера (KV, '', 8)
@@ -213,11 +215,53 @@ def _full_supply(s):
     return get(href.replace(MS, "")) if href else None
 
 
+def unpaid_left(supply):
+    """Неоплаченный остаток приёмки, копейки. `payedSum` — это и есть «сколько исходящих платежей
+    к ней привязано», отдельного поля связи в МС нет."""
+    return (supply.get("sum") or 0) - (supply.get("payedSum") or 0)
+
+
+_DIGIT_RUN = re.compile(r"\d+")
+
+
+def _numkey(name):
+    """Ключ номера документа: самая длинная группа цифр без ведущих нулей. Буквы и разделители
+    отбрасываем — в назначении платежа поставщик пишет номер как хочет, а цифры не врут:
+    «КТ-00097» и наша приёмка «КТ-000097» → 97; «326006» и «326006/И» → 326006;
+    «ОД00004103» → 4103. Ключ работает только внутри пары контрагент+юрлицо и только по
+    приёмкам с неоплаченным остатком — иначе такая вольность ловила бы чужие документы."""
+    runs = _DIGIT_RUN.findall(name or "")
+    return max(runs, key=len).lstrip("0") or "0" if runs else None
+
+
+_POOL = {}
+
+
+def unpaid_pool(agent_href, org_href, since):
+    """Приёмки поставщика, к которым исходящий платёж ещё НЕ привязан (остаток > 0), — единственное
+    множество, среди которого имеет смысл искать (правило Сергея 2026-08-01). Оплаченную приёмку
+    деньги второй раз не ищут, поэтому фильтр заодно снимает неоднозначность одинаковых номеров:
+    у Колортека «3814» и «3814-Колортек» оба подходят по цифрам, но неоплаченная из них одна."""
+    key = (agent_href, org_href, since)
+    if key not in _POOL:
+        _POOL[key] = [s for s in agent_supplies(agent_href, since, org_href) if unpaid_left(s) > 0]
+    return _POOL[key]
+
+
+POOL_LOOKBACK_DAYS = 180        # отсрочка платежа у поставщиков до ~90 дней, берём с запасом
+
+
 def resolve_supplies(payment):
-    """→ (список приёмок, список нерезолвленных номеров). Номер = приёмка, либо заказ→его приёмки."""
+    """→ (список приёмок, список нерезолвленных номеров). Номер = приёмка, либо заказ→его приёмки.
+
+    Это ЗАПАСНОЙ путь: состав платежа восстанавливается по тексту назначения и применяется только
+    к платежам, которых нет в очереди черновиков (`plan_draft`). Кандидатами берём ТОЛЬКО приёмки
+    с неоплаченным остатком."""
     agent_href, org_href = _agent_href(payment), _org_href(payment)
     if not agent_href or not org_href:
         return [], []
+    since = (dt.date.fromisoformat((payment.get("moment") or "")[:10])
+             - dt.timedelta(days=POOL_LOOKBACK_DAYS)).isoformat()
     found, missed, seen = [], [], set()
     for tok in purpose_tokens(payment.get("paymentPurpose")):
         rows = _find("supply", tok, agent_href, org_href)
@@ -225,19 +269,31 @@ def resolve_supplies(payment):
             for po in _find("purchaseorder", tok, agent_href, org_href):
                 po_full = get(f"/entity/purchaseorder/{po['id']}?expand=supplies")
                 rows.extend(po_full.get("supplies") or [])
-        got = False
+        cands = []
         for r in rows:
             full = _full_supply(r)
-            if not (full and full.get("id") and linkable(full)):
-                continue
-            got = True                          # номер разобран, даже если приёмку дал сосед-токен
+            if full and full.get("id") and linkable(full) and unpaid_left(full) > 0:
+                cands.append(full)
+        if not cands:
+            # точного имени нет: поставщик написал номер иначе, чем он заведён в МС. Ищем по цифрам
+            # среди неоплаченных приёмок этого контрагента и юрлица.
+            key = _numkey(tok)
+            near = [s for s in unpaid_pool(agent_href, org_href, since)
+                    if key and _numkey(s.get("name")) == key] if key else []
+            if len(near) == 1:
+                cands = near
+            elif len(near) > 1:
+                missed.append(f"{tok} (подходят {len(near)} приёмки — ручной разбор)")
+                continue        # угадывать между несколькими нельзя
+        # приёмка-черновик, «Оплачен» или уже закрытая деньгами = как будто её нет: платёж
+        # останется непривязанным и добор подхватит его на следующем прогоне
+        if not cands:
+            missed.append(tok)
+            continue
+        for full in cands:      # номер разобран, даже если приёмку дал сосед-токен
             if full["id"] not in seen:
                 seen.add(full["id"])
                 found.append(full)
-        # приёмка-черновик = как будто её ещё нет: платёж останется непривязанным и добор
-        # подхватит его на следующем прогоне, когда документ проведут
-        if not got:
-            missed.append(tok)
     return found, missed
 
 
