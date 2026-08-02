@@ -1,10 +1,15 @@
-"""reports/catalog.py — поиск по НАШИМ живым листингам (WB + Ozon) для вопросов о наличии.
+"""reports/catalog.py — поиск по НАШИМ живым листингам (WB + Ozon + Яндекс.Маркет) для вопросов о наличии.
 
 Источник №3 движка вопросов. Отвечает на «есть ли у вас чёрный отдельно / штучно / артикул
-на модель X»: ищет по title карточек wb_cards и name листингов ozon_product (то, что реально
-продаётся) по модель-токенам из вопроса + цвету. Возвращает кандидатов (площадка, id, название,
-артикул) — их движок кладёт в промпт, чтобы модель могла назвать артикул/подтвердить наличие,
-не выдумывая. Ничего не находит → пустой блок (движок не утверждает наличие).
+на модель X»: ищет по title карточек wb_cards, name листингов ozon_product и name оферов
+raw_yandex_offer (то, что реально продаётся) по модель-токенам из вопроса + цвету. Возвращает
+кандидатов (площадка, id, название, артикул) — их движок кладёт в промпт, чтобы модель могла
+назвать артикул/подтвердить наличие, не выдумывая. Ничего не находит → пустой блок (движок не
+утверждает наличие).
+
+ГРАНИЦА КАНАЛОВ (инцидент 01.08.2026): покупателю предлагаем товар ТОЛЬКО с той площадки, где он
+задал вопрос — см. `_same_channel`. Ссылка на чужой маркетплейс бесполезна (там он не купит) и
+выглядит как увод с площадки.
 """
 import re
 import sys
@@ -144,7 +149,47 @@ def _search(model_tokens, color, limit=8):
         WHERE account='oz_acc1' AND {where} AND coalesce(name,'')<>'' AND NOT is_archived
         ORDER BY sku DESC LIMIT %s""", tuple(params) + (limit,)):
         out.append({"platform": "ozon", "id": r["sku"], "article": r["offer_id"], "title": r["name"]})
-    return out[: limit + 4]
+    # Яндекс.Маркет
+    out += _search_yandex(model_tokens, color, limit)
+    return out[: limit + 6]
+
+
+def _ya_name(alias="o"):
+    return f"{alias}.payload->'offer'->>'name'"
+
+
+def _ya_rows(where, params, limit):
+    """Листинги Маркета: marketSku (по нему карточка) + B2C-витрина из showcaseUrls."""
+    out = []
+    for r in db.query(f"""SELECT o.offer_id, o.payload->'mapping'->>'marketSku' AS sku,
+            {_ya_name()} AS name, o.payload->'showcaseUrls' AS urls
+        FROM raw_yandex_offer o
+        WHERE o.account='ya_acc1' AND {where}
+          AND coalesce({_ya_name()},'')<>''
+          AND o.payload->'mapping'->>'marketSku' IS NOT NULL
+          AND coalesce(o.payload->'offer'->>'archived','false') <> 'true'
+        ORDER BY o.offer_id DESC LIMIT %s""", tuple(params) + (limit,)):
+        url = next((u.get("showcaseUrl") for u in (r["urls"] or [])
+                    if isinstance(u, dict) and u.get("showcaseType") == "B2C"), None)
+        if not url:                       # без витринной ссылки покупателю предлагать нечего
+            continue
+        out.append({"platform": "yandex", "id": r["sku"], "article": r["offer_id"],
+                    "title": r["name"], "url": url})
+    return out
+
+
+def _search_yandex(model_tokens, color, limit=8):
+    conds, params = [], []
+    for t in model_tokens:
+        conds.append(f"{_ya_name()} ILIKE %s")
+        params.append("%" + t + "%")
+    if color:
+        syn = COLORS[color]
+        conds.append("(" + " OR ".join([f"{_ya_name()} ILIKE %s"] * len(syn)) + ")")
+        params += ["%" + s.strip() + "%" for s in syn]
+    if not conds:
+        return []
+    return _ya_rows(" AND ".join(conds), params, limit)
 
 
 def _nums(toks):
@@ -178,16 +223,39 @@ def _search_accessory(model_tokens, acc_key, limit=6):
                           tuple(params) + (limit,)):
             plat = "wb" if tbl == "wb_cards" else "ozon"
             out.append({"platform": plat, "id": r["id"], "article": r["art"], "title": r["nm"]})
+    # Яндекс.Маркет
+    conds, params = [], []
+    for t in model_tokens:
+        conds.append(f"{_ya_name()} ILIKE %s"); params.append("%" + t + "%")
+    conds.append("(" + " OR ".join([f"{_ya_name()} ILIKE %s"] * len(syns)) + ")")
+    params += ["%" + s + "%" for s in syns]
+    out += _ya_rows(" AND ".join(conds), params, limit)
     return out
 
 
 def _plat_ref(h):
     """Идентификатор ДЛЯ ПОКУПАТЕЛЯ (по нему реально найдёт), НЕ наш внутренний offer_id/vendorCode:
-    WB → артикул ВБ (nm_id) + ссылка; Ozon → SKU + ссылка."""
+    WB → артикул ВБ (nm_id) + ссылка; Ozon → SKU + ссылка; Яндекс → артикул продавца + витрина."""
     if h["platform"] == "wb":
         return (f"артикул ВБ {h['id']}",
                 f"https://www.wildberries.ru/catalog/{h['id']}/detail.aspx")
+    if h["platform"] == "yandex":
+        return (f"артикул {h['article']} на Яндекс.Маркете", h.get("url") or "")
     return (f"Ozon SKU {h['id']}", f"https://www.ozon.ru/product/{h['id']}")
+
+
+def _same_channel(hits, platform):
+    """ЖЁСТКИЙ фильтр по каналу покупателя, а НЕ сортировка «своё вперёд».
+
+    Инцидент 01.08.2026: покупателю на Яндексе подставили ссылку на карточку Wildberries
+    (артикул ВБ 923182635) — чужая площадка, купить там он не может. Причина: `platform` был
+    ключом сортировки, поэтому при отсутствии своего листинга наверх всплывал чужой.
+    Правило: подставляем товар ТОЛЬКО из канала вопроса; своего нет → ничего не предлагаем
+    (вызывающий код честно зовёт уточнить в чате), НИКОГДА не уводим на другую площадку.
+    platform=None (внутренние вызовы/тесты) — фильтр не применяем."""
+    if not platform:
+        return hits
+    return [h for h in hits if h["platform"] == platform]
 
 
 def catalog_block(text, product_name="", card_models=None, platform=None, card_color=None):
@@ -221,8 +289,7 @@ def catalog_block(text, product_name="", card_models=None, platform=None, card_c
                 acc_hits += _search_accessory(toks, acc)
         seen_a = set()
         acc_hits = [h for h in acc_hits if (h["platform"], h["id"]) not in seen_a and not seen_a.add((h["platform"], h["id"]))]
-        if platform:
-            acc_hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
+        acc_hits = _same_channel(acc_hits, platform)
     hits, seen = [], set()
     # поиск ПО КАЖДОЙ модели отдельно (brand+номер+цвет) — union, не жёсткий AND всех номеров
     for num in (nums[:3] or [None]):
@@ -240,14 +307,12 @@ def catalog_block(text, product_name="", card_models=None, platform=None, card_c
                 if key not in seen:
                     seen.add(key)
                     hits.append(h)
+    hits = _same_channel(hits, platform)          # только канал покупателя (см. _same_channel)
     if not hits and not acc_hits:
         return ""
     want = f" ({color})" if color else ""
     lines = []
     if hits:
-        # площадку покупателя — вперёд (там он и оформит заказ)
-        if platform:
-            hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
         lines.append(f"КАТАЛОГ — наши листинги под запрос{want}. Покупателю называй АРТИКУЛ ПЛОЩАДКИ (по "
                      "нему он найдёт товар) и/или ссылку — НЕ наш внутренний код. Если подходящего варианта "
                      "здесь нет — наличие НЕ утверждать, предложи уточнить:")
@@ -280,10 +345,9 @@ def catalog_offer(text, product_name="", card_models=None, platform=None):
             if key not in seen:
                 seen.add(key)
                 hits.append(h)
+    hits = _same_channel(hits, platform)
     if not hits:
         return None
-    if platform:
-        hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
     h = hits[0]
     ref, url = _plat_ref(h)
     return {"ref": ref, "url": url, "title": (h["title"] or "")[:80], "platform": h["platform"]}
@@ -319,10 +383,9 @@ def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=N
             hits.append(h)
         if hits and not color:          # первого кода с попаданиями достаточно (цвет — добираем все)
             break
+    hits = _same_channel(hits, platform)
     if not hits:
         return None
-    if platform:
-        hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
     h = hits[0]
     ref, url = _plat_ref(h)
     return {"ref": ref, "url": url, "title": (h["title"] or "")[:80],

@@ -150,7 +150,8 @@ _REDIRECT_RX = re.compile(
     r"рекомендуем\s+поиск|в\s+ассортименте[^.!?]*нет|в\s+нашем\s+магазине[^.!?]*нет|"
     r"у\s+нас\s+(?:пока\s+)?нет\b|уточнит[еь][^.!?]*налич", re.I)
 # уже назван НАШ площадочный артикул → добор не нужен
-_HAS_OUR_ART_RX = re.compile(r"артикул\s+ВБ|Ozon\s+SKU|wildberries\.ru/catalog|ozon\.ru/product", re.I)
+_HAS_OUR_ART_RX = re.compile(r"артикул\s+ВБ|Ozon\s+SKU|wildberries\.ru/catalog|ozon\.ru/product|"
+                             r"market\.yandex\.ru|Яндекс\.Маркете", re.I)
 # вопрос о ПРОИЗВОДИТЕЛЕ/СТРАНЕ: клиент требует прямой ответ «Китай», а не уклончивое «не указываем»
 _PRODUCER_Q_RX = re.compile(r"производител|кто\s+производ|чей\s+бренд|какой\s+бренд|как(?:ая|ой)\s+фирм|"
                             r"стран[аеы]?\s+производ|где\s+(?:производ|сдела|изготов)|"
@@ -345,13 +346,50 @@ def _code_guard(reply, allowed_text, note):
 
 def _repair_denial(reply, offer):
     """Убирает предложения с ложным «наличия нет» / уводом «на сторону» и дописывает реальный листинг."""
+    base = _strip_denial(reply)
+    return (base.rstrip(" .") + f". Для вашего принтера у нас есть подходящий картридж — "
+            f"{offer['ref']}, ссылка {offer['url']}")
+
+
+def _strip_denial(reply):
     kept = [s for s in re.split(r"(?<=[.!?])\s+", reply or "")
             if not _DENY_AVAIL_RX.search(s) and not _REDIRECT_RX.search(s)]
     base = " ".join(kept).strip()
-    if len(base) < 15:
-        base = "Здравствуйте!"
-    return (base.rstrip(" .") + f". Для вашего принтера у нас есть подходящий картридж — "
-            f"{offer['ref']}, ссылка {offer['url']}.")
+    return base if len(base) >= 15 else "Здравствуйте!"
+
+
+# как называется чат площадки — покупателю говорим на языке ЕГО канала
+_CHAT_NAME = {"wb": "в чат на Wildberries", "ozon": "в чат на Ozon", "yandex": "в чат на Яндекс.Маркете"}
+
+
+def _ask_in_chat(reply, platform):
+    """Своего листинга в канале покупателя нет. Ссылку на ЧУЖУЮ площадку не даём (там он не купит),
+    но и молча отказывать нельзя — зовём уточнить у нас в чате, где подберём вручную."""
+    base = _strip_denial(reply).rstrip(" .")
+    return (base + f". Подходящий вариант подберём вручную: напишите нам, пожалуйста, "
+            f"{_CHAT_NAME.get(platform, 'в чат')} и укажите точную модель принтера.")
+
+
+# URL до первого символа вне безопасного набора; служебный текст/кириллица/U+FFFC внутрь не попадают
+_URL_RX = re.compile(r"https?://[^\s<>\"'«»]+")
+_URL_SAFE_RX = re.compile(r"[^A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]")
+
+
+def _scrub_urls(text):
+    """Ссылка не должна слипаться с пунктуацией и служебным текстом.
+
+    Инцидент 01.08.2026: покупателю ушла ссылка вида «…/detail.aspx.￼источник» — точка предложения
+    и пометка источника оказались ВНУТРИ URL, автолинк захватил их, ссылка не открывалась.
+    Режем URL по первому символу вне безопасного набора (кириллица, U+FFFC и пр.) и снимаем
+    хвостовую пунктуацию; после ссылки гарантируем пробел."""
+    def fix(m):
+        u, tail = m.group(0), ""
+        cut = _URL_SAFE_RX.search(u)
+        if cut:
+            u, tail = u[:cut.start()], u[cut.start():]     # хвост не теряем — отделяем пробелом
+        return u.rstrip(".,;:!?)»") + (" " + tail.lstrip("￼ \t") if tail.strip("￼ ") else "")
+    out = _URL_RX.sub(fix, text or "")
+    return re.sub(r"\s{2,}", " ", out).strip()
 
 
 def _our_offer(reply, question, product_name, models, platform, card_code=None, item_id=None):
@@ -680,7 +718,9 @@ def _answer(client, r, cf, corpus):
     if (r["kind"] == "question" and reply and not _HAS_OUR_ART_RX.search(reply)
             and (_DENY_AVAIL_RX.search(reply)
                  or (used_web and (_INCOMPAT_RX.search(reply) or _REDIRECT_RX.search(reply))))):
-        _fct = cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else cf.for_wb(r["item_id"])
+        _fct = (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else
+                cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else
+                cf.for_wb(r["item_id"]))
         off = _our_offer(reply, r["body"], r["product_name"], (_fct or {}).get("models"),
                          r["platform"], (_fct or {}).get("code"), r["item_id"])
         if off:
@@ -688,12 +728,19 @@ def _answer(client, r, cf, corpus):
                 reply = _repair_denial(reply, off)             # вырезаем отказ/увод, дописываем наш листинг
             else:
                 reply = reply.rstrip(" .") + (f". В нашем магазине есть подходящий — "
-                                              f"{off['ref']}, ссылка {off['url']}.")
+                                              f"{off['ref']}, ссылка {off['url']}")
             route = "review"
             ground.update({"catalog": True, "grounded": True,
                            "source": (ground.get("source") or "модель") + "+каталог-после-веба",
                            "note": "каталог-после-веба: подставлен наш листинг; "
                            + (ground.get("note") or "")[:200]})
+        elif _DENY_AVAIL_RX.search(reply) or _REDIRECT_RX.search(reply):
+            # В КАНАЛЕ ПОКУПАТЕЛЯ подходящего листинга нет. Уводить на другую площадку запрещено
+            # (инцидент 01.08.2026: яндексовцу дали ссылку на WB) — честно зовём уточнить в чат.
+            reply = _ask_in_chat(reply, r["platform"])
+            route = "review"
+            ground.update({"note": f"нет листинга в канале {r['platform']} → без ссылки, "
+                           f"предложено уточнить в чате; " + (ground.get("note") or "")[:180]})
     # производитель/страна → прямой ответ «Китай» (детерминированно, т.к. DeepSeek уклоняется)
     if r["kind"] == "question" and reply:
         fixed = _fix_producer(reply, r["body"])
@@ -746,6 +793,7 @@ def _answer(client, r, cf, corpus):
         src = ground.get("source") or "—"
         ground["source"] = src if "без карточки" in src else src + " (без карточки)"
         ground["note"] = NO_CARD_NOTE + "; " + (ground.get("note") or "")[:200]
+    reply = _scrub_urls(reply)          # ссылка не должна слипаться с пунктуацией/служебным текстом
     outd = dict(r, cat=cat, reply=reply, route=route, conf=conf, card=cc,
                 note=ground.get("note", ""), grounded=ground.get("grounded", False),
                 catalog=ground.get("catalog", False), source=ground.get("source", ""),
