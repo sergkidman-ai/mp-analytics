@@ -127,19 +127,22 @@ def _return_block(h, items, with_pvz_line):
     return line
 
 
-def stage_section(stage, heads, items):
+def stage_section(stage, heads, items, with_title=True):
     rows = [h for h in heads if h["stage"] == stage]
     if not rows:
         return ""
-    out = [f"{STAGE_ICON.get(stage, '•')} <b>{pending.STAGE_TITLE[stage]}</b> ({len(rows)})"]
+    # заголовок стадии нужен, только когда стадий в сводке несколько
+    out = [f"{STAGE_ICON.get(stage, '•')} <b>{pending.STAGE_TITLE[stage]}</b> ({len(rows)})"
+           ] if with_title else []
     by_acc = defaultdict(list)
+    seen_instr = set()
     for h in rows:
         by_acc[(h["platform"], h["account"], h.get("campaign"))].append(h)
 
     for (platform, account, campaign), acc_rows in sorted(by_acc.items()):
         title = account_title(platform, account, campaign)
-        out.append(f"\n{PLATFORM_ICON.get(platform, '⚪')} {PLATFORM_TITLE.get(platform, platform)}"
-                   f" · {_esc(title)} ({len(acc_rows)})")
+        out.append(f"{'' if not out else chr(10)}{PLATFORM_ICON.get(platform, '⚪')} "
+                   f"{PLATFORM_TITLE.get(platform, platform)} · {_esc(title)} ({len(acc_rows)})")
         by_pvz = defaultdict(list)
         for h in acc_rows:
             by_pvz[(h.get("pvz_name"), h.get("pvz_address"))].append(h)
@@ -147,6 +150,11 @@ def stage_section(stage, heads, items):
             label = " · ".join(x for x in (name, address) if x) or "точка не указана"
             out.append(f"  📍 {_esc(label)}")
             instr = next((r["pvz_instruction"] for r in pvz_rows if r.get("pvz_instruction")), None)
+            # как пройти — один раз на адрес: у Яндекса три кампании шлют в один и тот же ПВЗ
+            if instr and address in seen_instr:
+                instr = None
+            elif instr:
+                seen_instr.add(address)
             if instr:
                 out.append(f"     ℹ️ {_esc(instr[:300])}")
             for h in pvz_rows:
@@ -155,8 +163,9 @@ def stage_section(stage, heads, items):
     return "\n".join(out)
 
 
-def summary(stages=("pickup", "attention", "transit")):
-    """Готовый HTML-текст сводки. Пустой список стадий → короткое «всё чисто»."""
+def summary(stages=None):
+    """Готовый HTML-текст сводки. По умолчанию — только то, что лежит и ждёт (pending.SHOW_STAGES)."""
+    stages = tuple(stages or pending.SHOW_STAGES)
     heads, items = fetch(stages)
     counts = {s: sum(1 for h in heads if h["stage"] == s) for s in stages}
     today = datetime.now().strftime("%d.%m")
@@ -164,17 +173,19 @@ def summary(stages=("pickup", "attention", "transit")):
     if not heads:
         return f"📦 <b>Возвраты на {today}</b>\n\nЗабирать нечего — висящих возвратов нет."
 
-    pvz = {(h["platform"], h.get("pvz_address")) for h in heads
-           if h["stage"] in ("pickup", "attention") and h.get("pvz_address")}
-    head_line = (f"📦 <b>Возвраты FBS на {today}</b> — забрать {counts.get('pickup', 0)}"
-                 f" на {len(pvz)} точках, разобраться {counts.get('attention', 0)},"
-                 f" в пути {counts.get('transit', 0)}")
+    pvz = {(h["platform"], h.get("pvz_address")) for h in heads if h.get("pvz_address")}
+    bits = [f"забрать {counts['pickup']} на {len(pvz)} точках"] if counts.get("pickup") else []
+    if counts.get("attention"):
+        bits.append(f"разобраться {counts['attention']}")
+    if counts.get("transit"):
+        bits.append(f"в пути {counts['transit']}")
+    head_line = f"📦 <b>Возвраты FBS на {today}</b> — " + ", ".join(bits)
 
     blocks = [head_line]
     for stage in pending.STAGE_ORDER:
         if stage not in stages:
             continue
-        section = stage_section(stage, heads, items)
+        section = stage_section(stage, heads, items, with_title=len(stages) > 1)
         if section:
             blocks.append(section)
     return "\n\n".join(blocks)
@@ -182,7 +193,7 @@ def summary(stages=("pickup", "attention", "transit")):
 
 def pvz_digest():
     """Короткий список точек: куда ехать и сколько там коробок."""
-    heads, _ = fetch(("pickup", "attention"))
+    heads, _ = fetch(pending.SHOW_STAGES)
     by = defaultdict(int)
     for h in heads:
         by[(h["platform"], h.get("pvz_name"), h.get("pvz_address"))] += 1

@@ -1,8 +1,7 @@
 # поток: ret
 """Бот возвратов: long-polling, команды по запросу.
 
-    /vozvraty   — полная сводка (забрать / разобраться / в пути)
-    /zabrat     — только то, что лежит и ждёт (без «в пути»)
+    /vozvraty   — что лежит и ждёт забора (стадии из pending.SHOW_STAGES)
     /pvz        — короткий список точек: куда ехать и сколько там
     /shtrihkod  — штрихкод получения возвратов Ozon картинкой
     /obnovit    — сходить в API площадок и пересобрать данные
@@ -19,8 +18,7 @@ from returns_bot.sources import ozon
 
 HELP = (
     "📦 <b>Бот возвратов FBS</b>\n\n"
-    "/vozvraty — полная сводка\n"
-    "/zabrat — только то, что лежит и ждёт\n"
+    "/vozvraty — что лежит и ждёт забора\n"
     "/pvz — точки: куда ехать и сколько там\n"
     "/shtrihkod — штрихкод получения возвратов Ozon\n"
     "/obnovit — обновить данные из кабинетов\n"
@@ -32,10 +30,8 @@ def handle(chat_id, text):
 
     if cmd in ("/start", "/help"):
         tg.send(chat_id, HELP)
-    elif cmd == "/vozvraty":
+    elif cmd in ("/vozvraty", "/zabrat"):
         tg.send(chat_id, render.summary())
-    elif cmd == "/zabrat":
-        tg.send(chat_id, render.summary(stages=("pickup", "attention")))
     elif cmd == "/pvz":
         tg.send(chat_id, render.pvz_digest())
     elif cmd == "/shtrihkod":
