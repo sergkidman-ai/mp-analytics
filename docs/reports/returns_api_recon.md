@@ -442,3 +442,38 @@
 }
 ```
 </details>
+
+---
+
+## WB — добивка 02.08.2026 (токены со скоупами получены)
+
+Токены выданы: `WB_TOKEN_RETURNS_ACC1` (Цифровой), `WB_TOKEN_RETURNS_ACC2` (Дисквэр).
+Скоупы проверены по битовой маске JWT (`s`): **2064 = бит 4 «Маркетплейс» + бит 11 «Возвраты»**,
+боевые (`t=false`), срок до 31.01.2027. Нумерация битов сверена по известным ключам
+(`WB_TOKEN_CONTENT_ACC1` = маска 2 = бит 1 «Контент»).
+
+### Итог: API физических возвратов у WB НЕТ
+
+| Путь | Ответ | Вывод |
+|---|---|---|
+| `GET marketplace-api /api/v3/supplies/returns` | 400 `IncorrectParameter` при ЛЮБЫХ параметрах (7 комбинаций: limit/next, даты ISO и unix, isCancel, srids) | **пути не существует** |
+| `GET marketplace-api /api/v3/supplies/zzz-not-a-supply` (контроль) | 400 `IncorrectParameter` — **та же ошибка** | `returns` парсится как `{supplyId}`, отсюда 400 вместо 404 |
+| `GET marketplace-api /api/v3/{returns,orders/returns}`, `/api/v1/returns` | 404 `path not found` | нет |
+| `GET returns-api /api/v1/returns`, `/api/v3/returns`, `/api/v1/claims/actions` | 404 `path not found` | нет |
+| `GET marketplace-api /api/v3/supplies/orders/reshipment` (контроль-жив) | **200**, `orders=0` | токен и хост рабочие |
+| `GET returns-api /api/v1/claims` | **200** | единственный живой источник, см. ниже |
+
+Прежняя 401 «token scope not allowed» на `/api/v3/supplies/returns` вводила в заблуждение:
+авторизация отвечает ДО маршрутизации, поэтому несуществующий путь выглядел как «нет скоупа».
+
+### Что реально отдаёт `returns-api /api/v1/claims`
+
+Это **заявки покупателей на возврат/брак**, а не «коробка лежит в ПВЗ». Активных сейчас
+**0 по обоим аккаунтам** (архив: acc1 = 2, acc2 = 1). Поля: `id, claim_type, status, status_ex,
+nm_id, imt_name, user_comment, wb_comment, price, srid, dt, order_dt, dt_update, delivery_dt,
+photos, video_paths, actions`. **Нет ни адреса пункта, ни срока забрать, ни штрихкода получения** —
+для ежедневного «куда ехать» непригодно. Действие по заявке — ответить/согласовать, это ближе
+к потоку `rev`. Лимит хоста — 20 запросов/мин.
+
+Забор возвратов со склада WB продавцом — функция личного кабинета («Поставки и заказы →
+Возвраты»), наружу отдаётся только XLSX-выгрузкой. Аналога `giveout/barcode` (Ozon) у WB нет.
