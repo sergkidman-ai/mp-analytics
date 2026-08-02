@@ -156,7 +156,9 @@ def _return_block(h, items, show_where_now):
     num = h.get("order_number") or h.get("return_id")
     line = f"     • <code>{_esc(num)}</code> · {_esc(_item_line(items))}"
     extra = []
-    if h.get("status_name"):
+    # В стадии «забрать» статус площадки («Готов к выдаче», «Принят в пункте выдачи»,
+    # «В пункте выдачи») ничего не добавляет: раз позиция в списке — она лежит и ждёт.
+    if h.get("status_name") and h["stage"] != "pickup":
         extra.append(_esc(h["status_name"]))
     tail = _tail(h)
     if tail:
