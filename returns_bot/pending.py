@@ -64,6 +64,18 @@ YANDEX_STATUS_RU = {
     "UTILIZED": "утилизирован",
 }
 
+# --- WB: analytics/goods-return, поле `status` + `isStatusActive` ------------------
+# Статус приходит русской строкой (машинного кода в отчёте нет), поэтому сверяем по тексту.
+# `isStatusActive = 0` перекрывает всё: строка историческая, что бы в статусе ни стояло.
+WB_PICKUP = {
+    "Готов к выдаче",              # лежит в пункте — забрать
+}
+WB_TRANSIT = {
+    "В пути в пвз",                # едет в пункт, забирать пока нечего
+}
+# «Выдано» (забрали) и «Отмена по задержке» (не успели, WB забрал себе) приходят с
+# isStatusActive = 0 → closed автоматически, перечислять их не нужно.
+
 # Что бот реально показывает. Решение Сергея 02.08.2026: в сводке только то, что ЛЕЖИТ и ждёт
 # забора. Убраны «в пути» (Едет к вам / Едет на склад Ozon / Ожидает отправки / Привезёт курьер)
 # и «разобраться» (Ищем товар / потерян / готовится к утилизации) — действия по ним всё равно нет.
@@ -101,6 +113,20 @@ def yandex_stage(shipment_status: str) -> str:
     if shipment_status in YANDEX_ATTENTION:
         return "attention"
     return "closed"
+
+
+def wb_stage(status: str, is_active) -> str:
+    """Стадия возврата WB. Неактивная строка — история, что бы ни было в статусе."""
+    if not is_active:
+        return "closed"
+    status = (status or "").strip()
+    if status in WB_PICKUP:
+        return "pickup"
+    if status in WB_TRANSIT:
+        return "transit"
+    # живая строка с неизвестным статусом: молча терять нельзя, но и в пункт по ней
+    # не отправляем — пусть всплывёт в «разобраться»
+    return "attention"
 
 
 def is_open(stage: str) -> bool:

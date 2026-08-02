@@ -477,3 +477,21 @@ photos, video_paths, actions`. **Нет ни адреса пункта, ни с�
 
 Забор возвратов со склада WB продавцом — функция личного кабинета («Поставки и заказы →
 Возвраты»), наружу отдаётся только XLSX-выгрузкой. Аналога `giveout/barcode` (Ozon) у WB нет.
+
+### Развязка: возвраты WB есть в АНАЛИТИКЕ
+
+`GET seller-analytics-api.wildberries.ru/api/v1/analytics/goods-return` — **200**, базовым
+токеном (скоуп «Аналитика»), возвратный токен для него не нужен.
+
+Ограничения: окно **≤31 дня**, режется по `orderDt` → идём тремя окнами назад (93 дня).
+Поля: `srid, shkId, stickerId, nmId, barcode, brand, subjectName, techSize, status,
+isStatusActive, returnType, reason, dstOfficeId, dstOfficeAddress, orderId, orderDt,
+readyToReturnDt, completedDt, expiredDt`.
+
+Статусы (02.08.2026, 164 строки за 93 дня): `Выдано` 109, `В пути в пвз` 42,
+`Готов к выдаче` 12, `Отмена по задержке` 1. `isStatusActive` = 1 ровно у первых двух групп.
+`expiredDt` у живых строк **пустой** — срока «забрать до» WB не даёт.
+Строка = одна коробка (`shkId`), названия товара нет (только `subjectName` = «Картриджи для
+принтеров») → имя берём из `wb_cards` по `nm_id`, покрытие 38/38.
+
+Адреса пунктов: «МСК Улица Годовикова 11к5» и «…11к2» — одной строкой, без запятых.

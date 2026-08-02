@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from core import db
 from returns_bot import orgs, pending
 from returns_bot.sources.ozon import ACCOUNT_TITLE as OZON_TITLE
+from returns_bot.sources.wb import ACCOUNT_TITLE as WB_TITLE
 
 PLATFORM_ICON = {"ozon": "🔵", "yandex": "🟡", "wb": "🟣"}
 PLATFORM_TITLE = {"ozon": "OZON", "yandex": "ЯНДЕКС", "wb": "WB"}
@@ -25,16 +26,21 @@ SELECT platform, account, campaign, return_id, order_number, status_name, stage,
  ORDER BY platform, account, pvz_address NULLS LAST, first_seen
 """
 
-# Название товара. Ozon отдаёт его сам. Яндекс в возврате даёт только shopSku, поэтому:
-#   1) наш же каталог Яндекса `raw_yandex_offer` (262 из 290 артикулов возвратов) — там имя
-#      ровно то, что видит покупатель в карточке;
-#   2) МойСклад по `external_code`/`article` — добивка для того, чего в каталоге нет;
-#   3) не нашлось нигде (снятые с продажи артикулы вроде «3902del») — остаётся сам артикул.
+# Название товара. Ozon отдаёт его сам. Остальные — добираем из наших же каталогов:
+#   Яндекс (в возврате только shopSku):
+#     1) каталог Яндекса `raw_yandex_offer` (262 из 290 артикулов возвратов) — имя ровно то,
+#        что видит покупатель в карточке;
+#     2) МойСклад по `external_code`/`article` — добивка;
+#     3) не нашлось нигде (снятые с продажи артикулы вроде «3902del») — остаётся сам артикул.
+#   WB (в отчёте только nmId и предмет «Картриджи для принтеров»): `wb_cards` по nm_id,
+#     покрытие 38 из 38 живых возвратов на 02.08.2026.
 # ms_product.external_code НЕ уникален → LATERAL LIMIT 1, иначе позиция размножится.
 ITEMS_SQL = """
 SELECT i.platform, i.account, i.return_id, i.offer_id, i.qty,
        CASE WHEN i.platform = 'yandex'
             THEN COALESCE(NULLIF(y.name, ''), NULLIF(p.name, ''), i.name)
+            WHEN i.platform = 'wb'
+            THEN COALESCE(NULLIF(w.title, ''), i.name)
             ELSE i.name END AS name
   FROM mp_return_items i
   LEFT JOIN LATERAL (
@@ -45,6 +51,9 @@ SELECT i.platform, i.account, i.return_id, i.offer_id, i.qty,
         WHERE i.platform = 'yandex'
           AND (external_code = i.offer_id OR article = i.offer_id)
         ORDER BY archived, (external_code = i.offer_id) DESC LIMIT 1) p ON true
+  LEFT JOIN LATERAL (
+       SELECT title FROM wb_cards
+        WHERE i.platform = 'wb' AND nm_id::text = i.offer_id LIMIT 1) w ON true
  WHERE (i.platform, i.account, i.return_id) IN (
        SELECT platform, account, return_id FROM mp_returns
         WHERE gone_at IS NULL AND stage = ANY(%s))
@@ -60,20 +69,35 @@ STREET_RE = re.compile(
 # Мусорные имена точек: «Пункт выдачи заказов Яндекс Маркета» одинаково у всех — шума больше,
 # чем пользы. Осмысленные коды складов Ozon («МОСКВА_4048») оставляем.
 GENERIC_PVZ_RE = re.compile(r"^\s*(пункт выдачи|пвз\b|постамат)", re.I)
+# Город, приклеенный к улице без запятой: «г Москва», «МСК», «СПБ».
+CITY_RE = re.compile(r"^\s*(?:г\.?|гор\.?|город|[А-ЯЁ]{2,4})\s+")
 
 
 def _esc(v):
     return html.escape(str(v)) if v is not None else ""
 
 
+def _strip_city(seg):
+    """«МСК Улица Годовикова 11к5» → «Улица Годовикова 11к5».
+
+    Режем только приклеенный слева город и только если без него сегмент всё ещё адрес:
+    у постфиксных типов («Ленинградское шоссе») слева стоит НАЗВАНИЕ, его терять нельзя.
+    """
+    m = CITY_RE.match(seg)
+    return seg[m.end():] if m and STREET_RE.search(seg[m.end():]) else seg
+
+
 def short_address(address):
-    """«129075, Москва, улица Годовикова, 11 к.2» → «улица Годовикова, 11 к.2»."""
+    """«129075, Москва, улица Годовикова, 11 к.2» → «улица Годовикова, 11 к.2».
+
+    WB пишет адрес одной строкой без запятых («МСК Улица Годовикова 11к5») — отсюда _strip_city.
+    """
     if not address:
         return None
     parts = [p.strip() for p in str(address).split(",") if p.strip()]
     for i, p in enumerate(parts):
         if STREET_RE.search(p):
-            return ", ".join(parts[i:])
+            return ", ".join([_strip_city(p)] + parts[i + 1:])
     return ", ".join(parts[-2:]) if len(parts) > 2 else ", ".join(parts)
 
 
@@ -87,6 +111,8 @@ def pvz_label(name, address):
 def account_title(platform, account, campaign):
     if platform == "ozon":
         return OZON_TITLE.get(account, account)
+    if platform == "wb":
+        return WB_TITLE.get(account, account)
     return campaign or account
 
 
@@ -167,7 +193,8 @@ def _return_block(h, items, show_where_now):
         line += "\n       " + " · ".join(extra)
     if show_where_now and h.get("where_now"):
         line += f"\n       сейчас: {_esc(h['where_now'])}"
-    if not show_where_now and h.get("barcode"):
+    # у WB номер места и есть стикер — второй раз то же число не печатаем
+    if not show_where_now and h.get("barcode") and str(h["barcode"]) != str(num):
         line += f"\n       штрихкод: <code>{_esc(h['barcode'])}</code>"
     return line
 
