@@ -148,7 +148,8 @@ def api(method, path, **kw):
     h = kw.pop("headers", {})
     h.update({"Authorization": f"Bearer {access_token()}",
               "Accept": "application/json", "RqUID": uuid.uuid4().hex})
-    return session().request(method, f"{API_HOST}{path}", headers=h, timeout=60, **kw)
+    kw.setdefault("timeout", 60)
+    return session().request(method, f"{API_HOST}{path}", headers=h, **kw)
 
 
 def main(argv):

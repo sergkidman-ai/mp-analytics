@@ -42,22 +42,48 @@ refresh_token + черновик платёжки без ЭП. Код Альфы
 
 ## Эндпоинты под наши три задачи
 
-### 1. Выписка (scope `GET_STATEMENT_ACCOUNT`)
+### 1. Выписка (scope `GET_STATEMENT_ACCOUNT`) — РАБОТАЕТ, реализовано
 
 ```
-GET /fintech/api/v1/statement/transactions?accountNumber={20 цифр}&statementDate=YYYY-MM-DD&page=1
-GET /fintech/api/v1/statement/summary
-GET /fintech/api/v1/statement/transactions/{id}      # реквизиты одной операции
+GET /fintech/api/v2/statement/transactions?accountNumber={20 цифр}&statementDate=YYYY-MM-DD&page=1
 ```
-- Все три параметра **обязательны**, выписка **за один день**, пагинация — `_links[rel=next]`.
-- Операция (`transactions[]`): `amount{amount,currencyName}`, `amountRub`, `direction`
-  (`CREDIT`/`DEBIT`), `documentDate`, `number`, `operationCode`, `operationDate`, **`paymentPurpose`**,
-  `priority`, `correspondingAccount`, `filial`, + блок **`rurTransfer`**:
+⚠️ **Спецификация в этом месте устарела.** Путь `/fintech/api/v1/statement/...` на боевом контуре
+отвечает **404** «Не найден указанный urlPath = /v1/statement/transactions и/или HTTP метод = GET»
+(так же 404: `/v1/statement`, `/v1/statement/summary`, `/v1/statements/transactions`).
+Живой путь — **v2** (проверено 2026-08-02, HTTP 200 с данными). При этом `/v1/client-info` жив:
+версии эндпоинтов независимы, менять префикс глобально нельзя. Swagger-спеку машинно вытащить
+не удалось (`api-docs`/`swagger-resources`/`swagger.json` — 404), пути ищутся перебором.
+
+- Все три параметра **обязательны**, выписка **строго за один день**, пагинация — `_links[rel=next]`
+  (при одной странице `_links` = пустой список).
+- Ответ: `{"_links": [...], "transactions": [...]}`.
+- Операция (факт v2): `uuid`, **`operationId`**, `amount{amount,currencyName}`, `amountRub`,
+  `direction` (`CREDIT`/`DEBIT`), `documentDate`, `number`, `operationCode`, `operationDate`,
+  **`paymentPurpose`**, `priority`, `correspondingAccount`, `hashAbc`, + блок **`rurTransfer`**:
   `payerName/payerInn/payerKpp/payerAccount/payerBankBic/payerBankName/payerBankCorrAccount`,
-  те же `payee*`, `valueDate`, `receiptDate`, `purposeCode`, `cartInfo`, `departmentalInfo`.
+  те же `payee*`, `valueDate`, `receiptDate`, `purposeCode`, `deliveryKind`.
+- **`transactionId` у Сбера НЕТ** (в отличие от Альфы) → ключ операции = `uuid`, запасной `operationId`.
+- **Суммы приходят СТРОКОЙ** (`"50000.00"`), у Альфы — числом. В нормализации → `Decimal`.
 - Валютные блоки `curTransfer`/`swiftTransfer` — нам не нужны.
 - Соответствие с Альфой: `paymentPurpose` ≈ назначение платежа (мост к приёмкам),
   `direction=CREDIT` → paymentin МС, `DEBIT` → paymentout.
+
+**Счета берём из `GET /fintech/api/v1/client-info` → `accounts[]`** (`number`, `state`, `type`,
+`bic`, `currencyCode`, `name`, `openDate/closeDate`, блокировки). У Дисквэра **8 счетов**, из них
+действующий **один**: `…147717`, `state=OPEN`, `type=calculated`. Остальные 7 — закрытые
+депозиты, по ним выписка отвечает **400 `WORKFLOW_FAULT` «Счёт не является действующим на
+запрошенную дату»** (не ошибка интеграции — штатный отказ, коллектор его глотает).
+Отдельного `/clients/accounts` нет (404).
+
+Реализация — `collectors/sber_statement.py`:
+```
+./venv/bin/python collectors/sber_statement.py --accounts             # счета организации
+./venv/bin/python collectors/sber_statement.py 2026-07-28 2026-07-31  # период (идём по дням)
+```
+Сырьё каждой страницы → `incoming/sber/stmt_<счёт>_<дата>_p<N>.json`, в чат — только агрегаты.
+Контрольный прогон 2026-08-02 за 28–31.07: **11 операций**, приход 3 095.34 ₽, расход 122 394.45 ₽,
+контрагенты и назначения читаются (Феррет, Картридж Трейд, Тонерстор, зарплата, комиссия банка).
+`normalize()` даёт те же ключи, что `alfa_statement.normalize` → слой МС остаётся банконезависимым.
 
 ### 2. Платёжное поручение / черновик (scope `PAY_DOC_RU`)
 
@@ -143,13 +169,16 @@ extendedKeyUsage = проверка подлинности клиента.
 
 ## Открытые вопросы (уточнять на живой схеме / у менеджера)
 
-1. **Стоимость подключения и месячный тариф** — до заявки неизвестна, нужна цифра для решения.
+1. ~~Стоимость подключения и месячный тариф~~ — **закрыт**: подключились сами в ЛК, бесплатно.
 2. Обязателен ли блок `vat` в `POST /payments` для обычного платежа поставщику.
 3. `urgencyCode`: `INTERNAL` vs `NORMAL` — какое значение для обычного рублёвого платежа.
-4. Даёт ли `client-info` номера счетов организации (или счёт брать из `.env`/МС).
+4. ~~Даёт ли `client-info` номера счетов~~ — **закрыт 2026-08-02: даёт** (`accounts[]` с `state`/`type`),
+   счёт в `.env` не нужен.
 5. Есть ли push/webhook о зачислениях (иначе — поллинг выписки, как у Альфы).
-6. Ограничения по частоте запросов (`GET /fintech/api/v1/` статистика запросов есть — значит,
-   лимиты считаются).
+6. Ограничения по частоте запросов (статистика запросов в ЛК есть — значит, лимиты считаются).
+7. **Какой префикс у платёжных эндпоинтов** — раз выписка живёт на `v2`, `POST /fintech/api/v1/payments`
+   из спецификации тоже под подозрением. Проверить перебором (`v1`/`v2`) ДО первого черновика.
+8. Есть ли `statement/summary` (остатки/обороты) на `v2` — на `v1` его нет (404).
 
 ## Что переиспользуется из контура Альфы
 
