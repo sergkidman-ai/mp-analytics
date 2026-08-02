@@ -54,12 +54,19 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
         print("некому слать: пуст TG_RETURNS_NOTIFY_ID / TG_RETURNS_ALLOWED_IDS")
         return 1
 
+    ok, failed = 0, []
     for chat_id in targets:
-        tg.send(chat_id, text)
-        for png, caption in photos:
-            tg.send_photo(chat_id, png, caption)
-    print(f"отправлено: адресатов {len(targets)}, картинок {len(photos)}")
-    return 0
+        try:                       # один адресат не нажал Start (403) — остальные всё равно получат
+            tg.send(chat_id, text)
+            for png, caption in photos:
+                tg.send_photo(chat_id, png, caption)
+            ok += 1
+        except Exception as e:
+            failed.append(f"{chat_id}: {type(e).__name__} {str(e)[:120]}")
+    for f in failed:
+        print("НЕ доставлено", f)
+    print(f"отправлено: адресатов {ok} из {len(targets)}, картинок {len(photos)}")
+    return 0 if ok else 1
 
 
 def main(argv=None):
