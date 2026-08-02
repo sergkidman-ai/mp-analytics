@@ -748,6 +748,29 @@ def format_report(res):
     return "\n".join(L)
 
 
+def format_report_html(res):
+    """Тот же отчёт для Telegram (parse_mode=HTML): жирным — группа поставщика, покупатель, сумма.
+
+    Текст берём готовый и экранируем целиком, поэтому названия товаров с «&» или «<»
+    не ломают разметку; жирним уже по экранированным подстрокам, ровно по одному вхождению.
+    """
+    import html as _html
+    text = _html.escape(format_report(res), quote=False)
+    if not res.get("ok"):
+        return text
+    group = _html.escape(str(res.get("group") or ""), quote=False)
+    buyer = _html.escape(str(res.get("buyer") or ""), quote=False)
+    for old, new in (
+        (f"группа «{group}»", f"группа «<b>{group}</b>»") if group else (None, None),
+        (f"Покупатель: {buyer}", f"Покупатель: <b>{buyer}</b>") if buyer else (None, None),
+        (f"Сумма: {res['ordersum']:.2f} ₽", f"Сумма: <b>{res['ordersum']:.2f} ₽</b>")
+        if res.get("ordersum") is not None else (None, None),
+    ):
+        if old:
+            text = text.replace(old, new, 1)
+    return text
+
+
 def main():
     args = sys.argv[1:]
     if not args:
