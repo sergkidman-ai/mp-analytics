@@ -31,7 +31,9 @@ def handle(chat_id, text):
     if cmd in ("/start", "/help"):
         tg.send(chat_id, HELP)
     elif cmd in ("/vozvraty", "/zabrat"):
-        tg.send(chat_id, render.summary())
+        letters = render.summaries()
+        for _, text in (letters or [(None, render.summary())]):
+            tg.send(chat_id, text)
     elif cmd == "/pvz":
         tg.send(chat_id, render.pvz_digest())
     elif cmd == "/shtrihkod":

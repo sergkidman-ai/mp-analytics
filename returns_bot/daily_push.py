@@ -15,9 +15,9 @@ from returns_bot import codes, render, tg
 from returns_bot.sources import ozon
 
 
-def barcode_photos():
+def barcode_photos(org=None):
     """Штрихкод получения возвратов Ozon — только если по аккаунту реально есть что забрать."""
-    heads, _ = render.fetch(("pickup",))
+    heads, _ = render.fetch(("pickup",), org)
     accounts = sorted({h["account"] for h in heads if h["platform"] == "ozon"})
     out = []
     for account in accounts:
@@ -42,30 +42,39 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
         for e in errors:
             print("ОШИБКА сбора", e)
 
-    text = render.summary()
-    photos = barcode_photos() if with_codes else []
+    # по сообщению на юрлицо: за возвратами Цифрового и Дисквэра ездят разные люди
+    letters = [(org, text, barcode_photos(org) if with_codes else [])
+               for org, text in render.summaries()]
 
     if dry_run:
-        print(text)
-        print(f"[dry-run] картинок: {len(photos)}, адресатов: {len(targets)}")
+        for org, text, photos in letters:
+            print(f"===== {org} ===== ({len(text)} знаков, картинок {len(photos)})")
+            print(text)
+        if not letters:
+            print(render.summary())
+        print(f"[dry-run] сообщений: {len(letters)}, адресатов: {len(targets)}")
         return 0
 
     if not targets:
         print("некому слать: пуст TG_RETURNS_NOTIFY_ID / TG_RETURNS_ALLOWED_IDS")
         return 1
+    if not letters:                       # забирать нечего — одно короткое сообщение
+        letters = [(None, render.summary(), [])]
 
     ok, failed = 0, []
     for chat_id in targets:
         try:                       # один адресат не нажал Start (403) — остальные всё равно получат
-            tg.send(chat_id, text)
-            for png, caption in photos:
-                tg.send_photo(chat_id, png, caption)
+            for org, text, photos in letters:
+                tg.send(chat_id, text)
+                for png, caption in photos:
+                    tg.send_photo(chat_id, png, caption)
             ok += 1
         except Exception as e:
             failed.append(f"{chat_id}: {type(e).__name__} {str(e)[:120]}")
     for f in failed:
         print("НЕ доставлено", f)
-    print(f"отправлено: адресатов {ok} из {len(targets)}, картинок {len(photos)}")
+    print(f"отправлено: адресатов {ok} из {len(targets)}, "
+          f"сообщений на адресата {len(letters)}, картинок {sum(len(p) for _, _, p in letters)}")
     return 0 if ok else 1
 
 
