@@ -133,10 +133,28 @@ def _agent_id(payment):
     return (_agent_href(payment) or "").rsplit("/", 1)[-1].split("?")[0]
 
 
-_SUPPLIER_AGENTS = None
+_ORG_INN = {}
 
 
-def supplier_agents():
+def org_inn(payment):
+    """ИНН НАШЕГО юрлица-плательщика (не поставщика!) — ключ разреза во всех таблицах контура
+    после миграции 207: условия оплаты, очередь черновиков и статусы заказов теперь заведены
+    на каждое юрлицо отдельно. Без этого ключа по одному ИНН поставщика возвращаются ДВЕ
+    строки, и платёж Дисквэра может разобраться черновиком Цифрового Квадрата — поставщики
+    у фирм одни и те же, суммы совпадают легко."""
+    oid = (_org_href(payment) or "").rsplit("/", 1)[-1].split("?")[0]
+    if not oid:
+        return None
+    if oid not in _ORG_INN:
+        for o in get("/entity/organization").get("rows", []):
+            _ORG_INN[o["id"]] = o.get("inn")
+    return _ORG_INN.get(oid)
+
+
+_SUPPLIER_AGENTS = {}
+
+
+def supplier_agents(our_inn):
     """id контрагентов МС из `supplier_payment_terms` — ЕДИНСТВЕННЫЕ, чьи платежи привязываем
     (правило Сергея 2026-07-29). Таблица условий оплаты и есть список наших поставщиков: всё
     остальное (налоги, банк, аренда, зарплата, разовые контрагенты) к приёмкам не относится, и
@@ -148,16 +166,20 @@ def supplier_agents():
 
     Кэш на процесс: прогон крона живёт минуты, а таблицу правит человек в дашборде.
     ПУСТАЯ таблица — не повод привязывать всё подряд: это сломанная конфигурация, и молчаливый
-    «привязываем всех» опаснее шумной ошибки, поэтому падаем."""
-    global _SUPPLIER_AGENTS
-    if _SUPPLIER_AGENTS is None:
+    «привязываем всех» опаснее шумной ошибки, поэтому падаем.
+
+    Разрез по нашему юрлицу (`our_inn`, миграция 207): у каждой фирмы свой список поставщиков,
+    и платёж Дисквэра проверяем по условиям Дисквэра, а не по общей куче."""
+    if our_inn not in _SUPPLIER_AGENTS:
         rows = db.query("SELECT ms_agent_id FROM supplier_payment_terms "
-                        "WHERE ms_agent_id IS NOT NULL AND ms_agent_id <> ''")
+                        "WHERE org_inn = %s AND ms_agent_id IS NOT NULL AND ms_agent_id <> ''",
+                        (our_inn,))
         if not rows:
-            raise RuntimeError("supplier_payment_terms пуста (или без ms_agent_id) — "
-                               "привязка платежей отключена до заполнения таблицы")
-        _SUPPLIER_AGENTS = {r["ms_agent_id"] for r in rows}
-    return _SUPPLIER_AGENTS
+            raise RuntimeError(f"supplier_payment_terms пуста для юрлица {our_inn} "
+                               "(или без ms_agent_id) — привязка платежей отключена "
+                               "до заполнения таблицы")
+        _SUPPLIER_AGENTS[our_inn] = {r["ms_agent_id"] for r in rows}
+    return _SUPPLIER_AGENTS[our_inn]
 
 
 def _find(entity, name, agent_href, org_href):
@@ -308,11 +330,18 @@ def resolve_supplies(payment):
 DRAFT_STATUSES = ("planned", "sent_sandbox", "sent_prod", "error", "paid")
 
 
-def _inn_of(payment):
-    """ИНН поставщика по контрагенту МС — ключ, которым черновики связаны с платежами."""
+def _inn_of(payment, our_inn=None):
+    """ИНН ПОСТАВЩИКА по контрагенту МС — ключ, которым черновики связаны с платежами.
+    `our_inn` — наше юрлицо-плательщик: после миграции 207 одна карточка контрагента даёт
+    строку условий в каждой фирме, и без разреза берётся случайная из двух."""
     aid = _agent_id(payment)
-    rows = db.query("SELECT inn FROM supplier_payment_terms WHERE ms_agent_id=%s",
-                    (aid,)) if aid else []
+    if not aid:
+        return None
+    if our_inn:
+        rows = db.query("SELECT inn FROM supplier_payment_terms "
+                        "WHERE ms_agent_id=%s AND org_inn=%s", (aid, our_inn))
+    else:
+        rows = db.query("SELECT inn FROM supplier_payment_terms WHERE ms_agent_id=%s", (aid,))
     return rows[0]["inn"] if rows else None
 
 
@@ -326,20 +355,25 @@ def find_draft(payment):
     Черновик, уже закреплённый за ДРУГИМ платежом (`ms_payment_id`, миграция 206), не берём:
     иначе два одинаковых платежа одному поставщику разобрались бы одним и тем же черновиком.
     Авансовые черновики сюда не попадают — у них `covers_po_ids` пуст, состав определяется
-    не списком заказов, а FIFO по приёмкам (см. `plan_advance`)."""
-    inn = _inn_of(payment)
-    if not inn:
+    не списком заказов, а FIFO по приёмкам (см. `plan_advance`).
+
+    Разрез по нашему юрлицу обязателен (миграция 207): поставщики у Цифрового Квадрата и
+    Дисквэра одни и те же, суммы платежей совпадают запросто — без `org_inn` платёж одной
+    фирмы разобрался бы черновиком другой и лёг бы на ЧУЖИЕ приёмки."""
+    our = org_inn(payment)
+    inn = _inn_of(payment, our)
+    if not inn or not our:
         return None
     rows = db.query(
         """SELECT id, covers_po_ids FROM payment_draft_queue
-            WHERE inn = %s AND round(amount * 100) = %s
+            WHERE inn = %s AND org_inn = %s AND round(amount * 100) = %s
               AND status = ANY(%s)
               AND coalesce(array_length(covers_po_ids, 1), 0) > 0
               AND (ms_payment_id IS NULL OR ms_payment_id = %s)
               AND created_at::date <= %s::date
             ORDER BY (ms_payment_id = %s) DESC NULLS LAST, created_at DESC
             LIMIT 1""",
-        (inn, payment["sum"], list(DRAFT_STATUSES), payment["id"],
+        (inn, our, payment["sum"], list(DRAFT_STATUSES), payment["id"],
          (payment.get("moment") or "")[:10], payment["id"]))
     return rows[0] if rows else None
 
@@ -596,8 +630,11 @@ def link_payment(payment, apply=False):
 
     Перед обоими путями — гейт `supplier_agents()`: платежи не-поставщиков не разбираем вообще.
     """
-    if _agent_id(payment) not in supplier_agents():
-        return "not-supplier", "контрагента нет в таблице условий оплаты"
+    our = org_inn(payment)
+    if not our:
+        return "not-supplier", "у платежа не указано наше юрлицо"
+    if _agent_id(payment) not in supplier_agents(our):
+        return "not-supplier", f"контрагента нет в условиях оплаты юрлица {our}"
 
     advance = is_advance(payment)
 

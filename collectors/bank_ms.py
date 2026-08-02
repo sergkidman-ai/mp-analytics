@@ -243,6 +243,31 @@ def build_payment(op, org, agent, expense_item):
     return typ, body
 
 
+def link_supplies(payment, stats):
+    """Привязать созданный исходящий платёж к приёмкам (движок — `collectors/alfa_link`).
+
+    Имя движка историческое (родился в контуре Альфы), но сам он банконезависим: разрез идёт
+    по НАШЕМУ юрлицу платежа (`alfa_link.org_inn`, миграция 207), а приёмки, черновики и
+    условия оплаты берутся внутри этого же юрлица. Поэтому колбэк общий для обоих контуров.
+
+    Привязка — вторичный шаг: её сбой НЕ должен ронять уже записанный платёж, поэтому любое
+    исключение уходит в счётчик и лог, а не наружу."""
+    try:
+        from alfa_link import link_payment                # сосед по каталогу
+        status, note = link_payment(payment, apply=True)
+    except Exception as e:                                # noqa: BLE001 — см. докстринг
+        stats["link_errors"] += 1
+        stats["link_msgs"].append(f"платёж №{payment.get('name')}: {type(e).__name__}: {e}")
+        return
+    if status == "linked":
+        stats["linked"] += 1
+    elif status in ("partial", "error"):
+        stats["link_errors"] += 1
+        stats["link_msgs"].append(
+            f"платёж №{payment.get('name')} {payment.get('sum', 0)/100:.2f} ₽ → {note}")
+    # no-match (комиссии банка, авансы без номеров в назначении) — штатно, молча
+
+
 def sync(normalized, apply=False, org_inn=None, expense_item="Закупка товаров",
          since=None, link_fn=None):
     """Нормализованные операции выписки → МойСклад.
@@ -252,7 +277,8 @@ def sync(normalized, apply=False, org_inn=None, expense_item="Закупка т�
     since        — дата отсечки YYYY-MM-DD: операции раньше неё не пишем (до неё документы
                    заводились руками);
     link_fn      — необязательный колбэк (payment, stats) для привязки исходящего платежа
-                   к приёмкам. У Сбера мостов «назначение → приёмка» пока нет → None.
+                   к приёмкам; штатное значение — `link_supplies` (см. выше), None выключает
+                   привязку для контура.
     """
     org = resolve_org(org_inn)
     stats = {"paymentin": 0, "paymentout": 0, "matched": 0, "created": 0,

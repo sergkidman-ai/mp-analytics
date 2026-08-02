@@ -52,24 +52,7 @@ def build_payment(op, org, agent, expense_item=None):
     return bank_ms.build_payment(op, org, agent, expense_item or EXPENSE_ITEM)
 
 
-def _link_supplies(payment, stats):
-    """Привязать созданный исходящий платёж к приёмкам (contract: collectors/alfa_link).
-    Привязка — вторичный шаг: её сбой НЕ должен ронять уже записанный платёж, поэтому
-    любое исключение уходит в счётчик и лог, а не наружу."""
-    try:
-        from alfa_link import link_payment                # сосед по каталогу
-        status, note = link_payment(payment, apply=True)
-    except Exception as e:                                # noqa: BLE001 — см. докстринг
-        stats["link_errors"] += 1
-        stats["link_msgs"].append(f"платёж №{payment.get('name')}: {type(e).__name__}: {e}")
-        return
-    if status == "linked":
-        stats["linked"] += 1
-    elif status in ("partial", "error"):
-        stats["link_errors"] += 1
-        stats["link_msgs"].append(
-            f"платёж №{payment.get('name')} {payment.get('sum', 0)/100:.2f} ₽ → {note}")
-    # no-match (комиссии банка, авансы без номеров в назначении) — штатно, молча
+_link_supplies = bank_ms.link_supplies     # привязка платёж→приёмка переехала в общее ядро
 
 
 def sync(normalized, apply=False):
