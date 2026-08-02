@@ -1,8 +1,12 @@
 # поток: inv
 """run_inv.py — ежедневный прогон потока inv (банк → учёт).
 
-Сейчас один шаг: **выписка Альфа-Банка за ВЧЕРА → МойСклад** (paymentin/paymentout).
-Раз в сутки, утром: к 07:00 МСК банковский день закрыт, все операции проставлены.
+Два контура за ВЧЕРА → МойСклад (paymentin/paymentout), раз в сутки утром: к 07:00 МСК
+банковский день закрыт, все операции проставлены.
+  1. **Альфа-Банк**, ООО «Цифровой Квадрат» — с привязкой платежей к приёмкам;
+     запись при `ALFA_MS_APPLY=1` (+ `ALFA_ENV=prod`), включена 2026-07-28.
+  2. **Сбер**, ООО «ДИСКВЭР» — без привязки; запись при `SBER_MS_APPLY=1`, по умолчанию
+     dry-run (платежи Дисквэра пока заводит человек). См. `run_sber()`.
 
 Расписание (crontab). ВНИМАНИЕ: **`CRON_TZ` этим cron НЕ поддерживается** (`3.0pl1-137ubuntu3`,
 система `Etc/UTC`; проверено 2026-07-28 по syslog — строка `CRON_TZ=Europe/Moscow` стояла и была
@@ -48,6 +52,7 @@ load_dotenv(_ENV if _ENV.exists() else pathlib.Path("/opt/mp-analytics/.env"))
 import collectors.alfa_statement as alfa             # noqa: E402
 import collectors.alfa_ms as alfa_ms                 # noqa: E402
 import collectors.alfa_link as alfa_link             # noqa: E402
+import collectors.sber_ms as sber_ms                 # noqa: E402  второй контур: Дисквэр
 
 MSK = dt.timezone(dt.timedelta(hours=3))
 # Окно добора привязок. Предоплата уходит РАНЬШЕ поставки (Феррет: платёж 28.07, приёмка 29.07),
@@ -178,6 +183,33 @@ def relink(apply):
         + (f", авансы отложены {stats['advance_off']}" if stats.get("advance_off") else ""))
 
 
+def run_sber(days):
+    """Второй контур: выписка Сбера (ООО «ДИСКВЭР») → МойСклад.
+
+    Предохранитель СВОЙ, не альфовский: пишем только при `SBER_MS_APPLY=1`. По умолчанию
+    dry-run — платежи Дисквэра сейчас заводит человек, и на замере 01.07–02.08 все 81
+    операция уже была в МС; прогон нужен, чтобы в логе было видно, если ручной ввод отстал.
+    Привязки к приёмкам у Сбера нет: мосты «назначение → приёмка» написаны под поставщиков
+    Цифрового Квадрата (см. docs/BRIEF_INV.md, открытый вопрос 5).
+
+    → ошибок записи (сбой контура Сбера не должен ронять уже отработавшую Альфу)."""
+    apply = os.getenv("SBER_MS_APPLY") == "1"
+    ops, stats, _plan = sber_ms.run(days[0], days[-1], apply=apply)
+    if not ops:
+        log(f"Сбер {days[0]}…{days[-1]}: операций нет")
+        return 0
+    for msg in (stats.get("error_msgs") or [])[:10]:
+        log(f"  ✗ Сбер: {msg}")
+    log(f"Сбер {days[0]}…{days[-1]}: операций {len(ops)} | "
+        f"приход {stats['paymentin']} / расход {stats['paymentout']} | "
+        f"уже в МС {stats['existing']}, до отсечки {stats['before_cutoff']}, "
+        f"игнор {stats['ignored']} | контрагент: найден {stats['matched']}, "
+        f"создан {stats['created']}, будет создан {stats['would_create']} | "
+        f"ошибок {stats['errors']}"
+        + ("" if apply else "  [DRY-RUN: SBER_MS_APPLY≠1]"))
+    return stats["errors"]
+
+
 def main(argv):
     apply, why = apply_mode()
     accs, days = accounts(), dates(argv)
@@ -199,6 +231,13 @@ def main(argv):
         relink(apply)
     except Exception as e:
         log(f"ОШИБКА добора привязок: {type(e).__name__}: {e}")   # не роняем прогон: деньги записаны
+
+    try:
+        total_err += run_sber(days)
+    except Exception as e:
+        failed += 1
+        log(f"ОШИБКА контура Сбера: {type(e).__name__}: {e}")     # Альфа уже отработала
+        traceback.print_exc()
 
     log(f"финиш inv: операций {total_ops}, ошибок записи {total_err}, "
         f"упавших прогонов {failed}")

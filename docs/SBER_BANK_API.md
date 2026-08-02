@@ -186,7 +186,7 @@ extendedKeyUsage = проверка подлинности клиента.
 |---|---|---|
 | mTLS-сессия + токены | `collectors/alfa_statement.py::_session/_cfg` | схема та же, другие URL/поля |
 | Выписка → raw | `collectors/alfa_statement.py` | ~70 %, другая пагинация (по дням + `_links`) |
-| Выписка → МС paymentin/out | `collectors/alfa_ms.py` | ~90 %, зависит только от нормализованной операции |
+| Выписка → МС paymentin/out | `collectors/bank_ms.py` | **сделано 02.08**: ядро банконезависимо, обёртка Сбера — `collectors/sber_ms.py` (организация ООО «ДИСКВЭР», привязка к приёмкам выключена, запись при `SBER_MS_APPLY=1`) |
 | Привязка платежа к приёмке | `collectors/alfa_link.py` | ~90 %, мосты по назначению — свои для поставщиков Дисквэра |
 | Очередь черновиков | `invoice_bot/po_payment_watch.py` | банконезависима, нужен ключ по организации |
 | Отправка черновика | `invoice_bot/alfa_payment_draft.py` | ~60 %, тело РПП почти совпадает |

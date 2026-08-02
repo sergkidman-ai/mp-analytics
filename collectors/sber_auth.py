@@ -38,7 +38,11 @@ import requests                                                  # noqa: E402
 # Вход человека (СМС) — без mTLS, обычный браузер. Всё остальное — только через mTLS.
 SSO_HOST = "https://sbi.sberbank.ru:9443"
 API_HOST = "https://fintech.sberbank.ru:9443"
-TOKENS = BASE_DIR / "secrets" / "sber" / "tokens.json"
+# Токены — ТОЛЬКО в каноническом чекауте. `refresh_token` у Сбера ОДНОРАЗОВЫЙ: две копии
+# tokens.json (основной чекаут + deploy-worktree крона) обновляли бы токен по очереди и
+# гасили друг друга. secrets/ gitignored → в worktree его нет, якорим так же, как .env.
+_ROOT = BASE_DIR if (BASE_DIR / ".env").exists() else pathlib.Path("/opt/mp-analytics")
+TOKENS = _ROOT / "secrets" / "sber" / "tokens.json"
 LEEWAY = 120                                                     # с запасом до истечения
 
 
