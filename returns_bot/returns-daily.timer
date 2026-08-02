@@ -1,0 +1,12 @@
+[Unit]
+Description=Returns daily summary once a day at 09:05 МСК
+
+[Timer]
+# Часы сервера — UTC (systemd 249 не понимает таймзону в OnCalendar), 06:05 UTC = 09:05 МСК.
+OnCalendar=*-*-* 06:05:00
+RandomizedDelaySec=5min
+Persistent=true
+Unit=returns-daily.service
+
+[Install]
+WantedBy=timers.target
