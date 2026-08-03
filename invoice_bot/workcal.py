@@ -63,9 +63,16 @@ def is_working(d, six=False):
         return True
     return False
 
-def plan_date(inv, six=False):
+def plan_date(inv, six=False, skip=0):
+    """Плановая дата приёмки от даты счёта.
+    skip=0 — ближайший рабочий день (счёт Пн 03.08 → Вт 04.08).
+    skip=1 — «через 1 рабочий день»: один полный рабочий день пропускаем
+    (счёт Пн 03.08 → Ср 05.08). Правило Сергея 03.08.2026 для Блоссом и Колортек."""
     d=inv+timedelta(days=1)
     while not is_working(d, six): d+=timedelta(days=1)
+    for _ in range(skip):
+        d+=timedelta(days=1)
+        while not is_working(d, six): d+=timedelta(days=1)
     return d
 
 if __name__=="__main__":

@@ -55,18 +55,21 @@ SUPPLIERS = {
     "7806486149": {"name": "Солюшнс принт МСК", "article": "sp"},
     "7730244274": {"name": "Одиссей",           "article": "column", "num_prefix": "ОД", "num_pad": 8},
     "9717092410": {"name": "Тонерстор",         "article": "column", "pdf": "tonerstor"},
-    "7718978470": {"name": "Блоссом",           "article": "column"},
+    "7718978470": {"name": "Блоссом",           "article": "column", "plan_skip": 1},
     "7725744338": {"name": "Тонеропттторг",     "article": "column"},
     "9731107362": {"name": "Феррет",            "article": "name_regex",
                    "pattern": r"\b(?:CSP?|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "pdf": "ferret"},
     "7736123276": {"name": "Позитив",           "article": "name_last"},
-    "7840480595": {"name": "Колортек",          "article": "column", "auto_supply": True},  # без УПД → приёмку создаём сразу
+    # plan_skip=1 — «через 1 рабочий день» (счёт Пн → приёмка Ср), решение Сергея 03.08.2026.
+    # У остальных поставщиков осталось «ближайший рабочий день» (skip=0).
+    "7840480595": {"name": "Колортек",          "article": "column", "auto_supply": True,
+                   "plan_skip": 1},                          # без УПД → приёмку создаём сразу
     "7722341813": {"name": "КВК Трейд",         "article": "column"},
     # «/» в шаблоне обязателен: у цветной серии цвет стоит ПОСЛЕ слэша
     # («BS-M-TNP-50/51M/A0X5354/A0X5355»), без него артикул обрывался на «BS-M-TNP-50» —
     # общий огрызок серии, по которому карточка не находится (счёт КТ-000117).
     "9718075418": {"name": "Картридж Трейд (Блоссом)", "article": "name_regex",
-                   "pattern": r"\bBS-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "novat": True,
+                   "pattern": r"\bBS-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "novat": True, "plan_skip": 1,
                    "year_suffix_on_collision": True},  # сбрасывает нумерацию по годам → развести суффиксом года
     "7719482878": {"name": "КПД",                "article": "column"},
     "7720494564": {"name": "Компания РМ",        "article": "column"},
@@ -536,7 +539,7 @@ def build_payload(hdr, org, store, agent_id, positions, deliv_id, name, warns, s
     inv = hdr["inv_date"]
     six = hdr["supplier_inn"] in SIX_INN
     novat = SUPPLIERS.get(hdr["supplier_inn"], {}).get("novat", False)  # поставщик без НДС
-    pl = workcal.plan_date(inv, six)
+    pl = workcal.plan_date(inv, six, SUPPLIERS.get(hdr["supplier_inn"], {}).get("plan_skip", 0))
     ms_positions = []
     for p in positions:
         pos = {"quantity": p["qty"], "price": price_kop(p),

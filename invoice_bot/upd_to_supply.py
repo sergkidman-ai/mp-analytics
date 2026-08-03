@@ -769,11 +769,11 @@ def create_supply_auto(oid, seller_inn=None, incoming_number="", incoming_date=N
         opos = inv.get_r(f"/entity/purchaseorder/{oid}/positions?expand=assortment&limit=200").get("rows", [])
         if not opos:
             res["error"] = f"У заказа {oname} нет позиций"; return res
-        # Плана нет (заказ заведён руками) → считаем сами: +1 рабочий день от даты счёта.
+        # Плана нет (заказ заведён руками) → считаем сами от даты счёта, с шагом поставщика.
         # Раньше в этом случае moment не ставился вовсе и МС писал «сейчас».
         plan = (order.get("deliveryPlannedMoment") or "").split()[0] or \
-               workcal.plan_date(date.fromisoformat(incoming_date) if incoming_date
-                                 else date.today()).isoformat()
+               workcal.plan_date(date.fromisoformat(incoming_date) if incoming_date else date.today(),
+                                 skip=inv.SUPPLIERS.get(seller_inn, {}).get("plan_skip", 0)).isoformat()
         sup_pos, bp = [], 0
         for p in opos:
             a = p["assortment"]
@@ -902,10 +902,12 @@ def process(src, create=True, suffix="", fill=False):
         res["warns"] += warns
 
         # План-дата приёмки заказа → moment 08:00. Заказ заведён руками и плана нет —
-        # считаем сами: +1 рабочий день от даты УПД, а НЕ «день в день» (иначе приёмка
+        # считаем сами от даты УПД с шагом поставщика, а НЕ «день в день» (иначе приёмка
         # встаёт задним числом; правило Сергея 03.08.2026).
         plan = (order.get("deliveryPlannedMoment") or "").split()[0] or \
-               workcal.plan_date(upd["date"] or date.today()).isoformat()
+               workcal.plan_date(upd["date"] or date.today(),
+                                 skip=inv.SUPPLIERS.get(upd.get("seller_inn"), {})
+                                        .get("plan_skip", 0)).isoformat()
         moment = f"{plan} 08:00:00"
         inc_date = upd["date"].isoformat() if upd["date"] else None   # нет даты (Спринт) → входящую не ставим
 
