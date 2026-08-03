@@ -9,9 +9,11 @@ upd_to_supply.py — конвейер: входящий УПД (XLS/XLSX или 
 товара пишем закупочную цену (buyPrice) и «Код поставщика» (код из УПД).
 
 Запуск:
-  python upd_to_supply.py <файл|ссылка Я.Диска> [--create] [--suffix ТЕСТ-]
+  python upd_to_supply.py <файл|ссылка Я.Диска> [--create] [--fill] [--suffix ТЕСТ-]
   По умолчанию — DRY-RUN (разбирает, ищет заказ, считает — но не создаёт и карточки не трогает).
   --create   — реально создать приёмку и обновить карточки товаров.
+  --fill     — приёмка на этот заказ УЖЕ есть: не создавать дубль, а дозаполнить в ней страну/ГТД
+               (и те же поля в карточках). Количества, цены и шапку не трогает.
   --suffix S — добавить префикс S к имени приёмки (для тестов; имя = S+<номер заказа> всегда, и в бою тоже).
 
 Правила (согласованы с заказчиком):
@@ -649,6 +651,11 @@ def _tok_weak(name):
     return {t for t in re.findall(r"\b[A-ZА-Я0-9./-]{4,}\b", (name or "").upper()) if re.search(r"\d", t)}
 
 
+def _art_key(name):
+    """Артикул без разделителей и регистра: «BS-TK865C» → «BSTK865C», «BS-M-TNP-50/51M» → «BSMTNP5051M»."""
+    return re.sub(r"[^0-9A-ZА-Я]", "", (name or "").upper())
+
+
 def match_rows(order_pos, upd_pos):
     """Для каждой позиции заказа найти строку УПД. → {order_index: upd_row|None}, warns[]."""
     res = {}; warns = []; used = set()
@@ -692,6 +699,20 @@ def match_rows(order_pos, upd_pos):
             continue
         hits = [ui for ui, u in enumerate(upd_pos)
                 if ui not in used and (keys & (_tok_strong(u["name"]) | _tok_weak(u["name"])))]
+        if len(hits) == 1:
+            take(i, hits[0])
+    # 1c) артикул заказа БЕЗ разделителей — подстрокой в наименовании строки УПД.
+    #     Поставщик ставит дефисы иначе и дописывает OEM-коды через «/» («BS-TK-865Y/1T02JZAEU0»
+    #     против нашего «BS-TK865Y»), поэтому равенства токенов нет; а различающий цвет тонет
+    #     в общих слабых токенах цветной серии («250CI/300CI», «12000») → уникального максимума
+    #     тоже нет, и вся серия остаётся без страны/ГТД (УПД КТ-000160, Blossom).
+    for i, p in enumerate(order_pos):
+        if i in res:
+            continue
+        k = _art_key(p["assortment"].get("article"))
+        if len(k) < 6 or not re.search(r"\d", k):     # короткий/бесцифренный артикул — слишком общий
+            continue
+        hits = [ui for ui, u in enumerate(upd_pos) if ui not in used and k in _art_key(u["name"])]
         if len(hits) == 1:
             take(i, hits[0])
     # 2) по сильному артикульному токену (уникальный максимум пересечения)
@@ -804,7 +825,7 @@ def create_supply_auto(oid, seller_inn=None, incoming_number="", incoming_date=N
 
 
 # ═══════════════════════ 5. Основной конвейер ═════════════════════════════════
-def process(src, create=True, suffix=""):
+def process(src, create=True, suffix="", fill=False):
     res = {"ok": False, "created": False, "stop": False, "error": None, "warns": []}
     try:
         path = inv.fetch(src)
@@ -840,6 +861,10 @@ def process(src, create=True, suffix=""):
         res["candidates"] = [{"name": o["name"], "sum": o["sum"] / 100, "date": o.get("moment", "")[:10],
                               "has_supply": bool(o.get("supplies"))}
                              for o in cands]
+        # --fill работает ровно по тому заказу, что уже закрыт приёмкой: find_order отдаёт его
+        # только кандидатом (открытых заказов нет). Берём — при единственном кандидате.
+        if order is None and fill and len(cands) == 1 and cands[0].get("supplies"):
+            order = cands[0]
         if order is None:
             res["stop"] = True
             if not cands:
@@ -861,7 +886,7 @@ def process(src, create=True, suffix=""):
         # Фильтровать supply по purchaseOrder на стороне МС нельзя (HTTP 412) → фильтруем локально.
         target_name = f"{suffix}{order['name']}"
         dup = []
-        if create:
+        if create or fill:
             cand = inv.get_r(f"/entity/supply?filter=name={urllib.parse.quote(target_name)}&limit=50").get("rows", [])
             dup = [s for s in cand
                    if ((s.get("purchaseOrder") or {}).get("meta", {}).get("href", "")
@@ -925,6 +950,9 @@ def process(src, create=True, suffix=""):
 
         if unmatched:
             res["warns"].append(f"без матча со строкой УПД (страна/ГТД не проставлены): {unmatched}")
+        if matched == 0:      # не единичный промах, а разъехавшийся шаблон артикулов — видеть сразу
+            res["warns"].append("⛔ НИ ОДНА строка УПД не сматчена с позициями заказа — "
+                                "страна и ГТД останутся пустыми, разобрать вручную")
         res["stats"] = {"positions": len(sup_pos), "matched": matched, "country": c_set,
                         "gtd": g_set, "buyPrice": bp, "code": code_set, "gtd_card": gtd_card,
                         "country_card": country_card}
@@ -956,15 +984,68 @@ def process(src, create=True, suffix=""):
         # подставить свой авто-номер при коллизии, если такое имя уже занято другим документом)
         payload_supply["name"] = target_name
 
-        if not create:
+        if not create and not fill:
             res["ok"] = True
             res["dry"] = True
+            return res
+
+        if dup and fill:
+            # Дозаполнение УЖЕ созданной приёмки: позиции на месте, но страна/ГТД пустые —
+            # так бывает, когда при создании матчинг строк УПД не сработал (УПД КТ-000160).
+            # Дубль не плодим, количества/цены не трогаем: пишем только country/gtd построчно
+            # и те же поля в карточку товара, что и на обычном пути.
+            sid = dup[0]["id"]
+            byprod = {}
+            for i, p in enumerate(opos):
+                if mp.get(i):
+                    byprod.setdefault(p["assortment"]["meta"]["href"].rstrip("/").split("/")[-1],
+                                      []).append(mp[i])
+            spos = inv.get_r(f"/entity/supply/{sid}/positions?expand=assortment&limit=200").get("rows", [])
+            f_pos = f_card = 0
+            for sp in spos:
+                aid = sp["assortment"]["meta"]["href"].rstrip("/").split("/")[-1]
+                queue = byprod.get(aid) or []
+                if not queue:
+                    continue
+                up = queue.pop(0)
+                body = {}
+                cmeta = None
+                if up["country"]:
+                    cid = _country_id(up["country"])
+                    if cid:
+                        cmeta = meta("country", cid); body["country"] = cmeta
+                    else:
+                        res["warns"].append(f"страна «{up['country']}» не найдена в справочнике — пропущена")
+                if up["gtd"]:
+                    body["gtd"] = {"name": up["gtd"]}
+                if not body:
+                    continue
+                st, resp = put(f"/entity/supply/{sid}/positions/{sp['id']}", body)
+                if st not in (200, 201):
+                    res["warns"].append(f"позиция {sp['id'][:8]}: HTTP {st} {json.dumps(resp, ensure_ascii=False)[:120]}")
+                    continue
+                f_pos += 1
+                cbody, attrs = {}, []                     # карточка товара — те же поля, что при создании
+                if up.get("sup_code"):
+                    attrs.append({"meta": _attr_meta(CODE_ATTR), "value": up["sup_code"]})
+                if up.get("gtd"):
+                    attrs.append({"meta": _attr_meta(GTD_ATTR), "value": up["gtd"]})
+                if cmeta and up.get("gtd"):
+                    cbody["country"] = cmeta
+                if attrs:
+                    cbody["attributes"] = attrs
+                if cbody:
+                    put(f"/entity/product/{aid}", cbody); f_card += 1
+            res["ok"] = True; res["filled"] = {"positions": f_pos, "cards": f_card,
+                                               "supply": dup[0].get("name"), "id": sid}
+            res["url"] = "https://online.moysklad.ru/app/#supply/edit?id=" + sid
             return res
 
         if dup:
             res["stop"] = True
             res["error"] = (f"Приёмка «{target_name}» уже существует (id {dup[0]['id'][:8]}, "
-                            f"создана {dup[0].get('created', '')[:10]}) — не создаю дубль.")
+                            f"создана {dup[0].get('created', '')[:10]}) — не создаю дубль. "
+                            f"Страна/ГТД пустые → перезапустить с --fill.")
             return res
 
         st, resp = post("/entity/supply", payload_supply)
@@ -1020,7 +1101,12 @@ def format_report(res):
              f"страна→карточка: {s.get('country_card')}")
     for w in res.get("warns", []):
         L.append(f"⚠ {w}")
-    if res.get("dry"):
+    if res.get("filled"):
+        fl = res["filled"]
+        L.append(f"\n✅ Дозаполнена приёмка «{fl['supply']}»: страна/ГТД в {fl['positions']} позициях, "
+                 f"карточек обновлено {fl['cards']}")
+        L.append(res.get("url", ""))
+    elif res.get("dry"):
         L.append("\n[DRY-RUN] Приёмка НЕ создана, карточки не изменены. Запустите с --create.")
     elif res.get("created"):
         sup = res["supply"]
@@ -1032,16 +1118,17 @@ def format_report(res):
 def main():
     args = [a for a in sys.argv[1:] if a]
     if not args:
-        print("Использование: python upd_to_supply.py <файл|ссылка> [--create] [--suffix S]")
+        print("Использование: python upd_to_supply.py <файл|ссылка> [--create] [--fill] [--suffix S]")
         return
     src = args[0]
     create = "--create" in args
+    fill = "--fill" in args
     suffix = ""
     if "--suffix" in args:
         i = args.index("--suffix")
         if i + 1 < len(args):
             suffix = args[i + 1]
-    res = process(src, create=create, suffix=suffix)
+    res = process(src, create=create, suffix=suffix, fill=fill)
     print(format_report(res))
     if create:                                    # ручной CLI-прогон тоже пишем в общий журнал /report
         import proc_log

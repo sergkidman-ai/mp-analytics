@@ -62,8 +62,11 @@ SUPPLIERS = {
     "7736123276": {"name": "Позитив",           "article": "name_last"},
     "7840480595": {"name": "Колортек",          "article": "column", "auto_supply": True},  # без УПД → приёмку создаём сразу
     "7722341813": {"name": "КВК Трейд",         "article": "column"},
+    # «/» в шаблоне обязателен: у цветной серии цвет стоит ПОСЛЕ слэша
+    # («BS-M-TNP-50/51M/A0X5354/A0X5355»), без него артикул обрывался на «BS-M-TNP-50» —
+    # общий огрызок серии, по которому карточка не находится (счёт КТ-000117).
     "9718075418": {"name": "Картридж Трейд (Блоссом)", "article": "name_regex",
-                   "pattern": r"\bBS-[0-9A-Za-z]+(?:-[0-9A-Za-z]+)*", "novat": True,
+                   "pattern": r"\bBS-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "novat": True,
                    "year_suffix_on_collision": True},  # сбрасывает нумерацию по годам → развести суффиксом года
     "7719482878": {"name": "КПД",                "article": "column"},
     "7720494564": {"name": "Компания РМ",        "article": "column"},
@@ -419,6 +422,46 @@ def resolve_delivery_service():
 
 
 # ═══════════════════════ 6. Матчинг товаров (задачи 2, 3) ═════════════════════
+def _art_key(s):
+    """Артикул без разделителей и регистра: «BS-TK-865C» → «BSTK865C»."""
+    return re.sub(r"[^0-9A-ZА-Я]", "", (s or "").upper())
+
+
+def _find_by_art_key(art):
+    """Последний рубеж поиска карточки: артикул поставщика и наш совпадают ПОСЛЕ снятия
+    разделителей, либо наш — начало поставщицкого (поставщик дописывает OEM-код:
+    «BS-TK-865C/1T02JZCEU0» → карточка «BS-TK865C»). Точный filter=article таких не находит:
+    у поставщика другая расстановка дефисов. Пул сужаем самым длинным сырым префиксом, дающим
+    непустую выборку, дальше сверяем ключи локально. → [карточка] или []."""
+    key = _art_key(art)
+    if len(key) < 6:
+        return []
+    for n in (10, 8, 6, 5, 4, 3):
+        if n >= len(art):
+            continue
+        q = urllib.parse.quote(f"article~={art[:n]}")
+        size = (get_r(f"/entity/product?filter={q}&limit=1").get("meta") or {}).get("size") or 0
+        if size == 0:
+            continue
+        if size > 300:              # префикс слишком общий — дальше только шире, перебирать не будем
+            return []
+        rows = []
+        for off in range(0, size, 100):
+            rows += get_r(f"/entity/product?filter={q}&limit=100&offset={off}"
+                          f"&expand=supplier").get("rows", [])
+        by_len = {}
+        for r in rows:
+            k = _art_key(r.get("article"))
+            if len(k) >= 6 and key.startswith(k):     # наш артикул — начало поставщицкого
+                by_len.setdefault(len(k), []).append(r)
+        if not by_len:
+            continue                                  # узкий префикс не поймал — пробуем шире
+        top = by_len[max(by_len)]                      # самое длинное совпадение, и только если оно одно
+        if len(top) == 1:
+            return top
+    return []
+
+
 def match_products(items, prof, group):
     """→ (positions_meta, matched_info, skipped, warnings)."""
     positions, matched_info, skipped, warns = [], [], [], []
@@ -442,6 +485,10 @@ def match_products(items, prof, group):
                 cands = get_r(f"/entity/product?filter=article={urllib.parse.quote(trial)}&limit=10&expand=supplier").get("rows", [])
                 if cands:
                     art = trial; break
+        if not cands:                             # дефисы у поставщика стоят иначе — сверка по ключу
+            cands = _find_by_art_key(art)
+            if cands:
+                art = cands[0].get("article") or art
         if not cands:
             skipped.append({**it, "art": art, "reason": "нет в МС (архив?)"}); continue
         chosen, ambiguous = SG.pick_in_group(cands, group)

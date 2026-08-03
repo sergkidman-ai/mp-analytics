@@ -51,6 +51,21 @@ def _org_title(inn):
     return entry[1] if entry else inn
 
 
+def _rub(x):
+    """Русский вид суммы: 128 942.07 ₽ (запятая-разделитель разрядов читается как английская)."""
+    return f"{x:,.2f}".replace(",", "\u00a0") + "\u00a0₽"
+
+
+def _head(st):
+    """Шапка сводки: нулевые счётчики не печатаем — «сухих 0, ошибок 0» только зашумляет."""
+    parts = [f"отправлено {st['sent']} на {_rub(st['amount'])}"]
+    if st["skipped"]:
+        parts.append(f"сухих {st['skipped']}")
+    if st["errors"]:
+        parts.append(f"ошибок {st['errors']}")
+    return ", ".join(parts)
+
+
 def _names(rows):
     """ИНН поставщика → имя из условий оплаты (в очереди имени нет). Одним запросом."""
     inns = sorted({r["inn"] for r in rows})
@@ -63,9 +78,9 @@ def _names(rows):
 
 def tg(msg):
     """Сводка прогона в ОТДЕЛЬНЫЙ платёжный бот (`TG_PAY_BOT_TOKEN` / `TG_PAY_NOTIFY_ID`).
-    Общий бот invoice-bot сюда не подставляется намеренно: его канал читают и другие люди,
-    а платёжная сводка — суммы и получатели — предназначена только Сергею. Бот не настроен →
-    сводка не уходит никуда (отправку платежей это не роняет)."""
+    Общий бот invoice-bot сюда не подставляется намеренно: его канал читают несколько человек,
+    а платёжная сводка — суммы и получатели — идёт узкому адресату. Бот не настроен → сводка
+    не уходит никуда (отправку платежей это не роняет)."""
     token = os.getenv("TG_PAY_BOT_TOKEN", "").strip()
     ids = [x.strip() for x in os.getenv("TG_PAY_NOTIFY_ID", "").split(",") if x.strip()]
     if not (token and ids):
@@ -103,41 +118,61 @@ def autosend(org_inns=None, kinds=None, dry_run=None, limit=None, actor="cron", 
         print("PAYMENT_AUTOSEND не выставлен — прогон СУХОЙ, в банк ничего не уйдёт", flush=True)
 
     names = _names(rows)
-    out = {"total": len(rows), "sent": 0, "errors": 0, "skipped": 0, "amount": 0.0, "rows": []}
+    out = {"total": len(rows), "sent": 0, "errors": 0, "skipped": 0, "amount": 0.0,
+           "rows": [], "by_org": {}}
     for i, r in enumerate(rows):
         who = names.get(r["inn"], r["inn"])
         amount = float(r["amount"])
+        org = r.get("org_inn") or (orgs[0] if len(orgs) == 1 else "")
+        st = out["by_org"].setdefault(org, {"sent": 0, "errors": 0, "skipped": 0,
+                                            "amount": 0.0, "rows": []})
         try:
             res = psend.send_draft(r["id"], dry_run=dry, actor=actor)
         except Exception as e:                               # noqa: BLE001 — строка не роняет прогон
             res = {"ok": False, "status": None, "error": f"{type(e).__name__}: {e}"}
         status = res.get("status") or "ошибка"
         if res.get("ok") and status in ("sent_prod", "sent_sandbox"):
-            out["sent"] += 1
+            key = "sent"
+            st["amount"] += amount
             out["amount"] += amount
         elif status == "dry_run":
-            out["skipped"] += 1
+            key = "skipped"
         else:
-            out["errors"] += 1
-        out["rows"].append(f"#{r['id']} {who} · {amount:,.2f}₽ · "
-                           f"{KINDS_RU.get(r['kind'], r['kind'])} → {status}"
-                           f"{' — ' + str(res.get('error')) if res.get('error') else ''}")
+            key = "errors"
+        out[key] += 1
+        st[key] += 1
+
+        # Строка для человека: получатель, сумма, основание. Внутреннего номера черновика и
+        # технического статуса здесь нет — в норме они одинаковы у всех строк и только мешают;
+        # аномалию (ошибка / сухой прогон) дописываем явно. В лог номер оставляем: по нему
+        # разбираются повторы и external_id.
+        line = f"{who} · {_rub(amount)} · {KINDS_RU.get(r['kind'], r['kind'])}"
+        if key == "errors":
+            line += f" — НЕ УШЛА: {res.get('error') or status}"
+        elif key == "skipped":
+            line += " — сухой прогон"
+        st["rows"].append(line)
+        out["rows"].append(f"#{r['id']} [{_org_title(org)}] {line}")
         if i + 1 < len(rows) and dry is not True:      # dry=None → решает гейт банка, пауза нужна
             time.sleep(PAUSE_SEC)
 
-    head = (f"платёжки: всего {out['total']}, отправлено {out['sent']} "
-            f"на {out['amount']:,.2f}₽, сухих {out['skipped']}, ошибок {out['errors']}")
-    print(head, flush=True)
+    print(f"платёжки: всего {out['total']}, {_head(out)}", flush=True)
     for line in out["rows"][:20]:
         print("  " + line, flush=True)
     if len(out["rows"]) > 20:
         print(f"  …ещё {len(out['rows']) - 20} строк", flush=True)
 
-    # Молчим, когда сказать нечего: пустой прогон и сухая прогонка в TG не идут.
-    if notify and (out["sent"] or out["errors"]):
-        orgs_ru = ", ".join(_org_title(o) for o in orgs)
-        tg(f"🏦 Черновики в банк ({orgs_ru})\n{head}\n\n" + "\n".join(out["rows"][:20])
-           + "\n\nПодписать вручную в интернет-банке.")
+    # По сообщению на юрлицо: у ЦК и Дисквэра разные банки и разные подписанты, сводка «на двоих»
+    # заставляла глазами растаскивать чужие строки. Молчим, когда сказать нечего: пустой прогон
+    # и сухая прогонка в TG не идут.
+    if notify:
+        for org, st in out["by_org"].items():
+            if not (st["sent"] or st["errors"]):
+                continue
+            tail = f"\n…ещё {len(st['rows']) - 20}" if len(st["rows"]) > 20 else ""
+            tg(f"🏦 Черновики в банк — {_org_title(org)}\n{_head(st)}\n\n"
+               + "\n".join(st["rows"][:20]) + tail
+               + "\n\nПодписать вручную в интернет-банке.")
     return out
 
 
