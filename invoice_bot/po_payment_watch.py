@@ -55,6 +55,16 @@ BUYER_INN = os.getenv("ALFA_BUYER_INN", "7807355364")   # ООО «ЦИФРОВ�
 _ORG_ID = None
 
 
+def set_org(inn):
+    """Переключить организацию-плательщика на лету (прогон `--org all` по обеим фирмам).
+
+    Все функции модуля читают `BUYER_INN` как атрибут модуля в момент вызова, поэтому хватает
+    переприсваивания; кэш id организации в МС при этом обязан сброситься — иначе заказы второй
+    фирмы поедут через организацию первой."""
+    global BUYER_INN, _ORG_ID
+    BUYER_INN, _ORG_ID = inn, None
+
+
 def _org_id():
     """id организации-плательщика в МС (кэш на процесс)."""
     global _ORG_ID
@@ -396,7 +406,13 @@ def mark_executed_drafts(inn, agent_id=None):
     return n
 
 
-def run(only_inn=None):
+def run(only_inn=None, methods=None):
+    """`methods` — набор методов оплаты, которые обрабатываем в этом прогоне (None = все).
+
+    Разрез нужен вечернему прогону предоплаты: у ветки `deferred` нет гейта «не создавать второй
+    planned» (он есть только у `prepayment_balance`), поэтому полный прогон дважды в день дробил
+    бы одну пачку отсрочки на две платёжки. `mark_executed_drafts` под фильтр НЕ попадает —
+    сверка «оплачено в МС» дешёвая и нужна всегда."""
     # Гейт по НАШЕЙ организации обязателен (миграция 207): у одного ИНН поставщика теперь до
     # двух строк условий — свои у Цифрового Квадрата (Альфа) и свои у Дисквэра (Сбер). Без
     # фильтра поллер собрал бы по каждому поставщику ДВА черновика на одни и те же заказы.
@@ -411,14 +427,15 @@ def run(only_inn=None):
         inn, method = t["inn"], t["method"]
         agent_id = t.get("ms_agent_id")
         try:
-            if method == "deferred":
-                process_deferred(inn, t.get("deferral_days") or 0,
-                                 payment_cap=t.get("payment_cap"), agent_id=agent_id)
-            elif method == "prepayment_per_order":
-                process_prepayment_per_order(inn, agent_id=agent_id)
-            elif method == "prepayment_balance":
-                process_prepayment_balance(inn, t.get("advance_amount"),
-                                           t.get("balance_threshold"), agent_id=agent_id)
+            if not methods or method in methods:
+                if method == "deferred":
+                    process_deferred(inn, t.get("deferral_days") or 0,
+                                     payment_cap=t.get("payment_cap"), agent_id=agent_id)
+                elif method == "prepayment_per_order":
+                    process_prepayment_per_order(inn, agent_id=agent_id)
+                elif method == "prepayment_balance":
+                    process_prepayment_balance(inn, t.get("advance_amount"),
+                                               t.get("balance_threshold"), agent_id=agent_id)
             mark_executed_drafts(inn, agent_id=agent_id)   # деньги видны в МС → черновик 'paid'
         except Exception as e:
             print(f"[{inn}] ОШИБКА ({method}): {type(e).__name__}: {e}")
@@ -427,8 +444,27 @@ def run(only_inn=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--inn", help="прогнать только одного поставщика (тест)")
+    ap.add_argument("--org", help="ИНН нашего юрлица или 'all' (по умолчанию — из ALFA_BUYER_INN)")
+    ap.add_argument("--methods", help="только эти методы оплаты, через запятую: "
+                                      "deferred,prepayment_per_order,prepayment_balance")
     a = ap.parse_args()
-    run(only_inn=a.inn)
+    methods = {m.strip() for m in a.methods.split(",")} if a.methods else None
+
+    if not a.org:
+        run(only_inn=a.inn, methods=methods)
+        return
+    if a.org == "all":
+        import payment_send                      # реестр наших юрлиц = реестр банков
+        orgs = list(payment_send.BANKS)
+    else:
+        orgs = [a.org]
+    for inn in orgs:
+        set_org(inn)
+        print(f"── организация {inn} ──")
+        try:                                     # падение МС по одной фирме не съедает вторую
+            run(only_inn=a.inn, methods=methods)
+        except Exception as e:                   # noqa: BLE001
+            print(f"[org {inn}] ОШИБКА: {type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":
