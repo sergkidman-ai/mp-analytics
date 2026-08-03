@@ -22,7 +22,8 @@ upd_to_supply.py — конвейер: входящий УПД (XLS/XLSX или 
   • Позиции мигрируют из заказа; страну/ГТД проставляем на позицию, сматченную со строкой УПД.
   • Страна/ГТД — точь-в-точь как в УПД: прочерк (--/-) → поле пустое (Китай не подставляем).
   • Услуги (Доставка и пр.) — без страны/ГТД/закупцены.
-  • Приёмка: статус «Создан», Проведено=нет, дата = план.дата приёмки заказа, время 08:00.
+  • Приёмка: статус «Создан», Проведено=нет, дата = план.дата приёмки заказа, время 08:00;
+    плана в заказе нет (заведён руками) → +1 рабочий день от даты документа, тоже 08:00.
   • Парсинг колонок — по строке номеров граф ФНС (А|1а|3|9|10|10а|11), не по фикс-индексам.
 """
 import os, sys, re, io, zipfile, json, urllib.parse, urllib.error
@@ -32,6 +33,7 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, "/opt/mp-analytics")
 import invoice_to_po as inv           # fetch, read_grid, meta, get_r, _parse_date, _num, is_delivery
+import workcal                        # план-дата приёмки, когда её нет в заказе
 from ms import get, post, put, MS
 
 MSU = MS
@@ -767,7 +769,11 @@ def create_supply_auto(oid, seller_inn=None, incoming_number="", incoming_date=N
         opos = inv.get_r(f"/entity/purchaseorder/{oid}/positions?expand=assortment&limit=200").get("rows", [])
         if not opos:
             res["error"] = f"У заказа {oname} нет позиций"; return res
-        plan = (order.get("deliveryPlannedMoment") or "").split()[0]
+        # Плана нет (заказ заведён руками) → считаем сами: +1 рабочий день от даты счёта.
+        # Раньше в этом случае moment не ставился вовсе и МС писал «сейчас».
+        plan = (order.get("deliveryPlannedMoment") or "").split()[0] or \
+               workcal.plan_date(date.fromisoformat(incoming_date) if incoming_date
+                                 else date.today()).isoformat()
         sup_pos, bp = [], 0
         for p in opos:
             a = p["assortment"]
@@ -895,9 +901,11 @@ def process(src, create=True, suffix="", fill=False):
         mp, warns = match_rows(opos, upd["positions"])
         res["warns"] += warns
 
-        # план-дата приёмки → moment 08:00; иначе дата УПД
+        # План-дата приёмки заказа → moment 08:00. Заказ заведён руками и плана нет —
+        # считаем сами: +1 рабочий день от даты УПД, а НЕ «день в день» (иначе приёмка
+        # встаёт задним числом; правило Сергея 03.08.2026).
         plan = (order.get("deliveryPlannedMoment") or "").split()[0] or \
-               (upd["date"].isoformat() if upd["date"] else None)
+               workcal.plan_date(upd["date"] or date.today()).isoformat()
         moment = f"{plan} 08:00:00"
         inc_date = upd["date"].isoformat() if upd["date"] else None   # нет даты (Спринт) → входящую не ставим
 
