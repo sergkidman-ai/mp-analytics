@@ -14,6 +14,7 @@
 | `FEEDBACK_MOD_WINDOW_DAYS` | не задано | 30 | окно показа карточек/сводки (дней) |
 | `FEEDBACK_MOD_BATCH_CAP` | не задано | 60 | предохранитель «показать всё» |
 | `FEEDBACK_QUEUE_POLL_SEC` | не задано | 15 | (устар. — авто-рассылка убрана) |
+| `COMPAT_INDEX_MAX_AGE_HOURS` | не задано | 24 | гейт пересборки индекса подбора в шаге 1c цикла (сборка ~75 с) |
 
 **Sonnet-сплит убран (2026-07-27):** `FEEDBACK_WEB_SPLIT` / `FEEDBACK_WEB_ANALYSIS_MODEL` и код
 `_reanalyze_compat()` в `reports/feedback_web.py` удалены как лишнее звено — веб-поиск остаётся

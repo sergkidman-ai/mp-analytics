@@ -6,6 +6,10 @@
   1. Сбор по всем каналам (collectors.feedback_collect_all).
   1b. Обновление контента карточек WB, если он старше FEEDBACK_CARDS_MAX_AGE_DAYS — без него у части
      SKU (весь wb_acc2 до 27.07) CARD_DATA пуст и вопрос уходит на человека без нужды.
+  1c. Пересборка индекса совместимости (reports.compat_index) — СРАЗУ ПОСЛЕ карточек, чтобы новые
+     карточки попали в подбор в тот же цикл. Гейт COMPAT_INDEX_MAX_AGE_HOURS (по умолч. 24): сборка
+     идёт ~75 секунд, гонять её каждые 2 часа впустую незачем. Провал шага цикл не роняет, а сборка
+     транзакционная — старый индекс остаётся рабочим.
   2. Пометка старых неотвеченных вопросов (>30 дней) флагом skipped_old — не генерируем, не шлём
      в модерацию (отзывам возрастной лимит не нужен, весь бэклог отзывов разбирается капельно).
   3. Генерация черновиков (reports.feedback_today.run) — draft_route auto/review/human.
@@ -59,6 +63,19 @@ def _mark_skipped_old():
     return n
 
 
+def _index_line():
+    """Одна строка о состоянии индекса совместимости для лога цикла (возраст + объём)."""
+    try:
+        from reports import compat_index
+        m = compat_index.meta()
+    except Exception as e:
+        return f"состояние неизвестно ({type(e).__name__})"
+    if not m:
+        return "НЕ СОБРАН"
+    return (f"возраст {m['age_hours']:.1f} ч, моделей {m['models_total']}, "
+            f"листингов {m['items_total']}")
+
+
 def main():
     started = time.strftime("%Y-%m-%d %H:%M:%S")
     _log(f"=== цикл начат {started} ===")
@@ -68,6 +85,10 @@ def main():
 
     from collectors import wb_card_content
     _step("1b/5 контент карточек WB (по гейту свежести)", wb_card_content.refresh_if_stale)
+
+    from reports import compat_index
+    built = _step("1c/5 индекс совместимости (по гейту возраста)", compat_index.rebuild_if_stale)
+    _log(f"индекс совместимости: {'пересобран, ' if built else 'не требовался, '}{_index_line()}")
 
     _step("2/5 skipped_old для старых вопросов", _mark_skipped_old)
 

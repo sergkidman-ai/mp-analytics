@@ -27,6 +27,7 @@
     ./venv/bin/python -m reports.compat_index --stats          # покрытие
     ./venv/bin/python -m reports.compat_index --check "Brother DCP-7180DN" [wb]
 """
+import os
 import re
 import sys
 import pathlib
@@ -370,7 +371,11 @@ def _cache_rows():
 
 
 def build(verbose=True):
-    """Полная пересборка индекса. Возвращает (строк, моделей, товаров)."""
+    """Полная пересборка индекса. Возвращает (строк, моделей, товаров).
+
+    TRUNCATE и вставка — в ОДНОЙ транзакции (`db.get_conn` коммитит только на выходе без ошибки):
+    сборка упала на середине → откат, в таблице остаётся прежний индекс, подбор продолжает работать
+    на нём. Пустой таблицы «между» не бывает."""
     total = 0
     with db.get_conn() as conn:
         with conn.cursor() as cur:
@@ -398,7 +403,36 @@ def build(verbose=True):
                 ON CONFLICT (id) DO UPDATE SET built_at=now(), rows_total=EXCLUDED.rows_total,
                     models_total=EXCLUDED.models_total, items_total=EXCLUDED.items_total""",
                         (rows_total, models_total, items_total))
+    global _READY
+    _READY = bool(rows_total)
     return rows_total, models_total, items_total
+
+
+def meta():
+    """Паспорт последней сборки → dict или None, если индекс ни разу не собирали.
+    age_hours — возраст в часах (по нему видно протухание в суточной сводке)."""
+    rows = db.query("""SELECT built_at, rows_total, models_total, items_total,
+                              extract(epoch FROM now() - built_at)/3600 AS age_hours
+                         FROM compat_index_meta WHERE id = 1""")
+    if not rows:
+        return None
+    m = dict(rows[0])
+    m["age_hours"] = float(m["age_hours"])
+    return m
+
+
+def rebuild_if_stale(max_age_hours=None, verbose=False):
+    """Шаг цикла ответов: пересобрать индекс, если он старше COMPAT_INDEX_MAX_AGE_HOURS (по умолч. 24).
+
+    Гейт по возрасту, а не безусловная сборка: полный проход — ~75 секунд, а цикл ответов ходит
+    каждые 2 часа; карточки за это время меняются мало. Индекса нет вовсе → собираем всегда.
+    Возвращает (rows, models, items) при сборке или None, если она не потребовалась."""
+    max_age = float(max_age_hours if max_age_hours is not None
+                    else os.environ.get("COMPAT_INDEX_MAX_AGE_HOURS", "24"))
+    m = meta()
+    if m and m["rows_total"] and m["age_hours"] <= max_age:
+        return None
+    return build(verbose=verbose)
 
 
 # ──────────────────────────────── подбор по индексу ────────────────────────────────
