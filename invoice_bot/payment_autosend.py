@@ -62,12 +62,15 @@ def _names(rows):
 
 
 def tg(msg):
-    """Сводка прогона в Telegram (тот же бот, что у invoice-bot). Молча пропускаем, если бот
-    не настроен: отсутствие TG не должно ронять отправку платежей."""
-    token = os.getenv("TG_BOT_TOKEN", "").strip()
-    ids = [x.strip() for x in os.getenv("TG_NOTIFY_ID", "").split(",") if x.strip()] or \
-          [x.strip() for x in os.getenv("TG_ALLOWED_IDS", "").split(",") if x.strip()]
+    """Сводка прогона в ОТДЕЛЬНЫЙ платёжный бот (`TG_PAY_BOT_TOKEN` / `TG_PAY_NOTIFY_ID`).
+    Общий бот invoice-bot сюда не подставляется намеренно: его канал читают и другие люди,
+    а платёжная сводка — суммы и получатели — предназначена только Сергею. Бот не настроен →
+    сводка не уходит никуда (отправку платежей это не роняет)."""
+    token = os.getenv("TG_PAY_BOT_TOKEN", "").strip()
+    ids = [x.strip() for x in os.getenv("TG_PAY_NOTIFY_ID", "").split(",") if x.strip()]
     if not (token and ids):
+        print("TG: платёжный бот не настроен (TG_PAY_BOT_TOKEN/TG_PAY_NOTIFY_ID) — сводка "
+              "не отправлена", flush=True)
         return
     api = f"https://api.telegram.org/bot{token}/sendMessage"
     for uid in ids:
