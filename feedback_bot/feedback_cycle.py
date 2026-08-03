@@ -22,7 +22,11 @@
   5. Пуш карточек модерации в Telegram капом FEEDBACK_MOD_CYCLE_BATCH/цикл (переиспользуем
      tg_moderation.send_batch — раньше авторассылку карточек убирали из-за флуда, теперь капается).
 
-Запуск:  ./venv/bin/python feedback_bot/feedback_cycle.py
+Запуск:  ./venv/bin/python feedback_bot/feedback_cycle.py [--no-send]
+
+--no-send (или FEEDBACK_CYCLE_NO_SEND=1) — прогон БЕЗ отправки: сбор, индекс, черновики считаются
+как обычно, но шаги 3b/4 (публикация ответов на площадках) и 5 (карточки в Telegram) пропускаются.
+Для ручных проверок: обычный ручной прогон — боевой, он публикует ответы покупателям.
 """
 import os
 import sys
@@ -76,9 +80,10 @@ def _index_line():
             f"листингов {m['items_total']}")
 
 
-def main():
+def main(no_send=None):
+    no_send = (os.environ.get("FEEDBACK_CYCLE_NO_SEND", "0") == "1") if no_send is None else no_send
     started = time.strftime("%Y-%m-%d %H:%M:%S")
-    _log(f"=== цикл начат {started} ===")
+    _log(f"=== цикл начат {started}{' · РЕЖИМ БЕЗ ОТПРАВКИ (--no-send)' if no_send else ''} ===")
 
     from collectors import feedback_collect_all
     _step("1/5 сбор по каналам", feedback_collect_all.main)
@@ -97,16 +102,21 @@ def main():
     _step("3/5 генерация черновиков", feedback_today.run, since=since)
 
     from feedback_bot import tg_moderation
-    _step("3b/5 слив хвоста старой схемы лимита (deferred)", tg_moderation.flush_deferred)
+    if no_send:
+        # Всё, что уходит наружу (площадки + карточки оператору), в тестовом прогоне пропускаем.
+        # Очередь модерации при этом наполняется — карточки уйдут следующим боевым циклом.
+        _log("3b–5/5 ПРОПУЩЕНЫ (--no-send): публикация на площадках и карточки в Telegram")
+    else:
+        _step("3b/5 слив хвоста старой схемы лимита (deferred)", tg_moderation.flush_deferred)
 
-    from collectors import feedback_autosend
-    _step("4/5 авто-отправка позитив-шаблонов", feedback_autosend.run)
+        from collectors import feedback_autosend
+        _step("4/5 авто-отправка позитив-шаблонов", feedback_autosend.run)
 
-    sent = _step("5/5 карточки модерации в Telegram", tg_moderation.send_batch, limit=MOD_CYCLE_BATCH)
-    _log(f"карточек отправлено: {sent if sent is not None else 0}")
+        sent = _step("5/5 карточки модерации в Telegram", tg_moderation.send_batch, limit=MOD_CYCLE_BATCH)
+        _log(f"карточек отправлено: {sent if sent is not None else 0}")
 
     _log("=== цикл завершён ===")
 
 
 if __name__ == "__main__":
-    main()
+    main(no_send=("--no-send" in sys.argv) or None)

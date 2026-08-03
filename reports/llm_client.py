@@ -9,8 +9,39 @@ Anthropic-совместимый SDK работает и для Anthropic (че�
 Клиенты кэшируются на процесс (по провайдеру).
 """
 import os
+import time
 
 _CACHE = {}
+
+
+class LlmUnavailable(Exception):
+    """Модель не ответила (529 Overloaded / таймаут / обрыв) после всех повторов.
+
+    Отдельный тип, а не строка в ответе: текст ошибки НИКОГДА не должен становиться черновиком —
+    инцидент 03.08.2026, когда «Error code: 529 … overloaded_error» уехал в карточку модерации как
+    «Наш ответ» по вопросу про 62XL. Тот же класс дыры, что салваж битого JSON в ответ покупателю.
+    Кто ловит — оставляет запись БЕЗ черновика до следующего цикла."""
+
+
+RETRIES = int(os.environ.get("FEEDBACK_LLM_RETRIES", "3"))
+RETRY_SLEEP = float(os.environ.get("FEEDBACK_LLM_RETRY_SLEEP", "5"))
+
+
+def create_with_retry(client, **kw):
+    """client.messages.create с повторами: RETRIES попыток, пауза 5 → 15 → 45 с (×3).
+    Ошибка любая (529, таймаут, обрыв соединения); исчерпали попытки → LlmUnavailable."""
+    last = None
+    for attempt in range(1, RETRIES + 1):
+        try:
+            return client.messages.create(**kw)
+        except Exception as e:
+            last = e
+            if attempt < RETRIES:
+                pause = RETRY_SLEEP * (3 ** (attempt - 1))
+                print(f"   LLM попытка {attempt}/{RETRIES} не удалась ({type(e).__name__}: "
+                      f"{str(e)[:80]}) — пауза {pause:.0f} с", flush=True)
+                time.sleep(pause)
+    raise LlmUnavailable(f"{type(last).__name__}: {str(last)[:200]}") from last
 
 
 def is_deepseek(model):

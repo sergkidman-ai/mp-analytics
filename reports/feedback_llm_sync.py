@@ -79,8 +79,11 @@ def main(n=20):
         try:
             data, cc = call(client, r, cf, corpus)
         except Exception as e:
-            data, cc = {"reply": f"[ошибка вызова: {str(e)[:120]}]", "route": "review",
-                        "confidence": 0, "grounded": False, "note": ""}, ""
+            # reply ПУСТОЙ: текст ошибки не должен выглядеть как ответ модели даже в отладочном
+            # артефакте — отсюда его копируют руками (см. LlmUnavailable в reports/llm_client.py).
+            print(f"  СБОЙ вызова: {type(e).__name__}: {str(e)[:120]} — строка без ответа")
+            data, cc = {"reply": "", "route": "review", "confidence": 0, "grounded": False,
+                        "note": f"сбой вызова: {type(e).__name__}"}, ""
         out.append(dict(r, **{"m_reply": data.get("reply", ""), "m_route": data.get("route", "review"),
                               "m_conf": data.get("confidence", 0), "m_grounded": data.get("grounded", False),
                               "m_note": data.get("note", ""), "intent": intent(r["body"]), "card": cc}))

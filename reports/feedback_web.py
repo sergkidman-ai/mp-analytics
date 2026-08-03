@@ -17,6 +17,7 @@ import pathlib
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
+from reports.llm_client import create_with_retry                                 # noqa: E402
 
 WEB_SYSTEM = """Ты — специалист поддержки магазина картриджей «Цифровой квадрат» (Wildberries, Ozon).
 Покупатель спрашивает, подойдёт ли наш картридж к его принтеру. В КАРТОЧКЕ этой модели нет — но
@@ -71,8 +72,8 @@ def web_compat(client, question, product_name, card_summary, model=None):
     try:
         sysparam = ([{"type": "text", "text": WEB_SYSTEM, "cache_control": {"type": "ephemeral"}}]
                     if not model.lower().startswith("deepseek") else WEB_SYSTEM)
-        m = client.messages.create(
-            model=model, max_tokens=int(os.environ.get("FEEDBACK_WEB_MAX_TOKENS", "2500")), system=sysparam,
+        m = create_with_retry(
+            client, model=model, max_tokens=int(os.environ.get("FEEDBACK_WEB_MAX_TOKENS", "2500")), system=sysparam,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": WEB_MAX_USES}],
             messages=[{"role": "user", "content": prompt}])
     except Exception as e:
@@ -137,8 +138,8 @@ def web_fact(client, question, product_name, card_summary, model=None, draft="")
     try:
         sysparam = ([{"type": "text", "text": FACT_SYSTEM, "cache_control": {"type": "ephemeral"}}]
                     if not model.lower().startswith("deepseek") else FACT_SYSTEM)
-        m = client.messages.create(
-            model=model, max_tokens=int(os.environ.get("FEEDBACK_WEB_MAX_TOKENS", "2500")), system=sysparam,
+        m = create_with_retry(
+            client, model=model, max_tokens=int(os.environ.get("FEEDBACK_WEB_MAX_TOKENS", "2500")), system=sysparam,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": WEB_MAX_USES}],
             messages=[{"role": "user", "content": prompt}])
     except Exception as e:

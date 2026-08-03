@@ -31,6 +31,7 @@ from reports.card_facts import CardFacts                                        
 from reports.feedback_corpus import load_corpus, intent                         # noqa: E402
 from reports.feedback_draft_run import draft_review, _first_name, _short, DEFECT_RX  # noqa: E402
 from reports.feedback_web import web_compat                                      # noqa: E402
+from reports.llm_client import create_with_retry as _create, LlmUnavailable      # noqa: E402,F401
 from reports.compat_cache import get as cc_get, put as cc_put                    # noqa: E402
 
 # сигнал, что товар УЖЕ куплен/используется (тогда уместен QR на упаковке/чеке); иначе — пред-продажа.
@@ -251,8 +252,8 @@ def _llm(client, r, cf, corpus, hint=None):
         client = client_for(model)
     sysparam = ([{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
                 if not model.lower().startswith("deepseek") else SYSTEM)
-    m = client.messages.create(model=model, max_tokens=max_tok, system=sysparam,
-                               messages=[{"role": "user", "content": content}])
+    m = _create(client, model=model, max_tokens=max_tok, system=sysparam,
+                messages=[{"role": "user", "content": content}])
     _COST.add(model, getattr(m, "usage", None))
     raw = _text_of(m)
     d = None
@@ -581,11 +582,10 @@ def _answer(client, r, cf, corpus):
         # негатив → шаблоны (позитив: разнообразная ротация 16 вариантов; негатив: хендофф по QR)
         used_llm = _has_text(r) and (not _neg) and (bool(DEFECT_RX.search(_txt)) or "?" in _txt)
     if used_llm:
-        try:
-            d, cc, used_model = _llm(client, r, cf, corpus)
-        except Exception as e:
-            d, cc, used_model = {"reply": f"[ошибка вызова: {str(e)[:120]}]", "route": "review",
-                                 "confidence": 0, "grounded": False, "note": ""}, "", MODEL
+        # БЕЗ except: сбой вызова (LlmUnavailable после повторов или любое другое исключение)
+        # поднимается в run() и запись остаётся без черновика. Подстановка текста ошибки в reply
+        # запрещена — см. LlmUnavailable.
+        d, cc, used_model = _llm(client, r, cf, corpus)
         # Битый JSON модели → _llm вернул route=human с маркером: на человека, БЕЗ обогащения/утечек.
         if r["kind"] == "question" and d.get("route") == "human":
             return _early_human(r, cc, (d.get("reply") or "").strip(),
@@ -810,9 +810,18 @@ def run(since="2026-06-17"):
           f"{sum(r['kind']=='question' for r in rows)}, отзывов {sum(r['kind']=='review' for r in rows)}). "
           f"Корпус few-shot: {len(corpus.items)}.", flush=True)
 
-    out, nllm, nweb = [], 0, 0
+    out, nllm, nweb, nfail = [], 0, 0, 0
     for i, r in enumerate(rows, 1):
-        outd, reply, route, conf, ground, ul, uw = _answer(client, r, cf, corpus)
+        try:
+            outd, reply, route, conf, ground, ul, uw = _answer(client, r, cf, corpus)
+        except Exception as e:
+            # Сбой генерации — запись остаётся БЕЗ черновика и БЕЗ карточки модерации: пусть лучше
+            # покупатель ждёт следующего цикла, чем получит служебный текст. draft_src_hash не
+            # проставлен → _gather() возьмёт эту запись снова через 2 часа.
+            nfail += 1
+            print(f"[{i}/{len(rows)}] ПРОПУСК без черновика {r['platform']}/{r['kind']} "
+                  f"{r['ext_id']}: {type(e).__name__}: {str(e)[:120]}", flush=True)
+            continue
         _store(r, reply, route, conf, ground)
         _enqueue_moderation(r, reply)
         out.append(outd)
@@ -827,7 +836,8 @@ def run(since="2026-06-17"):
     _html(out, since)
     c = Counter(o["cat"] for o in out)
     print(f"\nИТОГ: {len(out)} черновиков · ИИ-вызовов {nllm} · веб-проверок {nweb} · вопросов {c['question']} · "
-          f"отзывов-с-текстом {c['review-text']} · пустых-шаблоном {c['review-empty']}", flush=True)
+          f"отзывов-с-текстом {c['review-text']} · пустых-шаблоном {c['review-empty']}"
+          + (f" · ПРОПУЩЕНО без черновика (сбой модели) {nfail}" if nfail else ""), flush=True)
     print("Токены/стоимость (сборка ответа _llm):", flush=True)
     print(_COST.summary(), flush=True)
     _COST.persist()
