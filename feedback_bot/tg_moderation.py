@@ -26,6 +26,7 @@ import os
 import sys
 import json
 import time
+import re
 import html
 import urllib.request
 import urllib.error
@@ -333,6 +334,44 @@ def _dashboard():
     return "\n".join(lines), kb
 
 
+# Служебные маркеры карточки модерации. Оператор правит ответ, копируя карточку целиком, и
+# служебная шапка уезжает покупателю (инцидент 31.07: на вопрос Ozon 019fb444 опубликовался весь
+# текст карточки — «🔴 БОЕВОЙ РЕЖИМ», счётчик «Опубликовано сегодня», «Покупатель:», «Наш ответ:»).
+_CARD_MARK_RX = re.compile(
+    r"^\s*(?:[\U0001F300-\U0001FAFF☀-➿️]+\s*)?"
+    r"(?:БОЕВОЙ РЕЖИМ|DRY-RUN|Опубликовано сегодня|Вопрос\s*·|Отзыв\s*·|Покупатель:|Наш ответ:)",
+    re.IGNORECASE)
+_ANSWER_MARK_RX = re.compile(r"^\s*(?:[\U0001F300-\U0001FAFF☀-➿️]+\s*)?Наш ответ:\s*",
+                             re.IGNORECASE)
+
+
+def clean_operator_text(text):
+    """Вырезать служебную разметку карточки из текста, присланного оператором.
+
+    Возвращает (clean, None) либо (None, причина-переспроса). Три случая:
+      * маркеров нет — текст и есть ответ, отдаём как прислали (обычная правка);
+      * есть «Наш ответ:» — ответ это всё, что ПОСЛЕ последнего такого маркера;
+      * маркеры есть, а «Наш ответ:» нет — где именно ответ, неизвестно; НЕ угадываем и НЕ шлём.
+    Отправлять «что осталось после вырезания» вслепую опаснее, чем переспросить: покупателю
+    уходит живой текст, отозвать его на площадке нельзя."""
+    raw = (text or "").strip()
+    if not raw:
+        return None, "пустой текст"
+    lines = raw.splitlines()
+    if not any(_CARD_MARK_RX.match(ln) for ln in lines):
+        return raw, None
+    idx = [i for i, ln in enumerate(lines) if _ANSWER_MARK_RX.match(ln)]
+    if not idx:
+        return None, "в тексте служебная разметка карточки, но строки «Наш ответ:» нет"
+    i = idx[-1]
+    body = [_ANSWER_MARK_RX.sub("", lines[i])] + lines[i + 1:]
+    body = [ln for ln in body if not _CARD_MARK_RX.match(ln)]
+    clean = "\n".join(body).strip()
+    if len(clean) < 15:
+        return None, "после вырезания служебных строк ответа не осталось"
+    return clean, None
+
+
 def _do_send(mod_id, from_id, text, chat_id, message_id):
     """Общий путь отправки (кнопка ✅ или присланный правленый текст)."""
     m = _mod(mod_id)
@@ -434,7 +473,17 @@ def handle_message(msg):
         if not text:
             send(chat_id, "Пустой текст — правка отменена.")
             return
-        res = _do_send(mod_id, from_id, text, chat_id, None)
+        clean, why = clean_operator_text(text)
+        if clean is None:
+            PENDING_EDIT[from_id] = mod_id          # правка НЕ отменена — ждём текст ещё раз
+            send(chat_id, f"⚠️ Не отправил: {why}.\n"
+                          f"Пришли, пожалуйста, только сам текст ответа покупателю — "
+                          f"без шапки карточки, счётчиков и строк «Покупатель:» / «Наш ответ:».")
+            return
+        if clean != text:
+            log(f"правка mod={mod_id}: вырезана служебная разметка карточки "
+                f"({len(text)} → {len(clean)} симв.)")
+        res = _do_send(mod_id, from_id, clean, chat_id, None)
         send(chat_id, f"Правка: {res}")
         return
     if text == "/next":
