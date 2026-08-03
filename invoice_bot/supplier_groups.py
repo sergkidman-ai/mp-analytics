@@ -79,10 +79,28 @@ GROUPS = {
 # производные индексы
 ID2GROUP = {}
 ID2NAME = {}
+INN2GROUPS = {}          # ИНН → множество групп: 7806486149 живёт сразу в двух («Спринт», «Спринт МСК»)
 for _g, _rows in GROUPS.items():
     for _name, _inn, _id in _rows:
         ID2GROUP[_id] = _g
         ID2NAME[_id] = _name
+        if _inn:
+            INN2GROUPS.setdefault(_inn, set()).add(_g)
+
+
+def groups_of_inn(inn):
+    """Группы, в которых состоит это юрлицо (обычно одна, у Спринта — две)."""
+    return INN2GROUPS.get(inn, set())
+
+
+def related_inns(inn):
+    """ИНН всех юрлиц тех же групп, включая сам. Нужен там, где настройка — свойство
+    ПОСТАВЩИКА, а не конкретного ООО: юрлица у поставщика меняются, и счёт может прийти
+    от «КОМПАНИЯ БЛОССОМ», пока настройка заведена на «КАРТРИДЖ ТРЕЙД» — это один поставщик."""
+    out = {inn} if inn else set()
+    for g in groups_of_inn(inn):
+        out |= {r[1] for r in GROUPS[g] if r[1]}
+    return out
 
 
 def group_of_counterparty(counterparty_id):

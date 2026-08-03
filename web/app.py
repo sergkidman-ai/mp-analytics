@@ -19,6 +19,7 @@ from pydantic import BaseModel
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+import collectors.bank_txn_store as txn_store  # noqa: E402  правила разметки выписки (поток inv)
 
 app = FastAPI(title="Пульт бизнеса")
 STATIC = BASE_DIR / "web" / "static"
@@ -246,35 +247,98 @@ def sku(platform: str = "", account: str = "", period: str = "",
     return {"rows": rows, "count": len(rows)}
 
 
+# ── Операционные расходы: ручной снапшот (история) и факт из банковской выписки ──────────
+# Решение Сергея 03.08.2026: с августа-2026 итог месяца считается ТОЛЬКО из размеченной
+# выписки (см. /opex/statements и миграцию 209). Июль и раньше живут на прежнем ручном
+# снапшоте таблицы `opex` — пересчитывать историю нечем, выписка в БД начинается с 01.08.
+OPEX_FACT_SINCE = "2026-08-01"
+ORG_NAMES = {"7807355364": "Цифровой Квадрат", "7811803918": "Дисквэр"}
+
+
+def _opex_month(period):
+    """Период дашборда (1-е число месяца) → месяц раскладки расходов."""
+    return (period or "")[:8] + "01"
+
+
+def _opex_snapshot_total(period):
+    """Ручной снапшот: активный = последний effective_from ≤ месяца (НЕ сумма всех — иначе
+    двойной счёт при помесячном редактировании)."""
+    snap = db.query("SELECT max(effective_from)::text e FROM opex WHERE effective_from<=%s",
+                    (period,))[0]["e"]
+    if not snap:
+        return 0.0, None
+    t = db.query("SELECT coalesce(sum(amount),0)::float t FROM opex WHERE effective_from=%s",
+                 (snap,))[0]["t"]
+    return t, snap
+
+
+def _opex_total(period):
+    """Единая точка правды об итоге опер. расходов за месяц: с 08.2026 — факт из выписки,
+    раньше — ручной снапшот. Используют все потребители (бизнес-агрегат, советы, отчёт)."""
+    m = _opex_month(period)
+    if not m or len(m) != 10:
+        return 0.0
+    if m >= OPEX_FACT_SINCE:
+        return db.query("SELECT coalesce(sum(amount),0)::float t FROM opex_fact_month WHERE month=%s",
+                        (m,))[0]["t"]
+    return _opex_snapshot_total(period)[0]
+
+
+def _opex_unassigned(month):
+    """Сколько расходных платежей месяца ещё без статьи — чтобы итог не выглядел готовым."""
+    return db.query("""SELECT count(*)::int n, coalesce(sum(t.amount),0)::float s
+        FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id=t.id
+        WHERE t.direction='DEBIT' AND a.txn_id IS NULL
+          AND date_trunc('month', t.operation_date)::date=%s""", (month,))[0]
+
+
 @app.get("/api/opex")
 def opex(period: str = ""):
-    """Постоянные/общебизнесовые расходы (ФОТ + аренда + налоги) — весь бизнес (WB + Ozon).
-    Снапшот действует с effective_from. Чистая бизнеса = WB (из margin) + Ozon
-    (к перечислению − COGS) за месяц минус эти расходы. Редактируется помесячно в UI."""
+    """Операционные расходы бизнеса за месяц (весь бизнес: WB + Ozon, оба юрлица).
+
+    Два источника, переключение по OPEX_FACT_SINCE:
+      source='fact'   — с 08.2026: суммы статей из размеченной банковской выписки;
+      source='manual' — до 08.2026: прежний ручной снапшот (наследуется предыдущим месяцем).
+    Чистая бизнеса = WB (из margin) + Ozon (к перечислению − COGS) за месяц минус расходы."""
     if not period:
         return {"applies": False, "items": [], "total": 0}
-    # Активный снапшот = последний effective_from ≤ месяца (НЕ сумма всех — иначе двойной счёт
-    # при помесячном редактировании). Месяц без своего снапшота наследует предыдущий.
-    snap = db.query("SELECT max(effective_from)::text e FROM opex WHERE effective_from<=%s", (period,))[0]["e"]
+    month = _opex_month(period)
+
+    def _with_biz(payload, total):
+        wb_net = db.query("""SELECT coalesce(sum(net_profit),0)::float n FROM margin_by_sku
+            WHERE period_from=%s AND platform='wb'""", (period,))[0]["n"]
+        oz_net = _oz_summary("", period)["net"]   # к перечислению − COGS (включает оверхед)
+        biz = wb_net + oz_net
+        payload.update({"wb_net": round(wb_net, 2), "oz_net": round(oz_net, 2),
+                        "biz_net": round(biz, 2), "net_after": round(biz - total, 2),
+                        "total": round(total, 2), "period": period})
+        return payload
+
+    if month >= OPEX_FACT_SINCE:
+        items = db.query("""SELECT category_id, category, sum(amount)::float amount,
+                                   sum(txn_count)::int txn_count
+            FROM opex_fact_month WHERE month=%s GROUP BY 1,2 ORDER BY 3 DESC""", (month,))
+        by_org = db.query("""SELECT org_inn, sum(amount)::float amount
+            FROM opex_fact_month WHERE month=%s GROUP BY 1 ORDER BY 2 DESC""", (month,))
+        for r in by_org:
+            r["org_name"] = ORG_NAMES.get(r["org_inn"], r["org_inn"])
+        total = sum(i["amount"] for i in items)
+        return _with_biz({"applies": True, "source": "fact", "month": month,
+                          "items": items, "by_org": by_org,
+                          "unassigned": _opex_unassigned(month)}, total)
+
+    total, snap = _opex_snapshot_total(period)
     if not snap:
-        return {"applies": False, "items": [], "total": 0, "period": period,
-                "snapshot": None, "own": False}
+        return {"applies": False, "source": "manual", "items": [], "total": 0,
+                "period": period, "snapshot": None, "own": False}
     items = db.query("""SELECT id, name, role, category, base::float, tax_pct::float, amount::float
         FROM opex WHERE effective_from=%s ORDER BY category, amount DESC""", (snap,))
-    fot = sum(i["amount"] for i in items if i["category"] == "salary")
-    rent = sum(i["amount"] for i in items if i["category"] == "rent")
-    tax = sum(i["amount"] for i in items if i["category"] == "tax")
-    total = sum(i["amount"] for i in items)          # ФОТ + аренда + налоги + прочее
-    wb_net = db.query("""SELECT coalesce(sum(net_profit),0)::float n FROM margin_by_sku
-        WHERE period_from=%s AND platform='wb'""", (period,))[0]["n"]
-    oz_net = _oz_summary("", period)["net"]   # к перечислению − COGS (включает оверхед)
-    biz = wb_net + oz_net
-    return {"applies": True, "period": period, "snapshot": snap,
-            "own": snap == period[:8] + "01", "items": items,
-            "fot": round(fot, 2), "rent": round(rent, 2), "tax": round(tax, 2), "total": round(total, 2),
-            "wb_net": round(wb_net, 2), "oz_net": round(oz_net, 2),
-            "biz_net": round(biz, 2), "net_after": round(biz - total, 2),
-            "headcount": sum(1 for i in items if i["category"] == "salary")}
+    return _with_biz({"applies": True, "source": "manual", "snapshot": snap,
+                      "own": snap == month, "items": items,
+                      "fot": round(sum(i["amount"] for i in items if i["category"] == "salary"), 2),
+                      "rent": round(sum(i["amount"] for i in items if i["category"] == "rent"), 2),
+                      "tax": round(sum(i["amount"] for i in items if i["category"] == "tax"), 2),
+                      "headcount": sum(1 for i in items if i["category"] == "salary")}, total)
 
 
 class OpexItem(BaseModel):
@@ -312,6 +376,179 @@ def opex_save(payload: OpexSave):
                 cur.execute("""INSERT INTO opex(effective_from,category,name,role,base,tax_pct,amount)
                     VALUES(%s,%s,%s,%s,%s,%s,%s)""", r)
     return {"ok": True, "period": eff, "count": len(rows)}
+
+
+# ── Выписки: разметка платежей статьями опер. расходов (/opex/statements) ────────────────
+
+@app.get("/api/opex/categories")
+def opex_categories(all: int = 0):
+    """Справочник статей. all=1 — вместе с архивными (для показа старой разметки)."""
+    where = "" if all else "WHERE NOT archived"
+    return {"items": db.query(f"SELECT id, name, sort, archived FROM opex_category {where} "
+                              "ORDER BY sort, name")}
+
+
+class OpexCategory(BaseModel):
+    id: int | None = None
+    name: str = ""
+    sort: int = 100
+    archived: bool = False
+
+
+@app.post("/api/opex/categories")
+def opex_category_save(payload: OpexCategory):
+    """Создать статью или переименовать/архивировать существующую. Имя уникально —
+    повтор возвращает уже имеющуюся статью, а не ошибку."""
+    name = (payload.name or "").strip()
+    if payload.id:
+        if name:
+            db.execute("UPDATE opex_category SET name=%s, sort=%s, archived=%s WHERE id=%s",
+                       (name, payload.sort, payload.archived, payload.id))
+        else:
+            db.execute("UPDATE opex_category SET archived=%s WHERE id=%s",
+                       (payload.archived, payload.id))
+        return {"ok": True, "id": payload.id}
+    if not name:
+        return {"ok": False, "error": "пустое имя статьи"}
+    row = db.query("""INSERT INTO opex_category (name, sort) VALUES (%s, %s)
+        ON CONFLICT (name) DO UPDATE SET archived=false RETURNING id""",
+        (name, payload.sort))[0]
+    return {"ok": True, "id": row["id"], "name": name}
+
+
+@app.get("/api/opex/statement")
+def opex_statement(org: str = "", month: str = "", only: str = "all", direction: str = "DEBIT"):
+    """Строки выписки одной фирмы за месяц + присвоенная статья.
+
+    org — ИНН организации (7807355364 Цифровой / 7811803918 Дисквэр); пусто = обе.
+    only='unassigned' — только платежи без статьи. direction='' — вместе с приходом."""
+    if not month:
+        month = db.query("SELECT coalesce(max(date_trunc('month', operation_date))::text, '') m "
+                         "FROM bank_txn")[0]["m"][:10]
+    if not month:
+        return {"month": None, "orgs": [], "items": [], "totals": {}}
+    month = month[:8] + "01"
+    w, p = ["date_trunc('month', t.operation_date)::date = %s"], [month]
+    if org:
+        w.append("t.org_inn = %s")
+        p.append(org)
+    if direction:
+        w.append("t.direction = %s")
+        p.append(direction)
+    if only == "unassigned":
+        w.append("a.txn_id IS NULL")
+    items = db.query(f"""
+        SELECT t.id, t.bank, t.org_inn, t.operation_date::text, t.direction, t.amount::float,
+               t.document_number, t.purpose, t.cp_name, t.cp_inn,
+               a.category_id, c.name AS category, a.spread_months, a.start_month::text, a.source,
+               (r.id IS NOT NULL) AS has_rule
+        FROM bank_txn t
+        LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
+        LEFT JOIN opex_category c ON c.id = a.category_id
+        LEFT JOIN opex_rule r ON coalesce(t.cp_inn,'') <> '' AND r.cp_inn = t.cp_inn
+        WHERE {' AND '.join(w)}
+        ORDER BY t.operation_date DESC, t.id DESC""", tuple(p))
+    tot = db.query(f"""
+        SELECT count(*)::int n,
+               count(*) FILTER (WHERE a.txn_id IS NOT NULL)::int n_done,
+               coalesce(sum(t.amount),0)::float total,
+               coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NOT NULL),0)::float done,
+               coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NULL),0)::float todo
+        FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
+        WHERE {' AND '.join(w)}""", tuple(p))[0]
+    orgs = db.query("""SELECT org_inn, min(operation_date)::text d0, max(operation_date)::text d1,
+                              count(*)::int n FROM bank_txn GROUP BY 1 ORDER BY 1""")
+    for o in orgs:
+        o["name"] = ORG_NAMES.get(o["org_inn"], o["org_inn"])
+    months = [r["m"] for r in db.query(
+        "SELECT DISTINCT date_trunc('month', operation_date)::date::text m FROM bank_txn ORDER BY 1 DESC")]
+    return {"month": month, "org": org, "only": only, "items": items,
+            "totals": tot, "orgs": orgs, "months": months}
+
+
+class OpexAssign(BaseModel):
+    txn_id: int
+    category_id: int | None = None        # null = снять статью (вернуть в нераспределённые)
+    spread_months: int = 1
+    remember: bool = False                # запомнить контрагента → правило на будущее
+    apply_existing: bool = True           # доразметить прочие платежи этого же контрагента
+
+
+@app.post("/api/opex/statement/assign")
+def opex_assign(payload: OpexAssign):
+    """Присвоить платежу статью (или снять). При remember — запомнить правило по ИНН
+    контрагента (фолбэк по имени, если ИНН пуст) и разом доразметить остальные
+    неразмеченные платежи того же контрагента: иначе правило заработало бы только
+    со следующей выписки."""
+    txn = db.query("SELECT id, cp_inn, cp_name, operation_date, direction FROM bank_txn WHERE id=%s",
+                   (payload.txn_id,))
+    if not txn:
+        return {"ok": False, "error": "платёж не найден"}
+    txn = txn[0]
+    if txn["direction"] != "DEBIT":
+        return {"ok": False, "error": "статья присваивается только расходу"}
+    n = max(1, min(120, int(payload.spread_months or 1)))
+
+    if not payload.category_id:
+        db.execute("DELETE FROM bank_txn_opex WHERE txn_id=%s", (payload.txn_id,))
+        return {"ok": True, "assigned": 0, "rule": False}
+
+    start = txn["operation_date"].replace(day=1)
+    db.execute("""INSERT INTO bank_txn_opex (txn_id, category_id, spread_months, start_month, source)
+        VALUES (%s,%s,%s,%s,'manual')
+        ON CONFLICT (txn_id) DO UPDATE SET category_id=EXCLUDED.category_id,
+            spread_months=EXCLUDED.spread_months, source='manual', updated_at=now()""",
+        (payload.txn_id, payload.category_id, n, start))
+
+    ruled = 0
+    if payload.remember:
+        inn = (txn["cp_inn"] or "").strip()
+        key = "" if inn else txn_store.name_key(txn["cp_name"])
+        if inn:
+            db.execute("""INSERT INTO opex_rule (cp_inn, category_id, spread_months)
+                VALUES (%s,%s,%s) ON CONFLICT (cp_inn) WHERE coalesce(cp_inn,'') <> ''
+                DO UPDATE SET category_id=EXCLUDED.category_id,
+                              spread_months=EXCLUDED.spread_months, updated_at=now()""",
+                (inn, payload.category_id, n))
+        elif key:
+            db.execute("""INSERT INTO opex_rule (cp_name_key, category_id, spread_months)
+                VALUES (%s,%s,%s) ON CONFLICT (cp_name_key) WHERE coalesce(cp_name_key,'') <> ''
+                DO UPDATE SET category_id=EXCLUDED.category_id,
+                              spread_months=EXCLUDED.spread_months, updated_at=now()""",
+                (key, payload.category_id, n))
+        if (inn or key) and payload.apply_existing:
+            ruled = txn_store.apply_rules()          # доразметить уже лежащее в БД
+    return {"ok": True, "assigned": 1, "rule": bool(payload.remember), "ruled_existing": ruled}
+
+
+@app.get("/api/opex/fact")
+def opex_fact(period: str = "", org: str = ""):
+    """Факт опер. расходов за месяц из размеченной выписки: по статьям, по фирмам,
+    плюс сколько ещё не размечено (чтобы итог не выглядел готовым)."""
+    month = _opex_month(period) if period else db.query(
+        "SELECT coalesce(max(month)::text,'') m FROM opex_fact_month")[0]["m"][:10]
+    if not month or len(month) != 10:
+        return {"month": None, "items": [], "total": 0, "unassigned": {"n": 0, "s": 0}}
+    w, p = ["month=%s"], [month]
+    if org:
+        w.append("org_inn=%s")
+        p.append(org)
+    items = db.query(f"""SELECT category_id, category, sum(amount)::float amount,
+                                sum(txn_count)::int txn_count
+        FROM opex_fact_month WHERE {' AND '.join(w)}
+        GROUP BY 1,2 ORDER BY 3 DESC""", tuple(p))
+    by_org = db.query("""SELECT org_inn, sum(amount)::float amount FROM opex_fact_month
+        WHERE month=%s GROUP BY 1 ORDER BY 2 DESC""", (month,))
+    for r in by_org:
+        r["org_name"] = ORG_NAMES.get(r["org_inn"], r["org_inn"])
+    return {"month": month, "items": items, "by_org": by_org,
+            "total": round(sum(i["amount"] for i in items), 2),
+            "unassigned": _opex_unassigned(month),
+            # месяцы, за которые вообще есть выписка — «Сводке» нужен свой список периодов:
+            # margin_by_sku за текущий месяц может ещё не существовать
+            "months": [r["m"] for r in db.query(
+                "SELECT DISTINCT date_trunc('month', operation_date)::date::text m "
+                "FROM bank_txn ORDER BY 1 DESC")]}
 
 
 def _biz_for(period):
@@ -366,8 +603,7 @@ def business(period: str = ""):
                     "cogs_pct": round(t_cogs / t_rev * 100, 1) if t_rev else None,
                     "cogs_actual": round(ca, 2) if ca else None,
                     "with_market": bool(ya)}
-    _snap = db.query("SELECT max(effective_from)::date e FROM opex WHERE effective_from<=%s", (period,))[0]["e"]
-    op = db.query("SELECT coalesce(sum(amount),0)::float t FROM opex WHERE effective_from=%s", (_snap,))[0]["t"] if _snap else 0.0
+    op = _opex_total(period)      # с 08.2026 — факт из размеченной выписки, раньше — ручной снапшот
     cur["opex"] = round(op, 2)
     cur["net_after_opex"] = round(t_net - op, 2)       # после ФОТ — от ИТОГА бизнеса
     prev_p = _prev_period("", "", period)
@@ -456,7 +692,7 @@ def advice(period: str = ""):
             "СПП несёт продавец: каждый +1₽ СПП = −0.84₽ нам. Поднять базовые цены примерно на размер "
             "роста СПП, чтобы удержать маржу.")
     # 3. Постоянные расходы / чистая после них
-    op = db.query("SELECT coalesce(sum(amount),0)::float t FROM opex WHERE effective_from<=%s", (period,))[0]["t"]
+    op = _opex_total(period)      # было: сумма ВСЕХ снапшотов ≤ месяца (двойной счёт) — теперь один источник
     if op > 0:
         after = b["net"] - op
         burden = round(op / b["revenue"] * 100, 1) if b["revenue"] else None
@@ -985,6 +1221,11 @@ def opex_page():
     return (STATIC / "opex.html").read_text(encoding="utf-8")
 
 
+@app.get("/opex/statements", response_class=HTMLResponse)
+def opex_statements_page():
+    return (STATIC / "opex_statements.html").read_text(encoding="utf-8")
+
+
 @app.get("/sites", response_class=HTMLResponse)
 def sites_page():
     return (STATIC / "sites.html").read_text(encoding="utf-8")
@@ -1063,6 +1304,16 @@ def suppliers_payment_terms_list(org: str | None = None):
         advance_amount::float advance_amount, balance_threshold::float balance_threshold,
         ms_agent_id, vat_rate, delivery_days, active
         FROM supplier_payment_terms {where} ORDER BY org_inn, name""", params)
+    # Группа поставщика: настройки-свойства поставщика (срок доставки) бот ищет по ГРУППЕ,
+    # а не по ИНН из счёта — юрлица меняются. Показываем группу, чтобы было видно,
+    # на какие ещё юрлица подействует строка.
+    try:
+        from invoice_bot import supplier_groups as SG      # ленивый импорт: контур счетов
+        for r in rows:
+            g = sorted(SG.groups_of_inn(r["inn"]))
+            r["group"] = g[0] if len(g) == 1 else (", ".join(g) or None)
+    except Exception:
+        pass
     return {"items": rows}
 
 

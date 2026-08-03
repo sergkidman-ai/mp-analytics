@@ -63,8 +63,9 @@ SUPPLIERS = {
     "9731107362": {"name": "Феррет",            "article": "name_regex",
                    "pattern": r"\b(?:CSP?|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "pdf": "ferret"},
     "7736123276": {"name": "Позитив",           "article": "name_last"},
-    # plan_skip=1 — «через 1 рабочий день» (счёт Пн → приёмка Ср), решение Сергея 03.08.2026.
-    # У остальных поставщиков осталось «ближайший рабочий день» (skip=0).
+    # plan_skip — ТОЛЬКО фолбэк на случай недоступной БД: живая настройка срока доставки лежит
+    # в «Условиях оплаты поставщиков» (`delivery_days`) и ищется по ГРУППЕ поставщика.
+    # 1 = «через 1 рабочий день» (счёт Пн → приёмка Ср), решение Сергея 03.08.2026.
     "7840480595": {"name": "Колортек",          "article": "column", "auto_supply": True,
                    "plan_skip": 1},                          # без УПД → приёмку создаём сразу
     "7722341813": {"name": "КВК Трейд",         "article": "column"},
@@ -540,17 +541,24 @@ def plan_skip(org_inn, supplier_inn):
     """Сколько ПОЛНЫХ рабочих дней пропустить между счётом и плановой приёмкой.
     Источник правды — «Условия оплаты поставщиков» (`supplier_payment_terms.delivery_days`,
     миграция 208): 1 = приёмка завтра → skip 0; 2 = послезавтра → skip 1. Владелец правит срок
-    в дашборде, без правки кода. Строки нет / БД недоступна → старое зашитое значение
-    `SUPPLIERS[inn]["plan_skip"]`, чтобы поведение не менялось молча."""
+    в дашборде, без правки кода.
+
+    Ищем по ГРУППЕ поставщика, а не по ИНН из счёта: юрлица у поставщика со временем меняются,
+    настройка заведена на действующее ООО (у Блоссома — «КАРТРИДЖ ТРЕЙД»), а счёт может прийти
+    от любого юрлица группы. Несколько строк с разным сроком — берём БОЛЬШИЙ: приёмка позже
+    плана безобиднее, чем задним числом.
+    Строк нет / БД недоступна → зашитый `plan_skip` (тоже по группе), чтобы поведение
+    не менялось молча."""
+    inns = sorted(SG.related_inns(supplier_inn))
     try:
         from core import db
-        r = db.query("""SELECT delivery_days FROM supplier_payment_terms
-                        WHERE org_inn = %s AND inn = %s""", (org_inn, supplier_inn))
-        if r and r[0]["delivery_days"]:
-            return max(0, int(r[0]["delivery_days"]) - 1)
+        r = db.query("""SELECT max(delivery_days) d FROM supplier_payment_terms
+                        WHERE org_inn = %s AND inn = ANY(%s)""", (org_inn, inns))
+        if r and r[0]["d"]:
+            return max(0, int(r[0]["d"]) - 1)
     except Exception as e:
         print(f"⚠️  срок доставки из БД не прочитан ({e}) — беру зашитый в коде")
-    return SUPPLIERS.get(supplier_inn, {}).get("plan_skip", 0)
+    return max([SUPPLIERS.get(i, {}).get("plan_skip", 0) for i in inns] or [0])
 
 
 # ═══════════════════════ 8. Сборка и создание ═════════════════════════════════
