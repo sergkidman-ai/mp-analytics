@@ -1,0 +1,400 @@
+# поток: gab
+"""Массовый сбор габаритов с nix.ru браузером. Запуск ТОЛЬКО на домашнем компьютере.
+
+Путь выбран окончательно: браузер + карточки /autocatalog/. Внутренний JSON
+(/scripts/action.php/FastSearch/goods) НЕ используется — поле sign не воспроизводится,
+габаритов в ответе нет, раздел закрыт в robots.txt.
+
+Что делает по каждой модели:
+  1) ищет по ключу `article` (артикул поставщика из МойСклада, как есть, посимвольно);
+     если после отбора не осталось ни одной подходящей карточки — повторяет поиск
+     по `oem_article` (тоже как есть). Оба поля пусты — модель пропускается, причина в журнал;
+  2) забирает ИЗ ВЫДАЧИ все ссылки /autocatalog/ вместе с заголовками и отсеивает
+     по заголовку ДО открытия: искомый код обязан стоять в заголовке; тип товара обязан
+     совпасть с нашим; главная и «Архив каталога» — не карточки;
+  3) открывает до пяти прошедших отбор карточек, сохраняет HTML в nix_raw/<external_code>/,
+     имя файла — из canonical-ссылки внутри самой страницы (заголовок Windows режет);
+  4) читает «Размеры упаковки (измерено в НИКСе)» и «Вес брутто (измерено в НИКСе)».
+     Сантиметры в миллиметры — только точным умножением на 10, исходная строка рядом.
+     Ничего не округляется, не усредняется и не выводится из похожих моделей.
+     Размеров нет — это нормальный результат, так и пишется.
+
+Файлы рядом со скриптом:
+  nix_collect_log.csv  — по строке на модель: ключ, сколько ссылок, сколько прошло отбор,
+                         сколько карточек открыто, сколько размеров прочитано (по нему же resume);
+  nix_links.csv        — все ссылки выдачи с вердиктом отбора (проверяемость фильтра);
+  nix_dims.csv         — найденные величины с источником: файл, канонический адрес,
+                         заголовок карточки, точная строка;
+  nix_raw/<модель>/*.html — сохранённые карточки;
+  nix_collect.log      — ход работы.
+
+Один поток, пауза 5-8 с, обычное окно браузера, обычный User-Agent, никаких обходов защиты.
+Ошибка на одной модели не роняет прогон. Повторный запуск продолжает с места остановки.
+
+Установка:  pip install playwright  и  playwright install chromium
+Запуск:     python nix_collect.py 100          (число — сколько моделей за запуск)
+"""
+import csv
+import random
+import re
+import sys
+import time
+from datetime import datetime
+from html import unescape
+from pathlib import Path
+from urllib.parse import quote, urlsplit
+
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    sys.exit('Не установлен playwright. Выполните: pip install playwright '
+             'и затем playwright install chromium')
+
+HERE = Path(__file__).resolve().parent
+INPUT = HERE / 'nix_input.csv'              # положить рядом со скриптом
+RAW = HERE / 'nix_raw'
+LOGCSV = HERE / 'nix_collect_log.csv'
+LINKS = HERE / 'nix_links.csv'
+DIMS = HERE / 'nix_dims.csv'
+LOG = HERE / 'nix_collect.log'
+
+SEARCH_URL = ('https://www.nix.ru/price/price_list.html'
+              '?section=cartridges_toner_paper_ink_all'
+              '#c_id=110&fn=110&g_id=59&keywords={kw}&new_goods=0&page=1&sort=0'
+              '&spoiler=&store=msk-0_1721_1&thumbnail_view=2')
+CARD_LINK = 'a[href*="/autocatalog/"]'
+UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36')
+DEFAULT_LIMIT = 100                          # моделей за запуск, можно задать аргументом
+OPEN_MAX = 5                                 # сколько прошедших отбор карточек открывать
+WAIT_RESULTS_MS = 30000
+PAUSE = (5.0, 8.0)                           # между моделями и между карточками
+
+# ---- разбор карточки (тот же парсер, что и на сервере, семантика не менялась) ----
+DIM_LABEL = re.compile(
+    r'>\s*((?:Размеры упаковки|Габариты)[^<]*)</td>\s*<td[^>]*>\s*(?:<div[^>]*>)?\s*([^<]+?)\s*<')
+WEIGHT_LABEL = re.compile(r'>\s*(Вес[^<]*)</td>\s*<td[^>]*>\s*(?:<div[^>]*>)?\s*([^<]+?)\s*<')
+DIM_VALUE = re.compile(
+    r'^\s*([\d.,]+)\s*[xх×]\s*([\d.,]+)\s*[xх×]\s*([\d.,]+)\s*(мм|см|m|cm)?\s*$', re.I)
+TITLE = re.compile(r'<title[^>]*>(.*?)</title>', re.S | re.I)
+CANON = re.compile(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)', re.I)
+OGURL = re.compile(r'og:url["\'][^>]+content=["\']([^"\']+)', re.I)
+
+# Тип предмета по смыслу, а не по точному совпадению строки. Порядок важен:
+# «чип к картриджу» — это чип, «тонер-картридж» — это картридж.
+TYPES = [('чип', r'\bчип\b|\bchip\b'),
+         ('девелопер', r'девелопер|developer|девелопир'),
+         ('термоплёнка', r'термоплен|термоплён|термо-плен|термо плен|т/плен|т/плён'),
+         ('барабан', r'драм[- ]?юнит|drum|фотобарабан|барабан|фотовал|фотокондуктор|photoconductor'),
+         ('тонер-туба', r'тонер-туба|тонер в тубе|\bтуба\b'),
+         ('картридж', r'тонер-картридж|картридж|cartridge|\bк-ж\b|картр\.'),
+         ('тонер', r'\bтонер\b|бутыл'),
+         ('запчасть', r'ролик|шестерн|\bвал\b|плат[аы]\b|узел|печк|фьюзер|термоузел')]
+NOT_CARD = re.compile(r'/autocatalog/cc/main|/autocatalog/?$|archive|архив', re.I)
+
+
+def log(msg: str):
+    line = f'{datetime.now():%H:%M:%S} {msg}'
+    print(line)
+    with LOG.open('a', encoding='utf-8') as fh:
+        fh.write(line + '\n')
+
+
+def norm(s: str) -> str:
+    return re.sub(r'[^0-9A-Z]', '', (s or '').upper())
+
+
+def safe(s: str) -> str:
+    return re.sub(r'[^0-9A-Za-z_.-]', '_', s)[:80]
+
+
+def kind(name: str) -> str:
+    """Тип предмета по названию. 'не определён' = тип не читается однозначно."""
+    low = (name or '').lower()
+    for label, pat in TYPES:
+        if re.search(pat, low):
+            return label
+    return 'не определён'
+
+
+def file_name(canon: str, href: str) -> str:
+    """Имя файла — из canonical-ссылки внутри HTML (заголовок Windows режет и удваивает)."""
+    src = canon or href
+    path = urlsplit(src).path.strip('/')
+    path = re.sub(r'^autocatalog/', '', path)
+    path = re.sub(r'\.html?$', '', path)
+    name = safe(path.replace('/', '_')) or 'card'
+    return name + '.html'
+
+
+def parse_card(text: str, path: Path):
+    """Величины карточки как они записаны. Ничего не досчитываем."""
+    m = TITLE.search(text)
+    title = unescape(re.sub(r'\s+', ' ', m.group(1))).strip() if m else ''
+    title = re.sub(r'\s*\|\s*(Купить|НИКС|nix\.ru).*$', '', title, flags=re.I).strip()
+    c = CANON.search(text) or OGURL.search(text)
+    row = {'файл': path.name, 'адрес_canonical': c.group(1) if c else '',
+           'заголовок_карточки': title[:180], 'тип_карточки': kind(title),
+           'метка': '', 'строка_размеров': '', 'единицы': '',
+           'Д_мм': '', 'Ш_мм': '', 'В_мм': '', 'строка_веса': '', 'вес': ''}
+    dm = DIM_LABEL.search(text)
+    if dm:
+        row['метка'] = unescape(dm.group(1)).strip()
+        row['строка_размеров'] = unescape(dm.group(2)).strip()
+        v = DIM_VALUE.match(row['строка_размеров'])
+        if v:
+            unit = (v.group(4) or '').lower()
+            row['единицы'] = unit or '(не указаны)'
+            mult = {'см': 10.0, 'cm': 10.0, 'мм': 1.0, '': 1.0, 'm': 1.0}.get(unit)
+            if mult:                       # см→мм только точным ×10, без округлений
+                d = [float(v.group(i).replace(',', '.')) * mult for i in (1, 2, 3)]
+                row['Д_мм'], row['Ш_мм'], row['В_мм'] = (f'{x:g}' for x in d)
+    else:
+        row['строка_размеров'] = 'РАЗМЕРОВ В ФАЙЛЕ НЕТ'
+    wm = WEIGHT_LABEL.search(text)
+    if wm:
+        row['строка_веса'] = unescape(wm.group(1)).strip()
+        row['вес'] = unescape(wm.group(2)).strip()
+    return row
+
+
+# ---- вход и журнал --------------------------------------------------------------
+def read_models():
+    if not INPUT.exists():
+        sys.exit(f'Нет файла {INPUT}. Положите nix_input.csv рядом со скриптом.')
+    out = []
+    with INPUT.open(encoding='utf-8-sig') as fh:
+        for r in csv.DictReader(fh, delimiter=';'):
+            out.append({'external_code': (r.get('external_code') or '').strip(),
+                        'наше_название': (r.get('наше_название') or '').strip(),
+                        # ключи посылаются КАК ЕСТЬ: без нормализации, без отбрасывания
+                        # префиксов/суффиксов, без приведения регистра
+                        'article': (r.get('article') or '').strip(),
+                        'oem_article': (r.get('oem_article') or '').strip()})
+    return out
+
+
+def done_models() -> set:
+    if not LOGCSV.exists():
+        return set()
+    with LOGCSV.open(encoding='utf-8-sig') as fh:
+        return {(r.get('external_code') or '').strip() for r in csv.DictReader(fh, delimiter=';')}
+
+
+LOG_COLS = ['время', 'external_code', 'наше_название', 'наш_тип', 'ключ_сработал', 'значение_ключа',
+            'article_ссылок', 'article_прошло', 'oem_ссылок', 'oem_прошло',
+            'карточек_открыто', 'размеров_прочитано', 'итог']
+LINK_COLS = ['external_code', 'ключ', 'значение_ключа', 'адрес', 'заголовок_из_выдачи',
+             'тип_карточки', 'вердикт', 'открыта']
+DIM_COLS = ['external_code', 'ключ', 'значение_ключа', 'файл', 'адрес_canonical',
+            'заголовок_карточки', 'тип_карточки', 'метка', 'строка_размеров', 'единицы',
+            'Д_мм', 'Ш_мм', 'В_мм', 'строка_веса', 'вес']
+
+
+def append(path: Path, cols, rows):
+    new = not path.exists()
+    with path.open('a', encoding='utf-8', newline='') as fh:
+        w = csv.DictWriter(fh, fieldnames=cols, delimiter=';', extrasaction='ignore')
+        if new:
+            w.writeheader()
+        w.writerows(rows)
+
+
+# ---- работа с выдачей -----------------------------------------------------------
+def open_results(page, keyword: str):
+    """Открыть выдачу прямым адресом. Смена хвоста после # страницу не перезагружает,
+    поэтому сначала about:blank, затем адрес, затем reload. Ждём ПРИСУТСТВИЯ ссылок
+    в DOM (state='attached'): видимыми они не становятся, ожидание видимости давало
+    ложный таймаут 30 с."""
+    page.goto('about:blank', wait_until='domcontentloaded', timeout=30000)
+    page.goto(SEARCH_URL.format(kw=quote(keyword)), wait_until='domcontentloaded', timeout=60000)
+    page.reload(wait_until='domcontentloaded', timeout=60000)
+    page.wait_for_selector(CARD_LINK, state='attached', timeout=WAIT_RESULTS_MS)
+
+
+JS_LINKS = """els => els.map(a => {
+  let row = a.closest('tr') || a.parentElement || a;
+  return {href: a.href,
+          text: (a.textContent || '').replace(/\\s+/g, ' ').trim(),
+          row: (row.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 300)};
+})"""
+
+
+def collect_links(page):
+    """Все ссылки /autocatalog/ из выдачи с заголовками, без дублей по адресу."""
+    try:
+        raw = page.eval_on_selector_all(CARD_LINK, JS_LINKS)
+    except Exception:
+        raw = []
+    seen, out = set(), []
+    for it in raw:
+        url = (it.get('href') or '').split('?')[0]
+        if '/autocatalog/' not in url or url in seen:
+            continue
+        seen.add(url)
+        title = it.get('text') or ''
+        if len(norm(title)) < 4:               # ссылка-картинка: заголовок берём из строки
+            title = it.get('row') or ''
+        out.append({'адрес': url, 'заголовок': title.strip()[:250]})
+    return out
+
+
+def select(links, code: str, our_kind: str):
+    """Отбор ДО открытия карточки. Пропускаем только то, что читается однозначно:
+    лучше пусто, чем чужой размер."""
+    for it in links:
+        title = it['заголовок']
+        k = kind(title)
+        it['тип_карточки'] = k
+        if NOT_CARD.search(it['адрес']) or 'архив каталога' in title.lower():
+            it['вердикт'] = 'не карточка (главная / архив каталога)'
+        elif norm(code) not in norm(title):
+            it['вердикт'] = f'кода {code} нет в заголовке'
+        elif k == 'не определён':
+            it['вердикт'] = 'тип карточки не читается однозначно'
+        elif our_kind and k != our_kind:
+            it['вердикт'] = f'у никса «{k}», у нас «{our_kind}»'
+        else:
+            it['вердикт'] = 'прошла'
+        it['открыта'] = ''
+    return [it for it in links if it['вердикт'] == 'прошла']
+
+
+def try_key(page, model, key_name, code):
+    """Один заход: выдача по ключу -> ссылки -> отбор. Возвращает (все ссылки, прошедшие)."""
+    try:
+        open_results(page, code)
+    except Exception as e:
+        log(f'   выдача по {key_name}={code}: {str(e).splitlines()[0][:120]}')
+    links = collect_links(page)
+    good = select(links, code, model['наш_тип'])
+    for it in links:
+        it.update(external_code=model['external_code'], ключ=key_name, значение_ключа=code)
+    return links, good
+
+
+def main() -> int:
+    limit = DEFAULT_LIMIT
+    if len(sys.argv) > 1:
+        try:
+            limit = int(sys.argv[1])
+        except ValueError:
+            sys.exit('Аргумент — число моделей за запуск, например: python nix_collect.py 100')
+
+    models = read_models()
+    for m in models:
+        m['наш_тип'] = kind(m['наше_название'])
+    skip = done_models()
+    queue = [m for m in models if m['external_code'] not in skip][:limit]
+    RAW.mkdir(exist_ok=True)
+    log(f'=== запуск: всего моделей {len(models)}, уже обработано ранее {len(skip)}, '
+        f'в этот заход {len(queue)} (лимит {limit})')
+    stat = {'моделей': 0, 'по_article': 0, 'по_oem': 0, 'без_ключей': 0,
+            'карточек': 0, 'размеров': 0, 'пусто': 0}
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=False)
+        ctx = browser.new_context(locale='ru-RU', user_agent=UA,
+                                  viewport={'width': 1360, 'height': 900})
+        page = ctx.new_page()
+
+        for n, m in enumerate(queue, 1):
+            ext = m['external_code']
+            stat['моделей'] += 1
+            rec = {'время': f'{datetime.now():%Y-%m-%d %H:%M:%S}', 'external_code': ext,
+                   'наше_название': m['наше_название'][:120], 'наш_тип': m['наш_тип'],
+                   'ключ_сработал': '', 'значение_ключа': '', 'article_ссылок': '',
+                   'article_прошло': '', 'oem_ссылок': '', 'oem_прошло': '',
+                   'карточек_открыто': 0, 'размеров_прочитано': 0, 'итог': ''}
+            log(f'[{n}/{len(queue)}] {ext} | {m["наше_название"][:60]} | наш тип: {m["наш_тип"]}')
+
+            if not m['article'] and not m['oem_article']:
+                rec['итог'] = 'пропуск: нет ни article, ни oem_article'
+                stat['без_ключей'] += 1
+                log('   пропуск: оба ключа пусты')
+                append(LOGCSV, LOG_COLS, [rec])
+                continue
+            if m['наш_тип'] == 'не определён':
+                rec['итог'] = 'пропуск: наш тип товара не читается однозначно'
+                log('   пропуск: наш тип не читается однозначно')
+                append(LOGCSV, LOG_COLS, [rec])
+                continue
+
+            all_links, good, used_key, used_val = [], [], '', ''
+            for key_name in ('article', 'oem_article'):
+                code = m[key_name]
+                if not code:
+                    continue
+                links, passed = try_key(page, m, key_name, code)
+                all_links += links
+                rec['article_ссылок' if key_name == 'article' else 'oem_ссылок'] = len(links)
+                rec['article_прошло' if key_name == 'article' else 'oem_прошло'] = len(passed)
+                log(f'   ключ {key_name}={code}: ссылок {len(links)}, прошло отбор {len(passed)}')
+                if passed:
+                    good, used_key, used_val = passed, key_name, code
+                    break
+                time.sleep(random.uniform(*PAUSE))
+
+            rec['ключ_сработал'] = used_key or 'ни один'
+            rec['значение_ключа'] = used_val
+
+            # ---- открываем до пяти прошедших отбор карточек ----------------------
+            dims_rows, opened, got = [], 0, 0
+            folder = RAW / safe(ext)
+            for it in good[:OPEN_MAX]:
+                try:
+                    page.goto(it['адрес'], wait_until='domcontentloaded', timeout=60000)
+                    html = page.content()
+                except Exception as e:
+                    log(f'   карточка не открылась: {str(e).splitlines()[0][:110]}')
+                    continue
+                c = CANON.search(html) or OGURL.search(html)
+                folder.mkdir(parents=True, exist_ok=True)
+                dst = folder / file_name(c.group(1) if c else '', it['адрес'])
+                dst.write_text(html, encoding='utf-8')
+                it['открыта'] = dst.name
+                opened += 1
+                row = parse_card(html, dst)
+                row.update(external_code=ext, ключ=used_key, значение_ключа=used_val)
+                if not row['адрес_canonical']:
+                    row['адрес_canonical'] = it['адрес']
+                if row['Д_мм']:
+                    got += 1
+                dims_rows.append(row)
+                time.sleep(random.uniform(*PAUSE))
+
+            rec['карточек_открыто'] = opened
+            rec['размеров_прочитано'] = got
+            if not good:
+                rec['итог'] = 'подходящих карточек в выдаче нет'
+                stat['пусто'] += 1
+            elif not got:
+                rec['итог'] = f'карточки открыты ({opened}), размеров в них нет'
+            else:
+                rec['итог'] = f'размеров получено {got}'
+                stat['по_article' if used_key == 'article' else 'по_oem'] += 1
+            stat['карточек'] += opened
+            stat['размеров'] += got
+            log(f'   открыто карточек {opened}, размеров прочитано {got} — {rec["итог"]}')
+
+            append(LOGCSV, LOG_COLS, [rec])
+            if all_links:
+                append(LINKS, LINK_COLS, all_links)
+            if dims_rows:
+                append(DIMS, DIM_COLS, dims_rows)
+            time.sleep(random.uniform(*PAUSE))
+
+        ctx.close()
+        browser.close()
+
+    log('ИТОГ: ' + ', '.join(f'{k} {v}' for k, v in stat.items()))
+    log(f'Пришлите файлы: {LOGCSV.name}, {LINKS.name}, {DIMS.name}, {LOG.name} '
+        f'и папку nix_raw (можно архивом).')
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        print('\nПрервано. Собранное сохранено, повторный запуск продолжит с места остановки.')

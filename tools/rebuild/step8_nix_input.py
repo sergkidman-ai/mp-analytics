@@ -135,11 +135,12 @@ def main() -> int:
     load_dotenv('/opt/mp-analytics/.env')
     cn = psycopg2.connect(os.environ['DATABASE_URL'])
     cur = cn.cursor()
-    cur.execute("""select coalesce(external_code,''), ms_id, coalesce(name,''), coalesce(code,'')
+    cur.execute("""select coalesce(external_code,''), ms_id, coalesce(name,''), coalesce(code,''),
+                          coalesce(article,'')
                      from ms_product where coalesce(external_code,'') <> ''""")
     ms = defaultdict(list)
-    for e, ms_id, name, code in cur.fetchall():
-        ms[e].append((ms_id, name, code))
+    for e, ms_id, name, code, article in cur.fetchall():
+        ms[e].append((ms_id, name, code, article))
     cur.close()
     cn.close()
 
@@ -148,6 +149,11 @@ def main() -> int:
         e = w['external_code']
         name = w['название']
         oem = field = loc = ''
+        # карточка МойСклада этой модели: та, чьё название стоит в этой же строке;
+        # из неё берём и артикул поставщика (поле «Артикул» МС), и кандидатов в OEM
+        cards = [c for c in ms.get(e, []) if c[1].startswith(name[:60])] or ms.get(e, [])[:1]
+        # article — как он лежит в МС, посимвольно; нет карточки или пусто поле — пусто
+        article = (cards[0][3] if cards else '').strip()
         # A) OEM объявлен строкой прайса. Несколько разных кодов в поле — не однозначно.
         for r in by_model.get(e, []):
             hit = price_oem.get((r['прайс'], r['src_locator']))
@@ -165,11 +171,8 @@ def main() -> int:
         if not oem:
             mine = {norm(price_code.get((r['прайс'], r['src_locator']), ''))
                     for r in by_model.get(e, [])} | ours
-            # только та карточка, чьё название стоит в этой же строке файла —
-            # чтобы oem_article всегда читался из видимого рядом текста
-            cards = [c for c in ms.get(e, []) if c[1].startswith(name[:60])] or ms.get(e, [])[:1]
             cands = {}                                    # norm -> (код, ms_id, правило)
-            for ms_id, nm, code in cards[:1]:
+            for ms_id, nm, code, _art in cards[:1]:
                 bad = (mine | {norm(code)}) - {''}
                 for c, rule in read_oem(nm, bad):
                     cands.setdefault(norm(c), (c, ms_id, rule))
@@ -177,24 +180,27 @@ def main() -> int:
                 oem, ms_id, rule = next(iter(cands.values()))
                 field, loc = f'наименование карточки МойСклада ({rule})', f'ms_id {ms_id}'
         sfx = ','.join(sorted(suffix.get(e, set()))) or ''
-        row = [e, name, oem, field or 'не определён', loc, sfx]
+        row = [e, name, article, oem, field or 'не определён', loc, sfx]
         out.append(row)
         (with_oem if oem else without).append(row)
 
     with (DATA / 'nix_input.csv').open('w', encoding='utf-8', newline='') as fh:
         w = csv.writer(fh, delimiter=';')
-        w.writerow(['external_code', 'наше_название', 'oem_article', 'src_поле',
+        w.writerow(['external_code', 'наше_название', 'article', 'oem_article', 'src_поле',
                     'src_строка', 'окончание_бренда'])
         w.writerows(out)
 
+    art_n = sum(1 for r in out if r[2])
     print(f'всего {len(out)} | с OEM {len(with_oem)} | без OEM {len(without)}')
+    print(f'с article (МС): {art_n} | без article: {len(out) - art_n} | '
+          f'есть хотя бы один ключ: {sum(1 for r in out if r[2] or r[3])}')
     src = defaultdict(int)
     for r in with_oem:
-        src['прайс' if r[3].startswith('прайс') else 'название МС'] += 1
+        src['прайс' if r[4].startswith('прайс') else 'название МС'] += 1
     print('источник OEM:', dict(src))
     print('--- 10 с OEM ---')
     for r in with_oem[:10]:
-        print(f'  {r[0]} | {r[2]:<16} | {r[3][:38]:<38} | {r[1][:44]}')
+        print(f'  {r[0]} | арт {r[2][:16]:<16} | {r[3]:<16} | {r[1][:40]}')
     print('--- 10 без OEM ---')
     for r in without[:10]:
         print(f'  {r[0]} | {r[1][:70]}')
