@@ -30,6 +30,7 @@ from reports.feedback_drafts import _norm                                       
 from reports.card_facts import CardFacts                                         # noqa: E402
 from reports.feedback_corpus import load_corpus, intent                         # noqa: E402
 from reports.feedback_draft_run import draft_review, _first_name, _short, DEFECT_RX  # noqa: E402
+from reports import neg_templates                                                    # noqa: E402
 from reports.feedback_web import web_compat                                      # noqa: E402
 from reports.llm_client import create_with_retry as _create, LlmUnavailable      # noqa: E402,F401
 from reports.compat_cache import get as cc_get, put as cc_put                    # noqa: E402
@@ -709,8 +710,13 @@ def _answer(client, r, cf, corpus):
     else:
         name = _first_name(r["payload"]) if r["platform"] == "wb" else None
         _c, reply, route, conf = draft_review(r, name, _short(r["product_name"]))
-        cc, ground = "", {"llm": False, "note": "шаблон отзыва (ротация вариантов)", "source": "шаблон",
-                          "template": True}
+        # для карточки модератора видно, какой именно шаблон подставлен (тип жалобы или общий)
+        _nt = neg_templates.classify(" ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))) \
+            if _c == "negative" else None
+        _note = (f"шаблон негатива: {neg_templates.LABELS[_nt]}" if _nt else
+                 "шаблон негатива: общий (тип не определён)" if _c == "negative" else
+                 "шаблон отзыва (ротация вариантов)")
+        cc, ground = "", {"llm": False, "note": _note, "source": "шаблон", "template": True}
         cat = "review-empty"
     # КАТАЛОГ-ПОСЛЕ-ВЕБА + страховка от ложного «нет»: ответ отрицает наличие ИЛИ (после веба) уводит
     # покупателя «на сторону»/говорит «не подходит» БЕЗ нашего артикула — а по коду картриджа из веб-ответа
