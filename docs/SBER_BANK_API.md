@@ -135,6 +135,16 @@ voCode, incomeTypeCode, crucialFieldsHash, digestSignatures[]  ← нам не �
 ⚠️ Не проверено (нужен реальный POST, то есть документ в банке): создаётся ли черновик без
 `digestSignatures` и в каком он статусе.
 
+**Реализация (02–03.08.2026):** `invoice_bot/sber_payment_draft.py` — драйвер поверх общего ядра
+`invoice_bot/payment_draft.py` (сборка платёжки общая с Альфой), выбор банка по юрлицу черновика —
+`invoice_bot/payment_send.py`, запуск — кнопкой «в банк» в очереди черновиков дашборда.
+Сберовское в драйвере: путь `v1`, `urgencyCode="INTERNAL"`, счёт списания из `client-info`
+(`SBER_ACCOUNT` в `.env` — приоритет, несколько действующих счетов без явного указания = ошибка),
+разбор ошибки по `internalErrorCode`/`cause`/`message`, статус отправки всегда `sent_prod`.
+**Песочницы у Сбера нет**, поэтому живой POST закрыт отдельным флагом `SBER_PAYMENT_PROD_READY=1`
+(плюс общий `SBER_PAYMENT_APPLY=1`); без них — только сборка payload. Первое включение — по
+явному ОК владельца, на минимальной сумме: это и закроет вопрос выше.
+
 ### 3. Прочее, что может пригодиться
 
 `GET /fintech/api/v1/client-info` (реквизиты своей организации), `GET /fintech/api/v1/crypto`

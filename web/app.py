@@ -1001,17 +1001,73 @@ def suppliers_payment_terms_page():
     return (STATIC / "supplier_payment_terms.html").read_text(encoding="utf-8")
 
 
+# Наши юрлица-плательщики. Разрез введён миграцией 207: у одного поставщика свои условия
+# оплаты для каждого юрлица (Одиссей, Блоссом, КПД расходятся — docs/reports/diskver_payment_terms.md).
+ORGS = [
+    {"inn": "7807355364", "name": "ООО «Цифровой Квадрат»", "short": "Цифровой Квадрат", "bank": "Альфа"},
+    {"inn": "7811803918", "name": "ООО «ДИСКВЭР»", "short": "Дисквэр", "bank": "Сбер"},
+]
+ORG_INNS = {o["inn"] for o in ORGS}
+
+
+@app.get("/api/orgs")
+def orgs_list():
+    return {"items": ORGS}
+
+
+@app.get("/sber/callback", response_class=HTMLResponse)
+def sber_oauth_callback(code: str = "", state: str = "", error: str = "",
+                        error_description: str = ""):
+    """Возврат из браузерного входа в СберБизнес ID: код → пара токенов.
+
+    Адрес зарегистрирован в ЛК Сбера как redirect_uri, менять его нельзя без правки в банке.
+    Код одноразовый и живёт минуты: меняем его на токены сразу здесь, чтобы человеку не
+    пришлось входить повторно. Ни код, ни токены на страницу не выводим — только результат.
+    """
+    def page(title, body, ok=True):
+        color = "#0a7" if ok else "#c33"
+        return HTMLResponse(
+            f'<meta charset="utf-8"><title>СберБизнес API</title>'
+            f'<div style="font:16px/1.5 system-ui;padding:40px;max-width:640px">'
+            f'<h2 style="color:{color}">{title}</h2><p>{body}</p></div>',
+            status_code=200 if ok else 400)
+
+    if error:
+        return page("Банк отказал в авторизации",
+                    f"{error}: {error_description or 'без пояснения'}. "
+                    "Повторите вход по ссылке из бота.", ok=False)
+    if not code:
+        return page("Нет кода авторизации",
+                    "Банк не передал параметр <code>code</code>. Откройте ссылку для входа заново.",
+                    ok=False)
+    try:
+        sys.path.insert(0, str(BASE_DIR))
+        from collectors import sber_auth
+        t = sber_auth.exchange_code(code)
+    except Exception as e:
+        return page("Обмен кода на токен не удался", f"{type(e).__name__}: {e}", ok=False)
+    return page("Готово — доступ к СберБизнес API получен",
+                "Токены сохранены на сервере. Больше входить в браузере не нужно: "
+                "дальше обновление происходит автоматически. Это окно можно закрыть."
+                + (f"<br><small>state: {state}</small>" if state else ""))
+
+
 @app.get("/api/suppliers/payment-terms")
-def suppliers_payment_terms_list():
-    rows = db.query("""SELECT inn, name, method, deferral_days,
+def suppliers_payment_terms_list(org: str | None = None):
+    """Условия оплаты. org — ИНН нашего юрлица; без него отдаём оба (режим «Все»)."""
+    where, params = "", ()
+    if org:
+        where, params = "WHERE org_inn = %s", (org,)
+    rows = db.query(f"""SELECT org_inn, inn, name, method, deferral_days,
         payment_cap::float payment_cap,
         advance_amount::float advance_amount, balance_threshold::float balance_threshold,
         ms_agent_id, vat_rate, active
-        FROM supplier_payment_terms ORDER BY name""")
+        FROM supplier_payment_terms {where} ORDER BY org_inn, name""", params)
     return {"items": rows}
 
 
 class SupplierPaymentTerm(BaseModel):
+    org_inn: str = "7807355364"    # чьи это условия: наше юрлицо-плательщик
     inn: str
     name: str = ""
     method: str
@@ -1026,21 +1082,25 @@ class SupplierPaymentTerm(BaseModel):
 @app.post("/api/suppliers/payment-terms/save")
 def suppliers_payment_terms_save(p: SupplierPaymentTerm):
     inn = (p.inn or "").strip()
+    org = (p.org_inn or "").strip()
     if not inn or not re.fullmatch(r"\d{10,12}", inn):
         return {"ok": False, "error": "inn должен быть 10-12 цифр"}
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
     if p.method not in ("deferred", "prepayment_per_order", "prepayment_balance"):
         return {"ok": False, "error": "неизвестный method"}
     if p.vat_rate is not None and not 0 <= p.vat_rate <= 100:
         return {"ok": False, "error": "ставка НДС вне 0…100"}
     import datetime
     db.upsert("supplier_payment_terms", [{
+        "org_inn": org,
         "inn": inn, "name": (p.name or inn).strip(), "method": p.method,
         "deferral_days": p.deferral_days, "payment_cap": p.payment_cap,
         "advance_amount": p.advance_amount, "vat_rate": p.vat_rate,
         "balance_threshold": p.balance_threshold, "active": p.active,
         "updated_at": datetime.datetime.now(),
-    }], conflict_cols=["inn"])
-    return {"ok": True, "inn": inn}
+    }], conflict_cols=["org_inn", "inn"])
+    return {"ok": True, "inn": inn, "org_inn": org}
 
 
 @app.post("/api/suppliers/payment-terms/delete")
@@ -1048,23 +1108,73 @@ def suppliers_payment_terms_delete(p: dict):
     """Удаление поставщика из графика. Нужен, потому что кнопка «✕» в таблице иначе убирала
     строку только с экрана — после перезагрузки условие возвращалось из БД."""
     inn = (p.get("inn") or "").strip()
+    org = (p.get("org_inn") or "").strip()
     if not inn or not re.fullmatch(r"\d{10,12}", inn):
         return {"ok": False, "error": "inn должен быть 10-12 цифр"}
-    db.execute("DELETE FROM supplier_payment_terms WHERE inn = %s", (inn,))
-    return {"ok": True, "inn": inn}
+    # org обязателен: без него удаление снесло бы условия ОБОИХ юрлиц по этому поставщику.
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
+    db.execute("DELETE FROM supplier_payment_terms WHERE org_inn = %s AND inn = %s", (org, inn))
+    return {"ok": True, "inn": inn, "org_inn": org}
 
 
 @app.get("/api/suppliers/payment-terms/queue")
-def suppliers_payment_terms_queue():
+def suppliers_payment_terms_queue(org: str | None = None):
     # name — из условий оплаты по ИНН: в таблице показываем контрагента, а не голый ИНН.
+    # JOIN по (org_inn, inn) — по одному inn задвоил бы строки очереди (миграция 207).
     # Песочницу не показываем: это следы отладки контура, к деньгам отношения не имеют.
-    rows = db.query("""SELECT q.id, q.inn, t.name, q.kind, q.amount::float amount, q.covers_po_ids,
-        q.status, q.alfa_external_id, q.note, q.created_at::text created_at
+    where, params = "", ()
+    if org:
+        where, params = "AND q.org_inn = %s", (org,)
+    rows = db.query(f"""SELECT q.id, q.org_inn, q.inn, t.name, q.kind, q.amount::float amount,
+        q.covers_po_ids, q.status, q.alfa_external_id, q.note, q.created_at::text created_at
         FROM payment_draft_queue q
-        LEFT JOIN supplier_payment_terms t USING (inn)
-        WHERE q.status <> 'sent_sandbox'
-        ORDER BY q.created_at DESC LIMIT 100""")
+        LEFT JOIN supplier_payment_terms t USING (org_inn, inn)
+        WHERE q.status <> 'sent_sandbox' {where}
+        ORDER BY q.created_at DESC LIMIT 100""", params)
     return {"items": rows}
+
+
+@app.post("/api/suppliers/payment-terms/queue/send")
+def suppliers_payment_terms_queue_send(p: dict):
+    """Ручная отправка ОДНОГО черновика платёжки в банк его юрлица (кнопка «в банк» в очереди).
+
+    Платёжка уходит НЕПОДПИСАННОЙ: банк кладёт её в «на подпись», подписывает человек в вебе
+    банка. Автоподписания нет и не будет (запрет потока inv).
+
+    Почему кнопка ручная, а не автопрогон: очередь наполняется поллером по условиям оплаты, и
+    отправлять из неё деньги должен человек, посмотрев на конкретную строку. Заодно это
+    единственный предохранитель против артефактов очереди (напр. авансы Дисквэра, посчитанные
+    от нулевого баланса) — без клика ни один черновик в банк не уйдёт.
+
+    Разрез по юрлицу: банк выбирает диспетчер по `payment_draft_queue.org_inn`. Здесь — первый
+    из трёх рубежей против кросс-банка: сверяем юрлицо из запроса с тем, что в БД (расходятся
+    только если у пользователя открыта устаревшая таблица)."""
+    org = (p.get("org_inn") or "").strip()
+    try:
+        draft_id = int(p.get("id"))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "не передан id черновика"}
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
+    if os.getenv("WEB_PAYMENT_SEND") != "1":
+        return {"ok": False, "error": "ручная отправка платёжек из дашборда выключена "
+                                      "(WEB_PAYMENT_SEND=1 в .env)"}
+    row = db.query("SELECT org_inn, status FROM payment_draft_queue WHERE id = %s", (draft_id,))
+    if not row:
+        return {"ok": False, "error": f"черновик {draft_id} не найден"}
+    if row[0]["status"] != "planned":
+        return {"ok": False, "error": f"черновик {draft_id} уже в статусе '{row[0]['status']}'"}
+    if row[0]["org_inn"] != org:
+        return {"ok": False, "error": "таблица устарела: юрлицо черновика изменилось, обнови страницу"}
+    try:
+        from invoice_bot import payment_send          # ленивый импорт: банковский контур
+        res = payment_send.send_draft(draft_id, actor="web")
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    return {"ok": bool(res.get("ok")), "id": draft_id, "status": res.get("status"),
+            "external_id": res.get("external_id"), "bank": res.get("bank"),
+            "error": res.get("error")}
 
 
 @app.get("/stale", response_class=HTMLResponse)

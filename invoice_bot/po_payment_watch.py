@@ -137,7 +137,8 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
     if not orders:
         return []
     tracked = {r["po_id"]: r for r in db.query(
-        "SELECT po_id, status, amount::float amount FROM po_payment_status WHERE inn=%s", (inn,))}
+        "SELECT po_id, status, amount::float amount FROM po_payment_status "
+        "WHERE org_inn=%s AND inn=%s", (BUYER_INN, inn))}
     new_rows, new_ids, closed, held, released, repriced, stale = [], [], [], [], [], [], []
     for o in orders:
         po_id = o["id"]
@@ -173,7 +174,7 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
         due = d + timedelta(days=deferral_days) if deferral_days else d
         waiting = due_amount <= 0        # только при require_receipt: товар ещё не принят
         new_rows.append({
-            "po_id": po_id, "inn": inn, "order_date": d, "due_date": due,
+            "po_id": po_id, "org_inn": BUYER_INN, "inn": inn, "order_date": d, "due_date": due,
             "amount": due_amount if not waiting else round(total - payed, 2),
             "status": "waiting_receipt" if waiting else "pending",
         })
@@ -226,9 +227,9 @@ def process_prepayment_per_order(inn, agent_id=None):
         row = db.query("SELECT amount FROM po_payment_status WHERE po_id=%s", (po_id,))[0]
         with db.get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("""INSERT INTO payment_draft_queue(inn, kind, amount, covers_po_ids, status)
-                    VALUES (%s, 'prepayment_order', %s, %s, 'planned') RETURNING id""",
-                    (inn, row["amount"], [po_id]))
+                cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status)
+                    VALUES (%s, %s, 'prepayment_order', %s, %s, 'planned') RETURNING id""",
+                    (BUYER_INN, inn, row["amount"], [po_id]))
                 draft_id = cur.fetchone()[0]
                 cur.execute("""UPDATE po_payment_status SET status='queued', draft_id=%s WHERE po_id=%s""",
                             (draft_id, po_id))
@@ -242,11 +243,13 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
     # Заказы в status='waiting_receipt' в выборку 'pending' ниже не попадают by design.
     _sync_pending(inn, deferral_days, agent_id, require_receipt=True)
     pending = db.query("""SELECT po_id, amount FROM po_payment_status
-        WHERE inn=%s AND status='pending' ORDER BY due_date, order_date""", (inn,))
+        WHERE org_inn=%s AND inn=%s AND status='pending'
+        ORDER BY due_date, order_date""", (BUYER_INN, inn))
     if not pending:
         return 0
     due_now = db.query("""SELECT count(*) n FROM po_payment_status
-        WHERE inn=%s AND status='pending' AND due_date<=%s""", (inn, date.today()))[0]["n"]
+        WHERE org_inn=%s AND inn=%s AND status='pending' AND due_date<=%s""",
+        (BUYER_INN, inn, date.today()))[0]["n"]
     if not due_now:
         return 0   # ни по одному заказу срок ещё не наступил — ждём
     # Ограничитель ОДИН — договорённость с поставщиком (payment_cap). Гейт по живому остатку на
@@ -273,9 +276,9 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
             (f"; ПРЕВЫШЕН на {total-limit:.0f}₽ — один заказ дороже лимита" if over else ""))
     with db.get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("""INSERT INTO payment_draft_queue(inn, kind, amount, covers_po_ids, status, note)
-                VALUES (%s, 'deferred_batch', %s, %s, 'planned', %s) RETURNING id""",
-                (inn, round(total, 2), picked, note))
+            cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status, note)
+                VALUES (%s, %s, 'deferred_batch', %s, %s, 'planned', %s) RETURNING id""",
+                (BUYER_INN, inn, round(total, 2), picked, note))
             draft_id = cur.fetchone()[0]
             cur.execute("""UPDATE po_payment_status SET status='queued', draft_id=%s
                 WHERE po_id = ANY(%s)""", (draft_id, picked))
@@ -292,12 +295,13 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=
         print(f"[{inn}] аванс/баланс: не задана сумма аванса или порог — пропуск")
         return 0
     already_planned = db.query("""SELECT count(*) n FROM payment_draft_queue
-        WHERE inn=%s AND kind='advance' AND status='planned'""", (inn,))[0]["n"]
+        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status='planned'""",
+        (BUYER_INN, inn))[0]["n"]
     if already_planned:
         return 0   # уже есть неотправленный черновик аванса — не плодим второй
     last = db.query("""SELECT amount::float amount, created_at FROM payment_draft_queue
-        WHERE inn=%s AND kind='advance' AND status IN ('sent_sandbox','sent_prod','paid')
-        ORDER BY created_at DESC LIMIT 1""", (inn,))
+        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status IN ('sent_sandbox','sent_prod','paid')
+        ORDER BY created_at DESC LIMIT 1""", (BUYER_INN, inn))
     if not last:
         balance = 0.0
     else:
@@ -309,9 +313,9 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=
         return 0
     with db.get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("""INSERT INTO payment_draft_queue(inn, kind, amount, covers_po_ids, status, note)
-                VALUES (%s, 'advance', %s, NULL, 'planned', %s)""",
-                (inn, advance_amount, f"баланс {balance}₽ < порог {balance_threshold}₽"))
+            cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status, note)
+                VALUES (%s, %s, 'advance', %s, NULL, 'planned', %s)""",
+                (BUYER_INN, inn, advance_amount, f"баланс {balance}₽ < порог {balance_threshold}₽"))
     print(f"[{inn}] аванс/баланс: баланс {balance}₽ < порог {balance_threshold}₽ — запланирован аванс {advance_amount}₽")
     return 1
 
@@ -353,19 +357,19 @@ def mark_executed_drafts(inn, agent_id=None):
       суммы отметился бы тем же самым платежом.
     """
     done = db.query("""UPDATE payment_draft_queue q SET status='paid'
-        WHERE q.inn=%s AND q.status IN ('planned', 'sent_prod', 'error')
+        WHERE q.org_inn=%s AND q.inn=%s AND q.status IN ('planned', 'sent_prod', 'error')
           AND coalesce(array_length(q.covers_po_ids, 1), 0) > 0
           AND EXISTS (SELECT 1 FROM po_payment_status p WHERE p.po_id = ANY(q.covers_po_ids))
           AND NOT EXISTS (SELECT 1 FROM po_payment_status p
                           WHERE p.po_id = ANY(q.covers_po_ids) AND p.status <> 'paid')
-        RETURNING q.id, q.amount::float amount""", (inn,))
+        RETURNING q.id, q.amount::float amount""", (BUYER_INN, inn))
     for d in done:
         print(f"[{inn}] черновик #{d['id']} на {d['amount']}₽ проведён (все заказы закрыты в МС)")
     n = len(done)
 
     adv = db.query("""SELECT id, amount::float amount, created_at FROM payment_draft_queue
-        WHERE inn=%s AND kind='advance' AND status IN ('planned', 'sent_prod', 'error')
-        ORDER BY created_at""", (inn,))
+        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status IN ('planned', 'sent_prod', 'error')
+        ORDER BY created_at""", (BUYER_INN, inn))
     if not adv:
         return n
     # Занятые платежи — по всем поставщикам сразу: один paymentout не может закрыть два черновика.
@@ -393,11 +397,15 @@ def mark_executed_drafts(inn, agent_id=None):
 
 
 def run(only_inn=None):
-    terms = db.query("SELECT * FROM supplier_payment_terms WHERE active")
+    # Гейт по НАШЕЙ организации обязателен (миграция 207): у одного ИНН поставщика теперь до
+    # двух строк условий — свои у Цифрового Квадрата (Альфа) и свои у Дисквэра (Сбер). Без
+    # фильтра поллер собрал бы по каждому поставщику ДВА черновика на одни и те же заказы.
+    terms = db.query("SELECT * FROM supplier_payment_terms WHERE active AND org_inn=%s",
+                     (BUYER_INN,))
     if only_inn:
         terms = [t for t in terms if t["inn"] == only_inn]
     if not terms:
-        print("нет активных поставщиков в supplier_payment_terms")
+        print(f"нет активных поставщиков в supplier_payment_terms для org {BUYER_INN}")
         return
     for t in terms:
         inn, method = t["inn"], t["method"]
