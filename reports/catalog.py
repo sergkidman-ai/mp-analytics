@@ -7,9 +7,16 @@ raw_yandex_offer (то, что реально продаётся) по моде�
 назвать артикул/подтвердить наличие, не выдумывая. Ничего не находит → пустой блок (движок не
 утверждает наличие).
 
+ПОДБОР ПО МОДЕЛИ ПРИНТЕРА идёт через индекс совместимости `reports/compat_index.py` (таблица
+`compat_index`, миграция 063), а НЕ через ILIKE по коду оригинала: покупатель называет свой принтер
+(или код оригинала), а мы продаём совместимые под своими кодами, и в title влезает 5–6 моделей из
+десятков. Индекс собран из списков совместимости WB, атрибутов Ozon, описаний и вердиктов
+`compat_cache`, модели нормализованы (серия + числовое ядро + суффикс), поэтому `DCP-7180DN`
+находит карточку «DCP-7180». ILIKE-путь остался запасным — работает, если индекс ещё не собран.
+
 ГРАНИЦА КАНАЛОВ (инцидент 01.08.2026): покупателю предлагаем товар ТОЛЬКО с той площадки, где он
 задал вопрос — см. `_same_channel`. Ссылка на чужой маркетплейс бесполезна (там он не купит) и
-выглядит как увод с площадки.
+выглядит как увод с площадки. Своей карточки нет → ничего не подставляем, движок зовёт в чат.
 """
 import re
 import sys
@@ -18,6 +25,7 @@ import pathlib
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db                          # noqa: E402
+from reports import compat_index             # noqa: E402
 
 # цвет → синонимы для ILIKE по названию листинга
 COLORS = {
@@ -196,6 +204,27 @@ def _nums(toks):
     return [t for t in toks if re.search(r"\d", t)]
 
 
+# Ozon: атрибуты и подбор исторически ограничены Премиум-аккаунтом (oz_acc1) — сохраняем как было,
+# чтобы врезка индекса не поменяла заодно и набор предлагаемых магазинов. WB — оба аккаунта (nmID
+# у ВБ глобально уникален), Маркет — ya_acc1.
+_LOOKUP_ACCOUNTS = {"ozon": ["oz_acc1"]}
+# сопутствующий расходник → тип товара в индексе (девелопер/печка своего типа не имеют — старый путь)
+_ACC_KIND = {"фотобарабан": "drum"}
+
+
+def _index_hits(text, platform, color=None, kind=None, models=None, exclude_id=None, limit=8,
+                kind_strict=False):
+    """Подбор по модели принтера через индекс совместимости. → список хитов, [] если не нашли,
+    None если индекс не собран (вызывающий откатывается на старый ILIKE-путь)."""
+    if not compat_index.is_ready():
+        return None
+    return compat_index.lookup(text or "", platform=platform, kind=kind,
+                               accounts=_LOOKUP_ACCOUNTS.get(platform),
+                               color_syn=COLORS.get(color) if color else None,
+                               exclude_id=exclude_id, limit=limit, models=models,
+                               kind_strict=kind_strict)
+
+
 def _detect_accessory(text):
     """Какой сопутствующий расходник спрашивают (фотобарабан/девелопер/печка) → ключ или None."""
     low = (text or "").lower()
@@ -280,33 +309,45 @@ def catalog_block(text, product_name="", card_models=None, platform=None, card_c
     pool_nums = _nums(_model_tokens(" ".join([product_name or ""] + list(card_models or []))))
     if not nums:
         nums = pool_nums
+    # модели для индекса: из вопроса, а если там их нет — из названия товара и списка карточки
+    idx_models = None if nums else ([product_name or ""] + list(card_models or []))
     # сопутствующий расходник (фотобарабан/девелопер) — модель принтера берём из карточки товара
     acc_hits = []
     if acc:
-        for num in ((nums or pool_nums)[:3] or [None]):
-            toks = [x for x in (brand, num) if x]
-            if toks:
-                acc_hits += _search_accessory(toks, acc)
+        acc_kind = _ACC_KIND.get(acc)
+        acc_hits = _index_hits(q, platform, kind=acc_kind, kind_strict=True,
+                               models=[product_name or ""] + list(card_models or [])) if acc_kind else None
+        if acc_hits is None:                      # девелопер/печка или индекс не собран — старый путь
+            acc_hits = []
+            for num in ((nums or pool_nums)[:3] or [None]):
+                toks = [x for x in (brand, num) if x]
+                if toks:
+                    acc_hits += _search_accessory(toks, acc)
         seen_a = set()
         acc_hits = [h for h in acc_hits if (h["platform"], h["id"]) not in seen_a and not seen_a.add((h["platform"], h["id"]))]
         acc_hits = _same_channel(acc_hits, platform)
-    hits, seen = [], set()
-    # поиск ПО КАЖДОЙ модели отдельно (brand+номер+цвет) — union, не жёсткий AND всех номеров
-    for num in (nums[:3] or [None]):
-        toks = [x for x in (brand, num) if x]
-        for h in _search(toks, color):
-            key = (h["platform"], h["id"])
-            if key not in seen:
-                seen.add(key)
-                hits.append(h)
-    if not hits and color:               # цвета не нашли — попробуем шире (вдруг листинг без слова-цвета)
+    # ПОДБОР ПО МОДЕЛИ ПРИНТЕРА — через индекс совместимости (см. шапку модуля)
+    hits = _index_hits(q, platform, color=color, models=idx_models)
+    if hits is not None:
+        if not hits and color:           # цвета не нашли — шире (вдруг листинг без слова-цвета в названии)
+            hits = _index_hits(q, platform, models=idx_models) or []
+    else:                                # индекс не собран — запасной ILIKE-путь по токенам
+        hits, seen = [], set()
         for num in (nums[:3] or [None]):
             toks = [x for x in (brand, num) if x]
-            for h in _search(toks, None):
+            for h in _search(toks, color):
                 key = (h["platform"], h["id"])
                 if key not in seen:
                     seen.add(key)
                     hits.append(h)
+        if not hits and color:
+            for num in (nums[:3] or [None]):
+                toks = [x for x in (brand, num) if x]
+                for h in _search(toks, None):
+                    key = (h["platform"], h["id"])
+                    if key not in seen:
+                        seen.add(key)
+                        hits.append(h)
     hits = _same_channel(hits, platform)          # только канал покупателя (см. _same_channel)
     if not hits and not acc_hits:
         return ""
@@ -336,15 +377,17 @@ def catalog_offer(text, product_name="", card_models=None, platform=None):
     brand = next((b for b in _BRANDS if b in (q + " " + (product_name or "")).lower()), None)
     nums = _nums(_model_tokens(q))
     if not nums:
-        return None
-    hits, seen = [], set()
-    for num in nums[:3]:
-        toks = [x for x in (brand, num) if x]
-        for h in _search(toks, None):
-            key = (h["platform"], h["id"])
-            if key not in seen:
-                seen.add(key)
-                hits.append(h)
+        return None                      # модели принтера в вопросе нет — подставлять нечего
+    hits = _index_hits(q, platform)      # индекс совместимости: DCP-7180DN → карточка «DCP-7180»
+    if hits is None:                     # индекс не собран — запасной ILIKE-путь
+        hits, seen = [], set()
+        for num in nums[:3]:
+            toks = [x for x in (brand, num) if x]
+            for h in _search(toks, None):
+                key = (h["platform"], h["id"])
+                if key not in seen:
+                    seen.add(key)
+                    hits.append(h)
     hits = _same_channel(hits, platform)
     if not hits:
         return None
