@@ -1,17 +1,23 @@
 # поток: gab
 """Массовый сбор габаритов с nix.ru браузером. Запуск ТОЛЬКО на домашнем компьютере.
 
-Путь выбран окончательно: браузер + карточки /autocatalog/. Внутренний JSON
-(/scripts/action.php/FastSearch/goods) НЕ используется — поле sign не воспроизводится,
-габаритов в ответе нет, раздел закрыт в robots.txt.
+Путь выбран окончательно: браузер + карточки /autocatalog/. Внутренний JSON мы САМИ
+не формируем и в /scripts/ не ходим: запрос FastSearch/goods делает сама страница,
+мы лишь дожидаемся его завершения и читаем уже пришедшую выдачу.
+
+ВАЖНО (дефект прогона 03.08): ссылки нельзя брать из DOM «когда появятся» —
+до прихода выдачи в разметке лежит 101 посторонняя ссылка, одинаковая для всех
+артикулов. Поэтому: ждём ответ FastSearch/goods, ссылки и заголовки берём из
+поля goods.html этого ответа. Ответа нет за 30 с — в журнал «выдача не получена»
+и дальше; содержимое страницы вместо выдачи НЕ подставляем.
 
 Что делает по каждой модели:
   1) ищет по ключу `article` (артикул поставщика из МойСклада, как есть, посимвольно);
      если после отбора не осталось ни одной подходящей карточки — повторяет поиск
      по `oem_article` (тоже как есть). Оба поля пусты — модель пропускается, причина в журнал;
-  2) забирает ИЗ ВЫДАЧИ все ссылки /autocatalog/ вместе с заголовками и отсеивает
-     по заголовку ДО открытия: искомый код обязан стоять в заголовке; тип товара обязан
-     совпасть с нашим; главная и «Архив каталога» — не карточки;
+  2) из пришедшей выдачи забирает все ссылки /autocatalog/ вместе с заголовками и отсеивает
+     ДО открытия: искомый код обязан стоять в заголовке; тип товара обязан совпасть с нашим;
+     главная и «Архив каталога» — не карточки;
   3) открывает до пяти прошедших отбор карточек, сохраняет HTML в nix_raw/<external_code>/,
      имя файла — из canonical-ссылки внутри самой страницы (заголовок Windows режет);
   4) читает «Размеры упаковки (измерено в НИКСе)» и «Вес брутто (измерено в НИКСе)».
@@ -20,21 +26,28 @@
      Размеров нет — это нормальный результат, так и пишется.
 
 Файлы рядом со скриптом:
-  nix_collect_log.csv  — по строке на модель: ключ, сколько ссылок, сколько прошло отбор,
-                         сколько карточек открыто, сколько размеров прочитано (по нему же resume);
+  nix_collect_log.csv  — по строке на модель: пришёл ли ответ выдачи и сколько в нём позиций
+                         (total), ключ, ссылок, прошло отбор, карточек открыто, размеров
+                         прочитано (по нему же resume);
   nix_links.csv        — все ссылки выдачи с вердиктом отбора (проверяемость фильтра);
   nix_dims.csv         — найденные величины с источником: файл, канонический адрес,
                          заголовок карточки, точная строка;
   nix_raw/<модель>/*.html — сохранённые карточки;
   nix_collect.log      — ход работы.
 
+Модель считается пройденной только если выдача РЕАЛЬНО получена (или обе строки-ключа
+пусты / наш тип не читается). Строки с «выдача не получена» при следующем запуске
+переигрываются, а не пропускаются.
+
 Один поток, пауза 5-8 с, обычное окно браузера, обычный User-Agent, никаких обходов защиты.
-Ошибка на одной модели не роняет прогон. Повторный запуск продолжает с места остановки.
+Ошибка на одной модели не роняет прогон.
 
 Установка:  pip install playwright  и  playwright install chromium
 Запуск:     python nix_collect.py 100          (число — сколько моделей за запуск)
 """
 import csv
+import html as H
+import json
 import random
 import re
 import sys
@@ -42,7 +55,7 @@ import time
 from datetime import datetime
 from html import unescape
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urljoin, urlsplit
 
 try:
     from playwright.sync_api import sync_playwright
@@ -62,15 +75,15 @@ SEARCH_URL = ('https://www.nix.ru/price/price_list.html'
               '?section=cartridges_toner_paper_ink_all'
               '#c_id=110&fn=110&g_id=59&keywords={kw}&new_goods=0&page=1&sort=0'
               '&spoiler=&store=msk-0_1721_1&thumbnail_view=2')
-CARD_LINK = 'a[href*="/autocatalog/"]'
+GOODS = 'FastSearch/goods'                   # запрос делает сама страница, мы его ждём
 UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36')
 DEFAULT_LIMIT = 100                          # моделей за запуск, можно задать аргументом
 OPEN_MAX = 5                                 # сколько прошедших отбор карточек открывать
-WAIT_RESULTS_MS = 30000
+WAIT_RESULTS_S = 30                          # ждём выдачу столько и не дольше
 PAUSE = (5.0, 8.0)                           # между моделями и между карточками
 
-# ---- разбор карточки (тот же парсер, что и на сервере, семантика не менялась) ----
+# ---- разбор карточки (тот же парсер, семантика не менялась) ----
 DIM_LABEL = re.compile(
     r'>\s*((?:Размеры упаковки|Габариты)[^<]*)</td>\s*<td[^>]*>\s*(?:<div[^>]*>)?\s*([^<]+?)\s*<')
 WEIGHT_LABEL = re.compile(r'>\s*(Вес[^<]*)</td>\s*<td[^>]*>\s*(?:<div[^>]*>)?\s*([^<]+?)\s*<')
@@ -79,6 +92,9 @@ DIM_VALUE = re.compile(
 TITLE = re.compile(r'<title[^>]*>(.*?)</title>', re.S | re.I)
 CANON = re.compile(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)', re.I)
 OGURL = re.compile(r'og:url["\'][^>]+content=["\']([^"\']+)', re.I)
+# ссылка на карточку в выдаче: кавычки в вёрстке никса бывают обоих видов
+A_TAG = re.compile(r'<a\b[^>]*href=[\'"]([^\'"]*/autocatalog/[^\'"]*)[\'"][^>]*>(.*?)</a>', re.S | re.I)
+TAGS = re.compile(r'<[^>]+>')
 
 # Тип предмета по смыслу, а не по точному совпадению строки. Порядок важен:
 # «чип к картриджу» — это чип, «тонер-картридж» — это картридж.
@@ -106,6 +122,10 @@ def norm(s: str) -> str:
 
 def safe(s: str) -> str:
     return re.sub(r'[^0-9A-Za-z_.-]', '_', s)[:80]
+
+
+def text_of(chunk: str) -> str:
+    return re.sub(r'\s+', ' ', H.unescape(TAGS.sub(' ', chunk))).strip()
 
 
 def kind(name: str) -> str:
@@ -158,6 +178,18 @@ def parse_card(text: str, path: Path):
     return row
 
 
+def links_from_goods(goods_html: str):
+    """Ссылки на карточки и их заголовки ИЗ ОТВЕТА ВЫДАЧИ. У одной карточки в строке
+    несколько ссылок (картинка и название) — берём самый длинный текст на адрес."""
+    best = {}
+    for m in A_TAG.finditer(goods_html or ''):
+        url = urljoin('https://www.nix.ru/', m.group(1)).split('?')[0]
+        t = text_of(m.group(2))
+        if len(t) > len(best.get(url, '')):
+            best[url] = t
+    return [{'адрес': u, 'заголовок': t[:250]} for u, t in best.items()]
+
+
 # ---- вход и журнал --------------------------------------------------------------
 def read_models():
     if not INPUT.exists():
@@ -174,21 +206,36 @@ def read_models():
     return out
 
 
-def done_models() -> set:
-    if not LOGCSV.exists():
-        return set()
-    with LOGCSV.open(encoding='utf-8-sig') as fh:
-        return {(r.get('external_code') or '').strip() for r in csv.DictReader(fh, delimiter=';')}
-
-
 LOG_COLS = ['время', 'external_code', 'наше_название', 'наш_тип', 'ключ_сработал', 'значение_ключа',
-            'article_ссылок', 'article_прошло', 'oem_ссылок', 'oem_прошло',
-            'карточек_открыто', 'размеров_прочитано', 'итог']
-LINK_COLS = ['external_code', 'ключ', 'значение_ключа', 'адрес', 'заголовок_из_выдачи',
+            'article_ответ', 'article_total', 'article_ссылок', 'article_прошло',
+            'oem_ответ', 'oem_total', 'oem_ссылок', 'oem_прошло',
+            'выдача_получена', 'карточек_открыто', 'размеров_прочитано', 'итог']
+LINK_COLS = ['external_code', 'ключ', 'значение_ключа', 'адрес', 'заголовок',
              'тип_карточки', 'вердикт', 'открыта']
 DIM_COLS = ['external_code', 'ключ', 'значение_ключа', 'файл', 'адрес_canonical',
             'заголовок_карточки', 'тип_карточки', 'метка', 'строка_размеров', 'единицы',
             'Д_мм', 'Ш_мм', 'В_мм', 'строка_веса', 'вес']
+
+
+def done_models() -> set:
+    """Пройденные модели. Строка, где выдача НЕ получена, пройденной не считается —
+    иначе неудача первого прогона молча потеряла бы модель навсегда."""
+    if not LOGCSV.exists():
+        return set()
+    with LOGCSV.open(encoding='utf-8-sig') as fh:
+        rd = csv.DictReader(fh, delimiter=';')
+        if rd.fieldnames != LOG_COLS:        # журнал старого формата (прогон до правки)
+            old = LOGCSV.with_suffix('.old.csv')
+            fh.close()
+            LOGCSV.replace(old)
+            log(f'журнал старого формата переименован в {old.name}; '
+                f'записанные в нём модели будут пройдены заново')
+            return set()
+        done = set()
+        for r in rd:
+            if (r.get('выдача_получена') == 'да') or str(r.get('итог', '')).startswith('пропуск'):
+                done.add((r.get('external_code') or '').strip())
+    return done
 
 
 def append(path: Path, cols, rows):
@@ -201,42 +248,31 @@ def append(path: Path, cols, rows):
 
 
 # ---- работа с выдачей -----------------------------------------------------------
-def open_results(page, keyword: str):
-    """Открыть выдачу прямым адресом. Смена хвоста после # страницу не перезагружает,
-    поэтому сначала about:blank, затем адрес, затем reload. Ждём ПРИСУТСТВИЯ ссылок
-    в DOM (state='attached'): видимыми они не становятся, ожидание видимости давало
-    ложный таймаут 30 с."""
+def fetch_goods(page, goods_buf, keyword: str):
+    """Открыть выдачу и дождаться ОТВЕТА FastSearch/goods, который делает сама страница.
+    Возвращает разобранный объект goods или None, если за WAIT_RESULTS_S не пришёл.
+    Содержимое страницы вместо выдачи не подставляется — молчание лучше чужих ссылок."""
+    goods_buf.clear()
     page.goto('about:blank', wait_until='domcontentloaded', timeout=30000)
     page.goto(SEARCH_URL.format(kw=quote(keyword)), wait_until='domcontentloaded', timeout=60000)
+    # смена хвоста после # страницу не перезагружает, поэтому reload — как в рабочем пробнике
     page.reload(wait_until='domcontentloaded', timeout=60000)
-    page.wait_for_selector(CARD_LINK, state='attached', timeout=WAIT_RESULTS_MS)
-
-
-JS_LINKS = """els => els.map(a => {
-  let row = a.closest('tr') || a.parentElement || a;
-  return {href: a.href,
-          text: (a.textContent || '').replace(/\\s+/g, ' ').trim(),
-          row: (row.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 300)};
-})"""
-
-
-def collect_links(page):
-    """Все ссылки /autocatalog/ из выдачи с заголовками, без дублей по адресу."""
-    try:
-        raw = page.eval_on_selector_all(CARD_LINK, JS_LINKS)
-    except Exception:
-        raw = []
-    seen, out = set(), []
-    for it in raw:
-        url = (it.get('href') or '').split('?')[0]
-        if '/autocatalog/' not in url or url in seen:
-            continue
-        seen.add(url)
-        title = it.get('text') or ''
-        if len(norm(title)) < 4:               # ссылка-картинка: заголовок берём из строки
-            title = it.get('row') or ''
-        out.append({'адрес': url, 'заголовок': title.strip()[:250]})
-    return out
+    deadline = time.time() + WAIT_RESULTS_S
+    tries = {}                                # сколько раз не удалось прочитать тело ответа
+    while time.time() < deadline:
+        for resp in list(goods_buf):
+            if tries.get(id(resp), 0) >= 2:   # тело первого ответа умирает при reload — бросаем
+                continue
+            try:
+                d = json.loads(resp.text()).get('goods')
+            except Exception:                 # тела ещё нет или оно уже недоступно
+                tries[id(resp)] = tries.get(id(resp), 0) + 1
+                continue
+            tries[id(resp)] = 9
+            if isinstance(d, dict) and 'html' in d:
+                return d
+        page.wait_for_timeout(500)
+    return None
 
 
 def select(links, code: str, our_kind: str):
@@ -260,17 +296,21 @@ def select(links, code: str, our_kind: str):
     return [it for it in links if it['вердикт'] == 'прошла']
 
 
-def try_key(page, model, key_name, code):
-    """Один заход: выдача по ключу -> ссылки -> отбор. Возвращает (все ссылки, прошедшие)."""
+def try_key(page, goods_buf, model, key_name, code):
+    """Один заход: выдача по ключу -> ссылки из ответа -> отбор.
+    Возвращает (пришёл ли ответ, total, все ссылки, прошедшие)."""
     try:
-        open_results(page, code)
+        d = fetch_goods(page, goods_buf, code)
     except Exception as e:
         log(f'   выдача по {key_name}={code}: {str(e).splitlines()[0][:120]}')
-    links = collect_links(page)
+        d = None
+    if d is None:
+        return False, '', [], []
+    links = links_from_goods(d.get('html'))
     good = select(links, code, model['наш_тип'])
     for it in links:
         it.update(external_code=model['external_code'], ключ=key_name, значение_ключа=code)
-    return links, good
+    return True, str(d.get('total', '')), links, good
 
 
 def main() -> int:
@@ -287,25 +327,28 @@ def main() -> int:
     skip = done_models()
     queue = [m for m in models if m['external_code'] not in skip][:limit]
     RAW.mkdir(exist_ok=True)
-    log(f'=== запуск: всего моделей {len(models)}, уже обработано ранее {len(skip)}, '
+    log(f'=== запуск: всего моделей {len(models)}, пройдено ранее {len(skip)}, '
         f'в этот заход {len(queue)} (лимит {limit})')
-    stat = {'моделей': 0, 'по_article': 0, 'по_oem': 0, 'без_ключей': 0,
-            'карточек': 0, 'размеров': 0, 'пусто': 0}
+    stat = {'моделей': 0, 'выдача_есть': 0, 'выдачи_нет': 0, 'по_article': 0, 'по_oem': 0,
+            'без_ключей': 0, 'карточек': 0, 'размеров': 0, 'пусто': 0}
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=False)
         ctx = browser.new_context(locale='ru-RU', user_agent=UA,
                                   viewport={'width': 1360, 'height': 900})
         page = ctx.new_page()
+        goods_buf = []                        # ответы FastSearch/goods текущего захода
+        page.on('response', lambda r: goods_buf.append(r) if GOODS in r.url else None)
 
         for n, m in enumerate(queue, 1):
             ext = m['external_code']
             stat['моделей'] += 1
             rec = {'время': f'{datetime.now():%Y-%m-%d %H:%M:%S}', 'external_code': ext,
                    'наше_название': m['наше_название'][:120], 'наш_тип': m['наш_тип'],
-                   'ключ_сработал': '', 'значение_ключа': '', 'article_ссылок': '',
-                   'article_прошло': '', 'oem_ссылок': '', 'oem_прошло': '',
-                   'карточек_открыто': 0, 'размеров_прочитано': 0, 'итог': ''}
+                   'ключ_сработал': '', 'значение_ключа': '',
+                   'article_ответ': '', 'article_total': '', 'article_ссылок': '', 'article_прошло': '',
+                   'oem_ответ': '', 'oem_total': '', 'oem_ссылок': '', 'oem_прошло': '',
+                   'выдача_получена': 'нет', 'карточек_открыто': 0, 'размеров_прочитано': 0, 'итог': ''}
             log(f'[{n}/{len(queue)}] {ext} | {m["наше_название"][:60]} | наш тип: {m["наш_тип"]}')
 
             if not m['article'] and not m['oem_article']:
@@ -320,62 +363,71 @@ def main() -> int:
                 append(LOGCSV, LOG_COLS, [rec])
                 continue
 
-            all_links, good, used_key, used_val = [], [], '', ''
+            all_links, good, used_key, used_val, any_resp = [], [], '', '', False
             for key_name in ('article', 'oem_article'):
                 code = m[key_name]
                 if not code:
                     continue
-                links, passed = try_key(page, m, key_name, code)
+                got, total, links, passed = try_key(page, goods_buf, m, key_name, code)
+                any_resp = any_resp or got
                 all_links += links
-                rec['article_ссылок' if key_name == 'article' else 'oem_ссылок'] = len(links)
-                rec['article_прошло' if key_name == 'article' else 'oem_прошло'] = len(passed)
-                log(f'   ключ {key_name}={code}: ссылок {len(links)}, прошло отбор {len(passed)}')
+                pfx = 'article' if key_name == 'article' else 'oem'
+                rec[f'{pfx}_ответ'] = 'да' if got else 'нет'
+                rec[f'{pfx}_total'] = total
+                rec[f'{pfx}_ссылок'] = len(links)
+                rec[f'{pfx}_прошло'] = len(passed)
+                log(f'   ключ {key_name}={code}: ответ выдачи {"да" if got else "НЕТ"}, '
+                    f'total {total or "-"}, ссылок {len(links)}, прошло отбор {len(passed)}')
                 if passed:
                     good, used_key, used_val = passed, key_name, code
                     break
                 time.sleep(random.uniform(*PAUSE))
 
+            rec['выдача_получена'] = 'да' if any_resp else 'нет'
             rec['ключ_сработал'] = used_key or 'ни один'
             rec['значение_ключа'] = used_val
+            stat['выдача_есть' if any_resp else 'выдачи_нет'] += 1
 
             # ---- открываем до пяти прошедших отбор карточек ----------------------
-            dims_rows, opened, got = [], 0, 0
+            dims_rows, opened, got_dims = [], 0, 0
             folder = RAW / safe(ext)
             for it in good[:OPEN_MAX]:
                 try:
                     page.goto(it['адрес'], wait_until='domcontentloaded', timeout=60000)
-                    html = page.content()
+                    card_html = page.content()
                 except Exception as e:
                     log(f'   карточка не открылась: {str(e).splitlines()[0][:110]}')
                     continue
-                c = CANON.search(html) or OGURL.search(html)
+                c = CANON.search(card_html) or OGURL.search(card_html)
                 folder.mkdir(parents=True, exist_ok=True)
                 dst = folder / file_name(c.group(1) if c else '', it['адрес'])
-                dst.write_text(html, encoding='utf-8')
+                dst.write_text(card_html, encoding='utf-8')
                 it['открыта'] = dst.name
                 opened += 1
-                row = parse_card(html, dst)
+                row = parse_card(card_html, dst)
                 row.update(external_code=ext, ключ=used_key, значение_ключа=used_val)
                 if not row['адрес_canonical']:
                     row['адрес_canonical'] = it['адрес']
                 if row['Д_мм']:
-                    got += 1
+                    got_dims += 1
                 dims_rows.append(row)
                 time.sleep(random.uniform(*PAUSE))
 
             rec['карточек_открыто'] = opened
-            rec['размеров_прочитано'] = got
-            if not good:
+            rec['размеров_прочитано'] = got_dims
+            if not any_resp:
+                rec['итог'] = 'выдача не получена (ответ FastSearch/goods не пришёл за 30 с)'
+            elif not good:
                 rec['итог'] = 'подходящих карточек в выдаче нет'
                 stat['пусто'] += 1
-            elif not got:
+            elif not got_dims:
                 rec['итог'] = f'карточки открыты ({opened}), размеров в них нет'
             else:
-                rec['итог'] = f'размеров получено {got}'
+                rec['итог'] = f'размеров получено {got_dims}'
                 stat['по_article' if used_key == 'article' else 'по_oem'] += 1
             stat['карточек'] += opened
-            stat['размеров'] += got
-            log(f'   открыто карточек {opened}, размеров прочитано {got} — {rec["итог"]}')
+            stat['размеров'] += got_dims
+            log(f'   открыто карточек {opened}, размеров прочитано {got_dims} — {rec["итог"]}')
 
             append(LOGCSV, LOG_COLS, [rec])
             if all_links:
