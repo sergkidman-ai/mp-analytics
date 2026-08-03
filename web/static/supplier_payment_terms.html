@@ -39,6 +39,9 @@
   .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;background:#3a2027;color:var(--neg)}
   .tag.ok{background:#1c3a24;color:var(--pos)}
   .tag.w{background:#3a3120;color:var(--warn)}
+  /* Синий = «документ в банке, ждёт подписи» — не путать с зелёным «деньги ушли, видно в МС». */
+  .tag.s{background:#16293a;color:var(--acc)}
+  .tag.mute{background:#232f3d;color:var(--mut)}
   /* Ширины колонок очереди фиксированные: дата и сумма (со знаком ₽) целиком в одну строку,
      контрагенту хватает на две. Остаток ширины забирает «Чем урезано». */
   #queue{table-layout:fixed}
@@ -99,6 +102,10 @@
     <td colspan="4" id="q-total-label"></td><td id="q-total"></td><td colspan="3"></td>
   </tr></tfoot></table>
   <p class="note" id="foot"></p>
+  <p class="note"><span class="tag w">запланирован</span> ждёт отправки &nbsp;·&nbsp;
+    <span class="tag s">в банке</span> документ создан и <b>не подписан</b> — подписать в
+    интернет-банке &nbsp;·&nbsp; <span class="tag ok">проведён</span> деньги ушли, платёж виден
+    в МойСклад</p>
 
   <h2>⚙️ Условия оплаты <span id="mode" class="tag" style="font-weight:400;vertical-align:middle"></span></h2>
   <p class="note" style="margin:0 0 12px">Условия оплаты по поставщику (ИНН). <b>Отсрочка</b> — при наступлении срока
@@ -152,11 +159,15 @@ const vatLabel=v=>v==null?'<span class="muted">не задано</span>':(v===0?
 const KINDS={deferred_batch:'Отсрочка',prepayment_order:'По счёту',advance:'Аванс/баланс'};
 // «проведён» = деньги видны в МС (выписка привязалась к заказу / нашёлся платёж под аванс),
 // а не «банк принял черновик» — это 'отправлен'.
-const QSTATUS={planned:['tag w','запланирован'],sent_prod:['tag ok','отправлен'],
-  paid:['tag ok','проведён'],error:['tag','ошибка'],cancelled:['tag','снят']};
+// Цвет = стадия жизни платежа: жёлтый ждёт отправки, синий лежит в банке НЕПОДПИСАННЫМ,
+// зелёный — деньги реально ушли. Раньше «отправлен» и «проведён» были одинаково зелёными
+// и на глаз не различались.
+const QSTATUS={planned:['tag w','запланирован'],sent_prod:['tag s','в банке'],
+  sent_sandbox:['tag s','песочница'],paid:['tag ok','проведён'],
+  error:['tag','ошибка'],cancelled:['tag mute','снят']};
 // Порядок по умолчанию: сначала то, что требует действия (запланировано, ошибка), потом
 // отправленное и уже проведённое, в самом низу снятое. Внутри группы — свежие сверху.
-const SORT_RANK={planned:0,error:1,sent_prod:2,paid:3,cancelled:4};
+const SORT_RANK={planned:0,error:1,sent_prod:2,sent_sandbox:2,paid:3,cancelled:4};
 const byStatus=(a,b)=>(SORT_RANK[a.status]??9)-(SORT_RANK[b.status]??9)
   || String(b.created_at||'').localeCompare(String(a.created_at||''));
 
