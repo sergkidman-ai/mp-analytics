@@ -42,6 +42,20 @@ CODE_ATTR    = "efaefd7a-b130-11ea-0a80-0367000245f4"   # доп.поле тов
 GTD_ATTR     = "b5a757d4-85ca-11f1-0a80-184f000fc818"   # доп.поле товара «последний ГТД» (string)
 
 
+def _skip_for(order, seller_inn):
+    """Шаг рабочих дней до плановой приёмки для этого заказа. Срок доставки живёт в условиях
+    оплаты (`supplier_payment_terms.delivery_days`) и разный у двух юрлиц, поэтому ИНН нашей
+    организации берём из самого заказа. Организация не читается → фолбэк на зашитый в код шаг."""
+    org_inn = None
+    try:
+        href = ((order.get("organization") or {}).get("meta") or {}).get("href")
+        if href:
+            org_inn = inv.get_r("/entity/organization/" + href.rstrip("/").split("/")[-1]).get("inn")
+    except Exception:
+        pass
+    return inv.plan_skip(org_inn, seller_inn)
+
+
 def _attr_meta(attr_id):
     return {"href": f"{MSU}/entity/product/metadata/attributes/{attr_id}",
             "type": "attributemetadata", "mediaType": "application/json"}
@@ -773,7 +787,7 @@ def create_supply_auto(oid, seller_inn=None, incoming_number="", incoming_date=N
         # Раньше в этом случае moment не ставился вовсе и МС писал «сейчас».
         plan = (order.get("deliveryPlannedMoment") or "").split()[0] or \
                workcal.plan_date(date.fromisoformat(incoming_date) if incoming_date else date.today(),
-                                 skip=inv.SUPPLIERS.get(seller_inn, {}).get("plan_skip", 0)).isoformat()
+                                 skip=_skip_for(order, seller_inn)).isoformat()
         sup_pos, bp = [], 0
         for p in opos:
             a = p["assortment"]
@@ -906,8 +920,7 @@ def process(src, create=True, suffix="", fill=False):
         # встаёт задним числом; правило Сергея 03.08.2026).
         plan = (order.get("deliveryPlannedMoment") or "").split()[0] or \
                workcal.plan_date(upd["date"] or date.today(),
-                                 skip=inv.SUPPLIERS.get(upd.get("seller_inn"), {})
-                                        .get("plan_skip", 0)).isoformat()
+                                 skip=_skip_for(order, upd.get("seller_inn"))).isoformat()
         moment = f"{plan} 08:00:00"
         inc_date = upd["date"].isoformat() if upd["date"] else None   # нет даты (Спринт) → входящую не ставим
 

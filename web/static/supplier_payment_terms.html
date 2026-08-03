@@ -155,6 +155,12 @@ const METHODS={deferred:'Отсрочка',prepayment_per_order:'Предопл�
 const VAT_RATES=[['','не задано'],['0','без НДС'],['5','5%'],['7','7%'],['10','10%'],['20','20%'],['22','22%']];
 const vatLabel=v=>v==null?'<span class="muted">не задано</span>':(v===0?'без НДС':v+'%');
 
+// Срок доставки = через сколько РАБОЧИХ дней после счёта плановая приёмка (выходные пропускаются).
+// 1 — завтра (прежнее поведение для всех), 2 — послезавтра (Блоссом, Колортек, Картридж Трейд).
+const DELIV=[[1,'1 — завтра'],[2,'2 — послезавтра'],[3,'3 — через 2 раб. дня'],
+             [4,'4 — через 3 раб. дня'],[5,'5 — через 4 раб. дня']];
+const delivLabel=v=>(DELIV.find(([d])=>d===(v||1))||[0,(v||1)+' раб. дн.'])[1];
+
 // Метод очереди (payment_draft_queue.kind) — те же названия, что в условиях оплаты выше.
 const KINDS={deferred_batch:'Отсрочка',prepayment_order:'По счёту',advance:'Аванс/баланс'};
 // «проведён» = деньги видны в МС (выписка привязалась к заказу / нашёлся платёж под аванс),
@@ -182,9 +188,10 @@ function renderTerms(){
     <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th>
     <th>Сумма аванса ₽</th><th>Порог баланса ₽</th>
     <th title="Ставка НДС поставщика — из неё собирается НДС-оговорка в назначении платежа">НДС</th>
+    <th title="Через сколько рабочих дней после счёта плановая дата приёмки в заказе МС (08:00)">Срок доставки</th>
     <th>Активен</th><th></th></tr>`;
   const orgCell=r=>all?`<td class="muted">${esc(orgShort(r.org_inn))}</td>`:'';
-  const cols=all?11:10;
+  const cols=all?12:11;
   $('#terms tbody').innerHTML=rows.map((r,i)=>editing?`<tr>
     ${orgCell(r)}
     <td><input value="${esc(r.inn)}" placeholder="10 цифр" maxlength="12" oninput="rows[${i}].inn=this.value"></td>
@@ -199,6 +206,9 @@ function renderTerms(){
     <td><select onchange="rows[${i}].vat_rate=this.value===''?null:+this.value">
       ${VAT_RATES.map(([v,t])=>`<option value="${v}"${String(r.vat_rate??'')===v?' selected':''}>${t}</option>`).join('')}
     </select></td>
+    <td><select onchange="rows[${i}].delivery_days=+this.value">
+      ${DELIV.map(([v,t])=>`<option value="${v}"${(r.delivery_days||1)===v?' selected':''}>${t}</option>`).join('')}
+    </select></td>
     <td style="text-align:center"><input type="checkbox" ${r.active!==false?'checked':''} onchange="rows[${i}].active=this.checked"></td>
     <td><button class="del" onclick="delRow(${i})" title="удалить">✕</button></td>
   </tr>`:`<tr>
@@ -211,6 +221,7 @@ function renderTerms(){
     <td>${r.method==='prepayment_balance'?rub(r.advance_amount):'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?rub(r.balance_threshold):'<span class="muted">—</span>'}</td>
     <td>${vatLabel(r.vat_rate)}</td>
+    <td>${delivLabel(r.delivery_days)}</td>
     <td style="text-align:center">${r.active!==false?'✓':'<span class="muted">выкл</span>'}</td>
     <td></td>
   </tr>`).join('')||`<tr><td colspan="${cols}" class="muted">поставщиков не задано</td></tr>`;
@@ -227,7 +238,7 @@ function renderTerms(){
 }
 function startEdit(){editing=true;deleted=[];renderTerms();}
 async function cancelEdit(){editing=false;deleted=[];await loadTerms();}
-function addRow(){rows.push({org_inn:org,inn:'',name:'',method:'deferred',deferral_days:14,payment_cap:null,advance_amount:null,balance_threshold:null,active:true});renderTerms();}
+function addRow(){rows.push({org_inn:org,inn:'',name:'',method:'deferred',deferral_days:14,payment_cap:null,advance_amount:null,balance_threshold:null,delivery_days:1,active:true});renderTerms();}
 function delRow(i){
   const r=rows[i];
   if(!confirm(`Удалить «${r.name||r.inn}» из графика оплаты (${orgShort(r.org_inn||org)})?`))return;

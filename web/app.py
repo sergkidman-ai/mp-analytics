@@ -1061,7 +1061,7 @@ def suppliers_payment_terms_list(org: str | None = None):
     rows = db.query(f"""SELECT org_inn, inn, name, method, deferral_days,
         payment_cap::float payment_cap,
         advance_amount::float advance_amount, balance_threshold::float balance_threshold,
-        ms_agent_id, vat_rate, active
+        ms_agent_id, vat_rate, delivery_days, active
         FROM supplier_payment_terms {where} ORDER BY org_inn, name""", params)
     return {"items": rows}
 
@@ -1076,6 +1076,7 @@ class SupplierPaymentTerm(BaseModel):
     advance_amount: float | None = None
     balance_threshold: float | None = None
     vat_rate: int | None = None           # ставка НДС, %: 22 / 0 = не облагается / None = не задано
+    delivery_days: int = 1                # срок доставки в РАБОЧИХ днях: 1 = приёмка завтра, 2 = послезавтра
     active: bool = True
 
 
@@ -1091,6 +1092,8 @@ def suppliers_payment_terms_save(p: SupplierPaymentTerm):
         return {"ok": False, "error": "неизвестный method"}
     if p.vat_rate is not None and not 0 <= p.vat_rate <= 100:
         return {"ok": False, "error": "ставка НДС вне 0…100"}
+    if not 1 <= (p.delivery_days or 1) <= 30:
+        return {"ok": False, "error": "срок доставки вне 1…30 рабочих дней"}
     import datetime
     db.upsert("supplier_payment_terms", [{
         "org_inn": org,
@@ -1098,6 +1101,7 @@ def suppliers_payment_terms_save(p: SupplierPaymentTerm):
         "deferral_days": p.deferral_days, "payment_cap": p.payment_cap,
         "advance_amount": p.advance_amount, "vat_rate": p.vat_rate,
         "balance_threshold": p.balance_threshold, "active": p.active,
+        "delivery_days": p.delivery_days or 1,
         "updated_at": datetime.datetime.now(),
     }], conflict_cols=["org_inn", "inn"])
     return {"ok": True, "inn": inn, "org_inn": org}

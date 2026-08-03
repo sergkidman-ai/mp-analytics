@@ -33,7 +33,10 @@ import os, sys, re, json, gzip, time, subprocess, urllib.request, urllib.parse, 
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, "/opt/mp-analytics")          # фолбэк (canonical checkout может быть на другой ветке)
+sys.path.insert(0, os.path.dirname(_HERE))       # корень ЭТОГО чекаута/worktree — приоритет
+sys.path.insert(0, _HERE)
 from ms import get, post, put     # noqa
 import workcal                    # noqa
 import supplier_groups as SG      # noqa
@@ -533,13 +536,30 @@ def price_kop(p):
     return p.get("_price_kop", round(p["price"] * 100))
 
 
+def plan_skip(org_inn, supplier_inn):
+    """Сколько ПОЛНЫХ рабочих дней пропустить между счётом и плановой приёмкой.
+    Источник правды — «Условия оплаты поставщиков» (`supplier_payment_terms.delivery_days`,
+    миграция 208): 1 = приёмка завтра → skip 0; 2 = послезавтра → skip 1. Владелец правит срок
+    в дашборде, без правки кода. Строки нет / БД недоступна → старое зашитое значение
+    `SUPPLIERS[inn]["plan_skip"]`, чтобы поведение не менялось молча."""
+    try:
+        from core import db
+        r = db.query("""SELECT delivery_days FROM supplier_payment_terms
+                        WHERE org_inn = %s AND inn = %s""", (org_inn, supplier_inn))
+        if r and r[0]["delivery_days"]:
+            return max(0, int(r[0]["delivery_days"]) - 1)
+    except Exception as e:
+        print(f"⚠️  срок доставки из БД не прочитан ({e}) — беру зашитый в коде")
+    return SUPPLIERS.get(supplier_inn, {}).get("plan_skip", 0)
+
+
 # ═══════════════════════ 8. Сборка и создание ═════════════════════════════════
 def build_payload(hdr, org, store, agent_id, positions, deliv_id, name, warns, skipped, applicable=False):
     now = datetime.now(MSK)
     inv = hdr["inv_date"]
     six = hdr["supplier_inn"] in SIX_INN
     novat = SUPPLIERS.get(hdr["supplier_inn"], {}).get("novat", False)  # поставщик без НДС
-    pl = workcal.plan_date(inv, six, SUPPLIERS.get(hdr["supplier_inn"], {}).get("plan_skip", 0))
+    pl = workcal.plan_date(inv, six, plan_skip(org.get("inn"), hdr["supplier_inn"]))
     ms_positions = []
     for p in positions:
         pos = {"quantity": p["qty"], "price": price_kop(p),
