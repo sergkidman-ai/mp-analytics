@@ -5,7 +5,10 @@ Partner API (сверено 2026-07-28, ya_acc1): у вопросов СВОЙ �
   список:  POST /v1/businesses/{businessId}/goods-questions      (тело {}, ?limit=&page_token=)
   ответы:  POST /v1/businesses/{businessId}/goods-questions/answers   (тело {"questionId": id})
   ответ продавца: POST /v1/businesses/{businessId}/goods-questions/update
-                  {"operationType": "CREATE", "parentEntityId": <id вопроса>, "text": ...}
+                  {"operationType": "CREATE",
+                   "parentEntityId": {"id": <id вопроса>, "type": "QUESTION"}, "text": ...}
+                  parentEntityId — ОБЪЕКТ, не голое число (иначе 400 «Illegal input at
+                  parentEntityId»); единственная реализация — feedback_send.send_yandex_question.
 Ключ и businessId — те же, что у отзывов (goods-feedback), но БЕЗ префикса /v1 отзывы, а вопросы
 только с ним: `/businesses/{biz}/goods-questions` отдаёт 404, `/v1/...` — 200.
 

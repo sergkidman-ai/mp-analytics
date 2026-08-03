@@ -30,6 +30,7 @@ import html
 import urllib.request
 import urllib.error
 import traceback
+import subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, "/opt/mp-analytics")
@@ -359,7 +360,9 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
                   f"{tail}\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
                   f"<b>Ответ:</b> {html.escape(text[:800])}")
         return tail
-    _set(mod_id, "failed", error=detail, decided_at="now()", decided_by=int(from_id))
+    # final_text сохраняем и при провале: иначе правленый оператором текст теряется и досыл после
+    # починки причины воспроизвести его уже не может (инцидент 03.08, вопрос ЯМ 28227084).
+    _set(mod_id, "failed", final_text=text, error=detail, decided_at="now()", decided_by=int(from_id))
     edit_text(ec, em, f"❌ Ошибка отправки: {html.escape(detail[:300])}")
     return f"ошибка: {detail[:120]}"
 
@@ -462,7 +465,18 @@ def main():
             {"command": "next", "description": "Показать 5 следующих карточек"}]})
     except Exception as e:
         log(f"setMyCommands: {e}")
-    log(f"bot @{me.get('username')} запущен. live={fs._live()} allowed={sorted(ALLOWED) or 'ПУСТО'} "
+    # ревизию пишем в лог осознанно: процесс держит модули в памяти с момента старта, и после
+    # `git pull` без restart бот молча исполняет СТАРЫЙ код (инцидент 03.08: фикс parentEntityId
+    # лежал на диске с 30.07, а бот работал с 28.07 и продолжал ловить 400). Теперь версию,
+    # которая реально выполняется, видно в journalctl без раскопок по mtime и ps.
+    try:
+        rev = subprocess.run(["git", "-C", os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, timeout=5).stdout.strip() or "?"
+    except Exception:
+        rev = "?"
+    log(f"bot @{me.get('username')} запущен. rev={rev} live={fs._live()} "
+        f"allowed={sorted(ALLOWED) or 'ПУСТО'} "
         f"notify={NOTIFY} · карточки этот бот шлёт только по кнопке; авто-порции — отдельный цикл "
         f"feedback_cycle.py (send_batch по таймеру)")
     offset = None

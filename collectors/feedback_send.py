@@ -257,6 +257,34 @@ def send_yandex_question(account, question_id, text):
     raise RuntimeError("Yandex goods-questions/update: исчерпаны ретраи по лимиту")
 
 
+def update_yandex_answer(account, answer_id, text):
+    """ЗАМЕНА текста уже опубликованного нашего ответа на вопрос Яндекс.Маркета.
+
+    Тот же эндпоинт, что и создание, но operationType=UPDATE. Сверено 03.08 с OpenAPI-схемой
+    Маркета (openapi/components/schemas/UpdateGoodsQuestionTextEntityRequest.yaml):
+      CREATE → operationType + parentEntityId + text   (parentEntityId = {id вопроса, QUESTION})
+      UPDATE → operationType + entityId     + text     (entityId = {id НАШЕГО ответа, ANSWER})
+      DELETE → operationType + entityId
+    Перепутать entityId с parentEntityId нельзя: с parentEntityId запрос уйдёт как CREATE-подобный
+    и создаст ВТОРОЙ ответ вместо правки первого. id ответа берётся из goods-questions/answers
+    (поле answers[].id) или из ответа на CREATE (result.entity.id).
+
+    Вызывается вручную по решению оператора; в автоматический цикл НЕ включена."""
+    key = os.environ["YANDEX_API_KEY_ACC1"]
+    biz = os.environ["YANDEX_BUSINESS_ID_ACC1"]
+    h = {"Api-Key": key, "Content-Type": "application/json"}
+    url = f"{YA_API}/v1/businesses/{biz}/goods-questions/update"
+    body = {"operationType": "UPDATE",
+            "entityId": {"id": int(answer_id), "type": "ANSWER"},
+            "text": text}
+    r = requests.post(url, headers=h, json=body, timeout=60)
+    if r.status_code >= 400:
+        _log(f"REQ-BODY yandex UPDATE ({r.status_code}): {json.dumps(body, ensure_ascii=False)[:500]}")
+    r.raise_for_status()
+    _log(f"yandex answer updated: answer={answer_id}")
+    return True
+
+
 def _mark_posted(row, text, ok, err=None):
     """Зафиксировать результат живой отправки в raw_feedback (posted_*/answer_text)."""
     db.execute("""UPDATE raw_feedback SET posted_at=now(), posted_ok=%s,
