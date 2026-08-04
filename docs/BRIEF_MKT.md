@@ -78,8 +78,10 @@
 - **Снятие nmID с рекламы — API НЕТ** (все пути 404, `/bids` = PATCH-only, DELETE→405 Allow=PATCH,
   namespace состава кампании за антиботом). Деградировано в **очередь**: `/remove` пишет
   `wb_bid_log action='remove' applied=false`, фактическое исключение — руками в ЛК.
-- Бэкенд `marketing_app.py`: `_rec_cpc(verdict,cpc,drr)` (grow/expensive: `cpc×min(10/drr,3)` пол 7.3;
-  keep/repriced → пол «тест»), `POST /api/wb-bids/apply` (живой PATCH+лог+апсерт override source=api_set),
+- Бэкенд `marketing_app.py`: `_rec_cpc` — **мягкий шаг +10%** (`WB_STEP_PCT`), НЕ прыжок к потолку
+  (Сергей 08-04: прыжок к ДРР 10% давал 40₽/клик → слив бюджета за часы). grow: `cpc×min(1.10, 10/drr)`
+  пол 7.3; expensive: вниз к потолку `cpc×10/drr`; keep/repriced → пол «тест». Оценка в логе — через
+  `WB_STEP_DAYS=2` дня (шагнул → ждём реакции → снова). `POST /api/wb-bids/apply` (живой PATCH+лог+override),
   `POST /api/wb-bids/remove` (очередь), `/log` расширен `age_days`/`due_review`/`eval_verdict`
   (оценка через 7д: «сработало / дороже впустую / нет эффекта»).
 - Фронт `wb_bids.html`: 14-я колонка «действие → WB» (тек.CPC+источник · rec-кнопка · инпут ·

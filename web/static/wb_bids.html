@@ -152,12 +152,13 @@ async function loadMargin(){
     const n=k==='all'?s.total:(c[k]??0);
     return `<button data-v="${k}" class="${k===view?'cur':''}" title="${(V[k].hint||'')}">${V[k].label}<span class="c">${intf(n)}</span></button>`;
   }).join('');
-  const head=['SKU','наименование','вердикт','марж LIVE%','дрейф цены','склейка','маржа/шт','зак(рекл)','расход₽','ДРР%','CPO₽','тек.CPC','Джем поз','действие → WB'];
+  const head=['SKU','вердикт','марж%','ДРР','CPC','Джем','действие'];
   $('#tbl thead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=d.rows.map(marginRow).join('')
-    || `<tr><td colspan="14" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
+    || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
   window._liveOn = !!s.live_enabled; window._floor = s.floor_cpc||7.3;
-  $('#foot').innerHTML=`Показано ${d.rows.length} из ${intf(s.total)}. <b>«применить»</b> — живая запись ставки в WB (PATCH). <b>«принять»</b> — подставить рекомендацию. <b>«dry»</b> — предпросмотр без записи. <b>«снять»</b> (🔴/⚫) — намерение в журнал, исключить nmID вручную в ЛК ВБ (API снятия у WB нет).`;
+  window._stepPct = s.step_pct||10; window._stepDays = s.step_days||2;
+  $('#foot').innerHTML=`Показано ${d.rows.length} из ${intf(s.total)}. Наведи на SKU — увидишь наименование; расход/дрейф/склейка/CPO — во вкладке «Юнит-экономика». <b>«применить»</b> — живая запись ставки в WB (PATCH). <b>«принять»</b> — подставить рекомендацию (+${s.step_pct||10}% шаг). <b>«dry»</b> — предпросмотр без записи. <b>«снять»</b> (🔴/⚫) — намерение в журнал, исключить nmID вручную в ЛК ВБ (API снятия у WB нет).`;
   loadLog();
 }
 // дрейф цены: по какой цене продавался (до СПП, 3 мес) → сколько стоит сейчас
@@ -192,8 +193,10 @@ function actCellMargin(r){
   let rec='';
   if(r.rec_cpc!=null){
     const dir=r.cpc==null?'':(r.rec_cpc>r.cpc?'↑':(r.rec_cpc<r.cpc?'↓':'='));
-    const word=dir==='↑'?'поднять до':dir==='↓'?'снизить до':'тест на полу';
-    rec=`<button class="btn rec" data-rec="${r.rec_cpc}" title="рекомендация: ${word} ${rub(r.rec_cpc)}₽ (запас ДРР до 10%, кап ×3). Нажать — подставить в поле">${dir}${rub(r.rec_cpc)}₽</button>`;
+    const step=window._stepPct||10, days=window._stepDays||2;
+    const word=dir==='↑'?`шаг +${step}% до`:dir==='↓'?'снизить до':'тест на полу';
+    const why=dir==='↑'?`мягкий шаг +${step}% (не прыжок к потолку — риск слить бюджет); через ${days}д смотрим реакцию и шагаем снова, стоп на ДРР 10%`:dir==='↓'?'ДРР выше потолка — вниз к 10%':'0 рекл-заказов — тест на полу';
+    rec=`<button class="btn rec" data-rec="${r.rec_cpc}" title="рекомендация: ${word} ${rub(r.rec_cpc)}₽. ${why}. Нажать — подставить в поле">${dir}${rub(r.rec_cpc)}₽</button>`;
   }
   const bid=`<input class="bidin" type="number" step="0.01" min="${window._floor||7.3}" placeholder="₽">
     <button class="btn p apply" title="Отправить ставку в WB живьём (PATCH /api/advert/v1/bids)">применить</button>
@@ -204,25 +207,19 @@ function actCellMargin(r){
 }
 function marginRow(r){
   const nm=(r.title||'').replace(/"/g,'&quot;');
-  const sku=`<div class="sku"><div class="nm">${r.nm_id}</div><div class="vc">${r.vendor_code||''}</div></div>`;
+  // наименование ушло в подсказку SKU (узкий вид); +цена/себест туда же
+  const skuT=[nm, r.our_price_live!=null?`цена ${rub(r.our_price_live)}₽ · купим ${r.buy_price_live!=null?rub(r.buy_price_live)+'₽':'—'}`:''].filter(Boolean).join(' — ');
+  const sku=`<div class="sku" title="${skuT}"><div class="nm">${r.nm_id}</div><div class="vc">${(r.vendor_code||'')} · ${(r.title||'').slice(0,20)}</div></div>`;
   const drrCls=r.drr!=null&&r.drr>=10?'drr hi':'';
   let mBadge='';
   if(r.buy_status==='stale') mBadge=' <span class="badge" title="себест по последней известной цене (сегодня не обновилась)">~</span>';
   else if(r.buy_status==='no_price'||r.buy_status==='unmapped') mBadge=' <span class="badge" title="себест «купим сегодня» не найдена — маржа не судится">нет с/с</span>';
-  const mTitle=r.our_price_live!=null?`title="цена ${rub(r.our_price_live)}₽ · купим ${r.buy_price_live!=null?rub(r.buy_price_live)+'₽':'—'}"`:'';
   const adv1=(r.adverts&&r.adverts[0])||'';
   return `<tr data-nm="${r.nm_id}" data-adv="${adv1}">
     <td>${sku}</td>
-    <td style="text-align:left" title="${nm}">${(r.title||'').slice(0,46)}</td>
     <td style="text-align:left">${verdictPill(r)}</td>
-    <td ${mTitle}>${marginChip(r)}${mBadge}</td>
-    <td style="text-align:left">${driftCell(r)}</td>
-    <td style="text-align:left">${glueCell(r)}</td>
-    <td>${r.unit_margin==null?'—':rub(r.unit_margin)+'₽'}</td>
-    <td>${intf(r.ad_orders)}</td>
-    <td>${rub(r.spend)}</td>
+    <td>${marginChip(r)}${mBadge}</td>
     <td class="${drrCls}">${pct(r.drr)}</td>
-    <td>${r.cpo==null?'—':rub(r.cpo)+'₽'}</td>
     <td>${r.cpc==null?'—':rub(r.cpc)+'₽'}</td>
     <td>${r.avg_position==null?'—':(Math.round(r.avg_position*10)/10)}</td>
     <td style="text-align:right">${actCellMargin(r)}</td>

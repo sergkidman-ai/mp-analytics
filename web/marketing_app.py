@@ -212,7 +212,9 @@ def _bid_log(rec):
 #   дешёвый (органика тащит); если склейка мёртвая — всю ставку несёт реклама.
 # Живая запись в WB тут НЕ участвует — это картина для отбора.
 WB_MARGIN_GATE = 25.0    # % маржи от нашей цены — ниже = не тянем в рекламе (кроме редких/наборов)
-WB_DRR_CEIL = 10.0       # % ДРР — выше = реклама съедает маржу, ставку вниз
+WB_DRR_CEIL = 10.0       # % ДРР — потолок-СТОП: рекомендация не заводит прогнозный ДРР выше него
+WB_STEP_PCT = 10.0       # % шаг повышения ставки за раз (мягко: +10%, не прыжок к потолку — риск слить бюджет)
+WB_STEP_DAYS = 2         # дней между шагами — поднял, ждём реакции столько дней, потом «пора оценить»
 WB_ACTIVITY_MONTHS = 3   # окно «продавался» — последние N полных месяцев (вкл. decision-месяц)
 WB_REPRICE_DRIFT = 25.0  # % роста текущей цены над истор. продажной → активность отравлена промо
 WB_REPRICE_MIN_QTY = 5   # мин. продаж за окно, чтобы истор. цена была надёжной (иначе q3=1-2 = шум)
@@ -248,13 +250,20 @@ def _verdict(sold, mp, drr, spend, ad_orders, repriced=False):
     return ("grow", "🟢 растить")
 
 def _rec_cpc(verdict, cpc, drr):
-    """Рекомендованная ставка (запас по ДРР до потолка 10%). Прогноз: ДРР ≈ линейно от CPC, значит
-    целевая ставка = cpc × (потолок/ДРР). grow → вверх (ДРР<потолка), expensive → вниз (ДРР≥потолка),
-    оба под капом ×3 за шаг и не ниже пола. keep/repriced (0 рекл-заказов) → пол (бюджет-тест на полу).
-    cut/dead/hold — рекомендации ставки нет (их действие «снять», а не менять ставку)."""
-    if verdict in ("grow", "expensive") and cpc and drr and drr > 0:
-        rec = cpc * min(WB_DRR_CEIL / drr, 3.0)   # кап ×3 за шаг — защита от разгона при крошечном ДРР
-        return max(round(rec, 2), WB_BID_FLOOR)
+    """Рекомендованная ставка — ОДИН мягкий шаг, не прыжок к потолку (иначе 40₽/клик за пару часов
+    выкликают бюджет). Прогноз: ДРР ≈ линейно от CPC.
+    • grow (ДРР<потолка): шаг +WB_STEP_PCT% (×1.10), но НЕ дальше потолка — cap = потолок/ДРР.
+      Итог: cpc × min(1+шаг, потолок/ДРР). Раз в WB_STEP_DAYS дней поднял → ждём реакции → снова шаг.
+    • expensive (ДРР≥потолка): вниз к потолку одним разом (перерасход режем сразу) = cpc × (потолок/ДРР).
+    • keep/repriced (0 рекл-заказов) → пол (бюджет-тест на полу).
+    • cut/dead/hold — рекомендации нет (их действие «снять», а не менять ставку)."""
+    if cpc and drr and drr > 0:
+        if verdict == "grow":
+            rec = cpc * min(1 + WB_STEP_PCT / 100.0, WB_DRR_CEIL / drr)   # +10%, но не выше потолка ДРР
+            return max(round(rec, 2), WB_BID_FLOOR)
+        if verdict == "expensive":
+            rec = cpc * (WB_DRR_CEIL / drr)                                # перерасход — вниз к потолку
+            return max(round(rec, 2), WB_BID_FLOOR)
     if verdict in ("keep", "repriced"):
         return WB_BID_FLOOR                        # тест на полу
     return None
@@ -391,6 +400,7 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
         "margin_source": "live", "buy_stale": buy_stale, "buy_nopx": buy_nopx,
         "activity_months": WB_ACTIVITY_MONTHS, "reprice_drift": WB_REPRICE_DRIFT,
         "live_enabled": WB_BID_LIVE_ENABLED, "floor_cpc": WB_BID_FLOOR,
+        "step_pct": WB_STEP_PCT, "step_days": WB_STEP_DAYS,
     }
     return {"period": period, "rows": out[:limit], "summary": summary,
             "sort": sort, "view": view, "account": account}
@@ -695,12 +705,13 @@ def wb_bids_log(account: str = "wb_acc1", nm_id: int = 0, limit: int = 200):
         ob, oa = r["orders_before"], r["orders_after"]
         orders_delta = (oa - ob) if ob is not None and oa is not None else None
         d["orders_delta"] = orders_delta
-        # оценка через неделю: только для ПРИМЕНЁННЫХ смен ставки (не dry/remove), возрастом ≥7д.
+        # оценка после шага: только для ПРИМЕНЁННЫХ смен ставки (не dry/remove), возрастом ≥WB_STEP_DAYS.
+        # Шагаем +10% раз в 2 дня и смотрим реакцию — на 2-й день строка зовёт «пора оценить».
         # Сигнал берём из свежего Джема (позиция ↓ = лучше; заказы ↑). Расход/ДРР посуточно per-nm
         # у нас нет (wb_ad_nm помесячно) → честная оценка Джем-центрична.
         age = int(r["age_days"]) if r["age_days"] is not None else None
         measurable = bool(r["applied"]) and r["action"] in ("api_set", "manual_set")
-        d["due_review"] = bool(measurable and age is not None and age >= 7)
+        d["due_review"] = bool(measurable and age is not None and age >= WB_STEP_DAYS)
         d["eval_verdict"] = None
         if d["due_review"]:
             raised = (r["new_cpc"] is not None and r["old_cpc"] is not None
