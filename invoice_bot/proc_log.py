@@ -109,14 +109,18 @@ def _number_from_fn(fn):
     number=null (типовой кейс: успешный .xls + не распарсившийся дубль .pdf/.xlsx
     того же документа с номером в имени, напр. «…KV00009784 от 22_07_26.pdf»).
     Консервативно: префиксные буквенно-цифровые (KV/TC/ОД…), форма 326868/И,
-    длинные числа ≥6 — чтобы не поймать короткий мусор (даты, fio-05342)."""
+    номер после «№» (там он однозначен — «Счет на оплату № 10684 от 29.07.2026.xls»,
+    иначе 5-значный номер не ловился и ошибка висела вечно), длинные числа ≥6 —
+    чтобы не поймать короткий мусор (даты, fio-05342)."""
     import re
     if not fn:
         return None
-    for pat in (r"[A-ZА-Я]{2}\d{4,}", r"\d{5,6}/[А-Яа-яA-Za-z]", r"\d{6,}"):
+    fn = _norm_fn(fn)          # иначе «\d{6,}» ловит таймстамп-префикс инбокса, а не номер
+    for pat in (r"[A-ZА-Я]{2}\d{4,}", r"\d{5,6}/[А-Яа-яA-Za-z]",
+                r"№\s*([0-9A-Za-zА-Яа-я][0-9A-Za-zА-Яа-я/\-]{2,})", r"\d{6,}"):
         m = re.search(pat, fn)
         if m:
-            return m.group(0)
+            return (m.group(1) if m.groups() else m.group(0)).strip(" -/")
     return None
 
 
@@ -196,12 +200,29 @@ def _reconcile_open(pending, bad_inv, bad_upd):
             return None
         return False
 
+    def _digits(s):
+        """Цифровое ядро номера: буквы, разделители и ведущие нули долой.
+        «НР-010684» и «10684» — один документ, «106841» — другой."""
+        d = "".join(ch for ch in (s or "") if ch.isdigit())
+        return d.lstrip("0") or d
+
     def _po_exists(name):
-        """True/False — есть ли заказ поставщику с таким именем. None при ошибке."""
+        """True/False — заведён ли уже заказ по этому счёту. None при ошибке.
+
+        Точного имени мало: бот называет заказ номером счёта, а руками его заводят
+        со своим префиксом («НР-010684» вместо «10684») — из-за этого ошибка по счёту
+        10684 висела в отчёте неделю, хотя заказ и приёмка давно были. Поэтому при
+        промахе ищем по вхождению цифр и подтверждаем совпадением цифрового ядра."""
         try:
             import urllib.parse as up
             r = _get(f"/entity/purchaseorder?filter=name={up.quote(name, safe='')}&limit=1")
-            return (r.get("meta", {}).get("size", 0) or 0) >= 1
+            if (r.get("meta", {}).get("size", 0) or 0) >= 1:
+                return True
+            num = _digits(name)
+            if len(num) < 3:                 # слишком короткий хвост — поиск по вхождению шумит
+                return False
+            r = _get(f"/entity/purchaseorder?filter=name~{up.quote(num, safe='')}&limit=50")
+            return any(_digits(x.get("name")) == num for x in (r.get("rows") or []))
         except Exception:
             return None
 
@@ -395,6 +416,21 @@ def build_report(path=None):
     bad_inv = [e for e in bad_inv if _norm_fn(e.get("fn")) not in ok_fns]
     bad_upd = [e for e in bad_upd if _norm_fn(e.get("fn")) not in ok_fns]
 
+    # Ошибки живут ОДИН день (правило Сергея 04.08.2026): разобранное вчера не должно
+    # висеть в отчёте — вчерашние ошибки либо уже заведены руками, либо про них знают.
+    # Сегодня показываем только сегодняшние. «Ждут УПД» под это правило НЕ попадает:
+    # там дыра держится, пока не придёт приёмка.
+    # PROC_LOG_ERR_DAYS — заглянуть глубже разово, не правя код: «=7» покажет ошибки
+    # за неделю (со сверкой по МС, так что закрытые всё равно не всплывут).
+    import datetime as _dt
+    _err_days = int(os.getenv("PROC_LOG_ERR_DAYS") or 0)
+    err_win = "сегодня" if not _err_days else f"за {_err_days + 1} дн."
+    _t = _dt.date.today() - _dt.timedelta(days=_err_days)
+    day_ts = time.mktime(_dt.datetime(_t.year, _t.month, _t.day).timetuple())
+    n_old_err = len([e for e in bad_inv + bad_upd if (e.get("ts") or 0) < day_ts])
+    bad_inv = [e for e in bad_inv if (e.get("ts") or 0) >= day_ts]
+    bad_upd = [e for e in bad_upd if (e.get("ts") or 0) >= day_ts]
+
     # СВЕРКА С МС на момент отчёта: молча убрать кейсы, уже закрытые в МойСклад
     # (приёмка/заказ созданы вручную/повтором). Раздел ошибок — только реальные дыры.
     bad_upd = _dedup_latest(bad_upd, ident) if bad_upd else bad_upd
@@ -412,8 +448,7 @@ def build_report(path=None):
 
     # Окно «свежих» закрытий: предыдущий рабочий день + сегодня (+ выходные между ними).
     # Раздел «Закрыто» больше не копит всю историю — только закрытые в этом окне.
-    # Открытые (ждут УПД) и ошибки по дате НЕ режем: это актуальные дыры, сверяются с МС.
-    import datetime as _dt
+    # «Ждут УПД» по дате НЕ режем: это актуальная дыра, сверяется с МС. Ошибки — за сегодня (выше).
     win_ts, win_date = _report_window()
     period = f"{win_date:%d.%m}–{_dt.date.today():%d.%m}"
 
@@ -451,7 +486,7 @@ def build_report(path=None):
     # ── ошибки счетов ──
     if bad_inv:
         L.append("")
-        L.append(f"⚠️ Счёт с ошибкой — заказ не создан ({len(bad_inv)}):")
+        L.append(f"⚠️ Счёт с ошибкой — заказ не создан, {err_win} ({len(bad_inv)}):")
         for ev in bad_inv[-PENDING_SHOW:]:
             t = time.strftime("%d.%m %H:%M", time.localtime(ev.get("ts", 0)))
             L.append(f"   • [{t}] {sup(ev)} · {ev.get('number') or ev.get('fn')}: "
@@ -461,11 +496,20 @@ def build_report(path=None):
     if bad_upd:
         bad_upd_d = _dedup_latest(bad_upd, ident)
         L.append("")
-        L.append(f"⚠️ УПД без заказа — приёмка не создана ({len(bad_upd_d)}):")
+        L.append(f"⚠️ УПД без заказа — приёмка не создана, {err_win} ({len(bad_upd_d)}):")
         for ev in bad_upd_d[-PENDING_SHOW:]:
             t = time.strftime("%d.%m %H:%M", time.localtime(ev.get("ts", 0)))
             L.append(f"   • [{t}] {sup(ev)} · {ev.get('number') or ev.get('fn')}: "
                      f"{(ev.get('error') or '—')[:90]}")
+
+    # Прошлые ошибки не показываем, но и не прячем факт: одна строка счётчиком,
+    # чтобы «тихо исчезло» не выглядело как «ошибок не было».
+    if n_old_err:
+        L.append("")
+        # Счётчик берётся ДО сверки с МС (её на старьё не гоняем — лишние запросы),
+        # поэтому число завышено: часть этих кейсов давно закрыта руками.
+        L.append(f"   (ошибок прошлых дней скрыто: {n_old_err}, без сверки с МС — "
+                 f"часть уже закрыта; глубже: PROC_LOG_ERR_DAYS=7)")
 
     # ── закрытые пары за окно (компактно) ──
     if closed:
