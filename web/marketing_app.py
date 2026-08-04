@@ -264,8 +264,8 @@ def _rec_cpc(verdict, cpc, drr):
         if verdict == "expensive":
             rec = cpc * (WB_DRR_CEIL / drr)                                # перерасход — вниз к потолку
             return max(round(rec, 2), WB_BID_FLOOR)
-    if verdict in ("keep", "repriced"):
-        return WB_BID_FLOOR                        # тест на полу
+    if verdict in ("grow", "keep", "repriced"):
+        return WB_BID_FLOOR    # grow без факт.CPC (кликов не было) / keep / repriced → старт с пола, дальше шаг
     return None
 
 def _margin_gated(account, view="all", q="", sort="spend", limit=500):
@@ -296,10 +296,16 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
       imt_sales AS (  -- сумма продаж склейки за 3 мес (по всем nm склейки)
         SELECT i.imt_id, sum(s3.q3) imt_q
         FROM imt i JOIN s3 ON s3.article = i.nm_id::text GROUP BY i.imt_id),
-      jam AS (
-        SELECT DISTINCT ON (nm_id) nm_id, period_start::text jam_date, avg_position,
-               open_card, orders jam_orders, visibility
-        FROM wb_search_report WHERE account=%s ORDER BY nm_id, period_start DESC),
+      jam AS (  -- последний снимок позиции + предыдущий день (LEAD по DESC) для дельты день-к-дню
+        SELECT nm_id, period_start::text jam_date, avg_position, open_card, jam_orders, visibility,
+               pos_prev, prev_date::text prev_date
+        FROM (
+          SELECT nm_id, period_start, avg_position, open_card, orders jam_orders, visibility,
+                 lead(avg_position) OVER w pos_prev, lead(period_start) OVER w prev_date,
+                 row_number() OVER w rn
+          FROM wb_search_report WHERE account=%s
+          WINDOW w AS (PARTITION BY nm_id ORDER BY period_start DESC)
+        ) t WHERE rn=1),
       ov AS (SELECT nm_id, cpc, source FROM wb_bid_override WHERE account=%s)
       SELECT dm.nm_id, c.vendor_code, COALESCE(c.title, dm.ad_name) title, c.subject,
              dm.spend, dm.rev, dm.clicks, dm.ad_orders, dm.adverts, dm.any_active,
@@ -307,7 +313,7 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
              s3.q3, s3.rev3,
              i.imt_id, isz.n imt_size, isl.imt_q,
              o.cpc ov_cpc, o.source ov_source,
-             j.avg_position, j.open_card, j.jam_orders, j.visibility
+             j.avg_position, j.open_card, j.jam_orders, j.visibility, j.jam_date, j.pos_prev, j.prev_date
       FROM dm
       LEFT JOIN s3         ON s3.article = dm.nm_id::text
       LEFT JOIN ml         ON ml.nm_id  = dm.nm_id
@@ -370,6 +376,7 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
             "rec_cpc": rec_cpc,
             "avg_position": r["avg_position"], "open_card": r["open_card"],
             "jam_orders": r["jam_orders"], "visibility": r["visibility"],
+            "jam_date": r["jam_date"], "pos_prev": r["pos_prev"], "prev_date": r["prev_date"],
             "verdict": vkey, "verdict_label": vlabel,
         })
     # когорты + деньги-в-игре считаем по всему набору (до фильтра вида)
