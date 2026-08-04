@@ -65,6 +65,15 @@
   .actcell .cur{white-space:nowrap;margin-right:2px}
   .rk{font-size:11px;color:#475569;background:#f1f5f9;border:1px solid var(--line);border-radius:6px;padding:1px 6px;white-space:nowrap;font-variant-numeric:tabular-nums}
   .rk.muted{color:var(--mut);background:transparent}
+  .selc{width:30px;text-align:center}.selc input,#selall{width:16px;height:16px;cursor:pointer}
+  .bulkbar{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0;padding:9px 12px;background:#f8fafc;border:1px solid var(--line);border-radius:10px}
+  .bulkbar #bulkcount{font-weight:700}
+  .bulkbar .sep{width:1px;height:20px;background:var(--line)}
+  .bulkbar .lnk{font-size:12px;color:#1d4ed8;cursor:pointer;text-decoration:underline;white-space:nowrap}
+  .bulkbar .lnk:hover{filter:brightness(1.15)}
+  .bulkbar #bulkapply:disabled{opacity:.5;cursor:not-allowed;filter:none}
+  tr.bulk-ok>td{background:#dcfce7;transition:background .5s}
+  tr.bulk-err>td{background:#fee2e2;transition:background .5s}
 </style>
 </head>
 <body>
@@ -98,6 +107,15 @@
       </select>
     </label>
     <input id="q" placeholder="поиск: nm / артикул / наименование" style="min-width:220px">
+  </div>
+  <div class="bulkbar" id="bulkbar">
+    <span id="bulkcount">Выбрано: 0</span>
+    <span class="sep"></span>
+    <span class="lnk" id="bulkgrow">выбрать все 🟢 растить</span>
+    <span class="lnk" id="bulkallrec">выбрать все с рекомендацией</span>
+    <span class="lnk" id="bulkclear">снять выделение</span>
+    <span class="sep"></span>
+    <button class="btn p" id="bulkapply" disabled title="Отправить рекомендованные ставки в WB живьём (PATCH) по всем выбранным SKU">применить рекомендации к выбранным</button>
   </div>
   <div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
   <p class="note" id="foot"></p>
@@ -157,12 +175,14 @@ async function loadMargin(){
     const n=k==='all'?s.total:(c[k]??0);
     return `<button data-v="${k}" class="${k===view?'cur':''}" title="${(V[k].hint||'')}">${V[k].label}<span class="c">${intf(n)}</span></button>`;
   }).join('');
-  const head=['SKU','вердикт','марж%','ДРР','Джем пред','Джем посл','действие'];
-  $('#tbl thead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+  const head=['<input type="checkbox" id="selall" title="выбрать/снять все видимые строки с рекомендацией">',
+              'SKU','вердикт','марж%','ДРР','Джем пред','Джем посл','действие'];
+  $('#tbl thead').innerHTML='<tr>'+head.map((h,i)=>`<th${i===0?' class="selc"':''}>${h}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=d.rows.map(marginRow).join('')
-    || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
+    || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
   window._liveOn = !!s.live_enabled; window._floor = s.floor_cpc||7.3;
   window._stepPct = s.step_pct||10; window._stepDays = s.step_days||2;
+  updateBulk();
   $('#foot').innerHTML=`Показано ${d.rows.length} из ${intf(s.total)}. Наведи на SKU — увидишь наименование; расход/дрейф/склейка/CPO — во вкладке «Юнит-экономика». <b>«применить»</b> — живая запись ставки в WB (PATCH). <b>«принять»</b> — подставить рекомендацию (+${s.step_pct||10}% шаг). Клик по <b>артикулу ВБ</b> или <b>РК</b> — копирует в буфер. <b>«снять»</b> (🔴/⚫) — намерение в журнал, исключить nmID вручную в ЛК ВБ (API снятия у WB нет).`;
   loadLog();
 }
@@ -241,7 +261,13 @@ function marginRow(r){
   if(r.buy_status==='stale') mBadge=' <span class="badge" title="себест по последней известной цене (сегодня не обновилась)">~</span>';
   else if(r.buy_status==='no_price'||r.buy_status==='unmapped') mBadge=' <span class="badge" title="себест «купим сегодня» не найдена — маржа не судится">нет с/с</span>';
   const adv1=(r.adverts&&r.adverts[0])||'';
-  return `<tr data-nm="${r.nm_id}" data-adv="${adv1}">
+  // чекбокс массовой правки — только если есть рекомендация И активная кампания (иначе применять нечего/некуда)
+  const canSel=(r.rec_cpc!=null)&&!!adv1;
+  const selTd=canSel
+    ? `<td class="selc"><input type="checkbox" class="rowsel" title="выбрать для массового применения рекомендации ${rub(r.rec_cpc)}₽"></td>`
+    : `<td class="selc"></td>`;
+  return `<tr data-nm="${r.nm_id}" data-adv="${adv1}" data-rec="${r.rec_cpc??''}" data-verdict="${r.verdict||''}">
+    ${selTd}
     <td>${sku}</td>
     <td style="text-align:left">${verdictPill(r)}</td>
     <td>${marginChip(r)}${mBadge}</td>
@@ -290,6 +316,7 @@ async function loadBids(){
   $('#tbl tbody').innerHTML=d.rows.map(bidRow).join('')
     || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
   $('#foot').textContent=`Показано ${d.rows.length} из ${s.total}. «Сохранить» — записать ставку как факт (+снимок Джема). Клик по артикулу ВБ или кампании — копирует в буфер.`;
+  updateBulk();
   loadLog();
 }
 function bidRow(r){
@@ -366,6 +393,69 @@ $('#tbl').addEventListener('click',async e=>{
     else { alert((res.blocked?'⛔ ':'Ошибка: ')+(res.error||JSON.stringify(res))); loadLog(); }
   }
 });
+
+// ── МАССОВЫЕ ПРАВКИ (mode=margin): применить рекомендацию к выбранным SKU ─────────────────────
+function updateBulk(){
+  const bar=$('#bulkbar');
+  if(mode!=='margin'){ bar.style.display='none'; return; }
+  const boxes=[...document.querySelectorAll('#tbl tbody .rowsel')];
+  bar.style.display = boxes.length?'flex':'none';
+  const n=boxes.filter(c=>c.checked).length;
+  $('#bulkcount').textContent=`Выбрано: ${n}`;
+  $('#bulkapply').disabled = n===0 || !window._liveOn;
+  $('#bulkapply').title = window._liveOn
+    ? 'Отправить рекомендованные ставки в WB живьём (PATCH) по всем выбранным SKU'
+    : '⛔ живая запись в WB выключена';
+  const sa=$('#selall'); if(sa){ sa.checked = boxes.length>0 && boxes.every(c=>c.checked); }
+}
+function selectBy(pred){
+  document.querySelectorAll('#tbl tbody tr').forEach(tr=>{
+    const c=tr.querySelector('.rowsel'); if(!c) return;
+    if(pred(tr)) c.checked=true;
+  });
+  updateBulk();
+}
+$('#tbl').addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='selall'){ document.querySelectorAll('#tbl tbody .rowsel').forEach(c=>c.checked=t.checked); updateBulk(); return; }
+  if(t.classList.contains('rowsel')){ updateBulk(); }
+});
+$('#bulkgrow').addEventListener('click',()=>selectBy(tr=>tr.dataset.verdict==='grow'));
+$('#bulkallrec').addEventListener('click',()=>selectBy(()=>true));
+$('#bulkclear').addEventListener('click',()=>{ document.querySelectorAll('#tbl tbody .rowsel').forEach(c=>c.checked=false); updateBulk(); });
+$('#bulkapply').addEventListener('click',applyBulk);
+async function applyBulk(){
+  const rows=[...document.querySelectorAll('#tbl tbody tr')].filter(tr=>tr.querySelector('.rowsel')?.checked);
+  if(!rows.length) return;
+  if(!window._liveOn){ alert('⛔ Живая запись в WB выключена.'); return; }
+  const items=rows.map(tr=>({nm_id:+tr.dataset.nm, advert_id:tr.dataset.adv?+tr.dataset.adv:null, new_cpc:parseFloat(tr.dataset.rec)}))
+                  .filter(it=>it.advert_id && it.new_cpc>0);
+  if(!items.length){ alert('Нет строк с рекомендацией и активной кампанией.'); return; }
+  const prev=items.slice(0,12).map(it=>`nm ${it.nm_id} → ${rub(it.new_cpc)}₽`).join('\n');
+  const more=items.length>12?`\n…ещё ${items.length-12}`:'';
+  if(!confirm(`⚠️ ЖИВАЯ массовая запись ставок в WB.\n\nОтправить рекомендованные ставки для ${items.length} SKU (кампания acc1)?\n\n${prev}${more}`)) return;
+  const btn=$('#bulkapply'); btn.disabled=true; const lbl=btn.textContent; btn.textContent='отправка…';
+  const res=await postJSON('/api/wb-bids/apply-bulk',{account:'wb_acc1',items});
+  btn.textContent=lbl;
+  if(!res.ok){ alert('Ошибка: '+(res.error||JSON.stringify(res))); updateBulk(); return; }
+  // обновляем строки на месте по результатам
+  const byNm={}; (res.results||[]).forEach(x=>byNm[x.nm_id]=x);
+  rows.forEach(tr=>{
+    const x=byNm[+tr.dataset.nm]; const c=tr.querySelector('.rowsel'); if(c) c.checked=false;
+    if(!x) return;
+    if(x.applied){
+      const curEl=tr.querySelector('.cur');
+      if(curEl) curEl.innerHTML=`<b>${rub(x.new_cpc)}₽</b> <span class="pill pos" title="назначено через API (пакетно)">API</span>`;
+      tr.classList.add('bulk-ok'); setTimeout(()=>tr.classList.remove('bulk-ok'),2000);
+    } else {
+      tr.classList.add('bulk-err'); setTimeout(()=>tr.classList.remove('bulk-err'),2500);
+    }
+  });
+  updateBulk();
+  loadLog();
+  const sk=(res.skipped||[]).length;
+  alert(`${res.msg||''}${sk?`\n\nПропущено ${sk} (нет кампании / ниже пола / плохие данные).`:''}`);
+}
 
 async function loadLog(){
   const r=await fetch('/api/wb-bids/log?limit=100');

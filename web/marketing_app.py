@@ -597,6 +597,34 @@ def _wb_patch_bid(token, advert_id, nm_id, new_cpc):
         return r.status_code, {"_text": r.text[:500]}
 
 
+def _wb_patch_bids_group(token, advert_id, nm_cpcs):
+    """Групповой PATCH: одна кампания, МНОГО nmID за запрос (nm_bids — массив). nm_cpcs=[(nm,cpc),...].
+    Возвращает (status, resp). Используется массовым применением, чтобы не слать N HTTP по одной ставке."""
+    body = {"bids": [{"advert_id": int(advert_id),
+                      "nm_bids": [{"nm_id": int(nm), "bid_kopecks": round(float(cpc) * 100),
+                                   "placement": "search"} for nm, cpc in nm_cpcs]}]}
+    r = requests.patch(WB_ADS_HOST + "/api/advert/v1/bids", json=body,
+                       headers={"Authorization": token, "Content-Type": "application/json"}, timeout=60)
+    try:
+        return r.status_code, r.json()
+    except Exception:
+        return r.status_code, {"_text": r.text[:500]}
+
+
+def _old_cpc_src(account, nm_id):
+    """Текущая ставка per-nm для журнала: оверрайд → иначе реконструкция факт.CPC (расход/клики) за
+    последний период. Возвращает (old_cpc|None, source)."""
+    ov = db.query("SELECT cpc, source FROM wb_bid_override WHERE account=%s AND nm_id=%s", (account, nm_id))
+    if ov:
+        return float(ov[0]["cpc"]), ov[0]["source"]
+    rc = db.query("""SELECT CASE WHEN sum(clicks)>0 THEN round(sum(spend)/sum(clicks),2) END c
+                     FROM wb_ad_nm WHERE account=%s AND nm_id=%s
+                     AND period=(SELECT max(period) FROM wb_ad_nm WHERE account=%s)""",
+                  (account, nm_id, account))
+    c = float(rc[0]["c"]) if rc and rc[0]["c"] is not None else None
+    return c, ("reconstructed" if c is not None else "none")
+
+
 @app.post("/api/wb-bids/apply")
 def wb_bid_apply(payload: dict = Body(...)):
     """ЖИВАЯ смена ставки per-nmID в WB (PATCH /api/advert/v1/bids). Требует advert_id (ставка задаётся
@@ -613,16 +641,7 @@ def wb_bid_apply(payload: dict = Body(...)):
     if not advert_id:
         return {"ok": False, "error": "Нужен advert_id: ставка задаётся в конкретной кампании."}
     # текущая (оверрайд → реконструкция) — для old_cpc в журнале
-    ov = db.query("SELECT cpc, source FROM wb_bid_override WHERE account=%s AND nm_id=%s", (account, nm_id))
-    if ov:
-        old_cpc, old_src = float(ov[0]["cpc"]), ov[0]["source"]
-    else:
-        rc = db.query("""SELECT CASE WHEN sum(clicks)>0 THEN round(sum(spend)/sum(clicks),2) END c
-                         FROM wb_ad_nm WHERE account=%s AND nm_id=%s
-                         AND period=(SELECT max(period) FROM wb_ad_nm WHERE account=%s)""",
-                      (account, nm_id, account))
-        old_cpc = float(rc[0]["c"]) if rc and rc[0]["c"] is not None else None
-        old_src = "reconstructed" if old_cpc is not None else "none"
+    old_cpc, old_src = _old_cpc_src(account, nm_id)
     b = _jam_baseline(account, nm_id)
     base = {"base_date": b["base_date"], "pos_before": b["avg_position"],
             "open_before": b["open_card"], "orders_before": b["orders"]}
@@ -676,6 +695,74 @@ def wb_bid_remove(payload: dict = Body(...)):
     return {"ok": True, "queued": True,
             "msg": f"Намерение снять nm {nm_id} записано в журнал. Исключите его вручную в ЛК ВБ "
                    f"(API снятия у WB нет)."}
+
+
+WB_BULK_MAX = 500  # предохранитель на размер одной пачки
+
+
+@app.post("/api/wb-bids/apply-bulk")
+def wb_bid_apply_bulk(payload: dict = Body(...)):
+    """МАССОВОЕ применение ставок: список items=[{nm_id, advert_id, new_cpc}]. Группируем по кампании
+    (один PATCH на кампанию, nm_bids — массив) → живой батч в WB. Гейт пола на каждую; строки без
+    advert_id или ниже пола — в skipped (не шлём). По каждой применённой — журнал (action=api_set,
+    applied) + оверрайд source=api_set + baseline Джема. Один вызов = одна санкционированная пачка.
+    Живой путь выключен/нет токена → всё пишется как намерение (applied=false) и возвращается blocked."""
+    account = payload.get("account", "wb_acc1")
+    items = payload.get("items") or []
+    if not items:
+        return {"ok": False, "error": "Пустой список items."}
+    if len(items) > WB_BULK_MAX:
+        return {"ok": False, "error": f"Слишком большая пачка ({len(items)} > {WB_BULK_MAX}). Разбейте."}
+    token = os.getenv(WB_ADS_TOKEN_ENV.get(account, ""), "")
+    live = bool(WB_BID_LIVE_ENABLED and token)
+    # валидация + группировка по кампании
+    groups, skipped = {}, []
+    for it in items:
+        try:
+            nm = int(it["nm_id"]); cpc = round(float(it["new_cpc"]), 2)
+        except (KeyError, TypeError, ValueError):
+            skipped.append({"nm_id": it.get("nm_id"), "reason": "плохие данные строки"}); continue
+        adv = it.get("advert_id")
+        if not adv:
+            skipped.append({"nm_id": nm, "reason": "нет активной кампании (advert_id)"}); continue
+        if cpc < WB_BID_FLOOR:
+            skipped.append({"nm_id": nm, "reason": f"ниже пола WB {WB_BID_FLOOR}₽"}); continue
+        groups.setdefault(int(adv), []).append((nm, cpc))
+    applied_cnt, err_cnt, results = 0, 0, []
+    for adv, lst in groups.items():
+        status, resp = (_wb_patch_bids_group(token, adv, lst) if live else (None, None))
+        ok = bool(live and status == 200)
+        resp_s = json.dumps(resp, ensure_ascii=False) if resp is not None else None
+        for nm, cpc in lst:
+            old_cpc, old_src = _old_cpc_src(account, nm)
+            b = _jam_baseline(account, nm)
+            req = {"_endpoint": "PATCH /api/advert/v1/bids", "_bulk": True,
+                   "bids": [{"advert_id": adv, "nm_bids": [{"nm_id": nm,
+                             "bid_kopecks": round(cpc * 100), "placement": "search"}]}]}
+            _bid_log({"account": account, "nm_id": nm, "advert_id": adv, "action": "api_set",
+                      "applied": ok, "old_cpc": old_cpc, "new_cpc": cpc, "old_source": old_src,
+                      "author": "dashboard-bulk", "note": None,
+                      "req_json": json.dumps(req, ensure_ascii=False),
+                      "resp_status": status, "resp_json": resp_s,
+                      "base_date": b["base_date"], "pos_before": b["avg_position"],
+                      "open_before": b["open_card"], "orders_before": b["orders"]})
+            if ok:
+                db.upsert("wb_bid_override",
+                          [{"account": account, "nm_id": nm, "cpc": cpc, "source": "api_set",
+                            "advert_id": adv, "note": None, "author": "dashboard-bulk",
+                            "updated_at": datetime.datetime.now()}],
+                          conflict_cols=["account", "nm_id"],
+                          update_cols=["cpc", "source", "advert_id", "note", "updated_at"])
+                applied_cnt += 1
+            else:
+                err_cnt += 1
+            results.append({"nm_id": nm, "advert_id": adv, "new_cpc": cpc,
+                            "applied": ok, "resp_status": status})
+    msg = (f"Применено {applied_cnt}, ошибок {err_cnt}, пропущено {len(skipped)}." if live
+           else f"Живая запись выключена — {applied_cnt + err_cnt} намерений в журнал (applied=false).")
+    return {"ok": True, "blocked": (not live), "live": live,
+            "applied_count": applied_cnt, "error_count": err_cnt,
+            "skipped": skipped, "results": results, "msg": msg}
 
 
 @app.get("/api/wb-bids/log")
