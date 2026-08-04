@@ -131,15 +131,14 @@ def apply_rules(txn_ids=None):
     sql = f"""
         INSERT INTO bank_txn_opex (txn_id, category_id, spread_months, start_month, source)
         SELECT m.txn_id, m.category_id, m.spread_months,
-               -- статьи «за прошлые периоды» (налоги) разносятся НАЗАД: период заканчивается
-               -- месяцем перед платежом, значит start = месяц платежа − N (миграция 213)
-               CASE WHEN c.spread_back
+               -- правило может разносить НАЗАД (налог за прошлый период): тогда период
+               -- заканчивается месяцем перед платежом, start = месяц платежа − N (миграция 214)
+               CASE WHEN m.spread_back
                     THEN (date_trunc('month', t.operation_date)
                           - (m.spread_months || ' month')::interval)::date
                     ELSE date_trunc('month', t.operation_date)::date END, 'rule'
         FROM opex_rule_match m
         JOIN bank_txn t ON t.id = m.txn_id
-        JOIN opex_category c ON c.id = m.category_id
         LEFT JOIN bank_txn_opex a ON a.txn_id = m.txn_id
         WHERE a.txn_id IS NULL {where}
         ON CONFLICT (txn_id) DO NOTHING"""

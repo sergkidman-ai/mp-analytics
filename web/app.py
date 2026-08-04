@@ -419,19 +419,23 @@ def opex_save(payload: OpexSave):
 def opex_categories(all: int = 0):
     """Справочник статей. all=1 — вместе с архивными (для показа старой разметки)."""
     where = "" if all else "WHERE NOT archived"
-    return {"items": db.query(f"SELECT id, name, sort, archived, spread_back FROM opex_category "
+    return {"items": db.query(f"SELECT id, name, sort, archived FROM opex_category "
                               f"{where} ORDER BY sort, name")}
 
 
-def _opex_start_month(op_date, category_id: int, n: int):
-    """Первый месяц разнесения платежа.
+def _opex_spread(months: int) -> tuple[int, bool]:
+    """Поле «Мес.» знаковое: N месяцев вперёд от оплаты, −N — назад. → (|N|, назад?)."""
+    n = int(months or 1)
+    back = n < 0
+    return max(1, min(120, abs(n))), back
 
-    Обычные статьи считают вперёд от месяца платежа (аренда, подписки). Статьи с
-    spread_back закрывают УЖЕ ПРОШЕДШИЕ периоды — налоги платят за прошлый месяц или
-    квартал, — и у них период заканчивается месяцем ПЕРЕД платежом: start = месяц − N."""
+
+def _opex_start_month(op_date, n: int, back: bool):
+    """Первый месяц разнесения. Вперёд — месяц оплаты (аренда, подписки). Назад — период
+    заканчивается месяцем ПЕРЕД платежом, start = месяц − N: УСН, уплаченный в июле за
+    II квартал, с N=3 ложится в апрель–июнь; налог за прошлый месяц — это N=1 назад."""
     start = op_date.replace(day=1)
-    row = db.query("SELECT spread_back FROM opex_category WHERE id=%s", (category_id,))
-    if row and row[0]["spread_back"]:
+    if back:
         m = start.month - n
         start = start.replace(year=start.year + (m - 1) // 12, month=(m - 1) % 12 + 1)
     return start
@@ -441,8 +445,7 @@ class OpexCategory(BaseModel):
     id: int | None = None
     name: str = ""
     sort: int = 100
-    archived: bool | None = None           # None = не трогать (правка одного лишь направления)
-    spread_back: bool | None = None        # None = не трогать; true = платёж за прошлые месяцы
+    archived: bool | None = None           # None = не трогать
 
 
 @app.post("/api/opex/categories")
@@ -457,27 +460,7 @@ def opex_category_save(payload: OpexCategory):
         if payload.archived is not None:
             db.execute("UPDATE opex_category SET archived=%s WHERE id=%s",
                        (payload.archived, payload.id))
-        recalc = 0
-        if payload.spread_back is not None:
-            db.execute("UPDATE opex_category SET spread_back=%s WHERE id=%s",
-                       (payload.spread_back, payload.id))
-            # Направление — свойство статьи, значит переключение должно пересобрать и уже
-            # размеченные платежи: иначе прошлые месяцы остались бы посчитаны по-старому.
-            recalc = db.execute("""
-                UPDATE bank_txn_opex a
-                   SET start_month = CASE WHEN %s
-                         THEN (date_trunc('month', t.operation_date)
-                               - (a.spread_months || ' month')::interval)::date
-                         ELSE date_trunc('month', t.operation_date)::date END,
-                       updated_at = now()
-                  FROM bank_txn t
-                 WHERE t.id = a.txn_id AND a.category_id = %s
-                   AND a.start_month <> CASE WHEN %s
-                         THEN (date_trunc('month', t.operation_date)
-                               - (a.spread_months || ' month')::interval)::date
-                         ELSE date_trunc('month', t.operation_date)::date END""",
-                (payload.spread_back, payload.id, payload.spread_back))
-        return {"ok": True, "id": payload.id, "recalc": recalc}
+        return {"ok": True, "id": payload.id}
     if not name:
         return {"ok": False, "error": "пустое имя статьи"}
     row = db.query("""INSERT INTO opex_category (name, sort) VALUES (%s, %s)
@@ -515,6 +498,8 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
         SELECT t.id, t.bank, t.org_inn, t.operation_date::text, t.direction, t.amount::float,
                t.document_number, t.purpose, t.cp_name, t.cp_inn,
                a.category_id, c.name AS category, a.spread_months, a.start_month::text, a.source,
+               -- направление разнесения не храним отдельно: оно уже видно по start_month
+               (a.start_month < date_trunc('month', t.operation_date)::date) AS spread_back,
                -- ТОЛЬКО EXISTS: обычный JOIN размножал строку выписки по числу правил
                -- контрагента (у ПАО Сбербанк их 8 — платёж показывался 8 раз)
                EXISTS (SELECT 1 FROM opex_rule r
@@ -587,13 +572,13 @@ def opex_assign(payload: OpexAssign):
     txn = txn[0]
     if txn["direction"] != "DEBIT":
         return {"ok": False, "error": "статья присваивается только расходу"}
-    n = max(1, min(120, int(payload.spread_months or 1)))
+    n, back = _opex_spread(payload.spread_months)
 
     if not payload.category_id:
         db.execute("DELETE FROM bank_txn_opex WHERE txn_id=%s", (payload.txn_id,))
         return {"ok": True, "assigned": 0, "rule": False}
 
-    start = _opex_start_month(txn["operation_date"], payload.category_id, n)
+    start = _opex_start_month(txn["operation_date"], n, back)
     db.execute("""INSERT INTO bank_txn_opex (txn_id, category_id, spread_months, start_month, source)
         VALUES (%s,%s,%s,%s,'manual')
         ON CONFLICT (txn_id) DO UPDATE SET category_id=EXCLUDED.category_id,
@@ -611,24 +596,26 @@ def opex_assign(payload: OpexAssign):
             return {"ok": False, "error": "нижняя граница суммы не меньше верхней"}
         if inn:
             db.execute("""INSERT INTO opex_rule (cp_inn, purpose_like, amount_min, amount_max,
-                                                 category_id, spread_months)
-                VALUES (%s,%s,%s,%s,%s,%s)
+                                                 category_id, spread_months, spread_back)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (cp_inn, (coalesce(lower(purpose_like),'')),
                              (coalesce(amount_min,-1)), (coalesce(amount_max,-1)))
                     WHERE coalesce(cp_inn,'') <> ''
                 DO UPDATE SET category_id=EXCLUDED.category_id,
-                              spread_months=EXCLUDED.spread_months, updated_at=now()""",
-                (inn, frag, lo, hi, payload.category_id, n))
+                              spread_months=EXCLUDED.spread_months,
+                              spread_back=EXCLUDED.spread_back, updated_at=now()""",
+                (inn, frag, lo, hi, payload.category_id, n, back))
         elif key:
             db.execute("""INSERT INTO opex_rule (cp_name_key, purpose_like, amount_min, amount_max,
-                                                 category_id, spread_months)
-                VALUES (%s,%s,%s,%s,%s,%s)
+                                                 category_id, spread_months, spread_back)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (cp_name_key, (coalesce(lower(purpose_like),'')),
                              (coalesce(amount_min,-1)), (coalesce(amount_max,-1)))
                     WHERE coalesce(cp_name_key,'') <> ''
                 DO UPDATE SET category_id=EXCLUDED.category_id,
-                              spread_months=EXCLUDED.spread_months, updated_at=now()""",
-                (key, frag, lo, hi, payload.category_id, n))
+                              spread_months=EXCLUDED.spread_months,
+                              spread_back=EXCLUDED.spread_back, updated_at=now()""",
+                (key, frag, lo, hi, payload.category_id, n, back))
         if (inn or key) and payload.apply_existing:
             # Новое правило может перебивать старую АВТОразметку (у Казначейства платежи уже
             # висели на «Налоги ФОТ», а правило с порогом отправляет крупные в «Налоги и взносы»).
@@ -683,7 +670,7 @@ def opex_rules():
     """Запомненные правила разметки: контрагент (+ необязательный фрагмент назначения) → статья.
     `n_auto` — сколько платежей сейчас размечено автоматически по этому правилу."""
     return {"items": db.query("""
-        SELECT r.id, r.cp_inn, r.cp_name_key, r.purpose_like, r.spread_months,
+        SELECT r.id, r.cp_inn, r.cp_name_key, r.purpose_like, r.spread_months, r.spread_back,
                r.amount_min::float AS amount_min, r.amount_max::float AS amount_max,
                r.category_id, c.name AS category,
                coalesce(k.cp_name, '') AS cp_name,
