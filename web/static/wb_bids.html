@@ -193,16 +193,24 @@ function marginChip(r){
   return `<span class="mchip" style="background:${bg};color:${fg}">${pct(m)}</span>`;
 }
 // позиция Джема: округление до 0.1, «—» если нет
-const fmtPos=p=>p==null?'<span class="muted">—</span>':(Math.round(p*10)/10);
+// 0 = НЕ позиция, а «нет в выдаче» (товар не показывается) → трактуем как отсутствие, не как 1-е место
+const noPos=v=>v==null||v==0;
+const fmtPos=p=>noPos(p)?'<span class="muted" title="нет позиции — товар не показывается в выдаче (0 ≠ 1-е место)">—</span>':(Math.round(p*10)/10);
 // период_старт = начало скользящего 7-дн окна = дата сбора − 7 → показываем реальную дату сбора
 const collDate=ps=>{ if(!ps) return '?'; const d=new Date(ps+'T00:00:00'); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); };
-// дельта позиции день-к-дню: WB позиция МЕНЬШЕ = лучше → рост в рейтинге зелёным ↑, падение красным ↓
+// дельта позиции день-к-дню: WB позиция МЕНЬШЕ = лучше → рост в рейтинге зелёным ↑, падение красным ↓.
+// 0/нет = отсутствие в выдаче: «0→N» = появился (вошёл), «N→0» = выпал — арифметику тут не применяем.
 function posDelta(r){
-  if(r.avg_position==null||r.pos_prev==null) return '';
-  const d=Math.round((r.avg_position-r.pos_prev)*10)/10;   // <0 = позиция улучшилась
+  const cur=r.avg_position, prev=r.pos_prev;
+  if(noPos(cur)&&noPos(prev)) return '';                    // как не было, так и нет
+  if(noPos(prev)&&!noPos(cur))
+    return ` <b style="color:#15803d" title="появился в выдаче (сбор ~${collDate(r.jam_date)}) на позиции ${Math.round(cur*10)/10}; раньше не показывался (0 = нет в выдаче)">▲ вошёл</b>`;
+  if(noPos(cur)&&!noPos(prev))
+    return ` <b style="color:#dc2626" title="выпал из выдачи (сбор ~${collDate(r.jam_date)}); раньше был ~${Math.round(prev*10)/10}. 0 = не показывается">▼ выпал</b>`;
+  const d=Math.round((cur-prev)*10)/10;                     // <0 = позиция улучшилась
   if(d===0) return ' <span class="muted" title="без движения (средняя за 7-дн окно — движение сглажено)">=</span>';
   const up=d<0, col=up?'#15803d':'#dc2626', arr=up?'↑':'↓';
-  return ` <b style="color:${col}" title="было ${Math.round(r.pos_prev*10)/10} (сбор ~${collDate(r.prev_date)}) → стало ${Math.round(r.avg_position*10)/10} (сбор ~${collDate(r.jam_date)}). Позиция — средняя за скользящее 7-дн окно, суточное движение сглажено (~1/7)">${arr}${Math.abs(d)}</b>`;
+  return ` <b style="color:${col}" title="было ${Math.round(prev*10)/10} (сбор ~${collDate(r.prev_date)}) → стало ${Math.round(cur*10)/10} (сбор ~${collDate(r.jam_date)}). Позиция — средняя за скользящее 7-дн окно, суточное движение сглажено (~1/7)">${arr}${Math.abs(d)}</b>`;
 }
 // ячейка действия: РК(копир) · текущая CPC+источник · рекомендация (принять) · поле · применить · снять(🔴/⚫)
 function actCellMargin(r){
