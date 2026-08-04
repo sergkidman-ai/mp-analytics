@@ -30,10 +30,15 @@ app = FastAPI(title="mp-analytics · Маркетинг")
 # «текущую» реконструируем как факт.CPC=расход/клики (wb_ad_nm); пробелы заполняются вручную.
 WB_ADS_HOST = "https://advert-api.wildberries.ru"
 WB_BID_FLOOR = 7.3   # пол CPC поиска (реко 5.54); память project_mp_wb_ads_endpoint
-# ЖИВАЯ запись ставки в WB. ВЫКЛЮЧЕНА до подтверждения точного контракта PATCH /api/advert/v1/bids
-# И до прямой команды Сергея (данные ≠ разрешение писать). Пока — только dry-run + журнал/оверрайд.
-WB_BID_LIVE_ENABLED = False
+# ЖИВАЯ запись ставки в WB. Контракт PATCH /api/advert/v1/bids ПОДТВЕРЖДЁН пробой 2026-08-04 на
+# приостановленной кампании 35701146 (200, значение в КОПЕЙКАХ, placement="search"; "combined" ВБ
+# отвергает для аукциона). Геттера ставки нет, DELETE нет (405 Allow=PATCH). Включено по одобренному
+# плану Сергея (проба ставки+снятия). Снятие nmID: API у ВБ НЕТ → деградирует в очередь (ручное ЛК).
+WB_BID_LIVE_ENABLED = True
 WB_ADS_TOKEN_ENV = {"wb_acc1": "WB_TOKEN_ADS_ACC1"}   # write-токен «Продвижение», только acc1
+# Подтверждённый контракт смены ставки (значение bid_kopecks — в копейках; 7.3₽ = 730):
+#   PATCH {WB_ADS_HOST}/api/advert/v1/bids  Authorization: <token>
+#   {"bids":[{"advert_id":ADV,"nm_bids":[{"nm_id":NM,"bid_kopecks":V,"placement":"search"}]}]}
 
 
 @app.get("/marketing", response_class=HTMLResponse)
@@ -242,6 +247,18 @@ def _verdict(sold, mp, drr, spend, ad_orders, repriced=False):
         return ("expensive", "🟡 дорого — ставку вниз")
     return ("grow", "🟢 растить")
 
+def _rec_cpc(verdict, cpc, drr):
+    """Рекомендованная ставка (запас по ДРР до потолка 10%). Прогноз: ДРР ≈ линейно от CPC, значит
+    целевая ставка = cpc × (потолок/ДРР). grow → вверх (ДРР<потолка), expensive → вниз (ДРР≥потолка),
+    оба под капом ×3 за шаг и не ниже пола. keep/repriced (0 рекл-заказов) → пол (бюджет-тест на полу).
+    cut/dead/hold — рекомендации ставки нет (их действие «снять», а не менять ставку)."""
+    if verdict in ("grow", "expensive") and cpc and drr and drr > 0:
+        rec = cpc * min(WB_DRR_CEIL / drr, 3.0)   # кап ×3 за шаг — защита от разгона при крошечном ДРР
+        return max(round(rec, 2), WB_BID_FLOOR)
+    if verdict in ("keep", "repriced"):
+        return WB_BID_FLOOR                        # тест на полу
+    return None
+
 def _margin_gated(account, view="all", q="", sort="spend", limit=500):
     period = _decision_period(account)
     if not period:
@@ -328,6 +345,7 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
         cpc_dm = round(spend / clicks, 2) if clicks > 0 else None
         cur_cpc = float(r["ov_cpc"]) if r["ov_cpc"] is not None else cpc_dm
         vkey, vlabel = _verdict(sold, mp, drr, spend, orders, repriced)
+        rec_cpc = _rec_cpc(vkey, cur_cpc, drr)
         out.append({
             "nm_id": r["nm_id"], "vendor_code": r["vendor_code"], "title": r["title"],
             "subject": r["subject"], "adverts": r["adverts"] or [], "any_active": r["any_active"],
@@ -340,6 +358,7 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
             "price_drift": drift, "repriced": repriced,
             "imt_id": imt_id, "imt_size": imt_size, "sib_q": sib_q,
             "drr": drr, "cpo": cpo, "cpc": cur_cpc, "cpc_source": (r["ov_source"] or ("reconstructed" if cpc_dm is not None else "none")),
+            "rec_cpc": rec_cpc,
             "avg_position": r["avg_position"], "open_card": r["open_card"],
             "jam_orders": r["jam_orders"], "visibility": r["visibility"],
             "verdict": vkey, "verdict_label": vlabel,
@@ -371,6 +390,7 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
         "margin_gate": WB_MARGIN_GATE, "drr_ceil": WB_DRR_CEIL,
         "margin_source": "live", "buy_stale": buy_stale, "buy_nopx": buy_nopx,
         "activity_months": WB_ACTIVITY_MONTHS, "reprice_drift": WB_REPRICE_DRIFT,
+        "live_enabled": WB_BID_LIVE_ENABLED, "floor_cpc": WB_BID_FLOOR,
     }
     return {"period": period, "rows": out[:limit], "summary": summary,
             "sort": sort, "view": view, "account": account}
@@ -528,9 +548,11 @@ def wb_bid_change(payload: dict = Body(...)):
     if new_cpc < WB_BID_FLOOR:
         return {"ok": False, "error": f"Ставка {new_cpc}₽ ниже пола WB {WB_BID_FLOOR}₽ (поиск). "
                 f"Минимум ставит POST /bids/min."}
-    # предполагаемый запрос к WB (контракт ПОКА не подтверждён — форма ориентировочная, для dry-run)
-    req = {"_endpoint": "PATCH /api/advert/v1/bids", "_note": "контракт не подтверждён",
-           "advertId": advert_id, "nmId": nm_id, "cpc": new_cpc}
+    # запрос к WB по ПОДТВЕРЖДЁННОМУ контракту (для dry-run — что ушло бы живьём через /apply)
+    req = {"_endpoint": "PATCH /api/advert/v1/bids",
+           "bids": [{"advert_id": advert_id,
+                     "nm_bids": [{"nm_id": nm_id, "bid_kopecks": round(new_cpc * 100),
+                                  "placement": "search"}]}]}
     b = _jam_baseline(account, nm_id)
     base = {"base_date": b["base_date"], "pos_before": b["avg_position"],
             "open_before": b["open_card"], "orders_before": b["orders"]}
@@ -541,13 +563,102 @@ def wb_bid_change(payload: dict = Body(...)):
         return {"ok": True, "dry_run": True, "old_cpc": old_cpc, "old_source": old_src,
                 "new_cpc": new_cpc, "would_send": req,
                 "msg": "Dry-run: записан в журнал, ставка в WB НЕ изменена."}
-    # live-путь
-    if not WB_BID_LIVE_ENABLED:
+    # живой путь вынесен в отдельный эндпоинт /api/wb-bids/apply (UI шлёт «применить» туда)
+    return {"ok": False, "error": "Для живой записи используйте POST /api/wb-bids/apply."}
+
+
+def _wb_patch_bid(token, advert_id, nm_id, new_cpc):
+    """Живой PATCH ставки в WB по подтверждённому контракту. Возвращает (status, resp_json_or_text)."""
+    body = {"bids": [{"advert_id": int(advert_id),
+                      "nm_bids": [{"nm_id": int(nm_id), "bid_kopecks": round(float(new_cpc) * 100),
+                                   "placement": "search"}]}]}
+    r = requests.patch(WB_ADS_HOST + "/api/advert/v1/bids", json=body,
+                       headers={"Authorization": token, "Content-Type": "application/json"}, timeout=30)
+    try:
+        return r.status_code, r.json()
+    except Exception:
+        return r.status_code, {"_text": r.text[:500]}
+
+
+@app.post("/api/wb-bids/apply")
+def wb_bid_apply(payload: dict = Body(...)):
+    """ЖИВАЯ смена ставки per-nmID в WB (PATCH /api/advert/v1/bids). Требует advert_id (ставка задаётся
+    в конкретной кампании). Пол WB (7.3₽) — гейт. При успехе (200): апсерт оверрайда source=api_set +
+    журнал applied=true с req/resp и baseline Джема (для оценки эффекта через неделю). Если живой путь
+    выключен/нет токена — пишет намерение в журнал (applied=false) и возвращает blocked (деградация)."""
+    account = payload.get("account", "wb_acc1")
+    nm_id = int(payload["nm_id"])
+    new_cpc = round(float(payload["new_cpc"]), 2)
+    advert_id = payload.get("advert_id")
+    note = (payload.get("note") or "").strip() or None
+    if new_cpc < WB_BID_FLOOR:
+        return {"ok": False, "error": f"Ставка {new_cpc}₽ ниже пола WB {WB_BID_FLOOR}₽ (поиск)."}
+    if not advert_id:
+        return {"ok": False, "error": "Нужен advert_id: ставка задаётся в конкретной кампании."}
+    # текущая (оверрайд → реконструкция) — для old_cpc в журнале
+    ov = db.query("SELECT cpc, source FROM wb_bid_override WHERE account=%s AND nm_id=%s", (account, nm_id))
+    if ov:
+        old_cpc, old_src = float(ov[0]["cpc"]), ov[0]["source"]
+    else:
+        rc = db.query("""SELECT CASE WHEN sum(clicks)>0 THEN round(sum(spend)/sum(clicks),2) END c
+                         FROM wb_ad_nm WHERE account=%s AND nm_id=%s
+                         AND period=(SELECT max(period) FROM wb_ad_nm WHERE account=%s)""",
+                      (account, nm_id, account))
+        old_cpc = float(rc[0]["c"]) if rc and rc[0]["c"] is not None else None
+        old_src = "reconstructed" if old_cpc is not None else "none"
+    b = _jam_baseline(account, nm_id)
+    base = {"base_date": b["base_date"], "pos_before": b["avg_position"],
+            "open_before": b["open_card"], "orders_before": b["orders"]}
+    req = {"_endpoint": "PATCH /api/advert/v1/bids",
+           "bids": [{"advert_id": advert_id, "nm_bids": [{"nm_id": nm_id,
+                     "bid_kopecks": round(new_cpc * 100), "placement": "search"}]}]}
+    token = os.getenv(WB_ADS_TOKEN_ENV.get(account, ""), "")
+    if not (WB_BID_LIVE_ENABLED and token):
+        _bid_log({"account": account, "nm_id": nm_id, "advert_id": advert_id, "action": "api_set",
+                  "applied": False, "old_cpc": old_cpc, "new_cpc": new_cpc, "old_source": old_src,
+                  "author": "dashboard", "note": note, "req_json": json.dumps(req, ensure_ascii=False), **base})
         return {"ok": False, "blocked": True,
-                "error": "Живая запись ставки в WB ВЫКЛЮЧЕНА: контракт PATCH /api/advert/v1/bids не "
-                         "подтверждён и требуется прямая команда Сергея. Пока доступен только dry-run."}
-    # (когда включим) — реальный вызов, запись applied=true + оверрайд source=api_set
-    return {"ok": False, "error": "live-путь не реализован до подтверждения контракта"}
+                "error": "Живая запись выключена или нет токена — намерение записано в журнал (applied=false)."}
+    status, resp = _wb_patch_bid(token, advert_id, nm_id, new_cpc)
+    applied = status == 200
+    _bid_log({"account": account, "nm_id": nm_id, "advert_id": advert_id, "action": "api_set",
+              "applied": applied, "old_cpc": old_cpc, "new_cpc": new_cpc, "old_source": old_src,
+              "author": "dashboard", "note": note,
+              "req_json": json.dumps(req, ensure_ascii=False),
+              "resp_status": status, "resp_json": json.dumps(resp, ensure_ascii=False), **base})
+    if applied:
+        db.upsert("wb_bid_override",
+                  [{"account": account, "nm_id": nm_id, "cpc": new_cpc, "source": "api_set",
+                    "advert_id": advert_id, "note": note, "author": "dashboard",
+                    "updated_at": datetime.datetime.now()}],
+                  conflict_cols=["account", "nm_id"],
+                  update_cols=["cpc", "source", "advert_id", "note", "updated_at"])
+        return {"ok": True, "applied": True, "old_cpc": old_cpc, "new_cpc": new_cpc,
+                "resp_status": status, "msg": f"Ставка nm {nm_id} → {new_cpc}₽ отправлена в WB (200)."}
+    return {"ok": False, "applied": False, "resp_status": status, "resp": resp,
+            "error": f"WB отклонил смену ставки (HTTP {status}). Записано в журнал."}
+
+
+@app.post("/api/wb-bids/remove")
+def wb_bid_remove(payload: dict = Body(...)):
+    """Снять nmID с рекламы. API снятия у WB НЕ найдено (namespace управления составом за антиботом,
+    /bids только PATCH) → ОЧЕРЕДЬ: пишем намерение в журнал (action='remove', applied=false), фактическое
+    исключение nmID делается вручную в ЛК ВБ. Ставку 0 WB не принимает (пол 7.3₽), поэтому только снятие."""
+    account = payload.get("account", "wb_acc1")
+    nm_id = int(payload["nm_id"])
+    advert_id = payload.get("advert_id")
+    note = (payload.get("note") or "").strip() or None
+    b = _jam_baseline(account, nm_id)
+    req = {"_note": "API снятия nmID у WB не найдено — ручное исключение в ЛК ВБ",
+           "advert_id": advert_id, "nm_id": nm_id}
+    _bid_log({"account": account, "nm_id": nm_id, "advert_id": advert_id, "action": "remove",
+              "applied": False, "old_source": "queue", "author": "dashboard", "note": note,
+              "req_json": json.dumps(req, ensure_ascii=False),
+              "base_date": b["base_date"], "pos_before": b["avg_position"],
+              "open_before": b["open_card"], "orders_before": b["orders"]})
+    return {"ok": True, "queued": True,
+            "msg": f"Намерение снять nm {nm_id} записано в журнал. Исключите его вручную в ЛК ВБ "
+                   f"(API снятия у WB нет)."}
 
 
 @app.get("/api/wb-bids/log")
@@ -563,7 +674,8 @@ def wb_bids_log(account: str = "wb_acc1", nm_id: int = 0, limit: int = 200):
       WITH jam AS (
         SELECT DISTINCT ON (nm_id) nm_id, period_start::text jam_date, avg_position, open_card, orders
         FROM wb_search_report WHERE account=%s ORDER BY nm_id, period_start DESC)
-      SELECT l.id, l.ts::text ts, l.nm_id, l.advert_id, l.action, l.applied,
+      SELECT l.id, l.ts::text ts, (now()::date - l.ts::date) age_days,
+             l.nm_id, l.advert_id, l.action, l.applied,
              l.old_cpc, l.new_cpc, l.old_source, l.note,
              COALESCE(c.title, l.nm_id::text) title, c.vendor_code,
              l.base_date, l.pos_before, l.open_before, l.orders_before,
@@ -578,8 +690,27 @@ def wb_bids_log(account: str = "wb_acc1", nm_id: int = 0, limit: int = 200):
     for r in rows:
         d = dict(r)
         pb, pa = r["pos_before"], r["pos_after"]
-        d["pos_delta"] = (float(pa) - float(pb)) if pb is not None and pa is not None else None
+        pos_delta = (float(pa) - float(pb)) if pb is not None and pa is not None else None
+        d["pos_delta"] = pos_delta
         ob, oa = r["orders_before"], r["orders_after"]
-        d["orders_delta"] = (oa - ob) if ob is not None and oa is not None else None
+        orders_delta = (oa - ob) if ob is not None and oa is not None else None
+        d["orders_delta"] = orders_delta
+        # оценка через неделю: только для ПРИМЕНЁННЫХ смен ставки (не dry/remove), возрастом ≥7д.
+        # Сигнал берём из свежего Джема (позиция ↓ = лучше; заказы ↑). Расход/ДРР посуточно per-nm
+        # у нас нет (wb_ad_nm помесячно) → честная оценка Джем-центрична.
+        age = int(r["age_days"]) if r["age_days"] is not None else None
+        measurable = bool(r["applied"]) and r["action"] in ("api_set", "manual_set")
+        d["due_review"] = bool(measurable and age is not None and age >= 7)
+        d["eval_verdict"] = None
+        if d["due_review"]:
+            raised = (r["new_cpc"] is not None and r["old_cpc"] is not None
+                      and float(r["new_cpc"]) > float(r["old_cpc"]))
+            improved = (pos_delta is not None and pos_delta <= -1) or (orders_delta is not None and orders_delta > 0)
+            if improved:
+                d["eval_verdict"] = "сработало"
+            elif raised:
+                d["eval_verdict"] = "дороже впустую"
+            else:
+                d["eval_verdict"] = "нет эффекта"
         out.append(d)
     return {"rows": out, "account": account}
