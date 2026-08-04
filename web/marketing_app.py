@@ -274,11 +274,18 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
         return {"rows": [], "summary": {"period": None}, "view": view, "account": account}
     win_from = period  # начало окна активности = decision-месяц − (N−1) мес
     sql = """
-      WITH dm AS (
+      WITH dm AS (  -- метрики решения: за decision-период (последний ПОЛНЫЙ месяц)
         SELECT nm_id, sum(spend) spend, sum(revenue) rev, sum(clicks) clicks, sum(orders) ad_orders,
-               array_agg(DISTINCT advert_id ORDER BY advert_id) adverts,
-               max(name) ad_name, bool_or(status=9) any_active
+               max(name) ad_name
         FROM wb_ad_nm WHERE account=%s AND period=%s GROUP BY nm_id),
+      cur AS (  -- КАМПАНИЯ для PATCH — из ТЕКУЩЕГО периода (nm мигрируют между РК; июльская РК даёт
+                -- 400 "not found in advert"). adverts[0] = активная, самая кликаемая РG сейчас.
+        SELECT nm_id,
+               array_agg(advert_id ORDER BY (status=9) DESC, clicks DESC, spend DESC, advert_id) adverts,
+               bool_or(status=9) any_active
+        FROM wb_ad_nm
+        WHERE account=%s AND period=(SELECT max(period) FROM wb_ad_nm WHERE account=%s)
+        GROUP BY nm_id),
       s3 AS (  -- активность за 3 полных мес + истор. цена продажи (revenue/qty) для ловушки цены
         SELECT article, sum(qty) q3, sum(revenue_buyer) rev3
         FROM margin_by_sku
@@ -308,13 +315,14 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
         ) t WHERE rn=1),
       ov AS (SELECT nm_id, cpc, source FROM wb_bid_override WHERE account=%s)
       SELECT dm.nm_id, c.vendor_code, COALESCE(c.title, dm.ad_name) title, c.subject,
-             dm.spend, dm.rev, dm.clicks, dm.ad_orders, dm.adverts, dm.any_active,
+             dm.spend, dm.rev, dm.clicks, dm.ad_orders, cur.adverts, cur.any_active,
              ml.margin_own_live, ml.net_live, ml.buy_status, ml.our_price, ml.buy_price_live,
              s3.q3, s3.rev3,
              i.imt_id, isz.n imt_size, isl.imt_q,
              o.cpc ov_cpc, o.source ov_source,
              j.avg_position, j.open_card, j.jam_orders, j.visibility, j.jam_date, j.pos_prev, j.prev_date
       FROM dm
+      LEFT JOIN cur        ON cur.nm_id = dm.nm_id
       LEFT JOIN s3         ON s3.article = dm.nm_id::text
       LEFT JOIN ml         ON ml.nm_id  = dm.nm_id
       LEFT JOIN imt i      ON i.nm_id   = dm.nm_id
@@ -324,8 +332,10 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
       LEFT JOIN ov o       ON o.nm_id = dm.nm_id
       LEFT JOIN jam j      ON j.nm_id = dm.nm_id
     """
-    params = [account, period, account, period, WB_ACTIVITY_MONTHS, period,
-              account, account, account, account, account]
+    params = [account, period,                      # dm
+              account, account,                     # cur (WHERE + max-период)
+              account, period, WB_ACTIVITY_MONTHS, period,   # s3
+              account, account, account, account, account]   # ml, imt, jam, ov, wb_cards
     if q:
         sql += " WHERE (dm.nm_id::text LIKE %s OR c.vendor_code ILIKE %s OR c.title ILIKE %s)"
         like = f"%{q}%"
@@ -730,10 +740,27 @@ def wb_bid_apply_bulk(payload: dict = Body(...)):
         groups.setdefault(int(adv), []).append((nm, cpc))
     applied_cnt, err_cnt, results = 0, 0, []
     for adv, lst in groups.items():
-        status, resp = (_wb_patch_bids_group(token, adv, lst) if live else (None, None))
-        ok = bool(live and status == 200)
-        resp_s = json.dumps(resp, ensure_ascii=False) if resp is not None else None
+        # групповой PATCH быстрым путём; но у WB пачка АТОМАРНА — один nm «not found in advert» валит
+        # всю группу. При не-200 и >1 позиции добиваем по одному, чтобы валидные соседи применились,
+        # а сбойный получил СВОЙ ответ (иначе в журнал соседям писался чужой resp).
+        per_status, per_resp = {}, {}
+        if not live:
+            for nm, _ in lst:
+                per_status[nm] = None; per_resp[nm] = None
+        else:
+            gstatus, gresp = _wb_patch_bids_group(token, adv, lst)
+            if gstatus == 200 or len(lst) == 1:
+                for nm, _ in lst:
+                    per_status[nm] = gstatus; per_resp[nm] = gresp
+            else:
+                for nm, cpc in lst:
+                    st, rs = _wb_patch_bid(token, adv, nm, cpc)
+                    per_status[nm] = st; per_resp[nm] = rs
         for nm, cpc in lst:
+            status = per_status[nm]
+            resp = per_resp[nm]
+            ok = bool(live and status == 200)
+            resp_s = json.dumps(resp, ensure_ascii=False) if resp is not None else None
             old_cpc, old_src = _old_cpc_src(account, nm)
             b = _jam_baseline(account, nm)
             req = {"_endpoint": "PATCH /api/advert/v1/bids", "_bulk": True,
