@@ -121,8 +121,8 @@ def apply_rules(txn_ids=None):
     Правило ищется по ИНН контрагента, а если ИНН пуст — по нормализованному имени.
     У правила может быть фрагмент назначения (`purpose_like`, миграция 210): пусто — правило
     на всего контрагента, заполнено — только на платежи с этим фрагментом в назначении.
-    Если платёж подходит под несколько правил, берём САМОЕ СПЕЦИФИЧНОЕ — с самым длинным
-    фрагментом (общее правило контрагента = фрагмент нулевой длины, то есть последнее в очереди).
+    Если платёж подходит под несколько правил, побеждает САМОЕ СПЕЦИФИЧНОЕ — выбор живёт
+    во вью `opex_rule_match` (миграция 211), чтобы счётчики и удаление правил считали так же.
 
     Уже размеченное (в т.ч. руками) не трогаем. txn_ids=None → пройтись по всем неразмеченным.
     → сколько строк разметили."""
@@ -130,19 +130,12 @@ def apply_rules(txn_ids=None):
     params = ([list(txn_ids)] if txn_ids else [])
     sql = f"""
         INSERT INTO bank_txn_opex (txn_id, category_id, spread_months, start_month, source)
-        SELECT DISTINCT ON (t.id)
-               t.id, r.category_id, r.spread_months,
+        SELECT m.txn_id, m.category_id, m.spread_months,
                date_trunc('month', t.operation_date)::date, 'rule'
-        FROM bank_txn t
-        JOIN opex_rule r
-          ON ((coalesce(t.cp_inn,'') <> '' AND r.cp_inn = t.cp_inn)
-              OR (coalesce(t.cp_inn,'') =  '' AND coalesce(r.cp_name_key,'') <> ''
-                  AND r.cp_name_key = regexp_replace(lower(coalesce(t.cp_name,'')), '[^0-9a-zа-яё]+', '', 'g')))
-         AND (coalesce(r.purpose_like,'') = ''
-              OR position(lower(r.purpose_like) in lower(coalesce(t.purpose,''))) > 0)
-        LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
-        WHERE t.direction = 'DEBIT' AND a.txn_id IS NULL {where}
-        ORDER BY t.id, length(coalesce(r.purpose_like,'')) DESC, r.id DESC
+        FROM opex_rule_match m
+        JOIN bank_txn t ON t.id = m.txn_id
+        LEFT JOIN bank_txn_opex a ON a.txn_id = m.txn_id
+        WHERE a.txn_id IS NULL {where}
         ON CONFLICT (txn_id) DO NOTHING"""
     with db.get_conn() as conn:
         with conn.cursor() as cur:

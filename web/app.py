@@ -473,11 +473,13 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
         SELECT t.id, t.bank, t.org_inn, t.operation_date::text, t.direction, t.amount::float,
                t.document_number, t.purpose, t.cp_name, t.cp_inn,
                a.category_id, c.name AS category, a.spread_months, a.start_month::text, a.source,
-               (r.id IS NOT NULL) AS has_rule
+               -- ТОЛЬКО EXISTS: обычный JOIN размножал строку выписки по числу правил
+               -- контрагента (у ПАО Сбербанк их 8 — платёж показывался 8 раз)
+               EXISTS (SELECT 1 FROM opex_rule r
+                       WHERE coalesce(t.cp_inn,'') <> '' AND r.cp_inn = t.cp_inn) AS has_rule
         FROM bank_txn t
         LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
         LEFT JOIN opex_category c ON c.id = a.category_id
-        LEFT JOIN opex_rule r ON coalesce(t.cp_inn,'') <> '' AND r.cp_inn = t.cp_inn
         WHERE {' AND '.join(w)}
         ORDER BY t.operation_date DESC, t.id DESC""", tuple(p))
     # Итог месяца — всегда по ВСЕМ расходам фирмы за месяц, независимо от фильтров экрана:
@@ -586,15 +588,14 @@ def opex_rules():
                OR (coalesce(r.cp_inn,'') =  '' AND r.cp_name_key =
                    regexp_replace(lower(coalesce(t.cp_name,'')), '[^0-9a-zа-яё]+', '', 'g'))
             ORDER BY t.operation_date DESC LIMIT 1) k ON TRUE
+        -- считаем только платежи, где ЭТО правило победило: иначе платёж, подходящий
+        -- и под общее правило контрагента, и под уточнённое, попадал бы в оба счётчика
         LEFT JOIN LATERAL (
             SELECT count(*) n, sum(t.amount) s
-            FROM bank_txn_opex a JOIN bank_txn t ON t.id = a.txn_id
-            WHERE a.source = 'rule' AND a.category_id = r.category_id
-              AND ((coalesce(r.cp_inn,'') <> '' AND t.cp_inn = r.cp_inn)
-                   OR (coalesce(r.cp_inn,'') =  '' AND r.cp_name_key =
-                       regexp_replace(lower(coalesce(t.cp_name,'')), '[^0-9a-zа-яё]+', '', 'g')))
-              AND (coalesce(r.purpose_like,'') = ''
-                   OR position(lower(r.purpose_like) in lower(coalesce(t.purpose,''))) > 0)) x ON TRUE
+            FROM opex_rule_match m
+            JOIN bank_txn t ON t.id = m.txn_id
+            JOIN bank_txn_opex a ON a.txn_id = m.txn_id AND a.source = 'rule'
+            WHERE m.rule_id = r.id) x ON TRUE
         ORDER BY c.name, coalesce(k.cp_name, r.cp_inn, r.cp_name_key)""")}
 
 
@@ -609,23 +610,16 @@ def opex_rule_delete(payload: OpexRuleDelete):
     проставило, — иначе ошибочно размеченные платежи остались бы висеть в статье. Ручную
     разметку не трогаем никогда; после удаления прогоняем остальные правила заново, чтобы
     платежи подхватило более точное правило, если оно есть."""
-    r = db.query("SELECT * FROM opex_rule WHERE id=%s", (payload.rule_id,))
-    if not r:
+    if not db.query("SELECT 1 FROM opex_rule WHERE id=%s", (payload.rule_id,)):
         return {"ok": False, "error": "правило не найдено"}
-    r = r[0]
     dropped = 0
     if payload.drop_auto:
+        # Снимаем разметку только тех платежей, где победило именно это правило (и только
+        # автоматическую). Обязательно ДО удаления самого правила — вью считает по нему.
         dropped = db.execute("""
-            DELETE FROM bank_txn_opex a USING bank_txn t
-            WHERE t.id = a.txn_id AND a.source = 'rule' AND a.category_id = %s
-              AND ((%s <> '' AND t.cp_inn = %s)
-                   OR (%s =  '' AND %s = regexp_replace(lower(coalesce(t.cp_name,'')),
-                                                        '[^0-9a-zа-яё]+', '', 'g')))
-              AND (%s = '' OR position(lower(%s) in lower(coalesce(t.purpose,''))) > 0)""",
-            (r["category_id"],
-             r["cp_inn"] or "", r["cp_inn"] or "",
-             r["cp_inn"] or "", r["cp_name_key"] or "",
-             r["purpose_like"] or "", r["purpose_like"] or ""))
+            DELETE FROM bank_txn_opex a USING opex_rule_match m
+            WHERE m.txn_id = a.txn_id AND m.rule_id = %s AND a.source = 'rule'""",
+            (payload.rule_id,))
     db.execute("DELETE FROM opex_rule WHERE id=%s", (payload.rule_id,))
     return {"ok": True, "dropped": dropped or 0, "reruled": txn_store.apply_rules()}
 
