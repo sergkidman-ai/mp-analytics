@@ -419,15 +419,30 @@ def opex_save(payload: OpexSave):
 def opex_categories(all: int = 0):
     """Справочник статей. all=1 — вместе с архивными (для показа старой разметки)."""
     where = "" if all else "WHERE NOT archived"
-    return {"items": db.query(f"SELECT id, name, sort, archived FROM opex_category {where} "
-                              "ORDER BY sort, name")}
+    return {"items": db.query(f"SELECT id, name, sort, archived, spread_back FROM opex_category "
+                              f"{where} ORDER BY sort, name")}
+
+
+def _opex_start_month(op_date, category_id: int, n: int):
+    """Первый месяц разнесения платежа.
+
+    Обычные статьи считают вперёд от месяца платежа (аренда, подписки). Статьи с
+    spread_back закрывают УЖЕ ПРОШЕДШИЕ периоды — налоги платят за прошлый месяц или
+    квартал, — и у них период заканчивается месяцем ПЕРЕД платежом: start = месяц − N."""
+    start = op_date.replace(day=1)
+    row = db.query("SELECT spread_back FROM opex_category WHERE id=%s", (category_id,))
+    if row and row[0]["spread_back"]:
+        m = start.month - n
+        start = start.replace(year=start.year + (m - 1) // 12, month=(m - 1) % 12 + 1)
+    return start
 
 
 class OpexCategory(BaseModel):
     id: int | None = None
     name: str = ""
     sort: int = 100
-    archived: bool = False
+    archived: bool | None = None           # None = не трогать (правка одного лишь направления)
+    spread_back: bool | None = None        # None = не трогать; true = платёж за прошлые месяцы
 
 
 @app.post("/api/opex/categories")
@@ -437,12 +452,32 @@ def opex_category_save(payload: OpexCategory):
     name = (payload.name or "").strip()
     if payload.id:
         if name:
-            db.execute("UPDATE opex_category SET name=%s, sort=%s, archived=%s WHERE id=%s",
-                       (name, payload.sort, payload.archived, payload.id))
-        else:
+            db.execute("UPDATE opex_category SET name=%s, sort=%s WHERE id=%s",
+                       (name, payload.sort, payload.id))
+        if payload.archived is not None:
             db.execute("UPDATE opex_category SET archived=%s WHERE id=%s",
                        (payload.archived, payload.id))
-        return {"ok": True, "id": payload.id}
+        recalc = 0
+        if payload.spread_back is not None:
+            db.execute("UPDATE opex_category SET spread_back=%s WHERE id=%s",
+                       (payload.spread_back, payload.id))
+            # Направление — свойство статьи, значит переключение должно пересобрать и уже
+            # размеченные платежи: иначе прошлые месяцы остались бы посчитаны по-старому.
+            recalc = db.execute("""
+                UPDATE bank_txn_opex a
+                   SET start_month = CASE WHEN %s
+                         THEN (date_trunc('month', t.operation_date)
+                               - (a.spread_months || ' month')::interval)::date
+                         ELSE date_trunc('month', t.operation_date)::date END,
+                       updated_at = now()
+                  FROM bank_txn t
+                 WHERE t.id = a.txn_id AND a.category_id = %s
+                   AND a.start_month <> CASE WHEN %s
+                         THEN (date_trunc('month', t.operation_date)
+                               - (a.spread_months || ' month')::interval)::date
+                         ELSE date_trunc('month', t.operation_date)::date END""",
+                (payload.spread_back, payload.id, payload.spread_back))
+        return {"ok": True, "id": payload.id, "recalc": recalc}
     if not name:
         return {"ok": False, "error": "пустое имя статьи"}
     row = db.query("""INSERT INTO opex_category (name, sort) VALUES (%s, %s)
@@ -558,11 +593,12 @@ def opex_assign(payload: OpexAssign):
         db.execute("DELETE FROM bank_txn_opex WHERE txn_id=%s", (payload.txn_id,))
         return {"ok": True, "assigned": 0, "rule": False}
 
-    start = txn["operation_date"].replace(day=1)
+    start = _opex_start_month(txn["operation_date"], payload.category_id, n)
     db.execute("""INSERT INTO bank_txn_opex (txn_id, category_id, spread_months, start_month, source)
         VALUES (%s,%s,%s,%s,'manual')
         ON CONFLICT (txn_id) DO UPDATE SET category_id=EXCLUDED.category_id,
-            spread_months=EXCLUDED.spread_months, source='manual', updated_at=now()""",
+            spread_months=EXCLUDED.spread_months, start_month=EXCLUDED.start_month,
+            source='manual', updated_at=now()""",
         (payload.txn_id, payload.category_id, n, start))
 
     ruled = 0

@@ -90,12 +90,15 @@
         <option value="">не запоминать</option>
       </select></label>
     <button class="lnk" id="btn-rules" onclick="toggleRules()">🔁 правила</button>
+    <button class="lnk" id="btn-cats" onclick="toggleCats()"
+            title="Направление разнесения у статей: вперёд или за прошлые месяцы">📂 статьи</button>
     <button class="lnk" id="btn-import" onclick="pickFile()"
             title="Загрузить выписку файлом — для банков без API (Озон Банк)">📤 файл выписки</button>
     <input type="file" id="f-file" accept=".txt,.csv,.xlsx,.xls,.1c" style="display:none"
            onchange="uploadFile(this)">
   </div>
   <div class="wrap" id="rules" style="display:none;margin-bottom:14px"></div>
+  <div class="wrap" id="catbox" style="display:none;margin-bottom:14px"></div>
   <div class="wrap"><div id="tbl"></div><div class="foot" id="foot"></div></div>
   <p class="note">Статья присваивается сразу при выборе — кнопки «Сохранить» нет. «Запомнить контрагента» создаёт
      правило по его ИНН: все его платежи (и уже загруженные, и будущие) уходят в эту статью сами. Если у контрагента
@@ -156,7 +159,11 @@ function render(){
     const ctl=credit
       ? `<span class="muted">приход</span>`
       : `<select onchange="assign(${t.id},this)">${catOptions(t.category_id)}</select>`;
-    const spread=credit?'':`<input type="number" min="1" max="120" value="${t.spread_months||1}" onchange="assign(${t.id},null,this)">`;
+    // ↩ — статья закрывает прошлые периоды (налоги): период кончается месяцем перед платежом
+    const back=t.category_id&&cats.find(c=>c.id===t.category_id)?.spread_back;
+    const per=t.start_month?`${MONTHS[t.start_month.slice(5,7)]} ${t.start_month.slice(0,4)}`:'';
+    const spread=credit?'':`<input type="number" min="1" max="120" value="${t.spread_months||1}" onchange="assign(${t.id},null,this)">`
+      +(back?` <span class="muted" title="разносится назад, период начинается: ${per}">↩</span>`:'');
     const rule=t.has_rule?'<span title="есть правило по этому контрагенту">🔁</span>':'';
     const src=t.source==='rule'?'<span class="muted" title="размечено правилом">авто</span>':'';
     return `<tr class="${t.category_id?'done':''}${credit?' credit':''}">
@@ -323,6 +330,38 @@ async function delRule(id,cat){
   await loadRules(); await load();
 }
 async function loadCats(){ cats=(await api('/api/opex/categories')).items; }
+// ── статьи: направление разнесения (вперёд / за прошлые месяцы) ─────────────
+function toggleCats(){
+  const box=$('#catbox');
+  const show=box.style.display==='none';
+  box.style.display=show?'':'none';
+  if(show) renderCats();
+}
+function renderCats(){
+  const rows=cats.map(c=>`<tr>
+      <td>${esc(c.name)}</td>
+      <td><label class="chk"><input type="checkbox" ${c.spread_back?'checked':''}
+            onchange="setBack(${c.id},this.checked)"> платёж за прошлые месяцы</label></td>
+      <td class="muted" style="font-size:12px">${c.spread_back
+          ? 'платёж августа с «1 мес.» ложится в июль'
+          : 'платёж августа с «1 мес.» ложится в август'}</td></tr>`).join('');
+  $('#catbox').innerHTML=`<h3 style="margin:6px 0 10px">Статьи: куда идёт платёж</h3>
+    <table class="rl"><thead><tr><th>Статья</th><th>Направление</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    <p class="note">Обычная статья разносит платёж ВПЕРЁД от месяца оплаты: аренда за август,
+       уплаченная в августе, лицензия на год с «12 мес.» — август и следующие 11.
+       Галка переворачивает направление для тех статей, где платят за уже прошедшее: налоги
+       и взносы за июль платятся в августе, значит расход относится к июлю. Тогда «N мес.»
+       отсчитываются НАЗАД и заканчиваются месяцем перед платежом: НДС за II квартал,
+       уплаченный в июле, с «3 мес.» ляжет в апрель–июнь.
+       Переключение сразу пересчитывает уже размеченные платежи этой статьи.</p>`;
+}
+async function setBack(id,val){
+  const r=await post('/api/opex/categories',{id:id,spread_back:val});
+  if(!r.ok){alert(r.error||'не удалось сохранить');return;}
+  await loadCats(); renderCats(); await load();
+  flash(`${val?'Разносим назад':'Разносим вперёд'} · пересчитано платежей ${r.recalc||0}`);
+}
 (async()=>{
   org=localStorage.getItem('opexOrg')||'';       // выбранная фирма живёт между заходами
   await loadCats();
