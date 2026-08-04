@@ -24,6 +24,10 @@ tmux attach -t <имя>    # подключиться (напр. tmux attach -t 
 | **rev** — отзывы/вопросы/чаты, ответчик, ТГ-модерация | `rev` | `/opt/mp-analytics` (ветка `eng/deepseek-answer-engine`) | `reports/feedback_{llm,drafts,grounding,corpus,send,today,web,sample}.py`, `collectors/{wb,ozon}_feedbacks.py`, `raw_feedback` (мигр. 038), ТГ-бот модерации | ✅ живая (`review3`) | `docs/HANDOFF.md#отзывы` + `docs/review3_handoff.md` |
 | **gab** — габариты карточек, переплата логистики | `gab` | `/opt/mp-analytics` | `supplier_dims` (мигр. 036/037), `scratch_dims_*.py`, `docs/*dims*`, `docs/wb_logistics_overpay.*`, коллекторы поставщиков (RAPID/ГалаПринт/Солюшнс) | ✅ живая (`gabarity`) | `docs/HANDOFF.md#габариты` + `docs/GABARITY_CONTEXT.md` |
 | **inv** — приёмка УПД→заказ поставщику, чистка МС | `inv` | `/opt/mp-analytics/invoice_bot` (сессия из `/root`) | `invoice_bot/{invoice_to_po,mail_poller,tg_bot,upd_to_supply,ms,supplier_groups,workcal,proc_log}.py` | ✅ живая (`invoice`) | `docs/HANDOFF.md#invoice` |
+| **ret** — ВОЗВРАТЫ ТОВАРА: что физически забрать с ПВЗ, ТГ-бот сводки | `ret` | `.claude/worktrees/ret` (ветка `ret/returns-bot`) | `returns_bot/*` (источники Ozon/Яндекс/WB, сводка, ТГ-бот), `mp_returns`/`mp_return_items` (мигр. 300, серия **3xx**) | 🟡 заводится 2026-08-02 | `docs/BRIEF_RET.md` |
+
+⚠️ **`ret` ≠ `rev`.** `ret` — возвраты **товара** (физика: забрать коробку с ПВЗ).
+`rev` — **отзывы** и вопросы покупателей. Имена похожи, территории не пересекаются.
 
 **Аналитика** — не отдельный поток, а режим внутри `fin`/`mkt` (`analyze_*.py`, `*_plan.py`, разовые витрины).
 Разовый анализ ведёт профильный поток; отдельную сессию не заводить.
@@ -36,7 +40,7 @@ tmux attach -t <имя>    # подключиться (напр. tmux attach -t 
 | **sokol** (анализ ТЗ) | `sokol` | `/opt/sokol-server`, `/opt/tz-analyzer-src`, `/var/www/sokol` | нет живой сессии; заводить только под задачу Сокола |
 
 ## Схема имён
-Каноничные имена — короткие, по потоку: **`fin` · `mkt` · `rev` · `gab` · `inv`** (mp-analytics),
+Каноничные имена — короткие, по потоку: **`fin` · `mkt` · `rev` · `gab` · `inv` · `ret`** (mp-analytics),
 **`china` · `sokol`** (внешние). Одно имя на поток, **без версионных суффиксов** (`mkt`, а не `mkt3/mkt4`).
 
 ## Правила жизненного цикла

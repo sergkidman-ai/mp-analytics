@@ -1,0 +1,75 @@
+{
+  "cactus": {
+    "file": "/opt/mp-analytics/incoming/gab/Вся расходка Китай РФ Cactus GG PR.xlsx",
+    "size": 1430423,
+    "mtime": "2026-07-15T05:00:12",
+    "sha256": "d0488dd393f71b9cb95cf51390c2aba1ef902bcac7a8eb2f95247679cc1d25fc",
+    "sheet": "Лист1",
+    "max_row": 4367,
+    "tail": 1,
+    "header_rows": 1
+  },
+  "izi": {
+    "file": "/opt/mp-analytics/incoming/gab/Изи.xlsx",
+    "size": 1359445,
+    "mtime": "2026-07-15T05:00:12",
+    "sha256": "4064fa397384d687b0349dbae769c7d4a21c54bf65a712f6c31981a966b8f971",
+    "sheet": "Данные по картриджам",
+    "max_row": 2500,
+    "tail": 0,
+    "header_rows": 1
+  },
+  "sakura_laser": {
+    "file": "/opt/mp-analytics/incoming/gab/САКУРА АБДУЛ 05.06.xlsx",
+    "size": 4576935,
+    "mtime": "2026-07-15T05:00:12",
+    "sha256": "ddbb1c580ba3ed878627b3d8dbea6c97710c4682804b2638b792149bf490915a",
+    "sheet": "Лазерная Sakura",
+    "max_row": 1498,
+    "tail": 0,
+    "header_rows": 1
+  },
+  "sakura_inkjet": {
+    "file": "/opt/mp-analytics/incoming/gab/САКУРА АБДУЛ 05.06.xlsx",
+    "size": 4576935,
+    "mtime": "2026-07-15T05:00:12",
+    "sha256": "ddbb1c580ba3ed878627b3d8dbea6c97710c4682804b2638b792149bf490915a",
+    "sheet": "Струйная Sakura",
+    "max_row": 1048576,
+    "tail": 1048214,
+    "header_rows": 1
+  },
+  "profiline": {
+    "file": "/opt/mp-analytics/incoming/gab/Профилайн.xls",
+    "size": 6388736,
+    "mtime": "2026-07-15T05:00:12",
+    "sha256": "69d443e7dfe231345abc96f004c4e40bdb947b62ffee786ffcb2e5b8608abed7",
+    "sheet": "TDSheet",
+    "max_row": 11915,
+    "tail": 0,
+    "header_rows": 0,
+    "header_row_index": 10
+  },
+  "rapid": {
+    "file": "/opt/mp-analytics/incoming/gab/rapid_2026-07-18.json",
+    "size": 7298851,
+    "mtime": "2026-07-18T08:14:22",
+    "sha256": "02a7675e18579ef06dcaebbe54e3a5a2f1d66ffb61fc30760bbdf49662265f9d",
+    "sheet": "price",
+    "max_row": 8483,
+    "tail": 0,
+    "header_rows": 0,
+    "total_field": 8483,
+    "date_field": "2026-07-18 11:14:02",
+    "проверка_единицы": {
+      "с_тремя_размерами": 2031,
+      "подтверждено": 419,
+      "не_сходится": 270,
+      "без_Volume": 1342,
+      "доля_подтверждённых": 0.2063,
+      "порог": 0.9,
+      "единица_проставлена": false,
+      "единица_гипотеза": "м"
+    }
+  }
+}
