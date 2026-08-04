@@ -471,13 +471,17 @@ def opex_category_save(payload: OpexCategory):
 
 @app.get("/api/opex/statement")
 def opex_statement(org: str = "", month: str = "", only: str = "all", direction: str = "DEBIT",
-                   cat: str = ""):
+                   cat: str = "", bank: str = ""):
     """Строки выписки ОДНОЙ фирмы за месяц + присвоенная статья.
 
     org — ИНН организации (7807355364 Цифровой / 7811803918 Дисквэр); пусто → первая по списку.
     Сводного разреза «обе фирмы» нет намеренно (решение Сергея 04.08.2026).
     only='unassigned' — только платежи без статьи. direction='' — вместе с приходом.
-    cat — фильтр по статье внутри месяца: '' все, 'none' без статьи, число = id статьи."""
+    cat — фильтр по статье внутри месяца: '' все, 'none' без статьи, число = id статьи.
+    bank — фильтр по банку ('' все, 'alfa'|'sber'|'ozon'): у Цифрового два счёта, Альфа и
+    Озон Банк, и сверять выписку удобнее по одному банку за раз. В отличие от `cat` этот
+    фильтр сужает и итоги внизу, и разрез по статьям — он выбирает СЧЁТ, а не подмножество
+    строк внутри счёта."""
     org = org if org in ORG_NAMES else ORG_ORDER[0]
     if not month:
         month = db.query("SELECT coalesce(max(date_trunc('month', operation_date))::text, '') m "
@@ -485,7 +489,14 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
     if not month:
         return {"month": None, "org": org, "orgs": [], "items": [], "totals": {}}
     month = month[:8] + "01"
+    # Банк подставляется в три запроса — держим его отдельным куском условия
+    bank = bank if bank.isalpha() else ""
+    bw = " AND t.bank = %s" if bank else ""
+    bp = [bank] if bank else []
     w, p = ["date_trunc('month', t.operation_date)::date = %s", "t.org_inn = %s"], [month, org]
+    if bank:
+        w.append("t.bank = %s")
+        p.append(bank)
     if direction:
         w.append("t.direction = %s")
         p.append(direction)
@@ -511,7 +522,7 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
         ORDER BY t.operation_date DESC, t.id DESC""", tuple(p))
     # Итог месяца — всегда по ВСЕМ расходам фирмы за месяц, независимо от фильтров экрана:
     # иначе при «только без статьи» строка внизу показывала бы «размечено 0 из 0».
-    tot = db.query("""
+    tot = db.query(f"""
         SELECT count(*)::int n,
                count(*) FILTER (WHERE a.txn_id IS NOT NULL)::int n_done,
                coalesce(sum(t.amount),0)::float total,
@@ -519,19 +530,27 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
                coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NULL),0)::float todo
         FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
         WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
-          AND t.direction='DEBIT'""", (month, org))[0]
+          AND t.direction='DEBIT'{bw}""", tuple([month, org] + bp))[0]
     # Разрез месяца по статьям — из него собирается селект фильтра (со счётчиком у каждой
     # статьи). Считается по ВСЕМ расходам месяца, а не по отфильтрованной выдаче: иначе после
     # выбора статьи в списке осталась бы она одна и вернуться было бы некуда.
-    by_cat = db.query("""
+    by_cat = db.query(f"""
         SELECT c.id AS category_id, c.name AS category, count(*)::int n,
                coalesce(sum(t.amount),0)::float amount
         FROM bank_txn t
         JOIN bank_txn_opex a ON a.txn_id = t.id
         JOIN opex_category c ON c.id = a.category_id
         WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
+          AND t.direction='DEBIT'{bw}
+        GROUP BY 1, 2 ORDER BY 4 DESC""", tuple([month, org] + bp))
+    # Список банков месяца — считается БЕЗ фильтра по банку, иначе в селекте оставался бы
+    # выбранный банк и вернуться к «всем» было бы некуда.
+    by_bank = db.query("""
+        SELECT t.bank, count(*)::int n, coalesce(sum(t.amount),0)::float amount
+        FROM bank_txn t
+        WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
           AND t.direction='DEBIT'
-        GROUP BY 1, 2 ORDER BY 4 DESC""", (month, org))
+        GROUP BY 1 ORDER BY 3 DESC""", (month, org))
     orgs = [{"org_inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
     seen = {r["org_inn"]: r for r in db.query(
         """SELECT org_inn, min(operation_date)::text d0, max(operation_date)::text d1,
@@ -542,7 +561,8 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
         "SELECT DISTINCT date_trunc('month', operation_date)::date::text m "
         "FROM bank_txn WHERE org_inn=%s ORDER BY 1 DESC", (org,))]
     return {"month": month, "org": org, "org_name": ORG_NAMES[org], "only": only, "cat": cat,
-            "items": items, "totals": tot, "by_cat": by_cat, "orgs": orgs, "months": months}
+            "bank": bank, "items": items, "totals": tot, "by_cat": by_cat, "by_bank": by_bank,
+            "orgs": orgs, "months": months}
 
 
 class OpexAssign(BaseModel):

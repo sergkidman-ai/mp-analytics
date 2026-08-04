@@ -77,6 +77,10 @@
   <div class="bar">
     <div class="orgs" id="orgs"></div>
     <select id="f-month"></select>
+    <!-- Фильтр по банку: показывается, только когда у фирмы в этом месяце больше одного
+         банка (у Цифрового Альфа + Озон). Сужает и итоги внизу — это выбор счёта. -->
+    <select id="f-bank" title="Показать только платежи выбранного банка"
+            style="display:none"></select>
     <!-- Фильтр по статье внутри месяца. Опция «— без статьи —» заменила прежний чекбокс
          «только без статьи»: два контрола на одно и то же противоречили друг другу. -->
     <select id="f-cat" title="Показать только платежи выбранной статьи"></select>
@@ -120,14 +124,19 @@ const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
 let org='', month='', cats=[], data=null, catFilter='';   // catFilter: '' все | 'none' | id статьи
+let bankFilter='';                                        // '' все банки | alfa | sber | ozon
 async function api(p){const r=await fetch(p);return r.json();}
 async function post(p,body){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
 function flash(t){const f=$('#flash');f.textContent=t;f.classList.add('on');setTimeout(()=>f.classList.remove('on'),1600);}
 
 async function load(){
   const dir=$('#f-credit').checked?'':'DEBIT';
-  data=await api(`/api/opex/statement?org=${org}&month=${month}&cat=${encodeURIComponent(catFilter)}&direction=${dir}`);
+  data=await api(`/api/opex/statement?org=${org}&month=${month}&cat=${encodeURIComponent(catFilter)}`
+                +`&bank=${encodeURIComponent(bankFilter)}&direction=${dir}`);
   month=data.month||month; org=data.org||org;
+  // Выбранного банка в этом месяце может не быть (сменили фирму или месяц): иначе экран
+  // остался бы пустым с нулевыми итогами. Снимаем фильтр и перезапрашиваем — один раз.
+  if(bankFilter && !(data.by_bank||[]).some(b=>b.bank===bankFilter)){bankFilter=''; return load();}
   renderBar(); render();
 }
 function renderBar(){
@@ -138,6 +147,13 @@ function renderBar(){
   $('#f-month').innerHTML=ms.map(m=>`<option value="${m}"${m===month?' selected':''}>${MONTHS[m.slice(5,7)]} ${m.slice(0,4)}</option>`).join('');
   // Статьи — только те, что реально встречаются в этом месяце (со счётчиком платежей).
   // Выбранной статьи в новом месяце может не быть — тогда фильтр молча снимаем.
+  // Банки месяца. Один банк — селект прячем: выбирать не из чего.
+  const bb=data.by_bank||[];
+  $('#f-bank').style.display=bb.length>1?'':'none';
+  $('#f-bank').innerHTML=bb.length>1
+    ? `<option value=""${bankFilter===''?' selected':''}>все банки (${bb.reduce((s,b)=>s+b.n,0)})</option>`
+      +bb.map(b=>`<option value="${b.bank}"${bankFilter===b.bank?' selected':''}>${esc(BANKS[b.bank]||b.bank)} (${b.n})</option>`).join('')
+    : '';
   const bc=data.by_cat||[], t=data.totals||{};
   if(catFilter && catFilter!=='none' && !bc.some(c=>String(c.category_id)===catFilter)) catFilter='';
   $('#f-cat').innerHTML=
@@ -188,9 +204,12 @@ function render(){
   const shown=(data.items||[]).filter(i=>i.direction!=='CREDIT');
   const cur=catFilter==='none'?'— без статьи —'
       :(data.by_cat||[]).find(c=>String(c.category_id)===catFilter)?.category||'';
+  // Фильтр по банку сужает и сами итоги — говорим об этом в подписи, чтобы «в расходах
+  // месяца» не читалось как вся фирма.
+  const bn=bankFilter?` · ${esc(BANKS[bankFilter]||bankFilter)}`:'';
   $('#foot').innerHTML=
     (catFilter?`<div class="ti"><span class="lbl">Фильтр · ${esc(cur)}</span><span class="vv">${shown.length} шт · ${rub(shown.reduce((s,i)=>s+i.amount,0))}</span></div>`:'')
-   +`<div class="ti"><span class="lbl">Размечено</span><span class="vv">${t.n_done||0} из ${t.n||0}</span></div>
+   +`<div class="ti"><span class="lbl">Размечено${bn}</span><span class="vv">${t.n_done||0} из ${t.n||0}</span></div>
     <div class="ti"><span class="lbl">В расходах месяца</span><span class="vv warn">${rub(t.done||0)}</span></div>
     <div class="ti"><span class="lbl">Без статьи</span><span class="vv">${rub(t.todo||0)}</span></div>`;
 }
@@ -339,6 +358,7 @@ async function loadCats(){ cats=(await api('/api/opex/categories')).items; }
   $('#f-remember').value=localStorage.getItem('opexRemember') ?? 'inn';
   $('#f-remember').onchange=e=>localStorage.setItem('opexRemember',e.target.value);
   $('#f-cat').onchange=e=>{catFilter=e.target.value;load();};
+  $('#f-bank').onchange=e=>{bankFilter=e.target.value;load();};
   $('#f-credit').onchange=load;
   $('#f-month').onchange=e=>{month=e.target.value;load();};
   await load();
