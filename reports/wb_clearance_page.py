@@ -10,7 +10,7 @@ run_daily и в API dismiss/restore.
 import sys
 import html
 import pathlib
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -21,6 +21,7 @@ OUT = BASE_DIR / "web" / "static" / "reports_wb_clearance.html"
 ACC_LABEL = {"wb_acc1": "ЦК", "wb_acc2": "Дисквэр"}
 ACC_FULL = {"wb_acc1": "Цифровой квадрат (ЦК)", "wb_acc2": "Дисквэр"}
 ACCOUNTS = ["wb_acc1", "wb_acc2"]     # порядок блоков сверху вниз
+MSK = timezone(timedelta(hours=3))    # сервер в UTC, штамп снимка показываем по Москве
 LOW_THRESHOLD = 1  # ≤ этого — «заканчивается» (остался 1 — следующая продажа обнулит)
 
 # распродажа — подраздел «Склада»: в левом меню активен «Склад» (не «Отчёты МП»),
@@ -157,12 +158,20 @@ def _rows():
 
 
 def _stamps():
-    """{account: date последнего снимка wb_stocks} — «время последнего обновления»
+    """{account: (date, ts|None)} последнего снимка wb_stocks — «время последнего обновления»
     остатков ВБ по каждому юрлицу. Это и есть свежесть данных таблицы (live_wb), а не
     время рендера страницы: если у юрлица встал токен, снимок не обновляется и штамп
-    честно отстаёт (напр. Дисквэр застрял, пока не перевыпущен WB_TOKEN_ACC2)."""
-    rows = db.query("SELECT account, max(captured_at) AS last FROM wb_stocks GROUP BY account")
-    return {r["account"]: r["last"] for r in rows}
+    честно отстаёт (напр. Дисквэр застрял, пока не перевыпущен WB_TOKEN_ACC2).
+
+    ts (миграция 064) — момент снятия снимка, показываем ЧАС: «обновлено сегодня» не отличало
+    утренний снимок от свежего, а прогон может упасть на середине (OOM 04.08.2026). У снимков
+    до 064 ts = NULL → показываем одну дату, время не выдумываем."""
+    rows = db.query("""
+        SELECT s.account, s.mx AS last, max(w.captured_ts) AS ts
+        FROM (SELECT account, max(captured_at) mx FROM wb_stocks GROUP BY account) s
+        JOIN wb_stocks w ON w.account=s.account AND w.captured_at=s.mx
+        GROUP BY s.account, s.mx""")
+    return {r["account"]: (r["last"], r["ts"]) for r in rows}
 
 
 def _closed_rows():
@@ -179,11 +188,15 @@ def _closed_rows():
 def _block(acc, rows, closed, last):
     esc = html.escape
     n = len(rows)
-    # штамп «обновлено» = дата последнего снимка wb_stocks по этому юрлицу; если не сегодня —
-    # данные несвежие (застрявший токен и т.п.), подсвечиваем красным.
-    if last:
-        stale = (last < date.today())
-        upd = (f'<span class="upd{" stale" if stale else ""}">обновлено {last.strftime("%d.%m.%Y")}'
+    # штамп «обновлено» = дата и ЧАС последнего снимка wb_stocks по этому юрлицу; если не сегодня —
+    # данные несвежие (застрявший токен и т.п.), подсвечиваем красным. Время — МСК (сервер в UTC).
+    last_d, last_ts = last if last else (None, None)
+    if last_d:
+        stale = (last_d < date.today())
+        when = last_d.strftime("%d.%m.%Y")
+        if last_ts:                       # снимки до миграции 064 без ts — показываем одну дату
+            when += last_ts.astimezone(MSK).strftime(" %H:%M МСК")
+        upd = (f'<span class="upd{" stale" if stale else ""}">обновлено {when}'
                f'{" ⚠ данные не обновляются" if stale else ""}</span>')
     else:
         upd = '<span class="upd stale">нет данных остатков</span>'

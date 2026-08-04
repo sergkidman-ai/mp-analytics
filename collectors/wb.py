@@ -12,6 +12,7 @@ reportDetailByPeriod (категория «Статистика», после 15
 import os
 import sys
 import time
+import datetime
 import pathlib
 from collections import defaultdict
 
@@ -168,6 +169,10 @@ def collect_stocks(account, captured_at, since="2025-01-01"):
     d = requests.get(f"{REMAINS_URL}/tasks/{task_id}/download", headers=H, timeout=180)
     d.raise_for_status()
     rows = d.json() or []
+    # Момент снятия снимка: captured_at это DATE, а вкладке «Распродажа остатков ВБ» нужен час —
+    # иначе «обновлено сегодня» не отличает утренний снимок от свежего. Пишем явно (не полагаясь
+    # на DEFAULT now()), чтобы повторный прогон в тот же день обновлял штамп через ON CONFLICT.
+    snap_ts = datetime.datetime.now(datetime.timezone.utc)
     recs = []
     for x in rows:
         nm = x.get("nmId")
@@ -184,6 +189,7 @@ def collect_stocks(account, captured_at, since="2025-01-01"):
                 "warehouse": wh, "quantity": q, "quantity_full": q,
                 "in_way_to_client": None, "in_way_from_client": None,
                 "brand": None, "subject": None, "captured_at": captured_at,
+                "captured_ts": snap_ts,
             })
     db.upsert("wb_stocks", recs, conflict_cols=["account", "nm_id", "warehouse", "captured_at"])
     return len(recs)
