@@ -77,7 +77,9 @@
   <div class="bar">
     <div class="orgs" id="orgs"></div>
     <select id="f-month"></select>
-    <label class="chk"><input type="checkbox" id="f-todo"> только без статьи</label>
+    <!-- Фильтр по статье внутри месяца. Опция «— без статьи —» заменила прежний чекбокс
+         «только без статьи»: два контрола на одно и то же противоречили друг другу. -->
+    <select id="f-cat" title="Показать только платежи выбранной статьи"></select>
     <label class="chk"><input type="checkbox" id="f-credit"> показать приход</label>
     <span style="margin-left:auto"></span>
     <label class="chk" title="Что запоминать при выборе статьи">запоминать:
@@ -114,15 +116,14 @@ const $=s=>document.querySelector(s);
 const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
-let org='', month='', cats=[], data=null;
+let org='', month='', cats=[], data=null, catFilter='';   // catFilter: '' все | 'none' | id статьи
 async function api(p){const r=await fetch(p);return r.json();}
 async function post(p,body){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
 function flash(t){const f=$('#flash');f.textContent=t;f.classList.add('on');setTimeout(()=>f.classList.remove('on'),1600);}
 
 async function load(){
-  const only=$('#f-todo').checked?'unassigned':'all';
   const dir=$('#f-credit').checked?'':'DEBIT';
-  data=await api(`/api/opex/statement?org=${org}&month=${month}&only=${only}&direction=${dir}`);
+  data=await api(`/api/opex/statement?org=${org}&month=${month}&cat=${encodeURIComponent(catFilter)}&direction=${dir}`);
   month=data.month||month; org=data.org||org;
   renderBar(); render();
 }
@@ -132,6 +133,14 @@ function renderBar(){
     `<button class="${org===o.org_inn?'cur':''}" onclick="setOrg('${o.org_inn}')" title="платежей в базе: ${o.n||0}">${esc(o.name)}</button>`).join('');
   const ms=data.months||[month];
   $('#f-month').innerHTML=ms.map(m=>`<option value="${m}"${m===month?' selected':''}>${MONTHS[m.slice(5,7)]} ${m.slice(0,4)}</option>`).join('');
+  // Статьи — только те, что реально встречаются в этом месяце (со счётчиком платежей).
+  // Выбранной статьи в новом месяце может не быть — тогда фильтр молча снимаем.
+  const bc=data.by_cat||[], t=data.totals||{};
+  if(catFilter && catFilter!=='none' && !bc.some(c=>String(c.category_id)===catFilter)) catFilter='';
+  $('#f-cat').innerHTML=
+     `<option value=""${catFilter===''?' selected':''}>все статьи (${t.n||0})</option>`
+    +`<option value="none"${catFilter==='none'?' selected':''}>— без статьи — (${(t.n||0)-(t.n_done||0)})</option>`
+    +bc.map(c=>`<option value="${c.category_id}"${catFilter===String(c.category_id)?' selected':''}>${esc(c.category)} (${c.n})</option>`).join('');
 }
 function setOrg(v){org=v;localStorage.setItem('opexOrg',v);month='';load();}
 function catOptions(sel){
@@ -159,13 +168,19 @@ function render(){
       <td>${ctl}</td>
       <td>${spread}</td>
       <td class="muted" style="font-size:11px">${src}</td></tr>`;
-  }).join('')||`<tr><td colspan="7" class="muted" style="padding:14px">Платежей за этот месяц нет.</td></tr>`;
+  }).join('')||`<tr><td colspan="7" class="muted" style="padding:14px">${catFilter?'По этому фильтру платежей нет.':'Платежей за этот месяц нет.'}</td></tr>`;
   $('#tbl').innerHTML=`<table class="st"><thead><tr>
       <th>Дата</th><th>Контрагент</th><th>Назначение</th><th style="text-align:right">Сумма</th>
       <th>Статья расходов</th><th>Мес.</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   const t=data.totals||{};
-  $('#foot').innerHTML=`
-    <div class="ti"><span class="lbl">Размечено</span><span class="vv">${t.n_done||0} из ${t.n||0}</span></div>
+  // Итоги месяца считаются по всем расходам и от фильтра не зависят; когда фильтр включён,
+  // первой строкой показываем, сколько попало в отбор — иначе непонятно, что видно на экране.
+  const shown=(data.items||[]).filter(i=>i.direction!=='CREDIT');
+  const cur=catFilter==='none'?'— без статьи —'
+      :(data.by_cat||[]).find(c=>String(c.category_id)===catFilter)?.category||'';
+  $('#foot').innerHTML=
+    (catFilter?`<div class="ti"><span class="lbl">Фильтр · ${esc(cur)}</span><span class="vv">${shown.length} шт · ${rub(shown.reduce((s,i)=>s+i.amount,0))}</span></div>`:'')
+   +`<div class="ti"><span class="lbl">Размечено</span><span class="vv">${t.n_done||0} из ${t.n||0}</span></div>
     <div class="ti"><span class="lbl">В расходах месяца</span><span class="vv warn">${rub(t.done||0)}</span></div>
     <div class="ti"><span class="lbl">Без статьи</span><span class="vv">${rub(t.todo||0)}</span></div>`;
 }
@@ -313,7 +328,8 @@ async function loadCats(){ cats=(await api('/api/opex/categories')).items; }
   await loadCats();
   $('#f-remember').value=localStorage.getItem('opexRemember') ?? 'inn';
   $('#f-remember').onchange=e=>localStorage.setItem('opexRemember',e.target.value);
-  $('#f-todo').onchange=load; $('#f-credit').onchange=load;
+  $('#f-cat').onchange=e=>{catFilter=e.target.value;load();};
+  $('#f-credit').onchange=load;
   $('#f-month').onchange=e=>{month=e.target.value;load();};
   await load();
 })();

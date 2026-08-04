@@ -452,12 +452,14 @@ def opex_category_save(payload: OpexCategory):
 
 
 @app.get("/api/opex/statement")
-def opex_statement(org: str = "", month: str = "", only: str = "all", direction: str = "DEBIT"):
+def opex_statement(org: str = "", month: str = "", only: str = "all", direction: str = "DEBIT",
+                   cat: str = ""):
     """Строки выписки ОДНОЙ фирмы за месяц + присвоенная статья.
 
     org — ИНН организации (7807355364 Цифровой / 7811803918 Дисквэр); пусто → первая по списку.
     Сводного разреза «обе фирмы» нет намеренно (решение Сергея 04.08.2026).
-    only='unassigned' — только платежи без статьи. direction='' — вместе с приходом."""
+    only='unassigned' — только платежи без статьи. direction='' — вместе с приходом.
+    cat — фильтр по статье внутри месяца: '' все, 'none' без статьи, число = id статьи."""
     org = org if org in ORG_NAMES else ORG_ORDER[0]
     if not month:
         month = db.query("SELECT coalesce(max(date_trunc('month', operation_date))::text, '') m "
@@ -469,8 +471,11 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
     if direction:
         w.append("t.direction = %s")
         p.append(direction)
-    if only == "unassigned":
+    if only == "unassigned" or cat == "none":
         w.append("a.txn_id IS NULL")
+    elif cat.isdigit():
+        w.append("a.category_id = %s")
+        p.append(int(cat))
     items = db.query(f"""
         SELECT t.id, t.bank, t.org_inn, t.operation_date::text, t.direction, t.amount::float,
                t.document_number, t.purpose, t.cp_name, t.cp_inn,
@@ -495,6 +500,18 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
         FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
         WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
           AND t.direction='DEBIT'""", (month, org))[0]
+    # Разрез месяца по статьям — из него собирается селект фильтра (со счётчиком у каждой
+    # статьи). Считается по ВСЕМ расходам месяца, а не по отфильтрованной выдаче: иначе после
+    # выбора статьи в списке осталась бы она одна и вернуться было бы некуда.
+    by_cat = db.query("""
+        SELECT c.id AS category_id, c.name AS category, count(*)::int n,
+               coalesce(sum(t.amount),0)::float amount
+        FROM bank_txn t
+        JOIN bank_txn_opex a ON a.txn_id = t.id
+        JOIN opex_category c ON c.id = a.category_id
+        WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
+          AND t.direction='DEBIT'
+        GROUP BY 1, 2 ORDER BY 4 DESC""", (month, org))
     orgs = [{"org_inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
     seen = {r["org_inn"]: r for r in db.query(
         """SELECT org_inn, min(operation_date)::text d0, max(operation_date)::text d1,
@@ -504,8 +521,8 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
     months = [r["m"] for r in db.query(
         "SELECT DISTINCT date_trunc('month', operation_date)::date::text m "
         "FROM bank_txn WHERE org_inn=%s ORDER BY 1 DESC", (org,))]
-    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "only": only, "items": items,
-            "totals": tot, "orgs": orgs, "months": months}
+    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "only": only, "cat": cat,
+            "items": items, "totals": tot, "by_cat": by_cat, "orgs": orgs, "months": months}
 
 
 class OpexAssign(BaseModel):
