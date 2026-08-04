@@ -33,7 +33,10 @@ import os, sys, re, json, gzip, time, subprocess, urllib.request, urllib.parse, 
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, "/opt/mp-analytics")          # фолбэк (canonical checkout может быть на другой ветке)
+sys.path.insert(0, os.path.dirname(_HERE))       # корень ЭТОГО чекаута/worktree — приоритет
+sys.path.insert(0, _HERE)
 from ms import get, post, put     # noqa
 import workcal                    # noqa
 import supplier_groups as SG      # noqa
@@ -55,15 +58,22 @@ SUPPLIERS = {
     "7806486149": {"name": "Солюшнс принт МСК", "article": "sp"},
     "7730244274": {"name": "Одиссей",           "article": "column", "num_prefix": "ОД", "num_pad": 8},
     "9717092410": {"name": "Тонерстор",         "article": "column", "pdf": "tonerstor"},
-    "7718978470": {"name": "Блоссом",           "article": "column"},
+    "7718978470": {"name": "Блоссом",           "article": "column", "plan_skip": 1},
     "7725744338": {"name": "Тонеропттторг",     "article": "column"},
     "9731107362": {"name": "Феррет",            "article": "name_regex",
                    "pattern": r"\b(?:CSP?|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "pdf": "ferret"},
     "7736123276": {"name": "Позитив",           "article": "name_last"},
-    "7840480595": {"name": "Колортек",          "article": "column", "auto_supply": True},  # без УПД → приёмку создаём сразу
+    # plan_skip — ТОЛЬКО фолбэк на случай недоступной БД: живая настройка срока доставки лежит
+    # в «Условиях оплаты поставщиков» (`delivery_days`) и ищется по ГРУППЕ поставщика.
+    # 1 = «через 1 рабочий день» (счёт Пн → приёмка Ср), решение Сергея 03.08.2026.
+    "7840480595": {"name": "Колортек",          "article": "column", "auto_supply": True,
+                   "plan_skip": 1},                          # без УПД → приёмку создаём сразу
     "7722341813": {"name": "КВК Трейд",         "article": "column"},
+    # «/» в шаблоне обязателен: у цветной серии цвет стоит ПОСЛЕ слэша
+    # («BS-M-TNP-50/51M/A0X5354/A0X5355»), без него артикул обрывался на «BS-M-TNP-50» —
+    # общий огрызок серии, по которому карточка не находится (счёт КТ-000117).
     "9718075418": {"name": "Картридж Трейд (Блоссом)", "article": "name_regex",
-                   "pattern": r"\bBS-[0-9A-Za-z]+(?:-[0-9A-Za-z]+)*", "novat": True,
+                   "pattern": r"\bBS-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "novat": True, "plan_skip": 1,
                    "year_suffix_on_collision": True},  # сбрасывает нумерацию по годам → развести суффиксом года
     "7719482878": {"name": "КПД",                "article": "column"},
     "7720494564": {"name": "Компания РМ",        "article": "column"},
@@ -419,6 +429,46 @@ def resolve_delivery_service():
 
 
 # ═══════════════════════ 6. Матчинг товаров (задачи 2, 3) ═════════════════════
+def _art_key(s):
+    """Артикул без разделителей и регистра: «BS-TK-865C» → «BSTK865C»."""
+    return re.sub(r"[^0-9A-ZА-Я]", "", (s or "").upper())
+
+
+def _find_by_art_key(art):
+    """Последний рубеж поиска карточки: артикул поставщика и наш совпадают ПОСЛЕ снятия
+    разделителей, либо наш — начало поставщицкого (поставщик дописывает OEM-код:
+    «BS-TK-865C/1T02JZCEU0» → карточка «BS-TK865C»). Точный filter=article таких не находит:
+    у поставщика другая расстановка дефисов. Пул сужаем самым длинным сырым префиксом, дающим
+    непустую выборку, дальше сверяем ключи локально. → [карточка] или []."""
+    key = _art_key(art)
+    if len(key) < 6:
+        return []
+    for n in (10, 8, 6, 5, 4, 3):
+        if n >= len(art):
+            continue
+        q = urllib.parse.quote(f"article~={art[:n]}")
+        size = (get_r(f"/entity/product?filter={q}&limit=1").get("meta") or {}).get("size") or 0
+        if size == 0:
+            continue
+        if size > 300:              # префикс слишком общий — дальше только шире, перебирать не будем
+            return []
+        rows = []
+        for off in range(0, size, 100):
+            rows += get_r(f"/entity/product?filter={q}&limit=100&offset={off}"
+                          f"&expand=supplier").get("rows", [])
+        by_len = {}
+        for r in rows:
+            k = _art_key(r.get("article"))
+            if len(k) >= 6 and key.startswith(k):     # наш артикул — начало поставщицкого
+                by_len.setdefault(len(k), []).append(r)
+        if not by_len:
+            continue                                  # узкий префикс не поймал — пробуем шире
+        top = by_len[max(by_len)]                      # самое длинное совпадение, и только если оно одно
+        if len(top) == 1:
+            return top
+    return []
+
+
 def match_products(items, prof, group):
     """→ (positions_meta, matched_info, skipped, warnings)."""
     positions, matched_info, skipped, warns = [], [], [], []
@@ -442,6 +492,10 @@ def match_products(items, prof, group):
                 cands = get_r(f"/entity/product?filter=article={urllib.parse.quote(trial)}&limit=10&expand=supplier").get("rows", [])
                 if cands:
                     art = trial; break
+        if not cands:                             # дефисы у поставщика стоят иначе — сверка по ключу
+            cands = _find_by_art_key(art)
+            if cands:
+                art = cands[0].get("article") or art
         if not cands:
             skipped.append({**it, "art": art, "reason": "нет в МС (архив?)"}); continue
         chosen, ambiguous = SG.pick_in_group(cands, group)
@@ -483,13 +537,37 @@ def price_kop(p):
     return p.get("_price_kop", round(p["price"] * 100))
 
 
+def plan_skip(org_inn, supplier_inn):
+    """Сколько ПОЛНЫХ рабочих дней пропустить между счётом и плановой приёмкой.
+    Источник правды — «Условия оплаты поставщиков» (`supplier_payment_terms.delivery_days`,
+    миграция 208): 1 = приёмка завтра → skip 0; 2 = послезавтра → skip 1. Владелец правит срок
+    в дашборде, без правки кода.
+
+    Ищем по ГРУППЕ поставщика, а не по ИНН из счёта: юрлица у поставщика со временем меняются,
+    настройка заведена на действующее ООО (у Блоссома — «КАРТРИДЖ ТРЕЙД»), а счёт может прийти
+    от любого юрлица группы. Несколько строк с разным сроком — берём БОЛЬШИЙ: приёмка позже
+    плана безобиднее, чем задним числом.
+    Строк нет / БД недоступна → зашитый `plan_skip` (тоже по группе), чтобы поведение
+    не менялось молча."""
+    inns = sorted(SG.related_inns(supplier_inn))
+    try:
+        from core import db
+        r = db.query("""SELECT max(delivery_days) d FROM supplier_payment_terms
+                        WHERE org_inn = %s AND inn = ANY(%s)""", (org_inn, inns))
+        if r and r[0]["d"]:
+            return max(0, int(r[0]["d"]) - 1)
+    except Exception as e:
+        print(f"⚠️  срок доставки из БД не прочитан ({e}) — беру зашитый в коде")
+    return max([SUPPLIERS.get(i, {}).get("plan_skip", 0) for i in inns] or [0])
+
+
 # ═══════════════════════ 8. Сборка и создание ═════════════════════════════════
 def build_payload(hdr, org, store, agent_id, positions, deliv_id, name, warns, skipped, applicable=False):
     now = datetime.now(MSK)
     inv = hdr["inv_date"]
     six = hdr["supplier_inn"] in SIX_INN
     novat = SUPPLIERS.get(hdr["supplier_inn"], {}).get("novat", False)  # поставщик без НДС
-    pl = workcal.plan_date(inv, six)
+    pl = workcal.plan_date(inv, six, plan_skip(org.get("inn"), hdr["supplier_inn"]))
     ms_positions = []
     for p in positions:
         pos = {"quantity": p["qty"], "price": price_kop(p),
@@ -746,6 +824,29 @@ def format_report(res):
     elif res.get("post_error"):
         L.append("\n❌ Не создан: " + res["post_error"])
     return "\n".join(L)
+
+
+def format_report_html(res):
+    """Тот же отчёт для Telegram (parse_mode=HTML): жирным — группа поставщика, покупатель, сумма.
+
+    Текст берём готовый и экранируем целиком, поэтому названия товаров с «&» или «<»
+    не ломают разметку; жирним уже по экранированным подстрокам, ровно по одному вхождению.
+    """
+    import html as _html
+    text = _html.escape(format_report(res), quote=False)
+    if not res.get("ok"):
+        return text
+    group = _html.escape(str(res.get("group") or ""), quote=False)
+    buyer = _html.escape(str(res.get("buyer") or ""), quote=False)
+    for old, new in (
+        (f"группа «{group}»", f"группа «<b>{group}</b>»") if group else (None, None),
+        (f"Покупатель: {buyer}", f"Покупатель: <b>{buyer}</b>") if buyer else (None, None),
+        (f"Сумма: {res['ordersum']:.2f} ₽", f"Сумма: <b>{res['ordersum']:.2f} ₽</b>")
+        if res.get("ordersum") is not None else (None, None),
+    ):
+        if old:
+            text = text.replace(old, new, 1)
+    return text
 
 
 def main():

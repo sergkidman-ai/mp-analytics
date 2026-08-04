@@ -17,7 +17,7 @@ mail_poller.py — IMAP-поллер: пересланные на выделен
 
 Запуск: python mail_poller.py   (в бою — под systemd, см. invoice-mail.service)
 """
-import os, sys, re, time, imaplib, email, json, urllib.request, traceback
+import os, sys, re, time, imaplib, email, json, html, urllib.request, traceback
 from email.header import decode_header
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -66,12 +66,15 @@ def imap_utf7_encode(name):
     return "".join(res)
 
 
-def tg_send(text):
+def tg_send(text, parse_mode=None):
     if not (TOKEN and NOTIFY):
         return
     text = text if len(text) <= 4000 else text[:3990] + "\n…(обрезано)"
     for chat in NOTIFY:
-        data = json.dumps({"chat_id": chat, "text": text, "disable_web_page_preview": True}).encode()
+        p = {"chat_id": chat, "text": text, "disable_web_page_preview": True}
+        if parse_mode:
+            p["parse_mode"] = parse_mode
+        data = json.dumps(p).encode()
         req = urllib.request.Request(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
                                      data=data, headers={"Content-Type": "application/json"})
         try:
@@ -132,9 +135,11 @@ def process_message(m, num, engine, kind):
         proc_log.log_event("invoice" if engine is pipe else "upd", "mail", fn, frm, res)
         if fn.lower().endswith((".xls", ".xlsx")) and res.get("ok"):
             done_stems.add(_stem(fn))       # Excel обработан → его PDF-двойник далее пропустим
-        report = engine.format_report(res)
-        head = f"📧 Из почты ({kind}) · {frm[:40]}\nФайл: {fn}\n\n"
-        tg_send(head + report)
+        # жирным: группа поставщика, покупатель, сумма (у УПД своей html-версии нет — просто экранируем)
+        rep_html = getattr(engine, "format_report_html", None)
+        report = rep_html(res) if rep_html else html.escape(engine.format_report(res), quote=False)
+        head = html.escape(f"📧 Из почты ({kind}) · {frm[:40]}\nФайл: {fn}", quote=False)
+        tg_send(f"{head}\n\n{report}", parse_mode="HTML")
         log(f"  {fn}: ok={res.get('ok')} created={res.get('created')} stop={res.get('stop')} err={res.get('error')}")
 
 

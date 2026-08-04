@@ -10,6 +10,10 @@
 Только чтение МойСклад + запись в Postgres (payment_draft_queue/po_payment_status). К банку не
 обращается вообще. Дневной крон, отдельный лог.
 
+Черновик снимается в 'paid' («проведён»), когда деньги видны в МС: по заказам — когда оплачены
+все covers_po_ids, по авансу — когда нашёлся paymentout на ту же сумму (`mark_executed_drafts`).
+Так очередь сама расчищается после утренней выписки, включая застрявшие в 'error'.
+
 Три метода (supplier_payment_terms.method), см. CLAUDE.md/докстринг миграции 200:
   • deferred              — платим за ПРИНЯТЫЙ товар: заказ без проведённой приёмки в пачку не
                             идёт (status='waiting_receipt', гейт `require_receipt`); далее пул
@@ -49,6 +53,16 @@ LOOKBACK_DAYS = 45   # горизонт заказов, за которым не
 # Заказы второй организации отсекаются на стороне МС-фильтра, а не постфактум.
 BUYER_INN = os.getenv("ALFA_BUYER_INN", "7807355364")   # ООО «ЦИФРОВОЙ КВАДРАТ»
 _ORG_ID = None
+
+
+def set_org(inn):
+    """Переключить организацию-плательщика на лету (прогон `--org all` по обеим фирмам).
+
+    Все функции модуля читают `BUYER_INN` как атрибут модуля в момент вызова, поэтому хватает
+    переприсваивания; кэш id организации в МС при этом обязан сброситься — иначе заказы второй
+    фирмы поедут через организацию первой."""
+    global BUYER_INN, _ORG_ID
+    BUYER_INN, _ORG_ID = inn, None
 
 
 def _org_id():
@@ -133,7 +147,8 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
     if not orders:
         return []
     tracked = {r["po_id"]: r for r in db.query(
-        "SELECT po_id, status, amount::float amount FROM po_payment_status WHERE inn=%s", (inn,))}
+        "SELECT po_id, status, amount::float amount FROM po_payment_status "
+        "WHERE org_inn=%s AND inn=%s", (BUYER_INN, inn))}
     new_rows, new_ids, closed, held, released, repriced, stale = [], [], [], [], [], [], []
     for o in orders:
         po_id = o["id"]
@@ -169,7 +184,7 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
         due = d + timedelta(days=deferral_days) if deferral_days else d
         waiting = due_amount <= 0        # только при require_receipt: товар ещё не принят
         new_rows.append({
-            "po_id": po_id, "inn": inn, "order_date": d, "due_date": due,
+            "po_id": po_id, "org_inn": BUYER_INN, "inn": inn, "order_date": d, "due_date": due,
             "amount": due_amount if not waiting else round(total - payed, 2),
             "status": "waiting_receipt" if waiting else "pending",
         })
@@ -222,9 +237,9 @@ def process_prepayment_per_order(inn, agent_id=None):
         row = db.query("SELECT amount FROM po_payment_status WHERE po_id=%s", (po_id,))[0]
         with db.get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("""INSERT INTO payment_draft_queue(inn, kind, amount, covers_po_ids, status)
-                    VALUES (%s, 'prepayment_order', %s, %s, 'planned') RETURNING id""",
-                    (inn, row["amount"], [po_id]))
+                cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status)
+                    VALUES (%s, %s, 'prepayment_order', %s, %s, 'planned') RETURNING id""",
+                    (BUYER_INN, inn, row["amount"], [po_id]))
                 draft_id = cur.fetchone()[0]
                 cur.execute("""UPDATE po_payment_status SET status='queued', draft_id=%s WHERE po_id=%s""",
                             (draft_id, po_id))
@@ -238,11 +253,13 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
     # Заказы в status='waiting_receipt' в выборку 'pending' ниже не попадают by design.
     _sync_pending(inn, deferral_days, agent_id, require_receipt=True)
     pending = db.query("""SELECT po_id, amount FROM po_payment_status
-        WHERE inn=%s AND status='pending' ORDER BY due_date, order_date""", (inn,))
+        WHERE org_inn=%s AND inn=%s AND status='pending'
+        ORDER BY due_date, order_date""", (BUYER_INN, inn))
     if not pending:
         return 0
     due_now = db.query("""SELECT count(*) n FROM po_payment_status
-        WHERE inn=%s AND status='pending' AND due_date<=%s""", (inn, date.today()))[0]["n"]
+        WHERE org_inn=%s AND inn=%s AND status='pending' AND due_date<=%s""",
+        (BUYER_INN, inn, date.today()))[0]["n"]
     if not due_now:
         return 0   # ни по одному заказу срок ещё не наступил — ждём
     # Ограничитель ОДИН — договорённость с поставщиком (payment_cap). Гейт по живому остатку на
@@ -269,9 +286,9 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
             (f"; ПРЕВЫШЕН на {total-limit:.0f}₽ — один заказ дороже лимита" if over else ""))
     with db.get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("""INSERT INTO payment_draft_queue(inn, kind, amount, covers_po_ids, status, note)
-                VALUES (%s, 'deferred_batch', %s, %s, 'planned', %s) RETURNING id""",
-                (inn, round(total, 2), picked, note))
+            cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status, note)
+                VALUES (%s, %s, 'deferred_batch', %s, %s, 'planned', %s) RETURNING id""",
+                (BUYER_INN, inn, round(total, 2), picked, note))
             draft_id = cur.fetchone()[0]
             cur.execute("""UPDATE po_payment_status SET status='queued', draft_id=%s
                 WHERE po_id = ANY(%s)""", (draft_id, picked))
@@ -288,12 +305,13 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=
         print(f"[{inn}] аванс/баланс: не задана сумма аванса или порог — пропуск")
         return 0
     already_planned = db.query("""SELECT count(*) n FROM payment_draft_queue
-        WHERE inn=%s AND kind='advance' AND status='planned'""", (inn,))[0]["n"]
+        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status='planned'""",
+        (BUYER_INN, inn))[0]["n"]
     if already_planned:
         return 0   # уже есть неотправленный черновик аванса — не плодим второй
     last = db.query("""SELECT amount::float amount, created_at FROM payment_draft_queue
-        WHERE inn=%s AND kind='advance' AND status IN ('sent_sandbox','sent_prod')
-        ORDER BY created_at DESC LIMIT 1""", (inn,))
+        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status IN ('sent_sandbox','sent_prod','paid')
+        ORDER BY created_at DESC LIMIT 1""", (BUYER_INN, inn))
     if not last:
         balance = 0.0
     else:
@@ -305,32 +323,120 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=
         return 0
     with db.get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("""INSERT INTO payment_draft_queue(inn, kind, amount, covers_po_ids, status, note)
-                VALUES (%s, 'advance', %s, NULL, 'planned', %s)""",
-                (inn, advance_amount, f"баланс {balance}₽ < порог {balance_threshold}₽"))
+            cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status, note)
+                VALUES (%s, %s, 'advance', %s, NULL, 'planned', %s)""",
+                (BUYER_INN, inn, advance_amount, f"баланс {balance}₽ < порог {balance_threshold}₽"))
     print(f"[{inn}] аванс/баланс: баланс {balance}₽ < порог {balance_threshold}₽ — запланирован аванс {advance_amount}₽")
     return 1
 
 
-def run(only_inn=None):
-    terms = db.query("SELECT * FROM supplier_payment_terms WHERE active")
+def _ms_payouts_since(inn, since, agent_id=None):
+    """Исходящие платежи (paymentout) нашей организации этому контрагенту с даты `since`."""
+    cid = _counterparty_id(inn, agent_id)
+    if not cid:
+        return []
+    href = f"{MSU}/entity/counterparty/{cid}"
+    org = f"{MSU}/entity/organization/{_org_id()}"
+    flt = urllib.parse.quote(
+        f"agent={href};organization={org};moment>={since:%Y-%m-%d} 00:00:00", safe="=;:")
+    out, offset = [], 0
+    while True:
+        page = get_r(f"/entity/paymentout?filter={flt}&limit=100&offset={offset}")
+        rows = page.get("rows", [])
+        out.extend(rows)
+        if len(rows) < 100:
+            break
+        offset += 100
+    return out
+
+
+def mark_executed_drafts(inn, agent_id=None):
+    """Черновик → 'paid' («проведён»), когда деньги видны в МС.
+
+    Факт оплаты приходит не из банка, а из МС: утренняя выписка Альфы разносится в
+    paymentin/paymentout. Отсюда два пути, по одному на форму черновика:
+
+    • Черновик ПОД ЗАКАЗЫ (отсрочка / по счёту). Привязка платежа закрывает `payedSum` заказа,
+      `_sync_pending` снимает заказ в 'paid' — значит черновик проведён ровно тогда, когда среди
+      covers_po_ids не осталось неоплаченных. Ловим ЛЮБОЙ незавершённый статус, не только
+      'sent_prod': 'error' (банк не принял, но счёт оплатили руками) и 'planned' (заплатили
+      раньше, чем поллер отправил) — деньги ушли, черновику в очереди делать нечего.
+    • АВАНС. Заказов под ним нет, `payedSum` закрывать нечему, поэтому ищем сам платёж: paymentout
+      этому контрагенту на ТУ ЖЕ сумму, датированный не раньше черновика. Найденный платёж
+      закрепляется за черновиком (`ms_payment_id`, миграция 206) — иначе второй аванс той же
+      суммы отметился бы тем же самым платежом.
+    """
+    done = db.query("""UPDATE payment_draft_queue q SET status='paid'
+        WHERE q.org_inn=%s AND q.inn=%s AND q.status IN ('planned', 'sent_prod', 'error')
+          AND coalesce(array_length(q.covers_po_ids, 1), 0) > 0
+          AND EXISTS (SELECT 1 FROM po_payment_status p WHERE p.po_id = ANY(q.covers_po_ids))
+          AND NOT EXISTS (SELECT 1 FROM po_payment_status p
+                          WHERE p.po_id = ANY(q.covers_po_ids) AND p.status <> 'paid')
+        RETURNING q.id, q.amount::float amount""", (BUYER_INN, inn))
+    for d in done:
+        print(f"[{inn}] черновик #{d['id']} на {d['amount']}₽ проведён (все заказы закрыты в МС)")
+    n = len(done)
+
+    adv = db.query("""SELECT id, amount::float amount, created_at FROM payment_draft_queue
+        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status IN ('planned', 'sent_prod', 'error')
+        ORDER BY created_at""", (BUYER_INN, inn))
+    if not adv:
+        return n
+    # Занятые платежи — по всем поставщикам сразу: один paymentout не может закрыть два черновика.
+    used = {r["ms_payment_id"] for r in db.query(
+        "SELECT ms_payment_id FROM payment_draft_queue WHERE ms_payment_id IS NOT NULL")}
+    pays = sorted(_ms_payouts_since(inn, min(a["created_at"] for a in adv).date(), agent_id),
+                  key=lambda p: p.get("moment", ""))
+    for a in adv:
+        born = a["created_at"].strftime("%Y-%m-%d")
+        for p in pays:
+            if p["id"] in used or p.get("moment", "")[:10] < born:
+                continue
+            if abs(round(p.get("sum", 0) / 100, 2) - a["amount"]) > 0.01:
+                continue
+            db.execute("""UPDATE payment_draft_queue
+                SET status='paid', ms_payment_id=%s, note = coalesce(note || ' | ', '') || %s
+                WHERE id=%s""",
+                (p["id"], f"проведён: платёж МС №{p.get('name', '?')} от {p.get('moment', '')[:10]}",
+                 a["id"]))
+            used.add(p["id"]); n += 1
+            print(f"[{inn}] аванс #{a['id']} на {a['amount']}₽ проведён "
+                  f"(платёж МС №{p.get('name', '?')} от {p.get('moment', '')[:10]})")
+            break
+    return n
+
+
+def run(only_inn=None, methods=None):
+    """`methods` — набор методов оплаты, которые обрабатываем в этом прогоне (None = все).
+
+    Разрез нужен вечернему прогону предоплаты: у ветки `deferred` нет гейта «не создавать второй
+    planned» (он есть только у `prepayment_balance`), поэтому полный прогон дважды в день дробил
+    бы одну пачку отсрочки на две платёжки. `mark_executed_drafts` под фильтр НЕ попадает —
+    сверка «оплачено в МС» дешёвая и нужна всегда."""
+    # Гейт по НАШЕЙ организации обязателен (миграция 207): у одного ИНН поставщика теперь до
+    # двух строк условий — свои у Цифрового Квадрата (Альфа) и свои у Дисквэра (Сбер). Без
+    # фильтра поллер собрал бы по каждому поставщику ДВА черновика на одни и те же заказы.
+    terms = db.query("SELECT * FROM supplier_payment_terms WHERE active AND org_inn=%s",
+                     (BUYER_INN,))
     if only_inn:
         terms = [t for t in terms if t["inn"] == only_inn]
     if not terms:
-        print("нет активных поставщиков в supplier_payment_terms")
+        print(f"нет активных поставщиков в supplier_payment_terms для org {BUYER_INN}")
         return
     for t in terms:
         inn, method = t["inn"], t["method"]
         agent_id = t.get("ms_agent_id")
         try:
-            if method == "deferred":
-                process_deferred(inn, t.get("deferral_days") or 0,
-                                 payment_cap=t.get("payment_cap"), agent_id=agent_id)
-            elif method == "prepayment_per_order":
-                process_prepayment_per_order(inn, agent_id=agent_id)
-            elif method == "prepayment_balance":
-                process_prepayment_balance(inn, t.get("advance_amount"),
-                                           t.get("balance_threshold"), agent_id=agent_id)
+            if not methods or method in methods:
+                if method == "deferred":
+                    process_deferred(inn, t.get("deferral_days") or 0,
+                                     payment_cap=t.get("payment_cap"), agent_id=agent_id)
+                elif method == "prepayment_per_order":
+                    process_prepayment_per_order(inn, agent_id=agent_id)
+                elif method == "prepayment_balance":
+                    process_prepayment_balance(inn, t.get("advance_amount"),
+                                               t.get("balance_threshold"), agent_id=agent_id)
+            mark_executed_drafts(inn, agent_id=agent_id)   # деньги видны в МС → черновик 'paid'
         except Exception as e:
             print(f"[{inn}] ОШИБКА ({method}): {type(e).__name__}: {e}")
 
@@ -338,8 +444,27 @@ def run(only_inn=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--inn", help="прогнать только одного поставщика (тест)")
+    ap.add_argument("--org", help="ИНН нашего юрлица или 'all' (по умолчанию — из ALFA_BUYER_INN)")
+    ap.add_argument("--methods", help="только эти методы оплаты, через запятую: "
+                                      "deferred,prepayment_per_order,prepayment_balance")
     a = ap.parse_args()
-    run(only_inn=a.inn)
+    methods = {m.strip() for m in a.methods.split(",")} if a.methods else None
+
+    if not a.org:
+        run(only_inn=a.inn, methods=methods)
+        return
+    if a.org == "all":
+        import payment_send                      # реестр наших юрлиц = реестр банков
+        orgs = list(payment_send.BANKS)
+    else:
+        orgs = [a.org]
+    for inn in orgs:
+        set_org(inn)
+        print(f"── организация {inn} ──")
+        try:                                     # падение МС по одной фирме не съедает вторую
+            run(only_inn=a.inn, methods=methods)
+        except Exception as e:                   # noqa: BLE001
+            print(f"[org {inn}] ОШИБКА: {type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":

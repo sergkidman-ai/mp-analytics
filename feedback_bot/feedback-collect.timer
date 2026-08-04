@@ -1,0 +1,12 @@
+[Unit]
+Description=Collect marketplace feedback every 30 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=30min
+RandomizedDelaySec=2min
+Persistent=true
+Unit=feedback-collect.service
+
+[Install]
+WantedBy=timers.target

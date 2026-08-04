@@ -38,6 +38,10 @@ import collectors.alfa_statement as alfa                         # noqa: E402
 import run_inv                                                   # noqa: E402
 
 MSK = dt.timezone(dt.timedelta(hours=3))
+# Источник ставки — выписка АЛЬФЫ, то есть контур ООО «Цифровой Квадрат». С миграции 207 у
+# ИНН поставщика до двух строк условий, поэтому и читаем, и пишем строго свою организацию:
+# ставка из платежей одного юрлица не повод переписать ставку в строке другого.
+ORG_INN = "7807355364"
 RATE = re.compile(r"(?i)НДС[\s,-]*(\d{1,2})\s*%")
 NO_VAT = re.compile(r"(?i)НДС\s+не\s+облагается|без\s+НДС")
 
@@ -52,7 +56,8 @@ def rate_of(purpose):
 
 def collect(days):
     """→ {ИНН: Counter(ставка: сколько платежей)} по исходящим платежам поставщикам."""
-    known = {r["inn"] for r in db.query("SELECT inn FROM supplier_payment_terms")}
+    known = {r["inn"] for r in db.query(
+        "SELECT inn FROM supplier_payment_terms WHERE org_inn=%s", (ORG_INN,))}
     seen = collections.defaultdict(collections.Counter)
     today = dt.datetime.now(MSK).date()
     for account in run_inv.accounts():
@@ -83,7 +88,8 @@ def main(argv):
             days = int(a.split("=", 1)[1])
 
     seen = collect(days)
-    rows = db.query("SELECT inn, name, vat_rate FROM supplier_payment_terms ORDER BY name")
+    rows = db.query("SELECT inn, name, vat_rate FROM supplier_payment_terms "
+                    "WHERE org_inn=%s ORDER BY name", (ORG_INN,))
     print(f"выписка за {days} дн. — {'ЗАПИСЬ' if apply else 'DRY-RUN'}\n")
     upd = 0
     for r in rows:
@@ -103,8 +109,8 @@ def main(argv):
         print(f"  {'✓' if apply else '•'} {r['name'][:30]:30} {label} "
               f"(платежей {c[rate]}, было {r['vat_rate'] if r['vat_rate'] is not None else 'пусто'})")
         if apply:
-            db.execute("UPDATE supplier_payment_terms SET vat_rate=%s, updated_at=now() WHERE inn=%s",
-                       (rate, r["inn"]))
+            db.execute("UPDATE supplier_payment_terms SET vat_rate=%s, updated_at=now() "
+                       "WHERE org_inn=%s AND inn=%s", (rate, ORG_INN, r["inn"]))
         upd += 1
     print(f"\n{'обновлено' if apply else 'обновилось бы'}: {upd} из {len(rows)}")
     if not apply and upd:

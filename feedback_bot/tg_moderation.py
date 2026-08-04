@@ -26,10 +26,12 @@ import os
 import sys
 import json
 import time
+import re
 import html
 import urllib.request
 import urllib.error
 import traceback
+import subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, "/opt/mp-analytics")
@@ -332,6 +334,44 @@ def _dashboard():
     return "\n".join(lines), kb
 
 
+# Служебные маркеры карточки модерации. Оператор правит ответ, копируя карточку целиком, и
+# служебная шапка уезжает покупателю (инцидент 31.07: на вопрос Ozon 019fb444 опубликовался весь
+# текст карточки — «🔴 БОЕВОЙ РЕЖИМ», счётчик «Опубликовано сегодня», «Покупатель:», «Наш ответ:»).
+_CARD_MARK_RX = re.compile(
+    r"^\s*(?:[\U0001F300-\U0001FAFF☀-➿️]+\s*)?"
+    r"(?:БОЕВОЙ РЕЖИМ|DRY-RUN|Опубликовано сегодня|Вопрос\s*·|Отзыв\s*·|Покупатель:|Наш ответ:)",
+    re.IGNORECASE)
+_ANSWER_MARK_RX = re.compile(r"^\s*(?:[\U0001F300-\U0001FAFF☀-➿️]+\s*)?Наш ответ:\s*",
+                             re.IGNORECASE)
+
+
+def clean_operator_text(text):
+    """Вырезать служебную разметку карточки из текста, присланного оператором.
+
+    Возвращает (clean, None) либо (None, причина-переспроса). Три случая:
+      * маркеров нет — текст и есть ответ, отдаём как прислали (обычная правка);
+      * есть «Наш ответ:» — ответ это всё, что ПОСЛЕ последнего такого маркера;
+      * маркеры есть, а «Наш ответ:» нет — где именно ответ, неизвестно; НЕ угадываем и НЕ шлём.
+    Отправлять «что осталось после вырезания» вслепую опаснее, чем переспросить: покупателю
+    уходит живой текст, отозвать его на площадке нельзя."""
+    raw = (text or "").strip()
+    if not raw:
+        return None, "пустой текст"
+    lines = raw.splitlines()
+    if not any(_CARD_MARK_RX.match(ln) for ln in lines):
+        return raw, None
+    idx = [i for i, ln in enumerate(lines) if _ANSWER_MARK_RX.match(ln)]
+    if not idx:
+        return None, "в тексте служебная разметка карточки, но строки «Наш ответ:» нет"
+    i = idx[-1]
+    body = [_ANSWER_MARK_RX.sub("", lines[i])] + lines[i + 1:]
+    body = [ln for ln in body if not _CARD_MARK_RX.match(ln)]
+    clean = "\n".join(body).strip()
+    if len(clean) < 15:
+        return None, "после вырезания служебных строк ответа не осталось"
+    return clean, None
+
+
 def _do_send(mod_id, from_id, text, chat_id, message_id):
     """Общий путь отправки (кнопка ✅ или присланный правленый текст)."""
     m = _mod(mod_id)
@@ -359,7 +399,9 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
                   f"{tail}\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
                   f"<b>Ответ:</b> {html.escape(text[:800])}")
         return tail
-    _set(mod_id, "failed", error=detail, decided_at="now()", decided_by=int(from_id))
+    # final_text сохраняем и при провале: иначе правленый оператором текст теряется и досыл после
+    # починки причины воспроизвести его уже не может (инцидент 03.08, вопрос ЯМ 28227084).
+    _set(mod_id, "failed", final_text=text, error=detail, decided_at="now()", decided_by=int(from_id))
     edit_text(ec, em, f"❌ Ошибка отправки: {html.escape(detail[:300])}")
     return f"ошибка: {detail[:120]}"
 
@@ -431,7 +473,17 @@ def handle_message(msg):
         if not text:
             send(chat_id, "Пустой текст — правка отменена.")
             return
-        res = _do_send(mod_id, from_id, text, chat_id, None)
+        clean, why = clean_operator_text(text)
+        if clean is None:
+            PENDING_EDIT[from_id] = mod_id          # правка НЕ отменена — ждём текст ещё раз
+            send(chat_id, f"⚠️ Не отправил: {why}.\n"
+                          f"Пришли, пожалуйста, только сам текст ответа покупателю — "
+                          f"без шапки карточки, счётчиков и строк «Покупатель:» / «Наш ответ:».")
+            return
+        if clean != text:
+            log(f"правка mod={mod_id}: вырезана служебная разметка карточки "
+                f"({len(text)} → {len(clean)} симв.)")
+        res = _do_send(mod_id, from_id, clean, chat_id, None)
         send(chat_id, f"Правка: {res}")
         return
     if text == "/next":
@@ -462,7 +514,18 @@ def main():
             {"command": "next", "description": "Показать 5 следующих карточек"}]})
     except Exception as e:
         log(f"setMyCommands: {e}")
-    log(f"bot @{me.get('username')} запущен. live={fs._live()} allowed={sorted(ALLOWED) or 'ПУСТО'} "
+    # ревизию пишем в лог осознанно: процесс держит модули в памяти с момента старта, и после
+    # `git pull` без restart бот молча исполняет СТАРЫЙ код (инцидент 03.08: фикс parentEntityId
+    # лежал на диске с 30.07, а бот работал с 28.07 и продолжал ловить 400). Теперь версию,
+    # которая реально выполняется, видно в journalctl без раскопок по mtime и ps.
+    try:
+        rev = subprocess.run(["git", "-C", os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, timeout=5).stdout.strip() or "?"
+    except Exception:
+        rev = "?"
+    log(f"bot @{me.get('username')} запущен. rev={rev} live={fs._live()} "
+        f"allowed={sorted(ALLOWED) or 'ПУСТО'} "
         f"notify={NOTIFY} · карточки этот бот шлёт только по кнопке; авто-порции — отдельный цикл "
         f"feedback_cycle.py (send_batch по таймеру)")
     offset = None

@@ -66,7 +66,31 @@ def _counts():
     return {"sent": sent, "published_mod": published_mod, "queued": queued, "deferred": deferred,
             "errors": errors, "cost_usd": float(cost["usd"]), "llm_calls": cost["calls"],
             "by_yday": by_yday, "by_today": by_today,
-            "stuck_yday": stuck_yday, "stuck_open": stuck_open}
+            "stuck_yday": stuck_yday, "stuck_open": stuck_open, "index": _index()}
+
+
+def _index():
+    """Паспорт индекса совместимости (подбор товара по модели принтера). Своя таблица и свой
+    сбойный путь — если он недоступен, сводка всё равно должна уйти."""
+    try:
+        from reports import compat_index
+        return compat_index.meta()
+    except Exception:
+        return None
+
+
+def _index_line(c):
+    """Возраст индекса подбора — ОТДЕЛЬНОЙ строкой: протухший индекс не ломает ответы, он молча
+    перестаёт находить новые карточки, и без этой строки это видно только раскопками в логах.
+    Порог тревоги — двое суток (гейт пересборки в цикле — 24 ч)."""
+    m = c.get("index")
+    if not m:
+        return "⚠️ Индекс подбора: <b>НЕ СОБРАН</b> (подбор идёт запасным путём)\n"
+    age = m["age_hours"]
+    mark = "⚠️ " if age > 48 else ""
+    age_txt = f"{age:.0f} ч" if age < 48 else f"<b>{age / 24:.1f} сут</b>"
+    return (f"{mark}Индекс подбора: обновлён {age_txt} назад · моделей <b>{m['models_total']}</b> · "
+            f"листингов {m['items_total']}\n")
 
 
 def _chan_lines(rows):
@@ -86,6 +110,7 @@ def build_text(c):
                if c["deferred"] else "")
             + f"Ошибок отправки (разовые, повтор будет): <b>{c['errors']}</b>\n"
             + _stuck_line(c)
+            + _index_line(c)
             + f"Потрачено на LLM: <b>${c['cost_usd']:.4f}</b> ({c['llm_calls']} вызовов)")
 
 

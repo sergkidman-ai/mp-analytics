@@ -30,7 +30,9 @@ from reports.feedback_drafts import _norm                                       
 from reports.card_facts import CardFacts                                         # noqa: E402
 from reports.feedback_corpus import load_corpus, intent                         # noqa: E402
 from reports.feedback_draft_run import draft_review, _first_name, _short, DEFECT_RX  # noqa: E402
+from reports import neg_templates                                                    # noqa: E402
 from reports.feedback_web import web_compat                                      # noqa: E402
+from reports.llm_client import create_with_retry as _create, LlmUnavailable      # noqa: E402,F401
 from reports.compat_cache import get as cc_get, put as cc_put                    # noqa: E402
 
 # сигнал, что товар УЖЕ куплен/используется (тогда уместен QR на упаковке/чеке); иначе — пред-продажа.
@@ -150,7 +152,8 @@ _REDIRECT_RX = re.compile(
     r"рекомендуем\s+поиск|в\s+ассортименте[^.!?]*нет|в\s+нашем\s+магазине[^.!?]*нет|"
     r"у\s+нас\s+(?:пока\s+)?нет\b|уточнит[еь][^.!?]*налич", re.I)
 # уже назван НАШ площадочный артикул → добор не нужен
-_HAS_OUR_ART_RX = re.compile(r"артикул\s+ВБ|Ozon\s+SKU|wildberries\.ru/catalog|ozon\.ru/product", re.I)
+_HAS_OUR_ART_RX = re.compile(r"артикул\s+ВБ|Ozon\s+SKU|wildberries\.ru/catalog|ozon\.ru/product|"
+                             r"market\.yandex\.ru|Яндекс\.Маркете", re.I)
 # вопрос о ПРОИЗВОДИТЕЛЕ/СТРАНЕ: клиент требует прямой ответ «Китай», а не уклончивое «не указываем»
 _PRODUCER_Q_RX = re.compile(r"производител|кто\s+производ|чей\s+бренд|какой\s+бренд|как(?:ая|ой)\s+фирм|"
                             r"стран[аеы]?\s+производ|где\s+(?:производ|сдела|изготов)|"
@@ -250,8 +253,8 @@ def _llm(client, r, cf, corpus, hint=None):
         client = client_for(model)
     sysparam = ([{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
                 if not model.lower().startswith("deepseek") else SYSTEM)
-    m = client.messages.create(model=model, max_tokens=max_tok, system=sysparam,
-                               messages=[{"role": "user", "content": content}])
+    m = _create(client, model=model, max_tokens=max_tok, system=sysparam,
+                messages=[{"role": "user", "content": content}])
     _COST.add(model, getattr(m, "usage", None))
     raw = _text_of(m)
     d = None
@@ -345,13 +348,50 @@ def _code_guard(reply, allowed_text, note):
 
 def _repair_denial(reply, offer):
     """Убирает предложения с ложным «наличия нет» / уводом «на сторону» и дописывает реальный листинг."""
+    base = _strip_denial(reply)
+    return (base.rstrip(" .") + f". Для вашего принтера у нас есть подходящий картридж — "
+            f"{offer['ref']}, ссылка {offer['url']}")
+
+
+def _strip_denial(reply):
     kept = [s for s in re.split(r"(?<=[.!?])\s+", reply or "")
             if not _DENY_AVAIL_RX.search(s) and not _REDIRECT_RX.search(s)]
     base = " ".join(kept).strip()
-    if len(base) < 15:
-        base = "Здравствуйте!"
-    return (base.rstrip(" .") + f". Для вашего принтера у нас есть подходящий картридж — "
-            f"{offer['ref']}, ссылка {offer['url']}.")
+    return base if len(base) >= 15 else "Здравствуйте!"
+
+
+# как называется чат площадки — покупателю говорим на языке ЕГО канала
+_CHAT_NAME = {"wb": "в чат на Wildberries", "ozon": "в чат на Ozon", "yandex": "в чат на Яндекс.Маркете"}
+
+
+def _ask_in_chat(reply, platform):
+    """Своего листинга в канале покупателя нет. Ссылку на ЧУЖУЮ площадку не даём (там он не купит),
+    но и молча отказывать нельзя — зовём уточнить у нас в чате, где подберём вручную."""
+    base = _strip_denial(reply).rstrip(" .")
+    return (base + f". Подходящий вариант подберём вручную: напишите нам, пожалуйста, "
+            f"{_CHAT_NAME.get(platform, 'в чат')} и укажите точную модель принтера.")
+
+
+# URL до первого символа вне безопасного набора; служебный текст/кириллица/U+FFFC внутрь не попадают
+_URL_RX = re.compile(r"https?://[^\s<>\"'«»]+")
+_URL_SAFE_RX = re.compile(r"[^A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]")
+
+
+def _scrub_urls(text):
+    """Ссылка не должна слипаться с пунктуацией и служебным текстом.
+
+    Инцидент 01.08.2026: покупателю ушла ссылка вида «…/detail.aspx.￼источник» — точка предложения
+    и пометка источника оказались ВНУТРИ URL, автолинк захватил их, ссылка не открывалась.
+    Режем URL по первому символу вне безопасного набора (кириллица, U+FFFC и пр.) и снимаем
+    хвостовую пунктуацию; после ссылки гарантируем пробел."""
+    def fix(m):
+        u, tail = m.group(0), ""
+        cut = _URL_SAFE_RX.search(u)
+        if cut:
+            u, tail = u[:cut.start()], u[cut.start():]     # хвост не теряем — отделяем пробелом
+        return u.rstrip(".,;:!?)»") + (" " + tail.lstrip("￼ \t") if tail.strip("￼ ") else "")
+    out = _URL_RX.sub(fix, text or "")
+    return re.sub(r"\s{2,}", " ", out).strip()
 
 
 def _our_offer(reply, question, product_name, models, platform, card_code=None, item_id=None):
@@ -543,11 +583,10 @@ def _answer(client, r, cf, corpus):
         # негатив → шаблоны (позитив: разнообразная ротация 16 вариантов; негатив: хендофф по QR)
         used_llm = _has_text(r) and (not _neg) and (bool(DEFECT_RX.search(_txt)) or "?" in _txt)
     if used_llm:
-        try:
-            d, cc, used_model = _llm(client, r, cf, corpus)
-        except Exception as e:
-            d, cc, used_model = {"reply": f"[ошибка вызова: {str(e)[:120]}]", "route": "review",
-                                 "confidence": 0, "grounded": False, "note": ""}, "", MODEL
+        # БЕЗ except: сбой вызова (LlmUnavailable после повторов или любое другое исключение)
+        # поднимается в run() и запись остаётся без черновика. Подстановка текста ошибки в reply
+        # запрещена — см. LlmUnavailable.
+        d, cc, used_model = _llm(client, r, cf, corpus)
         # Битый JSON модели → _llm вернул route=human с маркером: на человека, БЕЗ обогащения/утечек.
         if r["kind"] == "question" and d.get("route") == "human":
             return _early_human(r, cc, (d.get("reply") or "").strip(),
@@ -671,8 +710,13 @@ def _answer(client, r, cf, corpus):
     else:
         name = _first_name(r["payload"]) if r["platform"] == "wb" else None
         _c, reply, route, conf = draft_review(r, name, _short(r["product_name"]))
-        cc, ground = "", {"llm": False, "note": "шаблон отзыва (ротация вариантов)", "source": "шаблон",
-                          "template": True}
+        # для карточки модератора видно, какой именно шаблон подставлен (тип жалобы или общий)
+        _nt = neg_templates.classify(" ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))) \
+            if _c == "negative" else None
+        _note = (f"шаблон негатива: {neg_templates.LABELS[_nt]}" if _nt else
+                 "шаблон негатива: общий (тип не определён)" if _c == "negative" else
+                 "шаблон отзыва (ротация вариантов)")
+        cc, ground = "", {"llm": False, "note": _note, "source": "шаблон", "template": True}
         cat = "review-empty"
     # КАТАЛОГ-ПОСЛЕ-ВЕБА + страховка от ложного «нет»: ответ отрицает наличие ИЛИ (после веба) уводит
     # покупателя «на сторону»/говорит «не подходит» БЕЗ нашего артикула — а по коду картриджа из веб-ответа
@@ -680,7 +724,9 @@ def _answer(client, r, cf, corpus):
     if (r["kind"] == "question" and reply and not _HAS_OUR_ART_RX.search(reply)
             and (_DENY_AVAIL_RX.search(reply)
                  or (used_web and (_INCOMPAT_RX.search(reply) or _REDIRECT_RX.search(reply))))):
-        _fct = cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else cf.for_wb(r["item_id"])
+        _fct = (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else
+                cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else
+                cf.for_wb(r["item_id"]))
         off = _our_offer(reply, r["body"], r["product_name"], (_fct or {}).get("models"),
                          r["platform"], (_fct or {}).get("code"), r["item_id"])
         if off:
@@ -688,12 +734,19 @@ def _answer(client, r, cf, corpus):
                 reply = _repair_denial(reply, off)             # вырезаем отказ/увод, дописываем наш листинг
             else:
                 reply = reply.rstrip(" .") + (f". В нашем магазине есть подходящий — "
-                                              f"{off['ref']}, ссылка {off['url']}.")
+                                              f"{off['ref']}, ссылка {off['url']}")
             route = "review"
             ground.update({"catalog": True, "grounded": True,
                            "source": (ground.get("source") or "модель") + "+каталог-после-веба",
                            "note": "каталог-после-веба: подставлен наш листинг; "
                            + (ground.get("note") or "")[:200]})
+        elif _DENY_AVAIL_RX.search(reply) or _REDIRECT_RX.search(reply):
+            # В КАНАЛЕ ПОКУПАТЕЛЯ подходящего листинга нет. Уводить на другую площадку запрещено
+            # (инцидент 01.08.2026: яндексовцу дали ссылку на WB) — честно зовём уточнить в чат.
+            reply = _ask_in_chat(reply, r["platform"])
+            route = "review"
+            ground.update({"note": f"нет листинга в канале {r['platform']} → без ссылки, "
+                           f"предложено уточнить в чате; " + (ground.get("note") or "")[:180]})
     # производитель/страна → прямой ответ «Китай» (детерминированно, т.к. DeepSeek уклоняется)
     if r["kind"] == "question" and reply:
         fixed = _fix_producer(reply, r["body"])
@@ -746,6 +799,7 @@ def _answer(client, r, cf, corpus):
         src = ground.get("source") or "—"
         ground["source"] = src if "без карточки" in src else src + " (без карточки)"
         ground["note"] = NO_CARD_NOTE + "; " + (ground.get("note") or "")[:200]
+    reply = _scrub_urls(reply)          # ссылка не должна слипаться с пунктуацией/служебным текстом
     outd = dict(r, cat=cat, reply=reply, route=route, conf=conf, card=cc,
                 note=ground.get("note", ""), grounded=ground.get("grounded", False),
                 catalog=ground.get("catalog", False), source=ground.get("source", ""),
@@ -762,9 +816,18 @@ def run(since="2026-06-17"):
           f"{sum(r['kind']=='question' for r in rows)}, отзывов {sum(r['kind']=='review' for r in rows)}). "
           f"Корпус few-shot: {len(corpus.items)}.", flush=True)
 
-    out, nllm, nweb = [], 0, 0
+    out, nllm, nweb, nfail = [], 0, 0, 0
     for i, r in enumerate(rows, 1):
-        outd, reply, route, conf, ground, ul, uw = _answer(client, r, cf, corpus)
+        try:
+            outd, reply, route, conf, ground, ul, uw = _answer(client, r, cf, corpus)
+        except Exception as e:
+            # Сбой генерации — запись остаётся БЕЗ черновика и БЕЗ карточки модерации: пусть лучше
+            # покупатель ждёт следующего цикла, чем получит служебный текст. draft_src_hash не
+            # проставлен → _gather() возьмёт эту запись снова через 2 часа.
+            nfail += 1
+            print(f"[{i}/{len(rows)}] ПРОПУСК без черновика {r['platform']}/{r['kind']} "
+                  f"{r['ext_id']}: {type(e).__name__}: {str(e)[:120]}", flush=True)
+            continue
         _store(r, reply, route, conf, ground)
         _enqueue_moderation(r, reply)
         out.append(outd)
@@ -779,7 +842,8 @@ def run(since="2026-06-17"):
     _html(out, since)
     c = Counter(o["cat"] for o in out)
     print(f"\nИТОГ: {len(out)} черновиков · ИИ-вызовов {nllm} · веб-проверок {nweb} · вопросов {c['question']} · "
-          f"отзывов-с-текстом {c['review-text']} · пустых-шаблоном {c['review-empty']}", flush=True)
+          f"отзывов-с-текстом {c['review-text']} · пустых-шаблоном {c['review-empty']}"
+          + (f" · ПРОПУЩЕНО без черновика (сбой модели) {nfail}" if nfail else ""), flush=True)
     print("Токены/стоимость (сборка ответа _llm):", flush=True)
     print(_COST.summary(), flush=True)
     _COST.persist()

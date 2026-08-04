@@ -6,6 +6,10 @@
   1. Сбор по всем каналам (collectors.feedback_collect_all).
   1b. Обновление контента карточек WB, если он старше FEEDBACK_CARDS_MAX_AGE_DAYS — без него у части
      SKU (весь wb_acc2 до 27.07) CARD_DATA пуст и вопрос уходит на человека без нужды.
+  1c. Пересборка индекса совместимости (reports.compat_index) — СРАЗУ ПОСЛЕ карточек, чтобы новые
+     карточки попали в подбор в тот же цикл. Гейт COMPAT_INDEX_MAX_AGE_HOURS (по умолч. 24): сборка
+     идёт ~75 секунд, гонять её каждые 2 часа впустую незачем. Провал шага цикл не роняет, а сборка
+     транзакционная — старый индекс остаётся рабочим.
   2. Пометка старых неотвеченных вопросов (>30 дней) флагом skipped_old — не генерируем, не шлём
      в модерацию (отзывам возрастной лимит не нужен, весь бэклог отзывов разбирается капельно).
   3. Генерация черновиков (reports.feedback_today.run) — draft_route auto/review/human.
@@ -18,7 +22,11 @@
   5. Пуш карточек модерации в Telegram капом FEEDBACK_MOD_CYCLE_BATCH/цикл (переиспользуем
      tg_moderation.send_batch — раньше авторассылку карточек убирали из-за флуда, теперь капается).
 
-Запуск:  ./venv/bin/python feedback_bot/feedback_cycle.py
+Запуск:  ./venv/bin/python feedback_bot/feedback_cycle.py [--no-send]
+
+--no-send (или FEEDBACK_CYCLE_NO_SEND=1) — прогон БЕЗ отправки: сбор, индекс, черновики считаются
+как обычно, но шаги 3b/4 (публикация ответов на площадках) и 5 (карточки в Telegram) пропускаются.
+Для ручных проверок: обычный ручной прогон — боевой, он публикует ответы покупателям.
 """
 import os
 import sys
@@ -59,15 +67,33 @@ def _mark_skipped_old():
     return n
 
 
-def main():
+def _index_line():
+    """Одна строка о состоянии индекса совместимости для лога цикла (возраст + объём)."""
+    try:
+        from reports import compat_index
+        m = compat_index.meta()
+    except Exception as e:
+        return f"состояние неизвестно ({type(e).__name__})"
+    if not m:
+        return "НЕ СОБРАН"
+    return (f"возраст {m['age_hours']:.1f} ч, моделей {m['models_total']}, "
+            f"листингов {m['items_total']}")
+
+
+def main(no_send=None):
+    no_send = (os.environ.get("FEEDBACK_CYCLE_NO_SEND", "0") == "1") if no_send is None else no_send
     started = time.strftime("%Y-%m-%d %H:%M:%S")
-    _log(f"=== цикл начат {started} ===")
+    _log(f"=== цикл начат {started}{' · РЕЖИМ БЕЗ ОТПРАВКИ (--no-send)' if no_send else ''} ===")
 
     from collectors import feedback_collect_all
     _step("1/5 сбор по каналам", feedback_collect_all.main)
 
     from collectors import wb_card_content
     _step("1b/5 контент карточек WB (по гейту свежести)", wb_card_content.refresh_if_stale)
+
+    from reports import compat_index
+    built = _step("1c/5 индекс совместимости (по гейту возраста)", compat_index.rebuild_if_stale)
+    _log(f"индекс совместимости: {'пересобран, ' if built else 'не требовался, '}{_index_line()}")
 
     _step("2/5 skipped_old для старых вопросов", _mark_skipped_old)
 
@@ -76,16 +102,21 @@ def main():
     _step("3/5 генерация черновиков", feedback_today.run, since=since)
 
     from feedback_bot import tg_moderation
-    _step("3b/5 слив хвоста старой схемы лимита (deferred)", tg_moderation.flush_deferred)
+    if no_send:
+        # Всё, что уходит наружу (площадки + карточки оператору), в тестовом прогоне пропускаем.
+        # Очередь модерации при этом наполняется — карточки уйдут следующим боевым циклом.
+        _log("3b–5/5 ПРОПУЩЕНЫ (--no-send): публикация на площадках и карточки в Telegram")
+    else:
+        _step("3b/5 слив хвоста старой схемы лимита (deferred)", tg_moderation.flush_deferred)
 
-    from collectors import feedback_autosend
-    _step("4/5 авто-отправка позитив-шаблонов", feedback_autosend.run)
+        from collectors import feedback_autosend
+        _step("4/5 авто-отправка позитив-шаблонов", feedback_autosend.run)
 
-    sent = _step("5/5 карточки модерации в Telegram", tg_moderation.send_batch, limit=MOD_CYCLE_BATCH)
-    _log(f"карточек отправлено: {sent if sent is not None else 0}")
+        sent = _step("5/5 карточки модерации в Telegram", tg_moderation.send_batch, limit=MOD_CYCLE_BATCH)
+        _log(f"карточек отправлено: {sent if sent is not None else 0}")
 
     _log("=== цикл завершён ===")
 
 
 if __name__ == "__main__":
-    main()
+    main(no_send=("--no-send" in sys.argv) or None)

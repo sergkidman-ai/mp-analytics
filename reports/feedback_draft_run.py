@@ -25,6 +25,7 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db                                       # noqa: E402
 from reports.card_facts import CardFacts                  # noqa: E402
 from reports.feedback_corpus import intent, load_corpus   # noqa: E402
+from reports import neg_templates                         # noqa: E402
 
 FULL = BASE_DIR / "docs" / "feedback_run.html"
 ART = BASE_DIR / "docs" / "feedback_run_artifact.html"
@@ -211,20 +212,26 @@ NEUTRAL4_OZ = "Спасибо за обратную связь! Учтём ва�
 
 
 # ─────────────────────── композитор ОТЗЫВА ───────────────────────
+def _neg_draft(r, name, prod):
+    """Черновик негативного отзыва: шаблон ПО ТИПУ ЖАЛОБЫ, если тип определился однозначно,
+    иначе прежний общий хендофф по QR. Маршрут в обоих случаях прежний — review."""
+    txt = " ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))
+    kind, tpl = neg_templates.pick(txt)
+    if tpl:
+        return tpl, kind
+    return (NEG_WB.format(name=name or "Здравствуйте", product=prod) if r["platform"] == "wb"
+            else NEG_OZ), None
+
+
 def draft_review(r, name, prod):
     rating = r["rating"] or 0
     empty = not (r["body"] or "").strip() and not (r["pros"] or "").strip() and not (r["cons"] or "").strip()
     txt = " ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))
     complaint = bool(DEFECT_RX.search(txt))
-    if rating <= 3:
-        cat = "negative"
-        draft = (NEG_WB.format(name=name or "Здравствуйте", product=prod) if r["platform"] == "wb" else NEG_OZ)
-        return cat, draft, "review", 0.5
-    # жалоба/критика в тексте — независимо от звёзд — не подставляем позитивный шаблон, на модерацию
-    if complaint:
-        cat = "negative"
-        draft = (NEG_WB.format(name=name or "Здравствуйте", product=prod) if r["platform"] == "wb" else NEG_OZ)
-        return cat, draft, "review", 0.5
+    if rating <= 3 or complaint:
+        # жалоба/критика в тексте — независимо от звёзд — не подставляем позитивный шаблон, на модерацию
+        draft, _ = _neg_draft(r, name, prod)
+        return "negative", draft, "review", 0.5
     # 4★ без явных претензий — нейтральная благодарность, тоже на модерацию (не auto)
     if rating == 4:
         cat = "neutral4"

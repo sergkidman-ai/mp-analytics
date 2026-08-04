@@ -1,0 +1,11 @@
+[Unit]
+Description=Marketplace feedback collector (WB/Ozon/Yandex)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/collectors/feedback_collect_all.py
+StandardOutput=journal
+StandardError=journal

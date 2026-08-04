@@ -15,7 +15,7 @@ Telegram-ID берём из /opt/mp-analytics/.env:
 
 Запуск: python tg_bot.py   (в бою — под systemd, см. invoice-bot.service)
 """
-import os, sys, re, json, time, urllib.request, urllib.parse, urllib.error, traceback
+import os, sys, re, json, time, html, urllib.request, urllib.parse, urllib.error, traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, "/opt/mp-analytics")
@@ -47,16 +47,29 @@ def api(method, params=None, timeout=60):
         return json.loads(r.read())
 
 
-def send(chat_id, text, reply_to=None):
+def send(chat_id, text, reply_to=None, parse_mode=None):
     # Telegram лимит 4096 симв.
     text = text if len(text) <= 4000 else text[:3990] + "\n…(обрезано)"
     p = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+    if parse_mode:
+        p["parse_mode"] = parse_mode
     if reply_to:
         p["reply_to_message_id"] = reply_to
     try:
         api("sendMessage", p)
     except Exception as e:
         log(f"sendMessage error: {e}")
+
+
+def _esc(text):
+    """Экранирование для parse_mode=HTML (кавычки не трогаем — в тексте они обычные)."""
+    return html.escape(str(text), quote=False)
+
+
+def _report_html(engine, res):
+    """Отчёт движка для HTML-режима. У кого своей html-версии нет — просто экранируем."""
+    fn = getattr(engine, "format_report_html", None)
+    return fn(res) if fn else _esc(engine.format_report(res))
 
 
 def download_file(file_id, dst_name):
@@ -81,13 +94,13 @@ def sender_label(msg):
     return name or str(f.get("id", "?"))
 
 
-def broadcast_others(exclude_id, text):
+def broadcast_others(exclude_id, text, parse_mode=None):
     """Отправить text всем пользователям из ALLOWED, кроме отправителя (exclude_id)."""
     for uid in ALLOWED:
         if uid == str(exclude_id):
             continue
         try:
-            send(int(uid), text)
+            send(int(uid), text, parse_mode=parse_mode)
         except Exception as e:
             log(f"broadcast to {uid} error: {e}")
 
@@ -211,11 +224,11 @@ def handle(msg):
         log(f"process {safe} from {from_id} [{'UPD' if is_upd else 'INVOICE'}]")
         res = engine.process(path, create=True)
         proc_log.log_event("upd" if is_upd else "invoice", "tg", fname, f"tg:{from_id}", res)
-        report = engine.format_report(res)
-        send(chat_id, report, mid)                       # отправителю — ответом на его файл
+        report = _report_html(engine, res)               # жирным: группа поставщика, покупатель, сумма
+        send(chat_id, report, mid, parse_mode="HTML")    # отправителю — ответом на его файл
         # второму пользователю — тот же результат с пометкой, кто загрузил (единая лента)
-        broadcast_others(from_id, f"👤 {sender_label(msg)} загрузил(а) в бот · {kind}\n"
-                                  f"Файл: {fname}\n\n{report}")
+        head = _esc(f"👤 {sender_label(msg)} загрузил(а) в бот · {kind}\nФайл: {fname}")
+        broadcast_others(from_id, f"{head}\n\n{report}", parse_mode="HTML")
         log(f"done {safe}: ok={res.get('ok')} created={res.get('created')} stop={res.get('stop')} err={res.get('error')}")
     except Exception as e:
         log("handle error: " + traceback.format_exc())

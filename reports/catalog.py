@@ -1,10 +1,22 @@
-"""reports/catalog.py — поиск по НАШИМ живым листингам (WB + Ozon) для вопросов о наличии.
+"""reports/catalog.py — поиск по НАШИМ живым листингам (WB + Ozon + Яндекс.Маркет) для вопросов о наличии.
 
 Источник №3 движка вопросов. Отвечает на «есть ли у вас чёрный отдельно / штучно / артикул
-на модель X»: ищет по title карточек wb_cards и name листингов ozon_product (то, что реально
-продаётся) по модель-токенам из вопроса + цвету. Возвращает кандидатов (площадка, id, название,
-артикул) — их движок кладёт в промпт, чтобы модель могла назвать артикул/подтвердить наличие,
-не выдумывая. Ничего не находит → пустой блок (движок не утверждает наличие).
+на модель X»: ищет по title карточек wb_cards, name листингов ozon_product и name оферов
+raw_yandex_offer (то, что реально продаётся) по модель-токенам из вопроса + цвету. Возвращает
+кандидатов (площадка, id, название, артикул) — их движок кладёт в промпт, чтобы модель могла
+назвать артикул/подтвердить наличие, не выдумывая. Ничего не находит → пустой блок (движок не
+утверждает наличие).
+
+ПОДБОР ПО МОДЕЛИ ПРИНТЕРА идёт через индекс совместимости `reports/compat_index.py` (таблица
+`compat_index`, миграция 063), а НЕ через ILIKE по коду оригинала: покупатель называет свой принтер
+(или код оригинала), а мы продаём совместимые под своими кодами, и в title влезает 5–6 моделей из
+десятков. Индекс собран из списков совместимости WB, атрибутов Ozon, описаний и вердиктов
+`compat_cache`, модели нормализованы (серия + числовое ядро + суффикс), поэтому `DCP-7180DN`
+находит карточку «DCP-7180». ILIKE-путь остался запасным — работает, если индекс ещё не собран.
+
+ГРАНИЦА КАНАЛОВ (инцидент 01.08.2026): покупателю предлагаем товар ТОЛЬКО с той площадки, где он
+задал вопрос — см. `_same_channel`. Ссылка на чужой маркетплейс бесполезна (там он не купит) и
+выглядит как увод с площадки. Своей карточки нет → ничего не подставляем, движок зовёт в чат.
 """
 import re
 import sys
@@ -13,6 +25,7 @@ import pathlib
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db                          # noqa: E402
+from reports import compat_index             # noqa: E402
 
 # цвет → синонимы для ILIKE по названию листинга
 COLORS = {
@@ -144,11 +157,72 @@ def _search(model_tokens, color, limit=8):
         WHERE account='oz_acc1' AND {where} AND coalesce(name,'')<>'' AND NOT is_archived
         ORDER BY sku DESC LIMIT %s""", tuple(params) + (limit,)):
         out.append({"platform": "ozon", "id": r["sku"], "article": r["offer_id"], "title": r["name"]})
-    return out[: limit + 4]
+    # Яндекс.Маркет
+    out += _search_yandex(model_tokens, color, limit)
+    return out[: limit + 6]
+
+
+def _ya_name(alias="o"):
+    return f"{alias}.payload->'offer'->>'name'"
+
+
+def _ya_rows(where, params, limit):
+    """Листинги Маркета: marketSku (по нему карточка) + B2C-витрина из showcaseUrls."""
+    out = []
+    for r in db.query(f"""SELECT o.offer_id, o.payload->'mapping'->>'marketSku' AS sku,
+            {_ya_name()} AS name, o.payload->'showcaseUrls' AS urls
+        FROM raw_yandex_offer o
+        WHERE o.account='ya_acc1' AND {where}
+          AND coalesce({_ya_name()},'')<>''
+          AND o.payload->'mapping'->>'marketSku' IS NOT NULL
+          AND coalesce(o.payload->'offer'->>'archived','false') <> 'true'
+        ORDER BY o.offer_id DESC LIMIT %s""", tuple(params) + (limit,)):
+        url = next((u.get("showcaseUrl") for u in (r["urls"] or [])
+                    if isinstance(u, dict) and u.get("showcaseType") == "B2C"), None)
+        if not url:                       # без витринной ссылки покупателю предлагать нечего
+            continue
+        out.append({"platform": "yandex", "id": r["sku"], "article": r["offer_id"],
+                    "title": r["name"], "url": url})
+    return out
+
+
+def _search_yandex(model_tokens, color, limit=8):
+    conds, params = [], []
+    for t in model_tokens:
+        conds.append(f"{_ya_name()} ILIKE %s")
+        params.append("%" + t + "%")
+    if color:
+        syn = COLORS[color]
+        conds.append("(" + " OR ".join([f"{_ya_name()} ILIKE %s"] * len(syn)) + ")")
+        params += ["%" + s.strip() + "%" for s in syn]
+    if not conds:
+        return []
+    return _ya_rows(" AND ".join(conds), params, limit)
 
 
 def _nums(toks):
     return [t for t in toks if re.search(r"\d", t)]
+
+
+# Ozon: атрибуты и подбор исторически ограничены Премиум-аккаунтом (oz_acc1) — сохраняем как было,
+# чтобы врезка индекса не поменяла заодно и набор предлагаемых магазинов. WB — оба аккаунта (nmID
+# у ВБ глобально уникален), Маркет — ya_acc1.
+_LOOKUP_ACCOUNTS = {"ozon": ["oz_acc1"]}
+# сопутствующий расходник → тип товара в индексе (девелопер/печка своего типа не имеют — старый путь)
+_ACC_KIND = {"фотобарабан": "drum"}
+
+
+def _index_hits(text, platform, color=None, kind=None, models=None, exclude_id=None, limit=8,
+                kind_strict=False):
+    """Подбор по модели принтера через индекс совместимости. → список хитов, [] если не нашли,
+    None если индекс не собран (вызывающий откатывается на старый ILIKE-путь)."""
+    if not compat_index.is_ready():
+        return None
+    return compat_index.lookup(text or "", platform=platform, kind=kind,
+                               accounts=_LOOKUP_ACCOUNTS.get(platform),
+                               color_syn=COLORS.get(color) if color else None,
+                               exclude_id=exclude_id, limit=limit, models=models,
+                               kind_strict=kind_strict)
 
 
 def _detect_accessory(text):
@@ -178,16 +252,39 @@ def _search_accessory(model_tokens, acc_key, limit=6):
                           tuple(params) + (limit,)):
             plat = "wb" if tbl == "wb_cards" else "ozon"
             out.append({"platform": plat, "id": r["id"], "article": r["art"], "title": r["nm"]})
+    # Яндекс.Маркет
+    conds, params = [], []
+    for t in model_tokens:
+        conds.append(f"{_ya_name()} ILIKE %s"); params.append("%" + t + "%")
+    conds.append("(" + " OR ".join([f"{_ya_name()} ILIKE %s"] * len(syns)) + ")")
+    params += ["%" + s + "%" for s in syns]
+    out += _ya_rows(" AND ".join(conds), params, limit)
     return out
 
 
 def _plat_ref(h):
     """Идентификатор ДЛЯ ПОКУПАТЕЛЯ (по нему реально найдёт), НЕ наш внутренний offer_id/vendorCode:
-    WB → артикул ВБ (nm_id) + ссылка; Ozon → SKU + ссылка."""
+    WB → артикул ВБ (nm_id) + ссылка; Ozon → SKU + ссылка; Яндекс → артикул продавца + витрина."""
     if h["platform"] == "wb":
         return (f"артикул ВБ {h['id']}",
                 f"https://www.wildberries.ru/catalog/{h['id']}/detail.aspx")
+    if h["platform"] == "yandex":
+        return (f"артикул {h['article']} на Яндекс.Маркете", h.get("url") or "")
     return (f"Ozon SKU {h['id']}", f"https://www.ozon.ru/product/{h['id']}")
+
+
+def _same_channel(hits, platform):
+    """ЖЁСТКИЙ фильтр по каналу покупателя, а НЕ сортировка «своё вперёд».
+
+    Инцидент 01.08.2026: покупателю на Яндексе подставили ссылку на карточку Wildberries
+    (артикул ВБ 923182635) — чужая площадка, купить там он не может. Причина: `platform` был
+    ключом сортировки, поэтому при отсутствии своего листинга наверх всплывал чужой.
+    Правило: подставляем товар ТОЛЬКО из канала вопроса; своего нет → ничего не предлагаем
+    (вызывающий код честно зовёт уточнить в чате), НИКОГДА не уводим на другую площадку.
+    platform=None (внутренние вызовы/тесты) — фильтр не применяем."""
+    if not platform:
+        return hits
+    return [h for h in hits if h["platform"] == platform]
 
 
 def catalog_block(text, product_name="", card_models=None, platform=None, card_color=None):
@@ -212,42 +309,51 @@ def catalog_block(text, product_name="", card_models=None, platform=None, card_c
     pool_nums = _nums(_model_tokens(" ".join([product_name or ""] + list(card_models or []))))
     if not nums:
         nums = pool_nums
+    # модели для индекса: из вопроса, а если там их нет — из названия товара и списка карточки
+    idx_models = None if nums else ([product_name or ""] + list(card_models or []))
     # сопутствующий расходник (фотобарабан/девелопер) — модель принтера берём из карточки товара
     acc_hits = []
     if acc:
-        for num in ((nums or pool_nums)[:3] or [None]):
-            toks = [x for x in (brand, num) if x]
-            if toks:
-                acc_hits += _search_accessory(toks, acc)
+        acc_kind = _ACC_KIND.get(acc)
+        acc_hits = _index_hits(q, platform, kind=acc_kind, kind_strict=True,
+                               models=[product_name or ""] + list(card_models or [])) if acc_kind else None
+        if acc_hits is None:                      # девелопер/печка или индекс не собран — старый путь
+            acc_hits = []
+            for num in ((nums or pool_nums)[:3] or [None]):
+                toks = [x for x in (brand, num) if x]
+                if toks:
+                    acc_hits += _search_accessory(toks, acc)
         seen_a = set()
         acc_hits = [h for h in acc_hits if (h["platform"], h["id"]) not in seen_a and not seen_a.add((h["platform"], h["id"]))]
-        if platform:
-            acc_hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
-    hits, seen = [], set()
-    # поиск ПО КАЖДОЙ модели отдельно (brand+номер+цвет) — union, не жёсткий AND всех номеров
-    for num in (nums[:3] or [None]):
-        toks = [x for x in (brand, num) if x]
-        for h in _search(toks, color):
-            key = (h["platform"], h["id"])
-            if key not in seen:
-                seen.add(key)
-                hits.append(h)
-    if not hits and color:               # цвета не нашли — попробуем шире (вдруг листинг без слова-цвета)
+        acc_hits = _same_channel(acc_hits, platform)
+    # ПОДБОР ПО МОДЕЛИ ПРИНТЕРА — через индекс совместимости (см. шапку модуля)
+    hits = _index_hits(q, platform, color=color, models=idx_models)
+    if hits is not None:
+        if not hits and color:           # цвета не нашли — шире (вдруг листинг без слова-цвета в названии)
+            hits = _index_hits(q, platform, models=idx_models) or []
+    else:                                # индекс не собран — запасной ILIKE-путь по токенам
+        hits, seen = [], set()
         for num in (nums[:3] or [None]):
             toks = [x for x in (brand, num) if x]
-            for h in _search(toks, None):
+            for h in _search(toks, color):
                 key = (h["platform"], h["id"])
                 if key not in seen:
                     seen.add(key)
                     hits.append(h)
+        if not hits and color:
+            for num in (nums[:3] or [None]):
+                toks = [x for x in (brand, num) if x]
+                for h in _search(toks, None):
+                    key = (h["platform"], h["id"])
+                    if key not in seen:
+                        seen.add(key)
+                        hits.append(h)
+    hits = _same_channel(hits, platform)          # только канал покупателя (см. _same_channel)
     if not hits and not acc_hits:
         return ""
     want = f" ({color})" if color else ""
     lines = []
     if hits:
-        # площадку покупателя — вперёд (там он и оформит заказ)
-        if platform:
-            hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
         lines.append(f"КАТАЛОГ — наши листинги под запрос{want}. Покупателю называй АРТИКУЛ ПЛОЩАДКИ (по "
                      "нему он найдёт товар) и/или ссылку — НЕ наш внутренний код. Если подходящего варианта "
                      "здесь нет — наличие НЕ утверждать, предложи уточнить:")
@@ -271,19 +377,20 @@ def catalog_offer(text, product_name="", card_models=None, platform=None):
     brand = next((b for b in _BRANDS if b in (q + " " + (product_name or "")).lower()), None)
     nums = _nums(_model_tokens(q))
     if not nums:
-        return None
-    hits, seen = [], set()
-    for num in nums[:3]:
-        toks = [x for x in (brand, num) if x]
-        for h in _search(toks, None):
-            key = (h["platform"], h["id"])
-            if key not in seen:
-                seen.add(key)
-                hits.append(h)
+        return None                      # модели принтера в вопросе нет — подставлять нечего
+    hits = _index_hits(q, platform)      # индекс совместимости: DCP-7180DN → карточка «DCP-7180»
+    if hits is None:                     # индекс не собран — запасной ILIKE-путь
+        hits, seen = [], set()
+        for num in nums[:3]:
+            toks = [x for x in (brand, num) if x]
+            for h in _search(toks, None):
+                key = (h["platform"], h["id"])
+                if key not in seen:
+                    seen.add(key)
+                    hits.append(h)
+    hits = _same_channel(hits, platform)
     if not hits:
         return None
-    if platform:
-        hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
     h = hits[0]
     ref, url = _plat_ref(h)
     return {"ref": ref, "url": url, "title": (h["title"] or "")[:80], "platform": h["platform"]}
@@ -319,10 +426,9 @@ def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=N
             hits.append(h)
         if hits and not color:          # первого кода с попаданиями достаточно (цвет — добираем все)
             break
+    hits = _same_channel(hits, platform)
     if not hits:
         return None
-    if platform:
-        hits.sort(key=lambda h: 0 if h["platform"] == platform else 1)
     h = hits[0]
     ref, url = _plat_ref(h)
     return {"ref": ref, "url": url, "title": (h["title"] or "")[:80],

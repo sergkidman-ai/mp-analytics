@@ -21,7 +21,7 @@ import subprocess
 
 # Манифест: домен → список regex путей (от корня репо). Первое совпадение = владелец.
 # Не перечисленное здесь — «общее» (core/db.py, CLAUDE.md, web/, docs/, разовые скрипты): НЕ флагуем.
-# Миграции делятся по БЛОКУ номера: 0xx = fin, 1xx = mkt (резерв номеров против коллизий).
+# Миграции делятся по БЛОКУ номера: 0xx = fin, 1xx = mkt, 3xx = ret (резерв против коллизий).
 DOMAINS = {
     "fin": [
         r"^collectors/(moysklad|ms_products|ms_demand_cogs|wb|ozon|ozon_postings|"
@@ -39,8 +39,14 @@ DOMAINS = {
         r"^run_marketing\.py$",
         r"^analyze_jam\.py$",
         r"^reports/(abc|funnel|visibility|search).*\.py$",   # будущие маркетинг-витрины
-        r"^migrations/[1-9]\d\d_.*\.sql$",
+        r"^migrations/1\d\d_.*\.sql$",
         r"^docs/BRIEF_MKT\.md$",
+    ],
+    # ret = ВОЗВРАТЫ ТОВАРА (что физически забрать с ПВЗ). Не путать с rev = отзывы.
+    "ret": [
+        r"^returns_bot/",
+        r"^migrations/3\d\d_.*\.sql$",
+        r"^docs/BRIEF_RET\.md$",
     ],
 }
 
@@ -93,7 +99,7 @@ def main():
     if mode == "--status":
         print(f"Домен сессии: {dom or '— НЕ ЗАДАН —'}  ({src})")
         if dom is None:
-            print("  ⚠ домен не определён: работай в ветке fin/* или mkt/* (или создай файл .workstream).")
+            print("  ⚠ домен не определён: работай в ветке <домен>/* (fin, mkt, ret) или создай файл .workstream.")
         print(f"Изменённых файлов: {len(files)}")
         for f in files:
             owner = classify(f)
@@ -107,7 +113,7 @@ def main():
 
     # режим проверки (hook)
     if dom is None:
-        print("⚠ [territory] домен сессии не определён (ветка не fin/* и не mkt/*, нет .workstream).")
+        print("⚠ [territory] домен сессии не определён (ветка не <домен>/*, нет .workstream).")
         print("  Страж пропускает коммит, но заведи доменную ветку, чтобы флаг работал.")
         return 0
 

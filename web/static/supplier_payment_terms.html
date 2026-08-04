@@ -39,6 +39,26 @@
   .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;background:#3a2027;color:var(--neg)}
   .tag.ok{background:#1c3a24;color:var(--pos)}
   .tag.w{background:#3a3120;color:var(--warn)}
+  /* Синий = «документ в банке, ждёт подписи» — не путать с зелёным «деньги ушли, видно в МС». */
+  .tag.s{background:#16293a;color:var(--acc)}
+  .tag.mute{background:#232f3d;color:var(--mut)}
+  /* Ширины колонок очереди фиксированные: дата и сумма (со знаком ₽) целиком в одну строку,
+     контрагенту хватает на две. Остаток ширины забирает «Чем урезано». */
+  #queue{table-layout:fixed}
+  #queue td:first-child,#queue td:nth-child(5){white-space:nowrap}
+  /* Итоговая строка: при фильтре показывает сумму именно отфильтрованных строк. */
+  #queue tfoot td{border-top:2px solid var(--line);border-bottom:none;font-weight:600;white-space:nowrap}
+  #queue tfoot td:first-child{text-align:right;font-weight:400;color:var(--mut)}
+  /* Переключатель юрлица-плательщика: у одного поставщика свои условия под каждое наше ООО. */
+  .orgbar{display:flex;align-items:center;gap:8px;margin:0 0 18px}
+  .orgbar .lbl{color:var(--mut);font-size:12px}
+  .orgbar button{background:var(--card);color:var(--mut);border:1px solid var(--line);
+    border-radius:8px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer}
+  .orgbar button:hover{color:var(--txt)}
+  .orgbar button.cur{background:var(--acc);color:#06223c;border-color:var(--acc);font-weight:600}
+  tr.filters th{padding:5px 8px}
+  tr.filters select{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:6px;
+    padding:4px 7px;font:inherit;font-size:12px;font-weight:400;width:100%;max-width:100%}
 </style>
 </head>
 <body>
@@ -60,22 +80,45 @@
     <a href="/suppliers">📦 Остатки</a>
     <a href="/suppliers/payment-terms" class="cur">💳 График оплаты</a>
   </nav>
-  <p class="note" style="margin-top:0">Условия оплаты по поставщику (ИНН). <b>Отсрочка</b> — при наступлении срока
-    оплаты хотя бы одного заказа собирается ОДНА пачка всех неоплаченных заказов поставщика, урезанная по меньшему из
-    двух: <b>размер платежа</b> по договорённости (пусто = вся сумма задолженности) и текущий остаток на р/с.
-    <b>Предоплата по счёту</b> — черновик сразу на сумму каждого нового заказа. <b>Аванс/баланс</b> —
-    пополнение на фикс. сумму, когда расчётный баланс падает ниже порога. Черновики создаёт поллер автоматически;
-    подпись — вручную в вебе банка. Сейчас только песочница Альфы (см. HANDOFF).</p>
+  <div class="orgbar" id="orgbar"><span class="lbl">Юрлицо:</span></div>
+  <h2 style="margin-top:0">📋 Очередь черновиков <span class="muted" style="font-weight:400;font-size:12px">(последнее, что поллер запланировал/отправил)</span></h2>
+  <table id="queue">
+  <colgroup>
+    <col style="width:104px"><col style="width:224px"><col style="width:152px"><col style="width:74px">
+    <col style="width:126px"><col style="width:132px"><col><col style="width:96px">
+  </colgroup>
+  <thead>
+    <tr><th>Когда</th><th>Контрагент</th><th>Метод</th><th>Заказов</th><th>Сумма ₽</th><th>Статус</th><th>Чем урезано</th><th></th></tr>
+    <tr class="filters">
+      <th></th>
+      <th><select id="f-name" onchange="setFilter('name',this.value)"></select></th>
+      <th><select id="f-kind" onchange="setFilter('kind',this.value)"></select></th>
+      <th></th><th></th>
+      <th><select id="f-status" onchange="setFilter('status',this.value)"></select></th>
+      <th></th><th></th>
+    </tr>
+  </thead><tbody></tbody>
+  <tfoot><tr>
+    <td colspan="4" id="q-total-label"></td><td id="q-total"></td><td colspan="3"></td>
+  </tr></tfoot></table>
+  <p class="note" id="foot"></p>
+  <p class="note"><span class="tag w">запланирован</span> ждёт отправки &nbsp;·&nbsp;
+    <span class="tag s">в банке</span> документ создан и <b>не подписан</b> — подписать в
+    интернет-банке &nbsp;·&nbsp; <span class="tag ok">проведён</span> деньги ушли, платёж виден
+    в МойСклад</p>
 
   <h2>⚙️ Условия оплаты <span id="mode" class="tag" style="font-weight:400;vertical-align:middle"></span></h2>
-  <table class="pt" id="terms"><thead><tr>
-    <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th><th>Сумма аванса ₽</th><th>Порог баланса ₽</th><th title="Ставка НДС поставщика — из неё собирается НДС-оговорка в назначении платежа">НДС</th><th>Активен</th><th></th>
-  </tr></thead><tbody></tbody></table>
+  <p class="note" style="margin:0 0 12px">Условия оплаты по поставщику (ИНН). <b>Отсрочка</b> — при наступлении срока
+    оплаты хотя бы одного заказа собирается ОДНА пачка всех неоплаченных заказов поставщика, урезанная по
+    <b>размеру платежа</b> из договорённости (пусто = вся сумма задолженности); заказы, по которым приёмка ещё не
+    проведена, в пачку не идут — ждут приёмки. <b>Предоплата по счёту</b> — черновик сразу на сумму каждого нового
+    заказа. <b>Аванс/баланс</b> — пополнение на фикс. сумму, когда расчётный баланс падает ниже порога.
+    Черновики создаёт поллер автоматически и отправляет в боевой контур банка <b>неподписанными</b> —
+    деньги уходят только после подписи человеком в вебе банка. Условия свои <b>у каждого нашего
+    юрлица</b>: строка Цифрового Квадрата и строка Дисквэра по одному поставщику независимы —
+    переключатель вверху выбирает, чьи условия правишь.</p>
+  <table class="pt" id="terms"><thead></thead><tbody></tbody></table>
   <div style="margin-top:12px" id="actions"></div>
-
-  <h2>📋 Очередь черновиков <span class="muted" style="font-weight:400;font-size:12px">(последнее, что поллер запланировал/отправил)</span></h2>
-  <table id="queue"><thead><tr><th>Когда</th><th>ИНН</th><th>Вид</th><th>Заказов</th><th>Сумма ₽</th><th>Статус</th><th>Чем урезано</th></tr></thead><tbody></tbody></table>
-  <p class="note" id="foot"></p>
 </main>
 <script>
 const $=s=>document.querySelector(s);
@@ -84,13 +127,58 @@ const esc=s=>(s==null?'':String(s)).replace(/"/g,'&quot;');
 async function api(p){const r=await fetch(p);return r.json();}
 let rows=[];
 
+// ── Юрлицо-плательщик ───────────────────────────────────────────────────────
+// У одного поставщика условия оплаты СВОИ под каждое наше ООО (миграция 207): Цифровой
+// Квадрат платит через Альфу, Дисквэр — через Сбер, договоры разные. Выбор запоминается,
+// чтобы после сохранения не приходилось каждый раз возвращаться в свою организацию.
+// Пустая строка = «Все»: режим просмотра-сравнения, правка в нём запрещена (непонятно,
+// в чьё юрлицо писать новую строку).
+let orgs=[], org=localStorage.getItem('ptOrg')??'7807355364';
+const orgShort=i=>(orgs.find(o=>o.inn===i)||{}).short||i;
+
+function renderOrgBar(){
+  const btn=(v,t,title)=>`<button class="${org===v?'cur':''}" title="${esc(title||'')}" onclick="setOrg('${v}')">${esc(t)}</button>`;
+  $('#orgbar').innerHTML='<span class="lbl">Юрлицо:</span>'
+    +orgs.map(o=>btn(o.inn,o.short,`${o.name} · банк ${o.bank}`)).join('')
+    +btn('','Все','обе организации сразу — только просмотр');
+}
+async function setOrg(v){
+  if(editing&&!confirm('Правка не сохранена. Переключить юрлицо и потерять изменения?'))return;
+  org=v;localStorage.setItem('ptOrg',v);editing=false;deleted=[];
+  renderOrgBar();await loadTerms();await loadQueue();
+}
+const orgQ=()=>org?('?org='+encodeURIComponent(org)):'';
+
 const METHODS={deferred:'Отсрочка',prepayment_per_order:'Предоплата по счёту',prepayment_balance:'Аванс/баланс'};
 // Ставка НДС поставщика: из неё собирается НДС-оговорка в назначении платежа. Пусто ≠ «без НДС»:
 // пусто = не выяснено (платёжка тогда возьмёт НДС из заказа МС, как раньше), 0 = не облагается.
 const VAT_RATES=[['','не задано'],['0','без НДС'],['5','5%'],['7','7%'],['10','10%'],['20','20%'],['22','22%']];
 const vatLabel=v=>v==null?'<span class="muted">не задано</span>':(v===0?'без НДС':v+'%');
 
-const QSTATUS={planned:['tag w','запланирован'],sent_sandbox:['tag ok','отправлен (песочница)'],sent_prod:['tag ok','отправлен (прод)'],error:['tag','ошибка']};
+// Срок доставки = через сколько РАБОЧИХ дней после счёта плановая приёмка (выходные пропускаются).
+// 1 — завтра (прежнее поведение для всех), 2 — послезавтра (Блоссом, Колортек, Картридж Трейд).
+const DELIV=[[1,'1 — завтра'],[2,'2 — послезавтра'],[3,'3 — через 2 раб. дня'],
+             [4,'4 — через 3 раб. дня'],[5,'5 — через 4 раб. дня']];
+const delivLabel=v=>(DELIV.find(([d])=>d===(v||1))||[0,(v||1)+' раб. дн.'])[1];
+// Срок ищется по ГРУППЕ поставщика: счёт от любого её юрлица (юрлица со временем меняются)
+// берёт эту настройку. Показываем группу, чтобы правка не выглядела точечной.
+const grpTitle=r=>r.group?` title="Действует на всю группу «${esc(r.group)}» — счета любого её юрлица"`:'';
+
+// Метод очереди (payment_draft_queue.kind) — те же названия, что в условиях оплаты выше.
+const KINDS={deferred_batch:'Отсрочка',prepayment_order:'По счёту',advance:'Аванс/баланс'};
+// «проведён» = деньги видны в МС (выписка привязалась к заказу / нашёлся платёж под аванс),
+// а не «банк принял черновик» — это 'отправлен'.
+// Цвет = стадия жизни платежа: жёлтый ждёт отправки, синий лежит в банке НЕПОДПИСАННЫМ,
+// зелёный — деньги реально ушли. Раньше «отправлен» и «проведён» были одинаково зелёными
+// и на глаз не различались.
+const QSTATUS={planned:['tag w','запланирован'],sent_prod:['tag s','в банке'],
+  sent_sandbox:['tag s','песочница'],paid:['tag ok','проведён'],
+  error:['tag','ошибка'],cancelled:['tag mute','снят']};
+// Порядок по умолчанию: сначала то, что требует действия (запланировано, ошибка), потом
+// отправленное и уже проведённое, в самом низу снятое. Внутри группы — свежие сверху.
+const SORT_RANK={planned:0,error:1,sent_prod:2,sent_sandbox:2,paid:3,cancelled:4};
+const byStatus=(a,b)=>(SORT_RANK[a.status]??9)-(SORT_RANK[b.status]??9)
+  || String(b.created_at||'').localeCompare(String(a.created_at||''));
 
 // Таблица по умолчанию ТОЛЬКО ДЛЯ ЧТЕНИЯ — правка условий меняет реальные платежи поставщикам,
 // поэтому поля открываются лишь по кнопке «Редактировать» (защита от случайного изменения).
@@ -98,7 +186,17 @@ let editing=false;
 let deleted=[];                       // ИНН, удалённые в текущем сеансе правки (применяются при «Сохранить»)
 
 function renderTerms(){
+  const all=!org;                       // режим «Все» — показываем колонку юрлица, правку глушим
+  $('#terms thead').innerHTML=`<tr>${all?'<th>Юрлицо</th>':''}
+    <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th>
+    <th>Сумма аванса ₽</th><th>Порог баланса ₽</th>
+    <th title="Ставка НДС поставщика — из неё собирается НДС-оговорка в назначении платежа">НДС</th>
+    <th title="Через сколько рабочих дней после счёта плановая дата приёмки в заказе МС (08:00). Срок — свойство ГРУППЫ поставщика: действует и на счета других её юрлиц">Срок доставки</th>
+    <th>Активен</th><th></th></tr>`;
+  const orgCell=r=>all?`<td class="muted">${esc(orgShort(r.org_inn))}</td>`:'';
+  const cols=all?12:11;
   $('#terms tbody').innerHTML=rows.map((r,i)=>editing?`<tr>
+    ${orgCell(r)}
     <td><input value="${esc(r.inn)}" placeholder="10 цифр" maxlength="12" oninput="rows[${i}].inn=this.value"></td>
     <td><input value="${esc(r.name)}" placeholder="название" oninput="rows[${i}].name=this.value"></td>
     <td><select onchange="rows[${i}].method=this.value;renderTerms()">
@@ -111,9 +209,13 @@ function renderTerms(){
     <td><select onchange="rows[${i}].vat_rate=this.value===''?null:+this.value">
       ${VAT_RATES.map(([v,t])=>`<option value="${v}"${String(r.vat_rate??'')===v?' selected':''}>${t}</option>`).join('')}
     </select></td>
+    <td${grpTitle(r)}><select onchange="rows[${i}].delivery_days=+this.value">
+      ${DELIV.map(([v,t])=>`<option value="${v}"${(r.delivery_days||1)===v?' selected':''}>${t}</option>`).join('')}
+    </select></td>
     <td style="text-align:center"><input type="checkbox" ${r.active!==false?'checked':''} onchange="rows[${i}].active=this.checked"></td>
     <td><button class="del" onclick="delRow(${i})" title="удалить">✕</button></td>
   </tr>`:`<tr>
+    ${orgCell(r)}
     <td class="muted">${esc(r.inn)}</td>
     <td>${esc(r.name)}</td>
     <td>${METHODS[r.method]||esc(r.method)}</td>
@@ -122,35 +224,42 @@ function renderTerms(){
     <td>${r.method==='prepayment_balance'?rub(r.advance_amount):'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?rub(r.balance_threshold):'<span class="muted">—</span>'}</td>
     <td>${vatLabel(r.vat_rate)}</td>
+    <td${grpTitle(r)}>${delivLabel(r.delivery_days)}${r.group?` <span class="muted">· гр. ${esc(r.group)}</span>`:''}</td>
     <td style="text-align:center">${r.active!==false?'✓':'<span class="muted">выкл</span>'}</td>
     <td></td>
-  </tr>`).join('')||'<tr><td colspan="10" class="muted">поставщиков не задано</td></tr>';
+  </tr>`).join('')||`<tr><td colspan="${cols}" class="muted">поставщиков не задано</td></tr>`;
 
-  $('#mode').textContent=editing?'режим правки':'только просмотр';
+  $('#mode').textContent=editing?'режим правки':(all?'сравнение — правка выключена':'только просмотр');
   $('#mode').className=editing?'tag w':'tag ok';
   $('#actions').innerHTML=editing
     ? `<button class="ebtn" onclick="addRow()">+ поставщик</button>
        <button class="ebtn primary" onclick="saveAll()">💾 Сохранить</button>
        <button class="ebtn" onclick="cancelEdit()">Отмена</button>`
-    : `<button class="ebtn primary" onclick="startEdit()">✏️ Редактировать</button>`;
+    : (all
+       ? `<span class="muted">Показаны условия обоих юрлиц. Чтобы править — выбери одно юрлицо вверху.</span>`
+       : `<button class="ebtn primary" onclick="startEdit()">✏️ Редактировать ${esc(orgShort(org))}</button>`);
 }
 function startEdit(){editing=true;deleted=[];renderTerms();}
 async function cancelEdit(){editing=false;deleted=[];await loadTerms();}
-function addRow(){rows.push({inn:'',name:'',method:'deferred',deferral_days:14,payment_cap:null,advance_amount:null,balance_threshold:null,active:true});renderTerms();}
+function addRow(){rows.push({org_inn:org,inn:'',name:'',method:'deferred',deferral_days:14,payment_cap:null,advance_amount:null,balance_threshold:null,delivery_days:1,active:true});renderTerms();}
 function delRow(i){
   const r=rows[i];
-  if(!confirm(`Удалить «${r.name||r.inn}» из графика оплаты?`))return;
-  if((r.inn||'').trim())deleted.push(r.inn.trim());   // из БД снесём при сохранении
+  if(!confirm(`Удалить «${r.name||r.inn}» из графика оплаты (${orgShort(r.org_inn||org)})?`))return;
+  // Удаляем строку КОНКРЕТНОГО юрлица: условия второго по этому же поставщику не трогаем.
+  if((r.inn||'').trim())deleted.push({org_inn:r.org_inn||org,inn:r.inn.trim()});
   rows.splice(i,1);renderTerms();
 }
 async function saveAll(){
   for(const r of rows){
     const inn=(r.inn||'').trim();
     if(!inn||!/^\d{10,12}$/.test(inn)){alert('ИНН должен быть 10-12 цифр: "'+inn+'"');return;}
+    if(!r.org_inn)r.org_inn=org;      // строка, добавленная в этом сеансе — в текущее юрлицо
   }
-  for(const inn of deleted){
-    if(rows.some(r=>(r.inn||'').trim()===inn))continue;  // строку вернули обратно — не удаляем
-    await fetch('/api/suppliers/payment-terms/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({inn})});
+  const dup=rows.map(r=>r.org_inn+'/'+r.inn.trim()).filter((v,i,a)=>a.indexOf(v)!==i);
+  if(dup.length){alert('Один поставщик дважды в одном юрлице: '+dup[0]);return;}
+  for(const d of deleted){
+    if(rows.some(r=>(r.inn||'').trim()===d.inn&&r.org_inn===d.org_inn))continue;  // вернули обратно
+    await fetch('/api/suppliers/payment-terms/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
   }
   for(const r of rows){
     await fetch('/api/suppliers/payment-terms/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
@@ -160,20 +269,101 @@ async function saveAll(){
   alert('Сохранено');
 }
 async function loadTerms(){
-  const d=await api('/api/suppliers/payment-terms');
+  const d=await api('/api/suppliers/payment-terms'+orgQ());
   rows=(d.items||[]).map(r=>({...r}));
   renderTerms();
 }
-async function loadQueue(){
-  const d=await api('/api/suppliers/payment-terms/queue');
-  $('#queue tbody').innerHTML=(d.items||[]).map(q=>{
-    const [cls,lbl]=QSTATUS[q.status]||['tag',q.status];
-    const warn=(q.note||'').includes('ПРЕВЫШЕН');
-    return `<tr><td>${(q.created_at||'').slice(0,16).replace('T',' ')}</td><td>${esc(q.inn)}</td><td>${q.kind}</td><td>${(q.covers_po_ids||[]).length||'—'}</td><td>${rub(q.amount)}</td><td><span class="${cls}">${lbl}</span></td><td style="text-align:left" class="${warn?'warn':'muted'}">${esc(q.note)||'—'}</td></tr>`;
-  }).join('')||'<tr><td colspan="7" class="muted">очередь пуста</td></tr>';
-  $('#foot').textContent=`Черновиков в очереди: ${(d.items||[]).length}.`;
+// Очередь фильтруется на странице (записей ≤100, сервер отдаёт их одним куском).
+let queue=[], qf={name:'',kind:'',status:''};
+function setFilter(k,v){qf[k]=v;renderQueue();}
+
+function fillFilters(){
+  const uniq=k=>[...new Set(queue.map(q=>q[k]).filter(v=>v!=null&&v!==''))].sort();
+  const opts=(vals,cur,all,fmt)=>`<option value="">${all}</option>`+vals.map(v=>
+    `<option value="${esc(v)}"${v===cur?' selected':''}>${esc(fmt?fmt(v):v)}</option>`).join('');
+  $('#f-name').innerHTML=opts(uniq('name'),qf.name,'все контрагенты');
+  $('#f-kind').innerHTML=opts(uniq('kind'),qf.kind,'все методы',v=>KINDS[v]||v);
+  $('#f-status').innerHTML=opts(uniq('status'),qf.status,'все статусы',v=>QSTATUS[v]?QSTATUS[v][1]:v);
 }
-(async()=>{await loadTerms();await loadQueue();})();
+
+function renderQueue(){
+  const items=queue.filter(q=>(!qf.name||q.name===qf.name)&&(!qf.kind||q.kind===qf.kind)&&(!qf.status||q.status===qf.status));
+  $('#queue tbody').innerHTML=items.map(q=>{
+    const [cls,lbl]=QSTATUS[q.status]||['tag',q.status];
+    const note=q.note||'';
+    const warn=note.includes('ПРЕВЫШЕН')||note.includes('ВНИМАНИЕ');
+    // В режиме «Все» юрлицо дописываем к контрагенту, а не отдельной колонкой: ширины
+    // колонок очереди зафиксированы colgroup, лишний столбец ломает их раскладку.
+    const who=org?esc(q.name||q.inn):`<span class="muted">${esc(orgShort(q.org_inn))} · </span>${esc(q.name||q.inn)}`;
+    // Отправлять можно только запланированное: у отправленного/отменённого кнопки нет.
+    const act=q.status==='planned'
+      ? `<button class="ebtn" onclick="sendDraft(${q.id},this)">в банк</button>`
+      : '<span class="muted">—</span>';
+    return `<tr><td>${(q.created_at||'').slice(0,10)}</td><td>${who}</td>`
+      +`<td>${esc(KINDS[q.kind]||q.kind)}</td><td>${(q.covers_po_ids||[]).length||'—'}</td>`
+      +`<td>${rub(q.amount)}</td><td><span class="${cls}">${lbl}</span></td>`
+      +`<td class="${warn?'warn':'muted'}">${esc(note)||'—'}</td><td>${act}</td></tr>`;
+  }).join('')||'<tr><td colspan="8" class="muted">под фильтр ничего не попало</td></tr>';
+  const sum=items.reduce((s,q)=>s+(q.amount||0),0);
+  const filtered=items.length!==queue.length;
+  $('#q-total-label').textContent=filtered?`Итого по фильтру (строк: ${items.length}):`:`Итого (строк: ${items.length}):`;
+  $('#q-total').textContent=rub(sum);
+  $('#foot').textContent=filtered
+    ? `Показано ${items.length} из ${queue.length} черновиков.`
+    : `Черновиков в очереди: ${queue.length}.`;
+}
+
+// Ручная отправка ОДНОГО черновика в банк его юрлица. Юрлицо берём из СТРОКИ (q.org_inn),
+// а не из глобального `org`: в режиме «Все» в таблице лежат черновики обеих фирм, и банк
+// выбирается по владельцу черновика. Платёжка уходит НЕПОДПИСАННОЙ — подпись в вебе банка.
+async function sendDraft(id, btn){
+  const q=queue.find(x=>x.id===id);
+  if(!q)return;
+  const ok=confirm(`Отправить платёжку в банк?\n\n`
+    +`${orgShort(q.org_inn)} → ${q.name||q.inn}\n`
+    +`Сумма: ${rub(q.amount)}\n`
+    +`Основание: ${KINDS[q.kind]||q.kind}\n\n`
+    +`Платёжка уйдёт НЕПОДПИСАННОЙ: в банке появится черновик, `
+    +`подписать его нужно вручную в интернет-банке.`);
+  if(!ok)return;
+  btn.disabled=true;
+  const was=btn.textContent;
+  btn.textContent='…';
+  try{
+    const r=await fetch('/api/suppliers/payment-terms/queue/send',
+      {method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({id:id,org_inn:q.org_inn})});
+    const d=await r.json();
+    if(!d.ok){alert('Не отправлено: '+(d.error||'неизвестная ошибка'));return;}
+    if(d.status==='dry_run'){
+      alert(`Черновик СОБРАН, но в банк не отправлен (режим проверки).\n`
+        +`externalId: ${d.external_id||'—'}\n\n`
+        +`Боевая отправка включается флагом в .env.`);
+      return;
+    }
+    alert(`Отправлено (${d.status}).\nexternalId: ${d.external_id||'—'}\n\n`
+      +`Черновик лежит в интернет-банке НЕПОДПИСАННЫМ.`);
+    await loadQueue();
+  }catch(e){
+    alert('Сбой запроса: '+e);
+  }finally{
+    btn.disabled=false;btn.textContent=was;
+  }
+}
+
+async function loadQueue(){
+  const d=await api('/api/suppliers/payment-terms/queue'+orgQ());
+  queue=(d.items||[]).sort(byStatus);
+  fillFilters();
+  renderQueue();
+}
+(async()=>{
+  const o=await api('/api/orgs');
+  orgs=o.items||[];
+  if(org&&!orgs.some(x=>x.inn===org))org=orgs[0]?orgs[0].inn:'';   // ИНН из старого localStorage
+  renderOrgBar();
+  await loadTerms();await loadQueue();
+})();
 </script>
 </body>
 </html>

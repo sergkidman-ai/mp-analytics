@@ -1,0 +1,233 @@
+# SberBusinessAPI (Сбер, прямая интеграция Host-2-Host) — карта для ООО «ДИСКВЭР»
+
+> Поток: **inv** (банковский контур). Статус: **проектирование** (2026-08-02).
+> Организация: ООО «ДИСКВЭР», ИНН **7811803918**, р/с **40702810355000147717**,
+> Северо-Западный банк ПАО Сбербанк, **БИК 044030653**.
+> Второй контур рядом с Альфой (ООО «Цифровой Квадрат») — см. `docs/ALFA_BANK_API.md`.
+> Источник: официальное зеркало спецификации https://sberbusinessapi-documentation.github.io/
+> (единый документ с якорями) + developers.sber.ru/docs/ru/sberbusinessapi.
+
+## Что это за продукт
+
+**SberBusinessAPI**, режим **«Прямая интеграция Host-2-Host»** — получение и отправка документов
+**по своей организации** (не «для холдингов», не «партнёрская» схема). Транспорт: REST/HTTPS,
+**порт TCP 9443**, обязательный **клиентский TLS-сертификат, изданный банком**.
+
+Аналогия с Альфой почти полная: OAuth (интерактивный вход представителя) + mTLS + одноразовый
+refresh_token + черновик платёжки без ЭП. Код Альфы переиспользуется на ~70 %.
+
+## Хосты
+
+| Назначение | ТЕСТ | ПРОМ | TLS-серт |
+|---|---|---|---|
+| Back-to-Back: API + token + user-info + change-client-secret | `https://edupirfintech.sberbank.ru:9443` | `https://fintech.sberbank.ru:9443` | **да** |
+| Авторизация пользователя (SMS) | `https://edupir.testsbi.sberbank.ru:9443` | `https://sbi.sberbank.ru:9443` | нет |
+| Swagger UI (проверка серта) | `.../fintech/api/swagger-ui.html` | `.../fintech/api/swagger-ui.html` | да |
+
+## Авторизация (Сбер Бизнес ID, OAuth 2.0 / OIDC)
+
+- `GET /ic/sso/api/v2/oauth/authorize` → код авторизации (**интерактивный вход** представителя).
+- `POST /ic/sso/api/v2/oauth/token` — `application/x-www-form-urlencoded`, **только POST**,
+  параметры в query: `grant_type=authorization_code|refresh_token`, `code`, `client_id`,
+  `client_secret`, `redirect_uri`, `refresh_token`. Ответ подписан JWT (`Accept: application/jose`),
+  подпись проверяется сертификатом банка.
+- `GET /ic/sso/api/v1/oauth/user-info`, `POST /ic/sso/api/v1/oauth/revoke`.
+- **access_token — 60 минут.**
+- **refresh_token одноразовый:** повторное использование → `invalid_grant / Unknown refresh token`.
+  **Ротировать при каждом обновлении** (та же механика, что у Альфы).
+- **client_secret живёт 40 дней** ⚠️ — ротация `POST /ic/sso/api/v1/change-client-secret`
+  или вручную в ЛК SberBusinessAPI. **Это главное отличие от Альфы: нужен автообновлятор
+  + напоминалка** (по образцу `ops/wb_token_reminder.py`).
+- `client_id` / `client_secret` / `redirect_uri` выдаёт менеджер при регистрации сервиса.
+
+## Эндпоинты под наши три задачи
+
+### 1. Выписка (scope `GET_STATEMENT_ACCOUNT`) — РАБОТАЕТ, реализовано
+
+```
+GET /fintech/api/v2/statement/transactions?accountNumber={20 цифр}&statementDate=YYYY-MM-DD&page=1
+```
+⚠️ **Спецификация в этом месте устарела.** Путь `/fintech/api/v1/statement/...` на боевом контуре
+отвечает **404** «Не найден указанный urlPath = /v1/statement/transactions и/или HTTP метод = GET»
+(так же 404: `/v1/statement`, `/v1/statement/summary`, `/v1/statements/transactions`).
+Живой путь — **v2** (проверено 2026-08-02, HTTP 200 с данными). При этом `/v1/client-info` жив:
+версии эндпоинтов независимы, менять префикс глобально нельзя. Swagger-спеку машинно вытащить
+не удалось (`api-docs`/`swagger-resources`/`swagger.json` — 404), пути ищутся перебором.
+
+- Все три параметра **обязательны**, выписка **строго за один день**, пагинация — `_links[rel=next]`
+  (при одной странице `_links` = пустой список).
+- Ответ: `{"_links": [...], "transactions": [...]}`.
+- Операция (факт v2): `uuid`, **`operationId`**, `amount{amount,currencyName}`, `amountRub`,
+  `direction` (`CREDIT`/`DEBIT`), `documentDate`, `number`, `operationCode`, `operationDate`,
+  **`paymentPurpose`**, `priority`, `correspondingAccount`, `hashAbc`, + блок **`rurTransfer`**:
+  `payerName/payerInn/payerKpp/payerAccount/payerBankBic/payerBankName/payerBankCorrAccount`,
+  те же `payee*`, `valueDate`, `receiptDate`, `purposeCode`, `deliveryKind`.
+- **`transactionId` у Сбера НЕТ** (в отличие от Альфы) → ключ операции = `uuid`, запасной `operationId`.
+- **Суммы приходят СТРОКОЙ** (`"50000.00"`), у Альфы — числом. В нормализации → `Decimal`.
+- Валютные блоки `curTransfer`/`swiftTransfer` — нам не нужны.
+- Соответствие с Альфой: `paymentPurpose` ≈ назначение платежа (мост к приёмкам),
+  `direction=CREDIT` → paymentin МС, `DEBIT` → paymentout.
+
+**Счета берём из `GET /fintech/api/v1/client-info` → `accounts[]`** (`number`, `state`, `type`,
+`bic`, `currencyCode`, `name`, `openDate/closeDate`, блокировки). У Дисквэра **8 счетов**, из них
+действующий **один**: `…147717`, `state=OPEN`, `type=calculated`. Остальные 7 — закрытые
+депозиты, по ним выписка отвечает **400 `WORKFLOW_FAULT` «Счёт не является действующим на
+запрошенную дату»** (не ошибка интеграции — штатный отказ, коллектор его глотает).
+Отдельного `/clients/accounts` нет (404).
+
+Реализация — `collectors/sber_statement.py`:
+```
+./venv/bin/python collectors/sber_statement.py --accounts             # счета организации
+./venv/bin/python collectors/sber_statement.py 2026-07-28 2026-07-31  # период (идём по дням)
+```
+Сырьё каждой страницы → `incoming/sber/stmt_<счёт>_<дата>_p<N>.json`, в чат — только агрегаты.
+Контрольный прогон 2026-08-02 за 28–31.07: **11 операций**, приход 3 095.34 ₽, расход 122 394.45 ₽,
+контрагенты и назначения читаются (Феррет, Картридж Трейд, Тонерстор, зарплата, комиссия банка).
+`normalize()` даёт те же ключи, что `alfa_statement.normalize` → слой МС остаётся банконезависимым.
+
+### 2. Платёжное поручение / черновик (scope `PAY_DOC_RU`) — маршрут ПОДТВЕРЖДЁН 02.08.2026
+
+**Платежи живут на `v1`** (в отличие от выписки, которая на `v2`) — проверено разведкой.
+Как отличить «маршрута нет» от «документа нет» (обе отвечают 404, и это единственный
+надёжный способ прощупать чужой API без документации):
+* маршрута НЕТ → `{"internalErrorCode":"234.1-1012","cause":"NOT_FOUND","message":"Не найден
+  указанный urlPath = … и/или HTTP метод"}` — так отвечает `v2/payments/{id}`;
+* маршрут ЕСТЬ, документа нет → `{"cause":"WORKFLOW_FAULT","message":"Платежный документ не
+  найден по externalId = …"}` — так отвечает `v1/payments/{id}` и `v1/payments/{id}/state`.
+
+`GET /fintech/api/v1/payments` (коллекция) маршрута не имеет — только POST.
+
+```
+POST /fintech/api/v1/payments                    # создать РПП
+GET  /fintech/api/v1/payments/{externalId}       # атрибуты
+GET  /fintech/api/v1/payments/{externalId}/state  # статус
+POST /fintech/api/v1/payments/from-invoice        # из счёта (scope PAY_DOC_RU_INVOICE)
+POST /fintech/api/v1/payment-requests/outgoing    # исх. платёжное требование
+```
+**Черновик = POST без объекта `digestSignatures`.** Дословно из спецификации: передана ЭП —
+банк сразу начинает обработку; ЭП не передана — документ создаётся **в статусе «черновик»**,
+человек заходит в СберБизнес и подписывает. **Ровно наш сценарий** (как у Альфы).
+
+Тело запроса (`Payment`) — состав тот же, что у Альфы, плюс отдельный блок НДС:
+```
+amount, date (YYYY-MM-DD), number, externalId (uuid), purpose,
+operationCode ("01"), deliveryKind ("электронно"), urgencyCode ("INTERNAL"), priority ("5"),
+payerName/payerInn/payerKpp/payerAccount/payerBankBic/payerBankCorrAccount,
+payeeName/payeeInn/payeeKpp/payeeAccount/payeeBankBic/payeeBankCorrAccount,
+vat: {amount, rate, type: "NO_VAT"|...},         ← у Альфы НДС писали текстом в purpose
+departmentalInfo {uip, drawerStatus101, kbk, oktmo, ...}   ← только бюджетные
+voCode, incomeTypeCode, crucialFieldsHash, digestSignatures[]  ← нам не нужны/пусто
+```
+**Обязательные поля — снято с живой схемы 02.08.2026** (POST с пустым телом → HTTP 400
+`VALIDATION_FAULT` со списком `checks`, документ при этом НЕ создаётся — дешёвый способ
+получить модель без риска):
+`externalId`, `date`, `amount`, `purpose`, `operationCode`, `priority`,
+`payerName`, `payerInn`, `payerAccount`, `payerBankBic`, `payerBankCorrAccount`,
+`payeeName`, `payeeBankBic`.
+Пустая строка приравнивается к null (`externalId: ""` отбит как «must not be null»).
+
+**`vat` и `urgencyCode` в обязательных НЕ значатся** — модель их не требует (вопросы 2 и 3
+закрыты на уровне схемы). НДС, как и у Альфы, пишем текстом в `purpose`. Остаётся проверить,
+не потребует ли банк НДС на этапе ПОДПИСАНИЯ человеком — это видно только на живом черновике.
+`payeeAccount`/`payeeInn` модель тоже не требует (валидация, видимо, дальше по бизнес-правилам),
+но слать их надо — платёж без счёта получателя бессмысленен.
+
+⚠️ Не проверено (нужен реальный POST, то есть документ в банке): создаётся ли черновик без
+`digestSignatures` и в каком он статусе.
+
+**Реализация (02–03.08.2026):** `invoice_bot/sber_payment_draft.py` — драйвер поверх общего ядра
+`invoice_bot/payment_draft.py` (сборка платёжки общая с Альфой), выбор банка по юрлицу черновика —
+`invoice_bot/payment_send.py`, запуск — кнопкой «в банк» в очереди черновиков дашборда.
+Сберовское в драйвере: путь `v1`, `urgencyCode="INTERNAL"`, счёт списания из `client-info`
+(`SBER_ACCOUNT` в `.env` — приоритет, несколько действующих счетов без явного указания = ошибка),
+разбор ошибки по `internalErrorCode`/`cause`/`message`, статус отправки всегда `sent_prod`.
+**Песочницы у Сбера нет**, поэтому живой POST закрыт отдельным флагом `SBER_PAYMENT_PROD_READY=1`
+(плюс общий `SBER_PAYMENT_APPLY=1`); без них — только сборка payload. Первое включение — по
+явному ОК владельца, на минимальной сумме: это и закроет вопрос выше.
+
+### 3. Прочее, что может пригодиться
+
+`GET /fintech/api/v1/client-info` (реквизиты своей организации), `GET /fintech/api/v1/crypto`
+и `POST /fintech/api/v1/crypto/cert-requests` (управление сертификатами ЭП),
+`GET /fintech/api/v1/statement/summary` (остатки/обороты), реестр платежей, справочники.
+
+## Подключение — ФАКТ на 2026-08-02
+
+API подключено самостоятельно в ЛК СберБизнес, **бесплатно**, доступ выдан сразу на
+**промышленный сервис** (вкладки «Промышленный сервис» / «Песочница API»). Общая схема из
+спецификации (платная заявка на `fintech_API@sberbank.ru`) в нашем случае **не понадобилась** —
+правило 13 по этому пункту закрыто, живых денег нет.
+
+Состояние личного кабинета (скриншот 2026-08-02):
+
+| Параметр | Значение / состояние |
+|---|---|
+| Наименование сервиса | `Sber API: 7811803918_Company` (ИНН Дисквэра) |
+| **Client_id** | **80859** |
+| Redirect URI | **не заполнен** (`https://`) — задать до авторизации |
+| Client_secret | **не сгенерирован** — кнопка «Активировать» |
+| Scope v1 | `openid di-a496a254-a7a5-4d09-9473-3557ee920b39` |
+| Scope v2 | **подтверждён**: есть `GET_STATEMENT_ACCOUNT`, `GET_STATEMENT_TRANSACTION`, `PAY_DOC_RU` (+ `GET_CLIENT_ACCOUNTS`, `CERTIFICATE_REQUEST`, `PAYMENT_REQUEST_OUT`, `PAY_DOC_CUR`, `GET_CORRESPONDENTS`, `DICT`, `FILES`) |
+| Сертификаты шифрования | пусто, доступно 3 шт., есть «Сгенерировать сертификат» |
+| Ключи доступа | пусто, доступно 3 шт. |
+| **«Активировать» нажата** | **2026-08-02** → `client_secret` сгенерирован, **отсчёт 40 дней пошёл, дедлайн ротации ≈ 2026-09-11** |
+
+### Что уже лежит на диске (`secrets/sber/`, вне git)
+
+| Файл | Что это |
+|---|---|
+| `prom-certs/{sberapi-ca.cer, sberapi-root-ca.cer, Sberbank Root CA.cer, sberca-ext.crt, sberca-root-ext.crt}` | цепочка доверенных TLS ПРОМ — в `verify` при запросах |
+| `bank-sign/00CA63BJ.cer` | сертификат подписи банка (ПАО Сбербанк) — проверка JWT-подписи ответа `/oauth/token` |
+| `diskver_fintech01.key` | наш приватный ключ клиентского TLS (chmod 600, **с сервера не уходит**) |
+| `diskver_fintech01.csr` | запрос на сертификат, отправлен в ТГ на загрузку в ЛК |
+
+CSR сформирован по документации Сбера (openssl-путь для не-Windows):
+```
+openssl req -nodes -newkey rsa:2048 -keyout diskver_fintech01.key -out diskver_fintech01.csr \
+  -subj "/C=RU/O=OOO DISKVER/CN=FINTECH01/emailAddress=…/OU=7811803918"
+```
+Требования УЦ: **CN = `FINTECH`+номер ключа 01…99** (уникален на каждый запрос, следующий — `FINTECH02`),
+**OU = ИНН организации**, O — наименование латиницей, E-mail — действующий адрес ответственного
+за получение сертификатов, ключ RSA 2048, keyUsage = цифровая подпись + шифрование данных,
+extendedKeyUsage = проверка подлинности клиента.
+
+### Осталось получить
+
+1. **`client_secret`** (сгенерирован при активации) — в `.env`, в чат не выводить.
+2. **Выпущенный клиентский TLS-сертификат** — после загрузки CSR в ЛК; положить рядом с ключом.
+3. **Redirect URI** — заполнить в ЛК; договорились на `https://bi.metaverseworld.ru/sber/callback`
+   (домен наш, живой Let's Encrypt).
+
+Поддержка по сертификатам: `supportdbo2@sberbank.ru` (услуга SberBusinessAPI, наименование, ИНН,
+среда, `client_id`).
+
+## Открытые вопросы (уточнять на живой схеме / у менеджера)
+
+1. ~~Стоимость подключения и месячный тариф~~ — **закрыт**: подключились сами в ЛК, бесплатно.
+2. ~~Обязателен ли блок `vat`~~ — **закрыт 02.08: модель его не требует**, НДС текстом в `purpose`.
+3. ~~`urgencyCode`~~ — **закрыт 02.08: не обязателен**, в модели его нет среди required.
+4. ~~Даёт ли `client-info` номера счетов~~ — **закрыт 2026-08-02: даёт** (`accounts[]` с `state`/`type`),
+   счёт в `.env` не нужен.
+5. Есть ли push/webhook о зачислениях (иначе — поллинг выписки, как у Альфы).
+6. Ограничения по частоте запросов (статистика запросов в ЛК есть — значит, лимиты считаются).
+7. ~~Какой префикс у платёжных эндпоинтов~~ — **закрыт 02.08: `v1`** (выписка на `v2`, платежи
+   на `v1`; признак различия маршрута — см. раздел 2).
+8. ~~Есть ли `statement/summary` на `v2`~~ — **закрыт 02.08: есть**, `GET /fintech/api/v2/statement/summary`
+   с обязательным параметром `accountNumber` (на `v1` маршрута нет). В спецификации указан `v1` — врёт.
+9. Создаётся ли черновик при POST без `digestSignatures` и в каком статусе — проверяется только
+   реальным документом в банке, нужен ОК Сергея.
+
+## Что переиспользуется из контура Альфы
+
+| Слой | Файл Альфы | Переиспользование |
+|---|---|---|
+| mTLS-сессия + токены | `collectors/alfa_statement.py::_session/_cfg` | схема та же, другие URL/поля |
+| Выписка → raw | `collectors/alfa_statement.py` | ~70 %, другая пагинация (по дням + `_links`) |
+| Выписка → МС paymentin/out | `collectors/bank_ms.py` | **сделано 02.08**: ядро банконезависимо, обёртка Сбера — `collectors/sber_ms.py` (организация ООО «ДИСКВЭР», запись при `SBER_MS_APPLY=1`) |
+| Привязка платежа к приёмке | `collectors/alfa_link.py` | **сделано 02.08**: движок общий, разрез по нашему юрлицу (миграция 207), состав платежа — из черновика |
+| Очередь черновиков | `invoice_bot/po_payment_watch.py` | **сделано**: ключ по организации, прогнан по Дисквэру 02.08 |
+| Отправка черновика | `invoice_bot/alfa_payment_draft.py` | ~60 %, тело РПП почти совпадает |
+
+**Вывод:** правильная форма — вынести общий движок и сделать **драйвер банка**
+(`banks/alfa.py`, `banks/sber.py`) с интерфейсом `get_statement / create_draft / get_state`,
+а не копировать модули под Сбер.
