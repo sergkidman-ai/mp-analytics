@@ -185,10 +185,15 @@ def main() -> int:
         if NABOR.search(nm):
             kind['наборы (сумма компонентов)'] += 1
         elif PRINTER.search(nm):
-            kind['принтерные/дочерние (наследование от матери)'] += 1
+            # Ревизия 2026-08-04: регекс ловит НЕ принтеры, а дочерние карточки,
+            # названные через модель принтера ради SEO (проверено на всех 318 кодах:
+            # устройств 0, расходников 318). Формального признака принтера в данных нет,
+            # поэтому коды возвращены в очередь веб-добора с пометкой источника возврата.
+            kind['ложный отсев «принтер» — возвращены в очередь'] += 1
+            web.append((e, 'возврат_отсева_D_принтер'))
         else:
             kind['пачка для веба'] += 1
-            web.append(e)
+            web.append((e, ''))
     st['1_покрытие_без_own_manual'] = {
         'четырёхзначных моделей всего': len(all4),
         'закрыто подтверждённым прайсом': len(confirmed4),
@@ -197,9 +202,9 @@ def main() -> int:
     st['3_остаток'] = dict(kind)
     with (DATA / 'step7_web_batch.csv').open('w', encoding='utf-8', newline='') as fh:
         w = csv.writer(fh, delimiter=';')
-        w.writerow(['external_code', 'article', 'название'])
-        for e in web:
-            w.writerow([e, ', '.join(sorted(arts[e])[:4]), names[e][0][:90]])
+        w.writerow(['external_code', 'article', 'название', 'источник_возврата'])
+        for e, back in web:
+            w.writerow([e, ', '.join(sorted(arts[e])[:4]), names[e][0][:90], back])
 
     (DATA / 'step7_stats.json').write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding='utf-8')
     print(json.dumps(st, ensure_ascii=False, indent=1)[:1400])
