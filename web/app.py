@@ -253,11 +253,20 @@ def sku(platform: str = "", account: str = "", period: str = "",
 # снапшоте таблицы `opex` — пересчитывать историю нечем, выписка в БД начинается с 01.08.
 OPEX_FACT_SINCE = "2026-08-01"
 ORG_NAMES = {"7807355364": "Цифровой Квадрат", "7811803918": "Дисквэр"}
+ORG_ORDER = ["7807355364", "7811803918"]
+# Юрлицо → его аккаунты площадок (чтобы «чистая после расходов» считалась по своей фирме,
+# а не по бизнесу целиком): решение Сергея 04.08.2026 — общего разреза нигде не показываем.
+ORG_ACCOUNTS = {"7807355364": {"wb": "wb_acc1", "oz": "oz_acc1"},
+                "7811803918": {"wb": "wb_acc2", "oz": "oz_acc2"}}
 
 
 def _opex_month(period):
-    """Период дашборда (1-е число месяца) → месяц раскладки расходов."""
-    return (period or "")[:8] + "01"
+    """Период дашборда (1-е число месяца) → месяц раскладки расходов.
+    Принимает и короткую форму «YYYY-MM» — её отдаёт селект месяцев выписки."""
+    p = (period or "").strip()
+    if len(p) == 7:
+        p += "-01"
+    return p[:8] + "01" if len(p) >= 8 else ""
 
 
 def _opex_snapshot_total(period):
@@ -272,65 +281,88 @@ def _opex_snapshot_total(period):
     return t, snap
 
 
+def _opex_is_fact(month):
+    """Считать месяц по факту выписки? Да — если месяц не раньше OPEX_FACT_SINCE, либо если
+    по нему уже есть размеченные платежи. Второе — плавный переход назад по истории: выписка
+    добрана с 01.01.2026, и месяц уезжает с ручного снапшота на факт ровно тогда, когда Сергей
+    его разметит (пока разметки нет — цифра истории не шевелится)."""
+    if month >= OPEX_FACT_SINCE:
+        return True
+    return db.query("SELECT EXISTS(SELECT 1 FROM opex_fact_month WHERE month=%s) e",
+                    (month,))[0]["e"]
+
+
 def _opex_total(period):
-    """Единая точка правды об итоге опер. расходов за месяц: с 08.2026 — факт из выписки,
-    раньше — ручной снапшот. Используют все потребители (бизнес-агрегат, советы, отчёт)."""
+    """Единая точка правды об итоге опер. расходов за месяц ПО ВСЕМУ БИЗНЕСУ (обе фирмы) —
+    для главной, советов и уровневого отчёта, где агрегат считается по бизнесу целиком.
+    Постраничный разрез «Опер. расходов» разделён по юрлицам отдельно."""
     m = _opex_month(period)
     if not m or len(m) != 10:
         return 0.0
-    if m >= OPEX_FACT_SINCE:
+    if _opex_is_fact(m):
         return db.query("SELECT coalesce(sum(amount),0)::float t FROM opex_fact_month WHERE month=%s",
                         (m,))[0]["t"]
     return _opex_snapshot_total(period)[0]
 
 
-def _opex_unassigned(month):
+def _opex_unassigned(month, org=""):
     """Сколько расходных платежей месяца ещё без статьи — чтобы итог не выглядел готовым."""
-    return db.query("""SELECT count(*)::int n, coalesce(sum(t.amount),0)::float s
+    w, p = ["t.direction='DEBIT'", "a.txn_id IS NULL",
+            "date_trunc('month', t.operation_date)::date=%s"], [month]
+    if org:
+        w.append("t.org_inn=%s")
+        p.append(org)
+    return db.query(f"""SELECT count(*)::int n, coalesce(sum(t.amount),0)::float s
         FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id=t.id
-        WHERE t.direction='DEBIT' AND a.txn_id IS NULL
-          AND date_trunc('month', t.operation_date)::date=%s""", (month,))[0]
+        WHERE {' AND '.join(w)}""", tuple(p))[0]
 
 
 @app.get("/api/opex")
-def opex(period: str = ""):
-    """Операционные расходы бизнеса за месяц (весь бизнес: WB + Ozon, оба юрлица).
+def opex(period: str = "", org: str = ""):
+    """Операционные расходы ОДНОГО юрлица за месяц. Общего («обе фирмы вместе») разреза здесь
+    нет — решение Сергея 04.08.2026: у фирм разные банки, договоры и площадки, смешивать нечего.
 
-    Два источника, переключение по OPEX_FACT_SINCE:
-      source='fact'   — с 08.2026: суммы статей из размеченной банковской выписки;
-      source='manual' — до 08.2026: прежний ручной снапшот (наследуется предыдущим месяцем).
-    Чистая бизнеса = WB (из margin) + Ozon (к перечислению − COGS) за месяц минус расходы."""
+    Два источника:
+      source='fact'   — факт из размеченной выписки (с 08.2026 всегда; раньше — как только
+                        месяц размечен, см. _opex_is_fact);
+      source='manual' — прежний ручной снапшот; он один на бизнес и по фирмам НЕ делится,
+                        поэтому отдаётся с флагом org_split=false и показывается как есть.
+    Чистая фирмы = её WB-аккаунт (из margin) + её Ozon-аккаунт (к перечислению − COGS)."""
     if not period:
         return {"applies": False, "items": [], "total": 0}
     month = _opex_month(period)
+    org = org if org in ORG_NAMES else ORG_ORDER[0]
+    orgs = [{"org_inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
+    acc = ORG_ACCOUNTS[org]
 
-    def _with_biz(payload, total):
+    def _with_biz(payload, total, org_split=True):
+        # чистая по аккаунтам ЭТОЙ фирмы; для общего снапшота (manual) — по всему бизнесу
         wb_net = db.query("""SELECT coalesce(sum(net_profit),0)::float n FROM margin_by_sku
-            WHERE period_from=%s AND platform='wb'""", (period,))[0]["n"]
-        oz_net = _oz_summary("", period)["net"]   # к перечислению − COGS (включает оверхед)
+            WHERE period_from=%s AND platform='wb'""" + (" AND account=%s" if org_split else ""),
+            ((period, acc["wb"]) if org_split else (period,)))[0]["n"]
+        oz_net = _oz_summary(acc["oz"] if org_split else "", period)["net"]
         biz = wb_net + oz_net
         payload.update({"wb_net": round(wb_net, 2), "oz_net": round(oz_net, 2),
                         "biz_net": round(biz, 2), "net_after": round(biz - total, 2),
-                        "total": round(total, 2), "period": period})
+                        "total": round(total, 2), "period": period, "month": month,
+                        "org": org, "org_name": ORG_NAMES[org], "orgs": orgs,
+                        "org_split": org_split})
         return payload
 
-    if month >= OPEX_FACT_SINCE:
+    if _opex_is_fact(month):
         items = db.query("""SELECT category_id, category, sum(amount)::float amount,
                                    sum(txn_count)::int txn_count
-            FROM opex_fact_month WHERE month=%s GROUP BY 1,2 ORDER BY 3 DESC""", (month,))
-        by_org = db.query("""SELECT org_inn, sum(amount)::float amount
-            FROM opex_fact_month WHERE month=%s GROUP BY 1 ORDER BY 2 DESC""", (month,))
-        for r in by_org:
-            r["org_name"] = ORG_NAMES.get(r["org_inn"], r["org_inn"])
+            FROM opex_fact_month WHERE month=%s AND org_inn=%s
+            GROUP BY 1,2 ORDER BY 3 DESC""", (month, org))
         total = sum(i["amount"] for i in items)
-        return _with_biz({"applies": True, "source": "fact", "month": month,
-                          "items": items, "by_org": by_org,
-                          "unassigned": _opex_unassigned(month)}, total)
+        return _with_biz({"applies": True, "source": "fact", "items": items,
+                          "unassigned": _opex_unassigned(month, org)}, total)
 
     total, snap = _opex_snapshot_total(period)
     if not snap:
         return {"applies": False, "source": "manual", "items": [], "total": 0,
-                "period": period, "snapshot": None, "own": False}
+                "period": period, "snapshot": None, "own": False,
+                "org": org, "org_name": ORG_NAMES[org], "orgs": orgs, "org_split": False}
     items = db.query("""SELECT id, name, role, category, base::float, tax_pct::float, amount::float
         FROM opex WHERE effective_from=%s ORDER BY category, amount DESC""", (snap,))
     return _with_biz({"applies": True, "source": "manual", "snapshot": snap,
@@ -338,7 +370,8 @@ def opex(period: str = ""):
                       "fot": round(sum(i["amount"] for i in items if i["category"] == "salary"), 2),
                       "rent": round(sum(i["amount"] for i in items if i["category"] == "rent"), 2),
                       "tax": round(sum(i["amount"] for i in items if i["category"] == "tax"), 2),
-                      "headcount": sum(1 for i in items if i["category"] == "salary")}, total)
+                      "headcount": sum(1 for i in items if i["category"] == "salary")},
+                     total, org_split=False)
 
 
 class OpexItem(BaseModel):
@@ -418,20 +451,19 @@ def opex_category_save(payload: OpexCategory):
 
 @app.get("/api/opex/statement")
 def opex_statement(org: str = "", month: str = "", only: str = "all", direction: str = "DEBIT"):
-    """Строки выписки одной фирмы за месяц + присвоенная статья.
+    """Строки выписки ОДНОЙ фирмы за месяц + присвоенная статья.
 
-    org — ИНН организации (7807355364 Цифровой / 7811803918 Дисквэр); пусто = обе.
+    org — ИНН организации (7807355364 Цифровой / 7811803918 Дисквэр); пусто → первая по списку.
+    Сводного разреза «обе фирмы» нет намеренно (решение Сергея 04.08.2026).
     only='unassigned' — только платежи без статьи. direction='' — вместе с приходом."""
+    org = org if org in ORG_NAMES else ORG_ORDER[0]
     if not month:
         month = db.query("SELECT coalesce(max(date_trunc('month', operation_date))::text, '') m "
-                         "FROM bank_txn")[0]["m"][:10]
+                         "FROM bank_txn WHERE org_inn=%s", (org,))[0]["m"][:10]
     if not month:
-        return {"month": None, "orgs": [], "items": [], "totals": {}}
+        return {"month": None, "org": org, "orgs": [], "items": [], "totals": {}}
     month = month[:8] + "01"
-    w, p = ["date_trunc('month', t.operation_date)::date = %s"], [month]
-    if org:
-        w.append("t.org_inn = %s")
-        p.append(org)
+    w, p = ["date_trunc('month', t.operation_date)::date = %s", "t.org_inn = %s"], [month, org]
     if direction:
         w.append("t.direction = %s")
         p.append(direction)
@@ -448,21 +480,27 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
         LEFT JOIN opex_rule r ON coalesce(t.cp_inn,'') <> '' AND r.cp_inn = t.cp_inn
         WHERE {' AND '.join(w)}
         ORDER BY t.operation_date DESC, t.id DESC""", tuple(p))
-    tot = db.query(f"""
+    # Итог месяца — всегда по ВСЕМ расходам фирмы за месяц, независимо от фильтров экрана:
+    # иначе при «только без статьи» строка внизу показывала бы «размечено 0 из 0».
+    tot = db.query("""
         SELECT count(*)::int n,
                count(*) FILTER (WHERE a.txn_id IS NOT NULL)::int n_done,
                coalesce(sum(t.amount),0)::float total,
                coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NOT NULL),0)::float done,
                coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NULL),0)::float todo
         FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
-        WHERE {' AND '.join(w)}""", tuple(p))[0]
-    orgs = db.query("""SELECT org_inn, min(operation_date)::text d0, max(operation_date)::text d1,
-                              count(*)::int n FROM bank_txn GROUP BY 1 ORDER BY 1""")
+        WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
+          AND t.direction='DEBIT'""", (month, org))[0]
+    orgs = [{"org_inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
+    seen = {r["org_inn"]: r for r in db.query(
+        """SELECT org_inn, min(operation_date)::text d0, max(operation_date)::text d1,
+                  count(*)::int n FROM bank_txn GROUP BY 1""")}
     for o in orgs:
-        o["name"] = ORG_NAMES.get(o["org_inn"], o["org_inn"])
+        o.update({k: v for k, v in seen.get(o["org_inn"], {"n": 0}).items() if k != "org_inn"})
     months = [r["m"] for r in db.query(
-        "SELECT DISTINCT date_trunc('month', operation_date)::date::text m FROM bank_txn ORDER BY 1 DESC")]
-    return {"month": month, "org": org, "only": only, "items": items,
+        "SELECT DISTINCT date_trunc('month', operation_date)::date::text m "
+        "FROM bank_txn WHERE org_inn=%s ORDER BY 1 DESC", (org,))]
+    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "only": only, "items": items,
             "totals": tot, "orgs": orgs, "months": months}
 
 
@@ -523,27 +561,21 @@ def opex_assign(payload: OpexAssign):
 
 @app.get("/api/opex/fact")
 def opex_fact(period: str = "", org: str = ""):
-    """Факт опер. расходов за месяц из размеченной выписки: по статьям, по фирмам,
+    """Факт опер. расходов ОДНОЙ фирмы за месяц из размеченной выписки: по статьям
     плюс сколько ещё не размечено (чтобы итог не выглядел готовым)."""
+    org = org if org in ORG_NAMES else ORG_ORDER[0]
     month = _opex_month(period) if period else db.query(
         "SELECT coalesce(max(month)::text,'') m FROM opex_fact_month")[0]["m"][:10]
     if not month or len(month) != 10:
-        return {"month": None, "items": [], "total": 0, "unassigned": {"n": 0, "s": 0}}
-    w, p = ["month=%s"], [month]
-    if org:
-        w.append("org_inn=%s")
-        p.append(org)
-    items = db.query(f"""SELECT category_id, category, sum(amount)::float amount,
+        return {"month": None, "org": org, "items": [], "total": 0,
+                "unassigned": {"n": 0, "s": 0}, "months": []}
+    items = db.query("""SELECT category_id, category, sum(amount)::float amount,
                                 sum(txn_count)::int txn_count
-        FROM opex_fact_month WHERE {' AND '.join(w)}
-        GROUP BY 1,2 ORDER BY 3 DESC""", tuple(p))
-    by_org = db.query("""SELECT org_inn, sum(amount)::float amount FROM opex_fact_month
-        WHERE month=%s GROUP BY 1 ORDER BY 2 DESC""", (month,))
-    for r in by_org:
-        r["org_name"] = ORG_NAMES.get(r["org_inn"], r["org_inn"])
-    return {"month": month, "items": items, "by_org": by_org,
+        FROM opex_fact_month WHERE month=%s AND org_inn=%s
+        GROUP BY 1,2 ORDER BY 3 DESC""", (month, org))
+    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "items": items,
             "total": round(sum(i["amount"] for i in items), 2),
-            "unassigned": _opex_unassigned(month),
+            "unassigned": _opex_unassigned(month, org),
             # месяцы, за которые вообще есть выписка — «Сводке» нужен свой список периодов:
             # margin_by_sku за текущий месяц может ещё не существовать
             "months": [r["m"] for r in db.query(
@@ -2739,7 +2771,7 @@ def signals(period: str = "", scope: str = "", account: str = ""):
                                   "text": "Убыточных/габаритных позиций мало."}]}
 
     biz = business(period)
-    ox = opex(period)
+    ox = {"total": _opex_total(period)}   # уровневый отчёт — по бизнесу целиком
     t = biz.get("total", {})
     after = biz.get("net_after_opex")
     margin = t.get("margin_pct")

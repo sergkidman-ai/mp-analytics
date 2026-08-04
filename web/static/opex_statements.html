@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Выписки → статьи расходов</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  main{flex:1;min-width:0;padding:22px;max-width:1320px;margin:0 auto}
+  h3{margin:0 0 12px;font-size:15px}
+  select,input[type=number]{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font:inherit}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}
+  .lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  .whtabs a{color:var(--mut);text-decoration:none;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:600}
+  .whtabs a:hover{background:var(--card);color:var(--txt)}
+  .whtabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .orgs{display:flex;gap:4px}
+  .orgs button{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:6px 13px;font:inherit;cursor:pointer}
+  .orgs button.cur{background:var(--card);color:var(--txt);border-color:var(--acc)}
+  .chk{display:flex;align-items:center;gap:6px;color:var(--mut);font-size:13px;cursor:pointer;user-select:none}
+  .wrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px 14px}
+  table.st{width:100%;border-collapse:collapse;font-size:13px}
+  table.st th{color:var(--mut);font-weight:600;text-align:left;padding:7px;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  table.st td{padding:6px 7px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.st tr.done{opacity:.72}
+  table.st .amt{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  table.st .pu{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut)}
+  table.st .cp{white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+  table.st select{width:100%;max-width:190px;padding:5px 7px}
+  table.st input[type=number]{width:56px;padding:5px 6px;text-align:right}
+  .credit td{color:var(--mut)}
+  .foot{display:flex;gap:22px;flex-wrap:wrap;align-items:baseline;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .foot .ti{display:flex;flex-direction:column}
+  .foot .lbl{font-size:12px;color:var(--mut)}.foot .vv{font-size:18px;font-weight:700}
+  .note{color:var(--mut);font-size:12px;margin:12px 0 0}
+  .flash{position:fixed;right:18px;bottom:18px;background:var(--card);border:1px solid var(--acc);border-radius:10px;padding:9px 14px;font-size:13px;opacity:0;transition:opacity .2s}
+  .flash.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex" class="cur">💼 Опер. расходы</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main>
+  <nav class="whtabs">
+    <a href="/opex">📊 Сводка</a>
+    <a href="/opex/statements" class="cur">📥 Выписки</a>
+  </nav>
+  <div class="bar">
+    <div class="orgs" id="orgs"></div>
+    <select id="f-month"></select>
+    <label class="chk"><input type="checkbox" id="f-todo"> только без статьи</label>
+    <label class="chk"><input type="checkbox" id="f-credit"> показать приход</label>
+    <span style="margin-left:auto"></span>
+    <label class="chk" title="Ставится по умолчанию у каждой новой строки"><input type="checkbox" id="f-remember" checked> запоминать контрагента</label>
+  </div>
+  <div class="wrap"><div id="tbl"></div><div class="foot" id="foot"></div></div>
+  <p class="note">Статья присваивается сразу при выборе — кнопки «Сохранить» нет. «Запомнить» создаёт правило по ИНН
+     контрагента: все его платежи (и уже загруженные, и будущие) уходят в эту статью сами.
+     «Мес.» — разнести платёж равными долями на N месяцев вперёд (лицензия на год → 12).
+     Платежи поставщикам оставляй без статьи: они уедут в раздел «Кэшфлоу».</p>
+</main>
+<div class="flash" id="flash"></div>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
+let org='', month='', cats=[], data=null;
+async function api(p){const r=await fetch(p);return r.json();}
+async function post(p,body){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
+function flash(t){const f=$('#flash');f.textContent=t;f.classList.add('on');setTimeout(()=>f.classList.remove('on'),1600);}
+
+async function load(){
+  const only=$('#f-todo').checked?'unassigned':'all';
+  const dir=$('#f-credit').checked?'':'DEBIT';
+  data=await api(`/api/opex/statement?org=${org}&month=${month}&only=${only}&direction=${dir}`);
+  month=data.month||month; org=data.org||org;
+  renderBar(); render();
+}
+function renderBar(){
+  // Фирмы всегда раздельно — сводного «Все» нет намеренно: разные банки, договоры и площадки
+  $('#orgs').innerHTML=(data.orgs||[]).map(o=>
+    `<button class="${org===o.org_inn?'cur':''}" onclick="setOrg('${o.org_inn}')" title="платежей в базе: ${o.n||0}">${esc(o.name)}</button>`).join('');
+  const ms=data.months||[month];
+  $('#f-month').innerHTML=ms.map(m=>`<option value="${m}"${m===month?' selected':''}>${MONTHS[m.slice(5,7)]} ${m.slice(0,4)}</option>`).join('');
+}
+function setOrg(v){org=v;localStorage.setItem('opexOrg',v);month='';load();}
+function catOptions(sel){
+  return `<option value="">— без статьи —</option>`
+    +cats.map(c=>`<option value="${c.id}"${c.id===sel?' selected':''}>${esc(c.name)}</option>`).join('')
+    +`<option value="new">+ новая статья…</option>`;
+}
+function render(){
+  const rows=(data.items||[]).map(t=>{
+    const credit=t.direction==='CREDIT';
+    const ctl=credit
+      ? `<span class="muted">приход</span>`
+      : `<select onchange="assign(${t.id},this)">${catOptions(t.category_id)}</select>`;
+    const spread=credit?'':`<input type="number" min="1" max="120" value="${t.spread_months||1}" onchange="assign(${t.id},null,this)">`;
+    const rule=t.has_rule?'<span title="есть правило по этому контрагенту">🔁</span>':'';
+    const src=t.source==='rule'?'<span class="muted" title="размечено правилом">авто</span>':'';
+    return `<tr class="${t.category_id?'done':''}${credit?' credit':''}">
+      <td class="muted">${t.operation_date.slice(8,10)}.${t.operation_date.slice(5,7)}</td>
+      <td class="cp" title="${esc(t.cp_name)} ${esc(t.cp_inn||'')}">${esc(t.cp_name||'—')} ${rule}</td>
+      <td class="pu" title="${esc(t.purpose)}">${esc(t.purpose||'')}</td>
+      <td class="amt ${credit?'pos':''}">${credit?'+':'−'}${rub(t.amount)}</td>
+      <td>${ctl}</td>
+      <td>${spread}</td>
+      <td class="muted" style="font-size:11px">${src}</td></tr>`;
+  }).join('')||`<tr><td colspan="7" class="muted" style="padding:14px">Платежей за этот месяц нет.</td></tr>`;
+  $('#tbl').innerHTML=`<table class="st"><thead><tr>
+      <th>Дата</th><th>Контрагент</th><th>Назначение</th><th style="text-align:right">Сумма</th>
+      <th>Статья расходов</th><th>Мес.</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  const t=data.totals||{};
+  $('#foot').innerHTML=`
+    <div class="ti"><span class="lbl">Размечено</span><span class="vv">${t.n_done||0} из ${t.n||0}</span></div>
+    <div class="ti"><span class="lbl">В расходах месяца</span><span class="vv warn">${rub(t.done||0)}</span></div>
+    <div class="ti"><span class="lbl">Без статьи</span><span class="vv">${rub(t.todo||0)}</span></div>`;
+}
+async function assign(txnId,selEl,spreadEl){
+  const tr=(selEl||spreadEl).closest('tr');
+  const sel=selEl||tr.querySelector('select');
+  const spread=spreadEl||tr.querySelector('input[type=number]');
+  let val=sel.value;
+  if(val==='new'){
+    const name=prompt('Название новой статьи расходов:');
+    if(!name){sel.value=data.items.find(i=>i.id===txnId)?.category_id||'';return;}
+    const r=await post('/api/opex/categories',{name});
+    if(!r.ok){alert(r.error||'не удалось создать статью');return;}
+    await loadCats(); val=String(r.id);
+  }
+  if(!val && spreadEl) return;                       // менять срок у неразмеченного нечего
+  const res=await post('/api/opex/statement/assign',{
+    txn_id:txnId,
+    category_id: val?+val:null,
+    spread_months: +(spread?.value||1),
+    remember: $('#f-remember').checked && !!val});
+  if(!res.ok){alert(res.error||'не удалось сохранить');return;}
+  flash(val ? (res.ruled_existing?`Статья присвоена, правилом размечено ещё ${res.ruled_existing}`:'Статья присвоена')
+            : 'Статья снята');
+  await load();
+}
+async function loadCats(){ cats=(await api('/api/opex/categories')).items; }
+(async()=>{
+  org=localStorage.getItem('opexOrg')||'';       // выбранная фирма живёт между заходами
+  await loadCats();
+  $('#f-todo').onchange=load; $('#f-credit').onchange=load;
+  $('#f-month').onchange=e=>{month=e.target.value;load();};
+  await load();
+})();
+</script>
+</body>
+</html>
