@@ -6,6 +6,7 @@ Drill-down: большие цифры → SKU → (позже категории
 
 Запуск:  ./venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8090
 """
+import base64
 import os
 import re
 import sys
@@ -20,6 +21,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 import collectors.bank_txn_store as txn_store  # noqa: E402  правила разметки выписки (поток inv)
+import collectors.bank_file_import as bank_file_import  # noqa: E402  выписка файлом (банки без API)
 
 app = FastAPI(title="Пульт бизнеса")
 STATIC = BASE_DIR / "web" / "static"
@@ -568,6 +570,44 @@ def opex_assign(payload: OpexAssign):
         if (inn or key) and payload.apply_existing:
             ruled = txn_store.apply_rules()          # доразметить уже лежащее в БД
     return {"ok": True, "assigned": 1, "rule": bool(payload.remember), "ruled_existing": ruled}
+
+
+class OpexImport(BaseModel):
+    org: str                              # ИНН нашей фирмы, чья это выписка
+    bank: str = "ozon"                    # метка банка в bank_txn
+    filename: str = ""
+    content_b64: str = ""                 # файл целиком, base64 (multipart не ставим ради него)
+    account: str | None = None            # наш счёт, если в файле его нет (CSV/XLSX)
+    since: str = ""                       # не грузить операции раньше этой даты
+    dry: bool = False                     # только разбор, без записи — проверка формата
+
+
+@app.post("/api/opex/statement/import")
+def opex_statement_import(payload: OpexImport):
+    """Ручная загрузка выписки файлом — для банков без API (Озон Банк: счета есть
+    у обеих фирм, API нет вовсе). Разбор в `collectors/bank_file_import`, запись —
+    в тот же `bank_txn`, что у Альфы и Сбера, поэтому правила и экран разметки
+    работают без изменений. Повторная загрузка того же файла дублей не создаёт
+    (натуральный ключ — хеш реквизитов операции)."""
+    if payload.org not in ORG_NAMES:
+        return {"ok": False, "error": "неизвестная организация"}
+    bank = re.sub(r"[^a-z0-9_]+", "", (payload.bank or "ozon").lower())[:16] or "ozon"
+    try:
+        data = base64.b64decode(payload.content_b64 or "", validate=False)
+    except Exception:                                            # noqa: BLE001
+        return {"ok": False, "error": "файл не читается (ошибка base64)"}
+    if not data:
+        return {"ok": False, "error": "пустой файл"}
+    try:
+        res = bank_file_import.import_bytes(
+            data, payload.filename or "statement.txt", bank, payload.org,
+            account=(payload.account or "").strip() or None,
+            since=(payload.since or "").strip() or None, dry=payload.dry)
+    except Exception as e:                                       # noqa: BLE001
+        # Разбор чужого формата — самое хрупкое место: отдаём человеку текст ошибки
+        # (в нём перечислены заголовки файла), а не пятисотку.
+        return {"ok": False, "error": str(e)[:400]}
+    return {"ok": True, **res}
 
 
 @app.get("/api/opex/rules")

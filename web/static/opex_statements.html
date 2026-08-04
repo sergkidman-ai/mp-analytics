@@ -87,6 +87,10 @@
         <option value="">не запоминать</option>
       </select></label>
     <button class="lnk" id="btn-rules" onclick="toggleRules()">🔁 правила</button>
+    <button class="lnk" id="btn-import" onclick="pickFile()"
+            title="Загрузить выписку файлом — для банков без API (Озон Банк)">📤 файл выписки</button>
+    <input type="file" id="f-file" accept=".txt,.csv,.xlsx,.xls,.1c" style="display:none"
+           onchange="uploadFile(this)">
   </div>
   <div class="wrap" id="rules" style="display:none;margin-bottom:14px"></div>
   <div class="wrap"><div id="tbl"></div><div class="foot" id="foot"></div></div>
@@ -95,7 +99,11 @@
      платежи разнородные — так бывает, когда контрагент подставлен банком (карточные покупки, комиссии), — бери
      «+ фрагмент назначения»: правило сработает только там, где этот кусок текста есть в назначении.
      «Мес.» — разнести платёж равными долями на N месяцев вперёд (лицензия на год → 12).
-     Платежи поставщикам оставляй без статьи: они уедут в раздел «Кэшфлоу».</p>
+     Платежи поставщикам оставляй без статьи: они уедут в раздел «Кэшфлоу».<br>
+     <b>«📤 файл выписки»</b> — для Озон Банка: у него нет API, выписку выгружаешь из личного кабинета
+     (лучше в формате <b>1С</b>, годятся и CSV/XLSX) и загружаешь сюда файлом в ту фирму, что выбрана слева.
+     Сначала покажу, что нашёл в файле, и спрошу подтверждение; повторная загрузка того же периода
+     дублей не создаёт.</p>
 </main>
 <div class="flash" id="flash"></div>
 <script>
@@ -129,6 +137,8 @@ function catOptions(sel){
     +`<option value="new">+ новая статья…</option>`;
 }
 function render(){
+  // У фирмы может быть несколько банков (Альфа + Озон Банк) — тогда помечаем каждую строку
+  const multiBank=new Set((data.items||[]).map(t=>t.bank)).size>1;
   const rows=(data.items||[]).map(t=>{
     const credit=t.direction==='CREDIT';
     const ctl=credit
@@ -138,7 +148,8 @@ function render(){
     const rule=t.has_rule?'<span title="есть правило по этому контрагенту">🔁</span>':'';
     const src=t.source==='rule'?'<span class="muted" title="размечено правилом">авто</span>':'';
     return `<tr class="${t.category_id?'done':''}${credit?' credit':''}">
-      <td class="muted">${t.operation_date.slice(8,10)}.${t.operation_date.slice(5,7)}</td>
+      <td class="muted">${t.operation_date.slice(8,10)}.${t.operation_date.slice(5,7)}
+          ${multiBank?`<span style="font-size:10px;opacity:.65" title="банк">${esc(BANKS[t.bank]||t.bank)}</span>`:''}</td>
       <td class="cp" title="${esc(t.cp_name)} ${esc(t.cp_inn||'')}">${esc(t.cp_name||'—')} ${rule}</td>
       <td class="pu" title="${esc(t.purpose)}">${esc(t.purpose||'')}</td>
       <td class="amt ${credit?'pos':''}">${credit?'+':'−'}${rub(t.amount)}</td>
@@ -155,6 +166,35 @@ function render(){
     <div class="ti"><span class="lbl">В расходах месяца</span><span class="vv warn">${rub(t.done||0)}</span></div>
     <div class="ti"><span class="lbl">Без статьи</span><span class="vv">${rub(t.todo||0)}</span></div>`;
 }
+// ── загрузка выписки файлом (банки без API: Озон Банк) ──────────────────────
+const BANKS={alfa:'Альфа',sber:'Сбер',ozon:'Озон'};
+function pickFile(){ $('#f-file').value=''; $('#f-file').click(); }
+async function uploadFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const b64=await new Promise((ok,err)=>{
+    const r=new FileReader();
+    r.onload=()=>ok(String(r.result).split(',')[1]||'');
+    r.onerror=()=>err(r.error); r.readAsDataURL(f);
+  });
+  const body={org:org,bank:'ozon',filename:f.name,content_b64:b64};
+  // Сперва разбор «вхолостую»: показываем, что нашли в файле, и только потом пишем в БД.
+  const pre=await post('/api/opex/statement/import',{...body,dry:true});
+  if(!pre.ok){alert('Файл разобрать не удалось.\n\n'+(pre.error||''));return;}
+  if(!pre.parsed){alert('В файле не нашлось ни одной операции.');return;}
+  const per=pre.period?`${pre.period[0]} … ${pre.period[1]}`:'—';
+  const okGo=confirm(`Файл: ${f.name}\nОперации: ${pre.parsed} (${per})\n`
+    +`Расход: ${rub(pre.debit)} · Приход: ${rub(pre.credit)}\n`
+    +`Счёт в файле: ${pre.account||'не указан'}\n\n`
+    +`Загрузить в «${data.org_name||''}» как выписку Озон Банка?`);
+  if(!okGo) return;
+  const res=await post('/api/opex/statement/import',body);
+  if(!res.ok){alert(res.error||'не удалось загрузить');return;}
+  flash(`Загружено новых ${res.stored}, уже было ${res.dup}`
+        +(res.ruled?`, размечено правилом ${res.ruled}`:'')
+        +(res.before_cutoff?`, до отсечки ${res.before_cutoff}`:''));
+  month=''; await load();
+}
+
 async function assign(txnId,selEl,spreadEl){
   const tr=(selEl||spreadEl).closest('tr');
   const sel=selEl||tr.querySelector('select');
