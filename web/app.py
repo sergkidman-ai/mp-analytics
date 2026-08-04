@@ -515,6 +515,8 @@ class OpexAssign(BaseModel):
     remember: bool = False                # запомнить контрагента → правило на будущее
     apply_existing: bool = True           # доразметить прочие платежи этого же контрагента
     purpose_like: str | None = None       # фрагмент назначения: правило только на такие платежи
+    amount_min: float | None = None       # диапазон суммы [min, max): правило только на такие
+    amount_max: float | None = None       # платежи (ЕНП Казначейства делится порогом 40 000 ₽)
 
 
 @app.post("/api/opex/statement/assign")
@@ -551,23 +553,36 @@ def opex_assign(payload: OpexAssign):
         inn = (txn["cp_inn"] or "").strip()
         key = "" if inn else txn_store.name_key(txn["cp_name"])
         frag = (payload.purpose_like or "").strip() or None
+        lo, hi = payload.amount_min, payload.amount_max
+        if lo is not None and hi is not None and lo >= hi:
+            return {"ok": False, "error": "нижняя граница суммы не меньше верхней"}
         if inn:
-            db.execute("""INSERT INTO opex_rule (cp_inn, purpose_like, category_id, spread_months)
-                VALUES (%s,%s,%s,%s)
-                ON CONFLICT (cp_inn, (coalesce(lower(purpose_like),'')))
+            db.execute("""INSERT INTO opex_rule (cp_inn, purpose_like, amount_min, amount_max,
+                                                 category_id, spread_months)
+                VALUES (%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (cp_inn, (coalesce(lower(purpose_like),'')),
+                             (coalesce(amount_min,-1)), (coalesce(amount_max,-1)))
                     WHERE coalesce(cp_inn,'') <> ''
                 DO UPDATE SET category_id=EXCLUDED.category_id,
                               spread_months=EXCLUDED.spread_months, updated_at=now()""",
-                (inn, frag, payload.category_id, n))
+                (inn, frag, lo, hi, payload.category_id, n))
         elif key:
-            db.execute("""INSERT INTO opex_rule (cp_name_key, purpose_like, category_id, spread_months)
-                VALUES (%s,%s,%s,%s)
-                ON CONFLICT (cp_name_key, (coalesce(lower(purpose_like),'')))
+            db.execute("""INSERT INTO opex_rule (cp_name_key, purpose_like, amount_min, amount_max,
+                                                 category_id, spread_months)
+                VALUES (%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (cp_name_key, (coalesce(lower(purpose_like),'')),
+                             (coalesce(amount_min,-1)), (coalesce(amount_max,-1)))
                     WHERE coalesce(cp_name_key,'') <> ''
                 DO UPDATE SET category_id=EXCLUDED.category_id,
                               spread_months=EXCLUDED.spread_months, updated_at=now()""",
-                (key, frag, payload.category_id, n))
+                (key, frag, lo, hi, payload.category_id, n))
         if (inn or key) and payload.apply_existing:
+            # Новое правило может перебивать старую АВТОразметку (у Казначейства платежи уже
+            # висели на «Налоги ФОТ», а правило с порогом отправляет крупные в «Налоги и взносы»).
+            # Снимаем расхождения с текущим победителем и размечаем заново; ручное не трогаем.
+            db.execute("""DELETE FROM bank_txn_opex a USING opex_rule_match m
+                WHERE m.txn_id = a.txn_id AND a.source = 'rule'
+                  AND m.category_id <> a.category_id""")
             ruled = txn_store.apply_rules()          # доразметить уже лежащее в БД
     return {"ok": True, "assigned": 1, "rule": bool(payload.remember), "ruled_existing": ruled}
 
@@ -616,6 +631,7 @@ def opex_rules():
     `n_auto` — сколько платежей сейчас размечено автоматически по этому правилу."""
     return {"items": db.query("""
         SELECT r.id, r.cp_inn, r.cp_name_key, r.purpose_like, r.spread_months,
+               r.amount_min::float AS amount_min, r.amount_max::float AS amount_max,
                r.category_id, c.name AS category,
                coalesce(k.cp_name, '') AS cp_name,
                coalesce(x.n, 0)::int AS n_auto, coalesce(x.s, 0)::float AS s_auto

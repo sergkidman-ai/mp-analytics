@@ -84,6 +84,7 @@
       <select id="f-remember">
         <option value="inn" selected>контрагента</option>
         <option value="purpose">контрагента + фрагмент назначения</option>
+        <option value="amount">контрагента + сумма платежа</option>
         <option value="">не запоминать</option>
       </select></label>
     <button class="lnk" id="btn-rules" onclick="toggleRules()">🔁 правила</button>
@@ -98,6 +99,8 @@
      правило по его ИНН: все его платежи (и уже загруженные, и будущие) уходят в эту статью сами. Если у контрагента
      платежи разнородные — так бывает, когда контрагент подставлен банком (карточные покупки, комиссии), — бери
      «+ фрагмент назначения»: правило сработает только там, где этот кусок текста есть в назначении.
+     Если платежи различаются не текстом, а величиной — как единый налоговый платёж Казначейства, —
+     бери «+ сумма платежа» и задай диапазон («до 40000», «от 40000»).
      «Мес.» — разнести платёж равными долями на N месяцев вперёд (лицензия на год → 12).
      Платежи поставщикам оставляй без статьи: они уедут в раздел «Кэшфлоу».<br>
      <b>«📤 файл выписки»</b> — для Озон Банка: у него нет API, выписку выгружаешь из личного кабинета
@@ -218,12 +221,24 @@ async function assign(txnId,selEl,spreadEl){
     frag=frag.trim();
     if(!frag){alert('Пустой фрагмент — правило по одному контрагенту создаётся режимом «контрагента».');return;}
   }
+  let rng=null;
+  if(val && mode==='amount'){
+    const txn=data.items.find(i=>i.id===txnId)||{};
+    const ans=prompt('Правило сработает только на платежах в этом диапазоне сумм.\n'
+      +'Формат: «до 40000», «от 40000» или «1000-40000».\n'
+      +`Сумма этого платежа: ${rub(txn.amount)}`, '');
+    if(ans===null) return;                             // отказ — ничего не сохраняем
+    rng=parseAmountRange(ans);
+    if(!rng){alert('Не понял диапазон. Примеры: «до 40000», «от 40000», «1000-40000».');return;}
+  }
   const res=await post('/api/opex/statement/assign',{
     txn_id:txnId,
     category_id: val?+val:null,
     spread_months: +(spread?.value||1),
     remember: !!mode && !!val,
-    purpose_like: frag});
+    purpose_like: frag,
+    amount_min: rng?rng.amount_min:null,
+    amount_max: rng?rng.amount_max:null});
   if(!res.ok){alert(res.error||'не удалось сохранить');return;}
   flash(val ? (res.ruled_existing?`Статья присвоена, правилом размечено ещё ${res.ruled_existing}`:'Статья присвоена')
             : 'Статья снята');
@@ -246,11 +261,33 @@ async function toggleRules(){
   box.style.display=show?'':'none';
   if(show) await loadRules();
 }
+// Диапазон суммы правила словами: границы полуинтервальные — min включительно, max нет.
+function amountLabel(r){
+  const f=n=>Math.round(n).toLocaleString('ru-RU');
+  if(r.amount_min!=null&&r.amount_max!=null) return `${f(r.amount_min)}–${f(r.amount_max)} ₽`;
+  if(r.amount_min!=null) return `от ${f(r.amount_min)} ₽`;
+  if(r.amount_max!=null) return `до ${f(r.amount_max)} ₽`;
+  return '';
+}
+// «до 40000» / «от 40000» / «1000-40000» → {amount_min, amount_max}. Мусор → null.
+function parseAmountRange(s){
+  const t=(s||'').toLowerCase().replace(/\s|₽/g,'').replace(/,/g,'.');
+  const num=x=>{const v=parseFloat(x);return isFinite(v)?v:null;};
+  let m;
+  if((m=t.match(/^(?:до|<|-)(\d+(?:\.\d+)?)$/)))      return {amount_min:null,amount_max:num(m[1])};
+  if((m=t.match(/^(?:от|>|\+)?(\d+(?:\.\d+)?)(?:\+|-)$/))) return {amount_min:num(m[1]),amount_max:null};
+  if((m=t.match(/^(?:от|>)(\d+(?:\.\d+)?)$/)))        return {amount_min:num(m[1]),amount_max:null};
+  if((m=t.match(/^(\d+(?:\.\d+)?)[-–](\d+(?:\.\d+)?)$/))) return {amount_min:num(m[1]),amount_max:num(m[2])};
+  return null;
+}
+
 async function loadRules(){
   const d=await api('/api/opex/rules');
   const rows=(d.items||[]).map(r=>`<tr>
       <td>${esc(r.cp_name||r.cp_inn||r.cp_name_key||'—')}<div class="muted" style="font-size:11px">${esc(r.cp_inn||'по имени')}</div></td>
-      <td>${r.purpose_like?`<code class="frag">${esc(r.purpose_like)}</code>`:'<span class="muted">весь контрагент</span>'}</td>
+      <td>${r.purpose_like?`<code class="frag">${esc(r.purpose_like)}</code>`
+            :(amountLabel(r)?`<code class="frag">${amountLabel(r)}</code>`:'<span class="muted">весь контрагент</span>')}
+          ${r.purpose_like&&amountLabel(r)?`<code class="frag">${amountLabel(r)}</code>`:''}</td>
       <td>${esc(r.category)}</td>
       <td class="amt">${r.spread_months>1?r.spread_months+' мес.':''}</td>
       <td class="muted">${r.n_auto} авто · ${rub(r.s_auto)}</td>
@@ -258,7 +295,7 @@ async function loadRules(){
           onclick="delRule(${r.id},'${esc(r.category).replace(/'/g,"")}')">✕</button></td></tr>`).join('')
     ||`<tr><td colspan="6" class="muted" style="padding:12px">Правил пока нет — они появляются, когда размечаешь платёж с «запоминать».</td></tr>`;
   $('#rules').innerHTML=`<h3 style="margin:6px 0 10px">Запомненные правила</h3>
-    <table class="rl"><thead><tr><th>Контрагент</th><th>Фрагмент назначения</th><th>Статья</th>
+    <table class="rl"><thead><tr><th>Контрагент</th><th>Условие</th><th>Статья</th>
       <th>Разнести</th><th>Размечено правилом</th><th></th></tr></thead><tbody>${rows}</tbody></table>
     <p class="note">Удаление правила снимает разметку, которую поставило оно само (пометка «авто»).
        Присвоенное руками остаётся.</p>`;
