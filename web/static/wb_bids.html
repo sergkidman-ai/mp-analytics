@@ -65,6 +65,7 @@
   .actcell .cur{white-space:nowrap;margin-right:2px}
   .rk{font-size:11px;color:#475569;background:#f1f5f9;border:1px solid var(--line);border-radius:6px;padding:1px 6px;white-space:nowrap;font-variant-numeric:tabular-nums}
   .rk.muted{color:var(--mut);background:transparent}
+  .rk.glue{background:#eef2ff;border-color:#c7d2fe;color:#4338ca}
   .selc{width:30px;text-align:center}.selc input,#selall{width:16px;height:16px;cursor:pointer}
   .bulkbar{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0;padding:9px 12px;background:#f8fafc;border:1px solid var(--line);border-radius:10px}
   .bulkbar #bulkcount{font-weight:700}
@@ -255,7 +256,12 @@ function marginRow(r){
   const skuT=[nm, r.our_price_live!=null?`цена ${rub(r.our_price_live)}₽ · купим ${r.buy_price_live!=null?rub(r.buy_price_live)+'₽':'—'}`:''].filter(Boolean).join(' — ');
   const adv=(r.adverts||[]);
   const rk=adv.length?`<span class="rk copy" data-copy="${adv.join(', ')}" title="ID кампаний WB — клик копирует в буфер (для ручной правки ставки в ЛК)${r.any_active?'':' · последний период без активной кампании (пауза)'}">РК ${adv.join(', ')}${r.any_active?'':' ⏸'}</span>`:'<span class="rk muted" title="nmID не привязан к кампании в последнем периоде">РК —</span>';
-  const sku=`<div class="sku" title="${skuT}"><div class="nmline"><span class="nm copy" data-copy="${r.nm_id}" title="артикул ВБ (nmID) — клик копирует в буфер">${r.nm_id}</span>${rk}</div><div class="vc">${(r.vendor_code||'')} · ${(r.title||'').slice(0,40)}</div></div>`;
+  // ⛓ склейка: чип только при реальной склейке (≥2 карточек в imtID); зелёная цифра = продажи соседей за 3 мес
+  const sq=r.sib_q||0;
+  const glue=(r.imt_size&&r.imt_size>=2)
+    ? ` <span class="rk glue" title="склейка: ${r.imt_size} карточек в одном imtID; продажи соседей за 3 мес — ${intf(sq)} шт${sq>0?' (склейка живая — вытянет)':' (соседи тоже не продают)'}">⛓ ${r.imt_size}${sq>0?` <b style="color:#15803d">·${intf(sq)}</b>`:''}</span>`
+    : '';
+  const sku=`<div class="sku" title="${skuT}"><div class="nmline"><span class="nm copy" data-copy="${r.nm_id}" title="артикул ВБ (nmID) — клик копирует в буфер">${r.nm_id}</span>${rk}${glue}</div><div class="vc">${(r.vendor_code||'')} · ${(r.title||'').slice(0,40)}</div></div>`;
   const drrCls=r.drr!=null&&r.drr>=10?'drr hi':'';
   let mBadge='';
   if(r.buy_status==='stale') mBadge=' <span class="badge" title="себест по последней известной цене (сегодня не обновилась)">~</span>';
