@@ -43,6 +43,14 @@
   .foot .ti{display:flex;flex-direction:column}
   .foot .lbl{font-size:12px;color:var(--mut)}.foot .vv{font-size:18px;font-weight:700}
   .note{color:var(--mut);font-size:12px;margin:12px 0 0}
+  .lnk{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .lnk:hover{color:var(--txt);border-color:var(--acc)}
+  table.rl{width:100%;border-collapse:collapse;font-size:13px}
+  table.rl th{color:var(--mut);font-weight:600;text-align:left;padding:7px;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  table.rl td{padding:6px 7px;border-bottom:1px solid var(--line)}
+  table.rl .x{background:transparent;border:0;color:var(--mut);cursor:pointer;font-size:15px}
+  table.rl .x:hover{color:var(--neg)}
+  code.frag{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
   .flash{position:fixed;right:18px;bottom:18px;background:var(--card);border:1px solid var(--acc);border-radius:10px;padding:9px 14px;font-size:13px;opacity:0;transition:opacity .2s}
   .flash.on{opacity:1}
 </style>
@@ -72,11 +80,20 @@
     <label class="chk"><input type="checkbox" id="f-todo"> только без статьи</label>
     <label class="chk"><input type="checkbox" id="f-credit"> показать приход</label>
     <span style="margin-left:auto"></span>
-    <label class="chk" title="Ставится по умолчанию у каждой новой строки"><input type="checkbox" id="f-remember" checked> запоминать контрагента</label>
+    <label class="chk" title="Что запоминать при выборе статьи">запоминать:
+      <select id="f-remember">
+        <option value="inn" selected>контрагента</option>
+        <option value="purpose">контрагента + фрагмент назначения</option>
+        <option value="">не запоминать</option>
+      </select></label>
+    <button class="lnk" id="btn-rules" onclick="toggleRules()">🔁 правила</button>
   </div>
+  <div class="wrap" id="rules" style="display:none;margin-bottom:14px"></div>
   <div class="wrap"><div id="tbl"></div><div class="foot" id="foot"></div></div>
-  <p class="note">Статья присваивается сразу при выборе — кнопки «Сохранить» нет. «Запомнить» создаёт правило по ИНН
-     контрагента: все его платежи (и уже загруженные, и будущие) уходят в эту статью сами.
+  <p class="note">Статья присваивается сразу при выборе — кнопки «Сохранить» нет. «Запомнить контрагента» создаёт
+     правило по его ИНН: все его платежи (и уже загруженные, и будущие) уходят в эту статью сами. Если у контрагента
+     платежи разнородные — так бывает, когда контрагент подставлен банком (карточные покупки, комиссии), — бери
+     «+ фрагмент назначения»: правило сработает только там, где этот кусок текста есть в назначении.
      «Мес.» — разнести платёж равными долями на N месяцев вперёд (лицензия на год → 12).
      Платежи поставщикам оставляй без статьи: они уедут в раздел «Кэшфлоу».</p>
 </main>
@@ -151,20 +168,74 @@ async function assign(txnId,selEl,spreadEl){
     await loadCats(); val=String(r.id);
   }
   if(!val && spreadEl) return;                       // менять срок у неразмеченного нечего
+  const mode=$('#f-remember').value;
+  let frag=null;
+  if(val && mode==='purpose'){
+    const txn=data.items.find(i=>i.id===txnId)||{};
+    frag=prompt('Правило сработает только на платежах, где в назначении есть этот текст.\n'
+                +'Проверь и поправь фрагмент:', guessFragment(txn.purpose||''));
+    if(frag===null) return;                          // отказ — ничего не сохраняем
+    frag=frag.trim();
+    if(!frag){alert('Пустой фрагмент — правило по одному контрагенту создаётся режимом «контрагента».');return;}
+  }
   const res=await post('/api/opex/statement/assign',{
     txn_id:txnId,
     category_id: val?+val:null,
     spread_months: +(spread?.value||1),
-    remember: $('#f-remember').checked && !!val});
+    remember: !!mode && !!val,
+    purpose_like: frag});
   if(!res.ok){alert(res.error||'не удалось сохранить');return;}
   flash(val ? (res.ruled_existing?`Статья присвоена, правилом размечено ещё ${res.ruled_existing}`:'Статья присвоена')
             : 'Статья снята');
   await load();
+  if($('#rules').style.display!=='none') await loadRules();
+}
+// Подсказка фрагмента: у карточных покупок различает платежи торговая точка (домен или
+// текст после «в ТУ»), у остального — первые осмысленные слова назначения.
+function guessFragment(purpose){
+  const p=String(purpose||'');
+  const tu=p.match(/\bв\s+ТУ\s+([^,]{3,40}?)(?:\s+по\s+карте|,|$)/i);
+  if(tu) return tu[1].trim();
+  const dom=p.match(/[a-z0-9][a-z0-9-]*\.[a-z]{2,}(?:\.[a-z]{2,})?/i);
+  if(dom) return dom[0];
+  return p.split(/\s+/).slice(0,3).join(' ');
+}
+async function toggleRules(){
+  const box=$('#rules');
+  const show=box.style.display==='none';
+  box.style.display=show?'':'none';
+  if(show) await loadRules();
+}
+async function loadRules(){
+  const d=await api('/api/opex/rules');
+  const rows=(d.items||[]).map(r=>`<tr>
+      <td>${esc(r.cp_name||r.cp_inn||r.cp_name_key||'—')}<div class="muted" style="font-size:11px">${esc(r.cp_inn||'по имени')}</div></td>
+      <td>${r.purpose_like?`<code class="frag">${esc(r.purpose_like)}</code>`:'<span class="muted">весь контрагент</span>'}</td>
+      <td>${esc(r.category)}</td>
+      <td class="amt">${r.spread_months>1?r.spread_months+' мес.':''}</td>
+      <td class="muted">${r.n_auto} авто · ${rub(r.s_auto)}</td>
+      <td style="text-align:right"><button class="x" title="удалить правило и снять его авторазметку"
+          onclick="delRule(${r.id},'${esc(r.category).replace(/'/g,"")}')">✕</button></td></tr>`).join('')
+    ||`<tr><td colspan="6" class="muted" style="padding:12px">Правил пока нет — они появляются, когда размечаешь платёж с «запоминать».</td></tr>`;
+  $('#rules').innerHTML=`<h3 style="margin:6px 0 10px">Запомненные правила</h3>
+    <table class="rl"><thead><tr><th>Контрагент</th><th>Фрагмент назначения</th><th>Статья</th>
+      <th>Разнести</th><th>Размечено правилом</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="note">Удаление правила снимает разметку, которую поставило оно само (пометка «авто»).
+       Присвоенное руками остаётся.</p>`;
+}
+async function delRule(id,cat){
+  if(!confirm(`Удалить правило «${cat}»?\nАвтоматическая разметка по нему будет снята, ручная останется.`)) return;
+  const r=await post('/api/opex/rules/delete',{rule_id:id,drop_auto:true});
+  if(!r.ok){alert(r.error||'не удалось удалить');return;}
+  flash(`Правило удалено, снято ${r.dropped} авторазметок`);
+  await loadRules(); await load();
 }
 async function loadCats(){ cats=(await api('/api/opex/categories')).items; }
 (async()=>{
   org=localStorage.getItem('opexOrg')||'';       // выбранная фирма живёт между заходами
   await loadCats();
+  $('#f-remember').value=localStorage.getItem('opexRemember') ?? 'inn';
+  $('#f-remember').onchange=e=>localStorage.setItem('opexRemember',e.target.value);
   $('#f-todo').onchange=load; $('#f-credit').onchange=load;
   $('#f-month').onchange=e=>{month=e.target.value;load();};
   await load();

@@ -510,6 +510,7 @@ class OpexAssign(BaseModel):
     spread_months: int = 1
     remember: bool = False                # запомнить контрагента → правило на будущее
     apply_existing: bool = True           # доразметить прочие платежи этого же контрагента
+    purpose_like: str | None = None       # фрагмент назначения: правило только на такие платежи
 
 
 @app.post("/api/opex/statement/assign")
@@ -517,7 +518,10 @@ def opex_assign(payload: OpexAssign):
     """Присвоить платежу статью (или снять). При remember — запомнить правило по ИНН
     контрагента (фолбэк по имени, если ИНН пуст) и разом доразметить остальные
     неразмеченные платежи того же контрагента: иначе правило заработало бы только
-    со следующей выписки."""
+    со следующей выписки.
+
+    `purpose_like` сужает правило до платежей с этим фрагментом в назначении — нужно там,
+    где контрагент один на разнородные платежи (карточные покупки и комиссии идут от банка)."""
     txn = db.query("SELECT id, cp_inn, cp_name, operation_date, direction FROM bank_txn WHERE id=%s",
                    (payload.txn_id,))
     if not txn:
@@ -542,21 +546,88 @@ def opex_assign(payload: OpexAssign):
     if payload.remember:
         inn = (txn["cp_inn"] or "").strip()
         key = "" if inn else txn_store.name_key(txn["cp_name"])
+        frag = (payload.purpose_like or "").strip() or None
         if inn:
-            db.execute("""INSERT INTO opex_rule (cp_inn, category_id, spread_months)
-                VALUES (%s,%s,%s) ON CONFLICT (cp_inn) WHERE coalesce(cp_inn,'') <> ''
+            db.execute("""INSERT INTO opex_rule (cp_inn, purpose_like, category_id, spread_months)
+                VALUES (%s,%s,%s,%s)
+                ON CONFLICT (cp_inn, (coalesce(lower(purpose_like),'')))
+                    WHERE coalesce(cp_inn,'') <> ''
                 DO UPDATE SET category_id=EXCLUDED.category_id,
                               spread_months=EXCLUDED.spread_months, updated_at=now()""",
-                (inn, payload.category_id, n))
+                (inn, frag, payload.category_id, n))
         elif key:
-            db.execute("""INSERT INTO opex_rule (cp_name_key, category_id, spread_months)
-                VALUES (%s,%s,%s) ON CONFLICT (cp_name_key) WHERE coalesce(cp_name_key,'') <> ''
+            db.execute("""INSERT INTO opex_rule (cp_name_key, purpose_like, category_id, spread_months)
+                VALUES (%s,%s,%s,%s)
+                ON CONFLICT (cp_name_key, (coalesce(lower(purpose_like),'')))
+                    WHERE coalesce(cp_name_key,'') <> ''
                 DO UPDATE SET category_id=EXCLUDED.category_id,
                               spread_months=EXCLUDED.spread_months, updated_at=now()""",
-                (key, payload.category_id, n))
+                (key, frag, payload.category_id, n))
         if (inn or key) and payload.apply_existing:
             ruled = txn_store.apply_rules()          # доразметить уже лежащее в БД
     return {"ok": True, "assigned": 1, "rule": bool(payload.remember), "ruled_existing": ruled}
+
+
+@app.get("/api/opex/rules")
+def opex_rules():
+    """Запомненные правила разметки: контрагент (+ необязательный фрагмент назначения) → статья.
+    `n_auto` — сколько платежей сейчас размечено автоматически по этому правилу."""
+    return {"items": db.query("""
+        SELECT r.id, r.cp_inn, r.cp_name_key, r.purpose_like, r.spread_months,
+               r.category_id, c.name AS category,
+               coalesce(k.cp_name, '') AS cp_name,
+               coalesce(x.n, 0)::int AS n_auto, coalesce(x.s, 0)::float AS s_auto
+        FROM opex_rule r
+        JOIN opex_category c ON c.id = r.category_id
+        -- живое имя контрагента: в правиле хранится только ИНН/ключ имени
+        LEFT JOIN LATERAL (
+            SELECT t.cp_name FROM bank_txn t
+            WHERE (coalesce(r.cp_inn,'') <> '' AND t.cp_inn = r.cp_inn)
+               OR (coalesce(r.cp_inn,'') =  '' AND r.cp_name_key =
+                   regexp_replace(lower(coalesce(t.cp_name,'')), '[^0-9a-zа-яё]+', '', 'g'))
+            ORDER BY t.operation_date DESC LIMIT 1) k ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT count(*) n, sum(t.amount) s
+            FROM bank_txn_opex a JOIN bank_txn t ON t.id = a.txn_id
+            WHERE a.source = 'rule' AND a.category_id = r.category_id
+              AND ((coalesce(r.cp_inn,'') <> '' AND t.cp_inn = r.cp_inn)
+                   OR (coalesce(r.cp_inn,'') =  '' AND r.cp_name_key =
+                       regexp_replace(lower(coalesce(t.cp_name,'')), '[^0-9a-zа-яё]+', '', 'g')))
+              AND (coalesce(r.purpose_like,'') = ''
+                   OR position(lower(r.purpose_like) in lower(coalesce(t.purpose,''))) > 0)) x ON TRUE
+        ORDER BY c.name, coalesce(k.cp_name, r.cp_inn, r.cp_name_key)""")}
+
+
+class OpexRuleDelete(BaseModel):
+    rule_id: int
+    drop_auto: bool = True                # снять авторазметку, проставленную этим правилом
+
+
+@app.post("/api/opex/rules/delete")
+def opex_rule_delete(payload: OpexRuleDelete):
+    """Удалить правило. По умолчанию снимает и авторазметку (`source='rule'`), которую оно
+    проставило, — иначе ошибочно размеченные платежи остались бы висеть в статье. Ручную
+    разметку не трогаем никогда; после удаления прогоняем остальные правила заново, чтобы
+    платежи подхватило более точное правило, если оно есть."""
+    r = db.query("SELECT * FROM opex_rule WHERE id=%s", (payload.rule_id,))
+    if not r:
+        return {"ok": False, "error": "правило не найдено"}
+    r = r[0]
+    dropped = 0
+    if payload.drop_auto:
+        dropped = db.execute("""
+            DELETE FROM bank_txn_opex a USING bank_txn t
+            WHERE t.id = a.txn_id AND a.source = 'rule' AND a.category_id = %s
+              AND ((%s <> '' AND t.cp_inn = %s)
+                   OR (%s =  '' AND %s = regexp_replace(lower(coalesce(t.cp_name,'')),
+                                                        '[^0-9a-zа-яё]+', '', 'g')))
+              AND (%s = '' OR position(lower(%s) in lower(coalesce(t.purpose,''))) > 0)""",
+            (r["category_id"],
+             r["cp_inn"] or "", r["cp_inn"] or "",
+             r["cp_inn"] or "", r["cp_name_key"] or "",
+             r["purpose_like"] or "", r["purpose_like"] or ""))
+    db.execute("DELETE FROM opex_rule WHERE id=%s", (payload.rule_id,))
+    return {"ok": True, "dropped": dropped or 0, "reruled": txn_store.apply_rules()}
 
 
 @app.get("/api/opex/fact")
