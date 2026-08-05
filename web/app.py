@@ -1294,6 +1294,24 @@ def reports_cost_ozon_detail(acc: str, ym: str):
     return _oc.detail_html(acc, ym)
 
 
+@app.get("/reports/cost/wb/{acc}", response_class=HTMLResponse)
+def reports_cost_wb_page(acc: str):
+    """Себестоимость WB по месяцам, отдельная таблица на юрлицо (acc1 — Цифровой, acc2 — Дисквэр)."""
+    import reports.wb_cogs_page as _wc
+    if acc not in _wc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица WB")
+    return _wc.overview_html(acc)
+
+
+@app.get("/reports/cost/wb/{acc}/{ym}", response_class=HTMLResponse)
+def reports_cost_wb_detail(acc: str, ym: str):
+    """Провал внутрь месяца WB: себестоимость по сборочным заданиям (YYYY-MM)."""
+    import reports.wb_cogs_page as _wc
+    if acc not in _wc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица WB")
+    return _wc.detail_html(acc, ym)
+
+
 @app.get("/reports/cost/{ym}", response_class=HTMLResponse)
 def reports_cost_detail(ym: str):
     """Провал внутрь отчёта: себестоимость по заказам месяца ym (YYYY-MM)."""
@@ -1520,6 +1538,104 @@ def oz_cost_unfreeze(p: OzCostMonth):
     if p.account not in OZ_COST_ACCOUNTS:
         return {"ok": False, "msg": "неизвестное юрлицо Ozon"}
     db.execute("DELETE FROM oz_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
+    return {"ok": True, "ym": p.ym[:7], "closed": False}
+
+
+# ── Ручной себест WB (раздел «Себестоимость» → подтабы юрлиц, поток fin) ───────
+# Зеркало oz-cost по таблицам wb_cogs_*; юрлица (wb_acc1 Цифровой / wb_acc2 Дисквэр) не смешиваются.
+class WbCostManual(BaseModel):
+    account: str
+    demand_name: str              # № сборочного задания = имя отгрузки в МС
+    cogs: float
+    note: str | None = None
+    author: str | None = None
+
+
+class WbCostReset(BaseModel):
+    account: str
+    demand_name: str
+
+
+class WbCostMonth(BaseModel):
+    account: str
+    ym: str                       # YYYY-MM
+    closed_by: str | None = None
+
+
+WB_COST_ACCOUNTS = ("wb_acc1", "wb_acc2")
+
+
+@app.post("/api/wb-cost/manual")
+def wb_cost_manual(p: WbCostManual):
+    """Сотрудник вручную задаёт себест отгрузки WB (там, где FIFO=0 и импутация пуста).
+    Пишем в устойчивую wb_cogs_manual (переживает перезапуск коллектора) + сразу правим кэш."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо WB"}
+    if not nm:
+        return {"ok": False, "error": "demand_name пуст"}
+    cogs = round(float(p.cogs or 0), 2)
+    db.upsert("wb_cogs_manual", [{
+        "account": p.account, "demand_name": nm, "cogs": cogs,
+        "note": (p.note or None), "author": (p.author or None)}],
+        conflict_cols=["account", "demand_name"])
+    db.execute("UPDATE wb_cogs_demand SET cogs=%s, method='manual' "
+               "WHERE account=%s AND demand_name=%s", (cogs, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs}
+
+
+@app.post("/api/wb-cost/reset")
+def wb_cost_reset(p: WbCostReset):
+    """Убрать ручной себест и пересчитать ОДНУ отгрузку через FIFO/импутацию (откат)."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо WB"}
+    db.execute("DELETE FROM wb_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
+    row = db.query("SELECT demand_id FROM wb_cogs_demand WHERE account=%s AND demand_name=%s",
+                   (p.account, nm))
+    if not row or not row[0]["demand_id"]:
+        return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
+    from collectors import ms_demand_cogs as MDC
+    from collectors.wb_cogs_demand import _cost_seb_map
+    cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
+    if cogs > 0:
+        method = "ms_fifo"
+    else:
+        cost_seb = _cost_seb_map()
+        cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+        method = "imputed"
+    db.execute("UPDATE wb_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
+               (cogs, method, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
+
+
+@app.post("/api/wb-cost/freeze")
+def wb_cost_freeze(p: WbCostMonth):
+    """Закрыть месяц себеста WB по ОДНОМУ юрлицу: человек проверил → себест финальный.
+    Гейт: нельзя закрыть, пока есть реальные продажи/убытки с 0 себеста (сначала заполнить)."""
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо WB"}
+    ym1 = p.ym[:7] + "-01"
+    zero = db.query("""
+        SELECT demand_name, coalesce(our_sum,0)::float our_sum FROM wb_cogs_demand
+        WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
+          AND coalesce(cogs,0)=0 AND status IN ('done','return_defect','return_wb')
+        ORDER BY demand_name LIMIT 50""", (p.account, p.ym[:7]))
+    if zero:
+        return {"ok": False, "reason": "zero_cogs", "zero": zero,
+                "msg": f"Нельзя закрыть {p.ym}: {len(zero)} отгрузок(и) без себеста — заполните вручную."}
+    db.upsert("wb_cogs_frozen", [{"account": p.account, "ym": ym1,
+                                  "closed_by": (p.closed_by or "сотрудник")}],
+              conflict_cols=["account", "ym"])
+    return {"ok": True, "ym": p.ym[:7], "closed": True}
+
+
+@app.post("/api/wb-cost/unfreeze")
+def wb_cost_unfreeze(p: WbCostMonth):
+    """Разморозить месяц WB — следующий прогон коллектора соберёт его заново из МС."""
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо WB"}
+    db.execute("DELETE FROM wb_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
     return {"ok": True, "ym": p.ym[:7], "closed": False}
 
 
