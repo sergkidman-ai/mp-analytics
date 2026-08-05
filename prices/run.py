@@ -16,6 +16,7 @@ import sys
 import datetime as dt
 from pathlib import Path
 
+from . import anomaly
 from .cbr import effective_rate
 from .loader import (SKIP_REASONS, apply_to_ms, build_docs, card_updates,
                      classify, existing_docs, now_msk, summarize)
@@ -70,6 +71,8 @@ def main(argv=None):
     ap.add_argument("--no-cards", action="store_true", help="не обновлять описание/закупочную в карточках")
     ap.add_argument("--no-db", action="store_true", help="не писать журнал в Postgres")
     ap.add_argument("--out", default=str(OUT_DIR), help="каталог отчётов")
+    ap.add_argument("--ignore-anomalies", action="store_true",
+                    help="грузить, несмотря на блокировку по аномалиям цены (осознанно)")
     args = ap.parse_args(argv)
 
     profile = get_profile(args.supplier)
@@ -79,12 +82,19 @@ def main(argv=None):
     rows, header_row = parse(content, profile)
     rate, rate_date = effective_rate(moment.date(), profile.currency, profile.markup)
     ready, skipped = classify(rows, profile, rate)
+
+    base = anomaly.baseline(ready, profile, use_db=not args.no_db)
+    ready, dropped, flags, anom = anomaly.screen(ready, profile, base)
+    skipped += dropped
+
     docs = build_docs(ready, profile, moment)
     stale = existing_docs(profile)
     updates = [] if args.no_cards else card_updates(ready, profile)
 
     skipped_path, unmatched_path, unmatched_n = write_reports(
         profile, moment, ready, skipped, Path(args.out))
+    anomaly_path = anomaly.write_report(
+        flags, Path(args.out) / f"{profile.key}_{moment:%Y-%m-%d}_anomalies.csv")
     info = summarize(ready, skipped, docs, stale, updates, rate, rate_date, profile, filename)
 
     print(f"[{profile.title}] {filename} — строк {info['rows_total']} (шапка в строке {header_row})")
@@ -95,12 +105,26 @@ def main(argv=None):
         print(f"  пропущено {count:>5} — {SKIP_REASONS.get(reason, reason)}")
     print(f"  прошлых документов группы на «Удаленном складе»: {info['stale_docs']}")
     print(f"  карточек к обновлению: {info['card_updates']}")
-    print(f"  отчёты: {skipped_path.name}, {unmatched_path.name} ({unmatched_n} строк)")
+    def _med(value):
+        return f"{value:.3f}" if value is not None else "нет базы"
+    print(f"  аномалии цены: {anom['flags']}, из них блокирующих {anom['hard_flags']}; "
+          f"снято с загрузки {anom['dropped']}")
+    print(f"    к прошлой загрузке: сверено {anom['compared']}, медиана {_med(anom['median_ratio'])}"
+          f" · к закупочной карточки (справочно): {anom['compared_card']}, "
+          f"медиана {_med(anom['median_card'])}")
+    for reason in anomaly.reasons(anom, profile):
+        print(f"  ⚠ {reason}")
+    print(f"  отчёты: {skipped_path.name}, {unmatched_path.name} ({unmatched_n} строк), "
+          f"{anomaly_path.name}")
 
     status, error = "ok", None
     if args.apply:
         if not ready:
             raise SystemExit("нечего грузить — запись в МойСклад отменена")
+        if anom["blocked"] and not args.ignore_anomalies:
+            raise SystemExit("запись отменена проверкой аномалий цены: "
+                             + "; ".join(anomaly.reasons(anom, profile))
+                             + f". Смотреть {anomaly_path}; грузить всё равно — --ignore-anomalies")
         print("  --- запись в МойСклад ---")
         try:
             apply_to_ms(docs, stale, updates, log=print)

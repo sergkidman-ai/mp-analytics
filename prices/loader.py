@@ -37,7 +37,33 @@ SKIP_REASONS = {
     "no_stock": "нет остатка / формулировка не разобрана",
     "ambiguous": "артикул в МС неоднозначен",
     "not_stockable": "тип позиции не приходуется на склад",
+    "duplicate": "артикул повторяется в прайсе с разными ценой/остатком",
+    "price_absurd": "цена вне разумного коридора (проверка аномалий)",
 }
+
+
+def drop_duplicates(rows):
+    """Один артикул — одна строка. Полные повторы схлопываем, противоречивые снимаем.
+
+    Одиссей присылает часть позиций дважды. Складывать остатки нельзя (это может быть один
+    и тот же товар в двух разделах — остаток задвоится), выбирать «какую-нибудь» — тоже:
+    если строки расходятся ценой или остатком, решать должен человек, а не загрузчик.
+    """
+    seen, out, dupes = {}, [], []
+    for row in rows:
+        key = row["article"]
+        if key not in seen:
+            seen[key] = row
+            out.append(row)
+            continue
+        first = seen[key]
+        if (row["qty"], row["price_raw"]) == (first["qty"], first["price_raw"]):
+            continue                                  # точный повтор — молча схлопываем
+        if first in out:
+            out.remove(first)
+            dupes.append({**first, "reason": "duplicate"})
+        dupes.append({**row, "reason": "duplicate"})
+    return out, dupes
 
 
 def now_msk():
@@ -76,8 +102,9 @@ def pick_card(cards, supplier_ids):
 
 def classify(rows, profile, rate):
     """Строки прайса -> (позиции к загрузке, пропущенные с причиной)."""
+    rows, skipped = drop_duplicates(rows)
     cards = lookup_by_article([r["article"] for r in rows])
-    ready, skipped = [], []
+    ready = []
     for row in rows:
         found = cards.get(row["article"], [])
         if not found:
