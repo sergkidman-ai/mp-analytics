@@ -1,10 +1,11 @@
-# поток: rev
-"""reports/ya_cogs_page.py — раздел «Себестоимость» (Яндекс.Маркет): себест по отгрузкам.
+# поток: fin
+"""reports/oz_cogs_page.py — раздел «Себестоимость» → Ozon: себест по отгрузкам, два юрлица.
 
-Два уровня из кэша ya_cogs_demand (collectors/ya_cogs_demand.py):
+Зеркало reports/ya_cogs_page.py (та же вёрстка, те же правила чтения), источник — oz_cogs_demand:
   overview_html — таблица по отчётам-месяцам (заказов/возвратов/сумма/себест/валовая маржа);
-  detail_html   — провал внутрь месяца: по каждой отгрузке (№, дата, статус, сумма, себест, способ, маржа).
-Маржа здесь ВАЛОВАЯ (наша цена − себест, до комиссий Маркета). Рендер динамический (запрос к БД).
+  detail_html   — провал внутрь месяца: по каждой отгрузке (№, дата, статус, сумма, себест, способ).
+Маржа ВАЛОВАЯ (наша цена − себест, ДО комиссий Ozon). Юрлица не смешиваются: у каждого свой подтаб,
+своя таблица и своё закрытие месяца.
 """
 import sys
 import pathlib
@@ -12,110 +13,63 @@ import pathlib
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
-from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, SIDEBAR, MPTABS  # noqa: E402
+from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, MPTABS  # noqa: E402
 from reports.cost_tabs import tabs_html  # noqa: E402
+from reports.ya_cogs_page import SIDEBAR_COST, PAGE_CSS, _fmt, _pct  # noqa: E402
 
-# левое меню: активен пункт «Себестоимость» (не «Отчёты МП»)
-SIDEBAR_COST = (SIDEBAR
-    .replace('<a href="/reports" class="cur">📋 Отчёты МП</a>', '<a href="/reports">📋 Отчёты МП</a>')
-    .replace('<a href="/reports/cost">💰 Себестоимость</a>',
-             '<a href="/reports/cost" class="cur">💰 Себестоимость</a>'))
+# ключ URL → аккаунт БД → (юрлицо, ключ подтаба)
+ACCOUNTS = {
+    "acc1": ("oz_acc1", "Цифровой квадрат", "oz1"),
+    "acc2": ("oz_acc2", "Дисквэр", "oz2"),
+}
 
-RET_STATUSES = ("return_stock", "return_defect", "unredeemed")
+RET_STATUSES = ("return_stock", "return_defect", "return_ozon", "unredeemed")
 
 STATUS_LABEL = {
-    "done": ("✅", "Выполнен", ""),
+    "done": ("✅", "Доставлен", ""),
     "return_stock": ("↩️", "Возврат → наш склад", "warn"),
     "return_defect": ("♻️", "Возврат → наш склад (брак)", "warn"),
-    "unredeemed": ("🔙", "Невыкуп → передан нам · в МС нет возврата", "warn"),
+    "return_ozon": ("🏬", "Возврат на склад Озон", "warn"),
+    "unredeemed": ("🔙", "Отменён/невыкуп · в МС нет возврата", "warn"),
     "other": ("•", "В пути / в обработке", "mut"),
 }
-# статусы, где Маркет вернул товар нам, но в МС возврат не проведён → подсветить на проверку
+# Озон отменил отправление, а возврат в МС не проведён → товар «в воздухе»: подсветить на проверку.
 FLAG_STATUSES = ("unredeemed",)
-# товар вернулся в ПРОДАВАЕМЫЙ сток → себест сторнируется, строка net-neutral (оборот и себест = 0).
-# Брак (return_defect) НЕ сторнируется: товар нельзя перепродать → себест остаётся убытком.
-STORNO_STATUSES = ("return_stock", "unredeemed")
+# Товар вернулся в ПРОДАВАЕМЫЙ сток → себест сторнируется, строка net-neutral (оборот и себест = 0).
+# Склад «Озон» тоже сторнируем (решение Сергея 2026-08-05): товар остаётся в стоке FBO и будет продан
+# оттуда, а себест по FBO-заказам списывается в момент той продажи. Не сторновать здесь = списать
+# себестоимость дважды. НЕ сторнируем только «Брак» — перепродать нельзя, себест остаётся расходом.
+STORNO_STATUSES = ("return_stock", "unredeemed", "return_ozon")
+# себест этих статусов остаётся расходом месяца (товар потерян для перепродажи)
+LOSS_STATUSES = ("return_defect",)
 METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "imputed": "импутация", "manual": "ручной"}
 
-PAGE_CSS = """
-.ct{width:100%;border-collapse:collapse;margin:8px 0 4px;font-size:14px}
-.ct th,.ct td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-.ct th{color:var(--mut);font-weight:600;text-align:right;border-bottom:2px solid var(--line)}
-.ct th:first-child,.ct td:first-child{text-align:left}
-.ct td.l,.ct th.l{text-align:left}
-.ct tbody tr.row-link{cursor:pointer}
-.ct tbody tr.row-link:hover{background:var(--card)}
-.ct td.num,.ct th.num{font-variant-numeric:tabular-nums}
-.ct tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:none}
-.ct .pos{color:var(--pos)}
-.ct .neg{color:var(--neg)}
-.ct .warn{color:var(--warn)}
-.ct .mut{color:var(--mut)}
-.stleg{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 0;font-size:12.5px;color:var(--mut)}
-.method{font-size:12px;color:var(--mut)}
-.backlink{display:inline-block;margin:2px 0 10px;color:var(--acc);text-decoration:none;font-weight:600}
-.backlink:hover{text-decoration:underline}
-.mnote{color:var(--mut);font-size:12.5px;margin:6px 0 0}
-.tblwrap{overflow-x:auto}
-.ftbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:4px 0 10px}
-.ftbar label{font-size:13px;color:var(--mut);display:flex;gap:5px;align-items:center}
-.ftbar select,.ftbar input{padding:5px 8px;border:1px solid var(--line);border-radius:7px;
-  background:var(--card);color:var(--txt);font-size:13px}
-.ftbar .cnt{color:var(--mut);font-size:12.5px}
-.ct th.srt{cursor:pointer;user-select:none}
-.ct th.srt:hover{color:var(--txt)}
-.ct th[data-dir]:not([data-dir=""])::after{content:" " attr(data-dir);color:var(--acc)}
-.ct tr.flag td{background:var(--warn-s)}
-.ct .strk{text-decoration:line-through;color:var(--mut)}
-.stmark{font-size:10.5px;color:var(--warn);border:1px solid var(--warn);border-radius:4px;
-  padding:0 4px;margin-left:5px;text-decoration:none;white-space:nowrap}
-.stleg .fl{display:inline-block;width:11px;height:11px;border-radius:3px;background:var(--warn-s);
-  border:1px solid var(--warn);vertical-align:-1px;margin-right:4px}
-.cinp{width:78px;padding:3px 6px;border:1px solid var(--acc);border-radius:6px;background:var(--card);
-  color:var(--txt);font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
-.cbtn{margin-left:4px;padding:3px 7px;border:1px solid var(--line);border-radius:6px;background:var(--card);
-  color:var(--txt);font-size:13px;cursor:pointer}
-.cbtn:hover{border-color:var(--acc)}
-.stmark.man{border-color:var(--acc);color:var(--acc)}
-.stmark.rst{cursor:pointer;border-color:var(--mut);color:var(--mut)}
-.stmark.rst:hover{border-color:var(--acc);color:var(--acc)}
-.stbadge{font-size:11.5px;white-space:nowrap}
-.stbadge.open{color:var(--mut)} .stbadge.closed{color:var(--pos)}
-.mbtn{margin-left:8px;padding:3px 9px;border:1px solid var(--line);border-radius:7px;background:var(--card);
-  color:var(--txt);font-size:12px;cursor:pointer;white-space:nowrap}
-.mbtn:hover{border-color:var(--acc);color:var(--acc)}
-.mbtn.warn{border-color:var(--warn)} .mbtn.warn:hover{border-color:var(--warn);color:var(--warn)}
-"""
+
+def _js_head(acc_key, account):
+    return f"var OZ_ACCOUNT='{account}';var OZ_KEY='{acc_key}';"
 
 
-OVERVIEW_JS = """<script>
-var YA_ACCOUNT='ya_acc1';
+def _overview_js(acc_key, account):
+    return """<script>
+""" + _js_head(acc_key, account) + """
 function freezeMonth(ym){
   if(!confirm('Закрыть месяц '+ym+'? Себест станет финальным, коллектор перестанет его пересобирать.'))return;
-  fetch('/api/ya-cost/freeze',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({account:YA_ACCOUNT,ym:ym})})
+  fetch('/api/oz-cost/freeze',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:OZ_ACCOUNT,ym:ym})})
    .then(function(r){return r.json();}).then(function(d){
      if(d.ok){location.reload();}
      else{alert((d.msg||'Не удалось закрыть')+(d.zero?'\\n'+d.zero.map(function(z){return z.demand_name;}).join(', '):''));}});
 }
 function unfreezeMonth(ym){
   if(!confirm('Разморозить '+ym+'? Следующий прогон коллектора соберёт месяц заново из МойСклад.'))return;
-  fetch('/api/ya-cost/unfreeze',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({account:YA_ACCOUNT,ym:ym})})
+  fetch('/api/oz-cost/unfreeze',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:OZ_ACCOUNT,ym:ym})})
    .then(function(r){return r.json();}).then(function(){location.reload();});
 }
 </script>"""
 
 
-def _fmt(x):
-    return f"{(x or 0):,.0f}".replace(",", " ")
-
-
-def _pct(m, s):
-    return f"{(m / s * 100):.1f}%" if s else "—"
-
-
-def _shell(title, eyebrow, h1, body, rtab_cur="ya"):
+def _shell(title, eyebrow, h1, body, rtab_cur):
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -143,7 +97,8 @@ def _shell(title, eyebrow, h1, body, rtab_cur="ya"):
 </html>"""
 
 
-def overview_html(account="ya_acc1"):
+def overview_html(acc_key="acc1"):
+    account, org, tab = ACCOUNTS[acc_key]
     rows = db.query("""
         SELECT to_char(ym,'YYYY-MM') ym,
                count(*)                                                        orders,
@@ -151,12 +106,12 @@ def overview_html(account="ya_acc1"):
                coalesce(sum(our_sum) FILTER (WHERE status = ANY(%s)),0)::float ret_sales,
                coalesce(sum(cogs)    FILTER (WHERE status = ANY(%s)),0)::float ret_cogs,
                coalesce(sum(our_sum) FILTER (WHERE status='done'),0)::float    sales,
-               coalesce(sum(cogs) FILTER (WHERE status IN ('done','return_defect')),0)::float cogs
-        FROM ya_cogs_demand WHERE account=%s
+               coalesce(sum(cogs) FILTER (WHERE status='done' OR status = ANY(%s)),0)::float cogs
+        FROM oz_cogs_demand WHERE account=%s
         GROUP BY ym ORDER BY ym DESC
-    """, (list(RET_STATUSES), list(RET_STATUSES), list(RET_STATUSES), account))
+    """, (list(RET_STATUSES), list(RET_STATUSES), list(RET_STATUSES), list(LOSS_STATUSES), account))
     frozen = {r["ym"].strftime("%Y-%m"): r["closed_at"] for r in db.query(
-        "SELECT ym, closed_at FROM ya_cogs_frozen WHERE account=%s", (account,))}
+        "SELECT ym, closed_at FROM oz_cogs_frozen WHERE account=%s", (account,))}
     body = ['<table class="ct"><thead><tr>'
             '<th class="l">Отчёт</th><th class="num">Заказов</th><th class="num">Возвратов</th>'
             '<th class="num">Возвр.: сумма<br>(наша цена)</th><th class="num">Возвр.: себест</th>'
@@ -182,7 +137,7 @@ def overview_html(account="ya_acc1"):
                      f'<button class="mbtn" onclick="event.stopPropagation();freezeMonth(\'{ym}\')">'
                      f'Закрыть месяц</button>')
         body.append(
-            f'<tr class="row-link" onclick="location.href=\'/reports/cost/{ym}\'">'
+            f'<tr class="row-link" onclick="location.href=\'/reports/cost/ozon/{acc_key}/{ym}\'">'
             f'<td class="l">▸ {ym}</td>'
             f'<td class="num">{r["orders"]}</td>'
             f'<td class="num">{r["returns"]}</td>'
@@ -200,37 +155,41 @@ def overview_html(account="ya_acc1"):
                 f'<td class="num">{_fmt(t_sales)}</td><td class="num">{_fmt(t_cogs)}</td>'
                 f'<td class="num">{_fmt(tm)}</td><td class="num">{_pct(tm, t_sales)}</td>'
                 '<td></td></tr></tfoot></table>')
-    body.append('<p class="mnote">Отчёт = месяц отгрузки. Маржа <b>валовая</b> (наша цена − себестоимость, '
-                'ДО комиссий Маркета; полная чистая — во вкладке «Отчёты МП»). Себест — FIFO конкретной '
-                'отгрузки из МойСклад. <b>Сторно:</b> возвраты в сток и невыкупы (товар вернулся к нам) '
-                'исключены из «Продажи»/«Себестоимость» (net-neutral); Брак — себест остаётся убытком. '
-                'Колонки <b>«Возвр.»</b> — сумма и себест по всем возвратам (сток + невыкуп + брак), '
-                'т.е. сколько сторнировано/ушло в возвраты. Клик по строке — детализация по заказам.</p>')
-    body.append('<p class="mnote"><b>Месяц заказа ≠ месяц здесь.</b> В этом разделе месяц = <b>дата '
+    body.append(f'<p class="mnote">Юрлицо <b>{org}</b> ({account}) — отдельная таблица, с другим '
+                'юрлицом Ozon не суммируется. Отчёт = месяц отгрузки. Маржа <b>валовая</b> (наша цена − '
+                'себестоимость, ДО комиссии, логистики и рекламы Ozon; полная чистая — во вкладке '
+                '«Отчёты МП»). Себест — FIFO конкретной отгрузки из МойСклад. <b>Сторно:</b> возвраты '
+                'в продаваемый сток — наш склад <i>и склад Озон</i> (товар останется в FBO и будет '
+                'продан оттуда) — плюс отменённые отправления исключены из «Продажи»/«Себестоимость» '
+                '(net-neutral). Не сторнируется только <b>Брак</b>: перепродать нельзя, себест '
+                'остаётся расходом. Колонки <b>«Возвр.»</b> — сумма и себест по всем '
+                'возвратам. Клик по строке — детализация по отправлениям.</p>')
+    body.append('<p class="mnote"><b>Месяц отгрузки ≠ месяц отчёта Ozon.</b> Здесь месяц = <b>дата '
                 'отгрузки</b> (документ «Отгрузка» в МойСклад): себест берётся как FIFO конкретной '
                 'отгрузки, поэтому оборот, себест и месяц привязаны к дате физической отгрузки. '
-                'Во вкладке <b>«Отчёты МП · Яндекс»</b> тот же заказ считается <b>по дате оформления '
-                'заказа</b> (order-based, как в ЛК Маркета). Поэтому пограничный заказ (оформлен в конце '
-                'месяца, отгружен в начале следующего) в двух разделах попадёт в соседние месяцы — это '
-                'не расхождение, а разные точки привязки; внутри каждого раздела всё консистентно.</p>')
+                'Во вкладке <b>«Отчёты МП · Ozon»</b> тот же заказ считается по <b>отчёту о реализации '
+                'и транзакциям Ozon</b>, а оборот там — деньги площадки (после комиссии и СПП), а не '
+                'наша цена. Поэтому цифры двух разделов не обязаны совпадать: это разные точки '
+                'привязки и разные деньги; внутри каждого раздела всё консистентно.</p>')
     body.append('<p class="mnote"><b>🔒 Закрытый месяц</b> — себест финальный, коллектор его не '
                 'пересобирает (МойСклад лишний раз не дёргается). Закрывать имеет смысл после проверки '
                 'месяца; «Разморозить» открывает месяц обратно — следующий прогон соберёт его заново. '
                 'Закрыть нельзя, пока в месяце есть продажи с нулевым себестом (сначала заполнить).</p>')
     if not rows:
         body = ['<p class="mnote">Данных нет. Запустите сбор: '
-                '<code>./venv/bin/python -m collectors.ya_cogs_demand</code></p>']
-    return _shell("Себестоимость · Яндекс · Пульт бизнеса",
-                  "Себестоимость · Яндекс Маркет", "Себестоимость по отчётам (месяцам)",
-                  "\n".join(body) + OVERVIEW_JS, "ya")
+                '<code>./venv/bin/python -m collectors.oz_cogs_demand</code></p>']
+    return _shell(f"Себестоимость · Ozon · {org} · Пульт бизнеса",
+                  f"Себестоимость · Ozon · {org}", "Себестоимость по отчётам (месяцам)",
+                  "\n".join(body) + _overview_js(acc_key, account), tab)
 
 
 _STATUS_FILTER = [
     ("", "все статусы"),
-    ("done", "✅ Выполнен"),
+    ("done", "✅ Доставлен"),
     ("return_stock", "↩️ Возврат → наш склад"),
     ("return_defect", "♻️ Брак"),
-    ("unredeemed", "🔙 Невыкуп → передан нам · в МС нет возврата"),
+    ("return_ozon", "🏬 Возврат на склад Озон"),
+    ("unredeemed", "🔙 Отменён · в МС нет возврата"),
     ("other", "• В пути / в обработке"),
 ]
 
@@ -242,20 +201,19 @@ _COST_FILTER = [
 ]
 
 # фильтр по столбцам + сортировка + пересчёт ИТОГО по видимым строкам (vanilla JS, self-contained)
-DETAIL_JS = """<script>
-var YA_ACCOUNT='ya_acc1';
+_DETAIL_JS_BODY = """
 function saveCost(nm){
   var inp=document.getElementById('ci_'+nm); if(!inp) return;
   var v=parseFloat(inp.value); if(isNaN(v)||v<0){alert('Введите себест ≥ 0');return;}
-  fetch('/api/ya-cost/manual',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({account:YA_ACCOUNT,demand_name:nm,cogs:v,author:'сотрудник'})})
+  fetch('/api/oz-cost/manual',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:OZ_ACCOUNT,demand_name:nm,cogs:v,author:'сотрудник'})})
    .then(function(r){return r.json();}).then(function(d){
      if(d.ok){location.reload();}else{alert('Ошибка: '+(d.error||'не сохранено'));}});
 }
 function resetCost(nm){
   if(!confirm('Сбросить ручной себест и пересчитать по МС?'))return;
-  fetch('/api/ya-cost/reset',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({account:YA_ACCOUNT,demand_name:nm})})
+  fetch('/api/oz-cost/reset',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:OZ_ACCOUNT,demand_name:nm})})
    .then(function(r){return r.json();}).then(function(){location.reload();});
 }
 (function(){
@@ -265,7 +223,7 @@ function resetCost(nm){
       fc=document.getElementById('fcost'),
       fq=document.getElementById('fq'), foot=document.getElementById('dfoot'),
       cnt=document.getElementById('fcnt');
-  var RET={return_stock:1,return_defect:1,unredeemed:1};
+  var RET={return_stock:1,return_defect:1,return_ozon:1,unredeemed:1};
   function nf(x){return Math.round(x).toLocaleString('ru-RU').replace(/\\u00A0/g,' ').replace(/,/g,' ');}
   function apply(){
     var s=fst.value, m=fmt.value, cf=fc.value, q=fq.value.trim().toLowerCase();
@@ -280,7 +238,7 @@ function resetCost(nm){
              if(RET[r.dataset.status])ret++;}
     });
     var mg=sales-cogs;
-    foot.innerHTML='<td class="l" colspan="3">ИТОГО: заказов '+n+' · возвратов '+ret+'</td>'+
+    foot.innerHTML='<td class="l" colspan="3">ИТОГО: отправлений '+n+' · возвратов '+ret+'</td>'+
       '<td class="num">'+nf(sales)+'</td><td class="num">'+nf(cogs)+'</td><td></td>'+
       '<td class="num">'+nf(mg)+'</td><td class="num">'+(sales?(mg/sales*100).toFixed(1)+'%':'—')+'</td>';
     cnt.textContent='показано '+n+' из '+rows.length;
@@ -306,22 +264,23 @@ function resetCost(nm){
   fc.addEventListener('change',apply);
   fq.addEventListener('input',apply); apply();
 })();
-</script>"""
+"""
 
 
-def detail_html(account, ym):
+def detail_html(acc_key, ym):
     """ym в формате YYYY-MM."""
+    account, org, tab = ACCOUNTS[acc_key]
     rows = db.query("""
         SELECT demand_name, to_char(demand_date,'YYYY-MM-DD') d, status, status_raw,
                coalesce(our_sum,0)::float our_sum, coalesce(cogs,0)::float cogs,
                coalesce(qty,0)::float qty, method
-        FROM ya_cogs_demand
+        FROM oz_cogs_demand
         WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
         ORDER BY demand_date, demand_name
     """, (account, ym))
     opts = "".join(f'<option value="{v}">{lbl}</option>' for v, lbl in _STATUS_FILTER)
     copts = "".join(f'<option value="{v}">{lbl}</option>' for v, lbl in _COST_FILTER)
-    body = ['<a class="backlink" href="/reports/cost">◀ Назад к отчётам</a>',
+    body = [f'<a class="backlink" href="/reports/cost/ozon/{acc_key}">◀ Назад к отчётам</a>',
             '<div class="ftbar">'
             f'<label>Статус <select id="fst">{opts}</select></label>'
             '<label>Способ <select id="fmt">'
@@ -329,12 +288,12 @@ def detail_html(account, ym):
             '<option value="imputed">импутация</option><option value="manual">ручной</option>'
             '</select></label>'
             f'<label>Себест <select id="fcost">{copts}</select></label>'
-            '<input id="fq" placeholder="поиск по № отгрузки…" size="18">'
+            '<input id="fq" placeholder="поиск по № отправления…" size="20">'
             '<span class="cnt" id="fcnt"></span></div>',
             '<div class="tblwrap"><table class="ct" id="dtbl"><thead><tr>'
-            '<th class="l srt" data-col="0" data-type="text">№ отгрузки</th>'
+            '<th class="l srt" data-col="0" data-type="text">№ отправления</th>'
             '<th class="l srt" data-col="1" data-type="text">Дата</th>'
-            '<th class="l srt" data-col="2" data-type="text">Статус (Маркет)</th>'
+            '<th class="l srt" data-col="2" data-type="text">Статус (Ozon)</th>'
             '<th class="num srt" data-col="3" data-type="num">Сумма</th>'
             '<th class="num srt" data-col="4" data-type="num">Себест.</th>'
             '<th class="l srt" data-col="5" data-type="text">Способ</th>'
@@ -349,11 +308,13 @@ def detail_html(account, ym):
         emoji, label, cls = STATUS_LABEL.get(st, ("•", r["status_raw"] or "—", "mut"))
         if st in RET_STATUSES:
             n_ret += 1
-        # эффективные (реализованные) значения: сторно возвратов в сток/невыкупов, Брак = убыток
+        # эффективные (реализованные) значения: сторно возвратов в продаваемый сток, Брак = убыток
         if st in STORNO_STATUSES:
-            eff_sum, eff_cogs = 0.0, 0.0           # товар вернулся в сток → net-neutral
-        elif st == "return_defect":
-            eff_sum, eff_cogs = 0.0, cogs          # Брак: оборот 0, себест — убыток
+            eff_sum, eff_cogs = 0.0, 0.0           # товар вернулся в продаваемый сток → net-neutral
+        elif st in LOSS_STATUSES:
+            eff_sum, eff_cogs = 0.0, cogs          # брак: оборот 0, себест остаётся убытком
+        elif st == "other":
+            eff_sum, eff_cogs = 0.0, 0.0           # в пути: деньги ещё не реализованы
         else:
             eff_sum, eff_cogs = our_sum, cogs      # done
         eff_m = eff_sum - eff_cogs
@@ -364,7 +325,7 @@ def detail_html(account, ym):
                     else f'<td class="num" data-v="{our_sum:.2f}">{_fmt(our_sum)}</td>')
         # ячейка «Себест». Редактируемая для: реальных продаж с 0 себеста (нужен ввод) и ручных
         # (можно поправить/сбросить). Сторно не редактируем (net-neutral).
-        need_input = (cogs == 0 and st in ("done", "return_defect"))
+        need_input = (cogs == 0 and (st == "done" or st in LOSS_STATUSES))
         is_manual = (r["method"] == "manual")
         editable = (st not in STORNO_STATUSES) and (need_input or is_manual)
         if editable:
@@ -378,8 +339,10 @@ def detail_html(account, ym):
                          f'<button class="cbtn" onclick="saveCost(\'{nm}\')">💾</button>{badge}{reset}</td>')
         elif st in STORNO_STATUSES:
             cogs_cell = f'<td class="num strk" data-v="0.00">{_fmt(cogs)}<span class="stmark">сторно</span></td>'
-        elif st == "return_defect":
+        elif st in LOSS_STATUSES:
             cogs_cell = f'<td class="num neg" data-v="{cogs:.2f}">{_fmt(cogs)}</td>'
+        elif st == "other":
+            cogs_cell = f'<td class="num strk" data-v="0.00">{_fmt(cogs)}</td>'
         else:
             cogs_cell = f'<td class="num" data-v="{cogs:.2f}">{_fmt(cogs)}</td>'
         # ячейки маржи
@@ -389,7 +352,10 @@ def detail_html(account, ym):
         elif st in STORNO_STATUSES:
             m_cell = '<td class="num mut" data-v="0.00">—</td>'
             mp_cell = '<td class="num mut" data-v="0.00">сторно</td>'
-        elif st == "return_defect":
+        elif st == "other":
+            m_cell = '<td class="num mut" data-v="0.00">—</td>'
+            mp_cell = '<td class="num mut" data-v="0.00">в пути</td>'
+        elif st in LOSS_STATUSES:
             m_cell = f'<td class="num neg" data-v="{eff_m:.2f}">{_fmt(eff_m)}</td>'
             mp_cell = '<td class="num neg" data-v="-100.00">убыток</td>'
         else:
@@ -406,24 +372,29 @@ def detail_html(account, ym):
             f'{m_cell}{mp_cell}</tr>')
     tm = t_sales - t_cogs
     body.append('</tbody><tfoot><tr id="dfoot">'
-                f'<td class="l" colspan="3">ИТОГО: заказов {len(rows)} · возвратов {n_ret}</td>'
+                f'<td class="l" colspan="3">ИТОГО: отправлений {len(rows)} · возвратов {n_ret}</td>'
                 f'<td class="num">{_fmt(t_sales)}</td><td class="num">{_fmt(t_cogs)}</td>'
                 f'<td></td><td class="num">{_fmt(tm)}</td><td class="num">{_pct(tm, t_sales)}</td>'
                 '</tr></tfoot></table></div>')
     body.append('<div class="stleg">'
-                '<span>✅ Выполнен — доставлен/продан</span>'
-                '<span>↩️ Возврат → наш склад (в сток)</span>'
-                '<span>♻️ Брак — наш склад, дефект</span>'
-                '<span><span class="fl"></span>🔙 Невыкуп → передан нам, но в МС возврат не проведён '
+                '<span>✅ Доставлен — продан</span>'
+                '<span>↩️ Возврат → наш склад (в сток, себест сторнируется)</span>'
+                '<span>♻️ Брак — наш склад, дефект (себест = убыток)</span>'
+                '<span>🏬 Возврат на склад Озон — остаётся в стоке FBO, себест сторнируется '
+                '(спишется при продаже с FBO)</span>'
+                '<span><span class="fl"></span>🔙 Отменён Озоном, но в МС возврат не проведён '
                 '(на проверку — себест не сторнирован)</span></div>')
     body.append('<p class="mnote">Клик по заголовку — сортировка. Способ: «МС (FIFO)» — себест конкретной '
                 'отгрузки из МойСклад; «импутация» — фолбэк по закупочной, когда FIFO по отгрузке нет. '
-                '«ИТОГО» пересчитывается по отфильтрованным строкам.</p>')
+                '«ИТОГО» пересчитывается по отфильтрованным строкам. Статус Ozon есть в сырье '
+                'с 2026-05; для более ранних отгрузок он берётся как «доставлен», если в МойСклад нет '
+                'возврата.</p>')
     if not rows:
         body.append(f'<p class="mnote">За {ym} отгрузок нет.</p>')
-    return _shell(f"Себестоимость · {ym} · Пульт бизнеса",
-                  f"Себестоимость · Яндекс Маркет · {ym}",
-                  f"Себестоимость по заказам — {ym}", "\n".join(body) + DETAIL_JS, "ya")
+    js = "<script>" + _js_head(acc_key, account) + _DETAIL_JS_BODY + "</script>"
+    return _shell(f"Себестоимость · Ozon · {org} · {ym} · Пульт бизнеса",
+                  f"Себестоимость · Ozon · {org} · {ym}",
+                  f"Себестоимость по отправлениям — {ym}", "\n".join(body) + js, tab)
 
 
 if __name__ == "__main__":
