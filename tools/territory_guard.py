@@ -21,7 +21,8 @@ import subprocess
 
 # Манифест: домен → список regex путей (от корня репо). Первое совпадение = владелец.
 # Не перечисленное здесь — «общее» (core/db.py, CLAUDE.md, web/, docs/, разовые скрипты): НЕ флагуем.
-# Миграции делятся по БЛОКУ номера: 0xx = fin, 1xx = mkt, 3xx = ret (резерв против коллизий).
+# Миграции делятся по БЛОКУ номера: 0xx = fin, 1xx = mkt, 2xx = inv, 3xx = ret, 4xx = prc
+# (резерв против коллизий).
 DOMAINS = {
     "fin": [
         r"^collectors/(moysklad|ms_products|ms_demand_cogs|wb|ozon|ozon_postings|"
@@ -46,6 +47,14 @@ DOMAINS = {
         r"^returns_bot/",
         r"^migrations/3\d\d_.*\.sql$",
         r"^docs/BRIEF_RET\.md$",
+    ],
+    # prc = ПРАЙСЫ ПОСТАВЩИКОВ: почта -> Оприходование в МС -> список новинок.
+    # core/ms_api.py пока пишет только prc; появится второй потребитель — вынести в «общее».
+    "prc": [
+        r"^prices/",
+        r"^core/ms_api\.py$",
+        r"^migrations/4\d\d_.*\.sql$",
+        r"^docs/BRIEF_PRC\.md$",
     ],
 }
 
