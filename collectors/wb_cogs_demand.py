@@ -63,6 +63,20 @@ def _manual_map(account):
         "SELECT demand_name, cogs FROM wb_cogs_manual WHERE account=%s", (account,))}
 
 
+def _known_map(account):
+    """{demand_name: (cogs, qty, method)} — себест, посчитанный прошлыми прогонами.
+
+    FIFO уже состоявшейся отгрузки не меняется, поэтому второй раз идти за ним в МойСклад незачем.
+    Без этого кэша каждый прогон заново дёргал report/stock/byoperation по всем отгрузкам, которых
+    нет в ms_demand_cogs (WB ~2.2 тыс. запросов, и так КАЖДЫЙ раз): byoperation_cogs результат
+    никуда не пишет. Нужно пересчитать конкретную отгрузку — кнопка «пересчитать» в детализации
+    (одна отгрузка = один запрос), месяц целиком — разморозка + прогон."""
+    return {r["demand_name"]: (float(r["cogs"] or 0), float(r["qty"] or 0), r["method"])
+            for r in db.query(
+                """SELECT demand_name, cogs, qty, method FROM wb_cogs_demand
+                   WHERE account=%s AND coalesce(cogs,0) > 0""", (account,))}
+
+
 def _frozen_set(account):
     """{'YYYY-MM', …} — закрытые месяцы: коллектор их не пересобирает (МС не дёргает)."""
     return {r["ym"].strftime("%Y-%m") for r in db.query(
@@ -202,6 +216,7 @@ def collect_account(account, since="2026-01-01"):
 
     cost_seb = _cost_seb_map()
     manual = _manual_map(account)
+    known = _known_map(account)
     fifo = _fifo_map(org_id, since)
     report_op = _report_op_map(account)
     report_seen = _report_seen_set(account)
@@ -215,13 +230,18 @@ def collect_account(account, since="2026-01-01"):
     live = [d for d in demands
             if d["name"] and len(d["moment"]) == 10 and d["moment"][:7] not in frozen]
     skipped = len(demands) - len(live)
-    pos = _pos_map({d["id"] for d in live if d["id"] not in fifo or fifo[d["id"]][0] <= 0})
+    pos = _pos_map({d["id"] for d in live
+                    if (d["id"] not in fifo or fifo[d["id"]][0] <= 0) and d["name"] not in known})
 
     recs, stats = [], defaultdict(int)
     for d in live:
         did, nm = d["id"], d["name"]
         cogs, qty = fifo.get(did, (0.0, 0.0))
         method = "ms_fifo"
+        if cogs <= 0 and nm in known:                   # уже посчитан прошлым прогоном → в МС не идём
+            cogs, kq, method = known[nm]
+            qty = qty or kq
+            stats["из кэша"] += 1
         if cogs <= 0:                                   # нет FIFO → импутация по справочной закупочной
             p = pos.get(did) or []
             if not p:                                   # нет и позиций в кэше → добираем из МС
@@ -251,7 +271,7 @@ def collect_account(account, since="2026-01-01"):
         db.upsert("wb_cogs_demand", recs, conflict_cols=["account", "demand_name"])
     print(f"[wb-cogs][{account}] отгрузок записано: {len(recs)} "
           f"(FIFO {stats['ms_fifo']}, импутация {stats['imputed']}, ручной {stats['manual']}"
-          f"; пропущено закрытых {skipped})")
+          f"; из кэша без запроса в МС {stats['из кэша']}; пропущено закрытых {skipped})")
     return len(recs)
 
 
