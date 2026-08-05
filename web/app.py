@@ -13,7 +13,7 @@ import sys
 import pathlib
 
 import requests
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
@@ -1275,6 +1275,25 @@ def reports_cost_page():
     return _yc.overview_html("ya_acc1")
 
 
+# Ozon-подтабы регистрируются ДО /reports/cost/{ym}: иначе «ozon» съест шаблон месяца.
+@app.get("/reports/cost/ozon/{acc}", response_class=HTMLResponse)
+def reports_cost_ozon_page(acc: str):
+    """Себестоимость Ozon по месяцам, отдельная таблица на юрлицо (acc1 — Цифровой, acc2 — Дисквэр)."""
+    import reports.oz_cogs_page as _oc
+    if acc not in _oc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица Ozon")
+    return _oc.overview_html(acc)
+
+
+@app.get("/reports/cost/ozon/{acc}/{ym}", response_class=HTMLResponse)
+def reports_cost_ozon_detail(acc: str, ym: str):
+    """Провал внутрь месяца Ozon: себестоимость по отправлениям (YYYY-MM)."""
+    import reports.oz_cogs_page as _oc
+    if acc not in _oc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица Ozon")
+    return _oc.detail_html(acc, ym)
+
+
 @app.get("/reports/cost/{ym}", response_class=HTMLResponse)
 def reports_cost_detail(ym: str):
     """Провал внутрь отчёта: себестоимость по заказам месяца ym (YYYY-MM)."""
@@ -1402,6 +1421,105 @@ def ya_cost_freeze(p: YaCostMonth):
 def ya_cost_unfreeze(p: YaCostMonth):
     """Разморозить месяц — следующий прогон коллектора соберёт его заново из МС."""
     db.execute("DELETE FROM ya_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
+    return {"ok": True, "ym": p.ym[:7], "closed": False}
+
+
+# ── Ручной себест Ozon (раздел «Себестоимость» → подтабы юрлиц, поток fin) ──────
+# Полное зеркало ya-cost, но по своим таблицам oz_cogs_* и с обязательным account:
+# юрлица Ozon (oz_acc1 Цифровой / oz_acc2 Дисквэр) не смешиваются нигде, включая закрытие месяца.
+class OzCostManual(BaseModel):
+    account: str
+    demand_name: str
+    cogs: float
+    note: str | None = None
+    author: str | None = None
+
+
+class OzCostReset(BaseModel):
+    account: str
+    demand_name: str
+
+
+class OzCostMonth(BaseModel):
+    account: str
+    ym: str                       # YYYY-MM
+    closed_by: str | None = None
+
+
+OZ_COST_ACCOUNTS = ("oz_acc1", "oz_acc2")
+
+
+@app.post("/api/oz-cost/manual")
+def oz_cost_manual(p: OzCostManual):
+    """Сотрудник вручную задаёт себест отгрузки Ozon (там, где FIFO=0 и импутация пуста).
+    Пишем в устойчивую oz_cogs_manual (переживает перезапуск коллектора) + сразу правим кэш."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо Ozon"}
+    if not nm:
+        return {"ok": False, "error": "demand_name пуст"}
+    cogs = round(float(p.cogs or 0), 2)
+    db.upsert("oz_cogs_manual", [{
+        "account": p.account, "demand_name": nm, "cogs": cogs,
+        "note": (p.note or None), "author": (p.author or None)}],
+        conflict_cols=["account", "demand_name"])
+    db.execute("UPDATE oz_cogs_demand SET cogs=%s, method='manual' "
+               "WHERE account=%s AND demand_name=%s", (cogs, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs}
+
+
+@app.post("/api/oz-cost/reset")
+def oz_cost_reset(p: OzCostReset):
+    """Убрать ручной себест и пересчитать ОДНУ отгрузку через FIFO/импутацию (откат)."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо Ozon"}
+    db.execute("DELETE FROM oz_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
+    row = db.query("SELECT demand_id FROM oz_cogs_demand WHERE account=%s AND demand_name=%s",
+                   (p.account, nm))
+    if not row or not row[0]["demand_id"]:
+        return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
+    from collectors import ms_demand_cogs as MDC
+    from collectors.oz_cogs_demand import _cost_seb_map
+    cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
+    if cogs > 0:
+        method = "ms_fifo"
+    else:
+        cost_seb = _cost_seb_map()
+        cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+        method = "imputed"
+    db.execute("UPDATE oz_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
+               (cogs, method, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
+
+
+@app.post("/api/oz-cost/freeze")
+def oz_cost_freeze(p: OzCostMonth):
+    """Закрыть месяц себеста Ozon по ОДНОМУ юрлицу: человек проверил → себест финальный.
+    Гейт: нельзя закрыть, пока есть реальные продажи с 0 себеста (сначала заполнить вручную)."""
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо Ozon"}
+    ym1 = p.ym[:7] + "-01"
+    zero = db.query("""
+        SELECT demand_name, coalesce(our_sum,0)::float our_sum FROM oz_cogs_demand
+        WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
+          AND coalesce(cogs,0)=0 AND status IN ('done','return_defect')
+        ORDER BY demand_name LIMIT 50""", (p.account, p.ym[:7]))
+    if zero:
+        return {"ok": False, "reason": "zero_cogs", "zero": zero,
+                "msg": f"Нельзя закрыть {p.ym}: {len(zero)} отправлени(й) без себеста — заполните вручную."}
+    db.upsert("oz_cogs_frozen", [{"account": p.account, "ym": ym1,
+                                  "closed_by": (p.closed_by or "сотрудник")}],
+              conflict_cols=["account", "ym"])
+    return {"ok": True, "ym": p.ym[:7], "closed": True}
+
+
+@app.post("/api/oz-cost/unfreeze")
+def oz_cost_unfreeze(p: OzCostMonth):
+    """Разморозить месяц Ozon — следующий прогон коллектора соберёт его заново из МС."""
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо Ozon"}
+    db.execute("DELETE FROM oz_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
     return {"ok": True, "ym": p.ym[:7], "closed": False}
 
 
