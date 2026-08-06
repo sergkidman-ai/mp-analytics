@@ -18,17 +18,20 @@ from core import db
 from returns_bot import pending
 
 HEAD_COLS = [
-    "platform", "account", "return_id", "campaign", "order_number", "return_type", "scheme",
-    "status_raw", "status_name", "stage", "pvz_id", "pvz_name", "pvz_address",
-    "pvz_instruction", "where_now", "barcode", "created_at", "arrived_at", "deadline_at",
-    "storage_days", "storage_sum", "amount",
+    "platform", "source", "account", "return_id", "campaign", "order_number", "return_type",
+    "scheme", "status_raw", "status_name", "stage", "pvz_id", "pvz_name", "pvz_address",
+    "pvz_instruction", "where_now", "barcode", "track_number", "created_at", "arrived_at",
+    "deadline_at", "storage_days", "storage_sum", "amount",
 ]
 KEY = ["platform", "account", "return_id"]
 
 
 def _sources(only=None):
-    from returns_bot.sources import ozon, yandex
-    src = {"ozon": ozon.collect, "yandex": yandex.collect}
+    # У Ozon три источника, и это не дубли: /v1/returns/list не отдаёт ни rFBS-возвраты,
+    # ни коробки вывоза со склада FBO (проверено 06.08.2026).
+    from returns_bot.sources import ozon, ozon_removal, ozon_rfbs, yandex
+    src = {"ozon": ozon.collect, "ozon_rfbs": ozon_rfbs.collect,
+           "ozon_removal": ozon_removal.collect, "yandex": yandex.collect}
     try:
         from returns_bot.sources import wb
         src["wb"] = wb.collect
@@ -43,9 +46,13 @@ def gather(only=None):
     rows, errors = [], []
     for name, fn in _sources(only).items():
         try:
-            rows += fn()
+            got = fn()
         except Exception as e:                      # одна площадка легла — остальные собираем
             errors.append(f"{name}: {type(e).__name__} {str(e)[:150]}")
+            continue
+        for head, _items, _raw in got:
+            head.setdefault("source", name)         # чем собрано — по этому считаем «пропал»
+        rows += got
     return rows, errors
 
 
@@ -53,7 +60,7 @@ def store(rows):
     """Запись в БД. Возвращает счётчики."""
     now = datetime.now(timezone.utc)
     raw_rows, head_rows, item_rows = [], [], []
-    seen = {}                                        # (platform, account) -> set(return_id)
+    seen = {}                                # (platform, source, account) -> set(return_id)
     for head, items, raw in rows:
         raw_rows.append({
             "platform": head["platform"], "account": head["account"],
@@ -63,7 +70,8 @@ def store(rows):
         # gone_at сбрасываем: возврат снова в выдаче — значит снова живой
         head_rows.append({c: head.get(c) for c in HEAD_COLS} | {"last_seen": now, "gone_at": None})
         item_rows += items
-        seen.setdefault((head["platform"], head["account"]), set()).add(head["return_id"])
+        seen.setdefault((head["platform"], head.get("source") or head["platform"],
+                         head["account"]), set()).add(head["return_id"])
 
     db.upsert("raw_mp_returns", raw_rows, KEY, update_cols=["payload", "loaded_at"])
     # first_seen сознательно НЕ в update_cols — по нему считаем, сколько дней возврат висит
@@ -72,19 +80,23 @@ def store(rows):
     if item_rows:
         db.upsert("mp_return_items", item_rows, KEY + ["seq"])
 
-    # то, чего больше нет в выдаче площадки — закрыто (забрали/отменили)
+    # То, чего больше нет в выдаче площадки, — закрыто (забрали/отменили). Считаем В ПРЕДЕЛАХ
+    # ОДНОГО ИСТОЧНИКА: у Ozon их три (returns/list, rFBS, вывоз со склада), и упавший или
+    # незапущенный (`--only`) источник иначе погасил бы живые строки соседнего.
     gone = 0
-    for (platform, account), ids in seen.items():
+    for (platform, source, account), ids in seen.items():
         gone += db.execute(
             "UPDATE mp_returns SET gone_at = now() "
-            "WHERE platform = %s AND account = %s AND gone_at IS NULL "
-            "  AND NOT (return_id = ANY(%s))",
-            (platform, account, list(ids)))
+            "WHERE platform = %s AND COALESCE(source, platform) = %s AND account = %s "
+            "  AND gone_at IS NULL AND NOT (return_id = ANY(%s))",
+            (platform, source, account, list(ids)))
     return {"raw": len(raw_rows), "heads": len(head_rows), "items": len(item_rows), "gone": gone}
 
 
 def summary(rows):
-    c = Counter((h["platform"], h["account"], h["stage"]) for h, _, _ in rows)
+    # в разрезе источника, а не площадки: у Ozon их три и путать их в отчёте прогона нельзя
+    c = Counter((h.get("source") or h["platform"], h["account"], h["stage"])
+                for h, _, _ in rows)
     out = []
     for stage in pending.STAGE_ORDER:
         tot = sum(n for (p, a, s), n in c.items() if s == stage)
@@ -98,7 +110,8 @@ def summary(rows):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="сбор возвратов площадок")
     ap.add_argument("--dry-run", action="store_true", help="ничего не писать в БД")
-    ap.add_argument("--only", nargs="*", help="ozon | yandex | wb")
+    ap.add_argument("--only", nargs="*",
+                    help="ozon | ozon_rfbs | ozon_removal | yandex | wb")
     a = ap.parse_args(argv)
 
     rows, errors = gather(a.only)

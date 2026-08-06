@@ -32,6 +32,38 @@ OZON_ATTENTION = {
 # WriteOff («Списали товар»): товара уже нет, забирать нечего, в ежедневный список действий
 # они попадать не должны (у acc1 это 34 старые строки шума).
 
+# --- Ozon Real-FBS (rFBS): /v2/returns/rfbs/list, поле state.state ----------------
+# Отдельный набор: у rFBS свой словарь статусов, «Едет к вам» здесь MovingToYou (у обычных
+# возвратов — MovingToSeller). Разведка 06.08.2026.
+OZON_RFBS_PICKUP = {
+    "ArrivedAtReturnPlace",        # В пункте выдачи (у Почты России — лежит в отделении)
+}
+OZON_RFBS_TRANSIT = {
+    "MovingToYou",                 # Едет к вам
+    "WaitingShipment",             # Ожидает отправки
+}
+# ReceivedBySeller (Получен), ArrivedForResale и всё, что вне группы delivering
+# (деньги/споры/утилизация), — closed: физического действия по ним нет.
+
+# --- Ozon вывоз со склада FBO: /v1/removal/*/list, box_state + return_state -------
+# Статусы приходят русскими строками, машинных кодов в отчёте нет.
+OZON_REMOVAL_PICKUP = {
+    "В пункте выдачи",             # коробка доехала до пункта — забрать
+}
+OZON_REMOVAL_TRANSIT = {
+    "В пути",
+    "На СЦ",                       # доехала до сортировочного центра, дальше — в пункт выдачи
+    "",                            # коробка ещё не собрана: box_id = 0, статус пуст
+}
+OZON_REMOVAL_CLOSED = {
+    "Получена",                    # забрали
+    "Утилизирована",
+    "Компенсировано продавцу",     # Ozon заплатил, товар не приедет
+}
+# Статусы заявки (`return_state`): Создаётся / Собирается на складе / В пути / Можно забирать
+# часть / Можно забирать всё / Завершено. Решает статус КОРОБКИ: у заявки «Можно забирать всё»
+# часть коробок уже получена, а часть ещё едет.
+
 # --- Яндекс: shipmentStatus -------------------------------------------------------
 YANDEX_PICKUP = {
     "READY_FOR_PICKUP",            # готов к выдаче — забрать (у таких заполнен pickupTillDate)
@@ -103,6 +135,29 @@ def ozon_stage(sys_name: str, final_moment=None) -> str:
     if sys_name in OZON_ATTENTION:
         return "attention"
     return "closed"
+
+
+def ozon_rfbs_stage(state: str) -> str:
+    """Стадия возврата Real-FBS. Всё, кроме доставки, — закрыто (деньги и споры не наша физика)."""
+    if state in OZON_RFBS_PICKUP:
+        return "pickup"
+    if state in OZON_RFBS_TRANSIT:
+        return "transit"
+    return "closed"
+
+
+def ozon_removal_stage(box_state: str, return_state: str) -> str:
+    """Стадия коробки вывоза со склада FBO. Решает статус коробки, статус заявки — подпорка."""
+    box_state = (box_state or "").strip()
+    return_state = (return_state or "").strip()
+    if box_state in OZON_REMOVAL_PICKUP:
+        return "pickup"
+    if box_state in OZON_REMOVAL_CLOSED or return_state == "Завершено":
+        return "closed"
+    if box_state in OZON_REMOVAL_TRANSIT:
+        return "transit"
+    # живая коробка с неизвестным статусом: молча терять нельзя (см. wb_stage)
+    return "attention"
 
 
 def yandex_stage(shipment_status: str) -> str:
