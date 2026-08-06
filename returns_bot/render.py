@@ -146,20 +146,20 @@ def fetch(stages, org=None):
     return heads, items
 
 
-def _item_line(items):
-    """Состав возврата одной строкой."""
+def _item_lines(items):
+    """Состав возврата: по товару на строку (решение Сергея 06.08.2026 — так читается)."""
     if not items:
-        return "состав не указан"
-    parts = []
+        return ["состав не указан"]
+    lines = []
     for it in items[:4]:
         title = it.get("name") or it.get("offer_id") or "?"
         if len(title) > 48:
             title = title[:47] + "…"
         qty = it.get("qty") or 1
-        parts.append(f"{title} ×{qty}")
+        lines.append(f"{title} ×{qty}")
     if len(items) > 4:
-        parts.append(f"+ещё {len(items) - 4}")
-    return "; ".join(parts)
+        lines.append(f"+ещё {len(items) - 4}")
+    return lines
 
 
 def _tail(h):
@@ -205,15 +205,17 @@ def _number_label(h):
 def _return_block(h, items, show_where_now):
     # Номер — тот, по которому позицию находят у нас (у WB это orderId = имя отгрузки в МС).
     # Штрихкод коробки не печатаем: для получения он не нужен (решение Сергея 04.08.2026).
-    line = f"     • {_number_label(h)} · {_esc(_item_line(items))}"
+    line = f"     • {_number_label(h)}"
+    # Название товара — с новой строки: в одну строку с номером всё сливается (06.08.2026).
+    for name in _item_lines(items):
+        line += f"\n       {_esc(name)}"
     # Трек Почты России — единственный способ получить возврат Real-FBS: в отделении спрашивают
     # его, а не номер возврата. Отдельной строкой, чтобы не терялся в хвосте.
     if h.get("track_number"):
         line += f"\n       трек Почты: <code>{_esc(h['track_number'])}</code>"
     extra = []
-    # Чем набита коробка вывоза: брак или годный товар — от этого зависит, куда её на складе.
-    if h.get("source") == "ozon_removal" and h.get("return_type"):
-        extra.append(_esc(h["return_type"]))
+    # Тип содержимого коробки вывоза («Доступно к продаже») не печатаем: складу он ничего
+    # не даёт, а строку удлиняет (решение Сергея 06.08.2026).
     # В стадии «забрать» статус площадки («Готов к выдаче», «Принят в пункте выдачи»,
     # «В пункте выдачи») ничего не добавляет: раз позиция в списке — она лежит и ждёт.
     if h.get("status_name") and h["stage"] != "pickup":
@@ -250,9 +252,15 @@ def stage_section(stage, heads, items, with_title=True):
         by_pvz = defaultdict(list)
         for h in acc_rows:
             by_pvz[(h.get("pvz_name"), h.get("pvz_address"))].append(h)
-        for (name, address), pvz_rows in sorted(by_pvz.items(), key=lambda kv: str(kv[0])):
+        # пустая строка между точками и между возвратами: сплошной блок глазом не разбирается
+        for n_pvz, ((name, address), pvz_rows) in enumerate(
+                sorted(by_pvz.items(), key=lambda kv: str(kv[0]))):
+            if n_pvz:
+                out.append("")
             out.append(f"  📍 {_esc(pvz_label(name, address))}")
-            for h in pvz_rows:
+            for n_ret, h in enumerate(pvz_rows):
+                if n_ret:
+                    out.append("")
                 key = (h["platform"], h["account"], h["return_id"])
                 out.append(_return_block(h, items.get(key, []), show_where_now=(stage == "transit")))
     return "\n".join(out)
