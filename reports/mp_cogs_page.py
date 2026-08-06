@@ -1,10 +1,18 @@
-# поток: rev
-"""reports/ya_cogs_page.py — раздел «Себестоимость» (Яндекс.Маркет): себест по отгрузкам.
+# поток: fin
+"""reports/mp_cogs_page.py — общий рендер раздела «Себестоимость» для площадок с отгрузками МС.
 
-Два уровня из кэша ya_cogs_demand (collectors/ya_cogs_demand.py):
-  overview_html — таблица по отчётам-месяцам (заказов/возвратов/сумма/себест/валовая маржа);
-  detail_html   — провал внутрь месяца: по каждой отгрузке (№, дата, статус, сумма, себест, способ, маржа).
-Маржа здесь ВАЛОВАЯ (наша цена − себест, до комиссий Маркета). Рендер динамический (запрос к БД).
+Вёрстка и правила чтения одни на все площадки (взяты из ya_cogs_page), различия площадки живут
+в конфиге CFG, который передаёт вызывающий модуль:
+  reports/oz_cogs_page.py — Ozon (два юрлица),
+  reports/wb_cogs_page.py — WB   (два юрлица).
+
+Отличаются только: таблицы БД, префикс API/URL, набор статусов и что из них сторнируется, подписи
+колонок и пояснения. Всё остальное — общее, чтобы правка вёрстки или логики сторно делалась
+в ОДНОМ месте, а не в трёх копиях.
+
+  overview_html(cfg, acc_key) — таблица по отчётам-месяцам (заказов/возвратов/сумма/себест/маржа);
+  detail_html(cfg, acc_key, ym) — провал внутрь месяца: по каждой отгрузке.
+Маржа ВАЛОВАЯ (наша цена − себест, ДО комиссий площадки). Юрлица не смешиваются.
 """
 import sys
 import pathlib
@@ -12,110 +20,41 @@ import pathlib
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
-from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, SIDEBAR, MPTABS  # noqa: E402
+from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, MPTABS  # noqa: E402
 from reports.cost_tabs import tabs_html  # noqa: E402
+from reports.ya_cogs_page import SIDEBAR_COST, PAGE_CSS, _fmt, _pct  # noqa: E402
 
-# левое меню: активен пункт «Себестоимость» (не «Отчёты МП»)
-SIDEBAR_COST = (SIDEBAR
-    .replace('<a href="/reports" class="cur">📋 Отчёты МП</a>', '<a href="/reports">📋 Отчёты МП</a>')
-    .replace('<a href="/reports/cost">💰 Себестоимость</a>',
-             '<a href="/reports/cost" class="cur">💰 Себестоимость</a>'))
-
-RET_STATUSES = ("return_stock", "return_defect", "unredeemed")
-
-STATUS_LABEL = {
-    "done": ("✅", "Выполнен", ""),
-    "return_stock": ("↩️", "Возврат → наш склад", "warn"),
-    "return_defect": ("♻️", "Возврат → наш склад (брак)", "warn"),
-    "unredeemed": ("🔙", "Невыкуп → передан нам · в МС нет возврата", "warn"),
-    "other": ("•", "В пути / в обработке", "mut"),
-}
-# статусы, где Маркет вернул товар нам, но в МС возврат не проведён → подсветить на проверку
-FLAG_STATUSES = ("unredeemed",)
-# товар вернулся в ПРОДАВАЕМЫЙ сток → себест сторнируется, строка net-neutral (оборот и себест = 0).
-# Брак (return_defect) НЕ сторнируется: товар нельзя перепродать → себест остаётся убытком.
-STORNO_STATUSES = ("return_stock", "unredeemed")
 METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "imputed": "импутация", "manual": "ручной"}
 
-PAGE_CSS = """
-.ct{width:100%;border-collapse:collapse;margin:8px 0 4px;font-size:14px}
-.ct th,.ct td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-.ct th{color:var(--mut);font-weight:600;text-align:right;border-bottom:2px solid var(--line)}
-.ct th:first-child,.ct td:first-child{text-align:left}
-.ct td.l,.ct th.l{text-align:left}
-.ct tbody tr.row-link{cursor:pointer}
-.ct tbody tr.row-link:hover{background:var(--card)}
-.ct td.num,.ct th.num{font-variant-numeric:tabular-nums}
-.ct tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:none}
-.ct .pos{color:var(--pos)}
-.ct .neg{color:var(--neg)}
-.ct .warn{color:var(--warn)}
-.ct .mut{color:var(--mut)}
-.stleg{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 0;font-size:12.5px;color:var(--mut)}
-.method{font-size:12px;color:var(--mut)}
-.backlink{display:inline-block;margin:2px 0 10px;color:var(--acc);text-decoration:none;font-weight:600}
-.backlink:hover{text-decoration:underline}
-.mnote{color:var(--mut);font-size:12.5px;margin:6px 0 0}
-.tblwrap{overflow-x:auto}
-.ftbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:4px 0 10px}
-.ftbar label{font-size:13px;color:var(--mut);display:flex;gap:5px;align-items:center}
-.ftbar select,.ftbar input{padding:5px 8px;border:1px solid var(--line);border-radius:7px;
-  background:var(--card);color:var(--txt);font-size:13px}
-.ftbar .cnt{color:var(--mut);font-size:12.5px}
-.ct th.srt{cursor:pointer;user-select:none}
-.ct th.srt:hover{color:var(--txt)}
-.ct th[data-dir]:not([data-dir=""])::after{content:" " attr(data-dir);color:var(--acc)}
-.ct tr.flag td{background:var(--warn-s)}
-.ct .strk{text-decoration:line-through;color:var(--mut)}
-.stmark{font-size:10.5px;color:var(--warn);border:1px solid var(--warn);border-radius:4px;
-  padding:0 4px;margin-left:5px;text-decoration:none;white-space:nowrap}
-.stleg .fl{display:inline-block;width:11px;height:11px;border-radius:3px;background:var(--warn-s);
-  border:1px solid var(--warn);vertical-align:-1px;margin-right:4px}
-.cinp{width:78px;padding:3px 6px;border:1px solid var(--acc);border-radius:6px;background:var(--card);
-  color:var(--txt);font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
-.cbtn{margin-left:4px;padding:3px 7px;border:1px solid var(--line);border-radius:6px;background:var(--card);
-  color:var(--txt);font-size:13px;cursor:pointer}
-.cbtn:hover{border-color:var(--acc)}
-.stmark.man{border-color:var(--acc);color:var(--acc)}
-.stmark.rst{cursor:pointer;border-color:var(--mut);color:var(--mut)}
-.stmark.rst:hover{border-color:var(--acc);color:var(--acc)}
-.stbadge{font-size:11.5px;white-space:nowrap}
-.stbadge.open{color:var(--mut)} .stbadge.closed{color:var(--pos)}
-.mbtn{margin-left:8px;padding:3px 9px;border:1px solid var(--line);border-radius:7px;background:var(--card);
-  color:var(--txt);font-size:12px;cursor:pointer;white-space:nowrap}
-.mbtn:hover{border-color:var(--acc);color:var(--acc)}
-.mbtn.warn{border-color:var(--warn)} .mbtn.warn:hover{border-color:var(--warn);color:var(--warn)}
-"""
+# фильтр по наличию себеста (для поиска пустых → ручной ввод)
+_COST_FILTER = [("", "все"), ("zero", "= 0 (нужен ввод)"), ("pos", "> 0")]
 
 
-OVERVIEW_JS = """<script>
-var YA_ACCOUNT='ya_acc1';
+def _js_head(cfg, acc_key, account):
+    return f"var ACC='{account}';var ACCKEY='{acc_key}';var API='/api/{cfg['api']}';"
+
+
+def _overview_js(cfg, acc_key, account):
+    return """<script>
+""" + _js_head(cfg, acc_key, account) + """
 function freezeMonth(ym){
   if(!confirm('Закрыть месяц '+ym+'? Себест станет финальным, коллектор перестанет его пересобирать.'))return;
-  fetch('/api/ya-cost/freeze',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({account:YA_ACCOUNT,ym:ym})})
+  fetch(API+'/freeze',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:ACC,ym:ym})})
    .then(function(r){return r.json();}).then(function(d){
      if(d.ok){location.reload();}
      else{alert((d.msg||'Не удалось закрыть')+(d.zero?'\\n'+d.zero.map(function(z){return z.demand_name;}).join(', '):''));}});
 }
 function unfreezeMonth(ym){
   if(!confirm('Разморозить '+ym+'? Следующий прогон коллектора соберёт месяц заново из МойСклад.'))return;
-  fetch('/api/ya-cost/unfreeze',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({account:YA_ACCOUNT,ym:ym})})
+  fetch(API+'/unfreeze',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:ACC,ym:ym})})
    .then(function(r){return r.json();}).then(function(){location.reload();});
 }
 </script>"""
 
 
-def _fmt(x):
-    return f"{(x or 0):,.0f}".replace(",", " ")
-
-
-def _pct(m, s):
-    return f"{(m / s * 100):.1f}%" if s else "—"
-
-
-def _shell(title, eyebrow, h1, body, rtab_cur="ya"):
+def _shell(title, eyebrow, h1, body, rtab_cur):
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -143,20 +82,22 @@ def _shell(title, eyebrow, h1, body, rtab_cur="ya"):
 </html>"""
 
 
-def overview_html(account="ya_acc1"):
-    rows = db.query("""
+def overview_html(cfg, acc_key):
+    account, org, tab = cfg["accounts"][acc_key]
+    ret, loss = list(cfg["ret_statuses"]), list(cfg["loss_statuses"])
+    rows = db.query(f"""
         SELECT to_char(ym,'YYYY-MM') ym,
                count(*)                                                        orders,
                count(*) FILTER (WHERE status = ANY(%s))                        returns,
                coalesce(sum(our_sum) FILTER (WHERE status = ANY(%s)),0)::float ret_sales,
                coalesce(sum(cogs)    FILTER (WHERE status = ANY(%s)),0)::float ret_cogs,
                coalesce(sum(our_sum) FILTER (WHERE status='done'),0)::float    sales,
-               coalesce(sum(cogs) FILTER (WHERE status IN ('done','return_defect')),0)::float cogs
-        FROM ya_cogs_demand WHERE account=%s
+               coalesce(sum(cogs) FILTER (WHERE status='done' OR status = ANY(%s)),0)::float cogs
+        FROM {cfg['table']} WHERE account=%s
         GROUP BY ym ORDER BY ym DESC
-    """, (list(RET_STATUSES), list(RET_STATUSES), list(RET_STATUSES), account))
+    """, (ret, ret, ret, loss, account))
     frozen = {r["ym"].strftime("%Y-%m"): r["closed_at"] for r in db.query(
-        "SELECT ym, closed_at FROM ya_cogs_frozen WHERE account=%s", (account,))}
+        f"SELECT ym, closed_at FROM {cfg['frozen_table']} WHERE account=%s", (account,))}
     body = ['<table class="ct"><thead><tr>'
             '<th class="l">Отчёт</th><th class="num">Заказов</th><th class="num">Возвратов</th>'
             '<th class="num">Возвр.: сумма<br>(наша цена)</th><th class="num">Возвр.: себест</th>'
@@ -182,7 +123,7 @@ def overview_html(account="ya_acc1"):
                      f'<button class="mbtn" onclick="event.stopPropagation();freezeMonth(\'{ym}\')">'
                      f'Закрыть месяц</button>')
         body.append(
-            f'<tr class="row-link" onclick="location.href=\'/reports/cost/{ym}\'">'
+            f'<tr class="row-link" onclick="location.href=\'{cfg["url"]}/{acc_key}/{ym}\'">'
             f'<td class="l">▸ {ym}</td>'
             f'<td class="num">{r["orders"]}</td>'
             f'<td class="num">{r["returns"]}</td>'
@@ -200,62 +141,35 @@ def overview_html(account="ya_acc1"):
                 f'<td class="num">{_fmt(t_sales)}</td><td class="num">{_fmt(t_cogs)}</td>'
                 f'<td class="num">{_fmt(tm)}</td><td class="num">{_pct(tm, t_sales)}</td>'
                 '<td></td></tr></tfoot></table>')
-    body.append('<p class="mnote">Отчёт = месяц отгрузки. Маржа <b>валовая</b> (наша цена − себестоимость, '
-                'ДО комиссий Маркета; полная чистая — во вкладке «Отчёты МП»). Себест — FIFO конкретной '
-                'отгрузки из МойСклад. <b>Сторно:</b> возвраты в сток и невыкупы (товар вернулся к нам) '
-                'исключены из «Продажи»/«Себестоимость» (net-neutral); Брак — себест остаётся убытком. '
-                'Колонки <b>«Возвр.»</b> — сумма и себест по всем возвратам (сток + невыкуп + брак), '
-                'т.е. сколько сторнировано/ушло в возвраты. Клик по строке — детализация по заказам.</p>')
-    body.append('<p class="mnote"><b>Месяц заказа ≠ месяц здесь.</b> В этом разделе месяц = <b>дата '
-                'отгрузки</b> (документ «Отгрузка» в МойСклад): себест берётся как FIFO конкретной '
-                'отгрузки, поэтому оборот, себест и месяц привязаны к дате физической отгрузки. '
-                'Во вкладке <b>«Отчёты МП · Яндекс»</b> тот же заказ считается <b>по дате оформления '
-                'заказа</b> (order-based, как в ЛК Маркета). Поэтому пограничный заказ (оформлен в конце '
-                'месяца, отгружен в начале следующего) в двух разделах попадёт в соседние месяцы — это '
-                'не расхождение, а разные точки привязки; внутри каждого раздела всё консистентно.</p>')
+    for note in cfg["overview_notes"](org, account):
+        body.append(f'<p class="mnote">{note}</p>')
     body.append('<p class="mnote"><b>🔒 Закрытый месяц</b> — себест финальный, коллектор его не '
                 'пересобирает (МойСклад лишний раз не дёргается). Закрывать имеет смысл после проверки '
                 'месяца; «Разморозить» открывает месяц обратно — следующий прогон соберёт его заново. '
                 'Закрыть нельзя, пока в месяце есть продажи с нулевым себестом (сначала заполнить).</p>')
     if not rows:
         body = ['<p class="mnote">Данных нет. Запустите сбор: '
-                '<code>./venv/bin/python -m collectors.ya_cogs_demand</code></p>']
-    return _shell("Себестоимость · Яндекс · Пульт бизнеса",
-                  "Себестоимость · Яндекс Маркет", "Себестоимость по отчётам (месяцам)",
-                  "\n".join(body) + OVERVIEW_JS, "ya")
+                f'<code>./venv/bin/python -m {cfg["collector"]}</code></p>']
+    pl = cfg["platform"]
+    return _shell(f"Себестоимость · {pl} · {org} · Пульт бизнеса",
+                  f"Себестоимость · {pl} · {org}", "Себестоимость по отчётам (месяцам)",
+                  "\n".join(body) + _overview_js(cfg, acc_key, account), tab)
 
-
-_STATUS_FILTER = [
-    ("", "все статусы"),
-    ("done", "✅ Выполнен"),
-    ("return_stock", "↩️ Возврат → наш склад"),
-    ("return_defect", "♻️ Брак"),
-    ("unredeemed", "🔙 Невыкуп → передан нам · в МС нет возврата"),
-    ("other", "• В пути / в обработке"),
-]
-
-# фильтр по наличию себеста (для поиска пустых → ручной ввод)
-_COST_FILTER = [
-    ("", "все"),
-    ("zero", "= 0 (нужен ввод)"),
-    ("pos", "> 0"),
-]
 
 # фильтр по столбцам + сортировка + пересчёт ИТОГО по видимым строкам (vanilla JS, self-contained)
-DETAIL_JS = """<script>
-var YA_ACCOUNT='ya_acc1';
+_DETAIL_JS_BODY = """
 function saveCost(nm){
   var inp=document.getElementById('ci_'+nm); if(!inp) return;
   var v=parseFloat(inp.value); if(isNaN(v)||v<0){alert('Введите себест ≥ 0');return;}
-  fetch('/api/ya-cost/manual',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({account:YA_ACCOUNT,demand_name:nm,cogs:v,author:'сотрудник'})})
+  fetch(API+'/manual',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:ACC,demand_name:nm,cogs:v,author:'сотрудник'})})
    .then(function(r){return r.json();}).then(function(d){
      if(d.ok){location.reload();}else{alert('Ошибка: '+(d.error||'не сохранено'));}});
 }
 function resetCost(nm){
   if(!confirm('Сбросить ручной себест и пересчитать по МС?'))return;
-  fetch('/api/ya-cost/reset',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({account:YA_ACCOUNT,demand_name:nm})})
+  fetch(API+'/reset',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({account:ACC,demand_name:nm})})
    .then(function(r){return r.json();}).then(function(){location.reload();});
 }
 (function(){
@@ -265,7 +179,6 @@ function resetCost(nm){
       fc=document.getElementById('fcost'),
       fq=document.getElementById('fq'), foot=document.getElementById('dfoot'),
       cnt=document.getElementById('fcnt');
-  var RET={return_stock:1,return_defect:1,unredeemed:1};
   function nf(x){return Math.round(x).toLocaleString('ru-RU').replace(/\\u00A0/g,' ').replace(/,/g,' ');}
   function apply(){
     var s=fst.value, m=fmt.value, cf=fc.value, q=fq.value.trim().toLowerCase();
@@ -280,7 +193,7 @@ function resetCost(nm){
              if(RET[r.dataset.status])ret++;}
     });
     var mg=sales-cogs;
-    foot.innerHTML='<td class="l" colspan="3">ИТОГО: заказов '+n+' · возвратов '+ret+'</td>'+
+    foot.innerHTML='<td class="l" colspan="3">ИТОГО: '+DOCPL+' '+n+' · возвратов '+ret+'</td>'+
       '<td class="num">'+nf(sales)+'</td><td class="num">'+nf(cogs)+'</td><td></td>'+
       '<td class="num">'+nf(mg)+'</td><td class="num">'+(sales?(mg/sales*100).toFixed(1)+'%':'—')+'</td>';
     cnt.textContent='показано '+n+' из '+rows.length;
@@ -306,22 +219,26 @@ function resetCost(nm){
   fc.addEventListener('change',apply);
   fq.addEventListener('input',apply); apply();
 })();
-</script>"""
+"""
 
 
-def detail_html(account, ym):
+def detail_html(cfg, acc_key, ym):
     """ym в формате YYYY-MM."""
-    rows = db.query("""
+    account, org, tab = cfg["accounts"][acc_key]
+    storno, loss = cfg["storno_statuses"], cfg["loss_statuses"]
+    pending = cfg["pending_statuses"]     # ещё не реализовано: ни оборота, ни себеста в месяце
+    pending_label = cfg["pending_label"]
+    rows = db.query(f"""
         SELECT demand_name, to_char(demand_date,'YYYY-MM-DD') d, status, status_raw,
                coalesce(our_sum,0)::float our_sum, coalesce(cogs,0)::float cogs,
                coalesce(qty,0)::float qty, method
-        FROM ya_cogs_demand
+        FROM {cfg['table']}
         WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
         ORDER BY demand_date, demand_name
     """, (account, ym))
-    opts = "".join(f'<option value="{v}">{lbl}</option>' for v, lbl in _STATUS_FILTER)
+    opts = "".join(f'<option value="{v}">{lbl}</option>' for v, lbl in cfg["status_filter"])
     copts = "".join(f'<option value="{v}">{lbl}</option>' for v, lbl in _COST_FILTER)
-    body = ['<a class="backlink" href="/reports/cost">◀ Назад к отчётам</a>',
+    body = [f'<a class="backlink" href="{cfg["url"]}/{acc_key}">◀ Назад к отчётам</a>',
             '<div class="ftbar">'
             f'<label>Статус <select id="fst">{opts}</select></label>'
             '<label>Способ <select id="fmt">'
@@ -329,12 +246,12 @@ def detail_html(account, ym):
             '<option value="imputed">импутация</option><option value="manual">ручной</option>'
             '</select></label>'
             f'<label>Себест <select id="fcost">{copts}</select></label>'
-            '<input id="fq" placeholder="поиск по № отгрузки…" size="18">'
+            f'<input id="fq" placeholder="{cfg["search_ph"]}" size="22">'
             '<span class="cnt" id="fcnt"></span></div>',
             '<div class="tblwrap"><table class="ct" id="dtbl"><thead><tr>'
-            '<th class="l srt" data-col="0" data-type="text">№ отгрузки</th>'
+            f'<th class="l srt" data-col="0" data-type="text">{cfg["doc_col"]}</th>'
             '<th class="l srt" data-col="1" data-type="text">Дата</th>'
-            '<th class="l srt" data-col="2" data-type="text">Статус (Маркет)</th>'
+            f'<th class="l srt" data-col="2" data-type="text">{cfg["status_col"]}</th>'
             '<th class="num srt" data-col="3" data-type="num">Сумма</th>'
             '<th class="num srt" data-col="4" data-type="num">Себест.</th>'
             '<th class="l srt" data-col="5" data-type="text">Способ</th>'
@@ -346,27 +263,29 @@ def detail_html(account, ym):
         st = r["status"]
         nm = r["demand_name"]
         our_sum, cogs = r["our_sum"], r["cogs"]
-        emoji, label, cls = STATUS_LABEL.get(st, ("•", r["status_raw"] or "—", "mut"))
-        if st in RET_STATUSES:
+        emoji, label, cls = cfg["status_label"].get(st, ("•", r["status_raw"] or "—", "mut"))
+        if st in cfg["ret_statuses"]:
             n_ret += 1
-        # эффективные (реализованные) значения: сторно возвратов в сток/невыкупов, Брак = убыток
-        if st in STORNO_STATUSES:
-            eff_sum, eff_cogs = 0.0, 0.0           # товар вернулся в сток → net-neutral
-        elif st == "return_defect":
-            eff_sum, eff_cogs = 0.0, cogs          # Брак: оборот 0, себест — убыток
+        # эффективные (реализованные) значения: сторно возвратов в продаваемый сток, потери = убыток
+        if st in storno:
+            eff_sum, eff_cogs = 0.0, 0.0           # товар вернулся в продаваемый сток → net-neutral
+        elif st in loss:
+            eff_sum, eff_cogs = 0.0, cogs          # потеря: оборот 0, себест остаётся убытком
+        elif st in pending:
+            eff_sum, eff_cogs = 0.0, 0.0           # ещё не реализовано: деньги не подтверждены
         else:
             eff_sum, eff_cogs = our_sum, cogs      # done
         eff_m = eff_sum - eff_cogs
         t_sales += eff_sum; t_cogs += eff_cogs
-        flagcls = ' class="flag"' if st in FLAG_STATUSES else ''
+        flagcls = ' class="flag"' if st in cfg["flag_statuses"] else ''
         # ячейка «Сумма»: у не-продаж оборот не реализован (перечёркнут), data-v = эффективный
         sum_cell = (f'<td class="num strk" data-v="0.00">{_fmt(our_sum)}</td>' if st != "done"
                     else f'<td class="num" data-v="{our_sum:.2f}">{_fmt(our_sum)}</td>')
         # ячейка «Себест». Редактируемая для: реальных продаж с 0 себеста (нужен ввод) и ручных
         # (можно поправить/сбросить). Сторно не редактируем (net-neutral).
-        need_input = (cogs == 0 and st in ("done", "return_defect"))
+        need_input = (cogs == 0 and (st == "done" or st in loss))
         is_manual = (r["method"] == "manual")
-        editable = (st not in STORNO_STATUSES) and (need_input or is_manual)
+        editable = (st not in storno) and (need_input or is_manual)
         if editable:
             prefill = f"{cogs:.2f}" if cogs else ""
             badge = ('<span class="stmark man">ручной</span>' if is_manual else '')
@@ -376,20 +295,25 @@ def detail_html(account, ym):
                          f'<input id="ci_{nm}" class="cinp" type="number" step="0.01" min="0" '
                          f'value="{prefill}" placeholder="0.00">'
                          f'<button class="cbtn" onclick="saveCost(\'{nm}\')">💾</button>{badge}{reset}</td>')
-        elif st in STORNO_STATUSES:
+        elif st in storno:
             cogs_cell = f'<td class="num strk" data-v="0.00">{_fmt(cogs)}<span class="stmark">сторно</span></td>'
-        elif st == "return_defect":
+        elif st in loss:
             cogs_cell = f'<td class="num neg" data-v="{cogs:.2f}">{_fmt(cogs)}</td>'
+        elif st in pending:
+            cogs_cell = f'<td class="num strk" data-v="0.00">{_fmt(cogs)}</td>'
         else:
             cogs_cell = f'<td class="num" data-v="{cogs:.2f}">{_fmt(cogs)}</td>'
         # ячейки маржи
         if need_input:                                 # себест неизвестен → маржа не считается
             m_cell = '<td class="num mut" data-v="0.00">—</td>'
             mp_cell = '<td class="num mut" data-v="0.00">нужен себест</td>'
-        elif st in STORNO_STATUSES:
+        elif st in storno:
             m_cell = '<td class="num mut" data-v="0.00">—</td>'
             mp_cell = '<td class="num mut" data-v="0.00">сторно</td>'
-        elif st == "return_defect":
+        elif st in pending:
+            m_cell = '<td class="num mut" data-v="0.00">—</td>'
+            mp_cell = f'<td class="num mut" data-v="0.00">{pending_label}</td>'
+        elif st in loss:
             m_cell = f'<td class="num neg" data-v="{eff_m:.2f}">{_fmt(eff_m)}</td>'
             mp_cell = '<td class="num neg" data-v="-100.00">убыток</td>'
         else:
@@ -406,25 +330,19 @@ def detail_html(account, ym):
             f'{m_cell}{mp_cell}</tr>')
     tm = t_sales - t_cogs
     body.append('</tbody><tfoot><tr id="dfoot">'
-                f'<td class="l" colspan="3">ИТОГО: заказов {len(rows)} · возвратов {n_ret}</td>'
+                f'<td class="l" colspan="3">ИТОГО: {cfg["doc_pl"]} {len(rows)} · возвратов {n_ret}</td>'
                 f'<td class="num">{_fmt(t_sales)}</td><td class="num">{_fmt(t_cogs)}</td>'
                 f'<td></td><td class="num">{_fmt(tm)}</td><td class="num">{_pct(tm, t_sales)}</td>'
                 '</tr></tfoot></table></div>')
-    body.append('<div class="stleg">'
-                '<span>✅ Выполнен — доставлен/продан</span>'
-                '<span>↩️ Возврат → наш склад (в сток)</span>'
-                '<span>♻️ Брак — наш склад, дефект</span>'
-                '<span><span class="fl"></span>🔙 Невыкуп → передан нам, но в МС возврат не проведён '
-                '(на проверку — себест не сторнирован)</span></div>')
-    body.append('<p class="mnote">Клик по заголовку — сортировка. Способ: «МС (FIFO)» — себест конкретной '
-                'отгрузки из МойСклад; «импутация» — фолбэк по закупочной, когда FIFO по отгрузке нет. '
-                '«ИТОГО» пересчитывается по отфильтрованным строкам.</p>')
+    body.append('<div class="stleg">' + "".join(f'<span>{s}</span>' for s in cfg["legend"]) + '</div>')
+    body.append(f'<p class="mnote">{cfg["detail_note"]}</p>')
     if not rows:
         body.append(f'<p class="mnote">За {ym} отгрузок нет.</p>')
-    return _shell(f"Себестоимость · {ym} · Пульт бизнеса",
-                  f"Себестоимость · Яндекс Маркет · {ym}",
-                  f"Себестоимость по заказам — {ym}", "\n".join(body) + DETAIL_JS, "ya")
-
-
-if __name__ == "__main__":
-    print(overview_html()[:200], "...")
+    ret_js = ",".join(f"{s}:1" for s in cfg["ret_statuses"])
+    js = ("<script>" + _js_head(cfg, acc_key, account)
+          + f"var RET={{{ret_js}}};var DOCPL='{cfg['doc_pl']}';"
+          + _DETAIL_JS_BODY + "</script>")
+    pl = cfg["platform"]
+    return _shell(f"Себестоимость · {pl} · {org} · {ym} · Пульт бизнеса",
+                  f"Себестоимость · {pl} · {org} · {ym}",
+                  f"Себестоимость по {cfg['doc_dat']} — {ym}", "\n".join(body) + js, tab)

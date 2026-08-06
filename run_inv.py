@@ -53,6 +53,7 @@ import collectors.alfa_statement as alfa             # noqa: E402
 import collectors.alfa_ms as alfa_ms                 # noqa: E402
 import collectors.alfa_link as alfa_link             # noqa: E402
 import collectors.sber_ms as sber_ms                 # noqa: E402  второй контур: Дисквэр
+import collectors.bank_txn_store as txn_store        # noqa: E402  выписка → Postgres (опер. расходы)
 
 MSK = dt.timezone(dt.timedelta(hours=3))
 # Окно добора привязок. Предоплата уходит РАНЬШЕ поставки (Феррет: платёж 28.07, приёмка 29.07),
@@ -123,6 +124,18 @@ def dates(argv):
     return [(yday - dt.timedelta(days=k)).isoformat() for k in range(days - 1, -1, -1)]
 
 
+def store_txns(ops, bank, org_inn, label, account=None, raws=None):
+    """Выписка → Postgres (`bank_txn`) для разметки статьями опер. расходов на дашборде.
+
+    Хранилище вторично по отношению к записи денег в МС: если оно почему-то упало, прогон
+    выписка→МойСклад продолжается, в лог идёт строка с причиной."""
+    try:
+        st = txn_store.store(ops, bank, org_inn, account=account, raws=raws)
+        log("  " + txn_store.summary(st, label))
+    except Exception as e:                                   # noqa: BLE001 — учёт важнее витрины
+        log(f"  ✗ выписка в БД не записана ({label}): {type(e).__name__}: {e}")
+
+
 def run_day(account, date, apply):
     """Один счёт × одна дата. → (кол-во операций, stats) либо исключение наружу."""
     res = alfa.fetch_statement(account, date)
@@ -130,6 +143,8 @@ def run_day(account, date, apply):
     if not ops:
         log(f"счёт {account} {date}: операций нет")
         return 0, None
+    store_txns(ops, "alfa", alfa_ms.ORG_INN, f"Альфа {account} {date}",
+               account=account, raws=res.get("transactions"))
     stats, _plan = alfa_ms.sync(ops, apply=apply)
     for msg in (stats.get("error_msgs") or [])[:10]:        # почему именно упало — в крон-лог
         log(f"  ✗ {msg}")
@@ -198,6 +213,7 @@ def run_sber(days):
     if not ops:
         log(f"Сбер {days[0]}…{days[-1]}: операций нет")
         return 0
+    store_txns(ops, "sber", sber_ms.ORG_INN, f"Сбер {days[0]}…{days[-1]}")
     for msg in (stats.get("error_msgs") or [])[:10]:
         log(f"  ✗ Сбер: {msg}")
     log(f"Сбер {days[0]}…{days[-1]}: операций {len(ops)} | "

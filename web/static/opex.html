@@ -45,6 +45,16 @@
   .mptabs a:hover{background:var(--card);color:var(--txt)}
   .mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
   .topbar .filters{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  .whtabs a{color:var(--mut);text-decoration:none;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:600}
+  .whtabs a:hover{background:var(--card);color:var(--txt)}
+  .whtabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .alert{background:rgba(255,180,84,.10);border:1px solid var(--warn);border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:13px}
+  .alert a{color:var(--acc)}
+  .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .orgs{display:flex;gap:4px}
+  .orgs button{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:6px 13px;font:inherit;cursor:pointer}
+  .orgs button.cur{background:var(--card);color:var(--txt);border-color:var(--acc)}
 </style>
 </head>
 <body>
@@ -62,9 +72,15 @@
   </nav>
 </header>
 <main>
-  <select id="f-period"></select>
-  <p class="note" style="margin-top:0">Постоянные/общебизнесовые расходы (ФОТ + аренда + налоги) на весь бизнес (WB + Ozon).
-     Редактируются помесячно: правки сохраняются снапшотом за выбранный месяц, следующие месяцы наследуют его, пока не отредактируешь новый.</p>
+  <nav class="whtabs">
+    <a href="/opex" class="cur">📊 Сводка</a>
+    <a href="/opex/statements">📥 Выписки</a>
+  </nav>
+  <div class="bar">
+    <div class="orgs" id="orgs"></div>
+    <select id="f-period"></select>
+  </div>
+  <p class="note" id="hint" style="margin-top:0"></p>
   <div id="opex"></div>
 </main>
 <script>
@@ -72,20 +88,34 @@ const $=s=>document.querySelector(s);
 const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
 const esc=s=>(s==null?'':String(s)).replace(/"/g,'&quot;');
 const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
-let period='', opexData=null, opexEdit=false, editItems=[];
+let period='', org='', opexData=null, opexEdit=false, editItems=[];
 async function api(p){const r=await fetch(p);return r.json();}
 
 async function initPeriods(){
-  const m=await api('/api/meta');
-  const per=[...new Set(m.slices.map(s=>s.period_from))].sort().reverse();
+  // периоды = месяцы витрины ∪ месяцы, за которые есть выписка (текущего месяца в витрине ещё нет)
+  const [m,f]=await Promise.all([api('/api/meta'),api('/api/opex/fact')]);
+  const per=[...new Set([...m.slices.map(s=>s.period_from),...(f.months||[])])].sort().reverse();
   $('#f-period').innerHTML=per.map(p=>`<option value="${p}">${MONTHS[p.slice(5,7)]} ${p.slice(0,4)}</option>`).join('');
   period=per[0]||'';
   $('#f-period').onchange=e=>{period=e.target.value;opexEdit=false;loadOpex();};
 }
-async function loadOpex(){ opexData=await api(`/api/opex?period=${period}`); renderOpex(); }
+async function loadOpex(){
+  opexData=await api(`/api/opex?period=${period}&org=${org}`);
+  org=opexData.org||org; renderOrgs(); renderOpex();
+}
+function renderOrgs(){
+  // Фирмы раздельно, сводного «Все» нет (расходы, банки и договоры у юрлиц разные)
+  $('#orgs').innerHTML=(opexData.orgs||[]).map(o=>
+    `<button class="${org===o.org_inn?'cur':''}" onclick="setOrg('${o.org_inn}')">${esc(o.name)}</button>`).join('');
+}
+function setOrg(v){org=v;localStorage.setItem('opexOrg',v);opexEdit=false;loadOpex();}
 function renderOpex(){
   const el=$('#opex'); if(opexEdit) return renderOpexEdit();
   const d=opexData;
+  if(d.source==='fact') return renderFact(d);
+  $('#hint').innerHTML='<b>Ручной снапшот</b> — он один на весь бизнес и по юрлицам не делится '
+    +'(выбор фирмы сверху на него не влияет). Месяц уедет на факт по выписке, как только ты '
+    +'разметишь его платежи на вкладке <a href="/opex/statements" style="color:var(--acc)">📥 Выписки</a>.';
   const pencil=`<button class="ebtn" onclick="startEdit()">✏️ править</button>`;
   if(!d.applies){
     el.innerHTML=`<h3>Расходы за ${MONTHS[period.slice(5,7)]} не заданы ${pencil}</h3><div class="muted">Нажми «править», чтобы внести ФОТ, аренду и налоги.</div>`;
@@ -105,6 +135,31 @@ function renderOpex(){
       <div class="ti"><span class="lbl">Чистая ПОСЛЕ расходов</span><span class="vv ${naCls}">${rub(d.net_after)}</span></div>
     </div>
     <div class="note">Чистая бизнеса = WB ${rub(d.wb_net)} + Ozon ${rub(d.oz_net)} за месяц.</div>`;
+}
+function renderFact(d){
+  // Факт из размеченной выписки (с 08.2026). Ручной снапшот на этот месяц не действует.
+  $('#hint').innerHTML=`Факт по банковской выписке <b>${esc(d.org_name)}</b>: платежи этой фирмы, которым присвоена статья расходов. `
+    +'Разметка — на вкладке <a href="/opex/statements" style="color:var(--acc)">📥 Выписки</a>. '
+    +'Платежи поставщикам статьи не получают и сюда не попадают.';
+  const u=d.unassigned||{n:0,s:0};
+  const alert=u.n?`<div class="alert">⚠️ Не размечено <b>${u.n}</b> платеж(ей) на <b>${rub(u.s)}</b> —
+      пока они не разнесены по статьям, «чистая после расходов» завышена.
+      <a href="/opex/statements">Разметить →</a></div>`:'';
+  const rows=(d.items||[]).map(i=>`<tr><td>${esc(i.category)}</td>
+      <td class="muted" style="text-align:right">${i.txn_count}</td>
+      <td class="amt">${rub(i.amount)}</td></tr>`).join('')
+    ||`<tr><td colspan="3" class="muted">За этот месяц ещё ничего не размечено.</td></tr>`;
+  const naCls=d.net_after<0?'neg':'pos';
+  $('#opex').innerHTML=`${alert}
+    <h3>${esc(d.org_name)} · ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} <span class="muted" style="font-weight:400;font-size:12px">факт по выписке</span></h3>
+    <table class="oe"><thead><tr><th>Статья</th><th style="text-align:right">Платежей</th><th style="text-align:right">Сумма</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    <div class="tot" style="margin-top:14px">
+      <div class="ti"><span class="lbl">Итого расходы/мес</span><span class="vv warn">${rub(d.total)}</span></div>
+      <div class="ti"><span class="lbl">Чистая фирмы (WB+Ozon)</span><span class="vv">${rub(d.biz_net)}</span></div>
+      <div class="ti"><span class="lbl">Чистая ПОСЛЕ расходов</span><span class="vv ${naCls}">${rub(d.net_after)}</span></div>
+    </div>
+    <div class="note">Чистая ${esc(d.org_name)} = WB ${rub(d.wb_net)} + Ozon ${rub(d.oz_net)} за месяц.</div>`;
 }
 function startEdit(){
   editItems=(opexData.items||[]).map(i=>({name:i.name,role:i.role||'',category:i.category,base:+i.base,tax_pct:+i.tax_pct}));
@@ -142,7 +197,7 @@ async function saveOpex(){
   if(!r.ok){alert('Не удалось сохранить');return;}
   opexEdit=false; await loadOpex();
 }
-(async()=>{await initPeriods();await loadOpex();})();
+(async()=>{org=localStorage.getItem('opexOrg')||'';await initPeriods();await loadOpex();})();
 </script>
 </body>
 </html>

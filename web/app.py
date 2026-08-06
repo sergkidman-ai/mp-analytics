@@ -6,13 +6,14 @@ Drill-down: большие цифры → SKU → (позже категории
 
 Запуск:  ./venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8090
 """
+import base64
 import os
 import re
 import sys
 import pathlib
 
 import requests
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
@@ -20,6 +21,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 import collectors.bank_txn_store as txn_store  # noqa: E402  правила разметки выписки (поток inv)
+import collectors.bank_file_import as bank_file_import  # noqa: E402  выписка файлом (банки без API)
 
 app = FastAPI(title="Пульт бизнеса")
 STATIC = BASE_DIR / "web" / "static"
@@ -253,11 +255,20 @@ def sku(platform: str = "", account: str = "", period: str = "",
 # снапшоте таблицы `opex` — пересчитывать историю нечем, выписка в БД начинается с 01.08.
 OPEX_FACT_SINCE = "2026-08-01"
 ORG_NAMES = {"7807355364": "Цифровой Квадрат", "7811803918": "Дисквэр"}
+ORG_ORDER = ["7807355364", "7811803918"]
+# Юрлицо → его аккаунты площадок (чтобы «чистая после расходов» считалась по своей фирме,
+# а не по бизнесу целиком): решение Сергея 04.08.2026 — общего разреза нигде не показываем.
+ORG_ACCOUNTS = {"7807355364": {"wb": "wb_acc1", "oz": "oz_acc1"},
+                "7811803918": {"wb": "wb_acc2", "oz": "oz_acc2"}}
 
 
 def _opex_month(period):
-    """Период дашборда (1-е число месяца) → месяц раскладки расходов."""
-    return (period or "")[:8] + "01"
+    """Период дашборда (1-е число месяца) → месяц раскладки расходов.
+    Принимает и короткую форму «YYYY-MM» — её отдаёт селект месяцев выписки."""
+    p = (period or "").strip()
+    if len(p) == 7:
+        p += "-01"
+    return p[:8] + "01" if len(p) >= 8 else ""
 
 
 def _opex_snapshot_total(period):
@@ -272,65 +283,88 @@ def _opex_snapshot_total(period):
     return t, snap
 
 
+def _opex_is_fact(month):
+    """Считать месяц по факту выписки? Да — если месяц не раньше OPEX_FACT_SINCE, либо если
+    по нему уже есть размеченные платежи. Второе — плавный переход назад по истории: выписка
+    добрана с 01.01.2026, и месяц уезжает с ручного снапшота на факт ровно тогда, когда Сергей
+    его разметит (пока разметки нет — цифра истории не шевелится)."""
+    if month >= OPEX_FACT_SINCE:
+        return True
+    return db.query("SELECT EXISTS(SELECT 1 FROM opex_fact_month WHERE month=%s) e",
+                    (month,))[0]["e"]
+
+
 def _opex_total(period):
-    """Единая точка правды об итоге опер. расходов за месяц: с 08.2026 — факт из выписки,
-    раньше — ручной снапшот. Используют все потребители (бизнес-агрегат, советы, отчёт)."""
+    """Единая точка правды об итоге опер. расходов за месяц ПО ВСЕМУ БИЗНЕСУ (обе фирмы) —
+    для главной, советов и уровневого отчёта, где агрегат считается по бизнесу целиком.
+    Постраничный разрез «Опер. расходов» разделён по юрлицам отдельно."""
     m = _opex_month(period)
     if not m or len(m) != 10:
         return 0.0
-    if m >= OPEX_FACT_SINCE:
+    if _opex_is_fact(m):
         return db.query("SELECT coalesce(sum(amount),0)::float t FROM opex_fact_month WHERE month=%s",
                         (m,))[0]["t"]
     return _opex_snapshot_total(period)[0]
 
 
-def _opex_unassigned(month):
+def _opex_unassigned(month, org=""):
     """Сколько расходных платежей месяца ещё без статьи — чтобы итог не выглядел готовым."""
-    return db.query("""SELECT count(*)::int n, coalesce(sum(t.amount),0)::float s
+    w, p = ["t.direction='DEBIT'", "a.txn_id IS NULL",
+            "date_trunc('month', t.operation_date)::date=%s"], [month]
+    if org:
+        w.append("t.org_inn=%s")
+        p.append(org)
+    return db.query(f"""SELECT count(*)::int n, coalesce(sum(t.amount),0)::float s
         FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id=t.id
-        WHERE t.direction='DEBIT' AND a.txn_id IS NULL
-          AND date_trunc('month', t.operation_date)::date=%s""", (month,))[0]
+        WHERE {' AND '.join(w)}""", tuple(p))[0]
 
 
 @app.get("/api/opex")
-def opex(period: str = ""):
-    """Операционные расходы бизнеса за месяц (весь бизнес: WB + Ozon, оба юрлица).
+def opex(period: str = "", org: str = ""):
+    """Операционные расходы ОДНОГО юрлица за месяц. Общего («обе фирмы вместе») разреза здесь
+    нет — решение Сергея 04.08.2026: у фирм разные банки, договоры и площадки, смешивать нечего.
 
-    Два источника, переключение по OPEX_FACT_SINCE:
-      source='fact'   — с 08.2026: суммы статей из размеченной банковской выписки;
-      source='manual' — до 08.2026: прежний ручной снапшот (наследуется предыдущим месяцем).
-    Чистая бизнеса = WB (из margin) + Ozon (к перечислению − COGS) за месяц минус расходы."""
+    Два источника:
+      source='fact'   — факт из размеченной выписки (с 08.2026 всегда; раньше — как только
+                        месяц размечен, см. _opex_is_fact);
+      source='manual' — прежний ручной снапшот; он один на бизнес и по фирмам НЕ делится,
+                        поэтому отдаётся с флагом org_split=false и показывается как есть.
+    Чистая фирмы = её WB-аккаунт (из margin) + её Ozon-аккаунт (к перечислению − COGS)."""
     if not period:
         return {"applies": False, "items": [], "total": 0}
     month = _opex_month(period)
+    org = org if org in ORG_NAMES else ORG_ORDER[0]
+    orgs = [{"org_inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
+    acc = ORG_ACCOUNTS[org]
 
-    def _with_biz(payload, total):
+    def _with_biz(payload, total, org_split=True):
+        # чистая по аккаунтам ЭТОЙ фирмы; для общего снапшота (manual) — по всему бизнесу
         wb_net = db.query("""SELECT coalesce(sum(net_profit),0)::float n FROM margin_by_sku
-            WHERE period_from=%s AND platform='wb'""", (period,))[0]["n"]
-        oz_net = _oz_summary("", period)["net"]   # к перечислению − COGS (включает оверхед)
+            WHERE period_from=%s AND platform='wb'""" + (" AND account=%s" if org_split else ""),
+            ((period, acc["wb"]) if org_split else (period,)))[0]["n"]
+        oz_net = _oz_summary(acc["oz"] if org_split else "", period)["net"]
         biz = wb_net + oz_net
         payload.update({"wb_net": round(wb_net, 2), "oz_net": round(oz_net, 2),
                         "biz_net": round(biz, 2), "net_after": round(biz - total, 2),
-                        "total": round(total, 2), "period": period})
+                        "total": round(total, 2), "period": period, "month": month,
+                        "org": org, "org_name": ORG_NAMES[org], "orgs": orgs,
+                        "org_split": org_split})
         return payload
 
-    if month >= OPEX_FACT_SINCE:
+    if _opex_is_fact(month):
         items = db.query("""SELECT category_id, category, sum(amount)::float amount,
                                    sum(txn_count)::int txn_count
-            FROM opex_fact_month WHERE month=%s GROUP BY 1,2 ORDER BY 3 DESC""", (month,))
-        by_org = db.query("""SELECT org_inn, sum(amount)::float amount
-            FROM opex_fact_month WHERE month=%s GROUP BY 1 ORDER BY 2 DESC""", (month,))
-        for r in by_org:
-            r["org_name"] = ORG_NAMES.get(r["org_inn"], r["org_inn"])
+            FROM opex_fact_month WHERE month=%s AND org_inn=%s
+            GROUP BY 1,2 ORDER BY 3 DESC""", (month, org))
         total = sum(i["amount"] for i in items)
-        return _with_biz({"applies": True, "source": "fact", "month": month,
-                          "items": items, "by_org": by_org,
-                          "unassigned": _opex_unassigned(month)}, total)
+        return _with_biz({"applies": True, "source": "fact", "items": items,
+                          "unassigned": _opex_unassigned(month, org)}, total)
 
     total, snap = _opex_snapshot_total(period)
     if not snap:
         return {"applies": False, "source": "manual", "items": [], "total": 0,
-                "period": period, "snapshot": None, "own": False}
+                "period": period, "snapshot": None, "own": False,
+                "org": org, "org_name": ORG_NAMES[org], "orgs": orgs, "org_split": False}
     items = db.query("""SELECT id, name, role, category, base::float, tax_pct::float, amount::float
         FROM opex WHERE effective_from=%s ORDER BY category, amount DESC""", (snap,))
     return _with_biz({"applies": True, "source": "manual", "snapshot": snap,
@@ -338,7 +372,8 @@ def opex(period: str = ""):
                       "fot": round(sum(i["amount"] for i in items if i["category"] == "salary"), 2),
                       "rent": round(sum(i["amount"] for i in items if i["category"] == "rent"), 2),
                       "tax": round(sum(i["amount"] for i in items if i["category"] == "tax"), 2),
-                      "headcount": sum(1 for i in items if i["category"] == "salary")}, total)
+                      "headcount": sum(1 for i in items if i["category"] == "salary")},
+                     total, org_split=False)
 
 
 class OpexItem(BaseModel):
@@ -384,15 +419,33 @@ def opex_save(payload: OpexSave):
 def opex_categories(all: int = 0):
     """Справочник статей. all=1 — вместе с архивными (для показа старой разметки)."""
     where = "" if all else "WHERE NOT archived"
-    return {"items": db.query(f"SELECT id, name, sort, archived FROM opex_category {where} "
-                              "ORDER BY sort, name")}
+    return {"items": db.query(f"SELECT id, name, sort, archived FROM opex_category "
+                              f"{where} ORDER BY sort, name")}
+
+
+def _opex_spread(months: int) -> tuple[int, bool]:
+    """Поле «Мес.» знаковое: N месяцев вперёд от оплаты, −N — назад. → (|N|, назад?)."""
+    n = int(months or 1)
+    back = n < 0
+    return max(1, min(120, abs(n))), back
+
+
+def _opex_start_month(op_date, n: int, back: bool):
+    """Первый месяц разнесения. Вперёд — месяц оплаты (аренда, подписки). Назад — период
+    заканчивается месяцем ПЕРЕД платежом, start = месяц − N: УСН, уплаченный в июле за
+    II квартал, с N=3 ложится в апрель–июнь; налог за прошлый месяц — это N=1 назад."""
+    start = op_date.replace(day=1)
+    if back:
+        m = start.month - n
+        start = start.replace(year=start.year + (m - 1) // 12, month=(m - 1) % 12 + 1)
+    return start
 
 
 class OpexCategory(BaseModel):
     id: int | None = None
     name: str = ""
     sort: int = 100
-    archived: bool = False
+    archived: bool | None = None           # None = не трогать
 
 
 @app.post("/api/opex/categories")
@@ -402,9 +455,9 @@ def opex_category_save(payload: OpexCategory):
     name = (payload.name or "").strip()
     if payload.id:
         if name:
-            db.execute("UPDATE opex_category SET name=%s, sort=%s, archived=%s WHERE id=%s",
-                       (name, payload.sort, payload.archived, payload.id))
-        else:
+            db.execute("UPDATE opex_category SET name=%s, sort=%s WHERE id=%s",
+                       (name, payload.sort, payload.id))
+        if payload.archived is not None:
             db.execute("UPDATE opex_category SET archived=%s WHERE id=%s",
                        (payload.archived, payload.id))
         return {"ok": True, "id": payload.id}
@@ -417,37 +470,58 @@ def opex_category_save(payload: OpexCategory):
 
 
 @app.get("/api/opex/statement")
-def opex_statement(org: str = "", month: str = "", only: str = "all", direction: str = "DEBIT"):
-    """Строки выписки одной фирмы за месяц + присвоенная статья.
+def opex_statement(org: str = "", month: str = "", only: str = "all", direction: str = "DEBIT",
+                   cat: str = "", bank: str = ""):
+    """Строки выписки ОДНОЙ фирмы за месяц + присвоенная статья.
 
-    org — ИНН организации (7807355364 Цифровой / 7811803918 Дисквэр); пусто = обе.
-    only='unassigned' — только платежи без статьи. direction='' — вместе с приходом."""
+    org — ИНН организации (7807355364 Цифровой / 7811803918 Дисквэр); пусто → первая по списку.
+    Сводного разреза «обе фирмы» нет намеренно (решение Сергея 04.08.2026).
+    only='unassigned' — только платежи без статьи. direction='' — вместе с приходом.
+    cat — фильтр по статье внутри месяца: '' все, 'none' без статьи, число = id статьи.
+    bank — фильтр по банку ('' все, 'alfa'|'sber'|'ozon'): у Цифрового два счёта, Альфа и
+    Озон Банк, и сверять выписку удобнее по одному банку за раз. В отличие от `cat` этот
+    фильтр сужает и итоги внизу, и разрез по статьям — он выбирает СЧЁТ, а не подмножество
+    строк внутри счёта."""
+    org = org if org in ORG_NAMES else ORG_ORDER[0]
     if not month:
         month = db.query("SELECT coalesce(max(date_trunc('month', operation_date))::text, '') m "
-                         "FROM bank_txn")[0]["m"][:10]
+                         "FROM bank_txn WHERE org_inn=%s", (org,))[0]["m"][:10]
     if not month:
-        return {"month": None, "orgs": [], "items": [], "totals": {}}
+        return {"month": None, "org": org, "orgs": [], "items": [], "totals": {}}
     month = month[:8] + "01"
-    w, p = ["date_trunc('month', t.operation_date)::date = %s"], [month]
-    if org:
-        w.append("t.org_inn = %s")
-        p.append(org)
+    # Банк подставляется в три запроса — держим его отдельным куском условия
+    bank = bank if bank.isalpha() else ""
+    bw = " AND t.bank = %s" if bank else ""
+    bp = [bank] if bank else []
+    w, p = ["date_trunc('month', t.operation_date)::date = %s", "t.org_inn = %s"], [month, org]
+    if bank:
+        w.append("t.bank = %s")
+        p.append(bank)
     if direction:
         w.append("t.direction = %s")
         p.append(direction)
-    if only == "unassigned":
+    if only == "unassigned" or cat == "none":
         w.append("a.txn_id IS NULL")
+    elif cat.isdigit():
+        w.append("a.category_id = %s")
+        p.append(int(cat))
     items = db.query(f"""
         SELECT t.id, t.bank, t.org_inn, t.operation_date::text, t.direction, t.amount::float,
                t.document_number, t.purpose, t.cp_name, t.cp_inn,
                a.category_id, c.name AS category, a.spread_months, a.start_month::text, a.source,
-               (r.id IS NOT NULL) AS has_rule
+               -- направление разнесения не храним отдельно: оно уже видно по start_month
+               (a.start_month < date_trunc('month', t.operation_date)::date) AS spread_back,
+               -- ТОЛЬКО EXISTS: обычный JOIN размножал строку выписки по числу правил
+               -- контрагента (у ПАО Сбербанк их 8 — платёж показывался 8 раз)
+               EXISTS (SELECT 1 FROM opex_rule r
+                       WHERE coalesce(t.cp_inn,'') <> '' AND r.cp_inn = t.cp_inn) AS has_rule
         FROM bank_txn t
         LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
         LEFT JOIN opex_category c ON c.id = a.category_id
-        LEFT JOIN opex_rule r ON coalesce(t.cp_inn,'') <> '' AND r.cp_inn = t.cp_inn
         WHERE {' AND '.join(w)}
         ORDER BY t.operation_date DESC, t.id DESC""", tuple(p))
+    # Итог месяца — всегда по ВСЕМ расходам фирмы за месяц, независимо от фильтров экрана:
+    # иначе при «только без статьи» строка внизу показывала бы «размечено 0 из 0».
     tot = db.query(f"""
         SELECT count(*)::int n,
                count(*) FILTER (WHERE a.txn_id IS NOT NULL)::int n_done,
@@ -455,15 +529,40 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
                coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NOT NULL),0)::float done,
                coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NULL),0)::float todo
         FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
-        WHERE {' AND '.join(w)}""", tuple(p))[0]
-    orgs = db.query("""SELECT org_inn, min(operation_date)::text d0, max(operation_date)::text d1,
-                              count(*)::int n FROM bank_txn GROUP BY 1 ORDER BY 1""")
+        WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
+          AND t.direction='DEBIT'{bw}""", tuple([month, org] + bp))[0]
+    # Разрез месяца по статьям — из него собирается селект фильтра (со счётчиком у каждой
+    # статьи). Считается по ВСЕМ расходам месяца, а не по отфильтрованной выдаче: иначе после
+    # выбора статьи в списке осталась бы она одна и вернуться было бы некуда.
+    by_cat = db.query(f"""
+        SELECT c.id AS category_id, c.name AS category, count(*)::int n,
+               coalesce(sum(t.amount),0)::float amount
+        FROM bank_txn t
+        JOIN bank_txn_opex a ON a.txn_id = t.id
+        JOIN opex_category c ON c.id = a.category_id
+        WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
+          AND t.direction='DEBIT'{bw}
+        GROUP BY 1, 2 ORDER BY 4 DESC""", tuple([month, org] + bp))
+    # Список банков месяца — считается БЕЗ фильтра по банку, иначе в селекте оставался бы
+    # выбранный банк и вернуться к «всем» было бы некуда.
+    by_bank = db.query("""
+        SELECT t.bank, count(*)::int n, coalesce(sum(t.amount),0)::float amount
+        FROM bank_txn t
+        WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
+          AND t.direction='DEBIT'
+        GROUP BY 1 ORDER BY 3 DESC""", (month, org))
+    orgs = [{"org_inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
+    seen = {r["org_inn"]: r for r in db.query(
+        """SELECT org_inn, min(operation_date)::text d0, max(operation_date)::text d1,
+                  count(*)::int n FROM bank_txn GROUP BY 1""")}
     for o in orgs:
-        o["name"] = ORG_NAMES.get(o["org_inn"], o["org_inn"])
+        o.update({k: v for k, v in seen.get(o["org_inn"], {"n": 0}).items() if k != "org_inn"})
     months = [r["m"] for r in db.query(
-        "SELECT DISTINCT date_trunc('month', operation_date)::date::text m FROM bank_txn ORDER BY 1 DESC")]
-    return {"month": month, "org": org, "only": only, "items": items,
-            "totals": tot, "orgs": orgs, "months": months}
+        "SELECT DISTINCT date_trunc('month', operation_date)::date::text m "
+        "FROM bank_txn WHERE org_inn=%s ORDER BY 1 DESC", (org,))]
+    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "only": only, "cat": cat,
+            "bank": bank, "items": items, "totals": tot, "by_cat": by_cat, "by_bank": by_bank,
+            "orgs": orgs, "months": months}
 
 
 class OpexAssign(BaseModel):
@@ -472,6 +571,9 @@ class OpexAssign(BaseModel):
     spread_months: int = 1
     remember: bool = False                # запомнить контрагента → правило на будущее
     apply_existing: bool = True           # доразметить прочие платежи этого же контрагента
+    purpose_like: str | None = None       # фрагмент назначения: правило только на такие платежи
+    amount_min: float | None = None       # диапазон суммы [min, max): правило только на такие
+    amount_max: float | None = None       # платежи (ЕНП Казначейства делится порогом 40 000 ₽)
 
 
 @app.post("/api/opex/statement/assign")
@@ -479,7 +581,10 @@ def opex_assign(payload: OpexAssign):
     """Присвоить платежу статью (или снять). При remember — запомнить правило по ИНН
     контрагента (фолбэк по имени, если ИНН пуст) и разом доразметить остальные
     неразмеченные платежи того же контрагента: иначе правило заработало бы только
-    со следующей выписки."""
+    со следующей выписки.
+
+    `purpose_like` сужает правило до платежей с этим фрагментом в назначении — нужно там,
+    где контрагент один на разнородные платежи (карточные покупки и комиссии идут от банка)."""
     txn = db.query("SELECT id, cp_inn, cp_name, operation_date, direction FROM bank_txn WHERE id=%s",
                    (payload.txn_id,))
     if not txn:
@@ -487,63 +592,171 @@ def opex_assign(payload: OpexAssign):
     txn = txn[0]
     if txn["direction"] != "DEBIT":
         return {"ok": False, "error": "статья присваивается только расходу"}
-    n = max(1, min(120, int(payload.spread_months or 1)))
+    n, back = _opex_spread(payload.spread_months)
 
     if not payload.category_id:
         db.execute("DELETE FROM bank_txn_opex WHERE txn_id=%s", (payload.txn_id,))
         return {"ok": True, "assigned": 0, "rule": False}
 
-    start = txn["operation_date"].replace(day=1)
+    start = _opex_start_month(txn["operation_date"], n, back)
     db.execute("""INSERT INTO bank_txn_opex (txn_id, category_id, spread_months, start_month, source)
         VALUES (%s,%s,%s,%s,'manual')
         ON CONFLICT (txn_id) DO UPDATE SET category_id=EXCLUDED.category_id,
-            spread_months=EXCLUDED.spread_months, source='manual', updated_at=now()""",
+            spread_months=EXCLUDED.spread_months, start_month=EXCLUDED.start_month,
+            source='manual', updated_at=now()""",
         (payload.txn_id, payload.category_id, n, start))
 
     ruled = 0
     if payload.remember:
         inn = (txn["cp_inn"] or "").strip()
         key = "" if inn else txn_store.name_key(txn["cp_name"])
+        frag = (payload.purpose_like or "").strip() or None
+        lo, hi = payload.amount_min, payload.amount_max
+        if lo is not None and hi is not None and lo >= hi:
+            return {"ok": False, "error": "нижняя граница суммы не меньше верхней"}
         if inn:
-            db.execute("""INSERT INTO opex_rule (cp_inn, category_id, spread_months)
-                VALUES (%s,%s,%s) ON CONFLICT (cp_inn) WHERE coalesce(cp_inn,'') <> ''
+            db.execute("""INSERT INTO opex_rule (cp_inn, purpose_like, amount_min, amount_max,
+                                                 category_id, spread_months, spread_back)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (cp_inn, (coalesce(lower(purpose_like),'')),
+                             (coalesce(amount_min,-1)), (coalesce(amount_max,-1)))
+                    WHERE coalesce(cp_inn,'') <> ''
                 DO UPDATE SET category_id=EXCLUDED.category_id,
-                              spread_months=EXCLUDED.spread_months, updated_at=now()""",
-                (inn, payload.category_id, n))
+                              spread_months=EXCLUDED.spread_months,
+                              spread_back=EXCLUDED.spread_back, updated_at=now()""",
+                (inn, frag, lo, hi, payload.category_id, n, back))
         elif key:
-            db.execute("""INSERT INTO opex_rule (cp_name_key, category_id, spread_months)
-                VALUES (%s,%s,%s) ON CONFLICT (cp_name_key) WHERE coalesce(cp_name_key,'') <> ''
+            db.execute("""INSERT INTO opex_rule (cp_name_key, purpose_like, amount_min, amount_max,
+                                                 category_id, spread_months, spread_back)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (cp_name_key, (coalesce(lower(purpose_like),'')),
+                             (coalesce(amount_min,-1)), (coalesce(amount_max,-1)))
+                    WHERE coalesce(cp_name_key,'') <> ''
                 DO UPDATE SET category_id=EXCLUDED.category_id,
-                              spread_months=EXCLUDED.spread_months, updated_at=now()""",
-                (key, payload.category_id, n))
+                              spread_months=EXCLUDED.spread_months,
+                              spread_back=EXCLUDED.spread_back, updated_at=now()""",
+                (key, frag, lo, hi, payload.category_id, n, back))
         if (inn or key) and payload.apply_existing:
+            # Новое правило может перебивать старую АВТОразметку (у Казначейства платежи уже
+            # висели на «Налоги ФОТ», а правило с порогом отправляет крупные в «Налоги и взносы»).
+            # Снимаем расхождения с текущим победителем и размечаем заново; ручное не трогаем.
+            db.execute("""DELETE FROM bank_txn_opex a USING opex_rule_match m
+                WHERE m.txn_id = a.txn_id AND a.source = 'rule'
+                  AND m.category_id <> a.category_id""")
             ruled = txn_store.apply_rules()          # доразметить уже лежащее в БД
     return {"ok": True, "assigned": 1, "rule": bool(payload.remember), "ruled_existing": ruled}
 
 
+class OpexImport(BaseModel):
+    org: str                              # ИНН нашей фирмы, чья это выписка
+    bank: str = "ozon"                    # метка банка в bank_txn
+    filename: str = ""
+    content_b64: str = ""                 # файл целиком, base64 (multipart не ставим ради него)
+    account: str | None = None            # наш счёт, если в файле его нет (CSV/XLSX)
+    since: str = ""                       # не грузить операции раньше этой даты
+    dry: bool = False                     # только разбор, без записи — проверка формата
+
+
+@app.post("/api/opex/statement/import")
+def opex_statement_import(payload: OpexImport):
+    """Ручная загрузка выписки файлом — для банков без API (Озон Банк: счета есть
+    у обеих фирм, API нет вовсе). Разбор в `collectors/bank_file_import`, запись —
+    в тот же `bank_txn`, что у Альфы и Сбера, поэтому правила и экран разметки
+    работают без изменений. Повторная загрузка того же файла дублей не создаёт
+    (натуральный ключ — хеш реквизитов операции)."""
+    if payload.org not in ORG_NAMES:
+        return {"ok": False, "error": "неизвестная организация"}
+    bank = re.sub(r"[^a-z0-9_]+", "", (payload.bank or "ozon").lower())[:16] or "ozon"
+    try:
+        data = base64.b64decode(payload.content_b64 or "", validate=False)
+    except Exception:                                            # noqa: BLE001
+        return {"ok": False, "error": "файл не читается (ошибка base64)"}
+    if not data:
+        return {"ok": False, "error": "пустой файл"}
+    try:
+        res = bank_file_import.import_bytes(
+            data, payload.filename or "statement.txt", bank, payload.org,
+            account=(payload.account or "").strip() or None,
+            since=(payload.since or "").strip() or None, dry=payload.dry)
+    except Exception as e:                                       # noqa: BLE001
+        # Разбор чужого формата — самое хрупкое место: отдаём человеку текст ошибки
+        # (в нём перечислены заголовки файла), а не пятисотку.
+        return {"ok": False, "error": str(e)[:400]}
+    return {"ok": True, **res}
+
+
+@app.get("/api/opex/rules")
+def opex_rules():
+    """Запомненные правила разметки: контрагент (+ необязательный фрагмент назначения) → статья.
+    `n_auto` — сколько платежей сейчас размечено автоматически по этому правилу."""
+    return {"items": db.query("""
+        SELECT r.id, r.cp_inn, r.cp_name_key, r.purpose_like, r.spread_months, r.spread_back,
+               r.amount_min::float AS amount_min, r.amount_max::float AS amount_max,
+               r.category_id, c.name AS category,
+               coalesce(k.cp_name, '') AS cp_name,
+               coalesce(x.n, 0)::int AS n_auto, coalesce(x.s, 0)::float AS s_auto
+        FROM opex_rule r
+        JOIN opex_category c ON c.id = r.category_id
+        -- живое имя контрагента: в правиле хранится только ИНН/ключ имени
+        LEFT JOIN LATERAL (
+            SELECT t.cp_name FROM bank_txn t
+            WHERE (coalesce(r.cp_inn,'') <> '' AND t.cp_inn = r.cp_inn)
+               OR (coalesce(r.cp_inn,'') =  '' AND r.cp_name_key =
+                   regexp_replace(lower(coalesce(t.cp_name,'')), '[^0-9a-zа-яё]+', '', 'g'))
+            ORDER BY t.operation_date DESC LIMIT 1) k ON TRUE
+        -- считаем только платежи, где ЭТО правило победило: иначе платёж, подходящий
+        -- и под общее правило контрагента, и под уточнённое, попадал бы в оба счётчика
+        LEFT JOIN LATERAL (
+            SELECT count(*) n, sum(t.amount) s
+            FROM opex_rule_match m
+            JOIN bank_txn t ON t.id = m.txn_id
+            JOIN bank_txn_opex a ON a.txn_id = m.txn_id AND a.source = 'rule'
+            WHERE m.rule_id = r.id) x ON TRUE
+        ORDER BY c.name, coalesce(k.cp_name, r.cp_inn, r.cp_name_key)""")}
+
+
+class OpexRuleDelete(BaseModel):
+    rule_id: int
+    drop_auto: bool = True                # снять авторазметку, проставленную этим правилом
+
+
+@app.post("/api/opex/rules/delete")
+def opex_rule_delete(payload: OpexRuleDelete):
+    """Удалить правило. По умолчанию снимает и авторазметку (`source='rule'`), которую оно
+    проставило, — иначе ошибочно размеченные платежи остались бы висеть в статье. Ручную
+    разметку не трогаем никогда; после удаления прогоняем остальные правила заново, чтобы
+    платежи подхватило более точное правило, если оно есть."""
+    if not db.query("SELECT 1 FROM opex_rule WHERE id=%s", (payload.rule_id,)):
+        return {"ok": False, "error": "правило не найдено"}
+    dropped = 0
+    if payload.drop_auto:
+        # Снимаем разметку только тех платежей, где победило именно это правило (и только
+        # автоматическую). Обязательно ДО удаления самого правила — вью считает по нему.
+        dropped = db.execute("""
+            DELETE FROM bank_txn_opex a USING opex_rule_match m
+            WHERE m.txn_id = a.txn_id AND m.rule_id = %s AND a.source = 'rule'""",
+            (payload.rule_id,))
+    db.execute("DELETE FROM opex_rule WHERE id=%s", (payload.rule_id,))
+    return {"ok": True, "dropped": dropped or 0, "reruled": txn_store.apply_rules()}
+
+
 @app.get("/api/opex/fact")
 def opex_fact(period: str = "", org: str = ""):
-    """Факт опер. расходов за месяц из размеченной выписки: по статьям, по фирмам,
+    """Факт опер. расходов ОДНОЙ фирмы за месяц из размеченной выписки: по статьям
     плюс сколько ещё не размечено (чтобы итог не выглядел готовым)."""
+    org = org if org in ORG_NAMES else ORG_ORDER[0]
     month = _opex_month(period) if period else db.query(
         "SELECT coalesce(max(month)::text,'') m FROM opex_fact_month")[0]["m"][:10]
     if not month or len(month) != 10:
-        return {"month": None, "items": [], "total": 0, "unassigned": {"n": 0, "s": 0}}
-    w, p = ["month=%s"], [month]
-    if org:
-        w.append("org_inn=%s")
-        p.append(org)
-    items = db.query(f"""SELECT category_id, category, sum(amount)::float amount,
+        return {"month": None, "org": org, "items": [], "total": 0,
+                "unassigned": {"n": 0, "s": 0}, "months": []}
+    items = db.query("""SELECT category_id, category, sum(amount)::float amount,
                                 sum(txn_count)::int txn_count
-        FROM opex_fact_month WHERE {' AND '.join(w)}
-        GROUP BY 1,2 ORDER BY 3 DESC""", tuple(p))
-    by_org = db.query("""SELECT org_inn, sum(amount)::float amount FROM opex_fact_month
-        WHERE month=%s GROUP BY 1 ORDER BY 2 DESC""", (month,))
-    for r in by_org:
-        r["org_name"] = ORG_NAMES.get(r["org_inn"], r["org_inn"])
-    return {"month": month, "items": items, "by_org": by_org,
+        FROM opex_fact_month WHERE month=%s AND org_inn=%s
+        GROUP BY 1,2 ORDER BY 3 DESC""", (month, org))
+    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "items": items,
             "total": round(sum(i["amount"] for i in items), 2),
-            "unassigned": _opex_unassigned(month),
+            "unassigned": _opex_unassigned(month, org),
             # месяцы, за которые вообще есть выписка — «Сводке» нужен свой список периодов:
             # margin_by_sku за текущий месяц может ещё не существовать
             "months": [r["m"] for r in db.query(
@@ -1062,6 +1275,43 @@ def reports_cost_page():
     return _yc.overview_html("ya_acc1")
 
 
+# Ozon-подтабы регистрируются ДО /reports/cost/{ym}: иначе «ozon» съест шаблон месяца.
+@app.get("/reports/cost/ozon/{acc}", response_class=HTMLResponse)
+def reports_cost_ozon_page(acc: str):
+    """Себестоимость Ozon по месяцам, отдельная таблица на юрлицо (acc1 — Цифровой, acc2 — Дисквэр)."""
+    import reports.oz_cogs_page as _oc
+    if acc not in _oc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица Ozon")
+    return _oc.overview_html(acc)
+
+
+@app.get("/reports/cost/ozon/{acc}/{ym}", response_class=HTMLResponse)
+def reports_cost_ozon_detail(acc: str, ym: str):
+    """Провал внутрь месяца Ozon: себестоимость по отправлениям (YYYY-MM)."""
+    import reports.oz_cogs_page as _oc
+    if acc not in _oc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица Ozon")
+    return _oc.detail_html(acc, ym)
+
+
+@app.get("/reports/cost/wb/{acc}", response_class=HTMLResponse)
+def reports_cost_wb_page(acc: str):
+    """Себестоимость WB по месяцам, отдельная таблица на юрлицо (acc1 — Цифровой, acc2 — Дисквэр)."""
+    import reports.wb_cogs_page as _wc
+    if acc not in _wc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица WB")
+    return _wc.overview_html(acc)
+
+
+@app.get("/reports/cost/wb/{acc}/{ym}", response_class=HTMLResponse)
+def reports_cost_wb_detail(acc: str, ym: str):
+    """Провал внутрь месяца WB: себестоимость по сборочным заданиям (YYYY-MM)."""
+    import reports.wb_cogs_page as _wc
+    if acc not in _wc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица WB")
+    return _wc.detail_html(acc, ym)
+
+
 @app.get("/reports/cost/{ym}", response_class=HTMLResponse)
 def reports_cost_detail(ym: str):
     """Провал внутрь отчёта: себестоимость по заказам месяца ym (YYYY-MM)."""
@@ -1189,6 +1439,203 @@ def ya_cost_freeze(p: YaCostMonth):
 def ya_cost_unfreeze(p: YaCostMonth):
     """Разморозить месяц — следующий прогон коллектора соберёт его заново из МС."""
     db.execute("DELETE FROM ya_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
+    return {"ok": True, "ym": p.ym[:7], "closed": False}
+
+
+# ── Ручной себест Ozon (раздел «Себестоимость» → подтабы юрлиц, поток fin) ──────
+# Полное зеркало ya-cost, но по своим таблицам oz_cogs_* и с обязательным account:
+# юрлица Ozon (oz_acc1 Цифровой / oz_acc2 Дисквэр) не смешиваются нигде, включая закрытие месяца.
+class OzCostManual(BaseModel):
+    account: str
+    demand_name: str
+    cogs: float
+    note: str | None = None
+    author: str | None = None
+
+
+class OzCostReset(BaseModel):
+    account: str
+    demand_name: str
+
+
+class OzCostMonth(BaseModel):
+    account: str
+    ym: str                       # YYYY-MM
+    closed_by: str | None = None
+
+
+OZ_COST_ACCOUNTS = ("oz_acc1", "oz_acc2")
+
+
+@app.post("/api/oz-cost/manual")
+def oz_cost_manual(p: OzCostManual):
+    """Сотрудник вручную задаёт себест отгрузки Ozon (там, где FIFO=0 и импутация пуста).
+    Пишем в устойчивую oz_cogs_manual (переживает перезапуск коллектора) + сразу правим кэш."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо Ozon"}
+    if not nm:
+        return {"ok": False, "error": "demand_name пуст"}
+    cogs = round(float(p.cogs or 0), 2)
+    db.upsert("oz_cogs_manual", [{
+        "account": p.account, "demand_name": nm, "cogs": cogs,
+        "note": (p.note or None), "author": (p.author or None)}],
+        conflict_cols=["account", "demand_name"])
+    db.execute("UPDATE oz_cogs_demand SET cogs=%s, method='manual' "
+               "WHERE account=%s AND demand_name=%s", (cogs, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs}
+
+
+@app.post("/api/oz-cost/reset")
+def oz_cost_reset(p: OzCostReset):
+    """Убрать ручной себест и пересчитать ОДНУ отгрузку через FIFO/импутацию (откат)."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо Ozon"}
+    db.execute("DELETE FROM oz_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
+    row = db.query("SELECT demand_id FROM oz_cogs_demand WHERE account=%s AND demand_name=%s",
+                   (p.account, nm))
+    if not row or not row[0]["demand_id"]:
+        return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
+    from collectors import ms_demand_cogs as MDC
+    from collectors.oz_cogs_demand import _cost_seb_map
+    cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
+    if cogs > 0:
+        method = "ms_fifo"
+    else:
+        cost_seb = _cost_seb_map()
+        cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+        method = "imputed"
+    db.execute("UPDATE oz_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
+               (cogs, method, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
+
+
+@app.post("/api/oz-cost/freeze")
+def oz_cost_freeze(p: OzCostMonth):
+    """Закрыть месяц себеста Ozon по ОДНОМУ юрлицу: человек проверил → себест финальный.
+    Гейт: нельзя закрыть, пока есть реальные продажи с 0 себеста (сначала заполнить вручную)."""
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо Ozon"}
+    ym1 = p.ym[:7] + "-01"
+    zero = db.query("""
+        SELECT demand_name, coalesce(our_sum,0)::float our_sum FROM oz_cogs_demand
+        WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
+          AND coalesce(cogs,0)=0 AND status IN ('done','return_defect')
+        ORDER BY demand_name LIMIT 50""", (p.account, p.ym[:7]))
+    if zero:
+        return {"ok": False, "reason": "zero_cogs", "zero": zero,
+                "msg": f"Нельзя закрыть {p.ym}: {len(zero)} отправлени(й) без себеста — заполните вручную."}
+    db.upsert("oz_cogs_frozen", [{"account": p.account, "ym": ym1,
+                                  "closed_by": (p.closed_by or "сотрудник")}],
+              conflict_cols=["account", "ym"])
+    return {"ok": True, "ym": p.ym[:7], "closed": True}
+
+
+@app.post("/api/oz-cost/unfreeze")
+def oz_cost_unfreeze(p: OzCostMonth):
+    """Разморозить месяц Ozon — следующий прогон коллектора соберёт его заново из МС."""
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо Ozon"}
+    db.execute("DELETE FROM oz_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
+    return {"ok": True, "ym": p.ym[:7], "closed": False}
+
+
+# ── Ручной себест WB (раздел «Себестоимость» → подтабы юрлиц, поток fin) ───────
+# Зеркало oz-cost по таблицам wb_cogs_*; юрлица (wb_acc1 Цифровой / wb_acc2 Дисквэр) не смешиваются.
+class WbCostManual(BaseModel):
+    account: str
+    demand_name: str              # № сборочного задания = имя отгрузки в МС
+    cogs: float
+    note: str | None = None
+    author: str | None = None
+
+
+class WbCostReset(BaseModel):
+    account: str
+    demand_name: str
+
+
+class WbCostMonth(BaseModel):
+    account: str
+    ym: str                       # YYYY-MM
+    closed_by: str | None = None
+
+
+WB_COST_ACCOUNTS = ("wb_acc1", "wb_acc2")
+
+
+@app.post("/api/wb-cost/manual")
+def wb_cost_manual(p: WbCostManual):
+    """Сотрудник вручную задаёт себест отгрузки WB (там, где FIFO=0 и импутация пуста).
+    Пишем в устойчивую wb_cogs_manual (переживает перезапуск коллектора) + сразу правим кэш."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо WB"}
+    if not nm:
+        return {"ok": False, "error": "demand_name пуст"}
+    cogs = round(float(p.cogs or 0), 2)
+    db.upsert("wb_cogs_manual", [{
+        "account": p.account, "demand_name": nm, "cogs": cogs,
+        "note": (p.note or None), "author": (p.author or None)}],
+        conflict_cols=["account", "demand_name"])
+    db.execute("UPDATE wb_cogs_demand SET cogs=%s, method='manual' "
+               "WHERE account=%s AND demand_name=%s", (cogs, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs}
+
+
+@app.post("/api/wb-cost/reset")
+def wb_cost_reset(p: WbCostReset):
+    """Убрать ручной себест и пересчитать ОДНУ отгрузку через FIFO/импутацию (откат)."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо WB"}
+    db.execute("DELETE FROM wb_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
+    row = db.query("SELECT demand_id FROM wb_cogs_demand WHERE account=%s AND demand_name=%s",
+                   (p.account, nm))
+    if not row or not row[0]["demand_id"]:
+        return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
+    from collectors import ms_demand_cogs as MDC
+    from collectors.wb_cogs_demand import _cost_seb_map
+    cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
+    if cogs > 0:
+        method = "ms_fifo"
+    else:
+        cost_seb = _cost_seb_map()
+        cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+        method = "imputed"
+    db.execute("UPDATE wb_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
+               (cogs, method, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
+
+
+@app.post("/api/wb-cost/freeze")
+def wb_cost_freeze(p: WbCostMonth):
+    """Закрыть месяц себеста WB по ОДНОМУ юрлицу: человек проверил → себест финальный.
+    Гейт: нельзя закрыть, пока есть реальные продажи/убытки с 0 себеста (сначала заполнить)."""
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо WB"}
+    ym1 = p.ym[:7] + "-01"
+    zero = db.query("""
+        SELECT demand_name, coalesce(our_sum,0)::float our_sum FROM wb_cogs_demand
+        WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
+          AND coalesce(cogs,0)=0 AND status IN ('done','return_defect','return_wb')
+        ORDER BY demand_name LIMIT 50""", (p.account, p.ym[:7]))
+    if zero:
+        return {"ok": False, "reason": "zero_cogs", "zero": zero,
+                "msg": f"Нельзя закрыть {p.ym}: {len(zero)} отгрузок(и) без себеста — заполните вручную."}
+    db.upsert("wb_cogs_frozen", [{"account": p.account, "ym": ym1,
+                                  "closed_by": (p.closed_by or "сотрудник")}],
+              conflict_cols=["account", "ym"])
+    return {"ok": True, "ym": p.ym[:7], "closed": True}
+
+
+@app.post("/api/wb-cost/unfreeze")
+def wb_cost_unfreeze(p: WbCostMonth):
+    """Разморозить месяц WB — следующий прогон коллектора соберёт его заново из МС."""
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо WB"}
+    db.execute("DELETE FROM wb_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
     return {"ok": True, "ym": p.ym[:7], "closed": False}
 
 
@@ -2739,7 +3186,7 @@ def signals(period: str = "", scope: str = "", account: str = ""):
                                   "text": "Убыточных/габаритных позиций мало."}]}
 
     biz = business(period)
-    ox = opex(period)
+    ox = {"total": _opex_total(period)}   # уровневый отчёт — по бизнесу целиком
     t = biz.get("total", {})
     after = biz.get("net_after_opex")
     margin = t.get("margin_pct")

@@ -283,15 +283,20 @@ def _cost_map():
         out[sku] = (c, "ext")
     for sku, c in yc.items():
         out[sku] = (c, "yc")
-    for r in db.query("SELECT offer_id, payload FROM raw_yandex_offer WHERE account=%s", (ACCOUNT,)):
+    # Тянем из payload ТОЛЬКО два нужных поля, а не весь JSONB: db.query делает fetchall(), и
+    # полный payload 15k офферов (33 МБ на диске) разворачивался в ~330 МБ Python-объектов —
+    # на этом пике run_daily ловил OOM (04.08.2026). Узкий SELECT: пик 364 → 40 МБ, карта SKU
+    # побайтово та же.
+    for r in db.query("""SELECT offer_id, payload->'offer'->'barcodes' AS barcodes,
+                                payload->'offer'->'purchasePrice'->>'value' AS pp
+                         FROM raw_yandex_offer WHERE account=%s""", (ACCOUNT,)):
         sku = r["offer_id"]
         if sku in out:
             continue
-        o = (r["payload"] or {}).get("offer") or {}
-        msids = [bc2ms[b] for b in (o.get("barcodes") or []) if b in bc2ms]
+        msids = [bc2ms[b] for b in (r["barcodes"] or []) if b in bc2ms]
         cs = [seb_ms[m] for m in msids if m in seb_ms]
         bs = [buy_ms[m] for m in msids if m in buy_ms]
-        pp = float((o.get("purchasePrice") or {}).get("value") or 0)
+        pp = float(r["pp"] or 0)
         if cs:
             out[sku] = (min(cs), "bc")
         elif bs:

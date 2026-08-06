@@ -18,8 +18,8 @@ PLATFORM_TITLE = {"ozon": "OZON", "yandex": "ЯНДЕКС", "wb": "WB"}
 STAGE_ICON = {"pickup": "🟢", "attention": "🔴", "transit": "🔷"}
 
 HEADS_SQL = """
-SELECT platform, account, campaign, return_id, order_number, status_name, stage,
-       pvz_name, pvz_address, where_now, barcode,
+SELECT platform, account, campaign, return_id, order_number, return_type, status_name, stage,
+       pvz_name, pvz_address, where_now,
        deadline_at, storage_days, storage_sum, amount, first_seen
   FROM mp_returns
  WHERE gone_at IS NULL AND stage = ANY(%s)
@@ -178,9 +178,27 @@ def _tail(h):
     return " · ".join(bits)
 
 
+def _number_label(h):
+    """Номер позиции для склада (готовый HTML).
+
+    У WB номер заказа (`orderId` → отгрузка в МойСкладе) есть только у возвратов «приехал по МП»,
+    то есть отгруженных с НАШЕГО склада. Возвраты со склада ВБ (брак, неверное вложение, по
+    инициативе продавца) заказа у нас не имеют — там ищем не номер, а помечаем ФБО, чтобы склад
+    не искал несуществующий заказ (решение Сергея 04.08.2026).
+    """
+    num = h.get("order_number")
+    if num:
+        return f"<code>{_esc(num)}</code>"
+    if h["platform"] == "wb":
+        rt = h.get("return_type")
+        return "ФБО (со склада ВБ), номера заказа нет" + (f" · {_esc(rt)}" if rt else "")
+    return f"<code>{_esc(h.get('return_id'))}</code>"
+
+
 def _return_block(h, items, show_where_now):
-    num = h.get("order_number") or h.get("return_id")
-    line = f"     • <code>{_esc(num)}</code> · {_esc(_item_line(items))}"
+    # Номер — тот, по которому позицию находят у нас (у WB это orderId = имя отгрузки в МС).
+    # Штрихкод коробки не печатаем: для получения он не нужен (решение Сергея 04.08.2026).
+    line = f"     • {_number_label(h)} · {_esc(_item_line(items))}"
     extra = []
     # В стадии «забрать» статус площадки («Готов к выдаче», «Принят в пункте выдачи»,
     # «В пункте выдачи») ничего не добавляет: раз позиция в списке — она лежит и ждёт.
@@ -193,9 +211,6 @@ def _return_block(h, items, show_where_now):
         line += "\n       " + " · ".join(extra)
     if show_where_now and h.get("where_now"):
         line += f"\n       сейчас: {_esc(h['where_now'])}"
-    # у WB номер места и есть стикер — второй раз то же число не печатаем
-    if not show_where_now and h.get("barcode") and str(h["barcode"]) != str(num):
-        line += f"\n       штрихкод: <code>{_esc(h['barcode'])}</code>"
     return line
 
 

@@ -81,6 +81,8 @@ def main(account="wb_acc1", period=None):
     # статистика батчами по 15
     recs, daily = [], {}
     nm_agg = {}   # (advert_id, nm_id) -> агрегат по товару внутри кампании (из days[].apps[].nms[])
+    nm_daily = {} # (dt, advert_id, nm_id) -> ДНЕВНОЙ агрегат по товару (реакция на смену ставки)
+    booster = {}  # (dt, advert_id, nm_id) -> средняя позиция рекламного бустера за день
     for i in range(0, len(ids), BATCH):
         chunk = ids[i:i + BATCH]
         r = _get(H, "/adv/v3/fullstats", ids=",".join(str(x) for x in chunk),
@@ -107,15 +109,23 @@ def main(account="wb_acc1", period=None):
                         nmid = nm.get("nmId")
                         if not nmid:
                             continue
+                        vw = nm.get("views", 0) or 0; cl = nm.get("clicks", 0) or 0
+                        atb = nm.get("atbs", 0) or 0; od = nm.get("orders", 0) or 0
+                        sp = nm.get("sum", 0) or 0; rv = nm.get("sum_price", 0) or 0
                         a = nm_agg.setdefault((aid, nmid), {
                             "adv_type": ty, "status": st, "name": nm.get("name"),
                             "clicks": 0, "views": 0, "atbs": 0, "orders": 0, "spend": 0.0, "revenue": 0.0})
-                        a["clicks"] += nm.get("clicks", 0) or 0
-                        a["views"] += nm.get("views", 0) or 0
-                        a["atbs"] += nm.get("atbs", 0) or 0
-                        a["orders"] += nm.get("orders", 0) or 0
-                        a["spend"] += nm.get("sum", 0) or 0
-                        a["revenue"] += nm.get("sum_price", 0) or 0
+                        a["clicks"] += cl; a["views"] += vw; a["atbs"] += atb
+                        a["orders"] += od; a["spend"] += sp; a["revenue"] += rv
+                        if dd:                              # дневной срез по товару (для трека реакции)
+                            da = nm_daily.setdefault((dd, aid, nmid), {
+                                "clicks": 0, "views": 0, "atbs": 0, "orders": 0, "spend": 0.0, "revenue": 0.0})
+                            da["clicks"] += cl; da["views"] += vw; da["atbs"] += atb
+                            da["orders"] += od; da["spend"] += sp; da["revenue"] += rv
+            for b in c.get("boosterStats") or []:           # позиция рекламного бустера per-nm/день
+                bdd = (b.get("date") or "")[:10]; bnm = b.get("nm")
+                if bdd and bnm:
+                    booster[(bdd, aid, bnm)] = b.get("avg_position")
         print(f"  [wb ads] батч {i//BATCH+1}/{(len(ids)+BATCH-1)//BATCH}: +{len(chunk)} (всего {len(recs)})", flush=True)
         time.sleep(2)
     n = db.upsert("wb_ads", recs, conflict_cols=["account", "period", "advert_id"],
@@ -140,6 +150,28 @@ def main(account="wb_acc1", period=None):
                   update_cols=["adv_type", "status", "name", "clicks", "views", "atbs", "orders",
                                "spend", "revenue", "cpc", "ctr", "cr", "drr"])
     print(f"  [wb ads] товарный уровень (nm): {len(nm_recs)} строк (товар×кампания)", flush=True)
+    # дневной трек per-nm (показы/клики/заказы/расход + позиция бустера) — для реакции на смену ставки
+    daily_recs = []
+    for (dd, aid, nmid), da in nm_daily.items():
+        cl, sp = da["clicks"], da["spend"]
+        daily_recs.append({
+            "account": account, "dt": dd, "advert_id": aid, "nm_id": nmid,
+            "views": da["views"], "clicks": cl, "atbs": da["atbs"], "orders": da["orders"],
+            "spend": round(sp, 2), "revenue": round(da["revenue"], 2),
+            "cpc": round(sp / cl, 2) if cl else None,
+            "booster_pos": booster.get((dd, aid, nmid)),
+            "updated_at": datetime.datetime.now()})
+    for (dd, aid, nmid), pos in booster.items():             # позиция есть, а рекл.показов нет — добить строкой
+        if (dd, aid, nmid) not in nm_daily:
+            daily_recs.append({"account": account, "dt": dd, "advert_id": aid, "nm_id": nmid,
+                               "views": 0, "clicks": 0, "atbs": 0, "orders": 0, "spend": 0, "revenue": 0,
+                               "cpc": None, "booster_pos": pos, "updated_at": datetime.datetime.now()})
+    if daily_recs:
+        db.upsert("wb_ad_nm_daily", daily_recs,
+                  conflict_cols=["account", "dt", "advert_id", "nm_id"],
+                  update_cols=["views", "clicks", "atbs", "orders", "spend", "revenue",
+                               "cpc", "booster_pos", "updated_at"])
+    print(f"  [wb ads] дневной трек (nm×день): {len(daily_recs)} строк", flush=True)
     db.upsert("ad_spend_daily",
               [{"account": account, "platform": "wb", "date": d, "spend": round(s, 2)}
                for d, s in daily.items()],

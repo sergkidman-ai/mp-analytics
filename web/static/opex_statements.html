@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Выписки → статьи расходов</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  main{flex:1;min-width:0;padding:22px;max-width:1320px;margin:0 auto}
+  h3{margin:0 0 12px;font-size:15px}
+  select,input[type=number]{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font:inherit}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}
+  .lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  .whtabs a{color:var(--mut);text-decoration:none;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:600}
+  .whtabs a:hover{background:var(--card);color:var(--txt)}
+  .whtabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+  .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .orgs{display:flex;gap:4px}
+  .orgs button{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:6px 13px;font:inherit;cursor:pointer}
+  .orgs button.cur{background:var(--card);color:var(--txt);border-color:var(--acc)}
+  .chk{display:flex;align-items:center;gap:6px;color:var(--mut);font-size:13px;cursor:pointer;user-select:none}
+  .wrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px 14px}
+  table.st{width:100%;border-collapse:collapse;font-size:13px}
+  table.st th{color:var(--mut);font-weight:600;text-align:left;padding:7px;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  table.st td{padding:6px 7px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.st tr.done{opacity:.72}
+  table.st .amt{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  table.st .pu{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut)}
+  table.st .cp{white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+  table.st select{width:100%;max-width:190px;padding:5px 7px}
+  table.st input[type=number]{width:56px;padding:5px 6px;text-align:right}
+  .credit td{color:var(--mut)}
+  .foot{display:flex;gap:22px;flex-wrap:wrap;align-items:baseline;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .foot .ti{display:flex;flex-direction:column}
+  .foot .lbl{font-size:12px;color:var(--mut)}.foot .vv{font-size:18px;font-weight:700}
+  .note{color:var(--mut);font-size:12px;margin:12px 0 0}
+  .lnk{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .lnk:hover{color:var(--txt);border-color:var(--acc)}
+  table.rl{width:100%;border-collapse:collapse;font-size:13px}
+  table.rl th{color:var(--mut);font-weight:600;text-align:left;padding:7px;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  table.rl td{padding:6px 7px;border-bottom:1px solid var(--line)}
+  table.rl .x{background:transparent;border:0;color:var(--mut);cursor:pointer;font-size:15px}
+  table.rl .x:hover{color:var(--neg)}
+  code.frag{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
+  .flash{position:fixed;right:18px;bottom:18px;background:var(--card);border:1px solid var(--acc);border-radius:10px;padding:9px 14px;font-size:13px;opacity:0;transition:opacity .2s}
+  .flash.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex" class="cur">💼 Опер. расходы</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main>
+  <nav class="whtabs">
+    <a href="/opex">📊 Сводка</a>
+    <a href="/opex/statements" class="cur">📥 Выписки</a>
+  </nav>
+  <div class="bar">
+    <div class="orgs" id="orgs"></div>
+    <select id="f-month"></select>
+    <!-- Фильтр по банку: показывается, только когда у фирмы в этом месяце больше одного
+         банка (у Цифрового Альфа + Озон). Сужает и итоги внизу — это выбор счёта. -->
+    <select id="f-bank" title="Показать только платежи выбранного банка"
+            style="display:none"></select>
+    <!-- Фильтр по статье внутри месяца. Опция «— без статьи —» заменила прежний чекбокс
+         «только без статьи»: два контрола на одно и то же противоречили друг другу. -->
+    <select id="f-cat" title="Показать только платежи выбранной статьи"></select>
+    <label class="chk"><input type="checkbox" id="f-credit"> показать приход</label>
+    <span style="margin-left:auto"></span>
+    <label class="chk" title="Что запоминать при выборе статьи">запоминать:
+      <select id="f-remember">
+        <option value="inn" selected>контрагента</option>
+        <option value="purpose">контрагента + фрагмент назначения</option>
+        <option value="amount">контрагента + сумма платежа</option>
+        <option value="">не запоминать</option>
+      </select></label>
+    <button class="lnk" id="btn-rules" onclick="toggleRules()">🔁 правила</button>
+    <button class="lnk" id="btn-import" onclick="pickFile()"
+            title="Загрузить выписку файлом — для банков без API (Озон Банк)">📤 файл выписки</button>
+    <input type="file" id="f-file" accept=".txt,.csv,.xlsx,.xls,.1c" style="display:none"
+           onchange="uploadFile(this)">
+  </div>
+  <div class="wrap" id="rules" style="display:none;margin-bottom:14px"></div>
+  <div class="wrap"><div id="tbl"></div><div class="foot" id="foot"></div></div>
+  <p class="note">Статья присваивается сразу при выборе — кнопки «Сохранить» нет. «Запомнить контрагента» создаёт
+     правило по его ИНН: все его платежи (и уже загруженные, и будущие) уходят в эту статью сами. Если у контрагента
+     платежи разнородные — так бывает, когда контрагент подставлен банком (карточные покупки, комиссии), — бери
+     «+ фрагмент назначения»: правило сработает только там, где этот кусок текста есть в назначении.
+     Если платежи различаются не текстом, а величиной — как единый налоговый платёж Казначейства, —
+     бери «+ сумма платежа» и задай диапазон («до 40000», «от 40000»).
+     <b>«Мес.»</b> — на сколько месяцев разнести платёж равными долями, со знаком:
+     <b>1</b> — весь платёж в месяц оплаты, <b>12</b> — вперёд на год от месяца оплаты (лицензия),
+     <b>−3</b> — назад, три месяца ДО оплаты (УСН за квартал: платёж июля ляжет в апрель–июнь;
+     налог за прошлый месяц — это −1). НДС и всё, что относится к месяцу оплаты, оставляй 1.
+     Платежи поставщикам оставляй без статьи: они уедут в раздел «Кэшфлоу».<br>
+     <b>«📤 файл выписки»</b> — для Озон Банка: у него нет API, выписку выгружаешь из личного кабинета
+     (лучше в формате <b>1С</b>, годятся и CSV/XLSX) и загружаешь сюда файлом в ту фирму, что выбрана слева.
+     Сначала покажу, что нашёл в файле, и спрошу подтверждение; повторная загрузка того же периода
+     дублей не создаёт.</p>
+</main>
+<div class="flash" id="flash"></div>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
+let org='', month='', cats=[], data=null, catFilter='';   // catFilter: '' все | 'none' | id статьи
+let bankFilter='';                                        // '' все банки | alfa | sber | ozon
+async function api(p){const r=await fetch(p);return r.json();}
+async function post(p,body){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
+function flash(t){const f=$('#flash');f.textContent=t;f.classList.add('on');setTimeout(()=>f.classList.remove('on'),1600);}
+
+async function load(){
+  const dir=$('#f-credit').checked?'':'DEBIT';
+  data=await api(`/api/opex/statement?org=${org}&month=${month}&cat=${encodeURIComponent(catFilter)}`
+                +`&bank=${encodeURIComponent(bankFilter)}&direction=${dir}`);
+  month=data.month||month; org=data.org||org;
+  // Выбранного банка в этом месяце может не быть (сменили фирму или месяц): иначе экран
+  // остался бы пустым с нулевыми итогами. Снимаем фильтр и перезапрашиваем — один раз.
+  if(bankFilter && !(data.by_bank||[]).some(b=>b.bank===bankFilter)){bankFilter=''; return load();}
+  renderBar(); render();
+}
+function renderBar(){
+  // Фирмы всегда раздельно — сводного «Все» нет намеренно: разные банки, договоры и площадки
+  $('#orgs').innerHTML=(data.orgs||[]).map(o=>
+    `<button class="${org===o.org_inn?'cur':''}" onclick="setOrg('${o.org_inn}')" title="платежей в базе: ${o.n||0}">${esc(o.name)}</button>`).join('');
+  const ms=data.months||[month];
+  $('#f-month').innerHTML=ms.map(m=>`<option value="${m}"${m===month?' selected':''}>${MONTHS[m.slice(5,7)]} ${m.slice(0,4)}</option>`).join('');
+  // Статьи — только те, что реально встречаются в этом месяце (со счётчиком платежей).
+  // Выбранной статьи в новом месяце может не быть — тогда фильтр молча снимаем.
+  // Банки месяца. Один банк — селект прячем: выбирать не из чего.
+  const bb=data.by_bank||[];
+  $('#f-bank').style.display=bb.length>1?'':'none';
+  $('#f-bank').innerHTML=bb.length>1
+    ? `<option value=""${bankFilter===''?' selected':''}>все банки (${bb.reduce((s,b)=>s+b.n,0)})</option>`
+      +bb.map(b=>`<option value="${b.bank}"${bankFilter===b.bank?' selected':''}>${esc(BANKS[b.bank]||b.bank)} (${b.n})</option>`).join('')
+    : '';
+  const bc=data.by_cat||[], t=data.totals||{};
+  if(catFilter && catFilter!=='none' && !bc.some(c=>String(c.category_id)===catFilter)) catFilter='';
+  $('#f-cat').innerHTML=
+     `<option value=""${catFilter===''?' selected':''}>все статьи (${t.n||0})</option>`
+    +`<option value="none"${catFilter==='none'?' selected':''}>— без статьи — (${(t.n||0)-(t.n_done||0)})</option>`
+    +bc.map(c=>`<option value="${c.category_id}"${catFilter===String(c.category_id)?' selected':''}>${esc(c.category)} (${c.n})</option>`).join('');
+}
+function setOrg(v){org=v;localStorage.setItem('opexOrg',v);month='';load();}
+function catOptions(sel){
+  return `<option value="">— без статьи —</option>`
+    +cats.map(c=>`<option value="${c.id}"${c.id===sel?' selected':''}>${esc(c.name)}</option>`).join('')
+    +`<option value="new">+ новая статья…</option>`;
+}
+function render(){
+  // У фирмы может быть несколько банков (Альфа + Озон Банк) — тогда помечаем каждую строку
+  const multiBank=new Set((data.items||[]).map(t=>t.bank)).size>1;
+  const rows=(data.items||[]).map(t=>{
+    const credit=t.direction==='CREDIT';
+    const ctl=credit
+      ? `<span class="muted">приход</span>`
+      : `<select onchange="assign(${t.id},this)">${catOptions(t.category_id)}</select>`;
+    // Поле «Мес.» знаковое: 1 — месяц оплаты, 12 — вперёд год, −3 — три месяца ДО оплаты (УСН).
+    // Знак не хранится: он виден по start_month, который меньше месяца платежа.
+    const n=(t.spread_months||1)*(t.spread_back?-1:1);
+    const per=t.start_month?`${MONTHS[t.start_month.slice(5,7)]} ${t.start_month.slice(0,4)}`:'';
+    const spread=credit?'':`<input type="number" min="-120" max="120" value="${n}"
+        title="${t.category_id?`период с ${per}${t.spread_months>1?`, ${t.spread_months} мес.`:''}`
+                             :'1 — месяц оплаты, 12 — вперёд на год, −3 — три месяца до оплаты'}"
+        onchange="assign(${t.id},null,this)">`;
+    const rule=t.has_rule?'<span title="есть правило по этому контрагенту">🔁</span>':'';
+    const src=t.source==='rule'?'<span class="muted" title="размечено правилом">авто</span>':'';
+    return `<tr class="${t.category_id?'done':''}${credit?' credit':''}">
+      <td class="muted">${t.operation_date.slice(8,10)}.${t.operation_date.slice(5,7)}
+          ${multiBank?`<span style="font-size:10px;opacity:.65" title="банк">${esc(BANKS[t.bank]||t.bank)}</span>`:''}</td>
+      <td class="cp" title="${esc(t.cp_name)} ${esc(t.cp_inn||'')}">${esc(t.cp_name||'—')} ${rule}</td>
+      <td class="pu" title="${esc(t.purpose)}">${esc(t.purpose||'')}</td>
+      <td class="amt ${credit?'pos':''}">${credit?'+':'−'}${rub(t.amount)}</td>
+      <td>${ctl}</td>
+      <td>${spread}</td>
+      <td class="muted" style="font-size:11px">${src}</td></tr>`;
+  }).join('')||`<tr><td colspan="7" class="muted" style="padding:14px">${catFilter?'По этому фильтру платежей нет.':'Платежей за этот месяц нет.'}</td></tr>`;
+  $('#tbl').innerHTML=`<table class="st"><thead><tr>
+      <th>Дата</th><th>Контрагент</th><th>Назначение</th><th style="text-align:right">Сумма</th>
+      <th>Статья расходов</th><th>Мес.</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  const t=data.totals||{};
+  // Итоги месяца считаются по всем расходам и от фильтра не зависят; когда фильтр включён,
+  // первой строкой показываем, сколько попало в отбор — иначе непонятно, что видно на экране.
+  const shown=(data.items||[]).filter(i=>i.direction!=='CREDIT');
+  const cur=catFilter==='none'?'— без статьи —'
+      :(data.by_cat||[]).find(c=>String(c.category_id)===catFilter)?.category||'';
+  // Фильтр по банку сужает и сами итоги — говорим об этом в подписи, чтобы «в расходах
+  // месяца» не читалось как вся фирма.
+  const bn=bankFilter?` · ${esc(BANKS[bankFilter]||bankFilter)}`:'';
+  $('#foot').innerHTML=
+    (catFilter?`<div class="ti"><span class="lbl">Фильтр · ${esc(cur)}</span><span class="vv">${shown.length} шт · ${rub(shown.reduce((s,i)=>s+i.amount,0))}</span></div>`:'')
+   +`<div class="ti"><span class="lbl">Размечено${bn}</span><span class="vv">${t.n_done||0} из ${t.n||0}</span></div>
+    <div class="ti"><span class="lbl">В расходах месяца</span><span class="vv warn">${rub(t.done||0)}</span></div>
+    <div class="ti"><span class="lbl">Без статьи</span><span class="vv">${rub(t.todo||0)}</span></div>`;
+}
+// ── загрузка выписки файлом (банки без API: Озон Банк) ──────────────────────
+const BANKS={alfa:'Альфа',sber:'Сбер',ozon:'Озон'};
+function pickFile(){ $('#f-file').value=''; $('#f-file').click(); }
+async function uploadFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const b64=await new Promise((ok,err)=>{
+    const r=new FileReader();
+    r.onload=()=>ok(String(r.result).split(',')[1]||'');
+    r.onerror=()=>err(r.error); r.readAsDataURL(f);
+  });
+  const body={org:org,bank:'ozon',filename:f.name,content_b64:b64};
+  // Сперва разбор «вхолостую»: показываем, что нашли в файле, и только потом пишем в БД.
+  const pre=await post('/api/opex/statement/import',{...body,dry:true});
+  if(!pre.ok){alert('Файл разобрать не удалось.\n\n'+(pre.error||''));return;}
+  if(!pre.parsed){alert('В файле не нашлось ни одной операции.');return;}
+  const per=pre.period?`${pre.period[0]} … ${pre.period[1]}`:'—';
+  const okGo=confirm(`Файл: ${f.name}\nОперации: ${pre.parsed} (${per})\n`
+    +`Расход: ${rub(pre.debit)} · Приход: ${rub(pre.credit)}\n`
+    +`Счёт в файле: ${pre.account||'не указан'}\n\n`
+    +`Загрузить в «${data.org_name||''}» как выписку Озон Банка?`);
+  if(!okGo) return;
+  const res=await post('/api/opex/statement/import',body);
+  if(!res.ok){alert(res.error||'не удалось загрузить');return;}
+  flash(`Загружено новых ${res.stored}, уже было ${res.dup}`
+        +(res.ruled?`, размечено правилом ${res.ruled}`:'')
+        +(res.before_cutoff?`, до отсечки ${res.before_cutoff}`:''));
+  month=''; await load();
+}
+
+async function assign(txnId,selEl,spreadEl){
+  const tr=(selEl||spreadEl).closest('tr');
+  const sel=selEl||tr.querySelector('select');
+  const spread=spreadEl||tr.querySelector('input[type=number]');
+  let val=sel.value;
+  if(val==='new'){
+    const name=prompt('Название новой статьи расходов:');
+    if(!name){sel.value=data.items.find(i=>i.id===txnId)?.category_id||'';return;}
+    const r=await post('/api/opex/categories',{name});
+    if(!r.ok){alert(r.error||'не удалось создать статью');return;}
+    await loadCats(); val=String(r.id);
+  }
+  if(!val && spreadEl) return;                       // менять срок у неразмеченного нечего
+  const mode=$('#f-remember').value;
+  let frag=null;
+  if(val && mode==='purpose'){
+    const txn=data.items.find(i=>i.id===txnId)||{};
+    frag=prompt('Правило сработает только на платежах, где в назначении есть этот текст.\n'
+                +'Проверь и поправь фрагмент:', guessFragment(txn.purpose||''));
+    if(frag===null) return;                          // отказ — ничего не сохраняем
+    frag=frag.trim();
+    if(!frag){alert('Пустой фрагмент — правило по одному контрагенту создаётся режимом «контрагента».');return;}
+  }
+  let rng=null;
+  if(val && mode==='amount'){
+    const txn=data.items.find(i=>i.id===txnId)||{};
+    const ans=prompt('Правило сработает только на платежах в этом диапазоне сумм.\n'
+      +'Формат: «до 40000», «от 40000» или «1000-40000».\n'
+      +`Сумма этого платежа: ${rub(txn.amount)}`, '');
+    if(ans===null) return;                             // отказ — ничего не сохраняем
+    rng=parseAmountRange(ans);
+    if(!rng){alert('Не понял диапазон. Примеры: «до 40000», «от 40000», «1000-40000».');return;}
+  }
+  const res=await post('/api/opex/statement/assign',{
+    txn_id:txnId,
+    category_id: val?+val:null,
+    spread_months: +(spread?.value||1),
+    remember: !!mode && !!val,
+    purpose_like: frag,
+    amount_min: rng?rng.amount_min:null,
+    amount_max: rng?rng.amount_max:null});
+  if(!res.ok){alert(res.error||'не удалось сохранить');return;}
+  flash(val ? (res.ruled_existing?`Статья присвоена, правилом размечено ещё ${res.ruled_existing}`:'Статья присвоена')
+            : 'Статья снята');
+  await load();
+  if($('#rules').style.display!=='none') await loadRules();
+}
+// Подсказка фрагмента: у карточных покупок различает платежи торговая точка (домен или
+// текст после «в ТУ»), у остального — первые осмысленные слова назначения.
+function guessFragment(purpose){
+  const p=String(purpose||'');
+  const tu=p.match(/\bв\s+ТУ\s+([^,]{3,40}?)(?:\s+по\s+карте|,|$)/i);
+  if(tu) return tu[1].trim();
+  const dom=p.match(/[a-z0-9][a-z0-9-]*\.[a-z]{2,}(?:\.[a-z]{2,})?/i);
+  if(dom) return dom[0];
+  return p.split(/\s+/).slice(0,3).join(' ');
+}
+async function toggleRules(){
+  const box=$('#rules');
+  const show=box.style.display==='none';
+  box.style.display=show?'':'none';
+  if(show) await loadRules();
+}
+// Диапазон суммы правила словами: границы полуинтервальные — min включительно, max нет.
+function amountLabel(r){
+  const f=n=>Math.round(n).toLocaleString('ru-RU');
+  if(r.amount_min!=null&&r.amount_max!=null) return `${f(r.amount_min)}–${f(r.amount_max)} ₽`;
+  if(r.amount_min!=null) return `от ${f(r.amount_min)} ₽`;
+  if(r.amount_max!=null) return `до ${f(r.amount_max)} ₽`;
+  return '';
+}
+// «до 40000» / «от 40000» / «1000-40000» → {amount_min, amount_max}. Мусор → null.
+function parseAmountRange(s){
+  const t=(s||'').toLowerCase().replace(/\s|₽/g,'').replace(/,/g,'.');
+  const num=x=>{const v=parseFloat(x);return isFinite(v)?v:null;};
+  let m;
+  if((m=t.match(/^(?:до|<|-)(\d+(?:\.\d+)?)$/)))      return {amount_min:null,amount_max:num(m[1])};
+  if((m=t.match(/^(?:от|>|\+)?(\d+(?:\.\d+)?)(?:\+|-)$/))) return {amount_min:num(m[1]),amount_max:null};
+  if((m=t.match(/^(?:от|>)(\d+(?:\.\d+)?)$/)))        return {amount_min:num(m[1]),amount_max:null};
+  if((m=t.match(/^(\d+(?:\.\d+)?)[-–](\d+(?:\.\d+)?)$/))) return {amount_min:num(m[1]),amount_max:num(m[2])};
+  return null;
+}
+
+async function loadRules(){
+  const d=await api('/api/opex/rules');
+  const rows=(d.items||[]).map(r=>`<tr>
+      <td>${esc(r.cp_name||r.cp_inn||r.cp_name_key||'—')}<div class="muted" style="font-size:11px">${esc(r.cp_inn||'по имени')}</div></td>
+      <td>${r.purpose_like?`<code class="frag">${esc(r.purpose_like)}</code>`
+            :(amountLabel(r)?`<code class="frag">${amountLabel(r)}</code>`:'<span class="muted">весь контрагент</span>')}
+          ${r.purpose_like&&amountLabel(r)?`<code class="frag">${amountLabel(r)}</code>`:''}</td>
+      <td>${esc(r.category)}</td>
+      <td class="amt">${r.spread_months>1||r.spread_back?(r.spread_back?'−':'')+r.spread_months+' мес.':''}</td>
+      <td class="muted">${r.n_auto} авто · ${rub(r.s_auto)}</td>
+      <td style="text-align:right"><button class="x" title="удалить правило и снять его авторазметку"
+          onclick="delRule(${r.id},'${esc(r.category).replace(/'/g,"")}')">✕</button></td></tr>`).join('')
+    ||`<tr><td colspan="6" class="muted" style="padding:12px">Правил пока нет — они появляются, когда размечаешь платёж с «запоминать».</td></tr>`;
+  $('#rules').innerHTML=`<h3 style="margin:6px 0 10px">Запомненные правила</h3>
+    <table class="rl"><thead><tr><th>Контрагент</th><th>Условие</th><th>Статья</th>
+      <th>Разнести</th><th>Размечено правилом</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="note">Удаление правила снимает разметку, которую поставило оно само (пометка «авто»).
+       Присвоенное руками остаётся.</p>`;
+}
+async function delRule(id,cat){
+  if(!confirm(`Удалить правило «${cat}»?\nАвтоматическая разметка по нему будет снята, ручная останется.`)) return;
+  const r=await post('/api/opex/rules/delete',{rule_id:id,drop_auto:true});
+  if(!r.ok){alert(r.error||'не удалось удалить');return;}
+  flash(`Правило удалено, снято ${r.dropped} авторазметок`);
+  await loadRules(); await load();
+}
+async function loadCats(){ cats=(await api('/api/opex/categories')).items; }
+(async()=>{
+  org=localStorage.getItem('opexOrg')||'';       // выбранная фирма живёт между заходами
+  await loadCats();
+  $('#f-remember').value=localStorage.getItem('opexRemember') ?? 'inn';
+  $('#f-remember').onchange=e=>localStorage.setItem('opexRemember',e.target.value);
+  $('#f-cat').onchange=e=>{catFilter=e.target.value;load();};
+  $('#f-bank').onchange=e=>{bankFilter=e.target.value;load();};
+  $('#f-credit').onchange=load;
+  $('#f-month').onchange=e=>{month=e.target.value;load();};
+  await load();
+})();
+</script>
+</body>
+</html>

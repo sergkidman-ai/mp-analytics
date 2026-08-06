@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ставки WB — решения и CPC</title>
+<style>
+  :root{--bg:#eef1f6;--card:#ffffff;--line:#e2e8f0;--txt:#1e293b;--mut:#64748b;--acc:#2563eb;--pos:#16a34a;--neg:#dc2626;--warn:#d97706}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  select,input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1360px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .modebar{display:flex;gap:6px;margin-bottom:14px}
+  .modebar button{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 15px;font:inherit;font-weight:600;color:var(--mut);cursor:pointer}
+  .modebar button.cur{background:var(--txt);color:#fff;border-color:var(--txt)}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:22px;font-weight:700;margin-top:4px}
+  .bi .s{color:var(--mut);font-size:12px;margin-top:2px}
+  .bi.alert .v{color:var(--warn)}.bi.danger{border-color:#fecaca;background:#fff5f5}.bi.danger .v{color:var(--neg)}
+  .ctrls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap}
+  .tabs button{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font:inherit;color:var(--mut);cursor:pointer}
+  .tabs button.cur{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .tabs button .c{opacity:.7;font-size:11px;margin-left:4px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:13px}
+  th{color:var(--mut);font-weight:600;font-size:11px}
+  th:first-child,td:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#f1f5f9}
+  .sku .nm{font-weight:600}.sku .vc{color:var(--mut);font-size:12px}
+  .copy{cursor:pointer}.sku .nm.copy:hover{text-decoration:underline}.rk.copy:hover{background:#e2e8f0}
+  .copied{background:#dcfce7 !important;color:#15803d !important;border-color:#15803d !important}
+  .nmline{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  tr.applied-ok>td{background:#dcfce7;transition:background .4s}
+  .pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
+  .pill.pos{background:#dcfce7;color:#15803d}.pill.warn{background:#fef3c7;color:#b45309}.pill.neg{background:#fee2e2;color:#b91c1c}.pill.blue{background:#dbeafe;color:#1d4ed8}.pill.grey{background:#eef2f7;color:#64748b}.pill.dark{background:#334155;color:#f1f5f9}.pill.purple{background:#f3e8ff;color:#7e22ce}.pill.test{background:#cffafe;color:#0e7490}
+  .badge{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;background:#eef2f7;color:var(--mut)}
+  .dlt.up{color:var(--neg)}.dlt.dn{color:var(--pos)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .bidin{width:66px;padding:4px 6px;text-align:right}
+  .btn{border:1px solid var(--line);background:var(--card);color:var(--txt);border-radius:7px;padding:4px 9px;font:inherit;font-size:12px;cursor:pointer}
+  .btn:hover{background:var(--bg)}
+  .btn.p{background:var(--acc);color:#fff;border-color:var(--acc)}.btn.p:hover{filter:brightness(1.06)}
+  .actcell{display:flex;gap:5px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+  .livebar{display:inline-flex;align-items:center;gap:7px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600}
+  .livebar.off{background:#fef3c7;color:#b45309}.livebar.on{background:#dcfce7;color:#15803d}
+  h2{font-size:15px;margin:26px 0 10px}
+  .adv{font-size:11px;color:var(--mut)}
+  .drr.hi{color:var(--neg);font-weight:600}
+  .tblwrap{overflow-x:auto;border-radius:12px}
+  .mchip{display:inline-block;padding:1px 8px;border-radius:6px;font-weight:700;font-variant-numeric:tabular-nums}
+  .btn.rec{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;font-weight:600}
+  .btn.rm{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
+  .actcell .bidin{width:58px}
+  .actcell .cur{white-space:nowrap;margin-right:2px}
+  .rk{font-size:11px;color:#475569;background:#f1f5f9;border:1px solid var(--line);border-radius:6px;padding:1px 6px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .rk.muted{color:var(--mut);background:transparent}
+  .rk.glue{background:#eef2ff;border-color:#c7d2fe;color:#4338ca}
+  .selc{width:30px;text-align:center}.selc input,#selall{width:16px;height:16px;cursor:pointer}
+  .bulkbar{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0;padding:9px 12px;background:#f8fafc;border:1px solid var(--line);border-radius:10px}
+  .bulkbar #bulkcount{font-weight:700}
+  .bulkbar .sep{width:1px;height:20px;background:var(--line)}
+  .bulkbar .lnk{font-size:12px;color:#1d4ed8;cursor:pointer;text-decoration:underline;white-space:nowrap}
+  .bulkbar .lnk:hover{filter:brightness(1.15)}
+  .bulkbar #bulkapply:disabled{opacity:.5;cursor:not-allowed;filter:none}
+  tr.bulk-ok>td{background:#dcfce7;transition:background .5s}
+  tr.bulk-err>td{background:#fee2e2;transition:background .5s}
+  /* grow/маржа-таблица: фиксированные колонки + ровный столбец действий (грид, поле ввода строго под шапкой) */
+  #tbl.mgrid{table-layout:fixed}
+  #tbl.mgrid th:nth-child(1),#tbl.mgrid td:nth-child(1){width:34px}
+  #tbl.mgrid th:nth-child(3),#tbl.mgrid td:nth-child(3){width:96px}
+  #tbl.mgrid th:nth-child(4),#tbl.mgrid td:nth-child(4){width:72px}
+  #tbl.mgrid th:nth-child(5),#tbl.mgrid td:nth-child(5){width:82px}   /* показы/сут */
+  #tbl.mgrid th:nth-child(6),#tbl.mgrid td:nth-child(6){width:106px}  /* Джем поз */
+  #tbl.mgrid th:nth-child(7),#tbl.mgrid td:nth-child(7){width:264px}  /* действие */
+  #tbl.mgrid th:nth-child(2),#tbl.mgrid th:nth-child(3){text-align:left}
+  #tbl.mgrid td:nth-child(2){text-align:left}
+  #tbl.mgrid .sku{min-width:0}
+  #tbl.mgrid .sku .vc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #tbl.mgrid .nmline{flex-wrap:nowrap;min-width:0}
+  #tbl.mgrid .nmline .rk{overflow:hidden;text-overflow:ellipsis}
+  #tbl.mgrid .actcell{display:grid;grid-template-columns:72px 60px 46px auto;gap:5px;align-items:center;justify-items:end}
+  #tbl.mgrid .actcell .apply,#tbl.mgrid .actcell .rm{width:26px;padding:4px 0;text-align:center;font-weight:700}
+  #tbl.mgrid .actcell .cur{justify-self:end;text-align:right;white-space:nowrap;margin:0;overflow:hidden;text-overflow:ellipsis}
+  #tbl.mgrid .actcell .btn.rec{width:100%;text-align:center;padding:4px 4px}
+  #tbl.mgrid .actcell .bidin{width:100%}
+  #tbl.mgrid .actcell .act-go{display:flex;gap:5px;white-space:nowrap}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Маркетинг</div>
+    <a href="/marketing">📣 Юнит-экономика SKU</a>
+    <a href="/margin-control">🚦 Контроль маржи</a>
+    <a href="/wb-bids" class="cur">💰 Ставки WB</a>
+  </nav>
+</header>
+<main>
+  <div class="modebar" id="modebar">
+    <button data-m="margin" class="cur">🎯 Решения (маржа-гейт)</button>
+    <button data-m="bids">💰 Ставки (ввод факта)</button>
+  </div>
+  <p class="note" id="intro" style="margin-top:0"></p>
+  <p class="note" id="periodline" style="margin-top:6px"></p>
+  <div class="big" id="big"></div>
+  <div class="ctrls">
+    <div class="tabs" id="tabs"></div>
+    <label class="muted" style="font-size:12px">сорт.
+      <select id="sort">
+        <option value="spend">по расходу ▼</option>
+        <option value="revenue">по ад-выручке ▼</option>
+        <option value="margin">по марже ▼</option>
+        <option value="drr">по ДРР ▼</option>
+        <option value="orders">по заказам ▼</option>
+        <option value="drift">по дрейфу цены ▼</option>
+      </select>
+    </label>
+    <input id="q" placeholder="поиск: nm / артикул / наименование" style="min-width:220px">
+  </div>
+  <div class="bulkbar" id="bulkbar">
+    <span id="bulkcount">Выбрано: 0</span>
+    <span class="sep"></span>
+    <span class="lnk" id="bulkgrow">выбрать все 🟢 растить</span>
+    <span class="lnk" id="bulktest">выбрать все 🧪 тест-фронт</span>
+    <span class="lnk" id="bulkallrec">выбрать все с рекомендацией</span>
+    <span class="lnk" id="bulkclear">снять выделение</span>
+    <span class="sep"></span>
+    <button class="btn p" id="bulkapply" disabled title="Отправить рекомендованные ставки в WB живьём (PATCH) по всем выбранным SKU">применить рекомендации к выбранным</button>
+  </div>
+  <div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+  <p class="note" id="foot"></p>
+
+  <h2>📒 Журнал смен ставок и последствия</h2>
+  <table id="logtbl"><thead></thead><tbody></tbody></table>
+  <p class="note">Δпозиции: <b class="pos">зелёная = вверх</b> (позиция уменьшилась), <b class="neg">красная = вниз</b>.
+    «После» — из свежего Джема относительно снимка на момент смены; накапливается по дням.</p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+let mode="margin", view="all", sort="spend";
+const rub=v=>v==null?'—':(Math.round(v*100)/100).toLocaleString('ru');
+const intf=v=>v==null?'—':Math.round(v).toLocaleString('ru');
+const pct=v=>v==null?'—':(Math.round(v*10)/10).toLocaleString('ru')+'%';
+
+// ── карта вердиктов ──────────────────────────────────────────────────────────────────────────
+const V={
+  all:      {label:'Все',              cls:''},
+  grow:     {label:'🟢 растить',        cls:'pos',  hint:'маржа ≥25%, реклама конвертит, ДРР ниже потолка → поднимать ставку'},
+  test:     {label:'🧪 тест-фронт',      cls:'test', hint:'маржа ≥25%, продавался, в активной кампании, но реклама ещё не зацепилась (кликов ≤2). Широкий фронт: +10%/сутки от пола, пока не выстрелит или не упрётся в потолок теста 20₽'},
+  expensive:{label:'🟡 дорого',         cls:'warn', hint:'маржа ок, но ДРР ≥ потолка → ставку вниз'},
+  keep:     {label:'🔵 держать на полу', cls:'blue', hint:'маржа ок, товар продаётся по прежней цене (0 рекл.заказов — продаёт органика) → держать на полу, не поднимать'},
+  repriced: {label:'🟣 подорожал — тест', cls:'purple', hint:'маржа ок, но цена сейчас ≥25% выше той, по которой продавался (продажи шли из-за низкой цены). Реклама 0 заказов → тест: подмешать рекламу и смотреть склейку; не пойдёт — снять'},
+  cut:      {label:'🔴 снять',          cls:'neg',  hint:'продаётся, но маржа ниже гейта 25% → убрать из рекламы / поднять цену'},
+  dead:     {label:'⚫ жжёт впустую',    cls:'dark', hint:'0 продаж за месяц, реклама жгла бюджет → редкий-держим / балласт-снять'},
+  hold:     {label:'⚪ нет сигнала',     cls:'grey', hint:'нет расхода/кликов или маржа неизвестна'},
+};
+// короткий ярлык для узкой колонки (emoji+слово); полное значение — в подсказке (hint)
+const VSHORT={grow:'🟢 рост',test:'🧪 тест',expensive:'🟡 дорого',keep:'🔵 пол',repriced:'🟣 подорожал',cut:'🔴 снять',dead:'⚫ балласт',hold:'⚪ —'};
+const verdictPill=r=>`<span class="pill ${V[r.verdict]?.cls||'grey'}" title="${(V[r.verdict]?.hint||'').replace(/"/g,'')} — ${(r.verdict_label||'')}">${VSHORT[r.verdict]||r.verdict_label}</span>`;
+
+async function load(){
+  if(mode==='margin') return loadMargin();
+  return loadBids();
+}
+
+// ── РЕЖИМ 1: маржа-гейт (решения) ────────────────────────────────────────────────────────────
+async function loadMargin(){
+  const q=$('#q').value.trim();
+  const r=await fetch(`/api/wb-bids?mode=margin&view=${view}&sort=${sort}&q=${encodeURIComponent(q)}`);
+  const d=await r.json(); const s=d.summary||{}; const c=s.cohorts||{}; const cs=s.cohort_spend||{};
+  $('#intro').innerHTML=`Решение по каждому рекламируемому SKU: гейт маржи <b>${s.margin_gate}%</b>
+    (от нашей цены до СПП), потолок ДРР <b>${s.drr_ceil}%</b>. Маржа — <b>ЖИВАЯ</b> (текущая цена × себест
+    «купим сегодня», TheCartridge), а НЕ помесячная — реклама крутит сегодняшние цены.
+    Сортировка — по «деньгам-в-игре» (расход/ад-выручка), а не по позиции Джема. Только Цифровой (acc1).`;
+  const per=(s.period||'').slice(0,7);
+  const badcost=(s.buy_nopx||0)>0?` &nbsp;·&nbsp; себест не найдена у <b>${intf(s.buy_nopx)}</b> (маржа не судится), устаревшая у ${intf(s.buy_stale)}`:'';
+  $('#periodline').innerHTML=`📅 Маржа — <b>живая</b> (текущая цена/себест). Расход/заказы/ДРР — за полный
+    месяц <b>${per}</b> (август MTD тонкий). «Джем поз» — свежее 7-дн окно (справочно).${badcost}`;
+  const drrCls=s.drr_total!=null&&s.drr_total>=s.drr_ceil?'neg':'';
+  $('#big').innerHTML=`
+    <div class="bi"><div class="l">SKU в рекламе</div><div class="v">${intf(s.total)}</div><div class="s">за ${per}</div></div>
+    <div class="bi"><div class="l">Расход рекламы / мес</div><div class="v">${rub(s.total_spend)}₽</div></div>
+    <div class="bi"><div class="l">Ад-выручка / мес</div><div class="v">${intf(s.total_rev)}₽</div><div class="s ${drrCls}">ДРР общий ${pct(s.drr_total)}</div></div>
+    <div class="bi danger"><div class="l">⚫ жжёт впустую (0 продаж)</div><div class="v">${intf(c.dead)}</div><div class="s">${rub(cs.dead)}₽ = ${s.total_spend?Math.round(cs.dead/s.total_spend*100):0}% бюджета</div></div>`;
+  // табы вердиктов со счётчиками
+  const order=['all','grow','test','expensive','keep','repriced','cut','dead','hold'];
+  $('#tabs').innerHTML=order.map(k=>{
+    const n=k==='all'?s.total:(c[k]??0);
+    return `<button data-v="${k}" class="${k===view?'cur':''}" title="${(V[k].hint||'')}">${V[k].label}<span class="c">${intf(n)}</span></button>`;
+  }).join('');
+  const head=['<input type="checkbox" id="selall" title="выбрать/снять все видимые строки с рекомендацией">',
+              'SKU','вердикт','марж%','показы/сут','Джем поз','действие'];
+  $('#tbl').classList.add('mgrid');
+  $('#tbl thead').innerHTML='<tr>'+head.map((h,i)=>`<th${i===0?' class="selc"':''}>${h}</th>`).join('')+'</tr>';
+  $('#tbl tbody').innerHTML=d.rows.map(marginRow).join('')
+    || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
+  window._liveOn = !!s.live_enabled; window._floor = s.floor_cpc||7.3;
+  window._stepPct = s.step_pct||10; window._stepDays = s.step_days||2;
+  updateBulk();
+  $('#foot').innerHTML=`Показано ${d.rows.length} из ${intf(s.total)}. Наведи на SKU — увидишь наименование; расход/дрейф/склейка/CPO — во вкладке «Юнит-экономика». <b>«применить»</b> — живая запись ставки в WB (PATCH). <b>«принять»</b> — подставить рекомендацию (+${s.step_pct||10}% шаг). Клик по <b>артикулу ВБ</b> или <b>РК</b> — копирует в буфер. <b>«снять»</b> (🔴/⚫) — намерение в журнал, исключить nmID вручную в ЛК ВБ (API снятия у WB нет).`;
+  loadLog();
+}
+// дрейф цены: по какой цене продавался (до СПП, 3 мес) → сколько стоит сейчас
+function driftCell(r){
+  if(r.hist_price==null||r.our_price_live==null||r.price_drift==null) return '<span class="muted">—</span>';
+  const d=r.price_drift, sign=d>0?'+':'';
+  const col=d>=25?'#7e22ce':(d<=-10?'#15803d':'#64748b');  // подорожал=фиолетовый, подешевел=зелёный
+  const t=`продавался в среднем по ${rub(r.hist_price)}₽ (до СПП, за 3 мес), сейчас ${rub(r.our_price_live)}₽`;
+  return `<span title="${t}">${intf(r.hist_price)}→${intf(r.our_price_live)} <b style="color:${col}">${sign}${intf(d)}%</b></span>`;
+}
+// склейка: сколько карточек в imtID и продают ли соседи (сигнал «склейка вытянет»)
+function glueCell(r){
+  if(!r.imt_size||r.imt_size<2) return '<span class="muted" title="одиночная карточка">—</span>';
+  const sib=r.sib_q||0;
+  const t=`в склейке ${r.imt_size} карточек; продажи соседей за 3 мес: ${sib} шт`;
+  const sibTxt=sib>0?` <b style="color:#15803d" title="соседи продают — склейка живая">·${intf(sib)}</b>`:' <span class="muted" title="соседи тоже не продают">·0</span>';
+  return `<span title="${t}">⛓ ${r.imt_size}${sibTxt}</span>`;
+}
+// цветовая шкала маржи: ≥25 зелёный · [15,25) жёлтый · [0,15) красный · <0 бордовый
+function marginChip(r){
+  if(r.margin_pct==null) return '<span class="muted">—</span>';
+  const m=r.margin_pct; let bg,fg;
+  if(m>=25){bg='#dcfce7';fg='#15803d';}
+  else if(m>=15){bg='#fef3c7';fg='#b45309';}
+  else if(m>=0){bg='#fee2e2';fg='#dc2626';}
+  else {bg='#f3d4da';fg='#6b0f1a';}
+  return `<span class="mchip" style="background:${bg};color:${fg}">${pct(m)}</span>`;
+}
+// позиция Джема: округление до 0.1, «—» если нет
+// 0 = НЕ позиция, а «нет в выдаче» (товар не показывается) → трактуем как отсутствие, не как 1-е место
+const noPos=v=>v==null||v==0;
+const fmtPos=p=>noPos(p)?'<span class="muted" title="нет позиции — товар не показывается в выдаче (0 ≠ 1-е место)">—</span>':(Math.round(p*10)/10);
+// период_старт = начало скользящего 7-дн окна = дата сбора − 7 → показываем реальную дату сбора
+const collDate=ps=>{ if(!ps) return '?'; const d=new Date(ps+'T00:00:00'); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); };
+// дневные РЕКЛАМНЫЕ показы карточки (последний день) + дельта ко вчерашнему — реакция на ставку раз в сутки
+function viewsCell(r){
+  const v=r.views_daily, p=r.views_prev;
+  if(v==null) return '<span class="muted" title="нет рекламных показов за последний день (нет активной кампании или показов)">—</span>';
+  let d='';
+  if(p!=null&&p!==v){
+    const up=v>p, col=up?'#15803d':'#dc2626';
+    d=` <b style="color:${col}" title="день ко дню: ${intf(p)} → ${intf(v)}">${up?'▲':'▼'}${intf(Math.abs(v-p))}</b>`;
+  }
+  return `<span title="рекламные показы карточки за ${r.views_date||'посл. день'} (обновляется раз в сутки)">${intf(v)}</span>${d}`;
+}
+// дельта позиции день-к-дню: WB позиция МЕНЬШЕ = лучше → рост в рейтинге зелёным ↑, падение красным ↓.
+// 0/нет = отсутствие в выдаче: «0→N» = появился (вошёл), «N→0» = выпал — арифметику тут не применяем.
+function posDelta(r){
+  const cur=r.avg_position, prev=r.pos_prev;
+  if(noPos(cur)&&noPos(prev)) return '';                    // как не было, так и нет
+  if(noPos(prev)&&!noPos(cur))
+    return ` <b style="color:#15803d" title="появился в выдаче (сбор ~${collDate(r.jam_date)}) на позиции ${Math.round(cur*10)/10}; раньше не показывался (0 = нет в выдаче)">▲ вошёл</b>`;
+  if(noPos(cur)&&!noPos(prev))
+    return ` <b style="color:#dc2626" title="выпал из выдачи (сбор ~${collDate(r.jam_date)}); раньше был ~${Math.round(prev*10)/10}. 0 = не показывается">▼ выпал</b>`;
+  const d=Math.round((cur-prev)*10)/10;                     // <0 = позиция улучшилась
+  if(d===0) return ' <span class="muted" title="без движения (средняя за 7-дн окно — движение сглажено)">=</span>';
+  const up=d<0, col=up?'#15803d':'#dc2626', arr=up?'↑':'↓';
+  return ` <b style="color:${col}" title="было ${Math.round(prev*10)/10} (сбор ~${collDate(r.prev_date)}) → стало ${Math.round(cur*10)/10} (сбор ~${collDate(r.jam_date)}). Позиция — средняя за скользящее 7-дн окно, суточное движение сглажено (~1/7)">${arr}${Math.abs(d)}</b>`;
+}
+// ячейка действия: РК(копир) · текущая CPC+источник · рекомендация (принять) · поле · применить · снять(🔴/⚫)
+function actCellMargin(r){
+  const cur=r.cpc==null?'<span class="muted">—</span>':`<b>${rub(r.cpc)}₽</b>`;
+  let rec='';
+  if(r.rec_cpc!=null){
+    const dir=r.cpc==null?'':(r.rec_cpc>r.cpc?'↑':(r.rec_cpc<r.cpc?'↓':'='));
+    const step=window._stepPct||10, days=window._stepDays||2;
+    const word=dir==='↑'?`шаг +${step}% до`:dir==='↓'?'снизить до':'тест на полу';
+    const why=dir==='↑'?`мягкий шаг +${step}% (не прыжок к потолку — риск слить бюджет); через ${days}д смотрим реакцию и шагаем снова, стоп на ДРР 10%`:dir==='↓'?'ДРР выше потолка — вниз к 10%':'0 рекл-заказов — тест на полу';
+    rec=`<button class="btn rec" data-rec="${r.rec_cpc}" title="рекомендация: ${word} ${rub(r.rec_cpc)}₽. ${why}. Нажать — подставить в поле">${dir}${rub(r.rec_cpc)}₽</button>`;
+  }
+  const recCell=rec||'<span class="recph"></span>';   // держит колонку рекомендации даже когда её нет
+  const input=`<input class="bidin" type="number" step="0.01" min="${window._floor||7.3}" placeholder="₽">`;
+  const apply=`<button class="btn p apply" title="Применить: отправить ставку в WB живьём (PATCH /api/advert/v1/bids)">✓</button>`;
+  const rm=(r.verdict==='cut'||r.verdict==='dead')
+    ?`<button class="btn rm" title="Снять с рекламы: намерение в журнал; исключить nmID вручную в ЛК ВБ (API снятия у WB нет)">✕</button>`:'';
+  return `<div class="actcell"><span class="cur">${cur} ${srcBadge(r)}</span>${recCell}${input}<span class="act-go">${apply}${rm}</span></div>`;
+}
+function marginRow(r){
+  const nm=(r.title||'').replace(/"/g,'&quot;');
+  // наименование ушло в подсказку SKU (узкий вид); +цена/себест туда же
+  const skuT=[nm, r.our_price_live!=null?`цена ${rub(r.our_price_live)}₽ · купим ${r.buy_price_live!=null?rub(r.buy_price_live)+'₽':'—'}`:''].filter(Boolean).join(' — ');
+  const adv=(r.adverts||[]);
+  const rk=adv.length?`<span class="rk copy" data-copy="${adv.join(', ')}" title="ID кампаний WB — клик копирует в буфер (для ручной правки ставки в ЛК)${r.any_active?'':' · последний период без активной кампании (пауза)'}">РК ${adv.join(', ')}${r.any_active?'':' ⏸'}</span>`:'<span class="rk muted" title="nmID не привязан к кампании в последнем периоде">РК —</span>';
+  // ⛓ склейка: чип только при реальной склейке (≥2 карточек в imtID); зелёная цифра = продажи соседей за 3 мес
+  const sq=r.sib_q||0;
+  const glue=(r.imt_size&&r.imt_size>=2)
+    ? ` <span class="rk glue" title="склейка: ${r.imt_size} карточек в одном imtID; продажи соседей за 3 мес — ${intf(sq)} шт${sq>0?' (склейка живая — вытянет)':' (соседи тоже не продают)'}">⛓ ${r.imt_size}${sq>0?` <b style="color:#15803d">·${intf(sq)}</b>`:''}</span>`
+    : '';
+  const sku=`<div class="sku" title="${skuT}"><div class="nmline"><span class="nm copy" data-copy="${r.nm_id}" title="артикул ВБ (nmID) — клик копирует в буфер">${r.nm_id}</span>${rk}${glue}</div><div class="vc">${(r.vendor_code||'')} · ${(r.title||'').slice(0,40)}</div></div>`;
+  let mBadge='';
+  if(r.buy_status==='stale') mBadge=' <span class="badge" title="себест по последней известной цене (сегодня не обновилась)">~</span>';
+  else if(r.buy_status==='no_price'||r.buy_status==='unmapped') mBadge=' <span class="badge" title="себест «купим сегодня» не найдена — маржа не судится">нет с/с</span>';
+  const adv1=(r.adverts&&r.adverts[0])||'';
+  // чекбокс массовой правки — только если есть рекомендация И активная кампания (иначе применять нечего/некуда)
+  const canSel=(r.rec_cpc!=null)&&!!adv1;
+  const selTd=canSel
+    ? `<td class="selc"><input type="checkbox" class="rowsel" title="выбрать для массового применения рекомендации ${rub(r.rec_cpc)}₽"></td>`
+    : `<td class="selc"></td>`;
+  return `<tr data-nm="${r.nm_id}" data-adv="${adv1}" data-rec="${r.rec_cpc??''}" data-verdict="${r.verdict||''}">
+    ${selTd}
+    <td>${sku}</td>
+    <td style="text-align:left">${verdictPill(r)}</td>
+    <td>${marginChip(r)}${mBadge}</td>
+    <td title="рекламные показы карточки за сутки (обновляется раз в день) — прямая реакция на смену ставки">${viewsCell(r)}</td>
+    <td title="средняя позиция Джема за 7-дн окно, сбор ~${r.jam_date?collDate(r.jam_date):'—'}">${fmtPos(r.avg_position)}${posDelta(r)}</td>
+    <td style="text-align:right">${actCellMargin(r)}</td>
+  </tr>`;
+}
+
+// ── РЕЖИМ 2: ставки (ручной ввод / dry) ──────────────────────────────────────────────────────
+function srcBadge(r){
+  const s=r.cpc_source;
+  if(s==='manual')  return `<span class="pill blue" title="введено вручную${r.ov_at?' '+r.ov_at.slice(0,10):''}">ручная</span>`;
+  if(s==='api_set') return `<span class="pill pos" title="назначено через API">API</span>`;
+  if(s==='reconstructed'){
+    const t=`восст. из ${r.recon_period||'?'}${r.recon_clicks?', кликов '+r.recon_clicks:''}`;
+    return `<span class="pill grey" title="${t}">восст.</span>`;
+  }
+  return `<span class="pill warn" title="кликов не было — ставка неизвестна, введите вручную">нет данных</span>`;
+}
+function advCell(r){
+  const a=r.adverts||[];
+  if(!a.length) return '<span class="muted">—</span>';
+  const active=r.any_active?'':' <span class="badge" title="в последнем периоде нет активной кампании (пауза)">пауза</span>';
+  return `<span class="adv copy" data-copy="${a.join(', ')}" title="ID кампаний WB: ${a.join(', ')} — клик копирует в буфер">${a[0]}${a.length>1?' +'+(a.length-1):''}</span>${active}`;
+}
+async function loadBids(){
+  const q=$('#q').value.trim();
+  const r=await fetch(`/api/wb-bids?mode=bids&view=${view}&q=${encodeURIComponent(q)}`);
+  const d=await r.json(); const s=d.summary;
+  window._floor=s.floor_cpc;
+  $('#intro').innerHTML=`Ставки рекламы WB — <b>CPC по каждому nmID</b> (не на кампанию). Геттера у WB нет →
+    «текущая» = <b>реконструкция</b> (расход/клики) или <b>ручной ввод</b>. Каждая запись — в журнал с замером Джема.
+    ${s.live_enabled?'<span class="livebar on">● живая запись включена</span>':'<span class="livebar off" title="контракт PATCH не подтверждён; запись в WB отключена">● живая запись выкл — только запись факта</span>'}`;
+  $('#periodline').innerHTML=`📅 Джем: окно 7 дней <b>${s.jam_start||'—'} … ${s.jam_end||'—'}</b> &nbsp;·&nbsp; реклама: месяц <b>${(s.ad_period||'—').slice(0,7)}</b>`;
+  $('#big').innerHTML=`
+    <div class="bi"><div class="l">SKU в рекламе</div><div class="v">${intf(s.total)}</div></div>
+    <div class="bi"><div class="l">На полу (${s.floor_cpc}₽)</div><div class="v">${intf(s.floor)}</div></div>
+    <div class="bi alert"><div class="l">Без ставки (ввести)</div><div class="v">${intf(s.no_data)}</div></div>
+    <div class="bi"><div class="l">Ручных ставок</div><div class="v">${intf(s.manual)}</div></div>`;
+  const bt=[['all','Все'],['no_data','✍️ Нет ставки'],['floor','⬇️ На полу'],['raised','⬆️ Подняты'],['override','✔️ Ручные']];
+  $('#tabs').innerHTML=bt.map(([v,l])=>`<button data-v="${v}" class="${v===view?'cur':''}">${l}</button>`).join('');
+  const head=['SKU','наименование','кампании','Джем: поз','показы','заказы','текущая ставка','новая ₽ / действие'];
+  $('#tbl').classList.remove('mgrid');
+  $('#tbl thead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+  $('#tbl tbody').innerHTML=d.rows.map(bidRow).join('')
+    || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
+  $('#foot').textContent=`Показано ${d.rows.length} из ${s.total}. «Сохранить» — записать ставку как факт (+снимок Джема). Клик по артикулу ВБ или кампании — копирует в буфер.`;
+  updateBulk();
+  loadLog();
+}
+function bidRow(r){
+  const nm=(r.title||'').replace(/"/g,'&quot;');
+  const sku=`<div class="sku"><div class="nm copy" data-copy="${r.nm_id}" title="артикул ВБ (nmID) — клик копирует в буфер">${r.nm_id}</div><div class="vc">${r.vendor_code||''}</div></div>`;
+  const cpc = r.cpc==null ? '<span class="muted">—</span>' : `<b>${rub(r.cpc)}₽</b>`;
+  const floorPill = r.on_floor ? ' <span class="badge" title="на минимальной ставке">пол</span>' : '';
+  const adv1 = (r.adverts&&r.adverts[0])||'';
+  return `<tr data-nm="${r.nm_id}" data-adv="${adv1}">
+    <td>${sku}</td>
+    <td style="text-align:left" title="${nm}">${r.title||''}</td>
+    <td>${advCell(r)}</td>
+    <td>${r.avg_position==null?'—':(Math.round(r.avg_position*10)/10)}</td>
+    <td>${intf(r.open_card)}</td>
+    <td>${intf(r.jam_orders)}</td>
+    <td>${cpc} ${srcBadge(r)}${floorPill}</td>
+    <td><div class="actcell">
+      <input class="bidin" type="number" step="0.01" min="${window._floor||7.3}" placeholder="₽">
+      <button class="btn p save" title="Записать ставку как факт (обновит «текущую» и снимет baseline Джема)">Сохранить</button>
+    </div></td>
+  </tr>`;
+}
+
+async function postJSON(url,body){
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return r.json();
+}
+async function copyToClip(text,el){
+  try{ await navigator.clipboard.writeText(text); }
+  catch(_){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} ta.remove(); }
+  if(el){ el.classList.add('copied'); setTimeout(()=>el.classList.remove('copied'),700); }
+}
+$('#tbl').addEventListener('click',async e=>{
+  const cp=e.target.closest('[data-copy]');
+  if(cp){ copyToClip(cp.dataset.copy, cp); return; }
+  const btn=e.target.closest('button'); if(!btn)return;
+  const tr=btn.closest('tr'); const nm=+tr.dataset.nm; const adv=tr.dataset.adv?+tr.dataset.adv:null;
+  const inp=tr.querySelector('.bidin');
+  // «принять» — подставить рекомендацию в поле (без записи)
+  if(btn.classList.contains('rec')){ if(inp){ inp.value=btn.dataset.rec; inp.focus(); } return; }
+  // «снять» — очередь (API снятия нет), запись намерения
+  if(btn.classList.contains('rm')){
+    if(!confirm(`Снять nm ${nm} с рекламы?\nAPI снятия у WB нет → запишем намерение в журнал, а фактически исключите nmID вручную в ЛК ВБ.`))return;
+    btn.disabled=true; btn.textContent='…';
+    const res=await postJSON('/api/wb-bids/remove',{account:'wb_acc1',nm_id:nm,advert_id:adv});
+    btn.disabled=false; btn.textContent='снять';
+    alert(res.msg||JSON.stringify(res)); loadLog(); return;
+  }
+  const val=inp?parseFloat(inp.value):NaN;
+  if(!(val>0)){ if(inp)inp.focus(); return; }
+  if(btn.classList.contains('save')){                     // только режим bids
+    const note=prompt(`Записать текущую ставку ${val}₽ для nm ${nm}?\nМожно добавить заметку (Отмена — не записывать):`,'');
+    if(note===null)return;
+    btn.disabled=true; btn.textContent='…';
+    const res=await postJSON('/api/wb-bids/manual',{account:'wb_acc1',nm_id:nm,cpc:val,advert_id:adv,note:note||null});
+    btn.disabled=false; btn.textContent='Сохранить';
+    if(res.ok){ load(); } else { alert('Ошибка: '+(res.error||JSON.stringify(res))); }
+  } else if(btn.classList.contains('apply')){             // ЖИВАЯ запись в WB
+    if(!adv){ alert('Нет активной кампании (advert_id) — ставку задать некуда.'); return; }
+    if(!window._liveOn){ alert('⛔ Живая запись в WB выключена.'); return; }
+    if(!confirm(`Отправить ставку ${val}₽ для nm ${nm} в кампанию ${adv} ЖИВЬЁМ в WB?`))return;
+    btn.disabled=true; btn.textContent='…';
+    const res=await postJSON('/api/wb-bids/apply',{account:'wb_acc1',nm_id:nm,new_cpc:val,advert_id:adv});
+    btn.disabled=false; btn.textContent='применить';
+    if(res.ok){
+      // обновляем строку НА МЕСТЕ, без полной перезагрузки таблицы — иначе следующая позиция
+      // не срабатывала до F5 (перерисовка сбивала работу с соседними строками)
+      const curEl=tr.querySelector('.cur');
+      if(curEl) curEl.innerHTML=`<b>${rub(val)}₽</b> <span class="pill pos" title="назначено через API только что">API</span>`;
+      if(inp) inp.value='';
+      tr.classList.add('applied-ok'); setTimeout(()=>tr.classList.remove('applied-ok'),1200);
+      loadLog();
+    }
+    else { alert((res.blocked?'⛔ ':'Ошибка: ')+(res.error||JSON.stringify(res))); loadLog(); }
+  }
+});
+
+// ── МАССОВЫЕ ПРАВКИ (mode=margin): применить рекомендацию к выбранным SKU ─────────────────────
+function updateBulk(){
+  const bar=$('#bulkbar');
+  if(mode!=='margin'){ bar.style.display='none'; return; }
+  const boxes=[...document.querySelectorAll('#tbl tbody .rowsel')];
+  bar.style.display = boxes.length?'flex':'none';
+  const n=boxes.filter(c=>c.checked).length;
+  $('#bulkcount').textContent=`Выбрано: ${n}`;
+  $('#bulkapply').disabled = n===0 || !window._liveOn;
+  $('#bulkapply').title = window._liveOn
+    ? 'Отправить рекомендованные ставки в WB живьём (PATCH) по всем выбранным SKU'
+    : '⛔ живая запись в WB выключена';
+  const sa=$('#selall'); if(sa){ sa.checked = boxes.length>0 && boxes.every(c=>c.checked); }
+}
+function selectBy(pred){
+  document.querySelectorAll('#tbl tbody tr').forEach(tr=>{
+    const c=tr.querySelector('.rowsel'); if(!c) return;
+    if(pred(tr)) c.checked=true;
+  });
+  updateBulk();
+}
+$('#tbl').addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='selall'){ document.querySelectorAll('#tbl tbody .rowsel').forEach(c=>c.checked=t.checked); updateBulk(); return; }
+  if(t.classList.contains('rowsel')){ updateBulk(); }
+});
+$('#bulkgrow').addEventListener('click',()=>selectBy(tr=>tr.dataset.verdict==='grow'));
+$('#bulktest').addEventListener('click',()=>selectBy(tr=>tr.dataset.verdict==='test'));
+$('#bulkallrec').addEventListener('click',()=>selectBy(()=>true));
+$('#bulkclear').addEventListener('click',()=>{ document.querySelectorAll('#tbl tbody .rowsel').forEach(c=>c.checked=false); updateBulk(); });
+$('#bulkapply').addEventListener('click',applyBulk);
+async function applyBulk(){
+  const rows=[...document.querySelectorAll('#tbl tbody tr')].filter(tr=>tr.querySelector('.rowsel')?.checked);
+  if(!rows.length) return;
+  if(!window._liveOn){ alert('⛔ Живая запись в WB выключена.'); return; }
+  const items=rows.map(tr=>({nm_id:+tr.dataset.nm, advert_id:tr.dataset.adv?+tr.dataset.adv:null, new_cpc:parseFloat(tr.dataset.rec)}))
+                  .filter(it=>it.advert_id && it.new_cpc>0);
+  if(!items.length){ alert('Нет строк с рекомендацией и активной кампанией.'); return; }
+  const prev=items.slice(0,12).map(it=>`nm ${it.nm_id} → ${rub(it.new_cpc)}₽`).join('\n');
+  const more=items.length>12?`\n…ещё ${items.length-12}`:'';
+  if(!confirm(`⚠️ ЖИВАЯ массовая запись ставок в WB.\n\nОтправить рекомендованные ставки для ${items.length} SKU (кампания acc1)?\n\n${prev}${more}`)) return;
+  const btn=$('#bulkapply'); btn.disabled=true; const lbl=btn.textContent; btn.textContent='отправка…';
+  const res=await postJSON('/api/wb-bids/apply-bulk',{account:'wb_acc1',items});
+  btn.textContent=lbl;
+  if(!res.ok){ alert('Ошибка: '+(res.error||JSON.stringify(res))); updateBulk(); return; }
+  // обновляем строки на месте по результатам
+  const byNm={}; (res.results||[]).forEach(x=>byNm[x.nm_id]=x);
+  rows.forEach(tr=>{
+    const x=byNm[+tr.dataset.nm]; const c=tr.querySelector('.rowsel'); if(c) c.checked=false;
+    if(!x) return;
+    if(x.applied){
+      const curEl=tr.querySelector('.cur');
+      if(curEl) curEl.innerHTML=`<b>${rub(x.new_cpc)}₽</b> <span class="pill pos" title="назначено через API (пакетно)">API</span>`;
+      tr.classList.add('bulk-ok'); setTimeout(()=>tr.classList.remove('bulk-ok'),2000);
+    } else {
+      tr.classList.add('bulk-err'); setTimeout(()=>tr.classList.remove('bulk-err'),2500);
+    }
+  });
+  updateBulk();
+  loadLog();
+  const sk=(res.skipped||[]).length;
+  alert(`${res.msg||''}${sk?`\n\nПропущено ${sk} (нет кампании / ниже пола / плохие данные).`:''}`);
+}
+
+async function loadLog(){
+  const r=await fetch('/api/wb-bids/log?limit=100');
+  const d=await r.json();
+  const head=['время','SKU','действие','было→стало','Δпозиции','Δзаказов','оценка (7д)','заметка'];
+  $('#logtbl thead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+  if(!d.rows.length){ $('#logtbl tbody').innerHTML=`<tr><td colspan="8" class="muted" style="text-align:center;padding:18px">журнал пуст — сделайте первую запись ставки</td></tr>`; return; }
+  $('#logtbl tbody').innerHTML=d.rows.map(l=>{
+    const act={manual_set:'ручной ввод',dry_run:'dry-run',api_set:'API (WB)',api_set_min:'мин.',remove:'снять (очередь)'}[l.action]||l.action;
+    const appl=l.applied?' <span class="badge">в WB</span>':'';
+    const chg=l.action==='remove'?'<span class="muted">—</span>':`${l.old_cpc??'—'} → <b>${l.new_cpc??'—'}</b>₽`;
+    let pd='—';
+    if(l.pos_delta!=null){ const up=l.pos_delta<0; pd=`<span class="dlt ${up?'dn':'up'}">${up?'▲':'▼'} ${Math.abs(l.pos_delta).toFixed(1)}</span>`; }
+    let od='—';
+    if(l.orders_delta!=null){ const g=l.orders_delta>=0; od=`<span class="${g?'pos':'neg'}">${g?'+':''}${l.orders_delta}</span>`; }
+    // оценка через неделю: вердикт эффекта (due_review) или обратный отсчёт
+    let ev='<span class="muted">—</span>';
+    if(l.due_review&&l.eval_verdict){
+      const cls={'сработало':'pos','нет эффекта':'grey','дороже впустую':'neg'}[l.eval_verdict]||'grey';
+      ev=`<span class="pill ${cls}" title="прошло ${l.age_days} дн с момента смены">⏰ ${l.eval_verdict}</span>`;
+    } else if(l.applied&&(l.action==='api_set'||l.action==='manual_set')){
+      ev=`<span class="muted" title="эффект оцениваем через 7 дней">через ${Math.max(0,7-(l.age_days||0))}д</span>`;
+    }
+    return `<tr>
+      <td style="text-align:left">${(l.ts||'').replace('T',' ').slice(0,16)}</td>
+      <td style="text-align:left"><div class="sku"><div class="nm">${l.nm_id}</div><div class="vc">${l.vendor_code||''}</div></div></td>
+      <td>${act}${appl}</td>
+      <td>${chg}</td>
+      <td title="было ${l.pos_before??'—'} → сейчас ${l.pos_after??'—'} (${l.pos_after_date||'—'})">${pd}</td>
+      <td title="было ${l.orders_before??'—'} → сейчас ${l.orders_after??'—'}">${od}</td>
+      <td>${ev}</td>
+      <td style="text-align:left" class="muted">${l.note||''}</td>
+    </tr>`;
+  }).join('');
+}
+
+$('#modebar').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  mode=b.dataset.m; view='all';
+  [...$('#modebar').children].forEach(x=>x.classList.toggle('cur',x===b));
+  $('#sort').parentElement.style.display = mode==='margin'?'':'none';
+  load();
+});
+$('#tabs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  view=b.dataset.v;
+  [...$('#tabs').children].forEach(x=>x.classList.toggle('cur',x===b));
+  load();
+});
+$('#sort').addEventListener('change',e=>{ sort=e.target.value; load(); });
+let t; $('#q').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(load,300)});
+load();
+</script>
+</body>
+</html>
