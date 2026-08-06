@@ -35,10 +35,10 @@ DOMAINS = {
     ],
     "mkt": [
         r"^collectors/(wb_jam|wb_funnel|wb_ads|ozon_ads|ozon_bids|ozon_reviews|"
-        r"ozon_search_queries)\.py$",
+        r"ozon_search_queries|ozon_price_index)\.py$",
         r"^run_marketing\.py$",
         r"^analyze_jam\.py$",
-        r"^reports/(abc|funnel|visibility|search).*\.py$",   # будущие маркетинг-витрины
+        r"^reports/(abc|funnel|visibility|search|ozon_red_zone).*\.py$",   # маркетинг-витрины
         r"^migrations/1\d\d_.*\.sql$",
         r"^docs/BRIEF_MKT\.md$",
     ],
