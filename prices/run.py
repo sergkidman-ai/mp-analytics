@@ -16,7 +16,7 @@ import sys
 import datetime as dt
 from pathlib import Path
 
-from . import anomaly
+from . import anomaly, novelty
 from .cbr import effective_rate
 from .loader import (SKIP_REASONS, apply_to_ms, build_docs, card_updates,
                      classify, existing_docs, now_msk, summarize)
@@ -38,7 +38,7 @@ def read_source(profile, file_path):
     return letter["content"], letter["filename"], "mail"
 
 
-def write_reports(profile, moment, ready, skipped, out_dir):
+def write_reports(profile, moment, ready, skipped, watch, out_dir):
     """Отчёты прогона: все пропущенные строки + ненайденные в формате внешнего загрузчика."""
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = moment.strftime("%Y-%m-%d")
@@ -62,7 +62,19 @@ def write_reports(profile, moment, ready, skipped, out_dir):
         for row in unmatched:
             price = row["price_raw"] if row["price_raw"] not in (None, "") else ""
             fh.write(f"{row['name']};{price};{row['qty'] or ''};;;;{row['article']}\n")
-    return skipped_path, unmatched_path, len(unmatched)
+
+    # Список наблюдения: неполные цветовые комплекты. Не новинки и не брак — ждём,
+    # пока поставщик дозаведёт цвета (правило 5), поэтому отдельным файлом.
+    watch_path = out_dir / f"{profile.key}_{stamp}_watch.csv"
+    with watch_path.open("w", newline="", encoding="utf-8-sig") as fh:
+        writer = csv.writer(fh, delimiter=";")
+        writer.writerow(["артикул", "наименование", "цена прайса", "не хватает цветов",
+                         "группа", "подгруппа"])
+        for row in watch:
+            writer.writerow([row["article"], row["name"], row["price_raw"] or "",
+                             row.get("missing", ""), row.get("group", ""),
+                             row.get("subgroup", "")])
+    return skipped_path, unmatched_path, len(unmatched), watch_path
 
 
 def main(argv=None):
@@ -96,12 +108,17 @@ def main(argv=None):
         from . import blacklist
         skipped, black_hits = blacklist.mark(skipped, blacklist.load_set())
 
+    # Отсев новинок по правилам ассортимента (объём заправки, промывка, комплектность цветов).
+    # Комплект считаем по всему прайсу, кроме отсечённых категорий: цвет мог уже быть у нас.
+    universe = ready + [r for r in skipped if r["reason"] != "category_off"]
+    skipped, novelty_stats, watch = novelty.screen(skipped, universe)
+
     docs = build_docs(ready, profile, moment)
     stale = existing_docs(profile)
     updates = [] if args.no_cards else card_updates(ready, profile)
 
-    skipped_path, unmatched_path, unmatched_n = write_reports(
-        profile, moment, ready, skipped, Path(args.out))
+    skipped_path, unmatched_path, unmatched_n, watch_path = write_reports(
+        profile, moment, ready, skipped, watch, Path(args.out))
     anomaly_path = anomaly.write_report(
         flags, Path(args.out) / f"{profile.key}_{moment:%Y-%m-%d}_anomalies.csv")
     info = summarize(ready, skipped, docs, stale, updates, rate, rate_date, profile, filename)
@@ -122,6 +139,11 @@ def main(argv=None):
         print(f"  ⚠ {reason}")
     print(f"  отчёты: {skipped_path.name}, {unmatched_path.name} ({unmatched_n} строк "
           f"новинок, из них снято чёрным списком {black_hits}), {anomaly_path.name}")
+    if novelty_stats:
+        print(f"  отсев новинок по правилам ассортимента: "
+              + "; ".join(f"{novelty.NOVELTY_REASONS[k][0]} — {v}"
+                          for k, v in sorted(novelty_stats.items(), key=lambda kv: -kv[1])))
+    print(f"  список наблюдения (неполные комплекты): {len(watch)} → {watch_path.name}")
 
     status, error = "ok", None
     if args.apply:
