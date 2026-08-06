@@ -35,7 +35,8 @@ def send(to, subject, body, attachments=(), dry_run=False):
     msg.set_content(body)
     for path in attachments:
         path = Path(path)
-        msg.add_attachment(path.read_bytes(), maintype="text", subtype="plain",
+        subtype = "csv" if path.suffix.lower() == ".csv" else "plain"
+        msg.add_attachment(path.read_bytes(), maintype="text", subtype=subtype,
                            filename=path.name)
     if dry_run:
         return f"(сухой прогон) {smtp_host()} -> {to}: {subject}, вложений {len(attachments)}"
