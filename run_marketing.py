@@ -3,7 +3,7 @@
 Поток «Маркетинг»: видимость/позиции (Джем), воронка, реклама/ДРР, отзывы/рейтинг.
 НЕ трогает себест/маржу — маржу берёт из готовой витрины margin_by_sku (read-only).
 Граница доменов — docs/BRIEF_MKT.md. Свои таблицы: wb_search_*, wb_funnel, wb_ads,
-ad_spend_daily, ozon_ads, ozon_bids, ozon_rating, drops.
+ad_spend_daily, ozon_ads, ozon_bids, ozon_rating, ozon_search_query/product/run, drops.
 
 Запуск:  ./venv/bin/python run_marketing.py
 """
@@ -18,6 +18,9 @@ sys.path.insert(0, str(BASE_DIR))
 WB_ACCOUNTS = ["wb_acc1", "wb_acc2"]
 OZON_ACCOUNTS = ["oz_acc1", "oz_acc2"]
 PREMIUM_OZON = ["oz_acc1"]   # отзывы/звёздный рейтинг — только Премиум-Про (у Дисквэра нет доступа)
+# Поисковые запросы Ozon — витрина НЕДЕЛЬНАЯ и тяжёлая (~1600 вызовов API на аккаунт),
+# гоняем раз в неделю по средам: данные Ozon отстают на 2 дня, до среды неделя не закрыта.
+OZON_SEARCH_DOW = 2   # 0=пн … 2=ср
 
 
 def step(name, fn):
@@ -41,6 +44,9 @@ def main():
         step(f"Ozon ставки {acc}", lambda a=acc: __import__("collectors.ozon_bids", fromlist=["main"]).main(a))
         if acc in PREMIUM_OZON:   # рейтинг недоступен без Премиум-Про
             step(f"Ozon отзывы/рейтинг {acc}", lambda a=acc: __import__("collectors.ozon_reviews", fromlist=["main"]).main(a))
+        if t0.weekday() == OZON_SEARCH_DOW:
+            step(f"Ozon поисковые запросы {acc}",
+                 lambda a=acc: __import__("collectors.ozon_search_queries", fromlist=["main"]).main(a))
 
     # Живая себестоимость TheCartridge + ежедневный контроль маржи (WB acc1 пока).
     step("TheCartridge живая закупка", lambda: __import__("collectors.thecartridge_prices", fromlist=["main"]).main())

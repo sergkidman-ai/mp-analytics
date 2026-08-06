@@ -34,7 +34,8 @@ DOMAINS = {
         r"^docs/BRIEF_FIN\.md$",
     ],
     "mkt": [
-        r"^collectors/(wb_jam|wb_funnel|wb_ads|ozon_ads|ozon_bids|ozon_reviews)\.py$",
+        r"^collectors/(wb_jam|wb_funnel|wb_ads|ozon_ads|ozon_bids|ozon_reviews|"
+        r"ozon_search_queries)\.py$",
         r"^run_marketing\.py$",
         r"^analyze_jam\.py$",
         r"^reports/(abc|funnel|visibility|search).*\.py$",   # будущие маркетинг-витрины
