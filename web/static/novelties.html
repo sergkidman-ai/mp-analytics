@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Новинки поставщиков</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  main{flex:1;min-width:0;padding:22px;max-width:1280px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  h2{font-size:15px;margin:22px 0 12px}
+  .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  .whtabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
+  .whtabs a:hover{color:var(--txt);background:var(--card)}
+  .whtabs a.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+  .bar .grow{flex:1}
+  select,input,button{font:inherit;color:var(--txt);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+  button{cursor:pointer;font-weight:600}
+  button:hover{border-color:var(--acc)}
+  button.pri{background:var(--acc);border-color:var(--acc);color:#06121f}
+  button.new{border-color:var(--warn);color:var(--warn)}
+  button:disabled{opacity:.45;cursor:default}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-weight:600;font-size:12px}
+  tr:last-child td{border-bottom:none}
+  tr.done{opacity:.55}
+  .who{font-weight:600}
+  .art{color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}
+  .feat{font-size:12px;color:var(--mut);white-space:nowrap}
+  .pick{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .pick select{max-width:520px}
+  .pick input{width:110px;font-variant-numeric:tabular-nums}
+  .ok{color:var(--pos);font-weight:700}
+  .miss{color:var(--warn)}
+  .verdict{font-size:11px;color:var(--mut);margin-top:3px}
+  .tag{font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;white-space:nowrap}
+  .tag.matched{background:rgba(55,200,113,.15);color:var(--pos)}
+  .tag.new{background:rgba(255,180,84,.15);color:var(--warn)}
+  .tag.skip{background:rgba(138,160,181,.15);color:var(--mut)}
+  .big{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 16px;min-width:130px}
+  .bi .l{color:var(--mut);font-size:12px}
+  .bi .v{font-size:22px;font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse" class="cur">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main>
+  <nav class="whtabs">
+    <a href="/warehouse">🏭 Остатки складов</a>
+    <a href="/reports/wb-clearance">🏷️ Распродажа остатков ВБ</a>
+    <a href="/warehouse/novelties" class="cur">✨ Новинки</a>
+  </nav>
+
+  <p class="note" style="margin-top:0">Строки прайса, которых нет в МойСкладе по артикулу. Сверка ищет тот же товар в нашем
+  каталоге по четырём признакам: модель, цвет, ресурс печати (расхождение до 25% — норма) и чип. Выберите верный вариант
+  или впишите код руками; если такой модели у нас нет вовсе — <b>NEW</b>.</p>
+
+  <div class="big" id="big"></div>
+
+  <div class="bar">
+    <select id="supplier"></select>
+    <select id="status">
+      <option value="pending">не разобранные</option>
+      <option value="">все</option>
+      <option value="matched">сопоставленные</option>
+      <option value="new">новые модели</option>
+      <option value="skip">не берём</option>
+    </select>
+    <span class="grow"></span>
+    <span class="muted" id="selinfo">отмечено 0</span>
+    <button id="bulk-new" class="new" disabled>NEW — новая модель</button>
+    <button id="bulk-skip" disabled>Не берём</button>
+  </div>
+
+  <table>
+    <thead><tr>
+      <th style="width:28px"><input type="checkbox" id="all"></th>
+      <th>Товар поставщика</th>
+      <th style="width:150px">Признаки</th>
+      <th>Наш товар</th>
+      <th style="width:88px"></th>
+    </tr></thead>
+    <tbody id="rows"><tr><td colspan="5" class="muted">загрузка…</td></tr></tbody>
+  </table>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let DATA = [];
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num = v => v == null ? "" : Number(v).toLocaleString("ru-RU");
+
+function feats(r){
+  const parts = [r.color, r.measure ? num(r.measure) : null, r.chip].filter(Boolean);
+  return parts.join(" · ");
+}
+
+// Код карточки = номер товара + суффикс поставщика (6058sk, 6058hb). Товар — это номер,
+// поэтому его и показываем первым: человек мыслит «6058», а не «6058hb».
+const goods = code => (String(code || "").match(/^\d+/) || [""])[0];
+
+// Вариант каталога одной строкой: товар, карточка, название и метка полноты совпадения.
+function optionLabel(c){
+  const mark = c.verdict === "совпало по всем признакам" ? "✓✓" : "•";
+  const num = goods(c.ms_code);
+  return `${mark} ${num || c.ms_code || "без кода"}${num ? " (" + c.ms_code + ")" : ""} — ${c.ms_name}`;
+}
+
+function row(r){
+  const opts = r.candidates.map((c, i) =>
+    `<option value="${esc(c.ms_code || "")}" ${i ? "" : "selected"}>${esc(optionLabel(c))}</option>`).join("");
+  const best = r.candidates[0];
+  const pick = r.decision === "pending" ? `
+    <div class="pick">
+      ${r.candidates.length
+        ? `<select class="cand">${opts}<option value="">— ввести код вручную —</option></select>`
+        : `<span class="miss">в каталоге не нашлось</span>`}
+      <input class="code" placeholder="код" value="">
+      <button class="save pri">Это он</button>
+      <button class="mknew new">NEW</button>
+    </div>
+    ${best ? `<div class="verdict">по коду ${esc(best.shared_code)} · ${esc(best.verdict)}${
+        r.candidates.length > 1 ? ` · ещё вариантов: ${r.candidates.length - 1}` : ""}</div>` : ""}`
+    : `<span class="tag ${r.decision}">${r.decision === "matched" ? "сопоставлено"
+        : r.decision === "new" ? "новая модель" : "не берём"}</span>
+       ${r.ms_code ? ` <b>${esc(r.ms_code)}</b> <span class="muted">${esc(r.ms_name || "")}</span>` : ""}
+       <button class="undo" style="margin-left:8px">вернуть</button>`;
+  return `<tr data-id="${r.id}" class="${r.decision === "pending" ? "" : "done"}">
+    <td><input type="checkbox" class="sel"></td>
+    <td><div class="who">${esc(r.name)}</div><div class="art">${esc(r.article)}${
+        r.price_rub ? " · " + num(r.price_rub) + " ₽" : ""}</div></td>
+    <td class="feat">${esc(feats(r))}</td>
+    <td>${pick}</td>
+    <td><span class="msg muted"></span></td>
+  </tr>`;
+}
+
+async function decide(ids, decision, code, msg){
+  const res = await fetch("/api/novelties/decide", {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ids, decision, ms_code: code || ""})});
+  const out = await res.json();
+  if (!out.ok){ if (msg) { msg.textContent = out.error; msg.className = "msg neg"; } return false; }
+  await load();
+  return true;
+}
+
+function wire(){
+  $("#rows").querySelectorAll("tr[data-id]").forEach(tr => {
+    const id = Number(tr.dataset.id), msg = tr.querySelector(".msg");
+    const sel = tr.querySelector(".cand"), code = tr.querySelector(".code");
+    // Выпадающий список и поле кода — одно и то же поле ввода: выбор варианта просто
+    // подставляет его код, а «вручную» освобождает поле.
+    if (sel && code){ code.value = sel.value; sel.onchange = () => { code.value = sel.value; code.focus(); }; }
+    const save = tr.querySelector(".save");
+    if (save) save.onclick = () => decide([id], "matched", code.value, msg);
+    const mknew = tr.querySelector(".mknew");
+    if (mknew) mknew.onclick = () => decide([id], "new", "", msg);
+    const undo = tr.querySelector(".undo");
+    if (undo) undo.onclick = () => decide([id], "pending", "", msg);
+    tr.querySelector(".sel").onchange = marked;
+  });
+  $("#all").onchange = e => {
+    $("#rows").querySelectorAll(".sel").forEach(c => c.checked = e.target.checked);
+    marked();
+  };
+  marked();
+}
+
+function selected(){
+  return [...$("#rows").querySelectorAll("tr[data-id]")]
+    .filter(tr => tr.querySelector(".sel").checked).map(tr => Number(tr.dataset.id));
+}
+
+function marked(){
+  const n = selected().length;
+  $("#selinfo").textContent = "отмечено " + n;
+  $("#bulk-new").disabled = $("#bulk-skip").disabled = !n;
+}
+
+async function load(){
+  const supplier = $("#supplier").value || "", status = $("#status").value;
+  const d = await (await fetch(`/api/novelties?supplier=${encodeURIComponent(supplier)}&status=${status}`)).json();
+  DATA = d.rows;
+  if (!$("#supplier").options.length){
+    $("#supplier").innerHTML = `<option value="">все поставщики</option>` +
+      d.suppliers.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+  }
+  const c = d.counts, total = Object.values(c).reduce((a, b) => a + b, 0);
+  $("#big").innerHTML = [["всего", total], ["не разобрано", c.pending || 0],
+                         ["сопоставлено", c.matched || 0], ["новых моделей", c.new || 0],
+                         ["не берём", c.skip || 0]]
+    .map(([l, v]) => `<div class="bi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+  $("#rows").innerHTML = DATA.length ? DATA.map(row).join("")
+    : `<tr><td colspan="5" class="muted">пусто — по этому фильтру строк нет</td></tr>`;
+  $("#all").checked = false;
+  $("#foot").textContent = `показано ${DATA.length} строк`;
+  wire();
+}
+
+$("#supplier").onchange = load;
+$("#status").onchange = load;
+$("#bulk-new").onclick = () => decide(selected(), "new", "");
+$("#bulk-skip").onclick = () => decide(selected(), "skip", "");
+load();
+</script>
+</body>
+</html>

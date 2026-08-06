@@ -17,7 +17,7 @@ import datetime as dt
 from pathlib import Path
 
 from . import anomaly, novelty
-from .cbr import effective_rate
+from .cbr import effective_rate, to_kopecks
 from .loader import (SKIP_REASONS, apply_to_ms, build_docs, card_updates,
                      classify, existing_docs, now_msk, summarize)
 from .parser import parse
@@ -36,6 +36,16 @@ def read_source(profile, file_path):
     if not letter:
         raise SystemExit(f"в папке «{profile.mail_folder}» нет письма с прайсом")
     return letter["content"], letter["filename"], "mail"
+
+
+def price_rub(raw, rate):
+    """Цена прайса в рублях по курсу дня. None, если в ячейке не число."""
+    if raw in (None, "", 0):
+        return None
+    try:
+        return to_kopecks(raw, rate) / 100
+    except (ArithmeticError, TypeError, ValueError):
+        return None
 
 
 def write_reports(profile, moment, ready, skipped, watch, out_dir):
@@ -144,6 +154,18 @@ def main(argv=None):
               + "; ".join(f"{novelty.NOVELTY_REASONS[k][0]} — {v}"
                           for k, v in sorted(novelty_stats.items(), key=lambda kv: -kv[1])))
     print(f"  список наблюдения (неполные комплекты): {len(watch)} → {watch_path.name}")
+
+    # Сверка новинок с нашим каталогом по признакам (модель/цвет/ресурс/чип) — во вкладку
+    # «Новинки» на дашборде. Артикул у каждого поставщика свой, поэтому «не нашлось по
+    # артикулу» ещё не значит «нет у нас»: решение по каждой строке принимает человек.
+    if not args.no_db:
+        from . import catalog
+        novelties = [{"name": r["name"], "article": r["article"],
+                      "price": price_rub(r["price_raw"], rate)}
+                     for r in skipped if r["reason"] in ("not_found", "ambiguous")]
+        matched = catalog.sync(novelties, profile.key, profile.default_chip)
+        print(f"  сверка новинок с каталогом: {matched} из {len(novelties)} нашли пару "
+              f"→ вкладка «Новинки» (/warehouse/novelties)")
 
     status, error = "ok", None
     if args.apply:

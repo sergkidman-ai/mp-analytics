@@ -25,7 +25,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from core.db import query
+from core.db import execute, query
 
 from . import features as F
 from .novelty import kind, volume
@@ -139,9 +139,44 @@ def read_novelties(path):
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
-        parts = line.split(";")
-        rows.append({"name": parts[0], "article": parts[6] if len(parts) > 6 else ""})
+        # Режем с КОНЦА: хвост из шести полей фиксирован, а в названии поставщика
+        # точка с запятой встречается («…LBP215dw; с чипом»).
+        parts = (line.rsplit(";", 6) + [""] * 7)[:7]
+        price = parts[1].replace(",", ".").strip()
+        rows.append({"name": parts[0], "article": parts[6].strip(),
+                     "price": float(price) if price else None})
     return rows
+
+
+def save(rows, supplier_key, hits_by_article):
+    """Разложить новинки и найденные варианты по таблицам.
+
+    Решение человека не трогаем: строка приходит с каждым прогоном прайса, а разбирается
+    один раз. Обновляем только описание строки и подсказки — сами варианты пересобираются
+    заново, они лишь результат сегодняшней сверки.
+    """
+    for row in rows:
+        found = query("""
+            INSERT INTO prc_novelty (supplier_key, article_norm, article, name, kind,
+                                     color, measure, chip, price_rub)
+            VALUES (%s, upper(btrim(%s)), %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (supplier_key, article_norm) DO UPDATE
+               SET name = excluded.name, kind = excluded.kind, color = excluded.color,
+                   measure = excluded.measure, chip = excluded.chip,
+                   price_rub = excluded.price_rub, last_seen = now()
+            RETURNING id
+        """, (supplier_key, row["article"], row["article"], row["name"], row["kind"],
+              row["color"], measure(row), row["chip"], row["price"]))
+        novelty_id = found[0]["id"]
+        execute("DELETE FROM prc_novelty_candidate WHERE novelty_id = %s", (novelty_id,))
+        for rank, hit in enumerate(hits_by_article.get(row["article"], ()), start=1):
+            item = hit["item"]
+            execute("""
+                INSERT INTO prc_novelty_candidate (novelty_id, rank, ms_id, ms_code, ms_name,
+                                                   color, measure, chip, shared_code, verdict)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (novelty_id, rank, item["ms_id"], item["code"], item["name"], item["color"],
+                  measure(item), item["chip"], hit["code"], verdict(hit)))
 
 
 def verdict(hit):
@@ -154,25 +189,60 @@ def verdict(hit):
     return "совпало по всем признакам" if not notes else "; ".join(notes)
 
 
+def analyze(rows, default_chip="chip"):
+    """Разобрать строки на признаки и подобрать каждой варианты каталога.
+
+    Возвращает {артикул: [варианты]} — по одному представителю на товар (карточек одного
+    товара у нас столько, сколько поставщиков, показывать их все смысла нет).
+    """
+    catalog = load_catalog()
+    by_id = {item["ms_id"]: item for item in catalog}
+    index = build_index(catalog)
+    hits_by_article = {}
+    for row in rows:
+        row["kind"] = kind(row["name"])
+        row.update(F.parse(row["name"], row["article"]))
+        if row["chip"] is None:
+            row["chip"] = default_chip
+        seen, shown = set(), []
+        for hit in match(row, index, by_id):
+            key = hit["item"]["num"] or hit["item"]["ms_id"]
+            if key in seen:
+                continue
+            seen.add(key)
+            shown.append(hit)
+            if len(shown) >= TOP_VARIANTS:
+                break
+        hits_by_article[row["article"]] = shown
+    return hits_by_article
+
+
+def sync(rows, supplier_key, default_chip=None):
+    """Сверить новинки прогона с каталогом и положить во вкладку «Новинки». -> сколько нашлось.
+
+    Строки — {name, article, price}; решение человека по уже разобранным строкам не трогаем.
+    """
+    if not rows:
+        return 0
+    hits = analyze(rows, default_chip)
+    save(rows, supplier_key, hits)
+    return sum(1 for r in rows if hits.get(r["article"]))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Сверка новинок поставщика с каталогом МС")
     ap.add_argument("--file", required=True, help="файл новинок (*_unmatched.txt)")
     ap.add_argument("--supplier-chip", default="chip",
                     help="чип по умолчанию для поставщика (chip|chip_free|nochip|unknown)")
     ap.add_argument("--out", help="куда писать отчёт (CSV)")
+    ap.add_argument("--save", action="store_true",
+                    help="положить новинки и варианты в БД (вкладка «Новинки» на дашборде)")
+    ap.add_argument("--supplier", help="ключ поставщика для БД (по умолчанию — из имени файла)")
     args = ap.parse_args(argv)
 
     default_chip = None if args.supplier_chip == "unknown" else args.supplier_chip
-    catalog = load_catalog()
-    by_id = {item["ms_id"]: item for item in catalog}
-    index = build_index(catalog)
-
     rows = read_novelties(args.file)
-    for row in rows:
-        row["kind"] = kind(row["name"])
-        row.update(F.parse(row["name"], row["article"]))
-        if row["chip"] is None:
-            row["chip"] = default_chip
+    hits_by_article = analyze(rows, default_chip)
 
     out_path = Path(args.out) if args.out else Path(args.file).with_name(
         Path(args.file).name.replace("_unmatched.txt", "_match.csv"))
@@ -183,16 +253,7 @@ def main(argv=None):
                          "код МС", "наименование МС", "цвет МС", "ресурс/объём МС", "чип МС",
                          "общий код", "вердикт"])
         for row in rows:
-            hits = match(row, index, by_id)
-            seen, shown = set(), []
-            for hit in hits:                       # по одному представителю на товар (число кода)
-                key = hit["item"]["num"] or hit["item"]["ms_id"]
-                if key in seen:
-                    continue
-                seen.add(key)
-                shown.append(hit)
-                if len(shown) >= TOP_VARIANTS:
-                    break
+            shown = hits_by_article[row["article"]]
             if shown:
                 found += 1
                 if shown[0]["confirmed"] == 2:
@@ -208,6 +269,10 @@ def main(argv=None):
                                         F.COLOR_NAMES.get(item["color"], ""),
                                         measure(item) or "", F.CHIP_NAMES[item["chip"]],
                                         hit["code"], verdict(hit)])
+    if args.save:
+        supplier = args.supplier or Path(args.file).name.split("_")[0]
+        save(rows, supplier, hits_by_article)
+        print(f"в БД: prc_novelty, поставщик «{supplier}» — {len(rows)} строк")
     print(f"строк новинок: {len(rows)}")
     print(f"нашлись в каталоге: {found} (из них по всем четырём признакам: {full})")
     print(f"не нашлись: {len(rows) - found}")
