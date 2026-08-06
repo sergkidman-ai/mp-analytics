@@ -16,9 +16,15 @@ from returns_bot.sources import ozon
 
 
 def barcode_photos(org=None):
-    """Штрихкод получения возвратов Ozon — только если по аккаунту реально есть что забрать."""
+    """Штрихкод получения возвратов Ozon — только если по аккаунту реально есть что забрать.
+
+    Возвраты Real-FBS сюда не считаются: их выдают на почте по треку, штрихкод Ozon там
+    ни при чём и только путает. Коробки вывоза со склада FBO лежат в тех же ПВЗ Ozon —
+    их считаем.
+    """
     heads, _ = render.fetch(("pickup",), org)
-    accounts = sorted({h["account"] for h in heads if h["platform"] == "ozon"})
+    accounts = sorted({h["account"] for h in heads
+                       if h["platform"] == "ozon" and h.get("source") != "ozon_rfbs"})
     out = []
     for account in accounts:
         try:

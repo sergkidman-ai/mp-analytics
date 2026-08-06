@@ -18,8 +18,9 @@ PLATFORM_TITLE = {"ozon": "OZON", "yandex": "ЯНДЕКС", "wb": "WB"}
 STAGE_ICON = {"pickup": "🟢", "attention": "🔴", "transit": "🔷"}
 
 HEADS_SQL = """
-SELECT platform, account, campaign, return_id, order_number, return_type, status_name, stage,
-       pvz_name, pvz_address, where_now,
+SELECT platform, COALESCE(source, platform) AS source, account, campaign, return_id,
+       order_number, return_type, scheme, status_name, stage,
+       pvz_name, pvz_address, where_now, track_number,
        deadline_at, storage_days, storage_sum, amount, first_seen
   FROM mp_returns
  WHERE gone_at IS NULL AND stage = ANY(%s)
@@ -185,8 +186,14 @@ def _number_label(h):
     то есть отгруженных с НАШЕГО склада. Возвраты со склада ВБ (брак, неверное вложение, по
     инициативе продавца) заказа у нас не имеют — там ищем не номер, а помечаем ФБО, чтобы склад
     не искал несуществующий заказ (решение Сергея 04.08.2026).
+
+    У вывоза со склада FBO номер заказа не бывает в принципе: приезжает наш же товар со стока.
+    Печатаем номер заявки на вывоз — по нему строка ищется в ЛК Ozon (FBO → Вывоз и утилизация).
     """
     num = h.get("order_number")
+    if h.get("source") == "ozon_removal":
+        what = "вывоз со склада FBO" if h.get("scheme") == "FboRemoval" else "вывоз с поставки"
+        return f"{what}, заявка <code>{_esc(num)}</code>" if num else what
     if num:
         return f"<code>{_esc(num)}</code>"
     if h["platform"] == "wb":
@@ -199,7 +206,14 @@ def _return_block(h, items, show_where_now):
     # Номер — тот, по которому позицию находят у нас (у WB это orderId = имя отгрузки в МС).
     # Штрихкод коробки не печатаем: для получения он не нужен (решение Сергея 04.08.2026).
     line = f"     • {_number_label(h)} · {_esc(_item_line(items))}"
+    # Трек Почты России — единственный способ получить возврат Real-FBS: в отделении спрашивают
+    # его, а не номер возврата. Отдельной строкой, чтобы не терялся в хвосте.
+    if h.get("track_number"):
+        line += f"\n       трек Почты: <code>{_esc(h['track_number'])}</code>"
     extra = []
+    # Чем набита коробка вывоза: брак или годный товар — от этого зависит, куда её на складе.
+    if h.get("source") == "ozon_removal" and h.get("return_type"):
+        extra.append(_esc(h["return_type"]))
     # В стадии «забрать» статус площадки («Готов к выдаче», «Принят в пункте выдачи»,
     # «В пункте выдачи») ничего не добавляет: раз позиция в списке — она лежит и ждёт.
     if h.get("status_name") and h["stage"] != "pickup":
@@ -255,7 +269,9 @@ def summary(stages=None, org=None):
     if not heads:
         return f"📦 <b>Возвраты{who} на {today}</b>\n\nЗабирать нечего."
 
-    pvz = {(h["platform"], h.get("pvz_address")) for h in heads if h.get("pvz_address")}
+    # у возвратов Почтой России адреса нет вовсе — точку считаем по имени способа получения
+    pvz = {(h["platform"], h.get("pvz_address") or h.get("pvz_name"))
+           for h in heads if h.get("pvz_address") or h.get("pvz_name")}
     n_pvz = len(pvz)
     word = "точке" if n_pvz % 10 == 1 and n_pvz % 100 != 11 else "точках"
     bits = [f"забрать {counts['pickup']} на {n_pvz} {word}"] if counts.get("pickup") else []
@@ -264,7 +280,8 @@ def summary(stages=None, org=None):
     if counts.get("transit"):
         bits.append(f"в пути {counts['transit']}")
 
-    blocks = [f"📦 <b>Возвраты FBS{who} на {today}</b> — " + ", ".join(bits)]
+    # не только FBS: с 06.08.2026 сюда же идут Real-FBS (Почтой России) и вывоз со склада FBO
+    blocks = [f"📦 <b>Возвраты{who} на {today}</b> — " + ", ".join(bits)]
     for stage in pending.STAGE_ORDER:
         if stage not in stages:
             continue
