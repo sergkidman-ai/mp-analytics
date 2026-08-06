@@ -10,6 +10,7 @@ import os
 import base64
 import email
 import imaplib
+import re
 from email.header import decode_header, make_header
 
 from dotenv import load_dotenv
@@ -50,11 +51,17 @@ def connect():
     return box
 
 
-def fetch_latest_price(folder, extensions=PRICE_EXT):
+def fetch_latest_price(folder, extensions=PRICE_EXT, pattern=None):
     """Последнее письмо папки с вложением-прайсом.
+
+    `pattern` — регулярка на ИМЯ файла, нужна, когда в письме несколько прайсов. Реальный
+    случай: Феррет присылает одним письмом «Прайслист Cactus …xlsx» (наш) и «Прайслист
+    Оригинал.xls» (оригинальные картриджи, другой ассортимент) — без фильтра берётся первое
+    попавшееся вложение, то есть не то.
 
     Возвращает dict: filename, content (bytes), subject, date, uid — или None, если писем нет.
     """
+    rx = re.compile(pattern, re.I) if pattern else None
     box = connect()
     try:
         status, _ = box.select('"%s"' % imap_utf7(folder), readonly=True)
@@ -71,6 +78,8 @@ def fetch_latest_price(folder, extensions=PRICE_EXT):
                     continue
                 name = _hdr(name)
                 if not name.lower().endswith(tuple(extensions)):
+                    continue
+                if rx and not rx.search(name):
                     continue
                 return {
                     "filename": name,
