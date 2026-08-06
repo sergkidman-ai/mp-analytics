@@ -3,7 +3,8 @@
 Поток «Маркетинг»: видимость/позиции (Джем), воронка, реклама/ДРР, отзывы/рейтинг.
 НЕ трогает себест/маржу — маржу берёт из готовой витрины margin_by_sku (read-only).
 Граница доменов — docs/BRIEF_MKT.md. Свои таблицы: wb_search_*, wb_funnel, wb_ads,
-ad_spend_daily, ozon_ads, ozon_bids, ozon_rating, ozon_search_query/product/run, drops.
+ad_spend_daily, ozon_ads, ozon_bids, ozon_rating, ozon_search_query/product/run,
+ozon_price_index/_run, drops.
 
 Запуск:  ./venv/bin/python run_marketing.py
 """
@@ -42,6 +43,10 @@ def main():
     for acc in OZON_ACCOUNTS:
         step(f"Ozon реклама {acc}", lambda a=acc: __import__("collectors.ozon_ads", fromlist=["main"]).main(a))
         step(f"Ozon ставки {acc}", lambda a=acc: __import__("collectors.ozon_bids", fromlist=["main"]).main(a))
+        # Индекс цен — снимок на дату, ~20 вызовов API на аккаунт, гоняем ежедневно:
+        # индекс двигается вслед за конкурентом, дырки в истории потом не восстановить.
+        step(f"Ozon индекс цен {acc}",
+             lambda a=acc: __import__("collectors.ozon_price_index", fromlist=["main"]).main(a))
         if acc in PREMIUM_OZON:   # рейтинг недоступен без Премиум-Про
             step(f"Ozon отзывы/рейтинг {acc}", lambda a=acc: __import__("collectors.ozon_reviews", fromlist=["main"]).main(a))
         if t0.weekday() == OZON_SEARCH_DOW:
