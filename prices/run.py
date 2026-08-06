@@ -89,6 +89,13 @@ def main(argv=None):
     ready, dropped, flags, anom = anomaly.screen(ready, profile, base)
     skipped += dropped
 
+    # Чёрный список: артикулы, которые уже были в «необработанных» и человек их забраковал.
+    # Из загрузки они не выбывают (в МС их всё равно нет) — уходит только повторный показ.
+    black_hits = 0
+    if not args.no_db:
+        from . import blacklist
+        skipped, black_hits = blacklist.mark(skipped, blacklist.load_set())
+
     docs = build_docs(ready, profile, moment)
     stale = existing_docs(profile)
     updates = [] if args.no_cards else card_updates(ready, profile)
@@ -113,8 +120,8 @@ def main(argv=None):
           f"сверено с нашей прошлой закупочной {anom['compared']}, медиана {median}")
     for reason in anomaly.reasons(anom, profile):
         print(f"  ⚠ {reason}")
-    print(f"  отчёты: {skipped_path.name}, {unmatched_path.name} ({unmatched_n} строк), "
-          f"{anomaly_path.name}")
+    print(f"  отчёты: {skipped_path.name}, {unmatched_path.name} ({unmatched_n} строк "
+          f"новинок, из них снято чёрным списком {black_hits}), {anomaly_path.name}")
 
     status, error = "ok", None
     if args.apply:
