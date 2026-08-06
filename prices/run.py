@@ -46,11 +46,13 @@ def write_reports(profile, moment, ready, skipped, out_dir):
     with skipped_path.open("w", newline="", encoding="utf-8-sig") as fh:
         writer = csv.writer(fh, delimiter=";")
         writer.writerow(["строка", "артикул", "наименование", "остаток", "кол-во",
-                         "цена прайса", "причина", "пояснение", "наименование МС"])
+                         "цена прайса", "причина", "пояснение", "наименование МС",
+                         "группа", "подгруппа"])
         for row in skipped:
             writer.writerow([row["row"], row["article"], row["name"], row["stock_raw"],
                              row["qty"] or "", row["price_raw"] or "", row["reason"],
-                             SKIP_REASONS.get(row["reason"], ""), row.get("ms_name", "")])
+                             SKIP_REASONS.get(row["reason"], ""), row.get("ms_name", ""),
+                             row.get("group", ""), row.get("subgroup", "")])
 
     # Формат внешнего загрузчика (name;price;quantity;msId;defective;Barcode;sku) —
     # чтобы список новинок читался теми же глазами, что и «Необработанные товары МС».

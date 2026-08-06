@@ -89,7 +89,8 @@ def parse(content, profile):
     """
     sheet = open_sheet(content, profile.sheet)
     try:
-        first_row, cols = _find_header(sheet, profile.columns, profile.header_scan_rows,
+        wanted = {**profile.columns, **profile.category}
+        first_row, cols = _find_header(sheet, wanted, profile.header_scan_rows,
                                        profile.header_span)
         rows = []
         for idx in range(first_row, sheet.nrows):
@@ -99,14 +100,17 @@ def parse(content, profile):
             if isinstance(article, float) and article.is_integer():
                 article = int(article)
             stock_raw = sheet.value(idx, cols["stock"])
-            rows.append({
+            row = {
                 "row": idx + 1,
                 "article": str(article).strip(),
                 "name": str(sheet.value(idx, cols["name"]) or "").strip(),
                 "stock_raw": None if stock_raw is None else str(stock_raw).strip(),
                 "qty": profile.qty(stock_raw),
                 "price_raw": sheet.value(idx, cols["price"]),
-            })
+            }
+            for key in profile.category:            # категории только для фильтра и отчёта
+                row[key] = str(sheet.value(idx, cols[key]) or "").strip()
+            rows.append(row)
     finally:
         sheet.close()
     if not rows:
