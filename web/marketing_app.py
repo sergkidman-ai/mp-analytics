@@ -215,6 +215,8 @@ WB_MARGIN_GATE = 25.0    # % маржи от нашей цены — ниже = 
 WB_DRR_CEIL = 10.0       # % ДРР — потолок-СТОП: рекомендация не заводит прогнозный ДРР выше него
 WB_STEP_PCT = 10.0       # % шаг повышения ставки за раз (мягко: +10%, не прыжок к потолку — риск слить бюджет)
 WB_STEP_DAYS = 2         # дней между шагами — поднял, ждём реакции столько дней, потом «пора оценить»
+WB_TEST_CAP = 20.0       # ₽ потолок ставки тест-фронта: 🧪 карточку тянем +10%/день до этого CPC; так и не
+#                          дала рекл-кликов к потолку → выходит из теста назад на пол (не жжём дальше)
 WB_ACTIVITY_MONTHS = 3   # окно «продавался» — последние N полных месяцев (вкл. decision-месяц)
 WB_REPRICE_DRIFT = 25.0  # % роста текущей цены над истор. продажной → активность отравлена промо
 WB_REPRICE_MIN_QTY = 5   # мин. продаж за окно, чтобы истор. цена была надёжной (иначе q3=1-2 = шум)
@@ -224,14 +226,17 @@ def _decision_period(account):
                  "WHERE account=%s AND period < date_trunc('month', CURRENT_DATE)", (account,))
     return r[0]["p"] if r and r[0]["p"] else None
 
-def _verdict(sold, mp, drr, spend, ad_orders, repriced=False):
+def _verdict(sold, mp, drr, spend, ad_orders, repriced=False, test_ready=False):
     """Вердикт по SKU. sold=продавался за 3 мес (qty>0); mp=маржа live%; drr=ДРР%;
-    spend=расход рекламы; ad_orders=заказы, ПРИПИСАННЫЕ рекламе; repriced=цена выросла ≥25% над истор.
+    spend=расход рекламы; ad_orders=заказы, ПРИПИСАННЫЕ рекламе; repriced=цена выросла ≥25% над истор.;
+    test_ready=кандидат тест-фронта (есть активная РК, рекламой не тестирован, ставка ниже потолка теста).
       ⚫ dead      — не продавался за квартал, но реклама жгла бюджет → балласт-снять
       ⚪ hold      — нет сигнала (нет расхода) или маржа неизвестна
       🔴 cut       — продавался, но маржа live ниже гейта 25% → снять с рекламы / поднять цену
+      🧪 test      — маржа ок, продавался, 0 рекл-заказов, но рекламой НЕ тестирован и ставка на дне →
+                     широкий тест +10%/день, пока не пойдут показы/заказы или не упрётся в потолок теста
       🟣 repriced  — маржа ок, продавался, реклама дала 0 заказов, НО цена выросла ≥25% над продажной
-                     (продажи были на промо) → не «держать» вслепую, а бюджет-тест при текущей цене
+                     (продажи были на промо), и в тест-фронт не попал → бюджет-тест при текущей цене
       🔵 keep      — маржа ок, продавался ≈ по текущей цене, реклама дала 0 заказов → органика, держать
       🟡 expensive — маржа ок, реклама конвертит, но ДРР ≥ потолка → ставку вниз
       🟢 grow      — маржа ок, реклама конвертит, ДРР ниже потолка → есть куда поднимать ставку"""
@@ -242,6 +247,8 @@ def _verdict(sold, mp, drr, spend, ad_orders, repriced=False):
     if mp < WB_MARGIN_GATE:
         return ("cut", "🔴 снять / поднять цену")
     if (ad_orders or 0) == 0:
+        if test_ready:
+            return ("test", "🧪 тест-фронт")
         if repriced:
             return ("repriced", "🟣 цена выросла — тест")
         return ("keep", "🔵 держать на полу")
@@ -255,8 +262,12 @@ def _rec_cpc(verdict, cpc, drr):
     • grow (ДРР<потолка): шаг +WB_STEP_PCT% (×1.10), но НЕ дальше потолка — cap = потолок/ДРР.
       Итог: cpc × min(1+шаг, потолок/ДРР). Раз в WB_STEP_DAYS дней поднял → ждём реакции → снова шаг.
     • expensive (ДРР≥потолка): вниз к потолку одним разом (перерасход режем сразу) = cpc × (потолок/ДРР).
-    • keep/repriced (0 рекл-заказов) → пол (бюджет-тест на полу).
+    • test (тест-фронт): ОДИН шаг +WB_STEP_PCT% от текущей ставки (со дна: пол×1.10=8.03₽), до потолка теста.
+    • keep/repriced (0 рекл-заказов, не в тест-фронте) → пол (бюджет-тест на полу).
     • cut/dead/hold — рекомендации нет (их действие «снять», а не менять ставку)."""
+    if verdict == "test":
+        base = cpc if (cpc and cpc >= WB_BID_FLOOR) else WB_BID_FLOOR      # ставка неизвестна → считаем со дна
+        return round(base * (1 + WB_STEP_PCT / 100.0), 2)                  # +10% за шаг, гоним ежедневно
     if cpc and drr and drr > 0:
         if verdict == "grow":
             rec = cpc * min(1 + WB_STEP_PCT / 100.0, WB_DRR_CEIL / drr)   # +10%, но не выше потолка ДРР
@@ -313,14 +324,23 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
           FROM wb_search_report WHERE account=%s
           WINDOW w AS (PARTITION BY nm_id ORDER BY period_start DESC)
         ) t WHERE rn=1),
-      ov AS (SELECT nm_id, cpc, source FROM wb_bid_override WHERE account=%s)
+      ov AS (SELECT nm_id, cpc, source FROM wb_bid_override WHERE account=%s),
+      dly AS (  -- ДНЕВНЫЕ рекл. показы per-nm: посл. день + пред. + позиция бустера (реакция на ставку)
+        SELECT nm_id, dt, views, booster_pos, row_number() OVER w rn
+        FROM (SELECT nm_id, dt, sum(views) views,
+                     min(booster_pos) FILTER (WHERE booster_pos IS NOT NULL) booster_pos
+              FROM wb_ad_nm_daily WHERE account=%s GROUP BY nm_id, dt) g
+        WINDOW w AS (PARTITION BY nm_id ORDER BY dt DESC)),
+      dcur  AS (SELECT nm_id, dt::text views_date, views views_daily, booster_pos FROM dly WHERE rn=1),
+      dprev AS (SELECT nm_id, views views_prev FROM dly WHERE rn=2)
       SELECT dm.nm_id, c.vendor_code, COALESCE(c.title, dm.ad_name) title, c.subject,
              dm.spend, dm.rev, dm.clicks, dm.ad_orders, cur.adverts, cur.any_active,
              ml.margin_own_live, ml.net_live, ml.buy_status, ml.our_price, ml.buy_price_live,
              s3.q3, s3.rev3,
              i.imt_id, isz.n imt_size, isl.imt_q,
              o.cpc ov_cpc, o.source ov_source,
-             j.avg_position, j.open_card, j.jam_orders, j.visibility, j.jam_date, j.pos_prev, j.prev_date
+             j.avg_position, j.open_card, j.jam_orders, j.visibility, j.jam_date, j.pos_prev, j.prev_date,
+             dc.views_daily, dc.views_date, dc.booster_pos, dp.views_prev
       FROM dm
       LEFT JOIN cur        ON cur.nm_id = dm.nm_id
       LEFT JOIN s3         ON s3.article = dm.nm_id::text
@@ -331,11 +351,15 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
       LEFT JOIN wb_cards c ON c.account=%s AND c.nm_id = dm.nm_id
       LEFT JOIN ov o       ON o.nm_id = dm.nm_id
       LEFT JOIN jam j      ON j.nm_id = dm.nm_id
+      LEFT JOIN dcur dc    ON dc.nm_id = dm.nm_id
+      LEFT JOIN dprev dp   ON dp.nm_id = dm.nm_id
     """
     params = [account, period,                      # dm
               account, account,                     # cur (WHERE + max-период)
               account, period, WB_ACTIVITY_MONTHS, period,   # s3
-              account, account, account, account, account]   # ml, imt, jam, ov, wb_cards
+              account, account, account, account,   # ml, imt, jam, ov
+              account,                              # dly (дневной рекл. трек)
+              account]                              # wb_cards
     if q:
         sql += " WHERE (dm.nm_id::text LIKE %s OR c.vendor_code ILIKE %s OR c.title ILIKE %s)"
         like = f"%{q}%"
@@ -369,8 +393,16 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
         unit_margin = round(float(r["net_live"]), 2) if r["net_live"] is not None else None
         cpc_dm = round(spend / clicks, 2) if clicks > 0 else None
         cur_cpc = float(r["ov_cpc"]) if r["ov_cpc"] is not None else cpc_dm
-        vkey, vlabel = _verdict(sold, mp, drr, spend, orders, repriced)
-        rec_cpc = _rec_cpc(vkey, cur_cpc, drr)
+        # Реальная НАЗНАЧЕННАЯ ставка = только наш override (прошлый PATCH). Реконструкция расход/клики —
+        # это цена клика в аукционе, НЕ ставка; по 1-2 кликам чистый шум → для тест-фронта база = пол.
+        assigned_cpc = float(r["ov_cpc"]) if r["ov_cpc"] is not None else None
+        # тест-фронт: продавался, в активной кампании, реклама ещё не зацепилась (кликов ≤2),
+        # НАЗНАЧЕННАЯ ставка ниже потолка теста → гоним +10%/сутки от назначенной (пол, если не писали).
+        test_base = assigned_cpc if assigned_cpc is not None else WB_BID_FLOOR
+        on_ramp = test_base < WB_TEST_CAP
+        test_ready = bool(r["any_active"]) and bool(sold) and (clicks or 0) <= 2 and on_ramp
+        vkey, vlabel = _verdict(sold, mp, drr, spend, orders, repriced, test_ready)
+        rec_cpc = _rec_cpc(vkey, assigned_cpc if vkey == "test" else cur_cpc, drr)
         out.append({
             "nm_id": r["nm_id"], "vendor_code": r["vendor_code"], "title": r["title"],
             "subject": r["subject"], "adverts": r["adverts"] or [], "any_active": r["any_active"],
@@ -387,11 +419,15 @@ def _margin_gated(account, view="all", q="", sort="spend", limit=500):
             "avg_position": r["avg_position"], "open_card": r["open_card"],
             "jam_orders": r["jam_orders"], "visibility": r["visibility"],
             "jam_date": r["jam_date"], "pos_prev": r["pos_prev"], "prev_date": r["prev_date"],
+            "views_daily": int(r["views_daily"]) if r["views_daily"] is not None else None,
+            "views_prev": int(r["views_prev"]) if r["views_prev"] is not None else None,
+            "views_date": r["views_date"],
+            "booster_pos": float(r["booster_pos"]) if r["booster_pos"] is not None else None,
             "verdict": vkey, "verdict_label": vlabel,
         })
     # когорты + деньги-в-игре считаем по всему набору (до фильтра вида)
-    coh = {"grow": 0, "keep": 0, "repriced": 0, "cut": 0, "dead": 0, "expensive": 0, "hold": 0}
-    coh_spend = {"grow": 0.0, "keep": 0.0, "repriced": 0.0, "cut": 0.0, "dead": 0.0, "expensive": 0.0, "hold": 0.0}
+    coh = {"grow": 0, "test": 0, "keep": 0, "repriced": 0, "cut": 0, "dead": 0, "expensive": 0, "hold": 0}
+    coh_spend = {"grow": 0.0, "test": 0.0, "keep": 0.0, "repriced": 0.0, "cut": 0.0, "dead": 0.0, "expensive": 0.0, "hold": 0.0}
     for x in out:
         coh[x["verdict"]] += 1
         coh_spend[x["verdict"]] += x["spend"] or 0

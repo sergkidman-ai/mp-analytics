@@ -43,7 +43,7 @@
   .nmline{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   tr.applied-ok>td{background:#dcfce7;transition:background .4s}
   .pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
-  .pill.pos{background:#dcfce7;color:#15803d}.pill.warn{background:#fef3c7;color:#b45309}.pill.neg{background:#fee2e2;color:#b91c1c}.pill.blue{background:#dbeafe;color:#1d4ed8}.pill.grey{background:#eef2f7;color:#64748b}.pill.dark{background:#334155;color:#f1f5f9}.pill.purple{background:#f3e8ff;color:#7e22ce}
+  .pill.pos{background:#dcfce7;color:#15803d}.pill.warn{background:#fef3c7;color:#b45309}.pill.neg{background:#fee2e2;color:#b91c1c}.pill.blue{background:#dbeafe;color:#1d4ed8}.pill.grey{background:#eef2f7;color:#64748b}.pill.dark{background:#334155;color:#f1f5f9}.pill.purple{background:#f3e8ff;color:#7e22ce}.pill.test{background:#cffafe;color:#0e7490}
   .badge{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;background:#eef2f7;color:var(--mut)}
   .dlt.up{color:var(--neg)}.dlt.dn{color:var(--pos)}
   .note{color:var(--mut);font-size:12px;margin:14px 0 0}
@@ -75,6 +75,26 @@
   .bulkbar #bulkapply:disabled{opacity:.5;cursor:not-allowed;filter:none}
   tr.bulk-ok>td{background:#dcfce7;transition:background .5s}
   tr.bulk-err>td{background:#fee2e2;transition:background .5s}
+  /* grow/маржа-таблица: фиксированные колонки + ровный столбец действий (грид, поле ввода строго под шапкой) */
+  #tbl.mgrid{table-layout:fixed}
+  #tbl.mgrid th:nth-child(1),#tbl.mgrid td:nth-child(1){width:34px}
+  #tbl.mgrid th:nth-child(3),#tbl.mgrid td:nth-child(3){width:96px}
+  #tbl.mgrid th:nth-child(4),#tbl.mgrid td:nth-child(4){width:72px}
+  #tbl.mgrid th:nth-child(5),#tbl.mgrid td:nth-child(5){width:82px}   /* показы/сут */
+  #tbl.mgrid th:nth-child(6),#tbl.mgrid td:nth-child(6){width:106px}  /* Джем поз */
+  #tbl.mgrid th:nth-child(7),#tbl.mgrid td:nth-child(7){width:264px}  /* действие */
+  #tbl.mgrid th:nth-child(2),#tbl.mgrid th:nth-child(3){text-align:left}
+  #tbl.mgrid td:nth-child(2){text-align:left}
+  #tbl.mgrid .sku{min-width:0}
+  #tbl.mgrid .sku .vc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #tbl.mgrid .nmline{flex-wrap:nowrap;min-width:0}
+  #tbl.mgrid .nmline .rk{overflow:hidden;text-overflow:ellipsis}
+  #tbl.mgrid .actcell{display:grid;grid-template-columns:72px 60px 46px auto;gap:5px;align-items:center;justify-items:end}
+  #tbl.mgrid .actcell .apply,#tbl.mgrid .actcell .rm{width:26px;padding:4px 0;text-align:center;font-weight:700}
+  #tbl.mgrid .actcell .cur{justify-self:end;text-align:right;white-space:nowrap;margin:0;overflow:hidden;text-overflow:ellipsis}
+  #tbl.mgrid .actcell .btn.rec{width:100%;text-align:center;padding:4px 4px}
+  #tbl.mgrid .actcell .bidin{width:100%}
+  #tbl.mgrid .actcell .act-go{display:flex;gap:5px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -113,6 +133,7 @@
     <span id="bulkcount">Выбрано: 0</span>
     <span class="sep"></span>
     <span class="lnk" id="bulkgrow">выбрать все 🟢 растить</span>
+    <span class="lnk" id="bulktest">выбрать все 🧪 тест-фронт</span>
     <span class="lnk" id="bulkallrec">выбрать все с рекомендацией</span>
     <span class="lnk" id="bulkclear">снять выделение</span>
     <span class="sep"></span>
@@ -137,6 +158,7 @@ const pct=v=>v==null?'—':(Math.round(v*10)/10).toLocaleString('ru')+'%';
 const V={
   all:      {label:'Все',              cls:''},
   grow:     {label:'🟢 растить',        cls:'pos',  hint:'маржа ≥25%, реклама конвертит, ДРР ниже потолка → поднимать ставку'},
+  test:     {label:'🧪 тест-фронт',      cls:'test', hint:'маржа ≥25%, продавался, в активной кампании, но реклама ещё не зацепилась (кликов ≤2). Широкий фронт: +10%/сутки от пола, пока не выстрелит или не упрётся в потолок теста 20₽'},
   expensive:{label:'🟡 дорого',         cls:'warn', hint:'маржа ок, но ДРР ≥ потолка → ставку вниз'},
   keep:     {label:'🔵 держать на полу', cls:'blue', hint:'маржа ок, товар продаётся по прежней цене (0 рекл.заказов — продаёт органика) → держать на полу, не поднимать'},
   repriced: {label:'🟣 подорожал — тест', cls:'purple', hint:'маржа ок, но цена сейчас ≥25% выше той, по которой продавался (продажи шли из-за низкой цены). Реклама 0 заказов → тест: подмешать рекламу и смотреть склейку; не пойдёт — снять'},
@@ -144,7 +166,9 @@ const V={
   dead:     {label:'⚫ жжёт впустую',    cls:'dark', hint:'0 продаж за месяц, реклама жгла бюджет → редкий-держим / балласт-снять'},
   hold:     {label:'⚪ нет сигнала',     cls:'grey', hint:'нет расхода/кликов или маржа неизвестна'},
 };
-const verdictPill=r=>`<span class="pill ${V[r.verdict]?.cls||'grey'}" title="${(V[r.verdict]?.hint||'').replace(/"/g,'')}">${r.verdict_label}</span>`;
+// короткий ярлык для узкой колонки (emoji+слово); полное значение — в подсказке (hint)
+const VSHORT={grow:'🟢 рост',test:'🧪 тест',expensive:'🟡 дорого',keep:'🔵 пол',repriced:'🟣 подорожал',cut:'🔴 снять',dead:'⚫ балласт',hold:'⚪ —'};
+const verdictPill=r=>`<span class="pill ${V[r.verdict]?.cls||'grey'}" title="${(V[r.verdict]?.hint||'').replace(/"/g,'')} — ${(r.verdict_label||'')}">${VSHORT[r.verdict]||r.verdict_label}</span>`;
 
 async function load(){
   if(mode==='margin') return loadMargin();
@@ -171,16 +195,17 @@ async function loadMargin(){
     <div class="bi"><div class="l">Ад-выручка / мес</div><div class="v">${intf(s.total_rev)}₽</div><div class="s ${drrCls}">ДРР общий ${pct(s.drr_total)}</div></div>
     <div class="bi danger"><div class="l">⚫ жжёт впустую (0 продаж)</div><div class="v">${intf(c.dead)}</div><div class="s">${rub(cs.dead)}₽ = ${s.total_spend?Math.round(cs.dead/s.total_spend*100):0}% бюджета</div></div>`;
   // табы вердиктов со счётчиками
-  const order=['all','grow','expensive','keep','repriced','cut','dead','hold'];
+  const order=['all','grow','test','expensive','keep','repriced','cut','dead','hold'];
   $('#tabs').innerHTML=order.map(k=>{
     const n=k==='all'?s.total:(c[k]??0);
     return `<button data-v="${k}" class="${k===view?'cur':''}" title="${(V[k].hint||'')}">${V[k].label}<span class="c">${intf(n)}</span></button>`;
   }).join('');
   const head=['<input type="checkbox" id="selall" title="выбрать/снять все видимые строки с рекомендацией">',
-              'SKU','вердикт','марж%','ДРР','Джем пред','Джем посл','действие'];
+              'SKU','вердикт','марж%','показы/сут','Джем поз','действие'];
+  $('#tbl').classList.add('mgrid');
   $('#tbl thead').innerHTML='<tr>'+head.map((h,i)=>`<th${i===0?' class="selc"':''}>${h}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=d.rows.map(marginRow).join('')
-    || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
+    || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
   window._liveOn = !!s.live_enabled; window._floor = s.floor_cpc||7.3;
   window._stepPct = s.step_pct||10; window._stepDays = s.step_days||2;
   updateBulk();
@@ -219,6 +244,17 @@ const noPos=v=>v==null||v==0;
 const fmtPos=p=>noPos(p)?'<span class="muted" title="нет позиции — товар не показывается в выдаче (0 ≠ 1-е место)">—</span>':(Math.round(p*10)/10);
 // период_старт = начало скользящего 7-дн окна = дата сбора − 7 → показываем реальную дату сбора
 const collDate=ps=>{ if(!ps) return '?'; const d=new Date(ps+'T00:00:00'); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); };
+// дневные РЕКЛАМНЫЕ показы карточки (последний день) + дельта ко вчерашнему — реакция на ставку раз в сутки
+function viewsCell(r){
+  const v=r.views_daily, p=r.views_prev;
+  if(v==null) return '<span class="muted" title="нет рекламных показов за последний день (нет активной кампании или показов)">—</span>';
+  let d='';
+  if(p!=null&&p!==v){
+    const up=v>p, col=up?'#15803d':'#dc2626';
+    d=` <b style="color:${col}" title="день ко дню: ${intf(p)} → ${intf(v)}">${up?'▲':'▼'}${intf(Math.abs(v-p))}</b>`;
+  }
+  return `<span title="рекламные показы карточки за ${r.views_date||'посл. день'} (обновляется раз в сутки)">${intf(v)}</span>${d}`;
+}
 // дельта позиции день-к-дню: WB позиция МЕНЬШЕ = лучше → рост в рейтинге зелёным ↑, падение красным ↓.
 // 0/нет = отсутствие в выдаче: «0→N» = появился (вошёл), «N→0» = выпал — арифметику тут не применяем.
 function posDelta(r){
@@ -244,11 +280,12 @@ function actCellMargin(r){
     const why=dir==='↑'?`мягкий шаг +${step}% (не прыжок к потолку — риск слить бюджет); через ${days}д смотрим реакцию и шагаем снова, стоп на ДРР 10%`:dir==='↓'?'ДРР выше потолка — вниз к 10%':'0 рекл-заказов — тест на полу';
     rec=`<button class="btn rec" data-rec="${r.rec_cpc}" title="рекомендация: ${word} ${rub(r.rec_cpc)}₽. ${why}. Нажать — подставить в поле">${dir}${rub(r.rec_cpc)}₽</button>`;
   }
-  const bid=`<input class="bidin" type="number" step="0.01" min="${window._floor||7.3}" placeholder="₽">
-    <button class="btn p apply" title="Отправить ставку в WB живьём (PATCH /api/advert/v1/bids)">применить</button>`;
+  const recCell=rec||'<span class="recph"></span>';   // держит колонку рекомендации даже когда её нет
+  const input=`<input class="bidin" type="number" step="0.01" min="${window._floor||7.3}" placeholder="₽">`;
+  const apply=`<button class="btn p apply" title="Применить: отправить ставку в WB живьём (PATCH /api/advert/v1/bids)">✓</button>`;
   const rm=(r.verdict==='cut'||r.verdict==='dead')
-    ?`<button class="btn rm" title="Снять с рекламы: намерение в журнал; исключить nmID вручную в ЛК ВБ (API снятия у WB нет)">снять</button>`:'';
-  return `<div class="actcell"><span class="cur">${cur} ${srcBadge(r)}</span>${rec}${bid}${rm}</div>`;
+    ?`<button class="btn rm" title="Снять с рекламы: намерение в журнал; исключить nmID вручную в ЛК ВБ (API снятия у WB нет)">✕</button>`:'';
+  return `<div class="actcell"><span class="cur">${cur} ${srcBadge(r)}</span>${recCell}${input}<span class="act-go">${apply}${rm}</span></div>`;
 }
 function marginRow(r){
   const nm=(r.title||'').replace(/"/g,'&quot;');
@@ -262,7 +299,6 @@ function marginRow(r){
     ? ` <span class="rk glue" title="склейка: ${r.imt_size} карточек в одном imtID; продажи соседей за 3 мес — ${intf(sq)} шт${sq>0?' (склейка живая — вытянет)':' (соседи тоже не продают)'}">⛓ ${r.imt_size}${sq>0?` <b style="color:#15803d">·${intf(sq)}</b>`:''}</span>`
     : '';
   const sku=`<div class="sku" title="${skuT}"><div class="nmline"><span class="nm copy" data-copy="${r.nm_id}" title="артикул ВБ (nmID) — клик копирует в буфер">${r.nm_id}</span>${rk}${glue}</div><div class="vc">${(r.vendor_code||'')} · ${(r.title||'').slice(0,40)}</div></div>`;
-  const drrCls=r.drr!=null&&r.drr>=10?'drr hi':'';
   let mBadge='';
   if(r.buy_status==='stale') mBadge=' <span class="badge" title="себест по последней известной цене (сегодня не обновилась)">~</span>';
   else if(r.buy_status==='no_price'||r.buy_status==='unmapped') mBadge=' <span class="badge" title="себест «купим сегодня» не найдена — маржа не судится">нет с/с</span>';
@@ -277,9 +313,8 @@ function marginRow(r){
     <td>${sku}</td>
     <td style="text-align:left">${verdictPill(r)}</td>
     <td>${marginChip(r)}${mBadge}</td>
-    <td class="${drrCls}">${pct(r.drr)}</td>
-    <td title="средняя позиция за 7-дн окно, сбор ~${r.prev_date?collDate(r.prev_date):'—'}">${fmtPos(r.pos_prev)}</td>
-    <td title="средняя позиция за 7-дн окно, сбор ~${r.jam_date?collDate(r.jam_date):'—'}">${fmtPos(r.avg_position)}${posDelta(r)}</td>
+    <td title="рекламные показы карточки за сутки (обновляется раз в день) — прямая реакция на смену ставки">${viewsCell(r)}</td>
+    <td title="средняя позиция Джема за 7-дн окно, сбор ~${r.jam_date?collDate(r.jam_date):'—'}">${fmtPos(r.avg_position)}${posDelta(r)}</td>
     <td style="text-align:right">${actCellMargin(r)}</td>
   </tr>`;
 }
@@ -318,6 +353,7 @@ async function loadBids(){
   const bt=[['all','Все'],['no_data','✍️ Нет ставки'],['floor','⬇️ На полу'],['raised','⬆️ Подняты'],['override','✔️ Ручные']];
   $('#tabs').innerHTML=bt.map(([v,l])=>`<button data-v="${v}" class="${v===view?'cur':''}">${l}</button>`).join('');
   const head=['SKU','наименование','кампании','Джем: поз','показы','заказы','текущая ставка','новая ₽ / действие'];
+  $('#tbl').classList.remove('mgrid');
   $('#tbl thead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=d.rows.map(bidRow).join('')
     || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>`;
@@ -427,6 +463,7 @@ $('#tbl').addEventListener('change',e=>{
   if(t.classList.contains('rowsel')){ updateBulk(); }
 });
 $('#bulkgrow').addEventListener('click',()=>selectBy(tr=>tr.dataset.verdict==='grow'));
+$('#bulktest').addEventListener('click',()=>selectBy(tr=>tr.dataset.verdict==='test'));
 $('#bulkallrec').addEventListener('click',()=>selectBy(()=>true));
 $('#bulkclear').addEventListener('click',()=>{ document.querySelectorAll('#tbl tbody .rowsel').forEach(c=>c.checked=false); updateBulk(); });
 $('#bulkapply').addEventListener('click',applyBulk);
