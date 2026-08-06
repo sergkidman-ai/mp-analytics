@@ -13,20 +13,20 @@
   * **массовый** — медиана всего прайса уехала (смена валюты/колонки). Это не «странная
     позиция», это сломанный файл, и он блокирует `--apply` целиком.
 
-База сравнения — цена этой же позиции в ПРОШЛОЙ загрузке этого поставщика (журнал
-`prc_price_row`). Закупочная цена карточки МС используется только как ЗАПАСНАЯ и только
-справочно: проверено на Колортеке, Одиссее и Сакуре — `buyPrice` в карточках живёт своей
-жизнью (медиана к цене прайса 0.77-0.91), это не цена прайса, и блокировать по ней
-загрузку нельзя. По ней мы флаг ставим (в отчёт), но `--apply` не блокируем. Как только
-у поставщика появится наша прошлая загрузка, база станет настоящей — и заблокирует.
-Без базы сравнения строка проверяется только на коридор — это не повод для флага.
+База сравнения — **закупочная цена, которую записали МЫ** (решение Сергея 05.08.2026):
+цена этой же позиции в нашей прошлой БОЕВОЙ загрузке. Технически берём её из журнала
+`prc_price_row`, а не читаем `buyPrice` из карточки, и это осознанно: в карточке может
+лежать чужая цифра — та, что жила там до нас, или правка руками. «Было 50 ₽, стало 2 ₽»
+имеет смысл только против своей же записи. Проверено на трёх поставщиках: цена прайса
+относится к живущей в карточках закупочной как 0.77-0.91 по медиане, то есть чужая
+закупочная — вообще не цена прайса, и сравнивать с ней бессмысленно.
+
+Пока боевой загрузки поставщика не было, базы нет: строка проверяется только на коридор.
+Со второго дня проверка включается сама.
 """
 from decimal import Decimal
 
-from core import ms_api
-
-SRC_LOAD = "прошлая загрузка"       # настоящая база: наша же цифра
-SRC_CARD = "закупочная карточки"    # запасная: только справочно, загрузку не блокирует
+SRC_LOAD = "наша прошлая закупочная"
 
 FLAGS = {
     "price_absurd": "цена вне коридора — строка НЕ загружается",
@@ -67,43 +67,32 @@ def previous_prices(supplier_key):
         return {}
 
 
-def baseline(ready, profile, use_db=True):
-    """{артикул -> (цена, откуда)} для сравнения. Журнал важнее карточки: это наша же цифра."""
-    base = {}
-    if use_db:
-        for article, price in previous_prices(profile.key).items():
-            base[article] = (price, SRC_LOAD)
-    for item in ready:
-        if item["article"] in base:
-            continue
-        card = item["card"]
-        if ms_api.meta_id(card, "supplier") not in profile.supplier_ids:
-            continue                      # чужая закупочная — не наша база сравнения
-        value = (card.get("buyPrice") or {}).get("value")
-        if value:
-            base[item["article"]] = (Decimal(value) / 100, SRC_CARD)
-    return base
+def baseline(profile, use_db=True):
+    """{артикул -> (цена, откуда)} — закупочная, записанная нами в прошлую боевую загрузку."""
+    if not use_db:
+        return {}
+    return {article: (price, SRC_LOAD)
+            for article, price in previous_prices(profile.key).items()}
 
 
 def screen(ready, profile, base):
     """(к загрузке, снятые с загрузки, флаги, сводка).
 
     Абсурдная цена снимает строку с загрузки (уходит в пропущенные с причиной
-    `price_absurd`); прыжок/падение — только отметка в отчёте. Блокируют загрузку
-    лишь флаги, посчитанные от НАШЕЙ прошлой загрузки, плюс абсурдные цены.
+    `price_absurd`) — такую цену нельзя ни класть на склад, ни писать в закупочную
+    карточки; прыжок/падение — отметка в отчёте и вклад в блокировку `--apply`.
     """
     low, high = Decimal(profile.price_min_rub), Decimal(profile.price_max_rub)
     jump = Decimal(profile.jump_pct) / 100
     drop = Decimal(profile.drop_pct) / 100
 
-    kept, dropped, flags = [], [], []
-    ratios, ratios_card = [], []
+    kept, dropped, flags, ratios = [], [], [], []
     for item in ready:
         price = Decimal(item["price_kop"]) / 100
         prev, source = base.get(item["article"], (None, None))
         ratio = (price / prev) if prev and prev > 0 else None
         if ratio is not None:
-            (ratios if source == SRC_LOAD else ratios_card).append(ratio)
+            ratios.append(ratio)
 
         record = {**item, "price_rub": price, "prev_rub": prev,
                   "prev_source": source, "ratio": ratio}
@@ -119,23 +108,18 @@ def screen(ready, profile, base):
 
     median = _median(ratios)
     shift = Decimal(profile.shift_pct) / 100
-    # массовый сдвиг судим только по нашей прошлой загрузке и только на широкой базе
+    # массовый сдвиг судим только на широкой базе: на десятке позиций медиана ничего не значит
     mass_shift = bool(median is not None and len(ratios) >= 20 and abs(median - 1) > shift)
-    hard = [f for f in flags
-            if f["flag"] == "price_absurd" or f["prev_source"] == SRC_LOAD]
-    share = (Decimal(len(hard)) / Decimal(len(ready))) if ready else Decimal(0)
+    share = (Decimal(len(flags)) / Decimal(len(ready))) if ready else Decimal(0)
     blocked = mass_shift or share > Decimal(profile.anomaly_share)
 
     summary = {
         "flags": len(flags),
-        "hard_flags": len(hard),
         "by_flag": {f: sum(1 for x in flags if x["flag"] == f) for f in FLAGS},
         "dropped": len(dropped),
         "compared": len(ratios),
-        "compared_card": len(ratios_card),
-        "no_baseline": len(ready) - len(ratios) - len(ratios_card),
+        "no_baseline": len(ready) - len(ratios),
         "median_ratio": median,
-        "median_card": _median(ratios_card),
         "mass_shift": mass_shift,
         "share": share,
         "blocked": blocked,
@@ -150,7 +134,7 @@ def reasons(summary, profile):
         out.append(f"медиана цен уехала в {summary['median_ratio']:.3f} раза "
                    f"при допуске ±{profile.shift_pct}% — похоже на смену колонки или валюты")
     if summary["share"] > Decimal(profile.anomaly_share):
-        out.append(f"аномальных позиций к прошлой загрузке {summary['share'] * 100:.1f}% "
+        out.append(f"аномальных позиций {summary['share'] * 100:.1f}% "
                    f"при пороге {Decimal(profile.anomaly_share) * 100:.1f}%")
     return out
 
@@ -161,8 +145,8 @@ def write_report(flags, path):
     with path.open("w", newline="", encoding="utf-8-sig") as fh:
         writer = csv.writer(fh, delimiter=";")
         writer.writerow(["строка", "артикул", "наименование МС", "цена прайса",
-                         "цена ₽", "было ₽", "база сравнения", "во сколько раз",
-                         "флаг", "пояснение"])
+                         "цена ₽", "наша прошлая закупочная ₽", "база сравнения",
+                         "во сколько раз", "флаг", "пояснение"])
         for row in flags:
             ratio = f"{row['ratio']:.3f}" if row["ratio"] is not None else ""
             writer.writerow([row["row"], row["article"], row.get("ms_name", ""),

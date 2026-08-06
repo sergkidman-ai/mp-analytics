@@ -83,7 +83,7 @@ def main(argv=None):
     rate, rate_date = effective_rate(moment.date(), profile.currency, profile.markup)
     ready, skipped = classify(rows, profile, rate)
 
-    base = anomaly.baseline(ready, profile, use_db=not args.no_db)
+    base = anomaly.baseline(profile, use_db=not args.no_db)
     ready, dropped, flags, anom = anomaly.screen(ready, profile, base)
     skipped += dropped
 
@@ -105,13 +105,10 @@ def main(argv=None):
         print(f"  пропущено {count:>5} — {SKIP_REASONS.get(reason, reason)}")
     print(f"  прошлых документов группы на «Удаленном складе»: {info['stale_docs']}")
     print(f"  карточек к обновлению: {info['card_updates']}")
-    def _med(value):
-        return f"{value:.3f}" if value is not None else "нет базы"
-    print(f"  аномалии цены: {anom['flags']}, из них блокирующих {anom['hard_flags']}; "
-          f"снято с загрузки {anom['dropped']}")
-    print(f"    к прошлой загрузке: сверено {anom['compared']}, медиана {_med(anom['median_ratio'])}"
-          f" · к закупочной карточки (справочно): {anom['compared_card']}, "
-          f"медиана {_med(anom['median_card'])}")
+    median = (f"{anom['median_ratio']:.3f}" if anom["median_ratio"] is not None
+              else "нет базы сравнения")
+    print(f"  аномалии цены: {anom['flags']} (снято с загрузки {anom['dropped']}); "
+          f"сверено с нашей прошлой закупочной {anom['compared']}, медиана {median}")
     for reason in anomaly.reasons(anom, profile):
         print(f"  ⚠ {reason}")
     print(f"  отчёты: {skipped_path.name}, {unmatched_path.name} ({unmatched_n} строк), "
