@@ -124,7 +124,7 @@ def main(argv=None):
                              + f". Смотреть {anomaly_path}; грузить всё равно — --ignore-anomalies")
         print("  --- запись в МойСклад ---")
         try:
-            apply_to_ms(docs, stale, updates, log=print)
+            apply_to_ms(docs, stale, updates, moment=moment, log=print)
         except Exception as exc:
             status, error = "error", str(exc)[:2000]
             print(f"  ОШИБКА: {error}")
