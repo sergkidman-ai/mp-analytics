@@ -120,9 +120,23 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
         FROM mkt_sku_economics WHERE account=%s
     """, (account,))
 
+    # ГЕЙТ НАЛИЧИЯ (Сергей, 07.08.2026): карточек без наличия в контроле маржи быть не должно —
+    # они засоряют топ ужасами вроде −162 % по товару, которого нет в продаже.
+    # Признак «в продаже» = СВЕЖАЯ цена покупателя на карточке (card v4 → wb_price.market_*).
+    # Именно она, а НЕ остаток wb_stocks: остатки ВБ — это только FBO (477 SKU из 12009),
+    # фильтр по ним вырезал бы весь FBS, который мы возим со своего склада.
+    in_sale = {int(r["nm_id"]) for r in db.query("""
+        SELECT nm_id FROM wb_price
+         WHERE account=%s AND market_price > 0 AND market_captured_at >= now() - interval '2 days'
+    """, (account,))}
+    skipped_dead = 0
+
     recs = []
     for e in econ:
         nm = int(e["nm_id"])
+        if nm not in in_sale:
+            skipped_dead += 1
+            continue
         mapped = nm_ec.get(nm)
         ec, map_src = (mapped if mapped else (None, None))
         bp_live, status, price_date = (None, "unmapped", None)
@@ -178,11 +192,11 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
     db.execute("DELETE FROM mkt_margin_control WHERE captured_date=%s AND account=%s", (day, account))
     db.upsert("mkt_margin_control", recs, conflict_cols=["captured_date", "account", "nm_id"])
 
-    _write_report(account, day, threshold, recs)
+    _write_report(account, day, threshold, recs, skipped_dead)
     return recs
 
 
-def _write_report(account, day, threshold, recs):
+def _write_report(account, day, threshold, recs, skipped_dead=0):
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     # только SKU с живой ценой считаем «в контроле»; для приоритета — сначала продающиеся/свежие
     priced = [r for r in recs if r["buy_price_live"] is not None]
@@ -216,6 +230,7 @@ def _write_report(account, day, threshold, recs):
     lines.append(f"КОНТРОЛЬ МАРЖИ {account} · {day} · порог {threshold:.0f}% от нашей цены")
     lines.append(f"SKU всего {len(recs)}: с живой закупкой {len(priced)}, "
                  f"нет цены {len(no_price)}, послед.известная {len(stale)}, без маппинга {len(unmapped)}")
+    lines.append(f"Отсеяно как НЕ В ПРОДАЖЕ (нет свежей цены покупателя на карточке): {skipped_dead}")
     lines.append(f"ВЫПАДАЕМ по марже (<{threshold:.0f}%): {len(below)}  "
                  f"| из них ОТРИЦАТЕЛЬНАЯ: {len(negative)}")
     if priced:

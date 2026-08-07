@@ -37,6 +37,10 @@ from core import db  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
 
+# Порог «толстой» выборки: ниже него месячные ставки расходов на штуку — шум тонкого хвоста,
+# берём медиану каталога (см. память feedback_incomplete_month_sku_trap).
+MIN_QTY_FACT = 5
+
 
 def _f(v):
     return None if v is None else float(v)
@@ -214,9 +218,19 @@ def build(account="wb_acc1", period=None):
             q = _f(s["qty"]) or 0
             rb, rw = _f(s["revenue_buyer"]), _f(s["revenue_wb"])
             spp = (1 - rw/rb) if rb else SPP_M
-            log_u = (_f(s["logistics"])/q) if q else LOG_M
-            stor_u = (_f(s["storage"])/q) if q else STOR_M
-            acc_u = (_f(s["acceptance"])/q) if q else ACC_M
+            # Ставки расходов берём из факта ТОЛЬКО на достаточной выборке. На тонком хвосте
+            # (qty 1–2) месячная логистика SKU делится на одну штуку и даёт дичь: у 216421567
+            # в июле продана 1 шт, а логистики списано 1542 ₽ → «маржа −67 %» на товаре, который
+            # реально приносит ~+380 ₽ (август: qty 1, логистика 201, чистая 378).
+            # Ниже порога и при выбросе > 3× медианы — считаем по медиане каталога.
+            thin = q < MIN_QTY_FACT
+            log_u = LOG_M if (thin or not q) else (_f(s["logistics"])/q)
+            stor_u = STOR_M if (thin or not q) else (_f(s["storage"])/q)
+            acc_u = ACC_M if (thin or not q) else (_f(s["acceptance"])/q)
+            if LOG_M and log_u > 3*LOG_M:
+                log_u = LOG_M
+            if ACC_M and acc_u > 3*ACC_M:
+                acc_u = ACC_M
             net_u_act = (_f(s["net_profit"])/q) if q else None
             margin_act = (100*_f(s["net_profit"])/rw) if rw else None      # от реализации (после СПП)
             # маржа месяца от НАШЕЙ промо-цены = прибыль / выручка-до-СПП (revenue_buyer).
