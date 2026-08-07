@@ -10,12 +10,15 @@
   to_pay_u     = promo_price * payout_ratio                          # база = акционная цена (list×(1-акция))
   net_u        = to_pay_u - logistics_u - storage_u - accept_u - cogs_u
   margin_pct_wb= net_u / buyer_price
-Логистика/приёмка: ФАКТ для проданных (margin_by_sku+sales), МЕДИАНА для непроданных.
+Логистика/приёмка: свой трейлинг за 6 мес (штук ≥ MIN_QTY_FACT) → факт опорного месяца, если он не
+тонкий → верхний квартиль фактической логистики в СВОЁМ литровом ведре (короб из габаритов карточки)
+→ медиана каталога. Фолбэк намеренно консервативен: не знаем — ошибаемся в сторону расхода.
 Рядом с форвардом: trail_* (факт окна) + last_sale_date/days_since_sale (форвард врёт, если продажи встали).
 Рычаг маржи — глубина НАШЕЙ акции (роняет базу→payout), НЕ СПП (её несёт ВБ).
-Себест (cogs_u): ТОЛЬКО из отгрузок МС за всю историю (margin_by_sku/ms_demand_pos, fin) — набор=BOM позиций
-отгрузки, одиночный=себест отгрузок последнего периода, никогда не отгружался=оценка по предмету. Карточку МС
-(buy_price/cost_seb) НЕ используем — забраковано клиентом, данные в карточках неверны.
+Себест (cogs_u): отгружался → себест отгрузок МС из margin_by_sku (fin, себест ВСЕГО документа на штуку —
+верно и для одиночек, и для комплектов, отдельной ветки наборов НЕТ); не отгружался → живая закупка
+TheCartridge по своему коду; нет и её → оценка по предмету. Карточку МС (buy_price/cost_seb) НЕ используем.
+ВЕЗДЕ порог MIN_QTY_FACT: ставка, посчитанная по 1–2 штукам (логистика, payout), — шум, а не факт.
 READ-ONLY по margin_by_sku / sales / ms_product. Пишет только свою mkt_sku_economics.
 
 Период (period_econ) — ПРОШЛЫЙ ПОЛНЫЙ месяц, вычисляется на дату запуска (не хардкод).
@@ -35,6 +38,7 @@ from psycopg2.extras import Json
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from reports.margin_control import _mapping  # noqa: E402  — общий мост nm → код TheCartridge
 
 load_dotenv(BASE_DIR / ".env")
 
@@ -140,7 +144,13 @@ def build(account="wb_acc1", period=None):
         _q, _k = _f(_r["q"]) or 0, vol.get(_nm)
         if _k and _q >= MIN_QTY_FACT:
             _lb.setdefault(_k, []).append((_f(_r["log"])/_q, _f(_r["acc"])/_q))
-    log_by_liter = {k: (statistics.median([x[0] for x in v]), statistics.median([x[1] for x in v]))
+    #     Берём не медиану ведра, а ВЕРХНИЙ КВАРТИЛЬ: внутри ведра разброс, и медиана в 27 %
+    #     случаев занижала логистику (худший промах −1789 ₽) — то есть ЗАВЫШАЛА маржу. Там,
+    #     где мы не знаем, ошибаться надо в сторону осторожности, а не оптимизма.
+    def _p75(v):
+        return statistics.quantiles(v, n=4)[2] if len(v) >= 4 else max(v)
+
+    log_by_liter = {k: (_p75([x[0] for x in v]), _p75([x[1] for x in v]))
                     for k, v in _lb.items() if len(v) >= 5}
     print(f"фолбэк логистики по литражу: {len(log_by_liter)} вёдер "
           f"({min(log_by_liter, default=0)}–{max(log_by_liter, default=0)} л), "
@@ -168,6 +178,25 @@ def build(account="wb_acc1", period=None):
         if ACC_M and au > 3*ACC_M:
             au = ACC_M
         return lu, su, au
+
+    # 3e) Себест для НИКОГДА НЕ ОТГРУЖАВШИХСЯ — живая закупка TheCartridge по своему коду.
+    #     Прежний фолбэк «медиана себеста отгрузок по предмету» (analog) оказался главным
+    #     источником ЗАВЫШЕНИЯ маржи: предмет «Картриджи для принтеров» — одно ведро от 34 ₽
+    #     до 3000 ₽, и на 7680 карточках медиана занижала себест на 390 ₽ (у 4469 из них —
+    #     ниже 70 % живой закупки, суммарно 9.8 млн ₽ недоучтённой себестоимости).
+    #     Живая закупка — РЕАЛЬНАЯ цена по этому самому коду, а не оценка по соседям.
+    tc_today = {r["external_code"]: (_f(r["buy_price"]), r["status"])
+                for r in db.query("SELECT external_code, buy_price, status FROM tc_buy_price_latest")}
+    tc_last = {r["external_code"]: _f(r["buy_price"])
+               for r in db.query("SELECT external_code, buy_price FROM tc_buy_price_last_known")}
+    repl_live = {}
+    for _nm, (_ec, _src) in _mapping(account, set(tc_today.keys())).items():
+        _p, _st = tc_today.get(_ec, (None, None))
+        if _p is None or _st != "ok":
+            _p = tc_last.get(_ec)
+        if _p and _p > 0:
+            repl_live[int(_nm)] = _p
+    print(f"живая закупка как фолбэк себеста: {len(repl_live)} SKU")
 
     # 5) subject из card_content
     subj = {int(r["nm_id"]): r["subject"] for r in db.query("""
@@ -251,11 +280,13 @@ def build(account="wb_acc1", period=None):
         before = _f(pr["price_before_promo"])  # 2671 — до акции (v4 basic / Prices price)
         promo = _f(pr["promo_price"])          # 2324 — акционная, ДО СПП = БАЗА комиссии/СПП (Prices discountedPrice)
         mkt = _f(pr["market_price"])           # 1859 — v4 product, цена покупателя ПОСЛЕ СПП
-        # себест ТОЛЬКО из отгрузок МС за всю историю (карточку НЕ используем):
-        # продавался → себест отгрузок из margin_by_sku (там и одиночки, и комплекты — см. 3b);
-        # никогда не продавался → оценка по предмету.
+        # себест: отгружался → себест отгрузок МС (margin_by_sku, там и одиночки, и комплекты —
+        # см. 3b); не отгружался → живая закупка по своему коду; нет и её → оценка по предмету.
+        # Карточку МС (buy_price/cost_seb) НЕ используем — забраковано клиентом.
         if nm in repl_ship:
             cogs, src = repl_ship[nm], "shipment"     # одиночный: себест отгрузок (посл. период)
+        elif nm in repl_live:
+            cogs, src = repl_live[nm], "live"         # не отгружался → живая закупка по своему коду
         elif subj.get(nm) in repl_analog:
             cogs, src = repl_analog[subj.get(nm)], "analog"   # никогда не продавался → оценка по предмету
         else:
@@ -287,6 +318,13 @@ def build(account="wb_acc1", period=None):
         # payout-ratio: per-SKU из трейлинг-факта (к_перечисл/база, СПП-независим) → фолбэк медиана
         t = trail.get(nm)
         tb = _f(t["base"]) if t else None
+        # ГЕЙТ ТОНКОЙ ВЫБОРКИ (07.08.2026). payout по ОДНОЙ проданной штуке — шум, а не ставка:
+        # у 192567526 единственная июльская продажа дала payout 0.381 при предметном 0.609, и
+        # витрина нарисовала −2 % там, где товар в норме. Симметрично и опаснее: из 1130 тонких
+        # SKU у 559 payout ВЫШЕ предметного — это 69 тыс ₽ ЗАВЫШЕННОЙ маржи. Ниже порога
+        # берём предметную медиану; свои trail_* при этом сохраняем как справку.
+        if tb and tb > 0 and (_f(t["qty"]) or 0) < MIN_QTY_FACT:
+            tb = None
         if tb and tb > 0:
             tp, tq, tr = _f(t["pay"]), _f(t["qty"]), _f(t["realized"])
             payout, payout_src = tp / tb, "sku"
