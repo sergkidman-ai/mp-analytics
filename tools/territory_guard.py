@@ -38,7 +38,8 @@ DOMAINS = {
         r"ozon_search_queries|ozon_price_index)\.py$",
         r"^run_marketing\.py$",
         r"^analyze_jam\.py$",
-        r"^reports/(abc|funnel|visibility|search|ozon_red_zone|ozon_buyer_price)"
+        r"^reports/(abc|funnel|visibility|search|ozon_red_zone|ozon_buyer_price"
+        r"|ozon_margin_control)"
         r".*\.py$",   # маркетинг-витрины
         r"^migrations/1\d\d_.*\.sql$",
         r"^docs/BRIEF_MKT.*\.md$",     # BRIEF_MKT.md и подзадачи (BRIEF_MKT_OZON.md)
