@@ -50,6 +50,7 @@
   .tag.matched{background:rgba(55,200,113,.15);color:var(--pos)}
   .tag.exists{background:rgba(55,200,113,.10);color:var(--pos)}
   .tag.new{background:rgba(255,180,84,.15);color:var(--warn)}
+  .tag.partial{background:rgba(120,160,255,.15);color:#7aa2ff}
   .tag.skip{background:rgba(138,160,181,.15);color:var(--mut)}
   .big{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px}
   .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 16px;min-width:130px}
@@ -92,11 +93,13 @@
       <option value="matched">сопоставленные</option>
       <option value="exists">уже в МС</option>
       <option value="new">новые модели</option>
+      <option value="partial">неполный набор</option>
       <option value="skip">не берём</option>
     </select>
     <span class="grow"></span>
     <span class="muted" id="selinfo">отмечено 0</span>
     <button id="bulk-new" class="new" disabled>NEW — новая модель</button>
+    <button id="bulk-partial" disabled>Неполный набор</button>
     <button id="bulk-skip" disabled>Не берём</button>
   </div>
 
@@ -148,12 +151,14 @@ function row(r){
       <input class="link" placeholder="связь: 4310;6827" value="${esc(r.link || "")}">
       <button class="save pri">Это он</button>
       <button class="mknew new">NEW</button>
+      <button class="mkpartial" title="в прайсе не все цвета серии — ждём остальные">Неполный набор</button>
     </div>
     ${best ? `<div class="verdict">по коду ${esc(best.shared_code)} · ${esc(best.verdict)}${
         r.candidates.length > 1 ? ` · ещё вариантов: ${r.candidates.length - 1}` : ""}</div>` : ""}`
     : `<span class="tag ${r.decision}">${r.decision === "matched" ? "сопоставлено"
         : r.decision === "exists" ? "уже в МС (артикул совпал)"
-        : r.decision === "new" ? "новая модель" : "не берём"}</span>
+        : r.decision === "new" ? "новая модель"
+        : r.decision === "partial" ? "неполный набор — ждём цвета" : "не берём"}</span>
        ${r.ms_code ? ` <b>${esc(r.ms_code)}</b> <span class="muted">${esc(r.ms_name || "")}</span>` : ""}
        <button class="undo" style="margin-left:8px">вернуть</button>
        <div class="pick" style="margin-top:6px">
@@ -198,6 +203,8 @@ function wire(){
     if (save) save.onclick = () => decide([id], "matched", code.value, msg, link.value);
     const mknew = tr.querySelector(".mknew");
     if (mknew) mknew.onclick = () => decide([id], "new", "", msg, link.value);
+    const mkpartial = tr.querySelector(".mkpartial");
+    if (mkpartial) mkpartial.onclick = () => decide([id], "partial", "", msg, link.value);
     const undo = tr.querySelector(".undo");
     if (undo) undo.onclick = () => decide([id], "pending", "", msg);
     const savelink = tr.querySelector(".savelink");
@@ -219,7 +226,7 @@ function selected(){
 function marked(){
   const n = selected().length;
   $("#selinfo").textContent = "отмечено " + n;
-  $("#bulk-new").disabled = $("#bulk-skip").disabled = !n;
+  $("#bulk-new").disabled = $("#bulk-skip").disabled = $("#bulk-partial").disabled = !n;
 }
 
 async function load(){
@@ -233,7 +240,8 @@ async function load(){
   const c = d.counts, total = Object.values(c).reduce((a, b) => a + b, 0);
   $("#big").innerHTML = [["всего", total], ["не разобрано", c.pending || 0],
                          ["сопоставлено", c.matched || 0], ["уже в МС", c.exists || 0],
-                         ["новых моделей", c.new || 0], ["не берём", c.skip || 0]]
+                         ["новых моделей", c.new || 0], ["неполный набор", c.partial || 0],
+                         ["не берём", c.skip || 0]]
     .map(([l, v]) => `<div class="bi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
   $("#rows").innerHTML = DATA.length ? DATA.map(row).join("")
     : `<tr><td colspan="5" class="muted">пусто — по этому фильтру строк нет</td></tr>`;
@@ -245,6 +253,8 @@ async function load(){
 $("#supplier").onchange = load;
 $("#status").onchange = load;
 $("#bulk-new").onclick = () => decide(selected(), "new", "");
+// «Неполный набор» — полка ожидания, а не отказ: цвета доедут — вернём кнопкой «вернуть».
+$("#bulk-partial").onclick = () => decide(selected(), "partial", "");
 $("#bulk-skip").onclick = () => decide(selected(), "skip", "");
 load();
 </script>

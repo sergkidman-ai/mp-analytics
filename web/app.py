@@ -2002,11 +2002,14 @@ def _novelty_view(row, prefix=""):
 
 @app.get("/api/novelties")
 def novelties_api(supplier: str = "", status: str = ""):
-    """Новинки с вариантами. status: pending | matched | exists | new | skip | пусто = все.
+    """Новинки с вариантами. status: pending | matched | exists | new | partial | skip | всё.
 
     `exists` строка получает сама: артикул поставщика точно совпал с карточкой МС, товар
     у нас есть — оприходование его просто не нашло. Разбирать нечего, но кнопка «вернуть»
     на месте: артикул мог случайно совпасть с карточкой другого поставщика.
+
+    `partial` — неполный набор: в прайсе есть не все цвета серии, брать в продажу рано.
+    Это не отказ, а полка ожидания: цвета доедут следующим прайсом — строка вернётся в работу.
     """
     where, params = ["1=1"], []
     if supplier:
@@ -2047,7 +2050,7 @@ def novelties_api(supplier: str = "", status: str = ""):
 
 class NoveltyDecision(BaseModel):
     ids: list[int]
-    decision: str                                # matched | new | skip | pending
+    decision: str                                # matched | new | partial | skip | pending
     ms_code: str = ""
     link: str = ""                               # «Связь»: номера ДРУГИХ наших товаров
 
@@ -2090,7 +2093,7 @@ def _novelty_link(raw):
 @app.post("/api/novelties/decide")
 def novelties_decide(payload: NoveltyDecision):
     """Записать решение по строкам. Для matched код обязателен и должен быть в каталоге."""
-    if payload.decision not in ("matched", "new", "skip", "pending"):
+    if payload.decision not in ("matched", "new", "partial", "skip", "pending"):
         return {"ok": False, "error": "неизвестное решение"}
     code, item = payload.ms_code.strip(), None
     if payload.decision == "matched":
