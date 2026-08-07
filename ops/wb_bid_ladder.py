@@ -177,6 +177,7 @@ def main():
     ap.add_argument("--account", default="wb_acc1")
     ap.add_argument("--cohort", default="a", choices=["a", "all"])
     ap.add_argument("--apply", action="store_true", help="живая запись в ВБ (иначе dry-run)")
+    ap.add_argument("--notify", action="store_true", help="итог шага — в телеграм Сергею")
     ap.add_argument("--note", default=None)
     a = ap.parse_args()
 
@@ -194,14 +195,26 @@ def main():
     out.write_text(json.dumps({"rows": rows, "stats": st, "blocked": blocked}, ensure_ascii=False))
     print(f"  список → {out}")
 
+    def notify(text):
+        if a.notify:
+            from ops.wb_daily_report import send
+            send(text)
+
     if blocked:
         print(f"  СТОП: {blocked}")
+        notify(f"*Лестница ставок ВБ — шаг {today} ОТМЕНЁН*\n{blocked}\nСтавки не менялись.")
         return 1
     if not a.apply:
         print("  DRY-RUN: в ВБ ничего не отправлено (для записи нужен --apply)")
         return 0
     ok, bad = apply_step(a.account, rows, note)
     print(f"  ЗАПИСАНО в ВБ: успешно {ok}, отказано {bad}")
+    fr = st["frozen"]
+    notify(f"*Лестница ставок ВБ — шаг {today} (+10 %)*\n"
+           f"Поднято *{ok}* SKU: {st['avg_old']} → *{st['avg_new']} ₽*"
+           + (f", отказано {bad}" if bad else "") + "\n"
+           f"Заморожено: ДРР {fr['drr']} · костры {fr['burn']} · потолок {fr['cap']}\n"
+           f"ДРР аккаунта за {WINDOW_DAYS} дн: {st['acc_drr']}% (граница {100*DRR_LIMIT:.0f}%)")
     return 0
 
 
