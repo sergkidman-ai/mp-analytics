@@ -190,6 +190,11 @@ def ozon_bids_page():
     return (STATIC / "ozon_bids.html").read_text(encoding="utf-8")
 
 
+@app.get("/ozon-queries", response_class=HTMLResponse)
+def ozon_queries_page():
+    return (STATIC / "ozon_queries.html").read_text(encoding="utf-8")
+
+
 @app.get("/api/ozon-economics")
 def ozon_economics(account: str = "oz_acc1", q: str = "", limit: int = 300):
     """Юнит-экономика Ozon за последний полный месяц: витрина fin `margin_by_sku` (read-only)
@@ -381,6 +386,57 @@ def ozon_bids(account: str = "oz_acc1", q: str = "", limit: int = 300):
     return {"period": per, "campaigns": camps, "bids": bids, "bids_date": snap,
             "total": tot["n"], "sku_total": tot["s"], "camp_total": tot["c"], "limit": limit,
             "pool": pool[0] if pool and pool[0]["n"] else None,
+            "account": account, "readonly": True}
+
+
+@app.get("/api/ozon-queries")
+def ozon_queries(account: str = "oz_acc1", action: str = "поднять_ставку",
+                 q: str = "", limit: int = 200):
+    """Витрина «фраза × SKU × позиция × маржа» (`mkt_ozon_query_econ`, миграция 117).
+
+    Спрос (`demand`) — свойство ФРАЗЫ, а не пары: одна фраза приходит строкой на каждый
+    наш SKU в выдаче. Поэтому в сводке по решениям спрос считается `max()` внутри фразы
+    и складывается уже по фразам — `sum(demand)` по строкам дал бы кратное завышение.
+    """
+    per = db.query("""SELECT period_start::text ps, period_end::text pe
+                        FROM mkt_ozon_query_econ WHERE account=%s
+                       ORDER BY period_start DESC LIMIT 1""", (account,))
+    if not per:
+        return {"period": None, "summary": [], "rows": [], "account": account, "readonly": True}
+    ps = per[0]["ps"]
+
+    summary = db.query("""
+      WITH byq AS (
+        SELECT action, query, max(demand) d, sum(gmv) gmv, count(*) pairs
+          FROM mkt_ozon_query_econ WHERE account=%s AND period_start=%s
+         GROUP BY 1, 2)
+      SELECT action, count(*) queries, sum(pairs) pairs, sum(d) demand, round(sum(gmv)) gmv,
+             (SELECT count(DISTINCT sku) FROM mkt_ozon_query_econ e
+               WHERE e.account=%s AND e.period_start=%s AND e.action=byq.action) skus
+        FROM byq GROUP BY 1 ORDER BY 4 DESC NULLS LAST
+    """, (account, ps, account, ps))
+
+    where = ["account=%s", "period_start=%s"]
+    params = [account, ps]
+    if action:
+        where.append("action=%s")
+        params.append(action)
+    if q:
+        where.append("(query ILIKE %s OR name ILIKE %s OR sku=%s)")
+        params += [f"%{q}%", f"%{q}%", q]
+    rows = db.query(f"""
+      SELECT query, sku, offer_id, name, position, demand, views, orders, gmv,
+             our_price, margin_own_live, discount_limit_pct, color_index,
+             in_campaign, bid, campaigns, action
+        FROM mkt_ozon_query_econ
+       WHERE {' AND '.join(where)}
+       ORDER BY demand DESC NULLS LAST, gmv DESC NULLS LAST
+       LIMIT %s
+    """, tuple(params) + (limit,))
+    total = db.query(f"SELECT count(*) n FROM mkt_ozon_query_econ WHERE {' AND '.join(where)}",
+                     tuple(params))[0]["n"]
+    return {"period": f"{per[0]['ps']} … {per[0]['pe']}", "summary": summary, "rows": rows,
+            "total": total, "limit": limit, "action": action,
             "account": account, "readonly": True}
 
 
