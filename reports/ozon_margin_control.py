@@ -9,9 +9,25 @@
     margin_own_live = 100 × net_live / наша цена     (KPI, база — НАША цена, не покупателя)
 
 Расходы площадки на штуку — из `margin_by_sku` (fin, read-only) за последний полный месяц,
-делённые на qty из постингов (у Ozon в витрине qty = NULL). У кого продаж не было — медиана
-аккаунта. `other` у Ozon уже включает рекламу, баллы, подписку, эквайринг и штрафы —
-отдельно НЕ добавляем (иначе двойной счёт).
+делённые на qty из постингов (у Ozon в витрине qty = NULL). Своих продаж за месяц нет у
+21 905 карточек из 22 413 — им расходы МОДЕЛИРУЮТСЯ, и модель у каждой статьи своя
+(медиана аккаунта на всё подряд давала минус там, где его нет):
+
+    логистика  привязана к ОБЪЁМУ короба (`ozon_dims`), а не к цене: по факту 6 месяцев
+               логистика = a + b × литры (a ≈ 78 ₽, b ≈ 6 ₽/л), коэффициенты считаются
+               из фактических отправлений на каждом прогоне. Струйник 0.5 л стоит 77 ₽,
+               а не 134 ₽ медианы каталога, где 8+ литров — лазерные и наборы;
+    прочее     это не рубли, а ПРОЦЕНТ от цены: Premium Pro 2.5 % + Звёздные товары 1.5 % +
+               эквайринг 0.6 % + реклама + штрафы. Ставка считается из транзакций: сумма
+               этих операций ÷ оборот аккаунта. На чеке 5 100 ₽ выходит ~420 ₽, на карточке
+               за 400 ₽ — ~33 ₽; плоские 188 ₽ убивали весь дешёвый хвост;
+    возвраты   резерв = стоимость обработки возврата ÷ отгруженные штуки (единицы рублей).
+               Строку «Получение возврата, отмены, невыкупа» из `margin_by_sku` НЕ берём:
+               это сторно ВЫРУЧКИ за товар, проданный в другом месяце, а не расход за штуку;
+               делённое на qty месяца оно давало до 9 926 ₽/шт на живых карточках.
+
+`other` у Ozon уже включает рекламу, баллы, подписку, эквайринг и штрафы — отдельно
+НЕ добавляем (иначе двойной счёт).
 
 Главный ответ шага 2 — предел снижения цены:
     price_at_threshold = (постоянные расходы + себест) / (payout_ratio − порог/100)
@@ -32,7 +48,21 @@ from core import db  # noqa: E402
 ACCOUNTS = ["oz_acc1", "oz_acc2"]
 DEFAULT_THRESHOLD = 25.0
 SALES_DAYS = 90          # окно продаж для payout_ratio
+MODEL_DAYS = 200         # окно факта для моделей логистики / «прочего» / возвратов
 PAYOUT_FLOOR, PAYOUT_CEIL = 0.2, 1.0    # вне этого — битая строка, не берём
+LOG_FALLBACK = (78.0, 6.0)   # логистика = база ₽ + ₽/литр, если факта не хватило
+LOG_FLOOR = 63.0             # минимум, который Ozon выставлял за отправление (факт 6 мес)
+OTHER_RATE_FALLBACK = 0.09   # доля «прочего» от нашей цены, если транзакций нет
+
+# Операции, которые НЕ попадают в «прочее»: выручка, сторно выручки, компенсации Ozon
+# и возвраты (у них свой резерв). Всё остальное с минусом — это и есть «прочее».
+OTHER_SKIP = ('Доставка покупателю',
+              'Получение возврата, отмены, невыкупа от покупателя',
+              'Перечисление за доставку от покупателя',
+              'Доставка и обработка возврата, отмены, невыкупа',
+              'Потеря по вине Ozon в логистике',
+              'Брак по вине Ozon на складе')
+RETURN_OPS = ('Доставка и обработка возврата, отмены, невыкупа',)
 
 
 def _f(v):
@@ -63,6 +93,115 @@ def payout_ratios(account):
     return per, (st.median(per.values()) if per else None)
 
 
+def logistics_model(account):
+    """Логистика = база + ставка × литры, коэффициенты из факта отправлений за MODEL_DAYS.
+
+    Считаем по МЕДИАНАМ объёмных вёдер, а не МНК по всем точкам: одиночные отправления
+    с раздутым объёмом (наборы фотобарабанов заявлены на 34 л) утягивают прямую вверх,
+    и струйник получал бы +12 ₽ из воздуха. Берутся только отправления РОВНО с одной
+    единицей товара — иначе к объёму одной карточки приписана логистика всей коробки.
+    """
+    rows = db.query("""
+    with tx as (
+      select t.payload->'posting'->>'posting_number' pn,
+             abs(sum((s->>'price')::numeric)) log
+      from raw_ozon_transaction t,
+           lateral jsonb_array_elements(coalesce(t.payload->'services', '[]'::jsonb)) s
+      where t.account = %s and (t.payload->>'operation_date')::date >= current_date - %s
+        and s->>'name' = 'MarketplaceServiceItemDirectFlowLogistic'
+      group by 1),
+    pq as (
+      select distinct on (p.payload->>'posting_number') p.payload->>'posting_number' pn,
+             (select sum((fd->>'quantity')::int) from jsonb_array_elements(
+                 coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd) qty,
+             (select fd->>'product_id' from jsonb_array_elements(
+                 coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd limit 1) sku
+      from raw_ozon_posting p where p.account = %s)
+    select d.volume_l v, tx.log
+    from tx join pq on pq.pn = tx.pn
+    join ozon_dims d on d.account = %s and d.sku::text = pq.sku
+    where pq.qty = 1 and d.volume_l > 0 and tx.log > 0
+    """, (account, MODEL_DAYS, account, account))
+    buckets = [(0, 1), (1, 2), (2, 4), (4, 8), (8, 10 ** 6)]
+    pts = []
+    for lo, hi in buckets:
+        g = [(float(r['v']), float(r['log'])) for r in rows if lo <= float(r['v']) < hi]
+        if len(g) >= 20:
+            pts.append((st.median([x for x, _ in g]), st.median([y for _, y in g])))
+    if len(pts) < 3:
+        return LOG_FALLBACK + (0,)
+    n = len(pts)
+    sx = sum(x for x, _ in pts); sy = sum(y for _, y in pts)
+    den = n * sum(x * x for x, _ in pts) - sx * sx
+    if den <= 0:
+        return LOG_FALLBACK + (len(rows),)
+    k = (n * sum(x * y for x, y in pts) - sx * sy) / den
+    a = (sy - k * sx) / n
+    if not (40 <= a <= 150 and 0 < k <= 30):        # оценка уехала — не доверяем
+        return LOG_FALLBACK + (len(rows),)
+    return a, k, len(rows)
+
+
+def other_rate(account):
+    """Доля «прочего» в обороте: реклама, подписка, Звёздные, эквайринг, штрафы ÷ оборот.
+
+    Это статьи, привязанные к ЦЕНЕ или к самому факту заказа, а не к коробке, поэтому
+    моделируются процентом. Окно — MODEL_DAYS, чтобы разовый месяц не задирал ставку.
+    """
+    r = db.query("""
+    select abs(sum((payload->>'amount')::numeric)
+               filter (where (payload->>'amount')::numeric < 0
+                         and payload->>'operation_type_name' <> all(%s))) oth,
+           sum((payload->>'accruals_for_sale')::numeric)
+               filter (where payload->>'operation_type_name' = 'Доставка покупателю') gross
+    from raw_ozon_transaction
+    where account = %s and (payload->>'operation_date')::date >= current_date - %s
+    """, (list(OTHER_SKIP), account, MODEL_DAYS))[0]
+    if not r['gross'] or not r['oth']:
+        return OTHER_RATE_FALLBACK
+    return float(r['oth']) / float(r['gross'])
+
+
+def returns_provision(account):
+    """Резерв на возврат, ₽/шт: стоимость обработки возвратов ÷ отгруженные штуки.
+
+    Именно обработка (обратная логистика), а не сторно выручки: физический возврат стоит
+    порядка 126 ₽ на случай, и при доле возвратов в проценты это единицы рублей на штуку.
+    """
+    ret = db.query("""
+    select abs(sum((payload->>'amount')::numeric)) s from raw_ozon_transaction
+    where account = %s and (payload->>'operation_date')::date >= current_date - %s
+      and payload->>'operation_type_name' = any(%s)
+    """, (account, MODEL_DAYS, list(RETURN_OPS)))[0]['s']
+    qty = db.query("""
+    select sum((fd->>'quantity')::int) q
+    from raw_ozon_posting p, lateral jsonb_array_elements(
+             coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd
+    where p.account = %s and p.status = 'delivered'
+      and p.in_process_at >= current_date - %s
+    """, (account, MODEL_DAYS))[0]['q']
+    return (float(ret) / float(qty)) if (ret and qty) else 0.0
+
+
+def sku_bridge(account):
+    """offer_id → sku. В `mkt_ozon_buyer_price` sku пустой у ВСЕХ строк, из-за чего факт
+    по SKU (payout, расходы, габариты) не находился ни разу и всё считалось медианой.
+    Мост берём из справочника карточек: на offer_id бывает несколько sku (FBO/FBS) —
+    берём последнюю обновлённую."""
+    return {r['offer_id']: str(r['sku']) for r in db.query(
+        "select distinct on (offer_id) offer_id, sku from ozon_product "
+        "where account = %s and sku is not null order by offer_id, updated_at desc nulls last",
+        (account,))}
+
+
+def volumes(account):
+    """Объём короба по SKU из карточек Ozon + медиана каталога для тех, у кого его нет."""
+    rows = db.query("select sku::text sku, volume_l from ozon_dims "
+                    "where account = %s and volume_l > 0", (account,))
+    per = {r['sku']: float(r['volume_l']) for r in rows}
+    return per, (st.median(per.values()) if per else 2.0)
+
+
 def unit_costs(account, mfrom, mto):
     """Расходы площадки на штуку по SKU: витрина fin ÷ qty из постингов. + медианы аккаунта."""
     rows = db.query("""
@@ -89,7 +228,9 @@ def unit_costs(account, mfrom, mto):
     per, med = {}, {}
     for r in rows:
         per[r['sku']] = {k: _f(r[k]) for k in ('log_u', 'st_u', 'ac_u', 'ret_u', 'oth_u', 'fifo_u')}
-    for k in ('log_u', 'st_u', 'ac_u', 'ret_u', 'oth_u'):
+    # медиана остаётся только у копеечных статей — хранения и приёмки. Логистику, «прочее»
+    # и возвраты медианой не заполняем: они и давали ложный минус (см. шапку модуля).
+    for k in ('st_u', 'ac_u'):
         vals = [v[k] for v in per.values() if v[k] is not None]
         med[k] = st.median(vals) if vals else 0.0
     return per, med
@@ -118,6 +259,14 @@ def build(account, threshold, today):
     pr_per, pr_med = payout_ratios(account)
     costs, cost_med = unit_costs(account, mfrom, mto)
     by_code, no_price, tc_day = live_cost(account)
+    log_a, log_k, log_n = logistics_model(account)
+    oth_rate = other_rate(account)
+    ret_res = returns_provision(account)
+    vol_per, vol_med = volumes(account)
+    bridge = sku_bridge(account)
+    print(f"   модель расходов: логистика {log_a:.0f} ₽ + {log_k:.1f} ₽/л "
+          f"(по {log_n} отправлениям), прочее {100 * oth_rate:.1f}% цены, "
+          f"резерв возврата {ret_res:.1f} ₽/шт, объём по умолчанию {vol_med:.1f} л")
 
     names = {r['offer_id']: r['name'] for r in db.query(
         "select distinct on (offer_id) offer_id, name from ozon_product "
@@ -136,7 +285,7 @@ def build(account, threshold, today):
     rows = []
     for r in src:
         offer, price = r['offer_id'], float(r['price'])
-        sku = str(r['sku']) if r['sku'] is not None else None
+        sku = str(r['sku']) if r['sku'] is not None else bridge.get(offer)
 
         # payout: свой факт → медиана аккаунта → комиссия из справочника цен
         if sku and sku in pr_per:
@@ -149,10 +298,21 @@ def build(account, threshold, today):
             continue
 
         c = costs.get(sku) if sku else None
-        c_src = 'факт' if c else 'аккаунт'
+        c_src = 'факт' if c else 'модель'
         get = (lambda k: c[k] if c and c[k] is not None else cost_med[k])
-        log_u, st_u, ac_u, ret_u, oth_u = (get('log_u'), get('st_u'), get('ac_u'),
-                                           get('ret_u'), get('oth_u'))
+        st_u, ac_u = get('st_u'), get('ac_u')
+
+        # логистика: свой факт → по объёму карточки → по среднему объёму каталога
+        vol = vol_per.get(sku) if sku else None
+        if c and c['log_u'] is not None:
+            log_u, log_src = c['log_u'], 'факт'
+        else:
+            log_u = max(log_a + log_k * (vol if vol else vol_med), LOG_FLOOR)
+            log_src = 'объём' if vol else 'средний_объём'
+        # «прочее» и возвраты — по модели для ВСЕХ: у статей-процентов свой факт по одному
+        # месяцу шумит сильнее, чем ставка, а сторно выручки расходом штуки не является
+        oth_u = price * oth_rate
+        ret_u = ret_res
         fifo = c['fifo_u'] if c and c.get('fifo_u') else None
 
         # живая себестоимость: прямой offer_id, затем 4-значный префикс (правило FBO)
@@ -202,6 +362,8 @@ def build(account, threshold, today):
             payout_ratio=round(payout, 4), payout_source=p_src, to_pay_u=round(to_pay, 2),
             logistics_u=round(log_u, 2), storage_u=round(st_u, 2), accept_u=round(ac_u, 2),
             returns_u=round(ret_u, 2), other_u=round(oth_u, 2), cost_source=c_src,
+            volume_l=round(vol, 3) if vol else None, logistics_source=log_src,
+            other_rate=round(oth_rate, 4),
             buy_price_live=round(live, 2) if live is not None else None,
             buy_status=buy_status, buy_map_source=map_src, price_date=price_date,
             fifo_cogs_u=round(fifo, 2) if fifo else None,
