@@ -21,6 +21,8 @@ from fastapi.responses import HTMLResponse
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402  (core.db сам грузит .env из BASE_DIR)
+from reports.bid_policy import (WB_MARGIN_GATE, WB_DRR_CEIL, WB_STEP_PCT,  # noqa: E402
+                                WB_STEP_DAYS, WB_TEST_CAP, verdict as _verdict)
 
 STATIC = BASE_DIR / "web" / "static"
 app = FastAPI(title="mp-analytics · Маркетинг")
@@ -483,12 +485,7 @@ def _bid_log(rec):
 #   СКЛЕЙКА (imtID из raw_wb_card_content) — приоритет теста: если соседи по склейке продаются, тест
 #   дешёвый (органика тащит); если склейка мёртвая — всю ставку несёт реклама.
 # Живая запись в WB тут НЕ участвует — это картина для отбора.
-WB_MARGIN_GATE = 25.0    # % маржи от нашей цены — ниже = не тянем в рекламе (кроме редких/наборов)
-WB_DRR_CEIL = 10.0       # % ДРР — потолок-СТОП: рекомендация не заводит прогнозный ДРР выше него
-WB_STEP_PCT = 10.0       # % шаг повышения ставки за раз (мягко: +10%, не прыжок к потолку — риск слить бюджет)
-WB_STEP_DAYS = 2         # дней между шагами — поднял, ждём реакции столько дней, потом «пора оценить»
-WB_TEST_CAP = 20.0       # ₽ потолок ставки тест-фронта: 🧪 карточку тянем +10%/день до этого CPC; так и не
-#                          дала рекл-кликов к потолку → выходит из теста назад на пол (не жжём дальше)
+# Пороги и сам вердикт — в reports/bid_policy.py: одна политика на страницу и на ночную лестницу.
 WB_ACTIVITY_MONTHS = 3   # окно «продавался» — последние N полных месяцев (вкл. decision-месяц)
 WB_REPRICE_DRIFT = 25.0  # % роста текущей цены над истор. продажной → активность отравлена промо
 WB_REPRICE_MIN_QTY = 5   # мин. продаж за окно, чтобы истор. цена была надёжной (иначе q3=1-2 = шум)
@@ -497,36 +494,6 @@ def _decision_period(account):
     r = db.query("SELECT max(period)::text p FROM wb_ad_nm "
                  "WHERE account=%s AND period < date_trunc('month', CURRENT_DATE)", (account,))
     return r[0]["p"] if r and r[0]["p"] else None
-
-def _verdict(sold, mp, drr, spend, ad_orders, repriced=False, test_ready=False):
-    """Вердикт по SKU. sold=продавался за 3 мес (qty>0); mp=маржа live%; drr=ДРР%;
-    spend=расход рекламы; ad_orders=заказы, ПРИПИСАННЫЕ рекламе; repriced=цена выросла ≥25% над истор.;
-    test_ready=кандидат тест-фронта (есть активная РК, рекламой не тестирован, ставка ниже потолка теста).
-      ⚫ dead      — не продавался за квартал, но реклама жгла бюджет → балласт-снять
-      ⚪ hold      — нет сигнала (нет расхода) или маржа неизвестна
-      🔴 cut       — продавался, но маржа live ниже гейта 25% → снять с рекламы / поднять цену
-      🧪 test      — маржа ок, продавался, 0 рекл-заказов, но рекламой НЕ тестирован и ставка на дне →
-                     широкий тест +10%/день, пока не пойдут показы/заказы или не упрётся в потолок теста
-      🟣 repriced  — маржа ок, продавался, реклама дала 0 заказов, НО цена выросла ≥25% над продажной
-                     (продажи были на промо), и в тест-фронт не попал → бюджет-тест при текущей цене
-      🔵 keep      — маржа ок, продавался ≈ по текущей цене, реклама дала 0 заказов → органика, держать
-      🟡 expensive — маржа ок, реклама конвертит, но ДРР ≥ потолка → ставку вниз
-      🟢 grow      — маржа ок, реклама конвертит, ДРР ниже потолка → есть куда поднимать ставку"""
-    if not sold:
-        return ("dead", "⚫ жжёт впустую") if (spend or 0) > 0 else ("hold", "⚪ нет сигнала")
-    if mp is None:
-        return ("hold", "⚪ маржа ?")
-    if mp < WB_MARGIN_GATE:
-        return ("cut", "🔴 снять / поднять цену")
-    if (ad_orders or 0) == 0:
-        if test_ready:
-            return ("test", "🧪 тест-фронт")
-        if repriced:
-            return ("repriced", "🟣 цена выросла — тест")
-        return ("keep", "🔵 держать на полу")
-    if drr is not None and drr >= WB_DRR_CEIL:
-        return ("expensive", "🟡 дорого — ставку вниз")
-    return ("grow", "🟢 растить")
 
 def _rec_cpc(verdict, cpc, drr):
     """Рекомендованная ставка — ОДИН мягкий шаг, не прыжок к потолку (иначе 40₽/клик за пару часов

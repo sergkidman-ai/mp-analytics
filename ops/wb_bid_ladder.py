@@ -43,6 +43,8 @@ from dotenv import load_dotenv
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from reports.bid_policy import (WB_MARGIN_GATE, WB_MARGIN_FLOOR,  # noqa: E402
+                                raise_allowed)
 
 load_dotenv(BASE_DIR / ".env")
 
@@ -54,7 +56,9 @@ MAX_CPC = 25.0       # потолок ставки, ₽
 DRR_LIMIT = 0.10     # 10 % — граница Сергея
 BURN_RUB = 100.0     # расход без единой выручки за окно → костёр
 WINDOW_DAYS = 7      # окно оценки ДРР
-MARGIN_WATCH = 25.0  # KPI Сергея: маржа от нашей цены. Ниже — НЕ блокируем, но показываем в сводке
+# Пороги маржи — из общей политики reports/bid_policy.py (одна на страницу «Ставки» и на лестницу):
+#   WB_MARGIN_GATE 25% — KPI: между ним и полом ставку поднимаем, но считаем и показываем в сводке;
+#   WB_MARGIN_FLOOR 15% — жёсткий пол (Сергей, 07.08.2026): ниже НЕ поднимаем, реклама съест остаток.
 OUT_DIR = BASE_DIR / "reports" / "data"
 
 
@@ -110,7 +114,7 @@ def plan(account="wb_acc1", cohort="a"):
     acc_drr, acc_sp, acc_rv, per = _drr(account, nms)
 
     rows, watch, n_substituted = [], 0, 0
-    frozen = {"drr": 0, "burn": 0, "cap": 0, "no_adv": 0, "loss": 0, "no_margin": 0}
+    frozen = {"drr": 0, "burn": 0, "cap": 0, "no_adv": 0, "loss": 0, "no_margin": 0, "low_margin": 0}
     for nm, (cpc, adv) in sorted(cur.items()):
         sp, rv = per.get(nm, (0.0, 0.0))
         net_l, marg_l, stale = marg.get(nm, (None, None, False))
@@ -122,8 +126,12 @@ def plan(account="wb_acc1", cohort="a"):
             continue
         if stale:                    # себест подменён живой закупкой — маржа честная, не морозим
             n_substituted += 1
-        if marg_l is not None and marg_l < MARGIN_WATCH:
-            watch += 1               # не блокируем, но считаем и показываем в сводке
+        ok, why, below_kpi = raise_allowed(marg_l)
+        if not ok:                   # ниже пола 15% — дороже реклама эту маржу просто съест
+            frozen["low_margin"] += 1
+            continue
+        if below_kpi:
+            watch += 1               # между полом и KPI: не блокируем, но считаем и показываем
         if rv > 0 and sp / rv > DRR_LIMIT:
             frozen["drr"] += 1
             continue
@@ -234,7 +242,8 @@ def main():
           f"без кампании {st['frozen']['no_adv']} УБЫТОК {st['frozen']['loss']} "
           f"без маржи {st['frozen']['no_margin']}")
     print(f"  гейт маржи: снимок {st.get('margin_day')}, маржа известна по {st.get('margin_known')} SKU когорты; "
-          f"из поднимаемых ниже KPI {MARGIN_WATCH:.0f}%: {st.get('watch_below_kpi')} (не блокируем); "
+          f"ниже пола {WB_MARGIN_FLOOR:.0f}% заморожено {st['frozen']['low_margin']}; "
+          f"из поднимаемых ниже KPI {WB_MARGIN_GATE:.0f}%: {st.get('watch_below_kpi')} (не блокируем); "
           f"себест подменён живой закупкой у {st.get('cogs_substituted')}")
     print(f"  ставка {st.get('avg_old')} → {st.get('avg_new')} ₽ | ДРР аккаунта {WINDOW_DAYS} дн: "
           f"{st.get('acc_drr')}% (расход {st.get('acc_spend'):.0f} ₽ / выручка {st.get('acc_revenue'):.0f} ₽)")
@@ -264,7 +273,8 @@ def main():
            + (f", отказано {bad}" if bad else "") + "\n"
            f"Заморожено: ДРР {fr['drr']} · костры {fr['burn']} · потолок {fr['cap']} · "
            f"убыток {fr['loss']} · без маржи {fr['no_margin']}\n"
-           f"Из поднятых ниже KPI {MARGIN_WATCH:.0f}% маржи: {st.get('watch_below_kpi')}\n"
+           f"Заморожено ниже пола {WB_MARGIN_FLOOR:.0f}% маржи: {fr['low_margin']}\n"
+           f"Из поднятых ниже KPI {WB_MARGIN_GATE:.0f}% маржи: {st.get('watch_below_kpi')}\n"
            f"ДРР аккаунта за {WINDOW_DAYS} дн: {st['acc_drr']}% (граница {100*DRR_LIMIT:.0f}%)")
     return 0
 
