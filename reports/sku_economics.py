@@ -25,6 +25,7 @@ READ-ONLY по margin_by_sku / sales / ms_product. Пишет только св�
 import os
 import sys
 import pathlib
+import math
 import statistics
 from datetime import date, datetime, timedelta, timezone
 
@@ -114,6 +115,37 @@ def build(account="wb_acc1", period=None):
     """, (account,))}
     print(f"трейлинг-ставки расходов: {len(rates)} SKU за 6 мес")
 
+    # 3d) Фолбэк логистики для карточек БЕЗ своих продаж — по ОБЪЁМУ КОРОБА, не по медиане каталога.
+    #     Логистика ВБ = функция литража (тариф base+liter×(⌈V⌉−1)×коэфф), а медиана каталога 246 ₽
+    #     навешивала полновесный короб на карточку 0.2 л и рисовала −21 % там, где реально +30 %
+    #     (272510281, 264242096/100/104 — все 0.2–0.4 л). Ставки НЕ моделируем формулой: берём
+    #     медиану НАШЕЙ фактической логистики в том же литровом ведре (см. правило «ничего не
+    #     придумывать»: это наш факт, сгруппированный по реальному драйверу цены).
+    vol = {}
+    for r in db.query("""
+      SELECT nm_id, (payload->'dimensions'->>'length')::numeric l,
+             (payload->'dimensions'->>'width')::numeric w, (payload->'dimensions'->>'height')::numeric h
+      FROM raw_wb_card_content
+      WHERE account=%s AND (payload->'dimensions'->>'length') IS NOT NULL
+    """, (account,)):
+        try:
+            v = float(r["l"]) * float(r["w"]) * float(r["h"]) / 1000.0
+        except (TypeError, ValueError):
+            continue
+        if v > 0:
+            vol[int(r["nm_id"])] = math.ceil(v)
+
+    _lb = {}
+    for _nm, _r in rates.items():
+        _q, _k = _f(_r["q"]) or 0, vol.get(_nm)
+        if _k and _q >= MIN_QTY_FACT:
+            _lb.setdefault(_k, []).append((_f(_r["log"])/_q, _f(_r["acc"])/_q))
+    log_by_liter = {k: (statistics.median([x[0] for x in v]), statistics.median([x[1] for x in v]))
+                    for k, v in _lb.items() if len(v) >= 5}
+    print(f"фолбэк логистики по литражу: {len(log_by_liter)} вёдер "
+          f"({min(log_by_liter, default=0)}–{max(log_by_liter, default=0)} л), "
+          f"медиана каталога {LOG_M:.0f} ₽ остаётся для карточек без габаритов")
+
     def _rates_u(nm, s, q):
         """Логистика/хранение/приёмка на ШТУКУ для карточки nm.
         Приоритет: свой трейлинг за 6 мес (штук ≥ MIN_QTY_FACT) → факт опорного месяца, если он
@@ -126,6 +158,9 @@ def build(account="wb_acc1", period=None):
             lu, su, au = _f(r["log"])/rq, _f(r["stor"])/rq, _f(r["acc"])/rq
         elif s and q and q >= MIN_QTY_FACT:
             lu, su, au = _f(s["logistics"])/q, _f(s["storage"])/q, _f(s["acceptance"])/q
+        elif vol.get(nm) in log_by_liter:                  # своих продаж нет → ведро по литражу короба
+            lu, au = log_by_liter[vol[nm]]
+            return lu, STOR_M, au
         else:
             return LOG_M, STOR_M, ACC_M
         if LOG_M and lu > 3*LOG_M:
