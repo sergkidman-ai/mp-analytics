@@ -116,6 +116,21 @@ WB_TRANSIT = {
 # если возвращать, то отдельной стадией, а не всем блоком transit.
 SHOW_STAGES = ("pickup",)
 
+# «Получено нами» — возврат физически у нас на руках. Сверяем по `status_raw` (машинный код там,
+# где площадка его даёт; у вывоза FBO и WB кодов нет — русская строка). Отличать от прочих
+# «закрыт» обязательно: утилизация, компенсация и отмена — это НЕ получено.
+RECEIVED_RAW = {
+    "ozon": {"ReceivedBySeller"},
+    "ozon_rfbs": {"ReceivedBySeller"},
+    "ozon_removal": {"Получена"},
+    "wb": {"Выдано"},
+    "yandex": {"PICKED"},
+}
+
+
+def is_received(source, status_raw) -> bool:
+    return (status_raw or "").strip() in RECEIVED_RAW.get(source, set())
+
 STAGE_ORDER = ["pickup", "attention", "transit", "closed"]
 STAGE_TITLE = {
     "pickup": "ЗАБРАТЬ",
