@@ -100,9 +100,19 @@ def handle(chat_id, text):
             png = codes.from_base64(png_b64) or codes.code128(value)
             if png:
                 title = ozon.ACCOUNT_TITLE.get(account, account)
-                tg.send_photo(chat_id, png, f"🔵 Штрихкод получения возвратов Ozon · {title}"
-                                            + (f"\n<code>{value}</code>" if value else ""))
+                tg.send_document(chat_id, png, f"ozon-shtrihkod-{account}.png",
+                                 f"🔵 Штрихкод получения возвратов Ozon · {title}"
+                                 + (f"\nЕсли не считывается — назвать код: <code>{value}</code>"
+                                    if value else ""))
                 sent += 1
+            # печатная версия: с бумаги сканер в ПВЗ читает увереннее, чем с экрана
+            try:
+                pdf = codes.from_base64(ozon.giveout_pdf(account))
+            except Exception:
+                pdf = None
+            if pdf:
+                tg.send_document(chat_id, pdf, f"ozon-shtrihkod-{account}.pdf",
+                                 "🖨 Он же для печати", mime="application/pdf")
         if not sent:
             tg.send(chat_id, "Площадки не отдали штрихкод.")
     elif cmd == "/obnovit":

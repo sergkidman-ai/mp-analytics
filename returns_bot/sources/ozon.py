@@ -56,6 +56,15 @@ def giveout_barcode(account):
     return value, png
 
 
+def giveout_pdf(account):
+    """Тот же штрихкод в печатном виде (base64 PDF): с бумаги сканер читает увереннее.
+
+    `/barcode-reset` рядом НЕ трогаем — он меняет код в кабинете, а у нас только чтение.
+    """
+    return (request_json("POST", f"{API}/v1/return/giveout/get-pdf",
+                         headers=_headers(account), json_body={}) or {}).get("pdf")
+
+
 def _money(v):
     """Деньги Ozon приходят как {'currency_code': 'RUB', 'price': 3304}."""
     if isinstance(v, dict):
