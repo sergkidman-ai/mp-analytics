@@ -11,7 +11,7 @@ import argparse
 import sys
 
 from returns_bot import collect as collector
-from returns_bot import codes, render, tg
+from returns_bot import bot, codes, render, tg
 from returns_bot.sources import ozon
 
 
@@ -71,7 +71,8 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
     for chat_id in targets:
         try:                       # один адресат не нажал Start (403) — остальные всё равно получат
             for org, text, photos in letters:
-                tg.send(chat_id, text)
+                # кнопка «Обновить» — под каждой сводкой: обработчик живёт в returns-bot.service
+                tg.send(chat_id, text, reply_markup=bot.KB_REFRESH)
                 for png, caption in photos:
                     tg.send_photo(chat_id, png, caption)
             ok += 1
