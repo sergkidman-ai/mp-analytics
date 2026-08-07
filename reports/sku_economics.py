@@ -231,26 +231,6 @@ def build(account="wb_acc1", period=None):
             repl_live[int(_nm)] = _p
     print(f"живая закупка как фолбэк себеста: {len(repl_live)} SKU")
 
-    # 3f) ЗАКУПОЧНАЯ ИЗ МОЙСКЛАДА — для карточек, которых нет ни в отгрузках, ни у TheCartridge.
-    #     «Не продавалась» не значит «данных нет»: закупочная цена в МС — это прайс поставщика,
-    #     он обновляется ежедневно (замечание Сергея 07.08.2026). Мосты берём ТЕ ЖЕ, что и для
-    #     TheCartridge, — полный vendorCode и префикс[:4] (материнский код). Слепого матча по
-    #     названию НЕ делаем: именно он когда-то смэтчил картридж на заправку.
-    #     ВНИМАНИЕ на пересечении 8267 SKU закупочная МС медианно на 25 % ВЫШЕ живой закупки
-    #     TheCartridge: МС — наша фактическая цена у поставщика, TheCartridge — лучшее предложение
-    #     платформы. Поэтому МС стоит ПОСЛЕ live: где есть обе, берём live (не завышаем расход
-    #     задним числом), а где живой нет — МС честнее любой оценки по предмету.
-    repl_ms = {}
-    for r in db.query("""
-      SELECT c.nm_id, p.buy_price bp
-        FROM wb_cards c
-        JOIN ms_product p
-          ON (p.external_code = c.vendor_code
-              OR (c.vendor_code ~ '^[0-9]{5,}$' AND p.external_code = left(c.vendor_code, 4)))
-       WHERE c.account = %s AND coalesce(p.buy_price, 0) > 0
-    """, (account,)):
-        repl_ms[int(r["nm_id"])] = _f(r["bp"])
-    print(f"закупочная МойСклад как фолбэк себеста: {len(repl_ms)} SKU")
 
     # 5) subject из card_content
     subj = {int(r["nm_id"]): r["subject"] for r in db.query("""
@@ -349,8 +329,6 @@ def build(account="wb_acc1", period=None):
                 cogs, src = _live, "live_stale"
         elif nm in repl_live:
             cogs, src = repl_live[nm], "live"         # не отгружался → живая закупка по своему коду
-        elif nm in repl_ms:
-            cogs, src = repl_ms[nm], "ms"             # нет и у TheCartridge → прайс поставщика в МС
         elif subj.get(nm) in repl_analog:
             cogs, src = repl_analog[subj.get(nm)], "analog"   # никогда не продавался → оценка по предмету
         else:
