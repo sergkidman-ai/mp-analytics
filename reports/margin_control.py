@@ -37,6 +37,7 @@ load_dotenv(BASE_DIR / ".env")
 RAW_DIR = BASE_DIR / "reports" / "data"
 ACCOUNT = "wb_acc1"
 DEFAULT_THRESHOLD = 25.0
+COGS_STALE_GAP = 0.30   # FIFO ниже живой закупки более чем на 30 % → себест протух
 
 
 def _f(v):
@@ -115,7 +116,7 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
 
     econ = db.query("""
         SELECT nm_id, vendor_code, subject, promo_price, buyer_price, payout_ratio, to_pay_u,
-               logistics_u, storage_u, accept_u, cogs_u, net_u, margin_pct_own,
+               logistics_u, storage_u, accept_u, cogs_u, cogs_source, net_u, margin_pct_own,
                sold_flag, qty_period, days_since_sale
         FROM mkt_sku_economics WHERE account=%s
     """, (account,))
@@ -168,6 +169,11 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
 
         below = (margin_live is not None and margin_live < threshold)
         negative = (net_live is not None and net_live < 0)
+        # СЕБЕСТ ПРОТУХ: FIFO помнит старую отгрузку, а товар с тех пор подорожал. Расчёт не
+        # ошибочный — просто устаревший, и маржа по нему ЗАВЫШЕНА. Помечаем явно: маржа у нас
+        # решающий фактор, на неё смотрит и цена, и лестница ставок (аудит 07.08.2026, 116 SKU).
+        stale = (e["cogs_source"] == "shipment" and fifo is not None and bp_live is not None
+                 and fifo < bp_live * (1 - COGS_STALE_GAP))
 
         recs.append({
             "captured_date": day, "account": account, "nm_id": nm,
@@ -184,7 +190,7 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
             "margin_own_live": (round(margin_live, 2) if margin_live is not None else None),
             "net_fifo": _f(e["net_u"]),
             "margin_own_fifo": _f(e["margin_pct_own"]),
-            "below_threshold": below, "is_negative": negative,
+            "below_threshold": below, "is_negative": negative, "cogs_stale": stale,
             "threshold_pct": threshold,
         })
 
@@ -206,12 +212,15 @@ def _write_report(account, day, threshold, recs, skipped_dead=0):
     no_price = [r for r in recs if r["buy_status"] == "no_price"]
     stale = [r for r in recs if r["buy_status"] == "stale"]
     unmapped = [r for r in recs if r["buy_status"] == "unmapped"]
+    cogs_stale = sorted([r for r in priced if r["cogs_stale"]],
+                        key=lambda r: -(r["cogs_delta"] or 0))
 
     # CSV — весь снимок (сырьё в файл, не в чат)
     csv_path = RAW_DIR / f"margin_control_{day}.csv"
     fields = ["nm_id", "vendor_code", "external_code", "subject", "our_price", "buyer_price",
               "to_pay_u", "logistics_u", "buy_price_live", "buy_status", "fifo_cogs_u", "cogs_delta",
               "net_live", "margin_own_live", "margin_own_fifo", "below_threshold", "is_negative",
+              "cogs_stale",
               "sold_flag" if False else "qty_period"]
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -222,7 +231,7 @@ def _write_report(account, day, threshold, recs, skipped_dead=0):
                         r.get("our_price"), r.get("buyer_price"), r.get("to_pay_u"), r.get("logistics_u"),
                         r.get("buy_price_live"), r.get("buy_status"), r.get("fifo_cogs_u"), r.get("cogs_delta"),
                         r.get("net_live"), r.get("margin_own_live"), r.get("margin_own_fifo"),
-                        r.get("below_threshold"), r.get("is_negative"), None])
+                        r.get("below_threshold"), r.get("is_negative"), r.get("cogs_stale"), None])
 
     # TXT — краткая сводка
     txt_path = RAW_DIR / f"margin_control_{day}.txt"
@@ -233,6 +242,11 @@ def _write_report(account, day, threshold, recs, skipped_dead=0):
     lines.append(f"Отсеяно как НЕ В ПРОДАЖЕ (нет свежей цены покупателя на карточке): {skipped_dead}")
     lines.append(f"ВЫПАДАЕМ по марже (<{threshold:.0f}%): {len(below)}  "
                  f"| из них ОТРИЦАТЕЛЬНАЯ: {len(negative)}")
+    if cogs_stale:
+        _sum = sum((r["cogs_delta"] or 0) for r in cogs_stale)
+        lines.append(f"СЕБЕСТ ПРОТУХ (FIFO ниже живой закупки >{100*COGS_STALE_GAP:.0f}%): "
+                     f"{len(cogs_stale)} SKU, недоучтено {_sum:.0f} ₽/шт суммарно — "
+                     f"маржа-FIFO у них ЗАВЫШЕНА, решать по марже-live")
     if priced:
         med = sorted(r["margin_own_live"] for r in priced if r["margin_own_live"] is not None)
         if med:
