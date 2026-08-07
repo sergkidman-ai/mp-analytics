@@ -49,24 +49,21 @@ def _till_note(till):
 
 
 def barcode_files(account, title_prefix="🔵 Штрихкод получения возвратов Ozon"):
-    """[(имя файла, байты, подпись, mime)] — картинка и печатный бланк одного аккаунта.
+    """[(имя файла, байты, подпись, mime)] — картинка штрихкода одного аккаунта.
 
     Файлом, а не фото: `sendPhoto` перегоняет PNG в JPEG, штрихи плывут и сканер в пункте
-    выдачи код не берёт. Бланк идёт следом — с бумаги сканер читает увереннее, чем с экрана.
+    выдачи код не берёт. Печатный бланк PDF не шлём (решение Сергея 07.08.2026 — лишнее),
+    но забираем: срок жизни кода напечатан только на нём, в API его нет.
     """
     g = ozon.giveout(account)
     png = codes.from_base64(g["png_b64"]) or codes.code128(g["value"])
+    if not png:
+        return []
     title = ozon.ACCOUNT_TITLE.get(account, account)
-    out = []
-    if png:
-        out.append((f"ozon-shtrihkod-{account}.png", png,
-                    f"{title_prefix} · {title}" + _till_note(g["till"])
-                    + (f"\nЕсли не считывается — назвать код: <code>{g['value']}</code>"
-                       if g["value"] else ""), "image/png"))
-    if g["pdf"]:
-        out.append((f"ozon-shtrihkod-{account}.pdf", g["pdf"],
-                    "🖨 Он же для печати", "application/pdf"))
-    return out
+    return [(f"ozon-shtrihkod-{account}.png", png,
+             f"{title_prefix} · {title}" + _till_note(g["till"])
+             + (f"\nЕсли не считывается — назвать код: <code>{g['value']}</code>"
+                if g["value"] else ""), "image/png")]
 
 
 def send_summaries(chat_id):
