@@ -168,6 +168,191 @@ def marketing(account: str = "wb_acc1", q: str = "", sort: str = "trail_qty",
     return {"summary": summ, "rows": rows, "target_margin": 25}
 
 
+# ══ OZON: юнит-экономика · контроль маржи · ставки ═══════════════════════════════════════════════
+# Только чтение. На Ozon эти страницы НИЧЕГО не отправляют (CLAUDE.md, габариты п.7 и общее
+# правило: наличие данных ≠ разрешение на запись). Ставки Ozon — просмотр снимка, не управление.
+
+OZ_ACCOUNTS = ["oz_acc1", "oz_acc2"]
+
+
+@app.get("/ozon-economics", response_class=HTMLResponse)
+def ozon_economics_page():
+    return (STATIC / "ozon_economics.html").read_text(encoding="utf-8")
+
+
+@app.get("/ozon-margin-control", response_class=HTMLResponse)
+def ozon_margin_control_page():
+    return (STATIC / "ozon_margin_control.html").read_text(encoding="utf-8")
+
+
+@app.get("/ozon-bids", response_class=HTMLResponse)
+def ozon_bids_page():
+    return (STATIC / "ozon_bids.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/ozon-economics")
+def ozon_economics(account: str = "oz_acc1", q: str = "", limit: int = 300):
+    """Юнит-экономика Ozon за последний полный месяц: витрина fin `margin_by_sku` (read-only)
+    + штуки и цена покупателя из постингов + зона индекса цен. У Ozon в margin_by_sku
+    qty = NULL by design, поэтому штуки считаем сами по доставленным постингам месяца."""
+    per = db.query("""
+      SELECT max(period_from)::text f, max(period_to)::text t FROM margin_by_sku
+      WHERE platform='ozon' AND account=%s AND period_from < date_trunc('month', current_date)
+    """, (account,))[0]
+    if not per["f"]:
+        return {"summary": {}, "rows": [], "period": None}
+    where, params = ["m.platform='ozon'", "m.account=%s", "m.period_from=%s"], [account, per["f"]]
+    if q:
+        where.append("(m.article ILIKE %s OR p.offer_id ILIKE %s OR p.name ILIKE %s)")
+        params += [f"%{q}%"] * 3
+    rows = db.query(f"""
+      WITH s AS (
+        SELECT fd->>'product_id' sku,
+               sum((fd->>'quantity')::int)                                    qty,
+               sum((fd->>'price')::numeric * (fd->>'quantity')::int)          our_sum,
+               sum((fd->>'customer_price')::numeric * (fd->>'quantity')::int) cust_sum
+        FROM raw_ozon_posting rp,
+             LATERAL jsonb_array_elements(
+                 coalesce(rp.payload->'financial_data'->'products','[]'::jsonb)) fd
+        WHERE rp.account=%s AND rp.status='delivered'
+          AND rp.in_process_at >= %s::date AND rp.in_process_at < %s::date + interval '1 day'
+        GROUP BY 1)
+      SELECT m.article sku, p.offer_id, p.name,
+             s.qty, m.revenue_buyer, m.cogs, m.commission, m.logistics, m.storage,
+             m.returns_sum, m.other, m.net_profit, m.margin_pct, m.commission_pct,
+             s.our_sum / nullif(s.qty,0)  our_price_u,
+             s.cust_sum / nullif(s.qty,0) buyer_price_u,
+             b.color_index, b.external_index
+      FROM margin_by_sku m
+      LEFT JOIN s ON s.sku = m.article
+      LEFT JOIN LATERAL (
+        SELECT offer_id, name FROM ozon_product op
+        WHERE op.account=m.account AND op.sku::text=m.article
+        ORDER BY updated_at DESC NULLS LAST LIMIT 1) p ON true
+      LEFT JOIN LATERAL (
+        SELECT color_index, external_index FROM mkt_ozon_buyer_price bp
+        WHERE bp.account=m.account AND bp.offer_id=p.offer_id
+        ORDER BY snapshot_date DESC LIMIT 1) b ON true
+      WHERE {' AND '.join(where)}
+      ORDER BY m.revenue_buyer DESC NULLS LAST
+      LIMIT %s
+    """, (account, per["f"], per["t"]) + tuple(params) + (limit,))
+    summ = db.query("""
+      SELECT count(*) sku_n, sum(revenue_buyer) revenue, sum(cogs) cogs,
+             sum(net_profit) net,
+             100 * sum(net_profit) / nullif(sum(revenue_buyer),0) margin_pct,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY margin_pct) med_margin
+      FROM margin_by_sku
+      WHERE platform='ozon' AND account=%s AND period_from=%s
+    """, (account, per["f"]))[0]
+    ads = db.query("""
+      SELECT sum(spend) spend FROM ozon_ads WHERE account=%s AND period=%s
+    """, (account, per["f"]))[0]
+    summ["ads_spend"] = ads["spend"]
+    summ["drr"] = (float(ads["spend"]) * 100 / float(summ["revenue"])
+                   if ads["spend"] and summ["revenue"] else None)
+    return {"summary": summ, "rows": rows, "period": {"from": per["f"], "to": per["t"]},
+            "account": account}
+
+
+@app.get("/api/ozon-margin-control")
+def ozon_margin_control(account: str = "oz_acc1", view: str = "below", q: str = "",
+                        date: str = "", limit: int = 500):
+    """Контроль маржи Ozon (`mkt_ozon_margin_control`, домен mkt).
+    view: below (ниже порога) | negative | can (выход в зелёную зону укладывается в KPI)
+        | cant (не укладывается) | no_cogs | all.
+    KPI-база — НАША цена (база комиссии), не цена покупателя. `discount_limit_pct` — на сколько
+    процентов можем упасть, не пробив порог; `target_discount_pct` — сколько требует зелёная зона."""
+    day = date or db.query(
+        "SELECT max(captured_date)::text d FROM mkt_ozon_margin_control WHERE account=%s",
+        (account,))[0]["d"]
+    if not day:
+        return {"summary": {}, "rows": [], "date": None, "view": view}
+    where, params = ["account=%s", "captured_date=%s"], [account, day]
+    view_sql = {"below": "below_threshold", "negative": "is_negative",
+                "can": "verdict='можно_снижать'", "cant": "verdict='не_укладывается'",
+                "no_cogs": "cogs_u IS NULL"}
+    if view in view_sql:
+        where.append(view_sql[view])
+    if q:
+        where.append("(offer_id ILIKE %s OR sku::text LIKE %s OR name ILIKE %s)")
+        params += [f"%{q}%"] * 3
+    order = ("discount_limit_pct DESC NULLS LAST" if view == "can"
+             else "margin_own_live ASC NULLS LAST")
+    rows = db.query(f"""
+      SELECT offer_id, sku, name, our_price, buyer_price, payout_ratio, payout_source, to_pay_u,
+             (coalesce(logistics_u,0)+coalesce(storage_u,0)+coalesce(accept_u,0)
+              +coalesce(returns_u,0)+coalesce(other_u,0)) platform_costs,
+             logistics_u, other_u, cost_source,
+             buy_price_live, buy_status, buy_map_source, price_date::text price_date,
+             fifo_cogs_u, cogs_delta, cogs_u, cogs_source,
+             net_live, margin_own_live, margin_own_fifo,
+             below_threshold, is_negative, threshold_pct,
+             price_at_threshold, discount_limit_pct,
+             color_index, external_index, price_for_target, target_discount_pct, verdict
+      FROM mkt_ozon_margin_control
+      WHERE {' AND '.join(where)}
+      ORDER BY {order}
+      LIMIT %s
+    """, tuple(params) + (limit,))
+    summ = db.query("""
+      SELECT count(*) tot,
+             count(*) FILTER (WHERE margin_own_live IS NOT NULL)   with_margin,
+             count(*) FILTER (WHERE below_threshold)               below,
+             count(*) FILTER (WHERE is_negative)                   negative,
+             count(*) FILTER (WHERE cogs_u IS NULL)                no_cogs,
+             count(*) FILTER (WHERE buy_status='stale')            stale,
+             count(*) FILTER (WHERE verdict='можно_снижать')       can_cut,
+             count(*) FILTER (WHERE verdict='не_укладывается')     cant_cut,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY margin_own_live) med_margin,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY discount_limit_pct) med_limit,
+             max(threshold_pct) threshold
+      FROM mkt_ozon_margin_control WHERE account=%s AND captured_date=%s
+    """, (account, day))[0]
+    return {"summary": summ, "rows": rows, "date": day, "view": view, "account": account}
+
+
+@app.get("/api/ozon-bids")
+def ozon_bids(account: str = "oz_acc1", q: str = "", limit: int = 300):
+    """Ставки и кампании Ozon — ТОЛЬКО просмотр. Кампании из `ozon_ads` (месячные), ставки
+    по SKU из `ozon_bids` (снимок Performance API). ALL_SKU_PROMO («Оплата за заказ») ставок
+    по SKU не имеет by design, и выручка по нему в API не отдаётся — отсюда ad_revenue=0."""
+    per = db.query("SELECT max(period)::text p FROM ozon_ads WHERE account=%s", (account,))[0]["p"]
+    camps = db.query("""
+      SELECT campaign_id, title, adv_type, pay_model, state, spend, views, clicks,
+             ad_revenue, sold,
+             CASE WHEN clicks>0 THEN spend/clicks END cpc,
+             CASE WHEN ad_revenue>0 THEN 100*spend/ad_revenue END drr
+      FROM ozon_ads WHERE account=%s AND period=%s ORDER BY spend DESC NULLS LAST
+    """, (account, per)) if per else []
+    snap = db.query("SELECT max(captured_at)::text d FROM ozon_bids WHERE account=%s",
+                    (account,))[0]["d"]
+    where, params = ["b.account=%s", "b.captured_at=%s"], [account, snap]
+    if q:
+        where.append("(b.title ILIKE %s OR b.sku::text LIKE %s OR b.campaign_title ILIKE %s)")
+        params += [f"%{q}%"] * 3
+    bids = db.query(f"""
+      SELECT b.campaign_id, b.campaign_title, b.adv_type, b.sku, b.title, b.bid, b.target_cir,
+             m.our_price, m.margin_own_live, m.discount_limit_pct, m.color_index
+      FROM ozon_bids b
+      -- витрина ведётся по offer_id, ставки — по sku: где sku в витрине нет,
+      -- добираем через справочник товаров (ozon_product), иначе теряем треть ставок
+      LEFT JOIN LATERAL (
+        SELECT our_price, margin_own_live, discount_limit_pct, color_index
+        FROM mkt_ozon_margin_control mc
+        WHERE mc.account=b.account
+          AND (mc.sku::text=b.sku::text
+               OR mc.offer_id IN (SELECT p.offer_id FROM ozon_product p
+                                  WHERE p.account=b.account AND p.sku::text=b.sku::text))
+        ORDER BY captured_date DESC LIMIT 1) m ON true
+      WHERE {' AND '.join(where)}
+      ORDER BY b.bid DESC NULLS LAST
+      LIMIT %s
+    """, tuple(params) + (limit,)) if snap else []
+    return {"period": per, "campaigns": camps, "bids": bids, "bids_date": snap,
+            "account": account, "readonly": True}
+
+
 # ══ Управление ставками WB ══════════════════════════════════════════════════════════════════════
 
 @app.get("/wb-bids", response_class=HTMLResponse)

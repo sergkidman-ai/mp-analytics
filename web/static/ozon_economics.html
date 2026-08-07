@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Юнит-экономика Ozon</title>
+<style>
+  :root{--bg:#eef1f6;--card:#ffffff;--line:#e2e8f0;--txt:#1e293b;--mut:#64748b;--acc:#2563eb;--pos:#16a34a;--neg:#dc2626;--warn:#d97706}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  select,input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  main{flex:1;min-width:0;padding:22px;max-width:1320px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:22px;font-weight:700;margin-top:4px}
+  .bi.alert .v{color:var(--warn)}.bi.danger .v{color:var(--neg)}
+  .ctrls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap}
+  .tabs button{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font:inherit;color:var(--mut);cursor:pointer}
+  .tabs button.cur{background:var(--acc);color:#fff;border-color:var(--acc)}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:13px}
+  th{color:var(--mut);font-weight:600;font-size:11px}
+  th:first-child,td:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#f1f5f9}
+  tr.neg td{background:#fef2f2}
+  tr.neg:hover td{background:#fee2e2}
+  .sku .nm{font-weight:600}.sku .vc{color:var(--mut);font-size:12px}
+  .pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;font-weight:600}
+  .pill.pos{background:#dcfce7;color:#15803d}.pill.warn{background:#fef3c7;color:#b45309}.pill.neg{background:#fee2e2;color:#b91c1c}
+  .badge{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;background:#eef2f7;color:var(--mut)}
+  .dlt.up{color:var(--neg)}.dlt.dn{color:var(--pos)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Маркетинг · WB</div>
+    <a href="/marketing">📣 Юнит-экономика SKU</a>
+    <a href="/margin-control">🚦 Контроль маржи</a>
+    <a href="/wb-bids">💰 Ставки WB</a>
+    <div class="navgroup">Маркетинг · Ozon</div>
+    <a href="/ozon-economics" class="cur">📣 Юнит-экономика Ozon</a>
+    <a href="/ozon-margin-control">🚦 Контроль маржи Ozon</a>
+    <a href="/ozon-bids">💰 Ставки Ozon</a>
+  </nav>
+</header>
+<main>
+  <p class="note" style="margin-top:0">Юнит-экономика Ozon за <b id="per">…</b> — факт по витрине
+    <code>margin_by_sku</code> (домен fin, только чтение). <b>Выручка = наша цена</b> (база комиссии
+    Ozon), цена покупателя ниже на скидку за счёт Озона — показана отдельной колонкой.
+    Штуки считаются по доставленным постингам месяца: в витрине у Ozon <code>qty</code> пуст by design.
+    В «прочем» у Ozon уже сидят реклама, баллы (1.5 % с продажи), подписка, эквайринг и штрафы.</p>
+  <div class="big" id="big"></div>
+  <div class="ctrls">
+    <div id="accwrap"></div>
+    <input id="q" placeholder="поиск: sku / артикул / название" style="min-width:240px">
+  </div>
+  <table id="tbl"><thead><tr>
+    <th>SKU</th><th>наименование</th><th>шт</th><th>выручка</th><th>наша цена/шт</th>
+    <th>покупатель/шт</th><th>комиссия</th><th>логистика</th><th>прочее</th><th>себест.</th>
+    <th>чистая</th><th>маржа</th><th>индекс</th>
+  </tr></thead><tbody></tbody></table>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=v=>v==null?'—':Math.round(v).toLocaleString('ru');
+const pct=v=>v==null?'—':(+v).toFixed(1)+'%';
+const esc=s=>(s||'').replace(/"/g,'&quot;');
+let acc=localStorage.getItem('oz_acc')||'oz_acc1';
+function accBar(){
+  return `<div class="tabs" id="acc">
+    <button data-a="oz_acc1" class="${acc==='oz_acc1'?'cur':''}">Цифровой (acc1)</button>
+    <button data-a="oz_acc2" class="${acc==='oz_acc2'?'cur':''}">Дисквэр (acc2)</button></div>`;
+}
+function bindAcc(load){
+  $('#acc').addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    acc=b.dataset.a; localStorage.setItem('oz_acc',acc);
+    [...$('#acc').children].forEach(x=>x.classList.toggle('cur',x===b));
+    load();
+  });
+}
+const zone=(c,i)=>{
+  if(!c)return '<span class="muted">—</span>';
+  const m={SUPER:'pos',GREEN:'pos',YELLOW:'warn',RED:'neg',WITHOUT_INDEX:''};
+  const t=i!=null?` ${(+i).toFixed(2)}`:'';
+  return `<span class="pill ${m[c]||''}">${c==='WITHOUT_INDEX'?'нет':c}${t}</span>`;
+};
+async function load(){
+  $('#accwrap').innerHTML=accBar(); bindAcc(load);
+  const r=await fetch(`/api/ozon-economics?account=${acc}&q=${encodeURIComponent($('#q').value.trim())}`);
+  const d=await r.json(); const s=d.summary||{};
+  $('#per').textContent=d.period?`${d.period.from} … ${d.period.to}`:'нет данных';
+  $('#big').innerHTML=`
+    <div class="bi"><div class="l">SKU с продажами</div><div class="v">${s.sku_n??'—'}</div></div>
+    <div class="bi"><div class="l">Выручка (наша цена)</div><div class="v">${rub(s.revenue)}₽</div></div>
+    <div class="bi"><div class="l">Себестоимость</div><div class="v">${rub(s.cogs)}₽</div></div>
+    <div class="bi"><div class="l">Чистая</div><div class="v">${rub(s.net)}₽</div></div>
+    <div class="bi"><div class="l">Маржа от выручки</div><div class="v">${pct(s.margin_pct)}</div></div>
+    <div class="bi"><div class="l">Реклама · ДРР</div><div class="v">${rub(s.ads_spend)}₽ <span class="muted" style="font-size:13px">${pct(s.drr)}</span></div></div>`;
+  $('#tbl tbody').innerHTML=(d.rows||[]).map(r=>`<tr>
+      <td><div class="sku"><div class="nm">${r.offer_id||r.sku}</div><div class="vc">${r.sku}</div></div></td>
+      <td style="text-align:left" title="${esc(r.name)}">${(r.name||'').slice(0,60)}</td>
+      <td>${r.qty??'—'}</td><td>${rub(r.revenue_buyer)}</td>
+      <td>${rub(r.our_price_u)}</td><td class="muted">${rub(r.buyer_price_u)}</td>
+      <td>${rub(r.commission)}</td><td>${rub(r.logistics)}</td><td>${rub(r.other)}</td>
+      <td>${rub(r.cogs)}</td><td>${rub(r.net_profit)}</td>
+      <td><span class="pill ${r.margin_pct==null?'':(r.margin_pct<0?'neg':(r.margin_pct<25?'warn':'pos'))}">${pct(r.margin_pct)}</span></td>
+      <td>${zone(r.color_index,r.external_index)}</td>
+    </tr>`).join('')||'<tr><td colspan="13" class="muted" style="text-align:center;padding:24px">нет строк</td></tr>';
+  $('#foot').textContent=`Показано ${(d.rows||[]).length} SKU, сортировка по выручке. Расходы — со знаком минус, как в витрине fin.`;
+}
+let t; document.addEventListener('input',e=>{if(e.target.id==='q'){clearTimeout(t);t=setTimeout(load,300)}});
+load();
+</script>
+</body>
+</html>
