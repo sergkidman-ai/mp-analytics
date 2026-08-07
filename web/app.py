@@ -2095,6 +2095,106 @@ def warehouse_page():
     return (STATIC / "warehouse.html").read_text(encoding="utf-8")
 
 
+@app.get("/warehouse/novelties", response_class=HTMLResponse)
+def novelties_page():
+    return (STATIC / "novelties.html").read_text(encoding="utf-8")
+
+
+# Новинки поставщиков (поток prc): строки прайса, которых нет в МС по артикулу, и найденные
+# сверкой по признакам варианты нашего каталога. Человек подтверждает вариант, вписывает код
+# руками или помечает строку как новую модель.
+NOVELTY_COLORS = {"BK": "чёрный", "C": "голубой", "M": "пурпурный", "Y": "жёлтый",
+                  "BKM": "чёрный матовый", "GY": "серый", "LC": "светло-голубой",
+                  "LM": "светло-пурпурный", "R": "красный", "B": "синий", "G": "зелёный"}
+NOVELTY_CHIPS = {"chip": "с чипом", "chip_free": "с чипом без счётчика", "nochip": "без чипа"}
+
+
+def _novelty_view(row, prefix=""):
+    """Признаки строки словами — одинаково для новинки и для варианта каталога."""
+    return {"color": NOVELTY_COLORS.get(row[prefix + "color"], ""),
+            "measure": float(row[prefix + "measure"]) if row[prefix + "measure"] else None,
+            "chip": NOVELTY_CHIPS.get(row[prefix + "chip"], "не указан")}
+
+
+@app.get("/api/novelties")
+def novelties_api(supplier: str = "", status: str = ""):
+    """Новинки с вариантами. status: pending | matched | new | skip | пусто = все."""
+    where, params = ["1=1"], []
+    if supplier:
+        where.append("supplier_key = %s")
+        params.append(supplier)
+    if status:
+        where.append("decision = %s")
+        params.append(status)
+    rows = db.query(f"""
+        SELECT id, supplier_key, article, name, color, measure, chip, price_rub,
+               decision, ms_code, ms_name, decided_at::text
+          FROM prc_novelty
+         WHERE {' AND '.join(where)}
+         ORDER BY decision <> 'pending', name
+    """, tuple(params))
+    cands = db.query("""
+        SELECT novelty_id, rank, ms_id, ms_code, ms_name, color, measure, chip,
+               shared_code, verdict
+          FROM prc_novelty_candidate ORDER BY novelty_id, rank
+    """)
+    by_novelty = {}
+    for c in cands:
+        by_novelty.setdefault(c["novelty_id"], []).append(
+            dict(c, **_novelty_view(c), price_rub=None))
+    out = []
+    for r in rows:
+        out.append(dict(r, **_novelty_view(r),
+                        price_rub=float(r["price_rub"]) if r["price_rub"] else None,
+                        candidates=by_novelty.get(r["id"], [])))
+    counts = db.query("""SELECT decision, count(*) n FROM prc_novelty
+                          WHERE %s = '' OR supplier_key = %s
+                          GROUP BY decision""", (supplier, supplier))
+    suppliers = [r["supplier_key"] for r in
+                 db.query("SELECT DISTINCT supplier_key FROM prc_novelty ORDER BY 1")]
+    return {"rows": out, "suppliers": suppliers,
+            "counts": {c["decision"]: c["n"] for c in counts}}
+
+
+class NoveltyDecision(BaseModel):
+    ids: list[int]
+    decision: str                                # matched | new | skip | pending
+    ms_code: str = ""
+
+
+@app.post("/api/novelties/decide")
+def novelties_decide(payload: NoveltyDecision):
+    """Записать решение по строкам. Для matched код обязателен и должен быть в каталоге."""
+    if payload.decision not in ("matched", "new", "skip", "pending"):
+        return {"ok": False, "error": "неизвестное решение"}
+    code, item = payload.ms_code.strip(), None
+    if payload.decision == "matched":
+        if not code:
+            return {"ok": False, "error": "нужен код товара"}
+        # Код карточки = номер товара + суффикс поставщика (6058sk, 6058hb). Человек мыслит
+        # товаром и пишет «6058» — принимаем и это, подставляя любую карточку этого товара.
+        found = db.query("""SELECT ms_id, code, name FROM ms_product
+                             WHERE NOT archived AND (upper(code) = upper(%s)
+                                OR code ~* ('^' || %s || '[a-z]*$'))
+                             ORDER BY length(code), code LIMIT 1""", (code, code))
+        if not found:
+            return {"ok": False, "error": f"кода «{code}» нет в каталоге МС"}
+        item = found[0]
+    for novelty_id in payload.ids:
+        db.execute("""UPDATE prc_novelty
+                         SET decision = %s, ms_code = %s, ms_id = %s, ms_name = %s,
+                             decided_at = now()
+                       WHERE id = %s""",
+                   (payload.decision,
+                    item["code"] if item else None,
+                    item["ms_id"] if item else None,
+                    item["name"] if item else None,
+                    novelty_id))
+    return {"ok": True, "n": len(payload.ids),
+            "ms_code": item["code"] if item else None,
+            "ms_name": item["name"] if item else None}
+
+
 @app.get("/api/warehouse")
 def warehouse_api():
     """Наш сток: наши склады + Озон ФБО (supplier_stock) + ВБ ФБО (wb_stocks), с дневной дельтой.
