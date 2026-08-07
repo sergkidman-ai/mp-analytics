@@ -2048,6 +2048,28 @@ def novelties_api(supplier: str = "", status: str = ""):
             "counts": {c["decision"]: c["n"] for c in counts}}
 
 
+@app.get("/api/novelties/waiting")
+def novelties_waiting():
+    """Полка ожидания и найденные соседи по серии — напоминание «а не собрался ли комплект».
+
+    Строку `partial` человек отложил до полного набора, и сама она о себе не напомнит.
+    Сверяем полку с последним прайсом каждого поставщика, чёрным списком и остальной полкой:
+    пришёл `PFI121M` — покажем, что рядом лежат другие `PFI121`. Забракованный цвет комплект
+    не закрывает: такие строки помечаем «ждать нечего» — их разумнее закрыть, а не ждать.
+    """
+    from prices import waiting
+    on_shelf = waiting.shelf()
+    matches = waiting.find(on_shelf, waiting.pool())
+    return {"shelf": len(on_shelf), "rows": [
+        {"id": m["id"], "article": m["article"], "name": m["name"],
+         "supplier_key": m["supplier_key"], "missing": m["missing"], "dead": m["dead"],
+         "verdict": waiting.verdict(m),
+         "siblings": [{"article": s["article"], "name": s.get("name") or "",
+                       "where": waiting.SOURCE_NAMES[s["source"]],
+                       "black": s["source"] == "blacklist"} for s in m["siblings"]]}
+        for m in matches]}
+
+
 class NoveltyDecision(BaseModel):
     ids: list[int]
     decision: str                                # matched | new | partial | skip | pending

@@ -52,6 +52,18 @@
   .tag.new{background:rgba(255,180,84,.15);color:var(--warn)}
   .tag.partial{background:rgba(120,160,255,.15);color:#7aa2ff}
   .tag.skip{background:rgba(138,160,181,.15);color:var(--mut)}
+  /* Напоминание о полке ожидания: строка ждёт цвета, а сама о себе не напомнит. */
+  .wait{background:var(--card);border:1px solid var(--line);border-left:3px solid #7aa2ff;
+        border-radius:12px;padding:12px 16px;margin:0 0 16px}
+  .wait h3{margin:0 0 8px;font-size:14px}
+  .wait .item{padding:7px 0;border-top:1px solid var(--line)}
+  .wait .item:first-of-type{border-top:none}
+  .wait .sib{font-size:12px;color:var(--mut);margin-top:2px}
+  .wait .sib b{color:var(--txt);font-weight:600}
+  .wait .why{font-size:12px;margin-top:2px}
+  .wait .why.go{color:var(--pos)}
+  .wait .why.stop{color:var(--warn)}
+  .wait button{margin-left:8px}
   .big{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px}
   .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 16px;min-width:130px}
   .bi .l{color:var(--mut);font-size:12px}
@@ -84,6 +96,7 @@
   или впишите код руками; если такой модели у нас нет вовсе — <b>NEW</b>.</p>
 
   <div class="big" id="big"></div>
+  <div id="waiting"></div>
 
   <div class="bar">
     <select id="supplier"></select>
@@ -229,6 +242,33 @@ function marked(){
   $("#bulk-new").disabled = $("#bulk-skip").disabled = $("#bulk-partial").disabled = !n;
 }
 
+// Полка ожидания сама о себе не напомнит: строку отложили до полного комплекта, и она
+// пролежит там вечно. Показываем сверху, у каких ждущих строк нашлись соседи по серии —
+// в сегодняшнем прайсе, в чёрном списке или на той же полке.
+async function loadWaiting(){
+  const d = await (await fetch("/api/novelties/waiting")).json();
+  const box = $("#waiting");
+  if (!d.shelf){ box.innerHTML = ""; return; }
+  const items = d.rows.map(r => {
+    const sibs = r.siblings.map(s =>
+      `<b>${esc(s.article)}</b> — ${esc(s.where)}${s.name ? " · " + esc(s.name) : ""}`).join("<br>");
+    const cls = r.dead ? "stop" : "go";
+    return `<div class="item" data-wait="${r.id}">
+      <div><b>${esc(r.article)}</b> <span class="muted">${esc(r.name || "")}</span>
+        ${r.dead ? "" : `<button class="revive">вернуть в работу</button>`}</div>
+      <div class="why ${cls}">${esc(r.verdict)}${
+        r.missing.length ? ` · не хватает: ${esc(r.missing.join(", "))}` : ""}</div>
+      <div class="sib">${sibs}</div></div>`;
+  }).join("");
+  box.innerHTML = `<div class="wait"><h3>⏳ Лист ожидания комплектов — ${d.shelf} строк${
+      d.rows.length ? `, соседи по серии нашлись у ${d.rows.length}` : ", новых цветов не появилось"}</h3>
+    ${items}</div>`;
+  box.querySelectorAll(".revive").forEach(btn => {
+    const id = Number(btn.closest("[data-wait]").dataset.wait);
+    btn.onclick = () => decide([id], "pending", "");
+  });
+}
+
 async function load(){
   const supplier = $("#supplier").value || "", status = $("#status").value;
   const d = await (await fetch(`/api/novelties?supplier=${encodeURIComponent(supplier)}&status=${status}`)).json();
@@ -248,6 +288,7 @@ async function load(){
   $("#all").checked = false;
   $("#foot").textContent = `показано ${DATA.length} строк`;
   wire();
+  loadWaiting();
 }
 
 $("#supplier").onchange = load;
