@@ -284,15 +284,13 @@ def build(account="wb_acc1", period=None):
       GROUP BY 1 HAVING count(*) >= 10
     """, (account, TRAIL_DAYS, account))}
 
-    # 3d) Оценка по АНАЛОГУ для никогда не отгружавшихся: медиана себеста отгрузок по ПРЕДМЕТУ
-    #     (subjectName, ≥5 отгружавшихся образцов). Тоже из отгрузок, не карточка. src='analog'.
-    _sc = {}
-    for _nm, _c in repl_ship.items():
-        _s = subj.get(_nm)
-        if _s and _c and _c > 0:
-            _sc.setdefault(_s, []).append(_c)
-    repl_analog = {s: statistics.median(v) for s, v in _sc.items() if len(v) >= 5}
-    print(f"аналог-оценка по предметам: {len(repl_analog)} категорий (медиана себеста отгрузок)")
+    # 3d) ОЦЕНКИ ПО АНАЛОГУ БОЛЬШЕ НЕТ (решение Сергея, 07.08.2026).
+    #     Была медиана себеста по предмету для никогда не отгружавшихся. Предмет «Картриджи для
+    #     принтеров» — одно ведро от 34 до 3000 ₽, оценка по нему врала на сотни рублей.
+    #     Если позиции нет у TheCartridge — её обычно нет и в наличии: считать по ней нечего,
+    #     продавать и рекламировать нечего. Такие SKU остаются БЕЗ себеста и БЕЗ маржи —
+    #     они просто не участвуют в решениях. Как только цена появится, экономика посчитается
+    #     сама, а `ops/tc_price_alert.py` пришлёт «вышла из сумрака».
 
     # 6) Универсум — все карточки с ценой. 3-ценовой стек:
     #    price = до акции (v4 basic); discounted_price = акционная, ДО СПП (база комиссии/СПП);
@@ -329,9 +327,7 @@ def build(account="wb_acc1", period=None):
                 cogs, src = _live, "live_stale"
         elif nm in repl_live:
             cogs, src = repl_live[nm], "live"         # не отгружался → живая закупка по своему коду
-        elif subj.get(nm) in repl_analog:
-            cogs, src = repl_analog[subj.get(nm)], "analog"   # никогда не продавался → оценка по предмету
-        else:
+        else:  # ни отгрузок, ни живой закупки → себеста НЕТ. Не выдумываем (см. 3d)
             cogs, src = None, None
             n_no_cogs += 1
         s = sold.get(nm)
