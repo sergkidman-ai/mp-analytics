@@ -1101,8 +1101,11 @@ def stocks(account: str = ""):
         sum(in_way_from_client)::float returns
         FROM wb_stocks WHERE account=ANY(%s) AND captured_at=%s GROUP BY 1 ORDER BY 2 DESC""",
                   (accts, cap))
+    # nm считаем по строкам с остатком: с 07.08.2026 у SKU без остатка есть строка «(в пути)»
+    # с quantity = 0, и без фильтра «SKU в наличии» включало бы уехавший к покупателям товар.
     tot = db.query("""SELECT sum(quantity)::float qty, sum(quantity_full)::float full,
-        sum(in_way_from_client)::float returns, count(DISTINCT nm_id) nm
+        sum(in_way_from_client)::float returns,
+        count(DISTINCT nm_id) FILTER (WHERE quantity > 0) nm
         FROM wb_stocks WHERE account=ANY(%s) AND captured_at=%s""", (accts, cap))[0]
     # стоимость остатков на ФБО по себестоимости: остаток × себест/ед (из margin, последний период)
     val = db.query("""
@@ -2210,7 +2213,8 @@ def warehouse_api():
     wb_fbo = {"accounts": [], "units": 0, "d_units": None, "captured": wcap}
     if wcap:
         wprev = db.query("SELECT max(captured_at)::text c FROM wb_stocks WHERE captured_at<%s", (wcap,))[0]["c"]
-        accs = db.query("""SELECT account, sum(quantity_full)::float units, count(DISTINCT nm_id) n
+        accs = db.query("""SELECT account, sum(quantity_full)::float units,
+            count(DISTINCT nm_id) FILTER (WHERE quantity > 0) n
             FROM wb_stocks WHERE captured_at=%s GROUP BY account ORDER BY account""", (wcap,))
         wb_fbo["accounts"] = accs
         wb_fbo["units"] = round(sum(a["units"] or 0 for a in accs), 1)
