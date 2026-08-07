@@ -316,7 +316,12 @@ def ozon_margin_control(account: str = "oz_acc1", view: str = "below", q: str = 
 def ozon_bids(account: str = "oz_acc1", q: str = "", limit: int = 300):
     """Ставки и кампании Ozon — ТОЛЬКО просмотр. Кампании из `ozon_ads` (месячные), ставки
     по SKU из `ozon_bids` (снимок Performance API). ALL_SKU_PROMO («Оплата за заказ») ставок
-    по SKU не имеет by design, и выручка по нему в API не отдаётся — отсюда ad_revenue=0."""
+    по SKU не имеет by design, и выручка по нему в API не отдаётся — отсюда ad_revenue=0.
+
+    Ставок в снимке ТЫСЯЧИ (acc1 ~10.5 тыс. SKU), поэтому таблица — верхушка по ставке:
+    `total`/`sku_total` считаются по всему фильтру, чтобы обрезка не выглядела как весь состав.
+    Пул продвижения в поиске лежит отдельно (`ozon_search_promo`, он per-account, не по
+    кампании) и отдаётся сводкой."""
     per = db.query("SELECT max(period)::text p FROM ozon_ads WHERE account=%s", (account,))[0]["p"]
     camps = db.query("""
       SELECT campaign_id, title, adv_type, pay_model, state, spend, views, clicks,
@@ -331,8 +336,12 @@ def ozon_bids(account: str = "oz_acc1", q: str = "", limit: int = 300):
     if q:
         where.append("(b.title ILIKE %s OR b.sku::text LIKE %s OR b.campaign_title ILIKE %s)")
         params += [f"%{q}%"] * 3
+    tot = db.query(f"SELECT count(*) n, count(DISTINCT b.sku) s, count(DISTINCT b.campaign_id) c "
+                   f"FROM ozon_bids b WHERE {' AND '.join(where)}",
+                   tuple(params))[0] if snap else {"n": 0, "s": 0, "c": 0}
     bids = db.query(f"""
-      SELECT b.campaign_id, b.campaign_title, b.adv_type, b.sku, b.title, b.bid, b.target_cir,
+      SELECT b.campaign_id, b.campaign_title, b.adv_type, b.state, b.sku, b.title, b.bid,
+             b.target_cir,
              m.our_price, m.margin_own_live, m.discount_limit_pct, m.color_index
       FROM ozon_bids b
       -- витрина ведётся по offer_id, ставки — по sku: где sku в витрине нет,
@@ -349,7 +358,19 @@ def ozon_bids(account: str = "oz_acc1", q: str = "", limit: int = 300):
       ORDER BY b.bid DESC NULLS LAST
       LIMIT %s
     """, tuple(params) + (limit,)) if snap else []
+    pool = db.query("""
+      SELECT count(*) n, count(*) FILTER (WHERE promo_status) on_,
+             count(*) FILTER (WHERE available) avail,
+             count(*) FILTER (WHERE visibility_index='10+') vi10,
+             round(avg(bid)::numeric, 2) bid_avg, sum(views_week) views,
+             max(captured_at)::text d
+      FROM ozon_search_promo
+      WHERE account=%s AND captured_at=(SELECT max(captured_at) FROM ozon_search_promo
+                                        WHERE account=%s)
+    """, (account, account))
     return {"period": per, "campaigns": camps, "bids": bids, "bids_date": snap,
+            "total": tot["n"], "sku_total": tot["s"], "camp_total": tot["c"], "limit": limit,
+            "pool": pool[0] if pool and pool[0]["n"] else None,
             "account": account, "readonly": True}
 
 

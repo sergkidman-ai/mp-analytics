@@ -5,7 +5,7 @@
 
 1. Кампании с оплатой за клик (`advObjectType = SKU`):
    `GET /api/client/campaign/{id}/v2/products?page=&pageSize=` → products[{sku, bid, title,
-   price, targetCir}]. **Пагинация обязательна:** без параметров эндпоинт молча отдаёт
+   targetCir}] — цены товара здесь нет. **Пагинация обязательна:** без параметров эндпоинт отдаёт
    ровно 30 строк (дефолт страницы), а в кампании бывает 8 000 товаров. Страницы —
    с 1-й, по 1000, пока страница полная.
 
@@ -103,7 +103,6 @@ def fetch(account):
             recs.append({"account": account, "campaign_id": str(c["id"]),
                          "campaign_title": c.get("title"), "adv_type": c.get("advObjectType"),
                          "state": c.get("state"), "sku": str(p["sku"]), "title": p.get("title"),
-                         "price": _num(p.get("price")),
                          "bid": round(int(p.get("bid") or 0) / MICRO, 2),
                          "target_cir": p.get("targetCir") or 0, "captured_at": cap})
         time.sleep(0.2)
@@ -140,7 +139,7 @@ def main(account="oz_acc1"):
     recs, sp, camps, skipped, sp_camps = fetch(account)
     n = db.upsert("ozon_bids", recs, conflict_cols=["account", "campaign_id", "sku", "captured_at"],
                   update_cols=["campaign_title", "adv_type", "state", "title", "bid",
-                               "target_cir", "price"]) if recs else 0
+                               "target_cir"]) if recs else 0
     m = db.upsert("ozon_search_promo", sp, conflict_cols=["account", "sku", "captured_at"],
                   update_cols=["source_sku", "title", "price", "bid", "bid_without_additive",
                                "carrots_additive", "views_week", "views_prev_week",
