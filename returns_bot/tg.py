@@ -115,6 +115,19 @@ def send_photo(chat_id, png_bytes, caption=None, filename="code.png"):
     return _api("sendPhoto", data, files={"photo": (filename, png_bytes, "image/png")})
 
 
+def send_document(chat_id, data, filename, caption=None, mime="image/png"):
+    """Файл БЕЗ пережатия.
+
+    Штрихкод шлём именно так: `sendPhoto` перегоняет картинку в JPEG, тонкие штрихи плывут
+    и сканер в пункте выдачи их не берёт (проверено на живом коде 07.08.2026).
+    """
+    d = {"chat_id": chat_id}
+    if caption:
+        d["caption"] = caption[:1000]
+        d["parse_mode"] = "HTML"
+    return _api("sendDocument", d, files={"document": (filename, data, mime)})
+
+
 def get_updates(offset=None, timeout=50):
     data = {"timeout": timeout}
     if offset is not None:

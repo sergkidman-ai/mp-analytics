@@ -11,8 +11,7 @@ import argparse
 import sys
 
 from returns_bot import collect as collector
-from returns_bot import bot, codes, render, tg
-from returns_bot.sources import ozon
+from returns_bot import bot, render, tg
 
 
 def barcode_photos(org=None):
@@ -28,15 +27,9 @@ def barcode_photos(org=None):
     out = []
     for account in accounts:
         try:
-            value, png_b64 = ozon.giveout_barcode(account)
+            out += bot.barcode_files(account)
         except Exception as e:
             print(f"штрихкод Ozon {account}: {type(e).__name__} {str(e)[:100]}")
-            continue
-        png = codes.from_base64(png_b64) or codes.code128(value)
-        if png:
-            title = ozon.ACCOUNT_TITLE.get(account, account)
-            out.append((png, f"🔵 Штрихкод получения возвратов Ozon · {title}"
-                             + (f"\n<code>{value}</code>" if value else "")))
     return out
 
 
@@ -73,8 +66,8 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
             for org, text, photos in letters:
                 # кнопка «Обновить» — под каждой сводкой: обработчик живёт в returns-bot.service
                 tg.send(chat_id, text, reply_markup=bot.KB_REFRESH)
-                for png, caption in photos:
-                    tg.send_photo(chat_id, png, caption)
+                for filename, data, caption, mime in photos:
+                    tg.send_document(chat_id, data, filename, caption, mime=mime)
             ok += 1
         except Exception as e:
             failed.append(f"{chat_id}: {type(e).__name__} {str(e)[:120]}")

@@ -12,6 +12,7 @@
 import sys
 import time
 import traceback
+from datetime import datetime, timezone
 
 from returns_bot import codes, collect as collector, render, tg
 from returns_bot.sources import ozon
@@ -32,6 +33,37 @@ KB_REFRESH = {"inline_keyboard": [[{"text": "🔄 Обновить", "callback_d
 # Сбор идёт минутами и блокирует long-polling: пока он идёт, вторая нажатая кнопка должна
 # получить отказ, а не встать в очередь и не сходить в API площадок второй раз.
 _busy = False
+
+
+def _till_note(till):
+    """Сколько штрихкоду осталось жить. Ozon даёт сутки и по истечении код не примут."""
+    if not till:
+        return ""
+    left = till - datetime.now(timezone.utc)
+    msk = till.astimezone(ozon.MSK)          # печатаем всегда по Москве, сервер живёт в UTC
+    if left.total_seconds() <= 0:
+        return f"\n⛔ Истёк {msk:%d.%m в %H:%M} МСК — обновить в кабинете Ozon."
+    hours = int(left.total_seconds() // 3600)
+    left_ru = f"{hours} ч" if hours else f"{int(left.total_seconds() // 60)} мин"
+    return f"\n⏳ Действует до {msk:%d.%m %H:%M} МСК, осталось {left_ru}."
+
+
+def barcode_files(account, title_prefix="🔵 Штрихкод получения возвратов Ozon"):
+    """[(имя файла, байты, подпись, mime)] — картинка штрихкода одного аккаунта.
+
+    Файлом, а не фото: `sendPhoto` перегоняет PNG в JPEG, штрихи плывут и сканер в пункте
+    выдачи код не берёт. Печатный бланк PDF не шлём (решение Сергея 07.08.2026 — лишнее),
+    но забираем: срок жизни кода напечатан только на нём, в API его нет.
+    """
+    g = ozon.giveout(account)
+    png = codes.from_base64(g["png_b64"]) or codes.code128(g["value"])
+    if not png:
+        return []
+    title = ozon.ACCOUNT_TITLE.get(account, account)
+    return [(f"ozon-shtrihkod-{account}.png", png,
+             f"{title_prefix} · {title}" + _till_note(g["till"])
+             + (f"\nЕсли не считывается — назвать код: <code>{g['value']}</code>"
+                if g["value"] else ""), "image/png")]
 
 
 def send_summaries(chat_id):
@@ -93,16 +125,13 @@ def handle(chat_id, text):
         sent = 0
         for account in ozon.CRED_ENV:
             try:
-                value, png_b64 = ozon.giveout_barcode(account)
+                files = barcode_files(account)
             except Exception as e:
                 tg.send(chat_id, f"Ozon {account}: {type(e).__name__} {str(e)[:150]}")
                 continue
-            png = codes.from_base64(png_b64) or codes.code128(value)
-            if png:
-                title = ozon.ACCOUNT_TITLE.get(account, account)
-                tg.send_photo(chat_id, png, f"🔵 Штрихкод получения возвратов Ozon · {title}"
-                                            + (f"\n<code>{value}</code>" if value else ""))
-                sent += 1
+            for filename, data, caption, mime in files:
+                tg.send_document(chat_id, data, filename, caption, mime=mime)
+            sent += len(files)
         if not sent:
             tg.send(chat_id, "Площадки не отдали штрихкод.")
     elif cmd == "/obnovit":
