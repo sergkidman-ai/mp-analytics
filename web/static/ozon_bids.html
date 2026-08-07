@@ -62,16 +62,17 @@
     ставки по SKU — снимок от <b id="snap">…</b>. У «Оплаты за заказ» (<code>ALL_SKU_PROMO</code>)
     ставок по SKU нет by design, и выручку по ней API не отдаёт — поэтому ДРР по этой кампании
     посчитать не из чего (дырка измерения, шаг 3 плана).</p>
+  <p class="note" id="scale" style="margin-top:6px"></p>
   <div class="ctrls"><div id="accwrap"></div></div>
   <h3 style="margin:6px 0 8px;font-size:15px">Кампании</h3>
   <table id="camps"><thead><tr>
     <th>кампания</th><th>тип</th><th>модель оплаты</th><th>статус</th><th>расход</th>
     <th>показы</th><th>клики</th><th>CPC</th><th>выручка</th><th>ДРР</th>
   </tr></thead><tbody></tbody></table>
-  <h3 style="margin:22px 0 8px;font-size:15px">Ставки по SKU</h3>
+  <h3 style="margin:22px 0 8px;font-size:15px">Ставки по SKU <span class="muted" id="bcnt" style="font-weight:400;font-size:12px"></span></h3>
   <div class="ctrls"><input id="q" placeholder="поиск: sku / название / кампания" style="min-width:240px"></div>
   <table id="tbl"><thead><tr>
-    <th>SKU</th><th>наименование</th><th>кампания</th><th>ставка</th><th>ДРР-цель</th>
+    <th>SKU</th><th>наименование</th><th>кампания</th><th>статус</th><th>ставка</th><th>ДРР-цель</th>
     <th>наша цена</th><th>маржа-live</th><th>предел ↓</th><th>индекс</th>
   </tr></thead><tbody></tbody></table>
   <p class="note" id="foot"></p>
@@ -113,16 +114,29 @@ async function load(){
       <td>${c.ad_revenue?rub(c.ad_revenue):'<span class="muted" title="API не отдаёт выручку по этой модели">нет данных</span>'}</td>
       <td>${pct(c.drr)}</td></tr>`).join('')
     ||'<tr><td colspan="10" class="muted" style="text-align:center;padding:18px">нет кампаний</td></tr>';
+  const st=s=>(s||'').replace('CAMPAIGN_STATE_','').toLowerCase();
   $('#tbl tbody').innerHTML=(d.bids||[]).map(b=>`<tr>
       <td><div class="sku"><div class="nm">${b.sku}</div></div></td>
       <td style="text-align:left" title="${esc(b.title)}">${(b.title||'').slice(0,52)}</td>
       <td class="muted">${(b.campaign_title||'').slice(0,26)}</td>
+      <td class="muted">${st(b.state)}</td>
       <td>${rub(b.bid)}</td><td>${b.target_cir==null?'—':(+b.target_cir).toFixed(1)}</td>
       <td>${rub(b.our_price)}</td>
       <td><span class="pill ${b.margin_own_live==null?'':(b.margin_own_live<0?'neg':(b.margin_own_live<25?'warn':'pos'))}">${pct(b.margin_own_live)}</span></td>
       <td>${pct(b.discount_limit_pct)}</td><td>${zone(b.color_index)}</td></tr>`).join('')
-    ||'<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">нет ставок в снимке</td></tr>';
-  $('#foot').textContent=`Кампаний ${(d.campaigns||[]).length}, ставок показано ${(d.bids||[]).length}. `
+    ||'<tr><td colspan="10" class="muted" style="text-align:center;padding:24px">нет ставок в снимке</td></tr>';
+  const p=d.pool;
+  $('#scale').innerHTML=`В снимке <b>${rub(d.total)}</b> строк ставок по <b>${rub(d.sku_total)}</b> SKU `
+    +`в ${d.camp_total} кампаниях — таблица ниже показывает верхушку по ставке (${rub(d.limit)}), `
+    +`а не весь состав; сужайте поиском.`
+    +(p?` Отдельно пул продвижения в поиске (весь аккаунт, не кампания): <b>${rub(p.n)}</b> SKU, `
+        +`доступны ${rub(p.avail)}, `
+        +(p.on_?`участвуют ${rub(p.on_)}, средняя ставка ${rub(p.bid_avg)} ₽`
+              :`<b>участвует 0</b> — продвижение в поиске сейчас выключено, ставок нет`)
+        +`; за пределами топ-10 выдачи (индекс «10+») ${rub(p.vi10)} SKU `
+        +`<span class="muted">(снимок ${p.d})</span>.`:'');
+  $('#bcnt').textContent=`— показано ${(d.bids||[]).length} из ${rub(d.total)}`;
+  $('#foot').textContent=`Кампаний ${(d.campaigns||[]).length}. `
     +`Ставка сама по себе ничего не говорит — смотреть вместе с маржой и пределом снижения слева.`;
 }
 let t; document.addEventListener('input',e=>{if(e.target.id==='q'){clearTimeout(t);t=setTimeout(load,300)}});
