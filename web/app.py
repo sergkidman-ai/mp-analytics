@@ -2017,7 +2017,7 @@ def novelties_api(supplier: str = "", status: str = ""):
         params.append(status)
     rows = db.query(f"""
         SELECT id, supplier_key, article, name, color, measure, chip, price_rub,
-               decision, ms_code, ms_name, decided_at::text
+               decision, ms_code, ms_name, link, decided_at::text
           FROM prc_novelty
          WHERE {' AND '.join(where)}
          ORDER BY decision <> 'pending', name
@@ -2049,6 +2049,42 @@ class NoveltyDecision(BaseModel):
     ids: list[int]
     decision: str                                # matched | new | skip | pending
     ms_code: str = ""
+    link: str = ""                               # «Связь»: номера ДРУГИХ наших товаров
+
+
+class NoveltyLink(BaseModel):
+    ids: list[int]
+    link: str
+
+
+def _find_goods(code):
+    """Карточка по коду товара. Человек мыслит товаром («6058»), а код карточки — с суффиксом
+    поставщика (6058sk, 6058hb): принимаем обе формы и берём самую короткую карточку товара."""
+    found = db.query("""SELECT ms_id, code, name FROM ms_product
+                         WHERE NOT archived AND (upper(code) = upper(%s)
+                            OR code ~* ('^' || %s || '[a-z]*$'))
+                         ORDER BY length(code), code LIMIT 1""", (code, code))
+    return found[0] if found else None
+
+
+def _novelty_link(raw):
+    """«Связь» -> (нормализованная строка, ошибка).
+
+    Универсальная модель подходит нескольким нашим товарам (CET141644 — это и TN-328M/4310,
+    и TN-626M/6827), и таких может быть больше двух. Пишем ровно как одноимённое доп.поле МС:
+    номер товара четырьмя цифрами с ведущими нулями, разделитель «;», без пробелов.
+    Разделители на входе принимаем любые — человек напишет и «4310, 6827».
+    """
+    parts = [p for p in re.split(r"[^0-9A-Za-zА-Яа-я]+", raw or "") if p]
+    out = []
+    for part in parts:
+        item = _find_goods(part)
+        if not item:
+            return None, f"кода «{part}» нет в каталоге МС"
+        num = (re.match(r"^\d+", item["code"]) or [part])[0].zfill(4)
+        if num not in out:                       # один и тот же товар дважды не пишем
+            out.append(num)
+    return ";".join(out), None
 
 
 @app.post("/api/novelties/decide")
@@ -2060,28 +2096,40 @@ def novelties_decide(payload: NoveltyDecision):
     if payload.decision == "matched":
         if not code:
             return {"ok": False, "error": "нужен код товара"}
-        # Код карточки = номер товара + суффикс поставщика (6058sk, 6058hb). Человек мыслит
-        # товаром и пишет «6058» — принимаем и это, подставляя любую карточку этого товара.
-        found = db.query("""SELECT ms_id, code, name FROM ms_product
-                             WHERE NOT archived AND (upper(code) = upper(%s)
-                                OR code ~* ('^' || %s || '[a-z]*$'))
-                             ORDER BY length(code), code LIMIT 1""", (code, code))
-        if not found:
+        item = _find_goods(code)
+        if not item:
             return {"ok": False, "error": f"кода «{code}» нет в каталоге МС"}
-        item = found[0]
+    link, error = _novelty_link(payload.link)
+    if error:
+        return {"ok": False, "error": f"связь: {error}"}
     for novelty_id in payload.ids:
         db.execute("""UPDATE prc_novelty
                          SET decision = %s, ms_code = %s, ms_id = %s, ms_name = %s,
-                             decided_at = now()
+                             link = coalesce(%s, link), decided_at = now()
                        WHERE id = %s""",
                    (payload.decision,
                     item["code"] if item else None,
                     item["ms_id"] if item else None,
                     item["name"] if item else None,
+                    link or None,
                     novelty_id))
-    return {"ok": True, "n": len(payload.ids),
+    return {"ok": True, "n": len(payload.ids), "link": link,
             "ms_code": item["code"] if item else None,
             "ms_name": item["name"] if item else None}
+
+
+@app.post("/api/novelties/link")
+def novelties_link(payload: NoveltyLink):
+    """Проставить «Связь», не трогая решение: универсальность вскрывается и потом.
+
+    Пустая строка стирает связь — это осознанное «связей нет», а не «поле не заполняли».
+    """
+    link, error = _novelty_link(payload.link)
+    if error:
+        return {"ok": False, "error": error}
+    for novelty_id in payload.ids:
+        db.execute("UPDATE prc_novelty SET link = %s WHERE id = %s", (link or None, novelty_id))
+    return {"ok": True, "n": len(payload.ids), "link": link}
 
 
 @app.get("/api/warehouse")

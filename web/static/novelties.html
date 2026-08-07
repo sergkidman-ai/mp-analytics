@@ -42,6 +42,7 @@
   .pick{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .pick select{max-width:520px}
   .pick input{width:110px;font-variant-numeric:tabular-nums}
+  .pick input.link{width:150px}
   .ok{color:var(--pos);font-weight:700}
   .miss{color:var(--warn)}
   .verdict{font-size:11px;color:var(--mut);margin-top:3px}
@@ -144,6 +145,7 @@ function row(r){
         ? `<select class="cand">${opts}<option value="">— ввести код вручную —</option></select>`
         : `<span class="miss">в каталоге не нашлось</span>`}
       <input class="code" placeholder="код" value="">
+      <input class="link" placeholder="связь: 4310;6827" value="${esc(r.link || "")}">
       <button class="save pri">Это он</button>
       <button class="mknew new">NEW</button>
     </div>
@@ -153,7 +155,12 @@ function row(r){
         : r.decision === "exists" ? "уже в МС (артикул совпал)"
         : r.decision === "new" ? "новая модель" : "не берём"}</span>
        ${r.ms_code ? ` <b>${esc(r.ms_code)}</b> <span class="muted">${esc(r.ms_name || "")}</span>` : ""}
-       <button class="undo" style="margin-left:8px">вернуть</button>`;
+       <button class="undo" style="margin-left:8px">вернуть</button>
+       <div class="pick" style="margin-top:6px">
+         <span class="muted">связь</span>
+         <input class="link" placeholder="4310;6827" value="${esc(r.link || "")}">
+         <button class="savelink">сохранить</button>
+       </div>`;
   return `<tr data-id="${r.id}" class="${r.decision === "pending" ? "" : "done"}">
     <td><input type="checkbox" class="sel"></td>
     <td><div class="who">${esc(r.name)}</div><div class="art">${esc(r.article)}${
@@ -164,15 +171,20 @@ function row(r){
   </tr>`;
 }
 
-async function decide(ids, decision, code, msg){
-  const res = await fetch("/api/novelties/decide", {method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ids, decision, ms_code: code || ""})});
+async function post(url, body, msg){
+  const res = await fetch(url, {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
   const out = await res.json();
   if (!out.ok){ if (msg) { msg.textContent = out.error; msg.className = "msg neg"; } return false; }
   await load();
   return true;
 }
+
+// «Связь» — номера ДРУГИХ наших товаров, которым подходит та же универсальная модель
+// (CET141644 — это и TN-328M/4310, и TN-626M/6827). Формат хранения — как в МС: 0027;0060.
+const decide = (ids, decision, code, msg, link) =>
+  post("/api/novelties/decide", {ids, decision, ms_code: code || "", link: link || ""}, msg);
+const setLink = (ids, link, msg) => post("/api/novelties/link", {ids, link}, msg);
 
 function wire(){
   $("#rows").querySelectorAll("tr[data-id]").forEach(tr => {
@@ -181,12 +193,15 @@ function wire(){
     // Выпадающий список и поле кода — одно и то же поле ввода: выбор варианта просто
     // подставляет его код, а «вручную» освобождает поле.
     if (sel && code){ code.value = sel.value; sel.onchange = () => { code.value = sel.value; code.focus(); }; }
+    const link = tr.querySelector(".link");
     const save = tr.querySelector(".save");
-    if (save) save.onclick = () => decide([id], "matched", code.value, msg);
+    if (save) save.onclick = () => decide([id], "matched", code.value, msg, link.value);
     const mknew = tr.querySelector(".mknew");
-    if (mknew) mknew.onclick = () => decide([id], "new", "", msg);
+    if (mknew) mknew.onclick = () => decide([id], "new", "", msg, link.value);
     const undo = tr.querySelector(".undo");
     if (undo) undo.onclick = () => decide([id], "pending", "", msg);
+    const savelink = tr.querySelector(".savelink");
+    if (savelink) savelink.onclick = () => setLink([id], link.value, msg);
     tr.querySelector(".sel").onchange = marked;
   });
   $("#all").onchange = e => {
