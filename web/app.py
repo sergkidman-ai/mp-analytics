@@ -2002,7 +2002,12 @@ def _novelty_view(row, prefix=""):
 
 @app.get("/api/novelties")
 def novelties_api(supplier: str = "", status: str = ""):
-    """Новинки с вариантами. status: pending | matched | new | skip | пусто = все."""
+    """Новинки с вариантами. status: pending | matched | exists | new | skip | пусто = все.
+
+    `exists` строка получает сама: артикул поставщика точно совпал с карточкой МС, товар
+    у нас есть — оприходование его просто не нашло. Разбирать нечего, но кнопка «вернуть»
+    на месте: артикул мог случайно совпасть с карточкой другого поставщика.
+    """
     where, params = ["1=1"], []
     if supplier:
         where.append("supplier_key = %s")

@@ -47,6 +47,7 @@
   .verdict{font-size:11px;color:var(--mut);margin-top:3px}
   .tag{font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;white-space:nowrap}
   .tag.matched{background:rgba(55,200,113,.15);color:var(--pos)}
+  .tag.exists{background:rgba(55,200,113,.10);color:var(--pos)}
   .tag.new{background:rgba(255,180,84,.15);color:var(--warn)}
   .tag.skip{background:rgba(138,160,181,.15);color:var(--mut)}
   .big{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px}
@@ -88,6 +89,7 @@
       <option value="pending">не разобранные</option>
       <option value="">все</option>
       <option value="matched">сопоставленные</option>
+      <option value="exists">уже в МС</option>
       <option value="new">новые модели</option>
       <option value="skip">не берём</option>
     </select>
@@ -148,6 +150,7 @@ function row(r){
     ${best ? `<div class="verdict">по коду ${esc(best.shared_code)} · ${esc(best.verdict)}${
         r.candidates.length > 1 ? ` · ещё вариантов: ${r.candidates.length - 1}` : ""}</div>` : ""}`
     : `<span class="tag ${r.decision}">${r.decision === "matched" ? "сопоставлено"
+        : r.decision === "exists" ? "уже в МС (артикул совпал)"
         : r.decision === "new" ? "новая модель" : "не берём"}</span>
        ${r.ms_code ? ` <b>${esc(r.ms_code)}</b> <span class="muted">${esc(r.ms_name || "")}</span>` : ""}
        <button class="undo" style="margin-left:8px">вернуть</button>`;
@@ -214,8 +217,8 @@ async function load(){
   }
   const c = d.counts, total = Object.values(c).reduce((a, b) => a + b, 0);
   $("#big").innerHTML = [["всего", total], ["не разобрано", c.pending || 0],
-                         ["сопоставлено", c.matched || 0], ["новых моделей", c.new || 0],
-                         ["не берём", c.skip || 0]]
+                         ["сопоставлено", c.matched || 0], ["уже в МС", c.exists || 0],
+                         ["новых моделей", c.new || 0], ["не берём", c.skip || 0]]
     .map(([l, v]) => `<div class="bi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
   $("#rows").innerHTML = DATA.length ? DATA.map(row).join("")
     : `<tr><td colspan="5" class="muted">пусто — по этому фильтру строк нет</td></tr>`;

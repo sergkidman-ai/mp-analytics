@@ -209,12 +209,18 @@ def read_novelties(path):
 
 
 def save(rows, supplier_key, hits_by_article):
-    """Разложить новинки и найденные варианты по таблицам.
+    """Разложить новинки и найденные варианты по таблицам. -> сколько закрылось само.
 
     Решение человека не трогаем: строка приходит с каждым прогоном прайса, а разбирается
     один раз. Обновляем только описание строки и подсказки — сами варианты пересобираются
     заново, они лишь результат сегодняшней сверки.
+
+    Точное совпадение артикула поставщика закрывает строку САМО (`decision = 'exists'`):
+    товар в МС есть, просто оприходование его не нашло, и человеку разбирать тут нечего.
+    Решение обратимо — строка видна во вкладке под фильтром «уже в МС», кнопка «вернуть
+    в работу» на месте: на случай, если артикул случайно совпал с чужой карточкой.
     """
+    auto = 0
     for row in rows:
         found = query("""
             INSERT INTO prc_novelty (supplier_key, article_norm, article, name, kind,
@@ -229,7 +235,8 @@ def save(rows, supplier_key, hits_by_article):
               row["color"], measure(row), row["chip"], row["price"]))
         novelty_id = found[0]["id"]
         execute("DELETE FROM prc_novelty_candidate WHERE novelty_id = %s", (novelty_id,))
-        for rank, hit in enumerate(hits_by_article.get(row["article"], ()), start=1):
+        hits = hits_by_article.get(row["article"], ())
+        for rank, hit in enumerate(hits, start=1):
             item = hit["item"]
             execute("""
                 INSERT INTO prc_novelty_candidate (novelty_id, rank, ms_id, ms_code, ms_name,
@@ -237,6 +244,15 @@ def save(rows, supplier_key, hits_by_article):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (novelty_id, rank, item["ms_id"], item["code"], item["name"], item["color"],
                   measure(item), item["chip"], hit["code"], verdict(hit)))
+        if hits and hits[0].get("by_article"):
+            item = hits[0]["item"]
+            auto += execute("""
+                UPDATE prc_novelty
+                   SET decision = 'exists', ms_id = %s, ms_code = %s, ms_name = %s,
+                       decided_at = now()
+                 WHERE id = %s AND decision = 'pending'
+            """, (item["ms_id"], item["code"], item["name"], novelty_id)) or 0
+    return auto
 
 
 def verdict(hit):
@@ -285,15 +301,16 @@ def analyze(rows, default_chip="chip", article_re=None):
 
 
 def sync(rows, supplier_key, default_chip=None, article_re=None):
-    """Сверить новинки прогона с каталогом и положить во вкладку «Новинки». -> сколько нашлось.
+    """Сверить новинки прогона с каталогом и положить во вкладку «Новинки».
 
+    -> (сколько строк получили варианты, сколько закрылось само по артикулу).
     Строки — {name, article, price}; решение человека по уже разобранным строкам не трогаем.
     """
     if not rows:
-        return 0
+        return 0, 0
     hits = analyze(rows, default_chip, article_re)
-    save(rows, supplier_key, hits)
-    return sum(1 for r in rows if hits.get(r["article"]))
+    auto = save(rows, supplier_key, hits)
+    return sum(1 for r in rows if hits.get(r["article"])), auto
 
 
 def pending_rows(supplier_key=None):
@@ -319,7 +336,8 @@ def rematch(supplier_key=None):
     for key in sorted({r["supplier_key"] for r in rows}):
         profile = get_profile(key)
         mine = [r for r in rows if r["supplier_key"] == key]
-        stats[key] = (sync(mine, key, profile.default_chip, profile.article_re), len(mine))
+        found, auto = sync(mine, key, profile.default_chip, profile.article_re)
+        stats[key] = (found, auto, len(mine))
     return stats
 
 
@@ -337,8 +355,9 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.rematch:
-        for key, (found, total) in rematch(args.supplier).items():
-            print(f"{key}: нашли пару {found} из {total} висящих строк")
+        for key, (found, auto, total) in rematch(args.supplier).items():
+            print(f"{key}: нашли пару {found} из {total} висящих строк; "
+                  f"закрыто по артикулу (уже в МС) — {auto}")
         return 0
     if not args.file:
         ap.error("нужен --file или --rematch")
