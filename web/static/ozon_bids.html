@@ -68,7 +68,34 @@
     посчитать не из чего (дырка измерения, шаг 3 плана).</p>
   <p class="note" id="scale" style="margin-top:6px"></p>
   <div class="ctrls"><div id="accwrap"></div></div>
-  <h3 style="margin:6px 0 8px;font-size:15px">Кампании</h3>
+
+  <h3 style="margin:14px 0 8px;font-size:15px">План ставок <span class="muted" id="planbuilt" style="font-weight:400;font-size:12px"></span></h3>
+  <div class="ctrls">
+    <div class="tabs" id="pact">
+      <button data-x="raise" class="cur">поднять</button>
+      <button data-x="cut">снизить</button>
+      <button data-x="drop">убрать из кампаний</button>
+    </div>
+    <div class="tabs" id="pstep">
+      <button data-s="5">шаг 5 %/день</button>
+      <button data-s="8" class="cur">шаг 8 %/день</button>
+      <button data-s="10">шаг 10 %/день</button>
+    </div>
+    <input id="pq" placeholder="поиск: sku / название / кампания" style="min-width:220px">
+  </div>
+  <p class="note" id="psum" style="margin-top:0"></p>
+  <table id="ptbl"><thead><tr>
+    <th>SKU</th><th>наименование</th><th>кампания</th><th>ставка сейчас</th>
+    <th title="ставка сейчас + шаг за день, но не выше цели">завтра</th>
+    <th title="доля потолка, которую занимаем ставкой">цель</th>
+    <th title="CPC, при котором реклама съедает всю прибыль позиции">потолок</th>
+    <th title="сколько дней шагать от текущей ставки до цели">дней</th>
+    <th>шт 90 дн</th><th>выручка 90 дн</th>
+    <th title="средняя позиция в поиске за 4 недели">поз.</th><th>маржа</th>
+  </tr></thead><tbody></tbody></table>
+  <p class="note" id="pfoot"></p>
+
+  <h3 style="margin:22px 0 8px;font-size:15px">Кампании</h3>
   <table id="camps"><thead><tr>
     <th>кампания</th><th>тип</th><th>модель оплаты</th><th>статус</th><th>расход</th>
     <th>показы</th><th>клики</th><th>CPC</th><th>выручка</th><th>ДРР</th>
@@ -106,7 +133,7 @@ const zone=c=>{
   return `<span class="pill ${m[c]||''}">${c==='WITHOUT_INDEX'?'нет':c}</span>`;
 };
 async function load(){
-  $('#accwrap').innerHTML=accBar(); bindAcc(load);
+  $('#accwrap').innerHTML=accBar(); bindAcc(()=>{load(); loadPlan();});
   const r=await fetch(`/api/ozon-bids?account=${acc}&q=${encodeURIComponent($('#q').value.trim())}`);
   const d=await r.json();
   $('#per').textContent=d.period||'—'; $('#snap').textContent=d.bids_date||'—';
@@ -143,8 +170,61 @@ async function load(){
   $('#foot').textContent=`Кампаний ${(d.campaigns||[]).length}. `
     +`Ставка сама по себе ничего не говорит — смотреть вместе с маржой и пределом снижения слева.`;
 }
-let t; document.addEventListener('input',e=>{if(e.target.id==='q'){clearTimeout(t);t=setTimeout(load,300)}});
-load();
+// ---- План ставок: цель из mkt_ozon_bid_plan, «сейчас» — из свежего снимка ozon_bids.
+// Идём лестницей: каждый день +шаг % от текущей, пока не упрёмся в цель.
+let pact='raise', pstep=8;
+const days=(now,tgt,s)=>(!now||!tgt||tgt<=now)?0:Math.ceil(Math.log(tgt/now)/Math.log(1+s/100));
+async function loadPlan(){
+  const r=await fetch(`/api/ozon-bid-plan?account=${acc}&action=${pact}`
+                      +`&q=${encodeURIComponent($('#pq').value.trim())}`);
+  const d=await r.json(); const s=d.summary||{};
+  $('#planbuilt').textContent=d.built_at?`— план от ${d.built_at}, ставки на ${d.bids_date}`:'— плана нет';
+  const step=pstep;
+  const rows=(d.rows||[]).map(x=>{
+    const now=+x.bid_now||0, tgt=+x.bid_target||0;
+    const next=pact==='raise'?Math.min(Math.round(now*(1+step/100)), tgt||now)
+              :pact==='cut' ?Math.max(Math.round(now*(1-step/100)), tgt||0):null;
+    return {...x, now, tgt, next, dd:days(now,tgt,step)};
+  });
+  const todo=rows.filter(x=>x.next!=null && x.next!==x.now).length;
+  $('#psum').innerHTML=pact==='drop'
+    ? `<b>${rub(s.n)}</b> позиций без продаж за 90 дней — их надо вынуть из кампаний: они `
+      +`набирают показы и клики, но заказов не дают. Убирается позиция из рекламы, а не карточка.`
+    : `<b>${rub(s.n)}</b> позиций, выручка за 90 дней <b>${rub(s.revenue)} ₽</b> (${rub(s.qty)} шт). `
+      +`Медиана: ставка <b>${rub(s.bid_now)} ₽</b> → цель <b>${rub(s.bid_target)} ₽</b> при потолке `
+      +`<b>${rub(s.ceiling)} ₽</b>, маржа ${pct(s.margin)}, средняя позиция в поиске ${rub(s.pos)}. `
+      +`Шагом ${step} %/день сегодня меняем <b>${rub(todo)}</b> позиций, весь путь — `
+      +`<b>${days(+s.bid_now,+s.bid_target,step)} дней</b>.`;
+  $('#ptbl tbody').innerHTML=rows.map(x=>`<tr>
+      <td><div class="sku"><div class="nm">${x.sku}</div><div class="vc">${x.offer_id||''}</div></div></td>
+      <td style="text-align:left" title="${esc(x.name)}">${(x.name||'').slice(0,46)}</td>
+      <td class="muted">${(x.campaign_title||'').slice(0,22)}</td>
+      <td>${rub(x.now)}</td>
+      <td>${x.next==null?'—':`<b>${rub(x.next)}</b>`}</td>
+      <td>${x.tgt?rub(x.tgt):'—'}</td>
+      <td class="muted">${rub(x.bid_ceiling)}</td>
+      <td>${x.dd||'—'}</td>
+      <td>${rub(x.qty90)}</td><td>${rub(x.revenue90)}</td>
+      <td class="muted">${x.search_pos==null?'—':Math.round(x.search_pos)}</td>
+      <td><span class="pill ${x.margin_pct==null?'':(x.margin_pct<25?'warn':'pos')}">${pct(x.margin_pct)}</span></td>
+    </tr>`).join('')
+    ||'<tr><td colspan="12" class="muted" style="text-align:center;padding:18px">пусто</td></tr>';
+  $('#pfoot').innerHTML=`Показано ${rows.length} из ${rub(s.n)} (сортировка по выручке за 90 дней). `
+    +`Потолок = (цена × маржа − цена × 5 % оплаты за заказ) × конверсия: клик дороже потолка `
+    +`съедает всю прибыль позиции. Цель — 35 % потолка, запас на ошибку конверсии. `
+    +`Маржа взята с учётом отключения Premium Pro и Звёздных (+3.5 п.п.). `
+    +`<b>Страница ничего не отправляет в Ozon</b> — ставки меняются в кабинете вручную.`
+    +((d.campaigns||[]).length?` По кампаниям: `
+        +d.campaigns.map(c=>`${c.campaign.slice(0,20)} — ${c.n}`).join(', '):'');
+}
+$('#pact').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  pact=b.dataset.x;[...$('#pact').children].forEach(x=>x.classList.toggle('cur',x===b));loadPlan();});
+$('#pstep').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  pstep=+b.dataset.s;[...$('#pstep').children].forEach(x=>x.classList.toggle('cur',x===b));loadPlan();});
+let t; document.addEventListener('input',e=>{
+  if(e.target.id==='q'){clearTimeout(t);t=setTimeout(load,300)}
+  if(e.target.id==='pq'){clearTimeout(t);t=setTimeout(loadPlan,300)}});
+load(); loadPlan();
 </script>
 </body>
 </html>

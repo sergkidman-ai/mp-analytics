@@ -390,6 +390,62 @@ def ozon_bids(account: str = "oz_acc1", q: str = "", limit: int = 300):
             "account": account, "readonly": True}
 
 
+@app.get("/api/ozon-bid-plan")
+def ozon_bid_plan(account: str = "oz_acc1", action: str = "raise", q: str = "",
+                  limit: int = 300):
+    """План изменения ставок Ozon из `mkt_ozon_bid_plan` (строит tools/ozon_bid_plan.py).
+
+    Витрина показывает ЛЕСТНИЦУ, а не разовый скачок: цель хранится в плане, а «ставка
+    сейчас» всегда берётся из свежего снимка `ozon_bids`. Значит после ручного шага в
+    кабинете и следующего сбора ставок страница сама покажет остаток пути — шаг в день
+    задаётся на фронте (5/8/10 %).
+
+    Ничего в Ozon не отправляется: только просмотр и список для ручного применения."""
+    built = db.query("SELECT max(built_at)::text d FROM mkt_ozon_bid_plan WHERE account=%s",
+                     (account,))[0]["d"]
+    if not built:
+        return {"built_at": None, "rows": [], "summary": {}, "account": account,
+                "action": action, "readonly": True}
+    snap = db.query("SELECT max(captured_at)::text d FROM ozon_bids WHERE account=%s",
+                    (account,))[0]["d"]
+    where = ["p.built_at=%s", "p.account=%s", "p.action=%s"]
+    params = [built, account, action]
+    if q:
+        where.append("(p.name ILIKE %s OR p.sku LIKE %s OR p.campaign_title ILIKE %s)")
+        params += [f"%{q}%"] * 3
+    w = " AND ".join(where)
+    summ = db.query(f"""
+      SELECT count(*) n, sum(p.qty90) qty, sum(p.revenue90) revenue,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY p.bid_at_plan) bid_now,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY p.bid_target)  bid_target,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY p.bid_ceiling) ceiling,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY p.margin_pct)  margin,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY p.search_pos)  pos
+      FROM mkt_ozon_bid_plan p WHERE {w}""", tuple(params))[0]
+    camps = db.query(f"""
+      SELECT coalesce(p.campaign_title,'—') campaign, count(*) n, sum(p.revenue90) revenue,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY p.bid_at_plan) bid_now,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY p.bid_target)  bid_target
+      FROM mkt_ozon_bid_plan p WHERE {w}
+      GROUP BY 1 ORDER BY count(*) DESC""", tuple(params))
+    rows = db.query(f"""
+      SELECT p.sku, p.offer_id, p.name, p.campaign_title, p.campaign_id, p.bid_at_plan,
+             p.bid_target, p.bid_ceiling, p.our_price, p.margin_pct, p.cr, p.qty90,
+             p.revenue90, p.search_pos, p.view_conv, p.reason,
+             coalesce(b.bid, p.bid_at_plan) bid_now
+      FROM mkt_ozon_bid_plan p
+      LEFT JOIN LATERAL (
+        SELECT max(bid) bid FROM ozon_bids o
+        WHERE o.account=p.account AND o.sku::text=p.sku AND o.captured_at=%s
+          AND (p.campaign_id=0 OR o.campaign_id::text=p.campaign_id::text)) b ON true
+      WHERE {w}
+      ORDER BY p.revenue90 DESC NULLS LAST, p.qty90 DESC
+      LIMIT %s""", (snap,) + tuple(params) + (limit,))
+    return {"built_at": built, "bids_date": snap, "rows": rows, "summary": summ,
+            "campaigns": camps, "account": account, "action": action, "limit": limit,
+            "readonly": True}
+
+
 @app.get("/api/ozon-queries")
 def ozon_queries(account: str = "oz_acc1", action: str = "поднять_ставку",
                  q: str = "", limit: int = 200):
