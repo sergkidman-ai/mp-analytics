@@ -169,11 +169,11 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
 
         below = (margin_live is not None and margin_live < threshold)
         negative = (net_live is not None and net_live < 0)
-        # СЕБЕСТ ПРОТУХ: FIFO помнит старую отгрузку, а товар с тех пор подорожал. Расчёт не
-        # ошибочный — просто устаревший, и маржа по нему ЗАВЫШЕНА. Помечаем явно: маржа у нас
-        # решающий фактор, на неё смотрит и цена, и лестница ставок (аудит 07.08.2026, 116 SKU).
-        stale = (e["cogs_source"] == "shipment" and fifo is not None and bp_live is not None
-                 and fifo < bp_live * (1 - COGS_STALE_GAP))
+        # СЕБЕСТ ПРОТУХ: FIFO помнил старую отгрузку, а товар с тех пор подорожал. С 07.08.2026
+        # витрина такой себест уже НЕ берёт — подставляет живую закупку и ставит source='live_stale'
+        # (маржа при этом честно опускается). Флаг оставлен как ПОМЕТКА о подмене: экономика по
+        # этим SKU стоит на восстановительной цене, а не на факте отгрузки — знать это полезно.
+        stale = (e["cogs_source"] == "live_stale")
 
         recs.append({
             "captured_date": day, "account": account, "nm_id": nm,
@@ -243,10 +243,11 @@ def _write_report(account, day, threshold, recs, skipped_dead=0):
     lines.append(f"ВЫПАДАЕМ по марже (<{threshold:.0f}%): {len(below)}  "
                  f"| из них ОТРИЦАТЕЛЬНАЯ: {len(negative)}")
     if cogs_stale:
-        _sum = sum((r["cogs_delta"] or 0) for r in cogs_stale)
-        lines.append(f"СЕБЕСТ ПРОТУХ (FIFO ниже живой закупки >{100*COGS_STALE_GAP:.0f}%): "
-                     f"{len(cogs_stale)} SKU, недоучтено {_sum:.0f} ₽/шт суммарно — "
-                     f"маржа-FIFO у них ЗАВЫШЕНА, решать по марже-live")
+        # ₽-дельту здесь не печатаем: после подмены fifo_cogs_u == buy_price_live, разница нулевая
+        # по построению. Величина исходного расхождения — в логе прогона витрины.
+        lines.append(f"СЕБЕСТ ПОДМЕНЁН (FIFO был ниже живой закупки >{100*COGS_STALE_GAP:.0f}%): "
+                     f"{len(cogs_stale)} SKU — экономика по ним стоит на живой закупке "
+                     f"(«почём купим сегодня»), маржа опущена честно")
     if priced:
         med = sorted(r["margin_own_live"] for r in priced if r["margin_own_live"] is not None)
         if med:

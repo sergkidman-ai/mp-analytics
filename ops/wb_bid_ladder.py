@@ -15,9 +15,11 @@
   4. Потолок MAX_CPC и пол ВБ 7.3 ₽.
   5. МАРЖА (добавлен 07.08.2026): net_live < 0 → заморозить. Разгонять трафик на товар, который
      теряет деньги с каждой продажи, — усиление убытка, а не рост. ДРР этого не ловит: он меряет
-     расход к ВЫРУЧКЕ и ничего не знает о себестоимости. Туда же — cogs_stale: маржа посчитана
-     на протухшем FIFO и завышена, а на неизвестности ставку не поднимают.
+     расход к ВЫРУЧКЕ и ничего не знает о себестоимости.
      Источник — mkt_margin_control за последний снимок (read-only).
+     Заморозки по cogs_stale больше НЕТ: с 07.08.2026 витрина сама подменяет протухший FIFO живой
+     закупкой, маржа по таким SKU честная (и ниже прежней) — морозить не за что, их судит гейт
+     убытка наравне со всеми. Флаг остался пометкой о подмене и попадает в сводку.
 
 По умолчанию — DRY-RUN: считает и печатает, в ВБ НЕ пишет. Живая запись только с --apply
 (правило: данные ≠ разрешение писать; --apply даётся под конкретный прогон).
@@ -107,8 +109,8 @@ def plan(account="wb_acc1", cohort="a"):
         (account, list(nms)))}
     acc_drr, acc_sp, acc_rv, per = _drr(account, nms)
 
-    rows, watch = [], 0
-    frozen = {"drr": 0, "burn": 0, "cap": 0, "no_adv": 0, "loss": 0, "stale": 0, "no_margin": 0}
+    rows, watch, n_substituted = [], 0, 0
+    frozen = {"drr": 0, "burn": 0, "cap": 0, "no_adv": 0, "loss": 0, "no_margin": 0}
     for nm, (cpc, adv) in sorted(cur.items()):
         sp, rv = per.get(nm, (0.0, 0.0))
         net_l, marg_l, stale = marg.get(nm, (None, None, False))
@@ -118,9 +120,8 @@ def plan(account="wb_acc1", cohort="a"):
         if net_l < 0:                # убыточная штука — трафик только усилит убыток
             frozen["loss"] += 1
             continue
-        if stale:                    # маржа посчитана на протухшем себесте → не верим
-            frozen["stale"] += 1
-            continue
+        if stale:                    # себест подменён живой закупкой — маржа честная, не морозим
+            n_substituted += 1
         if marg_l is not None and marg_l < MARGIN_WATCH:
             watch += 1               # не блокируем, но считаем и показываем в сводке
         if rv > 0 and sp / rv > DRR_LIMIT:
@@ -151,6 +152,7 @@ def plan(account="wb_acc1", cohort="a"):
     stats = {"cohort_size": len(nms), "to_raise": len(rows), "frozen": frozen,
              "margin_day": (marg_day.isoformat() if marg_day else None),
              "margin_known": len(marg), "watch_below_kpi": watch,
+             "cogs_substituted": n_substituted,
              "acc_drr": (round(100 * acc_drr, 1) if acc_drr is not None else None),
              "acc_spend": acc_sp, "acc_revenue": acc_rv,
              "avg_old": (round(sum(r["old_cpc"] for r in rows) / len(rows), 2) if rows else None),
@@ -230,9 +232,10 @@ def main():
     print(f"[лестница {a.cohort}] когорта {st.get('cohort_size')} SKU | к подъёму {st.get('to_raise')} | "
           f"заморожено ДРР {st['frozen']['drr']} костёр {st['frozen']['burn']} потолок {st['frozen']['cap']} "
           f"без кампании {st['frozen']['no_adv']} УБЫТОК {st['frozen']['loss']} "
-          f"себест-протух {st['frozen']['stale']} без маржи {st['frozen']['no_margin']}")
+          f"без маржи {st['frozen']['no_margin']}")
     print(f"  гейт маржи: снимок {st.get('margin_day')}, маржа известна по {st.get('margin_known')} SKU когорты; "
-          f"из поднимаемых ниже KPI {MARGIN_WATCH:.0f}%: {st.get('watch_below_kpi')} (не блокируем)")
+          f"из поднимаемых ниже KPI {MARGIN_WATCH:.0f}%: {st.get('watch_below_kpi')} (не блокируем); "
+          f"себест подменён живой закупкой у {st.get('cogs_substituted')}")
     print(f"  ставка {st.get('avg_old')} → {st.get('avg_new')} ₽ | ДРР аккаунта {WINDOW_DAYS} дн: "
           f"{st.get('acc_drr')}% (расход {st.get('acc_spend'):.0f} ₽ / выручка {st.get('acc_revenue'):.0f} ₽)")
 
@@ -260,7 +263,7 @@ def main():
            f"Поднято *{ok}* SKU: {st['avg_old']} → *{st['avg_new']} ₽*"
            + (f", отказано {bad}" if bad else "") + "\n"
            f"Заморожено: ДРР {fr['drr']} · костры {fr['burn']} · потолок {fr['cap']} · "
-           f"убыток {fr['loss']} · себест протух {fr['stale']} · без маржи {fr['no_margin']}\n"
+           f"убыток {fr['loss']} · без маржи {fr['no_margin']}\n"
            f"Из поднятых ниже KPI {MARGIN_WATCH:.0f}% маржи: {st.get('watch_below_kpi')}\n"
            f"ДРР аккаунта за {WINDOW_DAYS} дн: {st['acc_drr']}% (граница {100*DRR_LIMIT:.0f}%)")
     return 0

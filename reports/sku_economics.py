@@ -38,7 +38,8 @@ from psycopg2.extras import Json
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
-from reports.margin_control import _mapping  # noqa: E402  — общий мост nm → код TheCartridge
+from reports.margin_control import _mapping, COGS_STALE_GAP  # noqa: E402  — общий мост nm → код
+# TheCartridge и ЕДИНЫЙ порог протухшего себеста (объявлен один раз, в margin_control).
 
 load_dotenv(BASE_DIR / ".env")
 
@@ -285,6 +286,14 @@ def build(account="wb_acc1", period=None):
         # Карточку МС (buy_price/cost_seb) НЕ используем — забраковано клиентом.
         if nm in repl_ship:
             cogs, src = repl_ship[nm], "shipment"     # одиночный: себест отгрузок (посл. период)
+            # ПРОТУХШИЙ FIFO (07.08.2026). Себест отгрузок честно помнит цену, по которой товар
+            # закупался — но если с тех пор он подорожал, эта цена больше не описывает нашу
+            # экономику: продав штуку, мы купим замену ДОРОЖЕ. Экономика здесь форвардная (по ней
+            # решают цену и рекламу), поэтому при разрыве больше COGS_STALE_GAP берём живую
+            # закупку. Она выше — маржа честно опускается.
+            _live = repl_live.get(nm)
+            if _live and cogs < _live * (1 - COGS_STALE_GAP):
+                cogs, src = _live, "live_stale"
         elif nm in repl_live:
             cogs, src = repl_live[nm], "live"         # не отгружался → живая закупка по своему коду
         elif subj.get(nm) in repl_analog:
