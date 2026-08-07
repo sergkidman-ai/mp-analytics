@@ -84,6 +84,21 @@ def measure(item):
     return item["resource"]
 
 
+def color_ok(want, got):
+    """Цвет не противоречит.
+
+    Молчание каталога — не отказ, но только для ЧЁРНОГО: чёрный часто не пишут вовсе, он
+    подразумевается («Драм-картридж Kyocera ECOSYS P4140 DK-7310» — чёрный по определению).
+    А вот если поставщик заявил голубой, а карточка цвет не называет — это почти наверняка
+    другой товар: у цветных позиций цвет в названии стоит всегда.
+    """
+    if want and got:
+        return want == got
+    if want and want != "BK":
+        return False
+    return None
+
+
 def chip_ok(want, got):
     """Чип не противоречит. None с любой стороны — молчание, а не «без чипа»."""
     if want is None or got is None:
@@ -113,10 +128,9 @@ def match(row, index, by_id):
         item = by_id[ms_id]
         if row["kind"] != item["kind"]:
             continue        # флакон тонера и тонер-картридж на один принтер — разные товары
-        if row["color"] and item["color"] and row["color"] != item["color"]:
+        color = color_ok(row["color"], item["color"])
+        if color is False:
             continue
-        if row["color"] and not item["color"]:
-            continue                               # цвет у нас есть, у них нет — не тот товар
         res = close(measure(row), measure(item))
         if res is False:
             continue
@@ -125,10 +139,10 @@ def match(row, index, by_id):
             continue
         rarest = min(len(index[c]) for c in shared)
         best_code = max(shared, key=lambda c: (len(index[c]) == rarest, len(c)))
-        confirmed = sum(1 for x in (res, chip) if x)
+        confirmed = sum(1 for x in (color, res, chip) if x)
         out.append({"item": item, "code": best_code, "shared": len(shared),
                     "rarity": rarest, "confirmed": confirmed,
-                    "resource_ok": res, "chip_ok": chip})
+                    "color_ok": color, "resource_ok": res, "chip_ok": chip})
     out.sort(key=lambda h: (h["rarity"], -h["confirmed"], -h["shared"]))
     return out
 
@@ -182,6 +196,8 @@ def save(rows, supplier_key, hits_by_article):
 def verdict(hit):
     """Словами: что подтвердилось, а что в каталоге не написано."""
     notes = []
+    if hit["color_ok"] is None:
+        notes.append("цвет не указан")
     if hit["resource_ok"] is None:
         notes.append("ресурс/объём не указан")
     if hit["chip_ok"] is None:
@@ -256,7 +272,7 @@ def main(argv=None):
             shown = hits_by_article[row["article"]]
             if shown:
                 found += 1
-                if shown[0]["confirmed"] == 2:
+                if shown[0]["confirmed"] == 3:      # цвет, ресурс и чип — все подтверждены
                     full += 1
             base = [row["article"], row["name"], F.COLOR_NAMES.get(row["color"], ""),
                     measure(row) or "", F.CHIP_NAMES[row["chip"]]]
