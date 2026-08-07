@@ -153,9 +153,41 @@ def build(account="wb_acc1", period=None):
 
     log_by_liter = {k: (_p75([x[0] for x in v]), _p75([x[1] for x in v]))
                     for k, v in _lb.items() if len(v) >= 5}
+    #     КРИВАЯ ОБЪЁМА для литражей, где своего ведра нет (редкие крупные короба: 45 л, 24 л,
+    #     20 л — по одному-двум SKU, ведро не наберётся никогда). Раньше они падали на медиану
+    #     каталога 246 ₽ — короб 45 л по цене среднего картриджа, занижение расхода в разы, то есть
+    #     ЗАВЫШЕНИЕ маржи ровно на самых объёмных карточках. Тариф ВБ линеен по объёму
+    #     (база + за литр), поэтому строим прямую по наполненным вёдрам методом наименьших
+    #     квадратов и предсказываем ею. Медиана каталога остаётся ТОЛЬКО для карточек без габаритов.
+    def _fit(pts):
+        n = len(pts)
+        if n < 3:
+            return None
+        mx = sum(p[0] for p in pts) / n
+        my = sum(p[1] for p in pts) / n
+        den = sum((p[0] - mx) ** 2 for p in pts)
+        if den <= 0:
+            return None
+        b = sum((p[0] - mx) * (p[1] - my) for p in pts) / den
+        return (my - b * mx, b)
+
+    log_fit = _fit([(k, v[0]) for k, v in sorted(log_by_liter.items())])
+    acc_fit = _fit([(k, v[1]) for k, v in sorted(log_by_liter.items())])
+
+    def _by_volume(v):
+        """Логистика/приёмка на штуку для короба объёмом v л. Своё ведро → его p75; иначе кривая."""
+        if v in log_by_liter:
+            return log_by_liter[v]
+        if log_fit and acc_fit:
+            lu = max(log_fit[0] + log_fit[1] * v, min(x[0] for x in log_by_liter.values()))
+            au = max(acc_fit[0] + acc_fit[1] * v, 0.0)
+            return lu, au
+        return None
+
     print(f"фолбэк логистики по литражу: {len(log_by_liter)} вёдер "
-          f"({min(log_by_liter, default=0)}–{max(log_by_liter, default=0)} л), "
-          f"медиана каталога {LOG_M:.0f} ₽ остаётся для карточек без габаритов")
+          f"({min(log_by_liter, default=0)}–{max(log_by_liter, default=0)} л)"
+          + (f", кривая {log_fit[0]:.0f}+{log_fit[1]:.1f}×V ₽ для остальных объёмов" if log_fit else "")
+          + f"; медиана каталога {LOG_M:.0f} ₽ остаётся только для карточек без габаритов")
 
     def _rates_u(nm, s, q):
         """Логистика/хранение/приёмка на ШТУКУ для карточки nm.
@@ -169,10 +201,10 @@ def build(account="wb_acc1", period=None):
             lu, su, au = _f(r["log"])/rq, _f(r["stor"])/rq, _f(r["acc"])/rq
         elif s and q and q >= MIN_QTY_FACT:
             lu, su, au = _f(s["logistics"])/q, _f(s["storage"])/q, _f(s["acceptance"])/q
-        elif vol.get(nm) in log_by_liter:                  # своих продаж нет → ведро по литражу короба
-            lu, au = log_by_liter[vol[nm]]
+        elif vol.get(nm) and _by_volume(vol[nm]):     # своих продаж нет → короб: ведро, иначе кривая
+            lu, au = _by_volume(vol[nm])
             return lu, STOR_M, au
-        else:
+        else:                                        # габаритов нет вовсе → медиана каталога
             return LOG_M, STOR_M, ACC_M
         if LOG_M and lu > 3*LOG_M:
             lu = LOG_M
@@ -198,6 +230,27 @@ def build(account="wb_acc1", period=None):
         if _p and _p > 0:
             repl_live[int(_nm)] = _p
     print(f"живая закупка как фолбэк себеста: {len(repl_live)} SKU")
+
+    # 3f) ЗАКУПОЧНАЯ ИЗ МОЙСКЛАДА — для карточек, которых нет ни в отгрузках, ни у TheCartridge.
+    #     «Не продавалась» не значит «данных нет»: закупочная цена в МС — это прайс поставщика,
+    #     он обновляется ежедневно (замечание Сергея 07.08.2026). Мосты берём ТЕ ЖЕ, что и для
+    #     TheCartridge, — полный vendorCode и префикс[:4] (материнский код). Слепого матча по
+    #     названию НЕ делаем: именно он когда-то смэтчил картридж на заправку.
+    #     ВНИМАНИЕ на пересечении 8267 SKU закупочная МС медианно на 25 % ВЫШЕ живой закупки
+    #     TheCartridge: МС — наша фактическая цена у поставщика, TheCartridge — лучшее предложение
+    #     платформы. Поэтому МС стоит ПОСЛЕ live: где есть обе, берём live (не завышаем расход
+    #     задним числом), а где живой нет — МС честнее любой оценки по предмету.
+    repl_ms = {}
+    for r in db.query("""
+      SELECT c.nm_id, p.buy_price bp
+        FROM wb_cards c
+        JOIN ms_product p
+          ON (p.external_code = c.vendor_code
+              OR (c.vendor_code ~ '^[0-9]{5,}$' AND p.external_code = left(c.vendor_code, 4)))
+       WHERE c.account = %s AND coalesce(p.buy_price, 0) > 0
+    """, (account,)):
+        repl_ms[int(r["nm_id"])] = _f(r["bp"])
+    print(f"закупочная МойСклад как фолбэк себеста: {len(repl_ms)} SKU")
 
     # 5) subject из card_content
     subj = {int(r["nm_id"]): r["subject"] for r in db.query("""
@@ -296,6 +349,8 @@ def build(account="wb_acc1", period=None):
                 cogs, src = _live, "live_stale"
         elif nm in repl_live:
             cogs, src = repl_live[nm], "live"         # не отгружался → живая закупка по своему коду
+        elif nm in repl_ms:
+            cogs, src = repl_ms[nm], "ms"             # нет и у TheCartridge → прайс поставщика в МС
         elif subj.get(nm) in repl_analog:
             cogs, src = repl_analog[subj.get(nm)], "analog"   # никогда не продавался → оценка по предмету
         else:
