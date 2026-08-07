@@ -1,22 +1,37 @@
+# поток: mkt
 """collectors/ozon_ads.py — реклама Ozon Performance по кампаниям (расход + выручка → ДРР).
 
 Performance API (api-performance.ozon.ru), креды OZON_PERF_CLIENT_ID_ACC*/OZON_PERF_SECRET_ACC*:
 - POST /api/client/token → Bearer.
 - GET  /api/client/campaign → список кампаний (id, title, advObjectType, state).
-- GET  /api/client/statistics/expense (CSV) → расход по кампаниям по дням (надёжно, синхронно).
-- POST /api/client/statistics → UUID → poll → GET .../report?UUID (ZIP из CSV по кампаниям) →
-  показы/клики/выручка в продвижении для ДРР.
+- GET  /api/client/statistics/daily/json?campaignIds=&dateFrom=&dateTo= → по дням на кампанию:
+  views, clicks, moneySpent, orders, ordersMoney. Синхронно, JSON, до 10 кампаний за запрос.
+
+Почему daily/json, а не прежняя пара expense-CSV + асинхронный ZIP (проверено 07.08):
+  расход по daily/json сходится с фактически списанным по транзакциям ДО РУБЛЯ
+  (июль, «Продвижение с оплатой за заказ»: acc1 541 441 ₽, acc2 97 783 ₽ — совпало),
+  тогда как ZIP-отчёт вообще не строится для ALL_SKU_PROMO/SEARCH_PROMO
+  («generation of this type of report is forbidden») и требовал фильтра по RUNNING,
+  из-за которого кампании, остановленные внутри периода, теряли показы и выручку.
+
+Берутся ВСЕ кампании кабинета, а не только RUNNING: в закрытом месяце важен факт расхода,
+а не сегодняшнее состояние. `covered_to` — по какой день период реально закрыт (месяц,
+собранный в его середине, покрывает половину и молча выглядит как целый: так июль-2026
+до пересбора показывал 410 867 ₽ вместо 711 089 ₽).
+
+ДЫРКА ИЗМЕРЕНИЯ (открыта, шаг 3 плана): у «Оплаты за заказ» (ALL_SKU_PROMO) daily/json
+отдаёт orders=0 и ordersMoney=0 при реальном расходе в сотни тысяч ₽ — выручка по этой
+модели не отдаётся ни здесь, ни отчётом /api/client/statistic/orders/generate/json
+(строит пустой отчёт), ни products/generate/json (там состояние продвижения в поиске).
+Поэтому ДРР по ней не считается; в сводках это НЕ ноль, а «нет данных».
 
 Тип оплаты: ALL_SKU_PROMO/SEARCH_PROMO = «Оплата за заказ» (% с заказа), иначе «Трафареты».
-Только для аккаунтов с Performance-кредами (сейчас Цифровой). Кладём в ozon_ads за месяц.
 
-Запуск:  ./venv/bin/python collectors/ozon_ads.py [oz_acc1] [YYYY-MM-01]
+Запуск:  ./venv/bin/python collectors/ozon_ads.py [oz_acc1|oz_acc2|all] [YYYY-MM-01]
 """
-import io
 import os
 import sys
 import time
-import zipfile
 import datetime
 import pathlib
 
@@ -63,77 +78,36 @@ def _month_bounds(period_first):
     return period_first, min(last, today)
 
 
-def _expense(H, df, dt):
-    """({campaign_id: расход}, {дата: расход}) из CSV (ID;Дата;Название;Расход;…)."""
-    r = requests.get(f"{PERF}/api/client/statistics/expense", headers=H, timeout=90,
-                     params={"dateFrom": df.isoformat(), "dateTo": dt.isoformat()})
-    r.raise_for_status()
+def _daily(H, ids, df, dt):
+    """({campaign_id: агрегат за период}, {дата: расход}) из daily/json. До 10 кампаний за раз."""
     per_camp, per_date = {}, {}
-    for ln in r.text.splitlines()[1:]:
-        p = ln.split(";")
-        if len(p) >= 4 and p[0]:
-            sp = _rub(p[3])
-            per_camp[p[0]] = per_camp.get(p[0], 0.0) + sp
-            d = p[1].strip()[:10]
-            if d:
-                per_date[d] = per_date.get(d, 0.0) + sp
+    for i in range(0, len(ids), 10):
+        r = requests.get(f"{PERF}/api/client/statistics/daily/json", headers=H, timeout=120,
+                         params={"campaignIds": ids[i:i + 10],
+                                 "dateFrom": df.isoformat(), "dateTo": dt.isoformat()})
+        if r.status_code != 200:
+            print(f"  daily/json HTTP {r.status_code}: {r.text[:100]}", flush=True)
+            continue
+        for x in r.json().get("rows", []) or []:
+            cid, day, sp = str(x.get("id")), (x.get("date") or "")[:10], _rub(x.get("moneySpent"))
+            a = per_camp.setdefault(cid, {"views": 0, "clicks": 0, "spend": 0.0,
+                                          "orders": 0.0, "ad_revenue": 0.0})
+            a["views"] += int(_rub(x.get("views")))
+            a["clicks"] += int(_rub(x.get("clicks")))
+            a["spend"] += sp
+            a["orders"] += _rub(x.get("orders"))
+            a["ad_revenue"] += _rub(x.get("ordersMoney"))
+            if day:
+                per_date[day] = per_date.get(day, 0.0) + sp
+        time.sleep(0.2)
     return per_camp, per_date
 
 
-def _report(H, ids, df, dt):
-    """{campaign_id: {views,clicks,ad_revenue,sold}} из async-отчёта (ZIP с CSV по кампаниям)."""
-    if not ids:
-        return {}
-    u = requests.post(f"{PERF}/api/client/statistics", headers=H, timeout=90, json={
-        "campaigns": ids, "from": f"{df.isoformat()}T00:00:00Z",
-        "to": f"{dt.isoformat()}T23:59:59Z", "groupBy": "NO_GROUP_BY"})
-    u.raise_for_status()
-    uuid = u.json().get("UUID")
-    for _ in range(30):
-        time.sleep(4)
-        st = requests.get(f"{PERF}/api/client/statistics/{uuid}", headers=H, timeout=60).json()
-        if st.get("state") == "OK":
-            break
-        if st.get("state") == "ERROR":
-            return {}
-    rep = requests.get(f"{PERF}/api/client/statistics/report", headers=H, timeout=120,
-                       params={"UUID": uuid})
-    rep.raise_for_status()
-    out = {}
-    try:
-        z = zipfile.ZipFile(io.BytesIO(rep.content))
-    except zipfile.BadZipFile:
-        return {}
-    for name in z.namelist():
-        cid = name.split("_")[0]
-        lines = z.read(name).decode("utf-8", errors="replace").splitlines()
-        if len(lines) < 3:
-            continue
-        hdr = [h.strip().lower() for h in lines[1].split(";")]
-
-        def col(sub):
-            for i, h in enumerate(hdr):
-                if sub in h:
-                    return i
-            return -1
-        iv, ic = col("показ"), col("клик")
-        irev, isold = col("продажи в продвижении"), col("продано")
-        agg = {"views": 0, "clicks": 0, "ad_revenue": 0.0, "sold": 0.0}
-        for ln in lines[2:]:
-            p = ln.split(";")
-            if iv >= 0 and iv < len(p):
-                agg["views"] += int(_rub(p[iv]))
-            if ic >= 0 and ic < len(p):
-                agg["clicks"] += int(_rub(p[ic]))
-            if irev >= 0 and irev < len(p):
-                agg["ad_revenue"] += _rub(p[irev])
-            if isold >= 0 and isold < len(p):
-                agg["sold"] += _rub(p[isold])
-        out[cid] = agg
-    return out
-
-
 def main(account="oz_acc1", period=None):
+    if account == "all":
+        for a in ("oz_acc1", "oz_acc2"):
+            main(a, period)
+        return
     if not has_creds(account):
         print(f"Ozon реклама {account}: нет Performance-кредов — пропуск", flush=True)
         return
@@ -144,36 +118,43 @@ def main(account="oz_acc1", period=None):
     print(f"Ozon реклама {account} {df}..{dt}", flush=True)
     H = {"Authorization": f"Bearer {_token(account)}"}
     camps = requests.get(f"{PERF}/api/client/campaign", headers=H, timeout=60).json().get("list", [])
-    meta = {c["id"]: c for c in camps}
-    exp, exp_daily = _expense(H, df, dt)
+    meta = {str(c["id"]): c for c in camps}
+    stats, per_date = _daily(H, list(meta), df, dt)
     daily = [{"account": account, "platform": "ozon", "date": d, "spend": round(s, 2)}
-             for d, s in exp_daily.items()]
-    db.upsert("ad_spend_daily", daily, conflict_cols=["account", "platform", "date"],
-              update_cols=["spend"])
-    running = [c["id"] for c in camps if c.get("state") == "CAMPAIGN_STATE_RUNNING"]
-    rep = _report(H, running, df, dt)
-    # кампании к записи: где есть расход или показы (активность за период)
-    ids = set(exp) | set(rep)
+             for d, s in per_date.items()]
+    if daily:
+        db.upsert("ad_spend_daily", daily, conflict_cols=["account", "platform", "date"],
+                  update_cols=["spend"])
     recs = []
-    for cid in ids:
+    for cid, a in stats.items():
+        if not (a["spend"] or a["views"] or a["ad_revenue"]):
+            continue                     # кампания без активности за период — не строка отчёта
         c = meta.get(cid, {})
         adv = c.get("advObjectType")
-        rp = rep.get(cid, {})
         recs.append({
             "account": account, "period": pf.isoformat(), "campaign_id": cid,
             "title": c.get("title"), "adv_type": adv,
             "pay_model": "Оплата за заказ" if adv in PAY_ORDER_TYPES else "Трафареты",
-            "state": c.get("state"),
-            "spend": round(exp.get(cid, 0.0), 2),
-            "views": rp.get("views", 0), "clicks": rp.get("clicks", 0),
-            "ad_revenue": round(rp.get("ad_revenue", 0.0), 2), "sold": rp.get("sold", 0)})
+            "state": c.get("state"), "covered_to": dt.isoformat(),
+            "spend": round(a["spend"], 2), "views": a["views"], "clicks": a["clicks"],
+            "orders": a["orders"], "sold": a["orders"],
+            "ad_revenue": round(a["ad_revenue"], 2)})
     n = db.upsert("ozon_ads", recs, conflict_cols=["account", "period", "campaign_id"],
-                  update_cols=["title", "adv_type", "pay_model", "state", "spend",
-                               "views", "clicks", "ad_revenue", "sold"])
+                  update_cols=["title", "adv_type", "pay_model", "state", "spend", "views",
+                               "clicks", "ad_revenue", "sold", "orders", "covered_to"]) if recs else 0
     tot_spend = sum(r["spend"] for r in recs)
     tot_rev = sum(r["ad_revenue"] for r in recs)
-    print(f"Записано кампаний: {n} | расход {tot_spend:,.0f} ₽ | выручка с рекламы {tot_rev:,.0f} ₽ "
-          f"| ДРР {round(tot_spend/tot_rev*100,1) if tot_rev else '—'}%", flush=True)
+    blind = sum(r["spend"] for r in recs if r["pay_model"] == "Оплата за заказ"
+                and not r["ad_revenue"])
+    print(f"Записано кампаний: {n} | расход {tot_spend:,.0f} ₽ | выручка с рекламы "
+          f"{tot_rev:,.0f} ₽ | ДРР {round(tot_spend/tot_rev*100,1) if tot_rev else '—'}%",
+          flush=True)
+    if blind:
+        print(f"  из них вслепую (выручку API не отдаёт): {blind:,.0f} ₽ — "
+              f"{100*blind/tot_spend:.0f}% бюджета", flush=True)
+    if dt < (pf + datetime.timedelta(days=32)).replace(day=1) - datetime.timedelta(days=1):
+        print(f"  ВНИМАНИЕ: месяц закрыт только по {dt} — пересобрать после его окончания",
+              flush=True)
 
 
 if __name__ == "__main__":
