@@ -61,7 +61,10 @@
   <p class="note" style="margin-top:0">Контроль маржи Ozon на <b>живой (восстановительной)
     себестоимости</b> TheCartridge. <b>KPI-база — НАША цена</b> (база комиссии Ozon), не цена
     покупателя. Маржа-live = наша цена × payout − логистика − хранение − приёмка − возвраты −
-    прочее − живая себест. «Прочее» у Ozon уже включает рекламу, баллы 1.5 %, подписку и штрафы.
+    прочее − живая себест. <b>Логистика привязана к объёму короба</b> (≈75 ₽ + 7 ₽/л по факту),
+    <b>«прочее» — процент от цены</b> (подписка Premium, Звёздные товары, эквайринг, реклама,
+    штрафы), возврат — резерв на обработку, а не сторно выручки. У карточек без своих продаж
+    расходы смоделированы — это помечено значком «модель», наведите на сумму расходов.
     <b>Предел снижения</b> — на сколько процентов можем упасть, не пробив порог; рядом — сколько
     процентов требует выход в зелёную зону индекса. Данные на <b id="day">…</b>.</p>
   <div class="big" id="big"></div>
@@ -109,6 +112,21 @@ function marginPill(m,thr){
   const c=m<0?'neg':(m<thr?'warn':'pos');
   return `<span class="pill ${c}">${(+m).toFixed(1)}%</span>`;
 }
+// Расходы площадки: сумма + из чего она сложилась и откуда взялась. Логистика идёт
+// от ОБЪЁМА короба, «прочее» — процентом от цены; если это модель, а не свои продажи,
+// это должно быть видно на странице, иначе прогноз читается как факт.
+function costsCell(r){
+  const LS={'факт':'по своим продажам','объём':'по объёму короба','средний_объём':'габаритов карточки нет — средний короб'};
+  const tip=`логистика ${rub(r.logistics_u)} ₽ (${LS[r.logistics_source]||'—'}`
+    +(r.volume_l?`, ${(+r.volume_l).toFixed(1)} л`:'')+`)\n`
+    +`прочее ${rub(r.other_u)} ₽ (${r.other_rate!=null?(100*r.other_rate).toFixed(1)+'% от цены':'—'}: `
+    +`подписка, Звёздные, эквайринг, реклама, штрафы)\n`
+    +`резерв возврата ${rub(r.returns_u)} ₽`;
+  const badge=r.cost_source==='модель'
+    ? ' <span class="badge" title="своих продаж за месяц не было — расходы смоделированы">модель</span>' : '';
+  return `<div title="${esc(tip)}">${rub(r.platform_costs)}${badge}`
+    +`<div class="muted" style="font-size:11px">лог ${rub(r.logistics_u)} · проч ${rub(r.other_u)}</div></div>`;
+}
 const VERD={'можно_снижать':['pos','можно снижать'],'не_укладывается':['neg','не укладывается'],
             'уже_зелёный':['pos','уже зелёный'],'нет_индекса':['','нет индекса'],
             'нет_себеста':['warn','нет себеста']};
@@ -137,7 +155,7 @@ async function load(){
       <td><div class="sku"><div class="nm">${r.offer_id}</div><div class="vc">${r.sku||''}${stale}${pfx}</div></div></td>
       <td style="text-align:left" title="${esc(r.name)}">${(r.name||'').slice(0,52)}</td>
       <td>${rub(r.our_price)}</td><td class="muted">${rub(r.buyer_price)}</td>
-      <td>${rub(r.platform_costs)}</td><td>${cost}</td>
+      <td>${costsCell(r)}</td><td>${cost}</td>
       <td>${rub(r.net_live)}</td><td>${marginPill(r.margin_own_live,thr)}</td>
       <td>${pct(r.discount_limit_pct)}</td><td class="muted">${pct(r.target_discount_pct)}</td>
       <td><span class="pill ${v[0]}">${v[1]}</span></td></tr>`;

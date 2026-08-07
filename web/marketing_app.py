@@ -290,7 +290,8 @@ def ozon_margin_control(account: str = "oz_acc1", view: str = "below", q: str = 
       SELECT offer_id, sku, name, our_price, buyer_price, payout_ratio, payout_source, to_pay_u,
              (coalesce(logistics_u,0)+coalesce(storage_u,0)+coalesce(accept_u,0)
               +coalesce(returns_u,0)+coalesce(other_u,0)) platform_costs,
-             logistics_u, other_u, cost_source,
+             logistics_u, other_u, returns_u, cost_source,
+             volume_l, logistics_source, other_rate,
              buy_price_live, buy_status, buy_map_source, price_date::text price_date,
              fifo_cogs_u, cogs_delta, cogs_u, cogs_source,
              net_live, margin_own_live, margin_own_fifo,
