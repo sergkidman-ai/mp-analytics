@@ -45,22 +45,23 @@ def _token(account):
     return key
 
 
-def windows(today=None):
+def windows(today=None, lookback=None):
     """Окна по 31 дню назад, от свежего к старому."""
     today = today or date.today()
+    lookback = LOOKBACK_DAYS if lookback is None else lookback
     out, end = [], today
-    while (today - end).days < LOOKBACK_DAYS:
+    while (today - end).days < lookback:
         start = end - timedelta(days=WINDOW_DAYS)
         out.append((start, end))
         end = start
     return out
 
 
-def fetch_raw(account, today=None):
+def fetch_raw(account, today=None, lookback=None):
     """Строки отчёта без дублей: окна перекрываются краями."""
     headers = {"Authorization": _token(account)}
     seen, out = set(), []
-    for i, (d1, d2) in enumerate(windows(today)):
+    for i, (d1, d2) in enumerate(windows(today, lookback)):
         if i:
             time.sleep(PAUSE)
         j = request_json("GET", API, headers=headers,
@@ -119,10 +120,12 @@ def normalize(account, raw):
     return head, items
 
 
-def collect(accounts=None):
+def collect(accounts=None, quick=False):
+    """quick — одно окно вместо трёх: свежие изменения ловим, старую историю не перечитываем
+    (между окнами лимитер WB заставляет спать по 8 с, отсюда почти вся длительность сбора)."""
     out = []
     for account in (accounts or CRED_ENV):
-        for raw in fetch_raw(account):
+        for raw in fetch_raw(account, lookback=WINDOW_DAYS if quick else None):
             head, items = normalize(account, raw)
             out.append((head, items, raw))
     return out

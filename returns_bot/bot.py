@@ -42,14 +42,22 @@ def send_summaries(chat_id):
 
 
 def refresh(chat_id):
-    """Сходить в API площадок, пересобрать данные и показать свежую сводку."""
+    """Сходить в API площадок за свежим окном, пересчитать и показать сводку.
+
+    Быстрый сбор: у WB одно окно вместо трёх, у вывоза FBO одно вместо двух. Старую закрытую
+    историю (это 3900 из 4000 строк) кнопка не перечитывает — её освежает ночной полный прогон.
+    """
     global _busy
     _busy = True
     try:
-        rows, errors = collector.gather()
+        before = collector.pickup_keys()
+        rows, errors = collector.gather(quick=True)
         if rows:
-            st = collector.store(rows)
-            note = f"🔄 Обновлено: возвратов {st['heads']}, позиций {st['items']}."
+            # mark_gone=False обязателен: при узком окне «нет в выдаче» ≠ «пропал»
+            collector.store(rows, mark_gone=False)
+            got = collector.received_since(before)
+            note = (f"🔄 Обновлено. Получено нами с прошлого обновления: <b>{len(got)}</b>."
+                    if got else "🔄 Обновлено. С прошлого обновления ничего не получили.")
         else:
             note = "🔄 Площадки ничего не отдали, данные прежние."
         if errors:

@@ -100,7 +100,7 @@ def normalize(account, row, detail=None):
     return head, items
 
 
-def collect(accounts=None):
+def collect(accounts=None, quick=False):
     """[(head, items, raw), ...] по всем аккаунтам Ozon."""
     out = []
     for account in (accounts or list(CRED_ENV)):
