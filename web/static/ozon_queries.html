@@ -58,6 +58,11 @@
     за неделю <b id="per">…</b>: где есть спрос, где мы стоим в выдаче, есть ли у SKU запас маржи
     и платим ли мы за него сейчас. Отвечает на вопрос «за какие фразы имеет смысл платить» —
     ставки в Ozon отсюда НЕ отправляются.</p>
+  <p class="note"><b>Потолок CPC</b> — сколько можно платить за клик, чтобы заказ остался в плюсе:
+    (маржа с заказа − процент «оплаты за заказ» с этого же заказа) × конверсия клика в заказ.
+    Конверсия — факт кампаний Ozon за последний полный месяц в ценовом бакете этого товара.
+    Красным — если текущая ставка выше потолка. Дешёвый товар почти всегда просит ставку
+    больше, чем может себе позволить: смотреть не на позицию, а на потолок.</p>
   <p class="note"><b>Спрос — свойство фразы, а не пары.</b> Одна фраза приходит строкой на каждый
     наш SKU в выдаче, поэтому в карточках он считается по фразе один раз; складывать спрос
     по строкам таблицы нельзя.</p>
@@ -67,7 +72,7 @@
     <span class="muted" id="cnt"></span></div>
   <table id="tbl"><thead><tr>
     <th>фраза</th><th>товар</th><th>позиция</th><th>спрос</th><th>показы</th>
-    <th>заказы</th><th>GMV</th><th>цена</th><th>маржа</th><th>предел ↓</th><th>ставка</th>
+    <th>заказы</th><th>GMV</th><th>цена</th><th>маржа</th><th>предел ↓</th><th>ставка</th><th>потолок CPC</th>
   </tr></thead><tbody></tbody></table>
   <p class="note" id="foot"></p>
 </main>
@@ -117,8 +122,9 @@ async function load(){
       <td>${x.gmv?rub(x.gmv):'—'}</td><td>${rub(x.our_price)}</td>
       <td><span class="pill ${x.margin_own_live==null?'':(x.margin_own_live<0?'neg':(x.margin_own_live<25?'warn':'pos'))}">${pct(x.margin_own_live)}</span></td>
       <td>${pct(x.discount_limit_pct)}</td>
-      <td>${x.in_campaign?rub(x.bid):'<span class="muted">нет</span>'}</td></tr>`).join('')
-    ||'<tr><td colspan="11" class="muted" style="text-align:center;padding:24px">пусто</td></tr>';
+      <td>${x.in_campaign?rub(x.bid):'<span class="muted">нет</span>'}</td>
+      <td class="${x.bid_ceiling==null?'muted':(x.in_campaign&&x.bid>x.bid_ceiling?'neg':'')}">${rub(x.bid_ceiling)}</td></tr>`).join('')
+    ||'<tr><td colspan="12" class="muted" style="text-align:center;padding:24px">пусто</td></tr>';
   $('#cnt').textContent=`${act}: показано ${(d.rows||[]).length} из ${rub(d.total)}`;
   $('#foot').textContent=HINT[act]||'';
 }

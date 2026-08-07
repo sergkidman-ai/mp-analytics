@@ -40,6 +40,12 @@ from core import db                                          # noqa: E402
 DEMAND_MIN = 10          # уникальных искавших за неделю: ниже — шум (p90 по фразам = 8)
 KPI_MARGIN = 25.0        # целевая маржа от нашей цены, ниже неё рекламу не разгоняем
 
+# Ставка «Продвижения с оплатой за заказ». ЕДИНА на весь ассортимент аккаунта (5/7/9 %),
+# по SKU не выбирается. acc1 подняли 5 → 7 % в июле-2026, acc2 остался на 5 %.
+# Меняете ставку в кабинете — правьте здесь, иначе потолок CPC будет считаться не от той
+# экономики (процент вычитается из маржи заказа ДО того, как остаток тратится на клики).
+PPO_RATE = {"oz_acc1": 0.07, "oz_acc2": 0.05}
+
 RASHOD = r'(картридж|тонер|чернил|фотобараб|драм|барабан|снпч|пзк|заправ|девелопер|'  \
          r'термоплен|термоплён|чип|ролик|печк|краск|расходник)'
 TEHNIKA = r'(принтер|мфу|сканер|плоттер|3d|3д|ноутбук|телефон|компьютер|монитор|'      \
@@ -52,12 +58,28 @@ INSERT INTO mkt_ozon_query_econ (
     position, demand, views, view_conv, orders, gmv,
     rel_kind, query_kind, name_overlap,
     our_price, margin_own_live, discount_limit_pct, color_index, verdict,
-    in_campaign, bid, campaigns, action)
+    in_campaign, bid, campaigns, action, cr_bucket, bid_ceiling)
 WITH mc AS (
     SELECT account, sku::text sku, offer_id, name, our_price, margin_own_live,
            discount_limit_pct, color_index, verdict
       FROM mkt_ozon_margin_control
      WHERE captured_date = (SELECT max(captured_date) FROM mkt_ozon_margin_control)
+), cr AS (
+    -- конверсия клика в заказ по ценовым бакетам: факт кампаний за последний ПОЛНЫЙ месяц.
+    -- Бакет кампании определяем по её же среднему чеку, а не по названию: названия
+    -- («Эксперимент1», «Пустые РК») ценовой диапазон не описывают.
+    SELECT account, b, sum(orders)::numeric / nullif(sum(clicks), 0) cr
+      FROM (SELECT account, clicks, orders,
+                   CASE WHEN ad_revenue / nullif(orders, 0) < 1000  THEN 1
+                        WHEN ad_revenue / nullif(orders, 0) < 2000  THEN 2
+                        WHEN ad_revenue / nullif(orders, 0) < 5000  THEN 3
+                        WHEN ad_revenue / nullif(orders, 0) < 10000 THEN 4
+                        ELSE 5 END b
+              FROM ozon_ads
+             WHERE period = (SELECT max(period) FROM ozon_ads
+                              WHERE period < date_trunc('month', current_date))
+               AND pay_model <> 'Оплата за заказ' AND clicks > 0 AND orders > 0) x
+     GROUP BY 1, 2
 ), bd AS (
     SELECT account, sku, max(bid) bid, count(DISTINCT campaign_id) campaigns
       FROM ozon_bids
@@ -71,7 +93,7 @@ WITH mc AS (
 ), src AS (
     SELECT q.*, coalesce(mc.name, sp.name) nm, coalesce(mc.offer_id, sp.offer_id) oid,
            mc.our_price, mc.margin_own_live, mc.discount_limit_pct, mc.color_index, mc.verdict,
-           bd.bid, bd.campaigns,
+           bd.bid, bd.campaigns, cr.cr,
            CASE WHEN lower(q.query) ~ %(rashod)s  THEN 'расходник'
                 WHEN lower(q.query) ~ %(tehnika)s THEN 'техника'
                 ELSE 'прочее' END rel_kind,
@@ -80,6 +102,10 @@ WITH mc AS (
       LEFT JOIN mc ON mc.account = q.account AND mc.sku = q.sku
       LEFT JOIN sp ON sp.account = q.account AND sp.sku = q.sku
       LEFT JOIN bd ON bd.account = q.account AND bd.sku = q.sku
+      LEFT JOIN cr ON cr.account = q.account AND cr.b =
+           CASE WHEN mc.our_price < 1000  THEN 1 WHEN mc.our_price < 2000  THEN 2
+                WHEN mc.our_price < 5000  THEN 3 WHEN mc.our_price < 10000 THEN 4
+                ELSE 5 END
       LEFT JOIN LATERAL (
            SELECT count(*) n_tok,
                   round(count(*) FILTER (
@@ -112,7 +138,13 @@ SELECT c.account, %(ps)s, %(pe)s, c.query, c.sku, c.oid, c.nm,
          WHEN c.margin_own_live < %(kpi)s                            THEN 'маржа_ниже_KPI'
          WHEN c.position > 3 AND c.position <= 50                    THEN 'поднять_ставку'
          ELSE 'не_видны'
-       END
+       END,
+       c.cr,
+       -- потолок CPC: сколько можно платить за клик, чтобы заказ ещё был в плюсе.
+       -- Из маржи заказа сначала вычитается процент «оплаты за заказ» (он берётся с ЛЮБОГО
+       -- заказа, в том числе пришедшего по клику), остаток делится на число кликов,
+       -- нужных для одного заказа (то есть умножается на конверсию).
+       round((c.our_price * c.margin_own_live / 100.0 - c.our_price * %(rate)s) * c.cr, 2)
   FROM cls c
 """
 
@@ -135,7 +167,8 @@ def build(account, period_start=None):
                (account, period_start))
     db.execute(SQL, {"acc": account, "ps": period_start, "pe": period_end,
                      "rashod": RASHOD, "tehnika": TEHNIKA, "stop": list(STOP),
-                     "dmin": DEMAND_MIN, "kpi": KPI_MARGIN})
+                     "dmin": DEMAND_MIN, "kpi": KPI_MARGIN,
+                     "rate": PPO_RATE.get(account, 0.07)})
 
     print(f"  {account} {period_start}..{period_end}", flush=True)
     for r in db.query("""SELECT action, count(*) pairs, count(DISTINCT query) queries,

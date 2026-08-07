@@ -427,7 +427,7 @@ def ozon_queries(account: str = "oz_acc1", action: str = "поднять_ста�
     rows = db.query(f"""
       SELECT query, sku, offer_id, name, position, demand, views, orders, gmv,
              our_price, margin_own_live, discount_limit_pct, color_index,
-             in_campaign, bid, campaigns, action
+             in_campaign, bid, campaigns, action, cr_bucket, bid_ceiling
         FROM mkt_ozon_query_econ
        WHERE {' AND '.join(where)}
        ORDER BY demand DESC NULLS LAST, gmv DESC NULLS LAST
