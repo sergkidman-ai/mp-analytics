@@ -342,18 +342,28 @@ def ozon_bids(account: str = "oz_acc1", q: str = "", limit: int = 300):
     bids = db.query(f"""
       SELECT b.campaign_id, b.campaign_title, b.adv_type, b.state, b.sku, b.title, b.bid,
              b.target_cir,
-             m.our_price, m.margin_own_live, m.discount_limit_pct, m.color_index
+             coalesce(ms.our_price, mo.our_price)               our_price,
+             coalesce(ms.margin_own_live, mo.margin_own_live)   margin_own_live,
+             coalesce(ms.discount_limit_pct, mo.discount_limit_pct) discount_limit_pct,
+             coalesce(ms.color_index, mo.color_index)           color_index
       FROM ozon_bids b
-      -- витрина ведётся по offer_id, ставки — по sku: где sku в витрине нет,
-      -- добираем через справочник товаров (ozon_product), иначе теряем треть ставок
+      -- Витрина ведётся по offer_id, ставки — по sku: где sku в витрине нет, добираем
+      -- через справочник товаров (ozon_product), иначе теряем треть ставок. Два отдельных
+      -- LATERAL, а не один с OR: только так каждый идёт по своему индексу — на снимке
+      -- в 14 тыс. строк вариант с OR и подзапросом занимал 35 секунд.
+      LEFT JOIN LATERAL (
+        SELECT p.offer_id FROM ozon_product p
+        WHERE p.account=b.account AND p.sku=b.sku LIMIT 1) pr ON true
       LEFT JOIN LATERAL (
         SELECT our_price, margin_own_live, discount_limit_pct, color_index
         FROM mkt_ozon_margin_control mc
-        WHERE mc.account=b.account
-          AND (mc.sku::text=b.sku::text
-               OR mc.offer_id IN (SELECT p.offer_id FROM ozon_product p
-                                  WHERE p.account=b.account AND p.sku::text=b.sku::text))
-        ORDER BY captured_date DESC LIMIT 1) m ON true
+        WHERE mc.account=b.account AND mc.sku=b.sku::bigint
+        ORDER BY captured_date DESC LIMIT 1) ms ON true
+      LEFT JOIN LATERAL (
+        SELECT our_price, margin_own_live, discount_limit_pct, color_index
+        FROM mkt_ozon_margin_control mc
+        WHERE mc.account=b.account AND mc.offer_id=pr.offer_id
+        ORDER BY captured_date DESC LIMIT 1) mo ON true
       WHERE {' AND '.join(where)}
       ORDER BY b.bid DESC NULLS LAST
       LIMIT %s
