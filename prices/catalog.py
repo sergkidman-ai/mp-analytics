@@ -65,6 +65,52 @@ def build_index(catalog):
     return {code: items for code, items in index.items() if len(items) <= COMMON_CODE_LIMIT}
 
 
+def art_key(text):
+    """Артикул -> ключ сравнения: регистр и разделители не значат ничего.
+
+    «CS-TN-217» в прайсе и «CS-TN217» в карточке — один и тот же артикул, просто заведён
+    разными руками. Тем же ключом сравнивает счета поставщиков (invoice_to_po.py:432).
+    """
+    return re.sub(r"[^0-9A-ZА-ЯЁ]", "", str(text or "").upper())
+
+
+def build_article_index(catalog):
+    """ключ артикула -> карточки. Пустые артикулы не индексируем: они склеили бы всё подряд."""
+    index = defaultdict(list)
+    for item in catalog:
+        key = art_key(item["article"])
+        if key:
+            index[key].append(item)
+    return index
+
+
+def supplier_articles(row, article_re):
+    """Артикулы поставщика в строке: колонка прайса + вынесенные в наименование.
+
+    В наименование поставщик пишет свой код («Картридж лазерный Cactus CS-TN217 TN-217…»),
+    и в карточку МС попадает то одна форма, то другая — ищем по обеим.
+    """
+    out = {art_key(row.get("article"))}
+    if article_re:
+        out |= {art_key(m.group(0)) for m in re.finditer(article_re, str(row.get("name") or ""))}
+    return {key for key in out if len(key) >= 5}      # короткий огрызок совпадёт со всем
+
+
+def by_article(row, art_index, article_re):
+    """Карточки с тем же артикулом поставщика. Совпадение артикула сильнее любых признаков:
+    это буквально тот же товар, даже если название описывает его другими словами."""
+    out, seen = [], set()
+    for key in sorted(supplier_articles(row, article_re)):
+        for item in art_index.get(key, ()):
+            if item["ms_id"] in seen:
+                continue
+            seen.add(item["ms_id"])
+            out.append({"item": item, "code": item["article"], "shared": 0, "rarity": 0,
+                        "confirmed": 3, "by_article": True,
+                        "color_ok": None, "resource_ok": None, "chip_ok": None})
+    return out
+
+
 def close(want, got):
     """Числа сходятся в пределах допуска (или одного из них нет — тогда не спорим)."""
     if not want or not got:
@@ -163,12 +209,18 @@ def read_novelties(path):
 
 
 def save(rows, supplier_key, hits_by_article):
-    """Разложить новинки и найденные варианты по таблицам.
+    """Разложить новинки и найденные варианты по таблицам. -> сколько закрылось само.
 
     Решение человека не трогаем: строка приходит с каждым прогоном прайса, а разбирается
     один раз. Обновляем только описание строки и подсказки — сами варианты пересобираются
     заново, они лишь результат сегодняшней сверки.
+
+    Точное совпадение артикула поставщика закрывает строку САМО (`decision = 'exists'`):
+    товар в МС есть, просто оприходование его не нашло, и человеку разбирать тут нечего.
+    Решение обратимо — строка видна во вкладке под фильтром «уже в МС», кнопка «вернуть
+    в работу» на месте: на случай, если артикул случайно совпал с чужой карточкой.
     """
+    auto = 0
     for row in rows:
         found = query("""
             INSERT INTO prc_novelty (supplier_key, article_norm, article, name, kind,
@@ -183,7 +235,8 @@ def save(rows, supplier_key, hits_by_article):
               row["color"], measure(row), row["chip"], row["price"]))
         novelty_id = found[0]["id"]
         execute("DELETE FROM prc_novelty_candidate WHERE novelty_id = %s", (novelty_id,))
-        for rank, hit in enumerate(hits_by_article.get(row["article"], ()), start=1):
+        hits = hits_by_article.get(row["article"], ())
+        for rank, hit in enumerate(hits, start=1):
             item = hit["item"]
             execute("""
                 INSERT INTO prc_novelty_candidate (novelty_id, rank, ms_id, ms_code, ms_name,
@@ -191,10 +244,21 @@ def save(rows, supplier_key, hits_by_article):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (novelty_id, rank, item["ms_id"], item["code"], item["name"], item["color"],
                   measure(item), item["chip"], hit["code"], verdict(hit)))
+        if hits and hits[0].get("by_article"):
+            item = hits[0]["item"]
+            auto += execute("""
+                UPDATE prc_novelty
+                   SET decision = 'exists', ms_id = %s, ms_code = %s, ms_name = %s,
+                       decided_at = now()
+                 WHERE id = %s AND decision = 'pending'
+            """, (item["ms_id"], item["code"], item["name"], novelty_id)) or 0
+    return auto
 
 
 def verdict(hit):
     """Словами: что подтвердилось, а что в каталоге не написано."""
+    if hit.get("by_article"):
+        return f"совпал артикул поставщика ({hit['code']})"
     notes = []
     if hit["color_ok"] is None:
         notes.append("цвет не указан")
@@ -205,15 +269,18 @@ def verdict(hit):
     return "совпало по всем признакам" if not notes else "; ".join(notes)
 
 
-def analyze(rows, default_chip="chip"):
+def analyze(rows, default_chip="chip", article_re=None):
     """Разобрать строки на признаки и подобрать каждой варианты каталога.
 
     Возвращает {артикул: [варианты]} — по одному представителю на товар (карточек одного
-    товара у нас столько, сколько поставщиков, показывать их все смысла нет).
+    товара у нас столько, сколько поставщиков, показывать их все смысла нет). Первыми идут
+    совпадения по артикулу поставщика: МойСклад при создании оприходования иногда не находит
+    товар, который в базе есть, и строка приезжает в новинки зря.
     """
     catalog = load_catalog()
     by_id = {item["ms_id"]: item for item in catalog}
     index = build_index(catalog)
+    art_index = build_article_index(catalog)
     hits_by_article = {}
     for row in rows:
         row["kind"] = kind(row["name"])
@@ -221,7 +288,7 @@ def analyze(rows, default_chip="chip"):
         if row["chip"] is None:
             row["chip"] = default_chip
         seen, shown = set(), []
-        for hit in match(row, index, by_id):
+        for hit in by_article(row, art_index, article_re) + match(row, index, by_id):
             key = hit["item"]["num"] or hit["item"]["ms_id"]
             if key in seen:
                 continue
@@ -233,21 +300,52 @@ def analyze(rows, default_chip="chip"):
     return hits_by_article
 
 
-def sync(rows, supplier_key, default_chip=None):
-    """Сверить новинки прогона с каталогом и положить во вкладку «Новинки». -> сколько нашлось.
+def sync(rows, supplier_key, default_chip=None, article_re=None):
+    """Сверить новинки прогона с каталогом и положить во вкладку «Новинки».
 
+    -> (сколько строк получили варианты, сколько закрылось само по артикулу).
     Строки — {name, article, price}; решение человека по уже разобранным строкам не трогаем.
     """
     if not rows:
-        return 0
-    hits = analyze(rows, default_chip)
-    save(rows, supplier_key, hits)
-    return sum(1 for r in rows if hits.get(r["article"]))
+        return 0, 0
+    hits = analyze(rows, default_chip, article_re)
+    auto = save(rows, supplier_key, hits)
+    return sum(1 for r in rows if hits.get(r["article"])), auto
+
+
+def pending_rows(supplier_key=None):
+    """Строки, которые ждут решения человека. Пересобирать подсказки им можно и нужно."""
+    sql = ("select supplier_key, article, name, price_rub price from prc_novelty "
+           "where decision = 'pending'")
+    params = ()
+    if supplier_key:
+        sql += " and supplier_key = %s"
+        params = (supplier_key,)
+    return [dict(r) for r in query(sql + " order by supplier_key, article", params)]
+
+
+def rematch(supplier_key=None):
+    """Пересобрать подсказки для всех висящих строк — по правилам поставщика из профиля.
+
+    Отдельно от прогона прайса: правила матчинга правятся чаще, чем приходят прайсы, и
+    ждать нового письма, чтобы человек увидел исправленные подсказки, незачем.
+    """
+    from .profiles import get_profile
+    stats = {}
+    rows = pending_rows(supplier_key)
+    for key in sorted({r["supplier_key"] for r in rows}):
+        profile = get_profile(key)
+        mine = [r for r in rows if r["supplier_key"] == key]
+        found, auto = sync(mine, key, profile.default_chip, profile.article_re)
+        stats[key] = (found, auto, len(mine))
+    return stats
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Сверка новинок поставщика с каталогом МС")
-    ap.add_argument("--file", required=True, help="файл новинок (*_unmatched.txt)")
+    ap.add_argument("--file", help="файл новинок (*_unmatched.txt)")
+    ap.add_argument("--rematch", action="store_true",
+                    help="пересобрать подсказки для висящих строк во вкладке «Новинки»")
     ap.add_argument("--supplier-chip", default="chip",
                     help="чип по умолчанию для поставщика (chip|chip_free|nochip|unknown)")
     ap.add_argument("--out", help="куда писать отчёт (CSV)")
@@ -256,9 +354,20 @@ def main(argv=None):
     ap.add_argument("--supplier", help="ключ поставщика для БД (по умолчанию — из имени файла)")
     args = ap.parse_args(argv)
 
+    if args.rematch:
+        for key, (found, auto, total) in rematch(args.supplier).items():
+            print(f"{key}: нашли пару {found} из {total} висящих строк; "
+                  f"закрыто по артикулу (уже в МС) — {auto}")
+        return 0
+    if not args.file:
+        ap.error("нужен --file или --rematch")
+
     default_chip = None if args.supplier_chip == "unknown" else args.supplier_chip
-    rows = read_novelties(args.file)
-    hits_by_article = analyze(rows, default_chip)
+    article_re = None
+    if args.supplier:
+        from .profiles import get_profile
+        article_re = get_profile(args.supplier).article_re
+    hits_by_article = analyze(rows := read_novelties(args.file), default_chip, article_re)
 
     out_path = Path(args.out) if args.out else Path(args.file).with_name(
         Path(args.file).name.replace("_unmatched.txt", "_match.csv"))
