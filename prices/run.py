@@ -163,7 +163,7 @@ def main(argv=None):
         novelties = [{"name": r["name"], "article": r["article"],
                       "price": price_rub(r["price_raw"], rate)}
                      for r in skipped if r["reason"] in ("not_found", "ambiguous")]
-        matched = catalog.sync(novelties, profile.key, profile.default_chip)
+        matched = catalog.sync(novelties, profile.key, profile.default_chip, profile.article_re)
         print(f"  сверка новинок с каталогом: {matched} из {len(novelties)} нашли пару "
               f"→ вкладка «Новинки» (/warehouse/novelties)")
 
