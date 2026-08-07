@@ -18,13 +18,15 @@
 (buy_price/cost_seb) НЕ используем — забраковано клиентом, данные в карточках неверны.
 READ-ONLY по margin_by_sku / sales / ms_product. Пишет только свою mkt_sku_economics.
 
-Запуск:  ./venv/bin/python reports/sku_economics.py [wb_acc1] [2026-06-01]
+Период (period_econ) — ПРОШЛЫЙ ПОЛНЫЙ месяц, вычисляется на дату запуска (не хардкод).
+
+Запуск:  ./venv/bin/python reports/sku_economics.py [wb_acc1] [YYYY-MM-01 — необязательно]
 """
 import os
 import sys
 import pathlib
 import statistics
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 from psycopg2.extras import Json
@@ -40,7 +42,14 @@ def _f(v):
     return None if v is None else float(v)
 
 
-def build(account="wb_acc1", period="2026-06-01"):
+def prev_month_first(today=None):
+    """Первое число ПРОШЛОГО полного месяца. Период витрины не хардкодим: 7 августа → 2026-07-01."""
+    t = today or date.today()
+    return (t.replace(day=1) - timedelta(days=1)).replace(day=1)
+
+
+def build(account="wb_acc1", period=None):
+    period = period or prev_month_first().isoformat()
     # 1) Медианные ставки расходов от ПРОДАННОГО (импутация для непроданных)
     med = db.query("""
       SELECT
@@ -315,6 +324,9 @@ def build(account="wb_acc1", period="2026-06-01"):
             "margin_pct_own_actual": (round(margin_own_act, 2) if margin_own_act is not None else None),  # месяц от промо
             "last_sale_date": lsd, "days_since_sale": dss,
             "period_econ": period,
+            # built_at ставим явно: у таблицы это DEFAULT now(), а апсерт дефолт не трогает —
+            # без этого штамп остаётся датой ПЕРВОЙ вставки строки и врёт про свежесть витрины.
+            "built_at": datetime.now(timezone.utc),
         })
 
     db.upsert("mkt_sku_economics", recs, conflict_cols=["account", "nm_id"])
@@ -326,5 +338,5 @@ def build(account="wb_acc1", period="2026-06-01"):
 
 if __name__ == "__main__":
     acc = sys.argv[1] if len(sys.argv) > 1 else "wb_acc1"
-    per = sys.argv[2] if len(sys.argv) > 2 else "2026-06-01"
+    per = sys.argv[2] if len(sys.argv) > 2 else None
     build(acc, per)
