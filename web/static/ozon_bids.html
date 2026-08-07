@@ -54,12 +54,16 @@
     <a href="/ozon-economics">📣 Юнит-экономика Ozon</a>
     <a href="/ozon-margin-control">🚦 Контроль маржи Ozon</a>
     <a href="/ozon-bids" class="cur">💰 Ставки Ozon</a>
+    <a href="/ozon-queries">🔎 Фразы и позиции Ozon</a>
   </nav>
 </header>
 <main>
   <p class="note" style="margin-top:0"><b>Только просмотр.</b> Эта страница ничего не отправляет
     в Ozon: ставки меняются в кабинете вручную. Кампании — из Performance API за <b id="per">…</b>,
-    ставки по SKU — снимок от <b id="snap">…</b>. У «Оплаты за заказ» (<code>ALL_SKU_PROMO</code>)
+    ставки по SKU — снимок от <b id="snap">…</b>. Кампании с типом <code>SKU</code> — это
+    «Вывод в топ» (<code>PLACEMENT_TOP_PROMOTION</code>) и «Трафареты»
+    (<code>PLACEMENT_SEARCH_AND_CATEGORY</code>), они работают.
+    У «Оплаты за заказ» (<code>ALL_SKU_PROMO</code>)
     ставок по SKU нет by design, и выручку по ней API не отдаёт — поэтому ДРР по этой кампании
     посчитать не из чего (дырка измерения, шаг 3 плана).</p>
   <p class="note" id="scale" style="margin-top:6px"></p>
@@ -129,12 +133,12 @@ async function load(){
   $('#scale').innerHTML=`В снимке <b>${rub(d.total)}</b> строк ставок по <b>${rub(d.sku_total)}</b> SKU `
     +`в ${d.camp_total} кампаниях — таблица ниже показывает верхушку по ставке (${rub(d.limit)}), `
     +`а не весь состав; сужайте поиском.`
-    +(p?` Отдельно пул продвижения в поиске (весь аккаунт, не кампания): <b>${rub(p.n)}</b> SKU, `
+    +(p?` Отдельно — пул СТАРОГО инструмента «Продвижение в поиске» (ставка в % от цены; `
+        +`к «Выводу в топ» и «Трафаретам» выше отношения не имеет): <b>${rub(p.n)}</b> SKU в пуле, `
         +`доступны ${rub(p.avail)}, `
         +(p.on_?`участвуют ${rub(p.on_)}, средняя ставка ${rub(p.bid_avg)} ₽`
-              :`<b>участвует 0</b> — продвижение в поиске сейчас выключено, ставок нет`)
-        +`; за пределами топ-10 выдачи (индекс «10+») ${rub(p.vi10)} SKU `
-        +`<span class="muted">(снимок ${p.d})</span>.`:'');
+              :`<b>участвует 0</b> — все кампании этого типа выключены (INACTIVE)`)
+        +` <span class="muted">(снимок ${p.d})</span>.`:'');
   $('#bcnt').textContent=`— показано ${(d.bids||[]).length} из ${rub(d.total)}`;
   $('#foot').textContent=`Кампаний ${(d.campaigns||[]).length}. `
     +`Ставка сама по себе ничего не говорит — смотреть вместе с маржой и пределом снижения слева.`;
