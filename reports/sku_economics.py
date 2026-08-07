@@ -92,33 +92,47 @@ def build(account="wb_acc1", period=None):
       ORDER BY article, period_from DESC
     """, (account,))}
 
-    # 3b) НАБОРЫ (комплекты): один WB nm = НЕСКОЛЬКО товаров МС в отгрузке. У margin_by_sku
-    #     qty раздут компонентами → cogs/qty = per-компонент, а цена карточки per-НАБОР → занижение.
-    multi_ms = {int(r["nm"]) for r in db.query("""
-      WITH ship AS (
-        SELECT w.payload->>'nm_id' nm, pos.ms_id, sum(pos.qty) q
-        FROM raw_wb_report w
-        JOIN ms_demand_cogs d  ON d.demand_name = w.payload->>'assembly_id'
-        JOIN ms_demand_pos pos ON pos.demand_id = d.demand_id
-        WHERE w.account=%s AND w.payload->>'nm_id' ~ '^[0-9]+$'
-        GROUP BY 1, 2 HAVING sum(pos.qty) >= 2)
-      SELECT nm FROM ship GROUP BY nm HAVING count(*) > 1
-    """, (account,))}
+    # 3b) НАБОРОВ ОТДЕЛЬНОЙ ВЕТКОЙ БОЛЬШЕ НЕТ (проверено 07.08.2026).
+    #     Прежняя логика: «несколько разных ms_id в отгрузках nm ⇒ комплект», себест = Σпозиций/max(qty).
+    #     Оба звена оказались неверны:
+    #       • детектор ловил обычные одиночки — в отгрузке рядом лежал ДРУГОЙ товар (216421567:
+    #         3 ms_id, а npos=1 в каждом документе; настоящих наборов avg npos>=2 всего 262 из 525);
+    #       • сама формула занижала в ~4 раза даже там, где набор настоящий (253913048: BOM 642 ₽
+    #         против фактических 2505 ₽/шт; 216453663: 851 против 2934; 181105203: 16 против 255).
+    #     margin_by_sku (fin) уже считает cogs как себест ВСЕГО документа отгрузки на проданную
+    #     штуку — и для одиночек, и для комплектов. Берём его, ничего не пересчитывая (правило 5).
 
-    # 3c) Себест НАБОРА = Σ(себест позиций отгрузки) / кол-во наборов (≈ max qty компонента).
-    #     Всё из ОТГРУЗОК: ms_demand_pos.cost = фактический итог позиции (Σ по документу = cogs),
-    #     БЕЗ карточки. Заменяет прежний BOM по buy_price.
-    repl_set = {int(r["nm"]): _f(r["bom"]) for r in db.query("""
-      WITH ship AS (
-        SELECT w.payload->>'nm_id' nm, pos.ms_id, sum(pos.cost) cost, sum(pos.qty) q
-        FROM raw_wb_report w
-        JOIN ms_demand_cogs d  ON d.demand_name = w.payload->>'assembly_id'
-        JOIN ms_demand_pos pos ON pos.demand_id = d.demand_id
-        WHERE w.account=%s AND w.payload->>'nm_id' ~ '^[0-9]+$'
-        GROUP BY 1, pos.ms_id)
-      SELECT nm::bigint nm, sum(cost) / NULLIF(max(q),0) bom
-      FROM ship GROUP BY nm HAVING count(*) > 1 AND max(q) >= 2
+    # 3c) Трейлинг-ставки расходов ПО SKU (логистика/хранение/приёмка на штуку) за 6 месяцев.
+    #     Медиана каталога — плохой прокси: у мелкой лёгкой карточки логистика реально 52 ₽,
+    #     а не 246 (263820406: медиана давала «маржу −23 %» там, где по факту +19…+36 %).
+    rates = {int(r["nm"]): r for r in db.query("""
+      SELECT article::bigint nm, sum(qty) q, sum(logistics) log, sum(storage) stor, sum(acceptance) acc
+      FROM margin_by_sku
+      WHERE platform='wb' AND account=%s AND qty>0 AND article ~ '^[0-9]+$'
+        AND period_from >= (current_date - interval '6 months')
+      GROUP BY 1
     """, (account,))}
+    print(f"трейлинг-ставки расходов: {len(rates)} SKU за 6 мес")
+
+    def _rates_u(nm, s, q):
+        """Логистика/хранение/приёмка на ШТУКУ для карточки nm.
+        Приоритет: свой трейлинг за 6 мес (штук ≥ MIN_QTY_FACT) → факт опорного месяца, если он
+        не тонкий → медиана каталога. Тонкая выборка врёт: у 216421567 в июле продана 1 шт при
+        1542 ₽ логистики → «маржа −67 %» на товаре, который реально даёт ~+300 ₽. Выброс сверх
+        3× медианы срезаем в медиану."""
+        r = rates.get(nm)
+        rq = _f(r["q"]) if r else 0
+        if r and rq and rq >= MIN_QTY_FACT:
+            lu, su, au = _f(r["log"])/rq, _f(r["stor"])/rq, _f(r["acc"])/rq
+        elif s and q and q >= MIN_QTY_FACT:
+            lu, su, au = _f(s["logistics"])/q, _f(s["storage"])/q, _f(s["acceptance"])/q
+        else:
+            return LOG_M, STOR_M, ACC_M
+        if LOG_M and lu > 3*LOG_M:
+            lu = LOG_M
+        if ACC_M and au > 3*ACC_M:
+            au = ACC_M
+        return lu, su, au
 
     # 5) subject из card_content
     subj = {int(r["nm_id"]): r["subject"] for r in db.query("""
@@ -203,10 +217,9 @@ def build(account="wb_acc1", period=None):
         promo = _f(pr["promo_price"])          # 2324 — акционная, ДО СПП = БАЗА комиссии/СПП (Prices discountedPrice)
         mkt = _f(pr["market_price"])           # 1859 — v4 product, цена покупателя ПОСЛЕ СПП
         # себест ТОЛЬКО из отгрузок МС за всю историю (карточку НЕ используем):
-        # набор → BOM позиций отгрузки; одиночный → себест отгрузок; иначе → оценка по предмету.
-        if nm in repl_set:
-            cogs, src = repl_set[nm], "set"           # комплект: BOM из себеста позиций отгрузки
-        elif nm in repl_ship:
+        # продавался → себест отгрузок из margin_by_sku (там и одиночки, и комплекты — см. 3b);
+        # никогда не продавался → оценка по предмету.
+        if nm in repl_ship:
             cogs, src = repl_ship[nm], "shipment"     # одиночный: себест отгрузок (посл. период)
         elif subj.get(nm) in repl_analog:
             cogs, src = repl_analog[subj.get(nm)], "analog"   # никогда не продавался → оценка по предмету
@@ -223,22 +236,16 @@ def build(account="wb_acc1", period=None):
             # в июле продана 1 шт, а логистики списано 1542 ₽ → «маржа −67 %» на товаре, который
             # реально приносит ~+380 ₽ (август: qty 1, логистика 201, чистая 378).
             # Ниже порога и при выбросе > 3× медианы — считаем по медиане каталога.
-            thin = q < MIN_QTY_FACT
-            log_u = LOG_M if (thin or not q) else (_f(s["logistics"])/q)
-            stor_u = STOR_M if (thin or not q) else (_f(s["storage"])/q)
-            acc_u = ACC_M if (thin or not q) else (_f(s["acceptance"])/q)
-            if LOG_M and log_u > 3*LOG_M:
-                log_u = LOG_M
-            if ACC_M and acc_u > 3*ACC_M:
-                acc_u = ACC_M
+            log_u, stor_u, acc_u = _rates_u(nm, s, q)
             net_u_act = (_f(s["net_profit"])/q) if q else None
             margin_act = (100*_f(s["net_profit"])/rw) if rw else None      # от реализации (после СПП)
             # маржа месяца от НАШЕЙ промо-цены = прибыль / выручка-до-СПП (revenue_buyer).
             # qty у наборов раздут компонентами, но здесь ÷qty сокращается → чисто и для наборов.
             margin_own_act = (100*_f(s["net_profit"])/rb) if rb else None
             sold_flag = True
-        else:  # МЕДИАНА (непроданные)
-            spp, log_u, stor_u, acc_u = SPP_M, LOG_M, STOR_M, ACC_M
+        else:  # не продавался в опорном месяце: свои трейлинг-ставки, иначе медиана каталога
+            spp = SPP_M
+            log_u, stor_u, acc_u = _rates_u(nm, None, 0)
             q = net_u_act = margin_act = margin_own_act = None
             sold_flag = False
 
