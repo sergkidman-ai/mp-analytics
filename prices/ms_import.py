@@ -10,17 +10,21 @@
 а не заполняется догадкой.
 
 Что подтверждено фактом МС (инструкция «Новинки в прайсах поставщиков» местами устарела):
-  • Код = внешний код + аббревиатура. У ВСЕГО, что приходит от Феррета, аббревиатура «cs»:
-    Cactus 3049, G&G 729 из 731, Print-Rite 57, Cet 44 карточки. Обещанных инструкцией
-    «gg» и «pr» в базе по 2 и 0 штук — это не правило, а случайность.
+  • Код = внешний код + аббревиатура. У Феррета в базе почти всё под «cs» (Cactus 3049,
+    G&G 729 из 731, Print-Rite 57, Cet 44) — но у картриджей CET аббревиатура «ce»
+    (решение Сергея 08.08): в базе там просто накопилась ошибка человека.
   • Штрихкод Code128 = DS + 3 буквы + внешний код с ведущими нулями и ОДИН И ТОТ ЖЕ у всех
     карточек внешнего кода (у 1191 — DSNXV0001191 на 28 карточках). ean8 МС генерирует сам,
     его в файл не пишем.
-  • «Название WB» тоже общее на внешний код: это название модели, а не поставщика.
-    Живой формат каталога — «Картридж TK-520C Kyocera голубой», «Картридж CF283X HP 83X XL
-    ресурс»: тип + модель + бренд принтера + цвет + XL ресурс + с чипом. Предлога «для»
-    в 93% значений нет — берём формат каталога, а не шаблон из инструкции.
+  • «Название WB» тоже общее на внешний код: это название модели, а не поставщика. Шаблон —
+    тип + модель + «для» + бренд принтера + цвет + XL ресурс + чип. Предлог «для» в каталоге
+    стоит лишь у 7% значений, но это ошибки людей: по решению Сергея (08.08) «для» ставим
+    ВСЕГДА перед брендом принтера, даже если у родни его нет.
   • НДС 22 (34645 карточек против 20 у 2069), единица «шт», гарантия 365 — как в инструкции.
+
+Источник веса — прайс поставщика (`supplier_dims`, реальные замеры производителя), и только
+если его там нет — вес родни по внешнему коду. Ресурс, отличный от родни, — это норма
+(решение Сергея 08.08): пишем в замечания как справку, из файла строку не убираем.
 
 Импорт в МС делает человек: МС → Товары → Импорт → импорт из excel, «Искать = по Артикулу».
 Отсюда ничего в МС не пишется.
@@ -50,12 +54,28 @@ COUNTRY = "Китай"
 # Аббревиатура кода по артикулу поставщика: (регулярка, аббревиатура). Первое совпадение.
 # Пустая регулярка в конце — значение по умолчанию для поставщика.
 CODE_SUFFIX = {
-    "kaktus_msk": [(r"^CSP-", "csp"), (r"", "cs")],
+    "kaktus_msk": [(r"^CET", "ce"), (r"^CSP-", "csp"), (r"", "cs")],
 }
 # Контрагент для колонки «Поставщик» — как он назван в МС.
 MS_SUPPLIER = {
     "kaktus_msk": 'ООО "КОМПАНИЯ ФЕРРЕТ"',
 }
+# Чей прайс в `supplier_dims` — первоисточник веса для этого поставщика.
+DIMS_SUPPLIER = {
+    "kaktus_msk": ("cactus",),
+}
+
+# Бренды принтеров — по ним ставится «для» в «Название WB». Список закрытый и совпадает
+# с папками каталога МС; длинные раньше коротких, чтобы «Konica Minolta» не съелось «Konica».
+BRANDS = (
+    "Konica Minolta", "Kyocera Mita", "Primera Bravo", "Triumph-Adler", "Katusha",
+    "Avision", "Brother", "Canon", "Dell", "Deli", "Develop", "Epson", "Gestetner",
+    "Huawei", "Konica", "Kyocera", "Lexmark", "Minolta", "Nashuatec", "Olivetti", "Oki",
+    "Panasonic", "Pantum", "Primera", "Ricoh", "Samsung", "Sharp", "Sindoh", "Toshiba",
+    "Utax", "Xerox", "HP", "Катюша",
+)
+BRAND_RE = re.compile(r"(?<![0-9A-Za-zА-Яа-я])(" + "|".join(BRANDS) + r")(?![0-9A-Za-zА-Яа-я])",
+                      re.IGNORECASE)
 
 # Ресурс в названии: «(9000стр.)», «9200 стр.», «23600 копий», «69K». Цифры не должны быть
 # продолжением кода модели («006R01828» — это не 1828 страниц), поэтому слева граница.
@@ -81,6 +101,27 @@ def _attrs(payload):
     return {a.get("name"): a.get("value") for a in (payload.get("attributes") or [])}
 
 
+def wb_name(value):
+    """«Название WB» родни, приведённое к шаблону: «для» перед брендом принтера.
+
+    В каталоге предлог стоит редко и местами слипся с моделью («106R03766для Xerox») —
+    это ошибки заполнения, а не второй формат. Возвращает (название, замечание).
+    Бренд не распознан — ничего не выдумываем, отдаём как есть с пометкой.
+    """
+    text = re.sub(r"\s+", " ", (value or "").replace(" ", " ")).strip()
+    if not text:
+        return "", None
+    text = re.sub(r"(?<=[0-9A-Za-zА-Яа-я])(для)\b", r" \1", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bдля\b\s*", "для ", text, flags=re.IGNORECASE)
+    match = BRAND_RE.search(text)
+    if not match:
+        return text, f"бренд принтера в «{text}» не распознан — «для» не поставлено"
+    before = text[:match.start()].rstrip()
+    if before.lower().endswith("для"):
+        return text, None
+    return f"{before} для {text[match.start():]}".strip(), None
+
+
 def family(codes):
     """Родня по внешнему коду: живые карточки МС со всем, что нужно новой карточке."""
     rows = query(
@@ -94,11 +135,12 @@ def family(codes):
         payload, attrs = row["payload"], _attrs(row["payload"])
         code128 = next((b["code128"] for b in (payload.get("barcodes") or []) if b.get("code128")), None)
         weight = payload.get("weight")
+        wb, wb_note = wb_name(attrs.get("Название WB"))
         out.setdefault(row["ec"], []).append({
             "code": row["code"], "article": row["article"], "name": row["name"],
             "updated": row["updated_at"], "path": payload.get("pathName"),
             "weight": float(weight) if weight else None, "code128": code128,
-            "wb": (attrs.get("Название WB") or "").strip() or None,
+            "wb": wb or None, "wb_note": wb_note,
         })
     return out
 
@@ -117,30 +159,29 @@ def _core(article):
     return re.sub(r"[^0-9A-Z]", "", SUPPLIER_PREFIX.sub("", str(article or "").upper()))
 
 
-def weight_from_dims(cards):
-    """Вес из прайсов поставщиков (`supplier_dims`), когда у родни в МС веса нет.
+def weight_from_dims(articles, only=None):
+    """Вес из прайсов поставщиков (`supplier_dims`) по кодам моделей.
 
-    Это РЕАЛЬНЫЙ вес из прайса, а не расчёт: тот же товар продаётся под кодами разных
-    брендов одного завода (CS-KMTNP80C = CR-KMTNP80C). Если источники расходятся больше
-    чем на 20% — не выбираем ничего, пусть человек посмотрит.
+    Это РЕАЛЬНЫЙ вес производителя, а не расчёт: тот же товар продаётся под кодами разных
+    брендов одного завода (CS-KMTNP80C = CR-KMTNP80C). При расхождении больше 20% ничего
+    не выбираем — пусть человек посмотрит. `only` ограничивает круг прайсов.
     """
     global _DIMS_CACHE
-    cores = {_core(c["article"]) for c in cards}
-    cores = {c for c in cores if len(c) >= 6}
+    cores = {c for c in (_core(a) for a in articles) if len(c) >= 6}
     if not cores:
         return None, None
     if _DIMS_CACHE is None:
         _DIMS_CACHE = [(r["supplier"], r["article"], float(r["weight_kg"]), _core(r["article"]))
                        for r in query("SELECT supplier, article, weight_kg FROM supplier_dims "
                                       "WHERE weight_kg IS NOT NULL AND weight_kg > 0")]
-    hits = [h for h in _DIMS_CACHE if h[3] in cores]
+    hits = [h for h in _DIMS_CACHE if h[3] in cores and (only is None or h[0] in only)]
     if not hits:
         return None, None
     values = [h[2] for h in hits]
     if max(values) > min(values) * 1.2:
-        return None, f"вес в прайсах поставщиков расходится: {sorted(set(values))}"
+        return None, f"вес в прайсах поставщиков расходится: {sorted(set(values))} — проверить"
     best = max(hits, key=lambda h: h[2])
-    return best[2], f"вес не у родни, а из прайса {best[0]} (арт. {best[1]}) — проверить"
+    return best[2], f"прайс {best[0]}, арт. {best[1]}"
 
 
 def _pick(cards, field, keep=None, tie=None):
@@ -172,14 +213,11 @@ def _pick(cards, field, keep=None, tie=None):
 def _wb_score(value):
     """Насколько вариант «Название WB» похож на живой формат каталога.
 
-    Формат каталога — «Картридж TK-520C Kyocera голубой»: без предлога «для» (его нет
-    в 93% значений) и без аббревиатуры поставщика в начале модели («Картридж SP TN-221C»).
-    Слипшееся «106R03766для Xerox» — просто опечатка, такой вариант берём последним.
+    Формат каталога — «Картридж TK-520C для Kyocera голубой». Предлог уже нормализован
+    (см. `wb_name`), поэтому здесь остаётся отсеять аббревиатуру поставщика, попавшую
+    в модель («Картридж SP TN-221C»), а при прочих равных взять более подробный вариант.
     """
-    return (0 if re.search(r"\S(?:для|Для)\b", value) else 1,
-            0 if re.match(r"^\S+\s+(SP|CS|GG|NV|PL|GP|T2|HB)\s", value) else 1,
-            0 if " для " in value else 1,
-            len(value))
+    return (0 if re.match(r"^\S+\s+(SP|CS|GG|NV|PL|GP|T2|HB)\s", value) else 1, len(value))
 
 
 def _pages(text):
@@ -216,9 +254,21 @@ def build(supplier_key, decisions=("matched",), limit=None):
             cards, "path",
             keep=lambda p: p.startswith(GROUP_PREFIX) and not p.startswith(GROUP_SUPPLIER))
         # Вес: при равенстве голосов берём БОЛЬШИЙ — занижение веса дороже завышения.
-        weight, weight_all = _pick(cards, "weight", tie=lambda w: w)
+        kin_weight, weight_all = _pick(cards, "weight", tie=lambda w: w)
         code128, bc_all = _pick(cards, "code128")
         wb, wb_all = _pick(cards, "wb", tie=_wb_score)
+
+        # Первоисточник веса — прайс САМОГО поставщика по артикулу из прайса; дальше вес
+        # родни в МС; в последнюю очередь — прайсы других поставщиков по кодам родни.
+        weight, source = weight_from_dims([row["article"]], only=DIMS_SUPPLIER.get(profile.key))
+        if weight and kin_weight and abs(weight - kin_weight) > 0.2 * max(weight, kin_weight):
+            flags.append(f"вес поставщика {weight} против {kin_weight} у родни — взял поставщика ({source})")
+        if not weight:
+            weight, source = kin_weight, "родня в МС"
+        if not weight:
+            weight, source = weight_from_dims([c["article"] for c in cards])
+        if not weight:
+            flags.append(source or "веса нет ни в прайсах поставщиков, ни у родни — заполнить по nix.ru")
 
         if len(path_all) > 1:
             flags.append(f"группа у родни разная: {' / '.join(path_all)} → взял «{path}»")
@@ -230,20 +280,19 @@ def build(supplier_key, decisions=("matched",), limit=None):
             flags.append(f"«Название WB» у родни разное: {' / '.join(wb_all)} → взял «{wb}»")
         if not wb:
             flags.append("у родни нет «Название WB» — заполнить вручную")
+        flags += sorted({c["wb_note"] for c in cards if c.get("wb_note")})
         if weight_all and max(weight_all) > min(weight_all) * 1.2:
-            flags.append(f"вес у родни расходится: {sorted(weight_all)} → взял {weight}, проверить")
-        if not weight:
-            weight, said = weight_from_dims(cards)
-            flags.append(said or "веса нет ни у родни, ни в прайсах поставщиков — заполнить по nix.ru")
+            flags.append(f"вес у родни расходится: {sorted(weight_all)}, в файле {weight} ({source})")
         if row["price_rub"] is None:
             flags.append("нет цены в прайсе")
         if row["article"].strip().upper() in known:
             flags.append("артикул уже есть в МС — импорт по артикулу ПЕРЕПИШЕТ ту карточку")
         if row["link"]:
-            flags.append(f"есть связь {row['link']} — решить, писать ли её в «Связь»")
+            flags.append(f"связь {row['link']} проставлена вручную — записал в «Связь»")
         new_pages, kin_pages = _pages(row["name"]), set().union(*(_pages(c["name"]) for c in cards))
         if new_pages and kin_pages and not (new_pages & kin_pages):
-            flags.append(f"ресурс отличается от родни: {sorted(new_pages)} против {sorted(kin_pages)}")
+            flags.append(f"ресурс отличается от родни: {sorted(new_pages)} против {sorted(kin_pages)} "
+                         f"— по решению Сергея это норма, оставляем")
 
         records.append({
             "Группы": path or "",
@@ -262,11 +311,82 @@ def build(supplier_key, decisions=("matched",), limit=None):
             "Доп. поле: Гарантия/ Срок службы": WARRANTY,
             "Доп. поле: Название WB": wb or "",
             "Штрихкод Code128": code128 or "",
-            "Доп. поле: Связь": "",
+            "Доп. поле: Связь": row["link"] or "",
         })
         if flags:
             notes.append((row["id"], row["article"], flags))
     return records, notes
+
+
+# --- запись карточек в МС по API -------------------------------------------------------
+# Те же значения, что уходят в excel-файл: колонка → (id доп. поля в МС, тип).
+ATTRS = {
+    "Доп. поле: Код поставщика": ("efaefd7a-b130-11ea-0a80-0367000245f4", "string"),
+    "Доп. поле: Гарантия/ Срок службы": ("84ff57f8-536d-11ec-0a80-00200028b27e", "long"),
+    "Доп. поле: Название WB": ("46231e52-76f6-11ee-0a80-0282001a60b3", "text"),
+    "Доп. поле: Связь": ("e5020d07-243d-11f1-0a80-19050008c201", "string"),
+}
+UOM_PCS = "19f1edc0-fc42-4001-94cb-c9ec9c62ec10"      # шт
+COUNTRY_CN = "fd44cd2e-b398-4222-9c43-f75688bdf327"   # Китай
+
+
+def _folders():
+    """Полный путь папки → id: «Картриджи/Картриджи HP» → uuid."""
+    from core import ms_api
+    out = {}
+    for row in ms_api.iter_rows("/entity/productfolder", page=500):
+        path = row.get("pathName")
+        out[f"{path}/{row['name']}" if path else row["name"]] = row["id"]
+    return out
+
+
+def create_in_ms(records, supplier_id, dry=True, log=print):
+    """Создать карточки в МС. Существующий артикул не трогаем — только пропускаем.
+
+    Осознанно НЕ обновляем найденные карточки: перезапись живого товара из прайса —
+    отдельное решение, а не побочный эффект заведения новинок.
+    """
+    from core import ms_api
+    folders, created, skipped = _folders(), [], []
+    for rec in records:
+        article = rec["Артикул"]
+        found = ms_api.get("/entity/product", {"filter": f"article={article}", "limit": 1})
+        if found.get("rows"):
+            skipped.append((article, "артикул уже есть в МС"))
+            continue
+        folder = folders.get(rec["Группы"])
+        if not folder:
+            skipped.append((article, f"нет папки «{rec['Группы']}»"))
+            continue
+        body = {
+            "name": rec["Наименование"], "description": rec["Описание"],
+            "code": rec["Код"], "externalCode": rec["Внешний код"], "article": article,
+            "vat": VAT, "vatEnabled": True, "useParentVat": False,
+            "uom": ms_api.ref("uom", UOM_PCS),
+            "country": ms_api.ref("country", COUNTRY_CN),
+            "supplier": ms_api.ref("counterparty", supplier_id),
+            "productFolder": ms_api.ref("productfolder", folder),
+            "attributes": [{
+                "meta": {"href": f"{ms_api.BASE}/entity/product/metadata/attributes/{ATTRS[col][0]}",
+                         "type": "attributemetadata", "mediaType": "application/json"},
+                "type": ATTRS[col][1], "value": rec[col],
+            } for col in ATTRS if rec.get(col) not in (None, "")],
+        }
+        if rec["Вес"]:
+            body["weight"] = float(rec["Вес"])
+        if rec["Закупочная цена"] != "":
+            body["buyPrice"] = {"value": round(float(rec["Закупочная цена"]) * 100, 2)}
+        if rec["Штрихкод Code128"]:
+            body["barcodes"] = [{"code128": rec["Штрихкод Code128"]}]
+        if dry:
+            log(f"  [проба] {rec['Код']} {article} — {rec['Наименование'][:60]}")
+            continue
+        made = ms_api.post("/entity/product", body)
+        created.append((made["id"], rec["Код"], article))
+        log(f"  создано {rec['Код']} {article} → {made['id']}")
+    for article, why in skipped:
+        log(f"  пропуск {article}: {why}")
+    return created, skipped
 
 
 def write_xlsx(records, path):
@@ -300,11 +420,21 @@ def main():
     ap.add_argument("supplier", help="ключ поставщика (kaktus, colortek, …)")
     ap.add_argument("--decision", default="matched", help="какие строки новинок брать")
     ap.add_argument("--limit", type=int, help="взять только первые N строк")
+    ap.add_argument("--only", help="коды через запятую: только эти строки (для теста)")
+    ap.add_argument("--apply", action="store_true", help="создать карточки в МС (без него — проба)")
+    ap.add_argument("--to-ms", action="store_true", help="показать, что уйдёт в МС, ничего не создавая")
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / "docs" / "prc"))
     args = ap.parse_args()
 
     profile = get_profile(args.supplier)
     records, notes = build(profile.key, tuple(args.decision.split(",")), args.limit)
+    if args.only:
+        keep = {c.strip() for c in args.only.split(",")}
+        records = [r for r in records if r["Код"] in keep]
+    if args.apply or args.to_ms:
+        created, skipped = create_in_ms(records, profile.supplier_ids[0], dry=not args.apply)
+        print(f"создано: {len(created)}; пропущено: {len(skipped)}; строк на входе: {len(records)}")
+        return
     stamp = f"{date.today():%Y-%m-%d}"
     out = Path(args.out)
     xlsx = write_xlsx(records, out / f"{profile.key}_{stamp}_ms_import.xlsx")
