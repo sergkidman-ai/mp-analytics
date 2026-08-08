@@ -1,31 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # поток: mkt
-"""Разведка выдачи Wildberries: наша позиция, реклама и ЦЕНА ВХОДА (cpm) по нашим ключам.
+"""Разведка выдачи Wildberries: наша позиция по ключу и обстановка вокруг неё.
 
-ЗАЧЕМ. Ставку мы поднимаем вслепую: не знаем, почём вообще стоит рекламное место по нашим
-запросам. Если вход стоит 60 ₽, лестница с 9.9 ₽ — театр; если 12 ₽ — надо прыгать, а не ползти.
-Ответ есть только в самой выдаче: у каждой карточки в ответе поиска лежит блок `log` со ставкой
-(`cpm`) и рекламной позицией (`promoPosition`).
+ЗАЧЕМ. Джем отвечает раз в неделю и средней позицией. Выдача отвечает сейчас и фактом: на каком
+месте мы стоим по конкретному запросу, кто выше, почём он и сколько у него остатка.
 
-ЗАПУСКАТЬ НА ДОМАШНЕМ ИНТЕРНЕТЕ (машина Сергея). С нашего сервера search.wb.ru отдаёт 429
-в 80 % случаев, а прошедшие ответы обрезаны на 740 байтах — товаров в них нет. Проверено 08.08.2026.
+ЧЕГО ЗДЕСЬ НЕТ И БОЛЬШЕ НЕ БУДЕТ (проверено 08.08.2026). Ставок конкурентов (`cpm`) в выдаче
+не осталось: в ответе v18 нет ни `log`, ни `cpm`, ни `promoPosition` — среди 66 полей их просто
+нет, а старый рекламный хост `catalog-ads.wb.ru` снят с DNS. «Почём стоит место» из выдачи
+теперь не читается ничем; свою фактическую цену клика считаем из `wb_ad_nm_daily` (расход/клики).
 
 ЧТО ДЕЛАЕТ: только GET-запросы на публичный адрес поиска. Ключей, паролей и токенов не читает
 и не использует, никуда ничего не отправляет, на маркетплейсе ничего не меняет.
 
-УСТАНОВКА (один раз):
-    pip install requests
+ЗАПУСК — с нашего сервера, релей и домашний интернет не нужны (v18 отдаёт 200 и 100 товаров):
+    ./venv/bin/python tools/wb_serp_probe.py             # все запросы из файла, 2 страницы
+    ./venv/bin/python tools/wb_serp_probe.py --pages 1   # быстрее: только первая сотня
+    ./venv/bin/python tools/wb_serp_probe.py --limit 5   # проба на пяти запросах
 
-ЗАПУСК (положить рядом три файла: этот скрипт, wb_serp_queries.txt, our_nm.txt):
-    python wb_serp_probe.py                 # все запросы из файла, 2 страницы выдачи
-    python wb_serp_probe.py --pages 1       # быстрее: только первая страница
-    python wb_serp_probe.py --limit 5       # проба на пяти запросах
-
-РЕЗУЛЬТАТ — два CSV рядом со скриптом (открываются Excel, разделитель «;»):
-    serp_summary.csv — строка на запрос: сколько рекламных мест, почём они, где мы
-    serp_detail.csv  — строка на карточку из топа: позиция, цена, отзывы, ставка, наша/чужая
-Оба файла прислать мне — дальше считаю я.
+РЕЗУЛЬТАТ — два CSV рядом со скриптом (Excel, разделитель «;»):
+    serp_summary.csv — строка на запрос: где мы, кто топ-1, его цена
+    serp_detail.csv  — строка на карточку из топа: позиция, цена, отзывы, продавец, остаток
 """
 import argparse
 import csv
@@ -42,8 +38,10 @@ except ImportError:
     sys.exit("Не установлена библиотека requests. Выполни:  pip install requests")
 
 HERE = pathlib.Path(__file__).resolve().parent
-SEARCH = "https://search.wb.ru/exactmatch/ru/common/v13/search"
-DEST = -1257786          # Москва и область: позиция зависит от региона, фиксируем один
+SEARCH = "https://search.wb.ru/exactmatch/ru/common/v18/search"
+# Версия пути обязательна: v13 и старше отдают обрезанный ответ на 740 байт (не блокировка —
+# просто мёртвая версия). dest — новый положительный формат, старый -1257786 не работает.
+DEST = 1259570991        # Москва и область: позиция зависит от региона, фиксируем один
 PAUSE = (4, 7)           # пауза между запросами, секунд (случайная — ведём себя как человек)
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -66,8 +64,10 @@ def load_lines(name):
 
 def fetch(session, query, page):
     """Одна страница выдачи. Возвращает список товаров (может быть пустым)."""
-    params = {"appType": 1, "curr": "rub", "dest": DEST, "lang": "ru", "query": query,
-              "resultset": "catalog", "sort": "popular", "spp": 30, "page": page}
+    params = {"ab_testid": "old_cb_and_poly", "appType": 1, "curr": "rub", "dest": DEST,
+              "hide_dtype": 15, "hide_vflags": 4294967296, "inheritFilters": "true",
+              "lang": "ru", "locale": "ru", "query": query, "resultset": "catalog",
+              "sort": "popular", "spp": 30, "suppressSpellcheck": "false", "page": page}
     for attempt in range(4):
         try:
             r = session.get(SEARCH, params=params, headers=HEADERS, timeout=30)
@@ -108,6 +108,11 @@ def price_of(p):
     return None
 
 
+def _median(vals):
+    v = sorted(x for x in vals if x)
+    return v[len(v) // 2] if v else None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pages", type=int, default=2, help="страниц выдачи на запрос (100 товаров = 1 стр.)")
@@ -142,39 +147,33 @@ def main():
             time.sleep(random.uniform(*PAUSE))
             continue
 
-        ad_cpms, our_pos, our_nm, our_cpm = [], None, None, None
+        our_pos, our_nm, our_all = None, None, []
         for pos, p in enumerate(products, 1):
-            log = p.get("log") or {}
-            cpm = log.get("cpm")
-            is_ad = bool(cpm)
-            if is_ad:
-                ad_cpms.append(cpm)
             brand = (p.get("brand") or "")
             mine = (p.get("id") in our) if our else (brand.lower() in OUR_BRANDS)
-            if mine and our_pos is None:
-                our_pos, our_nm, our_cpm = pos, p.get("id"), cpm
+            if mine:
+                our_all.append(pos)
+                if our_pos is None:
+                    our_pos, our_nm = pos, p.get("id")
             if pos <= a.top or mine:
                 detail.append({
                     "запрос": q, "позиция": pos, "nm_id": p.get("id"), "бренд": brand,
                     "название": (p.get("name") or "")[:80], "цена": price_of(p),
                     "отзывов": p.get("feedbacks"), "рейтинг": p.get("reviewRating"),
-                    "продавец": p.get("supplier"), "реклама": "да" if is_ad else "",
-                    "ставка_cpm": cpm, "реклам_позиция": log.get("promoPosition"),
+                    "продавец": p.get("supplier"), "остаток": p.get("totalQuantity"),
                     "наш": "да" if mine else "",
                 })
-        ad_cpms.sort()
+        top = products[0]
         summary.append({
-            "запрос": q, "товаров": len(products), "реклам_мест": len(ad_cpms),
-            "ставка_мин": ad_cpms[0] if ad_cpms else None,
-            "ставка_медиана": ad_cpms[len(ad_cpms) // 2] if ad_cpms else None,
-            "ставка_макс": ad_cpms[-1] if ad_cpms else None,
-            "наша_позиция": our_pos, "наш_nm": our_nm, "наша_ставка": our_cpm,
-            "топ1_продавец": (products[0].get("supplier") or "")[:40],
-            "топ1_цена": price_of(products[0]),
+            "запрос": q, "товаров": len(products),
+            "наша_позиция": our_pos, "наш_nm": our_nm, "наших_в_выдаче": len(our_all),
+            "топ1_продавец": (top.get("supplier") or "")[:40], "топ1_цена": price_of(top),
+            "топ1_отзывов": top.get("feedbacks"),
+            "медиана_цены_топ20": _median([price_of(x) for x in products[:20]]),
         })
-        print(f"[{i}/{len(queries)}] «{q}»: товаров {len(products)}, реклама {len(ad_cpms)} мест"
-              f"{f' (ставки {ad_cpms[0]}…{ad_cpms[-1]})' if ad_cpms else ''}"
-              f"{f', мы на {our_pos}' if our_pos else ', нас нет'}", flush=True)
+        print(f"[{i}/{len(queries)}] «{q}»: товаров {len(products)}"
+              f"{f', мы на {our_pos} (всего наших {len(our_all)})' if our_pos else ', нас нет'}",
+              flush=True)
         time.sleep(random.uniform(*PAUSE))
 
     for name, rows in (("serp_summary.csv", summary), ("serp_detail.csv", detail)):
@@ -186,7 +185,7 @@ def main():
             w.writeheader()
             w.writerows(rows)
         print(f"записан {name}: строк {len(rows)}")
-    print("\nГотово. Пришли оба CSV.")
+    print("\nГотово.")
 
 
 if __name__ == "__main__":
