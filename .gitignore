@@ -55,3 +55,6 @@ secrets/
 
 # prc: отчёты прогонов прайсов пересобираются каждой загрузкой
 docs/prc/
+tools/our_nm.txt
+tools/serp_*.csv
+tools/serp_raw_sample.json
