@@ -2054,8 +2054,9 @@ def novelties_waiting():
 
     Строку `partial` человек отложил до полного набора, и сама она о себе не напомнит.
     Сверяем полку с последним прайсом каждого поставщика, чёрным списком и остальной полкой:
-    пришёл `PFI121M` — покажем, что рядом лежат другие `PFI121`. Забракованный цвет комплект
-    не закрывает: такие строки помечаем «ждать нечего» — их разумнее закрыть, а не ждать.
+    пришёл `PFI121M` — покажем, что рядом лежат другие `PFI121`. Сосед из ЧС комплект
+    ЗАКРЫВАЕТ и возвращается в работу вместе со строкой (`revive`); не закрывает только
+    отсеянное по сути товара — флакон на 500 г флаконом и останется.
     """
     from prices import waiting
     on_shelf = waiting.shelf()
@@ -2063,11 +2064,31 @@ def novelties_waiting():
     return {"shelf": len(on_shelf), "rows": [
         {"id": m["id"], "article": m["article"], "name": m["name"],
          "supplier_key": m["supplier_key"], "missing": m["missing"], "dead": m["dead"],
-         "verdict": waiting.verdict(m),
+         "verdict": waiting.verdict(m), "revive": len(m["revive"]),
          "siblings": [{"article": s["article"], "name": s.get("name") or "",
-                       "where": waiting.SOURCE_NAMES[s["source"]],
+                       "where": waiting.SOURCE_NAMES[s["source"]] + (
+                           "" if s["source"] != "blacklist" else
+                           " — вернём вместе со строкой" if s.get("can_revive") else
+                           " — в прайсах не встречался, останется в ЧС"),
                        "black": s["source"] == "blacklist"} for s in m["siblings"]]}
         for m in matches]}
+
+
+class NoveltyRevive(BaseModel):
+    id: int
+
+
+@app.post("/api/novelties/revive")
+def novelties_revive(payload: NoveltyRevive):
+    """Вернуть ждущую строку в работу вместе с её соседями из чёрного списка.
+
+    Обычная кнопка «вернуть» только снимает решение со строки. Здесь работы больше: сосед
+    из ЧС в новинках отсутствует — он отсеялся до сверки с каталогом, — поэтому его снимаем
+    с ЧС и заводим как новинку. Иначе пара разъедется: строка в разборе, её вторая половина
+    по-прежнему невидима.
+    """
+    from prices import waiting
+    return waiting.revive(payload.id)
 
 
 class NoveltyDecision(BaseModel):

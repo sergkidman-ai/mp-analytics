@@ -252,20 +252,35 @@ async function loadWaiting(){
   const items = d.rows.map(r => {
     const sibs = r.siblings.map(s =>
       `<b>${esc(s.article)}</b> — ${esc(s.where)}${s.name ? " · " + esc(s.name) : ""}`).join("<br>");
-    const cls = r.dead ? "stop" : "go";
-    return `<div class="item" data-wait="${r.id}">
-      <div><b>${esc(r.article)}</b> <span class="muted">${esc(r.name || "")}</span>
-        ${r.dead ? "" : `<button class="revive">вернуть в работу</button>`}</div>
+    // Сосед из ЧС возвращается вместе со строкой, поэтому у такой пары своя кнопка:
+    // обычная сняла бы решение только со строки, а вторая половина осталась бы невидимой.
+    const cls = r.dead && !r.revive ? "stop" : "go";
+    const button = r.revive
+      ? `<button class="revive pair">вернуть в работу вместе с ${r.revive} из ЧС</button>`
+      : r.dead ? "" : `<button class="revive">вернуть в работу</button>`;
+    return `<div class="item" data-wait="${r.id}" data-pair="${r.revive}">
+      <div><b>${esc(r.article)}</b> <span class="muted">${esc(r.name || "")}</span> ${button}
+        <span class="msg muted"></span></div>
       <div class="why ${cls}">${esc(r.verdict)}${
-        r.missing.length ? ` · не хватает: ${esc(r.missing.join(", "))}` : ""}</div>
+        r.missing.length ? ` · до полного CMYK не хватает: ${esc(r.missing.join(", "))}` : ""}</div>
       <div class="sib">${sibs}</div></div>`;
   }).join("");
   box.innerHTML = `<div class="wait"><h3>⏳ Лист ожидания комплектов — ${d.shelf} строк${
       d.rows.length ? `, соседи по серии нашлись у ${d.rows.length}` : ", новых цветов не появилось"}</h3>
     ${items}</div>`;
   box.querySelectorAll(".revive").forEach(btn => {
-    const id = Number(btn.closest("[data-wait]").dataset.wait);
-    btn.onclick = () => decide([id], "pending", "");
+    const item = btn.closest("[data-wait]"), id = Number(item.dataset.wait);
+    btn.onclick = async () => {
+      if (!Number(item.dataset.pair)) return decide([id], "pending", "");
+      btn.disabled = true;
+      const res = await (await fetch("/api/novelties/revive", {method: "POST",
+        headers: {"Content-Type": "application/json"}, body: JSON.stringify({id})})).json();
+      const said = [res.revived.length ? `в новинки вернулись: ${res.revived.join(", ")}` : "",
+                    res.unlisted.length ? `сняты с ЧС, но заводить не из чего (не видели в прайсе): ${
+                      res.unlisted.join(", ")}` : ""].filter(Boolean).join("; ");
+      item.querySelector(".msg").textContent = said || "строка вернулась в работу";
+      setTimeout(load, 1200);          // дать прочитать, что именно вернулось
+    };
   });
 }
 
