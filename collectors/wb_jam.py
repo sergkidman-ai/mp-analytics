@@ -30,6 +30,10 @@ PAUSE = 5            # пауза между запросами (лимитер 
 MIN_OPEN = 5        # порог трафика для среза «где горит» (длинный хвост не трогаем)
 MIN_OPEN_CORE = 1   # порог для кора: берём всё, где был хоть один вход в карточку
 MAX_NMIDS = 400     # потолок товаров за прогон — держит время в разумных рамках (400×5с ≈ 33 мин)
+# Отдельный потолок для среза «traffic»: он сознательно берёт всю базу с трафиком, а не аварии,
+# и упираться в 400 ему нельзя — иначе снова смотрим меньшую половину (замер 08.08: 998 товаров
+# с переходами, из них 736 вне кора дали 1396 переходов и 39 заказов против 537/23 у кора).
+MAX_NMIDS_TRAFFIC = 1000   # 1000×5с ≈ 83 мин — влезает в ночь до ежедневного прогона в 06:42 UTC
 
 
 class NoJam(Exception):
@@ -205,11 +209,29 @@ def _core_nmids(account, piso):
     """, (account, piso, MIN_OPEN_CORE, MAX_NMIDS))]
 
 
+def _traffic_nmids(account, piso):
+    """Вся база с трафиком — без оглядки на кор ставок.
+
+    Зачем срез появился (08.08.2026): `core` джойнится с `wb_bid_override`, и по запросам мы
+    видели только 291 товар из 998, у которых реально были переходы. Товары ВНЕ кора дали за
+    неделю 1396 переходов и 39 заказов — больше, чем сам кор (537 и 23). То есть большая часть
+    поискового спроса шла мимо анализа. Порог тот же MIN_OPEN_CORE=1: без входов ответ пустой.
+    """
+    return [r["nm_id"] for r in db.query("""
+        SELECT nm_id FROM wb_search_report
+        WHERE account=%s AND period_start=%s AND open_card >= %s
+        ORDER BY open_card DESC LIMIT %s
+    """, (account, piso, MIN_OPEN_CORE, MAX_NMIDS_TRAFFIC))]
+
+
 def _target_nmids(account, piso, scope="problem"):
     """Кого разбираем по запросам. scope: problem — «где горит» (старое поведение, ежедневно);
-    core — весь кор ставок с трафиком (SEO-база, реже и дольше); all — объединение, кор первым."""
+    core — весь кор ставок с трафиком (SEO-база, реже и дольше); traffic — вся база с трафиком,
+    кор и хвост вместе (самый полный и самый долгий); all — объединение кора и «где горит»."""
     if scope == "problem":
         return _problem_nmids(account, piso)
+    if scope == "traffic":
+        return _traffic_nmids(account, piso)
     core = _core_nmids(account, piso)
     if scope == "core":
         return core
@@ -232,7 +254,8 @@ def main(account="wb_acc1", cur_days=7, scope="problem"):
 
 
 if __name__ == "__main__":
-    # collectors/wb_jam.py [аккаунт] [дней] [срез]   срез: problem (по умолчанию) | core | all
+    # collectors/wb_jam.py [аккаунт] [дней] [срез]
+    #   срез: problem (по умолчанию) | core | traffic | all
     acc = sys.argv[1] if len(sys.argv) > 1 else "wb_acc1"
     days = int(sys.argv[2]) if len(sys.argv) > 2 else 7
     scope = sys.argv[3] if len(sys.argv) > 3 else "problem"
