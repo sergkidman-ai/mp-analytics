@@ -91,13 +91,17 @@ def write_waiting(matches, path):
     """Лист ожидания: у каких ждущих строк сегодня нашлись соседи по серии. Строка на соседа."""
     with path.open("w", newline="", encoding="utf-8-sig") as fh:
         writer = csv.writer(fh, delimiter=";")
-        writer.writerow(["артикул ждущего", "наименование", "не хватает цветов", "вердикт",
-                         "сосед — артикул", "сосед — наименование", "где сосед"])
+        writer.writerow(["артикул ждущего", "наименование", "до полного CMYK не хватает",
+                         "вердикт", "сосед — артикул", "сосед — наименование", "где сосед",
+                         "вернётся вместе со строкой"])
         for row in matches:
             for sib in row["siblings"]:
+                black = sib["source"] == "blacklist"
                 writer.writerow([row["article"], row["name"], ", ".join(row["missing"]),
                                  waiting.verdict(row), sib["article"], sib.get("name") or "",
-                                 waiting.SOURCE_NAMES[sib["source"]]])
+                                 waiting.SOURCE_NAMES[sib["source"]],
+                                 "да" if black and sib.get("can_revive") else
+                                 "нет — в прайсах не встречался" if black else ""])
     return path
 
 
@@ -184,11 +188,12 @@ def main(argv=None):
         print(f"  из них закрыто само (артикул поставщика есть в МС): {auto}")
 
         # Полка ожидания: строки, отложенные до полного комплекта. Напоминаем о ней каждый
-        # прогон и показываем, не приехали ли сегодня недостающие цвета (и не лежат ли они
-        # в чёрном списке — тогда ждать нечего). Решение всё равно за человеком.
+        # прогон и показываем, не приехали ли сегодня недостающие цвета (в том числе из
+        # чёрного списка — такой сосед вернётся в работу вместе со строкой). Решение за человеком.
         on_shelf = waiting.shelf()
         pool = waiting.pool([dict(r, status="loaded") for r in ready]
-                            + [dict(r, status="skipped") for r in skipped])
+                            + [dict(r, status="skipped") for r in skipped],
+                            supplier_key=profile.key)
         matches = waiting.find(on_shelf, pool)
         waiting_path = write_waiting(matches, Path(args.out) / f"{profile.key}_{moment:%Y-%m-%d}_waiting.csv")
         print(f"  ⏳ лист ожидания комплектов: {len(on_shelf)} строк ждут цвета; "
