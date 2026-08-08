@@ -30,9 +30,11 @@ COLOR_PATTERNS = [
     ("LM", r"светло-?пурпурн\w*|light\s*magenta|" + SHORT % "lm"),
     ("GY", r"\bсер[ыо]\w*|\bgray\b|\bgrey\b|" + SHORT % "gy"),
     # black/чёрный — только отдельным словом: «Hi-Black» и «White Box» это бренды, не цвет.
-    ("BK", r"\bчерн\w*|" + SHORT % "black" + "|" + SHORT % "bk" + "|" + SHORT % "blk"),
+    # `(?!ил)` — про «Чернила»: слово само начинается с «черн», и без оговорки ЛЮБЫЕ чернила
+    # читались как чёрные (голубой CS-I-CL441C лежал в базе с цветом BK).
+    ("BK", r"\bчерн(?!ил)\w*|" + SHORT % "black" + "|" + SHORT % "bk" + "|" + SHORT % "blk"),
     ("C", r"\bголуб\w*|\bcyan\b|" + SHORT % "cy" + "|" + SHORT % "c"),
-    ("M", r"\bпурпурн\w*|\bmagenta\b|" + SHORT % "mg" + "|" + SHORT % "ma" + "|" + SHORT % "m"),
+    ("M", r"\bпурп\w*|\bmagenta\b|" + SHORT % "mg" + "|" + SHORT % "ma" + "|" + SHORT % "m"),
     ("Y", r"\bжелт\w*|\byellow\b|" + SHORT % "ye" + "|" + SHORT % "yl" + "|" + SHORT % "y"),
 ]
 COLOR_RE = [(code, re.compile(pat, re.I)) for code, pat in COLOR_PATTERNS]

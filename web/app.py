@@ -2121,11 +2121,14 @@ def _novelty_view(row, prefix=""):
 
 @app.get("/api/novelties")
 def novelties_api(supplier: str = "", status: str = ""):
-    """Новинки с вариантами. status: pending | matched | exists | new | skip | пусто = все.
+    """Новинки с вариантами. status: pending | matched | exists | new | partial | skip | всё.
 
     `exists` строка получает сама: артикул поставщика точно совпал с карточкой МС, товар
     у нас есть — оприходование его просто не нашло. Разбирать нечего, но кнопка «вернуть»
     на месте: артикул мог случайно совпасть с карточкой другого поставщика.
+
+    `partial` — неполный набор: в прайсе есть не все цвета серии, брать в продажу рано.
+    Это не отказ, а полка ожидания: цвета доедут следующим прайсом — строка вернётся в работу.
     """
     where, params = ["1=1"], []
     if supplier:
@@ -2164,9 +2167,31 @@ def novelties_api(supplier: str = "", status: str = ""):
             "counts": {c["decision"]: c["n"] for c in counts}}
 
 
+@app.get("/api/novelties/waiting")
+def novelties_waiting():
+    """Полка ожидания и найденные соседи по серии — напоминание «а не собрался ли комплект».
+
+    Строку `partial` человек отложил до полного набора, и сама она о себе не напомнит.
+    Сверяем полку с последним прайсом каждого поставщика, чёрным списком и остальной полкой:
+    пришёл `PFI121M` — покажем, что рядом лежат другие `PFI121`. Забракованный цвет комплект
+    не закрывает: такие строки помечаем «ждать нечего» — их разумнее закрыть, а не ждать.
+    """
+    from prices import waiting
+    on_shelf = waiting.shelf()
+    matches = waiting.find(on_shelf, waiting.pool())
+    return {"shelf": len(on_shelf), "rows": [
+        {"id": m["id"], "article": m["article"], "name": m["name"],
+         "supplier_key": m["supplier_key"], "missing": m["missing"], "dead": m["dead"],
+         "verdict": waiting.verdict(m),
+         "siblings": [{"article": s["article"], "name": s.get("name") or "",
+                       "where": waiting.SOURCE_NAMES[s["source"]],
+                       "black": s["source"] == "blacklist"} for s in m["siblings"]]}
+        for m in matches]}
+
+
 class NoveltyDecision(BaseModel):
     ids: list[int]
-    decision: str                                # matched | new | skip | pending
+    decision: str                                # matched | new | partial | skip | pending
     ms_code: str = ""
     link: str = ""                               # «Связь»: номера ДРУГИХ наших товаров
 
@@ -2209,7 +2234,7 @@ def _novelty_link(raw):
 @app.post("/api/novelties/decide")
 def novelties_decide(payload: NoveltyDecision):
     """Записать решение по строкам. Для matched код обязателен и должен быть в каталоге."""
-    if payload.decision not in ("matched", "new", "skip", "pending"):
+    if payload.decision not in ("matched", "new", "partial", "skip", "pending"):
         return {"ok": False, "error": "неизвестное решение"}
     code, item = payload.ms_code.strip(), None
     if payload.decision == "matched":

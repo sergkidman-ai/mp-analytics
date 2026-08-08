@@ -16,7 +16,7 @@ import sys
 import datetime as dt
 from pathlib import Path
 
-from . import anomaly, novelty
+from . import anomaly, novelty, waiting
 from .cbr import effective_rate, to_kopecks
 from .loader import (SKIP_REASONS, apply_to_ms, build_docs, card_updates,
                      classify, existing_docs, now_msk, summarize)
@@ -85,6 +85,20 @@ def write_reports(profile, moment, ready, skipped, watch, out_dir):
                              row.get("missing", ""), row.get("group", ""),
                              row.get("subgroup", "")])
     return skipped_path, unmatched_path, len(unmatched), watch_path
+
+
+def write_waiting(matches, path):
+    """Лист ожидания: у каких ждущих строк сегодня нашлись соседи по серии. Строка на соседа."""
+    with path.open("w", newline="", encoding="utf-8-sig") as fh:
+        writer = csv.writer(fh, delimiter=";")
+        writer.writerow(["артикул ждущего", "наименование", "не хватает цветов", "вердикт",
+                         "сосед — артикул", "сосед — наименование", "где сосед"])
+        for row in matches:
+            for sib in row["siblings"]:
+                writer.writerow([row["article"], row["name"], ", ".join(row["missing"]),
+                                 waiting.verdict(row), sib["article"], sib.get("name") or "",
+                                 waiting.SOURCE_NAMES[sib["source"]]])
+    return path
 
 
 def main(argv=None):
@@ -168,6 +182,24 @@ def main(argv=None):
         print(f"  сверка новинок с каталогом: {matched} из {len(novelties)} нашли пару "
               f"→ вкладка «Новинки» (/warehouse/novelties)")
         print(f"  из них закрыто само (артикул поставщика есть в МС): {auto}")
+
+        # Полка ожидания: строки, отложенные до полного комплекта. Напоминаем о ней каждый
+        # прогон и показываем, не приехали ли сегодня недостающие цвета (и не лежат ли они
+        # в чёрном списке — тогда ждать нечего). Решение всё равно за человеком.
+        on_shelf = waiting.shelf()
+        pool = waiting.pool([dict(r, status="loaded") for r in ready]
+                            + [dict(r, status="skipped") for r in skipped])
+        matches = waiting.find(on_shelf, pool)
+        waiting_path = write_waiting(matches, Path(args.out) / f"{profile.key}_{moment:%Y-%m-%d}_waiting.csv")
+        print(f"  ⏳ лист ожидания комплектов: {len(on_shelf)} строк ждут цвета; "
+              f"{waiting.summary(matches)}")
+        for row in matches[:5]:
+            where = ", ".join(f"{s['article']} — {waiting.SOURCE_NAMES[s['source']]}"
+                              for s in row["siblings"][:3])
+            print(f"     {row['article']}: {where} → {waiting.verdict(row)}")
+        if matches:
+            print(f"     подробности: {waiting_path.name}; вернуть в работу — "
+                  f"вкладка «Новинки», фильтр «неполный набор»")
 
     status, error = "ok", None
     if args.apply:
