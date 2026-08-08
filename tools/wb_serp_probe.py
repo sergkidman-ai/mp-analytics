@@ -118,11 +118,13 @@ def main():
     ap.add_argument("--pages", type=int, default=2, help="страниц выдачи на запрос (100 товаров = 1 стр.)")
     ap.add_argument("--limit", type=int, default=0, help="взять только первые N запросов")
     ap.add_argument("--top", type=int, default=20, help="сколько карточек с каждого запроса писать в детали")
+    ap.add_argument("--file", default="wb_serp_queries.txt", help="файл со списком запросов")
+    ap.add_argument("--out", default="serp", help="префикс имён выходных CSV")
     a = ap.parse_args()
 
-    queries = load_lines("wb_serp_queries.txt")
+    queries = load_lines(a.file)
     if not queries:
-        sys.exit("Рядом со скриптом нет файла wb_serp_queries.txt (список запросов, по одному в строке)")
+        sys.exit(f"Рядом со скриптом нет файла {a.file} (список запросов, по одному в строке)")
     if a.limit:
         queries = queries[:a.limit]
     our = {int(x) for x in load_lines("our_nm.txt") if x.isdigit()}
@@ -176,7 +178,7 @@ def main():
               flush=True)
         time.sleep(random.uniform(*PAUSE))
 
-    for name, rows in (("serp_summary.csv", summary), ("serp_detail.csv", detail)):
+    for name, rows in ((f"{a.out}_summary.csv", summary), (f"{a.out}_detail.csv", detail)):
         if not rows:
             continue
         cols = list({k: None for r in rows for k in r})
