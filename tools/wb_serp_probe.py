@@ -76,7 +76,8 @@ def fetch(session, query, page):
             time.sleep(10)
             continue
         if r.status_code == 429:
-            wait = 15 * (attempt + 1)
+            # Отдых кратен рабочей паузе: на ночном прогоне 15 с не хватает, чтобы лимит отпустил.
+            wait = max(15, PAUSE[1] * 3) * (attempt + 1)
             print(f"    429 (лимит), ждём {wait}с", flush=True)
             time.sleep(wait)
             continue
@@ -120,7 +121,14 @@ def main():
     ap.add_argument("--top", type=int, default=20, help="сколько карточек с каждого запроса писать в детали")
     ap.add_argument("--file", default="wb_serp_queries.txt", help="файл со списком запросов")
     ap.add_argument("--out", default="serp", help="префикс имён выходных CSV")
+    # Лимитер ВБ жёсткий: 30 запросов подряд с паузой 4-7 с проходят, следующая партия ловит 429
+    # и IP уходит в отказ надолго. Для ночных прогонов ставить --pause 30 60.
+    ap.add_argument("--pause", type=int, nargs=2, default=[4, 7], metavar=("МИН", "МАКС"),
+                    help="пауза между запросами, секунд (по умолчанию 4 7)")
     a = ap.parse_args()
+
+    global PAUSE
+    PAUSE = tuple(a.pause)
 
     queries = load_lines(a.file)
     if not queries:
