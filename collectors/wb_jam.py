@@ -27,7 +27,9 @@ load_dotenv(BASE_DIR / ".env")
 BASE = "https://seller-analytics-api.wildberries.ru/api/v2/search-report"
 TOKEN_ENV = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}
 PAUSE = 5            # пауза между запросами (лимитер WB)
-MIN_OPEN = 5        # порог трафика, ниже которого по товару не тянем запросы (длинный хвост)
+MIN_OPEN = 5        # порог трафика для среза «где горит» (длинный хвост не трогаем)
+MIN_OPEN_CORE = 1   # порог для кора: берём всё, где был хоть один вход в карточку
+MAX_NMIDS = 400     # потолок товаров за прогон — держит время в разумных рамках (400×5с ≈ 33 мин)
 
 
 class NoJam(Exception):
@@ -178,24 +180,51 @@ def fetch_search_texts(account, nm_ids, cur, past):
     return total
 
 
-def _target_nmids(account, piso):
-    """Товары, по которым тянем запросы: заметный трафик И (упала позиция ИЛИ просели заказы)."""
-    rows = db.query("""
+def _problem_nmids(account, piso):
+    """Старый срез: заметный трафик И (упала позиция ИЛИ просели заказы) — «где горит»."""
+    return [r["nm_id"] for r in db.query("""
         SELECT nm_id FROM wb_search_report
         WHERE account=%s AND period_start=%s AND open_card >= %s
           AND (avg_position_dyn > 0 OR orders_dyn < 0 OR visibility_dyn < 0)
-        ORDER BY open_card DESC LIMIT 120
-    """, (account, piso, MIN_OPEN))
-    return [r["nm_id"] for r in rows]
+        ORDER BY open_card DESC LIMIT %s
+    """, (account, piso, MIN_OPEN, MAX_NMIDS))]
 
 
-def main(account="wb_acc1", cur_days=7):
+def _core_nmids(account, piso):
+    """Кор ставок (`wb_bid_override`) — те самые товары, которым лестница поднимает ставку.
+
+    Порог мягкий (MIN_OPEN_CORE=1): по кору нам нужна SEO-база «частотность × позиция», а не
+    только аварии. Товары кора вообще без входов пропускаем — по ним ответ всё равно пустой,
+    а каждый запрос стоит PAUSE секунд.
+    """
+    return [r["nm_id"] for r in db.query("""
+        SELECT r.nm_id FROM wb_search_report r
+        JOIN wb_bid_override o ON o.nm_id = r.nm_id AND o.account = r.account
+        WHERE r.account=%s AND r.period_start=%s AND r.open_card >= %s
+        ORDER BY r.open_card DESC LIMIT %s
+    """, (account, piso, MIN_OPEN_CORE, MAX_NMIDS))]
+
+
+def _target_nmids(account, piso, scope="problem"):
+    """Кого разбираем по запросам. scope: problem — «где горит» (старое поведение, ежедневно);
+    core — весь кор ставок с трафиком (SEO-база, реже и дольше); all — объединение, кор первым."""
+    if scope == "problem":
+        return _problem_nmids(account, piso)
+    core = _core_nmids(account, piso)
+    if scope == "core":
+        return core
+    seen = set(core)
+    return core + [n for n in _problem_nmids(account, piso) if n not in seen][:max(0, MAX_NMIDS - len(core))]
+
+
+def main(account="wb_acc1", cur_days=7, scope="problem"):
     cur, past = _periods(cur_days)
     print(f"WB Джем {account}: текущий {cur['start']}..{cur['end']} vs прошлый {past['start']}..{past['end']}", flush=True)
     try:
         fetch_report(account, cur, past)
-        nmids = _target_nmids(account, cur["start"])
-        print(f"[jam {account}] товаров для разбора запросов: {len(nmids)}", flush=True)
+        nmids = _target_nmids(account, cur["start"], scope)
+        print(f"[jam {account}] срез «{scope}»: товаров для разбора запросов {len(nmids)}"
+              f" (~{len(nmids) * PAUSE // 60} мин)", flush=True)
         if nmids:
             fetch_search_texts(account, nmids, cur, past)
     except NoJam as e:
@@ -203,8 +232,10 @@ def main(account="wb_acc1", cur_days=7):
 
 
 if __name__ == "__main__":
+    # collectors/wb_jam.py [аккаунт] [дней] [срез]   срез: problem (по умолчанию) | core | all
     acc = sys.argv[1] if len(sys.argv) > 1 else "wb_acc1"
     days = int(sys.argv[2]) if len(sys.argv) > 2 else 7
+    scope = sys.argv[3] if len(sys.argv) > 3 else "problem"
     accounts = ["wb_acc1", "wb_acc2"] if acc == "all" else [acc]
     for a in accounts:
-        main(a, days)
+        main(a, days, scope)
