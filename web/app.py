@@ -2189,8 +2189,8 @@ def novelties_api(supplier: str = "", status: str = ""):
         params.append(status)
     rows = db.query(f"""
         SELECT n.id, n.supplier_key, n.article, n.name, n.kind, n.color, n.measure, n.chip,
-               n.price_rub, n.decision, n.ms_code, n.ms_name, n.link, n.decided_at::text,
-               n.last_seen::text, s.qty, s.stock_raw
+               n.brand, n.price_rub, n.decision, n.ms_code, n.ms_name, n.link,
+               n.decided_at::text, n.last_seen::text, s.qty, s.stock_raw
           FROM prc_novelty n
           LEFT JOIN LATERAL (
                  SELECT r.qty, r.stock_raw
@@ -2202,9 +2202,13 @@ def novelties_api(supplier: str = "", status: str = ""):
          WHERE {' AND '.join(where)}
          ORDER BY n.decision <> 'pending', n.name
     """, tuple(params))
+    # Флаги сверки (`*_ok`) отдаём как есть: true — признак подтвердился, false —
+    # противоречит, null — в названии карточки его нет. Человеку в таблице нужны все три
+    # состояния: «не написано» и «не совпало» — разные новости.
     cands = db.query("""
         SELECT novelty_id, rank, ms_id, ms_code, ms_name, color, measure, chip,
-               shared_code, verdict
+               shared_code, verdict, brand, kind, model_ok, kind_ok, brand_ok,
+               color_ok, resource_ok, chip_ok, score
           FROM prc_novelty_candidate ORDER BY novelty_id, rank
     """)
     by_novelty = {}

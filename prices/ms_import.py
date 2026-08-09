@@ -37,6 +37,7 @@ from uuid import UUID
 from pathlib import Path
 
 from core.db import query
+from .features import BRANDS, BRAND_RE       # noqa: F401 — BRANDS в модуле ждут по имени
 from .profiles import get_profile
 
 # Порядок колонок — как в файле загрузки от 30.07 («МС шаблон для новинок»).
@@ -66,17 +67,8 @@ DIMS_SUPPLIER = {
     "kaktus_msk": ("cactus",),
 }
 
-# Бренды принтеров — по ним ставится «для» в «Название WB». Список закрытый и совпадает
-# с папками каталога МС; длинные раньше коротких, чтобы «Konica Minolta» не съелось «Konica».
-BRANDS = (
-    "Konica Minolta", "Kyocera Mita", "Primera Bravo", "Triumph-Adler", "Katusha",
-    "Avision", "Brother", "Canon", "Dell", "Deli", "Develop", "Epson", "Gestetner",
-    "Huawei", "Konica", "Kyocera", "Lexmark", "Minolta", "Nashuatec", "Olivetti", "Oki",
-    "Panasonic", "Pantum", "Primera", "Ricoh", "Samsung", "Sharp", "Sindoh", "Toshiba",
-    "Utax", "Xerox", "HP", "Катюша",
-)
-BRAND_RE = re.compile(r"(?<![0-9A-Za-zА-Яа-я])(" + "|".join(BRANDS) + r")(?![0-9A-Za-zА-Яа-я])",
-                      re.IGNORECASE)
+# Бренды принтеров (BRANDS/BRAND_RE) живут в `features` — там же, где ими сравнивают
+# строку прайса с нашей карточкой. Здесь по ним ставится «для» в «Название WB».
 
 # Ресурс в названии: «(9000стр.)», «9200 стр.», «23600 копий», «69K». Цифры не должны быть
 # продолжением кода модели («006R01828» — это не 1828 страниц), поэтому слева граница.

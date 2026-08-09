@@ -1,7 +1,7 @@
 # поток: prc
 # -*- coding: utf-8 -*-
 """
-Разбор названия картриджа на признаки: модель, ресурс, цвет, чип.
+Разбор названия картриджа на признаки: модель, тип, бренд принтера, ресурс, цвет, чип.
 
 Один разбор на два мира: строки прайса поставщика и карточки нашего каталога пишут одно
 и то же по-разному («11000 стр.», «11K», «(11k)», «17,5K», «11000 копий»), поэтому
@@ -53,6 +53,31 @@ CHIP_PATTERNS = [
 CHIP_RE = [(code, re.compile(pat, re.I)) for code, pat in CHIP_PATTERNS]
 CHIP_NAMES = {"chip": "с чипом", "chip_free": "с чипом без счётчика",
               "nochip": "без чипа", None: "не указан"}
+
+# Бренды принтеров — по ним ставится «для» в «Название WB» (`ms_import`) и сравниваются
+# строка прайса с нашей карточкой. Список закрытый и совпадает с папками каталога МС;
+# длинные раньше коротких, чтобы «Konica Minolta» не съелось «Konica».
+BRANDS = (
+    "Konica Minolta", "Kyocera Mita", "Primera Bravo", "Triumph-Adler", "Katusha",
+    "Avision", "Brother", "Canon", "Dell", "Deli", "Develop", "Epson", "Gestetner",
+    "Huawei", "Konica", "Kyocera", "Lexmark", "Minolta", "Nashuatec", "Olivetti", "Oki",
+    "Panasonic", "Pantum", "Primera", "Ricoh", "Samsung", "Sharp", "Sindoh", "Toshiba",
+    "Utax", "Xerox", "HP", "Катюша",
+)
+BRAND_RE = re.compile(r"(?<![0-9A-Za-zА-Яа-я])(" + "|".join(BRANDS) + r")(?![0-9A-Za-zА-Яа-я])",
+                      re.IGNORECASE)
+
+# Один и тот же производитель зовётся по-разному: поставщик пишет «Kyocera Mita», мы —
+# «Kyocera»; Develop и Minolta — торговые имена той же Konica Minolta; Utax — марка
+# Triumph-Adler. Без сведения к одному имени 8 строк из 47 давали ложный конфликт бренда.
+BRAND_CANON = {
+    "kyocera mita": "Kyocera", "kyocera": "Kyocera",
+    "konica minolta": "Konica Minolta", "konica": "Konica Minolta",
+    "minolta": "Konica Minolta", "develop": "Konica Minolta",
+    "utax": "Triumph-Adler", "triumph-adler": "Triumph-Adler",
+    "katusha": "Катюша", "катюша": "Катюша",
+    "primera bravo": "Primera", "primera": "Primera",
+}
 
 # Код модели: буквы+цифры, минимум 4 знака. «11000» и «CANON» — не коды.
 CODE_RE = re.compile(r"[A-ZА-Я0-9][A-ZА-Я0-9\-]{2,}", re.I)
@@ -136,7 +161,28 @@ def codes(*texts):
     return out
 
 
+def brand(name):
+    """МНОЖЕСТВО брендов принтеров из названия, сведённых к каноническому имени.
+
+    Именно множество, а не строка: в строке прайса законно стоят два бренда сразу —
+    один и тот же картридж подходит и к HP, и к Canon («CF226/Canon 052H»). Сравнение
+    двух названий = непустое пересечение множеств, как у кодов модели.
+
+    Бренд ПОСТАВЩИКА (Cactus, Hi-Black, SuperFine) в список не входит и сюда не попадает.
+    """
+    out = set()
+    for match in BRAND_RE.finditer(str(name or "")):
+        found = match.group(1)
+        out.add(BRAND_CANON.get(found.lower(), found))
+    return out
+
+
+def brand_text(brands):
+    """Множество брендов -> строка для показа человеку ('' — в названии бренда нет)."""
+    return ", ".join(sorted(brands or ()))
+
+
 def parse(name, article=None):
     """Название (и артикул) -> признаки для сравнения."""
     return {"color": color(name), "resource": resource(name), "chip": chip(name),
-            "codes": codes(name, article)}
+            "codes": codes(name, article), "brand": brand(name)}

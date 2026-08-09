@@ -1,7 +1,7 @@
 # поток: prc
 # -*- coding: utf-8 -*-
 """
-Сверка новинок поставщика с НАШИМ каталогом по признакам (модель, ресурс, цвет, чип).
+Сверка новинок поставщика с НАШИМ каталогом по признакам.
 
 Зачем отдельно от загрузки: матчинг прайса в МС строгий — по артикулу, и это правильно
 (оприходование не имеет права ошибиться товаром). Но «не нашлось по артикулу» ещё не значит
@@ -9,12 +9,18 @@
 поставщика, а артикул у каждого поставщика свой. Здесь мы ищем именно ТОВАР, а не строку:
 разбираем название на признаки и сравниваем признаки.
 
-Совпадением считаем схождение по всем четырём:
+Признаков шесть, и результат сверки по каждому сохраняется отдельно:
   модель  — общий код в названии/артикуле (C-EXV65, TK-8335, ...);
+  тип     — картридж / флакон тонера / чернила / драм: разный товар на один принтер;
+  бренд   — бренд ПРИНТЕРА, множествами (картридж бывает и к HP, и к Canon); ловит
+            случайное совпадение кода модели («bizhub C250i» и «Canon iR C250i»);
   цвет    — строго равен;
   ресурс  — расхождение до 25% (поставщики округляют и меряют по-разному);
   чип     — не противоречит (у Кактуса все картриджи с чипом, в наших названиях чип часто
             вообще не упомянут — это «не знаем», а не «без чипа»).
+
+У каждого признака три исхода: подтвердился (True), противоречит (False) и молчит (None —
+в названии карточки признака нет). Молчание не считается ни совпадением, ни отказом.
 
 Каталог берём из локальной витрины `ms_product`, в МойСклад не ходим.
 """
@@ -98,16 +104,22 @@ def supplier_articles(row, article_re):
 
 def by_article(row, art_index, article_re):
     """Карточки с тем же артикулом поставщика. Совпадение артикула сильнее любых признаков:
-    это буквально тот же товар, даже если название описывает его другими словами."""
+    это буквально тот же товар, даже если название описывает его другими словами.
+
+    Признаки всё равно считаем и показываем: артикул остаётся главным, но если при
+    совпавшем артикуле расходится бренд или ресурс — строку нельзя закрывать молча
+    (см. `save`), скорее всего название одной из карточек заполнено неверно.
+    """
     out, seen = [], set()
     for key in sorted(supplier_articles(row, article_re)):
         for item in art_index.get(key, ()):
             if item["ms_id"] in seen:
                 continue
             seen.add(item["ms_id"])
-            out.append({"item": item, "code": item["article"], "shared": 0, "rarity": 0,
-                        "confirmed": 3, "by_article": True,
-                        "color_ok": None, "resource_ok": None, "chip_ok": None})
+            hit = {"item": item, "code": item["article"], "shared": 0, "rarity": 0,
+                   "confirmed": 3, "by_article": True}
+            hit.update(compare(row, item))
+            out.append(hit)
     return out
 
 
@@ -152,6 +164,50 @@ def chip_ok(want, got):
     return want == got
 
 
+def model_ok(want, got):
+    """Коды модели пересекаются. Пустой набор с любой стороны — молчание."""
+    if not want or not got:
+        return None
+    return bool(want & got)
+
+
+def kind_ok(want, got):
+    """Тип товара совпадает. Неопознанный тип с любой стороны — молчание."""
+    if not want or not got:
+        return None
+    return want == got
+
+
+def brand_ok(want, got):
+    """Бренды принтера пересекаются.
+
+    Сравниваем МНОЖЕСТВАМИ: в строке прайса законно стоят два бренда сразу, и достаточно
+    одного общего. Бренд есть в 100% строк прайса и лишь в 72% наших карточек — остальное
+    молчание (`None`), а не отказ.
+    """
+    if not want or not got:
+        return None
+    return bool(want & got)
+
+
+def compare(row, item):
+    """Все шесть признаков строки прайса против карточки каталога. -> флаги и счёт.
+
+    Считаем одинаково для обоих путей поиска: и там, где карточку нашли по общему коду
+    модели, и там, где совпал артикул поставщика. Раньше путь по артикулу отдавал признаки
+    пустыми, и две строки TN-321 закрылись сами на карточку Brother вместо Konica Minolta —
+    расходились и бренд, и ресурс в 16 раз, но увидеть это было негде.
+    """
+    flags = {"model_ok": model_ok(row["codes"], item["codes"]),
+             "kind_ok": kind_ok(row["kind"], item["kind"]),
+             "brand_ok": brand_ok(row["brand"], item["brand"]),
+             "color_ok": color_ok(row["color"], item["color"]),
+             "resource_ok": close(measure(row), measure(item)),
+             "chip_ok": chip_ok(row["chip"], item["chip"])}
+    flags["score"] = sum(1 for value in flags.values() if value)
+    return flags
+
+
 def candidates(row, index):
     """Карточки каталога, у которых есть общий код с этой строкой прайса."""
     hits = defaultdict(set)
@@ -168,28 +224,28 @@ def match(row, index, by_id):
     принтера, которая стоит у десятка разных расходников (bizhub C250i и Canon iR C250i
     вообще совпали случайно). Подтверждённость признаков — второй ключ: ресурс и чип
     в наших названиях указаны через раз, и их молчание не должно опускать точный код.
+
+    Бренд из списка отбора выведен намеренно: наши карточки заполняли руками, и ошибка
+    в названии («TN-321 для Brother») не должна ПРЯТАТЬ правильный вариант от человека.
+    Конфликт по бренду лишь опускает карточку в хвост списка — то есть меняет только то,
+    что предвыбрано в выпадающем списке.
     """
     out = []
     for ms_id, shared in candidates(row, index).items():
         item = by_id[ms_id]
         if row["kind"] != item["kind"]:
             continue        # флакон тонера и тонер-картридж на один принтер — разные товары
-        color = color_ok(row["color"], item["color"])
-        if color is False:
-            continue
-        res = close(measure(row), measure(item))
-        if res is False:
-            continue
-        chip = chip_ok(row["chip"], item["chip"])
-        if chip is False:
+        flags = compare(row, item)
+        if False in (flags["color_ok"], flags["resource_ok"], flags["chip_ok"]):
             continue
         rarest = min(len(index[c]) for c in shared)
         best_code = max(shared, key=lambda c: (len(index[c]) == rarest, len(c)))
-        confirmed = sum(1 for x in (color, res, chip) if x)
-        out.append({"item": item, "code": best_code, "shared": len(shared),
-                    "rarity": rarest, "confirmed": confirmed,
-                    "color_ok": color, "resource_ok": res, "chip_ok": chip})
-    out.sort(key=lambda h: (h["rarity"], -h["confirmed"], -h["shared"]))
+        hit = {"item": item, "code": best_code, "shared": len(shared), "rarity": rarest,
+               "confirmed": sum(1 for x in (flags["color_ok"], flags["resource_ok"],
+                                            flags["chip_ok"]) if x)}
+        hit.update(flags)
+        out.append(hit)
+    out.sort(key=lambda h: (h["brand_ok"] is False, h["rarity"], -h["confirmed"], -h["shared"]))
     return out
 
 
@@ -219,20 +275,27 @@ def save(rows, supplier_key, hits_by_article):
     товар в МС есть, просто оприходование его не нашло, и человеку разбирать тут нечего.
     Решение обратимо — строка видна во вкладке под фильтром «уже в МС», кнопка «вернуть
     в работу» на месте: на случай, если артикул случайно совпал с чужой карточкой.
+
+    Предохранитель: при совпавшем артикуле, но конфликте по БРЕНДУ принтера или РЕСУРСУ
+    строка не закрывается — остаётся человеку. Такое расхождение означает, что название
+    одной из двух карточек заполнено неверно, и молча принимать её нельзя. Статус `exists`
+    ставится ТОЛЬКО автоматом (человек ставит matched/new/partial/skip), поэтому обратный
+    ход однозначен: уже закрытая строка с конфликтом возвращается в работу.
     """
     auto = 0
     for row in rows:
         found = query("""
             INSERT INTO prc_novelty (supplier_key, article_norm, article, name, kind,
-                                     color, measure, chip, price_rub)
-            VALUES (%s, upper(btrim(%s)), %s, %s, %s, %s, %s, %s, %s)
+                                     color, measure, chip, price_rub, brand)
+            VALUES (%s, upper(btrim(%s)), %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (supplier_key, article_norm) DO UPDATE
                SET name = excluded.name, kind = excluded.kind, color = excluded.color,
                    measure = excluded.measure, chip = excluded.chip,
-                   price_rub = excluded.price_rub, last_seen = now()
+                   price_rub = excluded.price_rub, brand = excluded.brand, last_seen = now()
             RETURNING id
         """, (supplier_key, row["article"], row["article"], row["name"], row["kind"],
-              row["color"], measure(row), row["chip"], row["price"]))
+              row["color"], measure(row), row["chip"], row["price"],
+              F.brand_text(row["brand"])))
         novelty_id = found[0]["id"]
         execute("DELETE FROM prc_novelty_candidate WHERE novelty_id = %s", (novelty_id,))
         hits = hits_by_article.get(row["article"], ())
@@ -240,12 +303,26 @@ def save(rows, supplier_key, hits_by_article):
             item = hit["item"]
             execute("""
                 INSERT INTO prc_novelty_candidate (novelty_id, rank, ms_id, ms_code, ms_name,
-                                                   color, measure, chip, shared_code, verdict)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                                   color, measure, chip, shared_code, verdict,
+                                                   brand, kind, model_ok, kind_ok, brand_ok,
+                                                   color_ok, resource_ok, chip_ok, score)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (novelty_id, rank, item["ms_id"], item["code"], item["name"], item["color"],
-                  measure(item), item["chip"], hit["code"], verdict(hit)))
+                  measure(item), item["chip"], hit["code"], verdict(hit),
+                  F.brand_text(item["brand"]), item["kind"], hit["model_ok"], hit["kind_ok"],
+                  hit["brand_ok"], hit["color_ok"], hit["resource_ok"], hit["chip_ok"],
+                  hit["score"]))
         if hits and hits[0].get("by_article"):
-            item = hits[0]["item"]
+            hit, item = hits[0], hits[0]["item"]
+            if False in (hit["brand_ok"], hit["resource_ok"]):
+                execute("""
+                    UPDATE prc_novelty
+                       SET decision = 'pending', ms_id = null, ms_code = null, ms_name = null,
+                           decided_at = null
+                     WHERE id = %s AND decision = 'exists'
+                """, (novelty_id,))
+                continue
             auto += execute("""
                 UPDATE prc_novelty
                    SET decision = 'exists', ms_id = %s, ms_code = %s, ms_name = %s,
@@ -255,18 +332,25 @@ def save(rows, supplier_key, hits_by_article):
     return auto
 
 
+FEATURE_NAMES = {"model_ok": "модель", "kind_ok": "тип", "brand_ok": "бренд",
+                 "color_ok": "цвет", "resource_ok": "ресурс/объём", "chip_ok": "чип"}
+
+
 def verdict(hit):
-    """Словами: что подтвердилось, а что в каталоге не написано."""
+    """Словами: что противоречит, что подтвердилось, а что в каталоге не написано.
+
+    Конфликты идут первыми и всегда: по пути «совпал артикул» именно они — единственный
+    сигнал человеку, что за одинаковым артикулом стоят разные товары.
+    """
+    bad = [name for key, name in FEATURE_NAMES.items() if hit.get(key) is False]
+    silent = [name for key, name in FEATURE_NAMES.items() if hit.get(key) is None]
+    notes = [f"НЕ СОВПАЛО: {', '.join(bad)}"] if bad else []
     if hit.get("by_article"):
-        return f"совпал артикул поставщика ({hit['code']})"
-    notes = []
-    if hit["color_ok"] is None:
-        notes.append("цвет не указан")
-    if hit["resource_ok"] is None:
-        notes.append("ресурс/объём не указан")
-    if hit["chip_ok"] is None:
-        notes.append("чип не указан")
-    return "совпало по всем признакам" if not notes else "; ".join(notes)
+        notes.append(f"совпал артикул поставщика ({hit['code']})")
+        return "; ".join(notes)
+    if silent:
+        notes.append(f"не указано в каталоге: {', '.join(silent)}")
+    return "; ".join(notes) if notes else "совпало по всем признакам"
 
 
 def analyze(rows, default_chip="chip", article_re=None):
@@ -324,15 +408,33 @@ def pending_rows(supplier_key=None):
     return [dict(r) for r in query(sql + " order by supplier_key, article", params)]
 
 
-def rematch(supplier_key=None):
-    """Пересобрать подсказки для всех висящих строк — по правилам поставщика из профиля.
+def all_rows(supplier_key=None):
+    """ВСЕ строки новинок, включая разобранные. Для пересборки признаков задним числом.
+
+    Решения человека это не трогает (`save` их не переписывает) — пересобираются только
+    признаки, варианты и флаги сверки. Нужно после правки правил матчинга: иначе новые
+    признаки появились бы лишь у строк из будущих прайсов, а разобранные так и остались бы
+    со старой сверкой — и уже сделанная ошибка не всплыла бы никогда.
+    """
+    sql = "select supplier_key, article, name, price_rub price from prc_novelty"
+    params = ()
+    if supplier_key:
+        sql += " where supplier_key = %s"
+        params = (supplier_key,)
+    return [dict(r) for r in query(sql + " order by supplier_key, article", params)]
+
+
+def rematch(supplier_key=None, include_decided=False):
+    """Пересобрать подсказки для висящих строк — по правилам поставщика из профиля.
 
     Отдельно от прогона прайса: правила матчинга правятся чаще, чем приходят прайсы, и
     ждать нового письма, чтобы человек увидел исправленные подсказки, незачем.
+
+    `include_decided` берёт и разобранные строки тоже.
     """
     from .profiles import get_profile
     stats = {}
-    rows = pending_rows(supplier_key)
+    rows = all_rows(supplier_key) if include_decided else pending_rows(supplier_key)
     for key in sorted({r["supplier_key"] for r in rows}):
         profile = get_profile(key)
         mine = [r for r in rows if r["supplier_key"] == key]
@@ -346,6 +448,9 @@ def main(argv=None):
     ap.add_argument("--file", help="файл новинок (*_unmatched.txt)")
     ap.add_argument("--rematch", action="store_true",
                     help="пересобрать подсказки для висящих строк во вкладке «Новинки»")
+    ap.add_argument("--recheck", action="store_true",
+                    help="то же, но по ВСЕМ строкам, включая разобранные "
+                         "(решения человека не трогает)")
     ap.add_argument("--supplier-chip", default="chip",
                     help="чип по умолчанию для поставщика (chip|chip_free|nochip|unknown)")
     ap.add_argument("--out", help="куда писать отчёт (CSV)")
@@ -354,13 +459,14 @@ def main(argv=None):
     ap.add_argument("--supplier", help="ключ поставщика для БД (по умолчанию — из имени файла)")
     args = ap.parse_args(argv)
 
-    if args.rematch:
-        for key, (found, auto, total) in rematch(args.supplier).items():
-            print(f"{key}: нашли пару {found} из {total} висящих строк; "
+    if args.rematch or args.recheck:
+        what = "строк" if args.recheck else "висящих строк"
+        for key, (found, auto, total) in rematch(args.supplier, args.recheck).items():
+            print(f"{key}: нашли пару {found} из {total} {what}; "
                   f"закрыто по артикулу (уже в МС) — {auto}")
         return 0
     if not args.file:
-        ap.error("нужен --file или --rematch")
+        ap.error("нужен --file, --rematch или --recheck")
 
     default_chip = None if args.supplier_chip == "unknown" else args.supplier_chip
     article_re = None

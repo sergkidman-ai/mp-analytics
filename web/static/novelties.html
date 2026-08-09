@@ -52,6 +52,16 @@
   .ok{color:var(--pos);font-weight:700}
   .miss{color:var(--warn)}
   .verdict{font-size:11px;color:var(--mut);margin-top:3px}
+  /* Сетка сверки: шесть признаков строки прайса против выбранной карточки, значения рядом. */
+  .cmp{margin-top:5px;font-size:11px;border-collapse:collapse;width:100%;max-width:420px}
+  .cmp th{position:static;background:none;padding:0 6px 2px 0;text-align:left;font-size:10px;
+          text-transform:uppercase;letter-spacing:.03em}
+  .cmp td{padding:1px 6px 1px 0;border:0;vertical-align:top}
+  .cmp td.k{color:var(--mut);white-space:nowrap}
+  .cmp td.m{width:14px;text-align:center;font-weight:700}
+  .cmp tr.bad td{background:rgba(255,93,93,.08)}
+  .cmp .score{font-weight:700}
+  details.cmpwrap summary{cursor:pointer;color:var(--mut);font-size:11px;margin-top:4px}
   .tag{font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;white-space:nowrap}
   .tag.matched{background:rgba(55,200,113,.15);color:var(--pos)}
   .tag.exists{background:rgba(55,200,113,.10);color:var(--pos)}
@@ -215,6 +225,34 @@ function optionLabel(c){
   return `${mark} ${n || c.ms_code || "без кода"}${n ? " (" + c.ms_code + ")" : ""} — ${c.ms_name}`;
 }
 
+// Сетка сверки: шесть признаков, по которым строка прайса сопоставляется с нашей карточкой,
+// со значениями с обеих сторон. Человеку так видно НЕ «предложен вариант», а почему именно он.
+// Три состояния у каждого признака: ✓ подтвердился, ✗ противоречит, — в карточке не написано
+// (молчание каталога — не совпадение и не отказ, в счёт N/6 оно не идёт).
+const MARK = {true: ["✓", "pos"], false: ["✗", "neg"], null: ["—", "muted"]};
+const BAD = ["model_ok", "kind_ok", "brand_ok", "color_ok", "resource_ok", "chip_ok"];
+
+function cmpGrid(r, c){
+  if (!c) return "";
+  const model = c.model_ok === false ? "нет общего кода" : (c.shared_code || "—");
+  const lines = [
+    ["модель", c.shared_code || "—", model, c.model_ok],
+    ["тип", KINDS[r.kind] || r.kind, KINDS[c.kind] || c.kind, c.kind_ok],
+    ["бренд", r.brand, c.brand, c.brand_ok],
+    ["ресурс/объём", num(r.measure), num(c.measure), c.resource_ok],
+    ["цвет", r.color, c.color, c.color_ok],
+    ["чип", r.chip, c.chip, c.chip_ok],
+  ];
+  const body = lines.map(([key, mine, ours, ok]) => {
+    const [sign, cls] = MARK[ok] ?? MARK.null;
+    return `<tr class="${ok === false ? "bad" : ""}"><td class="k">${key}</td>
+      <td>${esc(mine || "—")}</td><td>${esc(ours || "—")}</td>
+      <td class="m ${cls}">${sign}</td></tr>`;
+  }).join("");
+  return `<table class="cmp"><tr><th class="score">сходится ${c.score}/6</th>
+      <th>строка прайса</th><th>наша карточка</th><th></th></tr>${body}</table>`;
+}
+
 // Разведка одной модели. Принтеры, которых нет в нашем названии, подсвечены: это ровно то,
 // что стоит дописать в карточку — неполный список принтеров = потерянный поиск на маркетплейсе.
 function modelCell(r){
@@ -257,6 +295,8 @@ function row(r){
   const opts = r.candidates.map((c, i) =>
     `<option value="${esc(c.ms_code || "")}" ${i ? "" : "selected"}>${esc(optionLabel(c))}</option>`).join("");
   const best = r.candidates[0];
+  // У разобранной строки сверяем с той карточкой, которую человек (или артикул) выбрал.
+  const done = r.candidates.find(c => c.ms_code === r.ms_code);
   const pick = r.decision === "pending" ? `
     <div class="pick">
       ${r.candidates.length
@@ -271,7 +311,8 @@ function row(r){
       <button class="black danger" title="артикул в чёрный список">ЧС</button>
     </div>
     ${best ? `<div class="verdict">по коду ${esc(best.shared_code)} · ${esc(best.verdict)}${
-        r.candidates.length > 1 ? ` · ещё вариантов: ${r.candidates.length - 1}` : ""}</div>` : ""}`
+        r.candidates.length > 1 ? ` · ещё вариантов: ${r.candidates.length - 1}` : ""}</div>` : ""}
+    <div class="cmpbox">${cmpGrid(r, best)}</div>`
     : `<span class="tag ${r.decision}">${r.decision === "matched" ? "сопоставлено"
         : r.decision === "exists" ? "уже в МС (артикул совпал)"
         : r.decision === "new" ? "новая модель"
@@ -284,7 +325,10 @@ function row(r){
          <span class="muted">связь</span>
          <input class="link" placeholder="4310;6827" value="${esc(r.link || "")}">
          <button class="savelink">сохранить</button>
-       </div>`;
+       </div>
+       ${done ? `<details class="cmpwrap"><summary>сверка ${done.score}/6${
+           BAD.some(k => done[k] === false) ? " · есть расхождения" : ""
+         }</summary>${cmpGrid(r, done)}</details>` : ""}`;
   const stock = r.qty != null ? `остаток ${num(r.qty)}` : (r.stock_raw ? esc(r.stock_raw) : "");
   return `<tr data-id="${r.id}" class="${r.decision === "pending" ? "" : "done"}">
     <td><input type="checkbox" class="sel"></td>
@@ -353,7 +397,17 @@ function wire(){
   $("#rows").querySelectorAll("tr[data-id]").forEach(tr => {
     const id = Number(tr.dataset.id), msg = tr.querySelector(".msg");
     const sel = tr.querySelector(".cand"), code = tr.querySelector(".code");
-    if (sel && code){ code.value = sel.value; sel.onchange = () => { code.value = sel.value; code.focus(); }; }
+    // Сетка сверки идёт за выпадающим списком: перебирая варианты, человек сразу видит,
+    // чем каждый из них отличается от строки прайса.
+    const box = tr.querySelector(".cmpbox"), rec = DATA.find(x => x.id === id);
+    if (sel && code){
+      code.value = sel.value;
+      sel.onchange = () => {
+        code.value = sel.value;
+        if (box && rec) box.innerHTML = cmpGrid(rec, rec.candidates[sel.selectedIndex]);
+        code.focus();
+      };
+    }
     const link = tr.querySelector(".link");
     const save = tr.querySelector(".save");
     if (save) save.onclick = () => decide([id], "matched", code.value, msg, link.value);
