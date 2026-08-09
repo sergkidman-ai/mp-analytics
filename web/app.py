@@ -2112,11 +2112,61 @@ NOVELTY_COLORS = {"BK": "чёрный", "C": "голубой", "M": "пурпу�
 NOVELTY_CHIPS = {"chip": "с чипом", "chip_free": "с чипом без счётчика", "nochip": "без чипа"}
 
 
+NOVELTY_KINDS = {"toner": "тонер", "ink": "чернила", "cartridge": "картридж",
+                 "cleaning": "промывка", "refillable": "перезаправляемый"}
+
+
 def _novelty_view(row, prefix=""):
     """Признаки строки словами — одинаково для новинки и для варианта каталога."""
     return {"color": NOVELTY_COLORS.get(row[prefix + "color"], ""),
             "measure": float(row[prefix + "measure"]) if row[prefix + "measure"] else None,
             "chip": NOVELTY_CHIPS.get(row[prefix + "chip"], "не указан")}
+
+
+def _novelty_models(rows):
+    """{id строки: [модель с разведкой, …]} — одним запросом на всю таблицу.
+
+    Решение принимается ПО МОДЕЛИ картриджа, а не по строке прайса: один флакон тонера
+    закрывает пять моделей, и на каждую нужен свой ответ. Разведка (`prc_model_research`)
+    подтягивается из кэша — сама по себе она платная и здесь не запускается.
+
+    `new_printers` — принтеры, которых сеть нашла, а в нашем названии их нет: ровно то,
+    что стоит дописать в карточку.
+    """
+    from prices import research
+    per_row = {r["id"]: research.models_of(r) for r in rows}
+    found = research.cached([m for models in per_row.values() for m in models])
+    out = {}
+    for row in rows:
+        known = research.norm_model(f'{row["name"]} {row.get("ms_name") or ""}')
+        items = []
+        for label in per_row[row["id"]]:
+            rec = found.get(research.norm_model(label))
+            item = {"model": label, "research": None}
+            if rec:
+                printers = rec["printers"] or []
+                item["research"] = {
+                    "cartridge": rec["cartridge"], "ru": rec["ru"],
+                    "popularity": rec["popularity"],
+                    "resource_pages": rec["resource_pages"],
+                    "refill": (f'{float(rec["refill_amount"]):g} {rec["refill_unit"]}'
+                               if rec["refill_amount"] is not None else None),
+                    "printers": printers,
+                    "new_printers": [p for p in printers
+                                     if research.norm_model(p) not in known],
+                    "weight_kg": (float(rec["weight_kg"])
+                                  if rec.get("weight_kg") is not None else None),
+                    "pack_cm": ([float(rec["pack_l_cm"]), float(rec["pack_w_cm"]),
+                                 float(rec["pack_h_cm"])]
+                                if rec.get("pack_l_cm") is not None else None),
+                    "pack_source": rec.get("pack_source"),
+                    "verdict": rec["verdict"], "why": rec["why"],
+                    "confidence": rec["confidence"], "sources": rec["sources"] or [],
+                    "asked_at": rec["asked_at"].strftime("%d.%m.%Y"),
+                }
+            items.append(item)
+        out[row["id"]] = items
+    return out
 
 
 @app.get("/api/novelties")
@@ -2138,11 +2188,19 @@ def novelties_api(supplier: str = "", status: str = ""):
         where.append("decision = %s")
         params.append(status)
     rows = db.query(f"""
-        SELECT id, supplier_key, article, name, color, measure, chip, price_rub,
-               decision, ms_code, ms_name, link, decided_at::text
-          FROM prc_novelty
+        SELECT n.id, n.supplier_key, n.article, n.name, n.kind, n.color, n.measure, n.chip,
+               n.price_rub, n.decision, n.ms_code, n.ms_name, n.link, n.decided_at::text,
+               n.last_seen::text, s.qty, s.stock_raw
+          FROM prc_novelty n
+          LEFT JOIN LATERAL (
+                 SELECT r.qty, r.stock_raw
+                   FROM prc_price_row r
+                   JOIN prc_price_load l ON l.id = r.load_id
+                  WHERE l.supplier_key = n.supplier_key
+                    AND upper(r.article) = upper(n.article)
+                  ORDER BY l.load_date DESC, l.id DESC LIMIT 1) s ON true
          WHERE {' AND '.join(where)}
-         ORDER BY decision <> 'pending', name
+         ORDER BY n.decision <> 'pending', n.name
     """, tuple(params))
     cands = db.query("""
         SELECT novelty_id, rank, ms_id, ms_code, ms_name, color, measure, chip,
@@ -2153,11 +2211,13 @@ def novelties_api(supplier: str = "", status: str = ""):
     for c in cands:
         by_novelty.setdefault(c["novelty_id"], []).append(
             dict(c, **_novelty_view(c), price_rub=None))
+    models = _novelty_models(rows)
     out = []
     for r in rows:
         out.append(dict(r, **_novelty_view(r),
                         price_rub=float(r["price_rub"]) if r["price_rub"] else None,
-                        candidates=by_novelty.get(r["id"], [])))
+                        candidates=by_novelty.get(r["id"], []),
+                        models=models.get(r["id"], [])))
     counts = db.query("""SELECT decision, count(*) n FROM prc_novelty
                           WHERE %s = '' OR supplier_key = %s
                           GROUP BY decision""", (supplier, supplier))
@@ -2295,6 +2355,100 @@ def novelties_link(payload: NoveltyLink):
     for novelty_id in payload.ids:
         db.execute("UPDATE prc_novelty SET link = %s WHERE id = %s", (link or None, novelty_id))
     return {"ok": True, "n": len(payload.ids), "link": link}
+
+
+class NoveltyIds(BaseModel):
+    ids: list[int]
+    confirm: bool = False
+
+
+def _novelty_rows(ids):
+    if not ids:
+        return []
+    return db.query("""SELECT n.id, n.article, n.name, n.kind, n.decision, n.ms_name,
+                              (b.article IS NOT NULL) AS in_blacklist
+                         FROM prc_novelty n
+                         LEFT JOIN prc_blacklist b ON upper(b.article) = upper(n.article)
+                        WHERE n.id = ANY(%s)""", (list(ids),))
+
+
+# Правило Сергея 09.08: в сеть идём ТОЛЬКО под заведение карточки — по моделям строки,
+# которой присваиваем новый внешний код (`decision='new'`). Всё остальное платить не за что:
+# `matched`/`exists` уже лежат в МС, `partial` ждёт цвета на полке и карточку пока не получает,
+# `pending` ещё не разобран человеком, ЧС мы вообще не берём. Гейт серверный: интерфейс
+# кнопку прячет, но запрос мимо интерфейса всё равно упрётся сюда.
+def _research_split(rows):
+    ok, skipped = [], []
+    for r in rows:
+        if r["in_blacklist"]:
+            skipped.append({"article": r["article"], "why": "в чёрном списке — не берём"})
+        elif r["decision"] == "new":
+            ok.append(r)
+        else:
+            skipped.append({"article": r["article"], "why": {
+                "matched": "уже сопоставлена с нашей карточкой — новый код не заводим",
+                "exists": "уже в МС по артикулу",
+                "partial": "полка ожидания: карточку заведём, когда доедут цвета",
+                "skip": "не берём",
+            }.get(r["decision"], "сначала пометьте строку NEW — сеть спрашиваем "
+                                 "только под заведение карточки")})
+    return ok, skipped
+
+
+@app.get("/api/novelties/research/estimate")
+def novelties_research_estimate(ids: str = "", force: bool = False):
+    """Смета разведки. Денег НЕ тратит: считается арифметикой по числу моделей вне кэша."""
+    from prices import research
+    rows, skipped = _research_split(
+        _novelty_rows([int(x) for x in ids.split(",") if x.strip().isdigit()]))
+    est = research.estimate(rows, force=force)
+    # «Все модели уже разведаны» — неправда, когда моделей не было вовсе: строки отсеял гейт.
+    text = (research.estimate_text(est) if est["rows"] else
+            "Спрашивать нечего: сеть идёт только по строкам NEW — тем, которым заводим "
+            "карточку с новым внешним кодом.")
+    return {"ok": True, "estimate": est, "skipped": skipped, "text": text}
+
+
+@app.post("/api/novelties/research")
+def novelties_research(payload: NoveltyIds):
+    """Спросить сеть о моделях выбранных строк. ПЛАТНО — только с `confirm`.
+
+    Без подтверждения возвращаем ту же смету и `ok: false`: интерфейс показывает её человеку
+    и ждёт нажатия «Запустить». Гейт стоит и в `research.ask()` — на случай, если запрос
+    придёт мимо интерфейса.
+    """
+    from prices import research
+    rows, skipped = _research_split(_novelty_rows(payload.ids))
+    if not rows:
+        return {"ok": False, "error": "нечего спрашивать: сеть идёт только по строкам NEW — "
+                                      "тем, которым заводим карточку с новым внешним кодом",
+                "skipped": skipped}
+    try:
+        out = research.ask(rows, confirm=payload.confirm)
+    except research.NeedsConsent as need:
+        return {"ok": False, "need_confirm": True, "estimate": need.estimate,
+                "skipped": skipped, "text": research.estimate_text(need.estimate)}
+    return {"ok": True, "asked": len(out["estimate"]["to_ask"]),
+            "asked_rows": len(out["estimate"]["plan"]), "spent_usd": out["spent_usd"],
+            "errors": out["errors"], "skipped": skipped}
+
+
+@app.post("/api/novelties/blacklist")
+def novelties_blacklist(payload: NoveltyIds):
+    """Артикул в чёрный список: следующие прайсы этой строкой больше не беспокоят.
+
+    До сих пор пути в ЧС из интерфейса не было вовсе — `CS-TKY4-100` пришлось заносить
+    скриптом. Строке ставим `skip`: она разобрана, но повод виден («в ЧС»).
+    """
+    from prices import blacklist
+    rows = _novelty_rows(payload.ids)
+    if not rows:
+        return {"ok": False, "error": "строки не найдены"}
+    _, added = blacklist.add([r["article"] for r in rows], source="ui",
+                             note="из разбора новинок")
+    db.execute("""UPDATE prc_novelty SET decision = 'skip', decided_at = now()
+                   WHERE id = ANY(%s)""", (list(payload.ids),))
+    return {"ok": True, "n": len(rows), "added": added}
 
 
 @app.get("/api/warehouse")
