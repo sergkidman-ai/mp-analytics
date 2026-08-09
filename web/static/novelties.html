@@ -130,7 +130,8 @@
   вариант или впишите код руками; если такой модели у нас нет вовсе — <b>NEW</b>. Решение принимается <b>по модели
   картриджа</b>: одна строка флакона тонера — это несколько карточек, по одной на модель, и заводим только те, которым
   флакон даёт <b>полную заправку</b>. «Спросить сеть» отвечает по каждой модели: рынок РФ, спрос, доза заправки и полный
-  список принтеров — <b>запрос платный, смету покажем до запуска</b>.</p>
+  список принтеров — <b>запрос платный, смету покажем до запуска</b>, и спрашиваем <b>только по строкам NEW</b>, тем,
+  которым заводим карточку с новым внешним кодом.</p>
 
   <div class="big" id="big"></div>
   <div id="waiting"></div>
@@ -257,7 +258,7 @@ function row(r){
       <button class="save pri">Это он</button>
       <button class="mknew new">NEW</button>
       <button class="mkpartial" title="в прайсе не все цвета серии — ждём остальные">Неполный набор</button>
-      <button class="ask paid" title="платный веб-запрос по моделям строки">🌐 сеть</button>
+      <button class="paid" disabled title="сеть спрашиваем только по строкам NEW — тем, которым заводим карточку">🌐 сеть</button>
       <button class="black danger" title="артикул в чёрный список">ЧС</button>
     </div>
     ${best ? `<div class="verdict">по коду ${esc(best.shared_code)} · ${esc(best.verdict)}${
@@ -267,6 +268,8 @@ function row(r){
         : r.decision === "new" ? "новая модель"
         : r.decision === "partial" ? "неполный набор — ждём цвета" : "не берём"}</span>
        ${r.ms_code ? ` <b>${esc(r.ms_code)}</b> <span class="muted">${esc(r.ms_name || "")}</span>` : ""}
+       ${r.decision === "new" ? `<button class="ask paid" style="margin-left:8px"
+            title="платный веб-запрос по моделям строки">🌐 сеть</button>` : ""}
        <button class="undo" style="margin-left:8px">вернуть</button>
        <div class="pick" style="margin-top:6px">
          <span class="muted">связь</span>
@@ -304,13 +307,18 @@ const setLink = (ids, link, msg) => post("/api/novelties/link", {ids, link}, msg
 async function askNet(ids, msg){
   if (!ids.length) return;
   const est = await (await fetch(`/api/novelties/research/estimate?ids=${ids.join(",")}`)).json();
+  const skip = (est.skipped || []).map(s => `${s.article} — ${s.why}`);
   if (!est.estimate.to_ask.length){
-    if (msg){ msg.textContent = "всё уже разведано"; msg.className = "msg muted"; }
+    if (msg){
+      msg.textContent = skip.length ? skip[0] : "всё уже разведано";
+      msg.className = "msg muted";
+    } else if (skip.length) alert("Спрашивать нечего:\n" + skip.join("\n"));
     return;
   }
   $("#mtext").textContent = est.text;
   $("#mnote").textContent = "Спросим: " + est.estimate.to_ask.join(", ")
-    + (est.estimate.cached.length ? ". Из кэша (бесплатно): " + est.estimate.cached.join(", ") : "");
+    + (est.estimate.cached.length ? ". Из кэша (бесплатно): " + est.estimate.cached.join(", ") : "")
+    + (skip.length ? ". Пропущено — " + skip.join("; ") : "");
   $("#modal").hidden = false;
   $("#mgo").onclick = async () => {
     $("#modal").hidden = true;

@@ -2240,18 +2240,49 @@ class NoveltyIds(BaseModel):
 def _novelty_rows(ids):
     if not ids:
         return []
-    return db.query("SELECT id, article, name, ms_name FROM prc_novelty WHERE id = ANY(%s)",
-                    (list(ids),))
+    return db.query("""SELECT n.id, n.article, n.name, n.kind, n.decision, n.ms_name,
+                              (b.article IS NOT NULL) AS in_blacklist
+                         FROM prc_novelty n
+                         LEFT JOIN prc_blacklist b ON upper(b.article) = upper(n.article)
+                        WHERE n.id = ANY(%s)""", (list(ids),))
+
+
+# Правило Сергея 09.08: в сеть идём ТОЛЬКО под заведение карточки — по моделям строки,
+# которой присваиваем новый внешний код (`decision='new'`). Всё остальное платить не за что:
+# `matched`/`exists` уже лежат в МС, `partial` ждёт цвета на полке и карточку пока не получает,
+# `pending` ещё не разобран человеком, ЧС мы вообще не берём. Гейт серверный: интерфейс
+# кнопку прячет, но запрос мимо интерфейса всё равно упрётся сюда.
+def _research_split(rows):
+    ok, skipped = [], []
+    for r in rows:
+        if r["in_blacklist"]:
+            skipped.append({"article": r["article"], "why": "в чёрном списке — не берём"})
+        elif r["decision"] == "new":
+            ok.append(r)
+        else:
+            skipped.append({"article": r["article"], "why": {
+                "matched": "уже сопоставлена с нашей карточкой — новый код не заводим",
+                "exists": "уже в МС по артикулу",
+                "partial": "полка ожидания: карточку заведём, когда доедут цвета",
+                "skip": "не берём",
+            }.get(r["decision"], "сначала пометьте строку NEW — сеть спрашиваем "
+                                 "только под заведение карточки")})
+    return ok, skipped
 
 
 @app.get("/api/novelties/research/estimate")
 def novelties_research_estimate(ids: str = "", force: bool = False):
     """Смета разведки. Денег НЕ тратит: считается арифметикой по числу моделей вне кэша."""
     from prices import research
-    rows = _novelty_rows([int(x) for x in ids.split(",") if x.strip().isdigit()])
+    rows, skipped = _research_split(
+        _novelty_rows([int(x) for x in ids.split(",") if x.strip().isdigit()]))
     models = [m for r in rows for m in research.models_of(r)]
     est = research.estimate(models, force=force)
-    return {"ok": True, "estimate": est, "text": research.estimate_text(est)}
+    # «Все модели уже разведаны» — неправда, когда моделей не было вовсе: строки отсеял гейт.
+    text = (research.estimate_text(est) if models else
+            "Спрашивать нечего: сеть идёт только по строкам NEW — тем, которым заводим "
+            "карточку с новым внешним кодом.")
+    return {"ok": True, "estimate": est, "skipped": skipped, "text": text}
 
 
 @app.post("/api/novelties/research")
@@ -2263,15 +2294,19 @@ def novelties_research(payload: NoveltyIds):
     придёт мимо интерфейса.
     """
     from prices import research
-    rows = _novelty_rows(payload.ids)
+    rows, skipped = _research_split(_novelty_rows(payload.ids))
+    if not rows:
+        return {"ok": False, "error": "нечего спрашивать: сеть идёт только по строкам NEW — "
+                                      "тем, которым заводим карточку с новым внешним кодом",
+                "skipped": skipped}
     models = [m for r in rows for m in research.models_of(r)]
     try:
         out = research.ask(models, confirm=payload.confirm)
     except research.NeedsConsent as need:
         return {"ok": False, "need_confirm": True, "estimate": need.estimate,
-                "text": research.estimate_text(need.estimate)}
+                "skipped": skipped, "text": research.estimate_text(need.estimate)}
     return {"ok": True, "asked": len(out["estimate"]["to_ask"]),
-            "spent_usd": out["spent_usd"], "errors": out["errors"]}
+            "spent_usd": out["spent_usd"], "errors": out["errors"], "skipped": skipped}
 
 
 @app.post("/api/novelties/blacklist")
