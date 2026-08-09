@@ -32,7 +32,8 @@
 import argparse
 import re
 from collections import Counter
-from datetime import date
+from datetime import date, datetime, timedelta
+from uuid import UUID
 from pathlib import Path
 
 from core.db import query
@@ -122,10 +123,24 @@ def wb_name(value):
     return f"{before} для {text[match.start():]}".strip(), None
 
 
+UUID_EPOCH = datetime(1582, 10, 15)
+
+
+def created_at(ms_id):
+    """Когда карточка ЗАВЕДЕНА. Поля создания в API МС нет, но id — время-зависимый UUID:
+    в нём лежит счётчик 100-нс от 1582-10-15 (сверено: карточка 08.08 → 08.08, документ
+    оприходования 06.08 13:45 → 06.08 13:45). Не разобралось — считаем самой старой.
+    """
+    try:
+        return UUID_EPOCH + timedelta(microseconds=UUID(str(ms_id)).time // 10)
+    except (ValueError, AttributeError):
+        return UUID_EPOCH
+
+
 def family(codes):
     """Родня по внешнему коду: живые карточки МС со всем, что нужно новой карточке."""
     rows = query(
-        """SELECT p.external_code ec, p.code, p.article, p.name, p.updated_at,
+        """SELECT p.external_code ec, p.ms_id, p.code, p.article, p.name, p.updated_at,
                   r.payload payload
              FROM ms_product p JOIN raw_moysklad_product r ON r.ms_id = p.ms_id
             WHERE p.external_code = ANY(%s) AND NOT p.archived""",
@@ -138,7 +153,8 @@ def family(codes):
         wb, wb_note = wb_name(attrs.get("Название WB"))
         out.setdefault(row["ec"], []).append({
             "code": row["code"], "article": row["article"], "name": row["name"],
-            "updated": row["updated_at"], "path": payload.get("pathName"),
+            "updated": row["updated_at"], "created": created_at(row["ms_id"]),
+            "path": payload.get("pathName"),
             "weight": float(weight) if weight else None, "code128": code128,
             "wb": wb or None, "wb_note": wb_note,
         })
@@ -210,14 +226,35 @@ def _pick(cards, field, keep=None, tie=None):
     return chosen, [v for v, _ in counts.most_common()]
 
 
-def _wb_score(value):
-    """Насколько вариант «Название WB» похож на живой формат каталога.
+# Цвет в названии прайса → как он пишется в «Название WB».
+COLOR_MARKS = {
+    "черн": ("черн", "black", "чёрн"),
+    "голуб": ("голуб", "cyan"),
+    "пурпур": ("пурпур", "magenta"),
+    "желт": ("желт", "yellow", "жёлт"),
+}
 
-    Формат каталога — «Картридж TK-520C для Kyocera голубой». Предлог уже нормализован
-    (см. `wb_name`), поэтому здесь остаётся отсеять аббревиатуру поставщика, попавшую
-    в модель («Картридж SP TN-221C»), а при прочих равных взять более подробный вариант.
+
+def _wb_fit(price_name):
+    """Сравнение вариантов «Название WB» с формулой: тип + модель + «для» + бренд принтера
+    + цвет + XL ресурс + чип. Цвет, XL и чип сверяем с названием из прайса — берём тот
+    вариант родни, который формуле соответствует, а не просто самый длинный. Предлог «для»
+    уже проставлен (см. `wb_name`), здесь остаётся отсеять аббревиатуру поставщика,
+    заехавшую в модель («Картридж SP TN-221C»).
     """
-    return (0 if re.match(r"^\S+\s+(SP|CS|GG|NV|PL|GP|T2|HB)\s", value) else 1, len(value))
+    low = (price_name or "").lower()
+    color = next((ru for ru, marks in COLOR_MARKS.items() if any(m in low for m in marks)), None)
+    xl = bool(re.search(r"\bxl\b|увеличен", low))
+    chip = "чип" in low
+
+    def score(value):
+        v = value.lower().replace("ё", "е")
+        return (1 if color and color in v else 0,
+                1 if xl and "xl" in v else 0,
+                1 if chip and "чип" in v else 0,
+                0 if re.match(r"^\S+\s+(SP|CS|GG|NV|PL|GP|T2|HB)\s", value) else 1,
+                len(value))
+    return score
 
 
 def _pages(text):
@@ -253,18 +290,25 @@ def build(supplier_key, decisions=("matched",), limit=None):
         path, path_all = _pick(
             cards, "path",
             keep=lambda p: p.startswith(GROUP_PREFIX) and not p.startswith(GROUP_SUPPLIER))
-        # Вес: при равенстве голосов берём БОЛЬШИЙ — занижение веса дороже завышения.
-        kin_weight, weight_all = _pick(cards, "weight", tie=lambda w: w)
         code128, bc_all = _pick(cards, "code128")
-        wb, wb_all = _pick(cards, "wb", tie=_wb_score)
+        wb, wb_all = _pick(cards, "wb", tie=_wb_fit(row["name"]))
+
+        # Вес у родни расходится — берём САМУЮ СВЕЖУЮ карточку внешнего кода (решение
+        # Сергея 08.08): её заводили последней, по последним данным.
+        weighted = sorted((c for c in cards if c.get("weight")),
+                          key=lambda c: c["created"], reverse=True)
+        kin_weight = weighted[0]["weight"] if weighted else None
+        weight_all = sorted({c["weight"] for c in weighted})
 
         # Первоисточник веса — прайс САМОГО поставщика по артикулу из прайса; дальше вес
         # родни в МС; в последнюю очередь — прайсы других поставщиков по кодам родни.
         weight, source = weight_from_dims([row["article"]], only=DIMS_SUPPLIER.get(profile.key))
         if weight and kin_weight and abs(weight - kin_weight) > 0.2 * max(weight, kin_weight):
             flags.append(f"вес поставщика {weight} против {kin_weight} у родни — взял поставщика ({source})")
-        if not weight:
-            weight, source = kin_weight, "родня в МС"
+        if not weight and kin_weight:
+            weight = kin_weight
+            source = (f"карточка {weighted[0]['code']}, заведена "
+                      f"{weighted[0]['created']:%d.%m.%Y} — самая свежая по внешнему коду")
         if not weight:
             weight, source = weight_from_dims([c["article"] for c in cards])
         if not weight:
@@ -281,8 +325,8 @@ def build(supplier_key, decisions=("matched",), limit=None):
         if not wb:
             flags.append("у родни нет «Название WB» — заполнить вручную")
         flags += sorted({c["wb_note"] for c in cards if c.get("wb_note")})
-        if weight_all and max(weight_all) > min(weight_all) * 1.2:
-            flags.append(f"вес у родни расходится: {sorted(weight_all)}, в файле {weight} ({source})")
+        if len(weight_all) > 1 and max(weight_all) > min(weight_all) * 1.2:
+            flags.append(f"вес у родни расходится: {weight_all}, в файле {weight} — {source}")
         if row["price_rub"] is None:
             flags.append("нет цены в прайсе")
         if row["article"].strip().upper() in known:
