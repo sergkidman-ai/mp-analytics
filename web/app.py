@@ -2035,6 +2035,12 @@ def _novelty_models(rows):
                     "printers": printers,
                     "new_printers": [p for p in printers
                                      if research.norm_model(p) not in known],
+                    "weight_kg": (float(rec["weight_kg"])
+                                  if rec.get("weight_kg") is not None else None),
+                    "pack_cm": ([float(rec["pack_l_cm"]), float(rec["pack_w_cm"]),
+                                 float(rec["pack_h_cm"])]
+                                if rec.get("pack_l_cm") is not None else None),
+                    "pack_source": rec.get("pack_source"),
                     "verdict": rec["verdict"], "why": rec["why"],
                     "confidence": rec["confidence"], "sources": rec["sources"] or [],
                     "asked_at": rec["asked_at"].strftime("%d.%m.%Y"),
@@ -2276,10 +2282,9 @@ def novelties_research_estimate(ids: str = "", force: bool = False):
     from prices import research
     rows, skipped = _research_split(
         _novelty_rows([int(x) for x in ids.split(",") if x.strip().isdigit()]))
-    models = [m for r in rows for m in research.models_of(r)]
-    est = research.estimate(models, force=force)
+    est = research.estimate(rows, force=force)
     # «Все модели уже разведаны» — неправда, когда моделей не было вовсе: строки отсеял гейт.
-    text = (research.estimate_text(est) if models else
+    text = (research.estimate_text(est) if est["rows"] else
             "Спрашивать нечего: сеть идёт только по строкам NEW — тем, которым заводим "
             "карточку с новым внешним кодом.")
     return {"ok": True, "estimate": est, "skipped": skipped, "text": text}
@@ -2299,14 +2304,14 @@ def novelties_research(payload: NoveltyIds):
         return {"ok": False, "error": "нечего спрашивать: сеть идёт только по строкам NEW — "
                                       "тем, которым заводим карточку с новым внешним кодом",
                 "skipped": skipped}
-    models = [m for r in rows for m in research.models_of(r)]
     try:
-        out = research.ask(models, confirm=payload.confirm)
+        out = research.ask(rows, confirm=payload.confirm)
     except research.NeedsConsent as need:
         return {"ok": False, "need_confirm": True, "estimate": need.estimate,
                 "skipped": skipped, "text": research.estimate_text(need.estimate)}
     return {"ok": True, "asked": len(out["estimate"]["to_ask"]),
-            "spent_usd": out["spent_usd"], "errors": out["errors"], "skipped": skipped}
+            "asked_rows": len(out["estimate"]["plan"]), "spent_usd": out["spent_usd"],
+            "errors": out["errors"], "skipped": skipped}
 
 
 @app.post("/api/novelties/blacklist")

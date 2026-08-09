@@ -228,9 +228,18 @@ function modelCell(r){
     if (q.ru === true) flags.push(`<i class="yes">🇷🇺 рынок РФ</i>`);
     if (q.ru === false) flags.push(`<i class="no">не РФ</i>`);
     if (q.popularity) flags.push(`<i${q.popularity === "none" ? ' class="no"' : ""}>${POP[q.popularity]}</i>`);
-    flags.push(q.refill ? `<i class="yes">заправка ${esc(q.refill)}</i>`
-                        : `<i class="muted">доза не найдена</i>`);
+    // Доза заправки осмысленна только для сыпучего тонера и чернил; у готового картриджа её нет.
+    if (r.kind === "toner" || r.kind === "ink")
+      flags.push(q.refill ? `<i class="yes">заправка ${esc(q.refill)}</i>`
+                          : `<i class="muted">доза не найдена</i>`);
     if (q.resource_pages) flags.push(`<i>${num(q.resource_pages)} стр.</i>`);
+    // Вес и короб нужны маркетплейсу при заведении карточки. Это ВЕБ-данные, не короб
+    // поставщика: помечаем источник, чтобы никто не принял их за замер.
+    flags.push(q.weight_kg ? `<i class="yes">${num(q.weight_kg)} кг</i>`
+                           : `<i class="muted">вес не найден</i>`);
+    flags.push(q.pack_cm ? `<i class="yes" title="упаковка одной штуки, источник: ${
+                              esc(q.pack_source || "веб")}">${q.pack_cm.join("×")} см</i>`
+                         : `<i class="muted">упаковка не найдена</i>`);
     const prn = q.printers.length ? `<details><summary>принтеры: ${q.printers.length}${
         q.new_printers.length ? ` · нет в нашем названии: ${q.new_printers.length}` : ""}</summary>
       <div class="prn">${q.printers.map(p =>
