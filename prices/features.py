@@ -42,8 +42,12 @@ COLOR_RE = [(code, re.compile(pat, re.I)) for code, pat in COLOR_PATTERNS]
 # Ресурс: «11000 стр.», «11000 копий», «11K», «17,5K», «(11k)», «ч/б:500000стр.».
 # Слева от числа не должно быть буквы или дефиса: в «C-EXV65K» это часть кода модели,
 # а не «65 тысяч страниц».
+# Пробел внутри числа — только разделитель тысяч («23 000 стр.»), поэтому после него ровно
+# три цифры. Иначе «HP LJ Pro 4004/4104 9,7K» склеивалось в 41049, а «Bizhub 227/287/367 23K»
+# в 36723 — и родня одного и того же товара расходилась по ресурсу на ровном месте.
+# Слэш перед числом тоже отсекаем: «/4104 9,7K» — это модель принтера, а не ресурс.
 RESOURCE_RE = re.compile(
-    r"(?<![A-Za-zА-Яа-я\d\-])(\d[\d\s]*(?:[.,]\d+)?)\s*(?:(k|к)\b|стр|копи|pages|pag)", re.I)
+    r"(?<![A-Za-zА-Яа-я\d\-/])(\d+(?:\s\d{3})*(?:[.,]\d+)?)\s*(?:(k|к)\b|стр|копи|pages|pag)", re.I)
 
 CHIP_PATTERNS = [
     ("chip_free", r"без\s*счет\w*|безлимит|unlimited|no\s*count"),
@@ -62,10 +66,11 @@ BRANDS = (
     "Avision", "Brother", "Canon", "Dell", "Deli", "Develop", "Epson", "Gestetner",
     "Huawei", "Konica", "Kyocera", "Lexmark", "Minolta", "Nashuatec", "Olivetti", "Oki",
     "Panasonic", "Pantum", "Primera", "Ricoh", "Samsung", "Sharp", "Sindoh", "Toshiba",
-    "Utax", "Xerox", "HP", "Катюша",
+    "Utax", "Xerox", "HP", "F+ imaging", "F+", "Катюша",
 )
-BRAND_RE = re.compile(r"(?<![0-9A-Za-zА-Яа-я])(" + "|".join(BRANDS) + r")(?![0-9A-Za-zА-Яа-я])",
-                      re.IGNORECASE)
+# re.escape — из-за «F+»: плюс в регулярке это повтор, без экранирования шаблон ломался.
+BRAND_RE = re.compile(r"(?<![0-9A-Za-zА-Яа-я])(" + "|".join(re.escape(b) for b in BRANDS) +
+                      r")(?![0-9A-Za-zА-Яа-я])", re.IGNORECASE)
 
 # Один и тот же производитель зовётся по-разному: поставщик пишет «Kyocera Mita», мы —
 # «Kyocera»; Develop и Minolta — торговые имена той же Konica Minolta; Utax — марка
@@ -109,6 +114,10 @@ def resource(name):
     best = None
     for match in RESOURCE_RE.finditer(str(name or "")):
         raw = match.group(1).replace(" ", "").replace(",", ".")
+        # Ведущий ноль бывает только в коде, не в ресурсе: «7Q 069K для Canon» — это
+        # картридж 069, а не 69 000 страниц (реальный ресурс 2100 стоял рядом и проигрывал).
+        if re.match(r"0\d", raw):
+            continue
         try:
             value = float(raw)
         except ValueError:
