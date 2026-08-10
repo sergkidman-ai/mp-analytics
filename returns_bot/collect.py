@@ -26,6 +26,10 @@ HEAD_COLS = [
 ]
 KEY = ["platform", "account", "return_id"]
 
+# Статусы «товар у нас на руках» — по ним ставится received_at. Строки площадок, не наши слова:
+# Ozon «Получен», ВБ «Выдано», Яндекс «забран», вывоз со стока FBO «Получена».
+RECEIVED_STATUSES = ("Получен", "Выдано", "забран", "Получена")
+
 
 def _sources(only=None):
     # У Ozon три источника, и это не дубли: /v1/returns/list не отдаёт ни rFBS-возвраты,
@@ -109,6 +113,13 @@ def store(rows, mark_gone=True):
               update_cols=[c for c in HEAD_COLS if c not in KEY] + ["last_seen", "gone_at"])
     if item_rows:
         db.upsert("mp_return_items", item_rows, KEY + ["seq"])
+
+    # Дату «возврат у нас» ставим сами: у площадок её нет (см. миграцию 302). Штампуем ровно
+    # те строки, что записаны этим прогоном (last_seen = now), и только один раз — иначе дата
+    # поедет вперёд при каждом сборе и недельный отчёт будет врать.
+    db.execute("""UPDATE mp_returns SET received_at = %s
+                   WHERE received_at IS NULL AND last_seen = %s AND status_name = ANY(%s)""",
+               (now, now, list(RECEIVED_STATUSES)))
 
     # То, чего больше нет в выдаче площадки, — закрыто (забрали/отменили). Считаем В ПРЕДЕЛАХ
     # ОДНОГО ИСТОЧНИКА: у Ozon их три (returns/list, rFBS, вывоз со склада), и упавший или
