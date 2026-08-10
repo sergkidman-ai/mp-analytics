@@ -38,7 +38,11 @@
   #q{width:230px}
   table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
-  th{color:var(--mut);font-weight:600;font-size:12px;background:var(--card);position:sticky;top:52px;z-index:4}
+  /* Шапка липнет ПОД панелью действий. Высота панели плавает (кнопки переносятся на вторую
+     строку на узком экране), поэтому отступ не фиксированный, а замеренный — иначе шапка
+     уезжает под панель и верхняя строка таблицы не читается. */
+  th{color:var(--mut);font-weight:600;font-size:12px;background:var(--card);position:sticky;
+     top:var(--barh,52px);z-index:4}
   tr:last-child td{border-bottom:none}
   tr.done{opacity:.6}
   tr.done td{padding-top:5px;padding-bottom:5px}
@@ -534,6 +538,14 @@ $("#bulk-partial").onclick = () => decide(selected(), "partial", "");
 $("#bulk-skip").onclick = () => decide(selected(), "skip", "");
 $("#bulk-ask").onclick = () => askNet(selected());
 $("#bulk-black").onclick = () => toBlacklist(selected());
+
+// Замер панели действий: её высота меняется от ширины окна и от текста «отмечено N»,
+// а от неё зависит, где липнет шапка таблицы.
+const bar = document.querySelector(".bar");
+const fitBar = () => document.documentElement.style.setProperty("--barh", bar.offsetHeight + "px");
+new ResizeObserver(fitBar).observe(bar);
+fitBar();
+
 load();
 </script>
 </body>
