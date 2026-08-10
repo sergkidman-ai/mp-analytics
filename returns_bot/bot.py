@@ -143,8 +143,17 @@ def handle(chat_id, text):
         tg.send(chat_id, HELP)
 
 
+def _who(msg):
+    """Кто стучится: id виден и так, а имя нужно, чтобы Сергей узнал человека."""
+    u = msg.get("from") or {}
+    name = " ".join(x for x in (u.get("first_name"), u.get("last_name")) if x)
+    tag = f"@{u['username']}" if u.get("username") else ""
+    return " ".join(x for x in (name, tag) if x) or "без имени"
+
+
 def loop():
     allowed = tg.allowed_ids()
+    unknown = set()          # кому уже отметили отказ — журнал не засоряем повтором
     offset = None
     print("бот возвратов запущен" + (f", доступ у {len(allowed)} чатов" if allowed else
                                      ", TG_RETURNS_ALLOWED_IDS пуст — отвечаем всем"))
@@ -169,6 +178,13 @@ def loop():
                     continue
                 chat_id = str(msg["chat"]["id"])
                 if allowed and chat_id not in allowed:
+                    # Отвечать чужому не станем, но в журнал пишем: без этого нового человека
+                    # не добавить — Telegram отдаёт chat_id только с его сообщением, а оно
+                    # молча терялось (10.08.2026).
+                    if chat_id not in unknown:
+                        unknown.add(chat_id)
+                        print(f"чужой чат {chat_id} ({_who(msg)}) — нет в "
+                              f"TG_RETURNS_ALLOWED_IDS", flush=True)
                     continue
                 try:
                     handle(chat_id, msg["text"])
