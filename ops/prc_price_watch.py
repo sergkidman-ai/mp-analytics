@@ -142,14 +142,6 @@ def pending_count(key):
         return None
 
 
-def line(out, prefix):
-    for ln in out.splitlines():
-        s = ln.strip()
-        if s.startswith(prefix):
-            return s
-    return None
-
-
 def troubles(out):
     """Только ошибки и предупреждения прогона — консольную простыню в бот не тащим."""
     found = []
@@ -166,37 +158,20 @@ def troubles(out):
     return found
 
 
-def message(profile, letter, out, code, dry, before, after):
-    """Сводка человеку: что легло в МС, сколько новых позиций на разбор, что пошло не так."""
-    head = {0: "✅ оприходование в МС", 2: "⛔ загрузка ОТМЕНЕНА", 3: "❌ сбой"}.get(code, "⚠ ошибка")
+def message(profile, out, code, dry, after):
+    """Одна строка: поставщик, чем кончилось, сколько позиций ждёт человека.
+
+    Подробности (файл, суммы, документы, журнал) не пишем — они есть в логе и на дашборде,
+    а в телефоне нужен итог. Ошибки и предупреждения прогона идут отдельными строками ниже:
+    их пропустить нельзя.
+    """
+    verdict = {0: "ОК", 2: "ОТМЕНА", 3: "СБОЙ"}.get(code, "ОШИБКА")
     if dry and code == 0:
-        head = "🔎 сухой прогон (в МС не писали)"
-    when = letter_dt(letter)
-    lines = [f"{head} — {profile.title}",
-             f"прайс: {letter['filename']} / "
-             + (when.strftime("%d.%m %H:%M") if when else str(letter["date"]))]
-
-    loaded = line(out, "к загрузке:")
-    if loaded:
-        # «180,699,603.00 ₽» из консоли → «180 699 603 ₽»: сводку читают с телефона.
-        loaded = re.sub(r"(\d),(?=\d{3})", r"\1 ", loaded.replace(".00 ₽", " ₽"))
-        # «Загружено» пишем только когда действительно записали: на отмене/сухом прогоне
-        # в МС не легло ничего, и называть это загрузкой нельзя.
-        lines.append(loaded if (dry or code) else loaded.replace("к загрузке:", "загружено:"))
-    journal_line = line(out, "журнал: ")
-    if journal_line:
-        lines.append(journal_line)
-
+        verdict = "сухой прогон"
+    head = f"{profile.title} — Оприходование в МС — {verdict}"
     if after is not None:
-        # «Новых» считаем дельтой очереди: строку, которую человек разобрал между прогонами,
-        # заново новой называть нечестно, а очередь показывает реальный объём работы.
-        delta = "" if before is None else f"+{max(after - before, 0)} новых, "
-        lines.append(f"на проверку человеком: {delta}всего {after} → вкладка «Новинки»")
-
-    warn = troubles(out)
-    if warn:
-        lines += [""] + warn
-    return "\n".join(lines)
+        head += f", новых позиций — {after}"
+    return "\n".join([head] + troubles(out))
 
 
 def main(argv=None):
@@ -237,7 +212,6 @@ def main(argv=None):
 
     log(logfile, f"новое письмо: {letter['filename']} / {letter['date']} — запускаю загрузку"
                  + (" (сухой прогон)" if args.dry else ""))
-    before = pending_count(profile.key)
     out, code = run_load(profile.key, args.dry)
     after = pending_count(profile.key)
     log(logfile, f"итог {code}\n" + out)
@@ -247,7 +221,7 @@ def main(argv=None):
         write_state(profile.key, letter, code)
     if not args.quiet:
         log(logfile, "телеграм: " + tg(
-            message(profile, letter, out, code, args.dry, before, after)))
+            message(profile, out, code, args.dry, after)))
     return code
 
 
