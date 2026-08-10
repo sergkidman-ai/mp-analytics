@@ -200,6 +200,36 @@ def apply_step(account, rows, note):
     now = datetime.datetime.now()
     for adv, pairs in by_adv.items():
         status, resp, req = _patch_group(token, adv, pairs)
+        # ВБ отклоняет ВЕСЬ батч, если хоть одна номенклатура выпала из кампании
+        # («nomenclature N not found in advert»). Один протухший advert_id в снимке статистики
+        # уносил с собой всю кампанию: 10.08 так потерялось 28 товаров, из них 24 живые.
+        # Поэтому на 400 разбираем кампанию поштучно и сохраняем всё, что реально в ней есть.
+        if status == 400 and len(pairs) > 1:
+            print(f"  [!] кампания {adv}: батч отклонён, разбираю поштучно ({len(pairs)})", flush=True)
+            alive = []
+            for nm, cpc in pairs:
+                st1, resp1, _ = _patch_group(token, adv, [(nm, cpc)])
+                if st1 == 200:
+                    alive.append((nm, cpc))
+                else:
+                    print(f"      [!] {nm}: HTTP {st1} {str(resp1)[:110]}", flush=True)
+                time.sleep(0.35)
+            for nm, cpc in pairs:
+                old = next(r["old_cpc"] for r in rows if r["nm_id"] == nm)
+                hit = (nm, cpc) in alive
+                logs.append({"account": account, "nm_id": nm, "advert_id": adv, "action": "api_set",
+                             "applied": hit, "old_cpc": old, "new_cpc": cpc,
+                             "old_source": "api_set", "author": "ladder", "note": note})
+                ok, bad = (ok + 1, bad) if hit else (ok, bad + 1)
+            if alive:
+                db.upsert("wb_bid_override",
+                          [{"account": account, "nm_id": nm, "cpc": cpc, "source": "api_set",
+                            "advert_id": adv, "note": note, "author": "ladder", "updated_at": now}
+                           for nm, cpc in alive],
+                          conflict_cols=["account", "nm_id"],
+                          update_cols=["cpc", "source", "advert_id", "note", "author", "updated_at"])
+            time.sleep(0.5)
+            continue
         applied = status == 200
         for nm, cpc in pairs:
             old = next(r["old_cpc"] for r in rows if r["nm_id"] == nm)
