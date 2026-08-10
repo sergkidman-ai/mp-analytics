@@ -9,7 +9,7 @@ sys.path.insert(0, '/opt/mp-analytics')
 from core import db
 
 ACC = 'oz_acc1'
-PPO_NEW, MARGIN_UP, KPI, SHARE = 0.05, 3.5, 17.0, 0.35
+PPO_NEW, MARGIN_UP, KPI, SHARE = 0.05, 2.4, 17.0, 0.35   # MARGIN_UP: см. ozon_bid_plan.py
 BUCKET_CR = {'от 0 до 1000': .1149, 'от 1000-2000': .0860, 'от 2000 до 5000': .1042,
              'от 5000 до 10000': .0871, 'от 10000 до 500 тыс': .0854, 'Пустые РК': .1435,
              'Эксперимент1': .0366}
