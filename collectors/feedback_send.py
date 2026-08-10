@@ -324,6 +324,25 @@ def _bump_attempt(row, detail, terminal):
     return n, blocked
 
 
+def _retriable(e):
+    """Можно ли безопасно повторить отправку после исключения e.
+
+    True  — на площадке точно ничего не создалось (явный HTTP-код) либо запрос до неё не дошёл
+            (обрыв/reset/DNS/таймаут соединения): повтор дубля не даст.
+    False — запрос ушёл, а исход неизвестен (ждали ответ и не дождались) или ошибка непонятная:
+            повторять нельзя, площадка могла ответ принять.
+    """
+    if isinstance(e, requests.HTTPError) and e.response is not None:
+        return True
+    if isinstance(e, requests.exceptions.ConnectTimeout):
+        return True                                  # соединение не установилось
+    if isinstance(e, requests.exceptions.ReadTimeout):
+        return False                                 # запрос ушёл, ответа не дождались
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return True                                  # reset/aborted/DNS — запрос не обработан
+    return False
+
+
 def _clear_attempts(row):
     db.execute("""DELETE FROM feedback_send_attempts
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""", _key(row))
@@ -418,9 +437,10 @@ def post_answer(row, text, apply_cap=False):
         http = isinstance(e, requests.HTTPError) and e.response is not None
         if http:
             detail += f" | {e.response.text[:200]}"
-        # Площадка ЯВНО отвергла запрос (есть HTTP-код) — на площадке точно ничего не создалось,
-        # повтор безопасен. Таймаут/обрыв — исход неизвестен, повторять нельзя (риск дубля).
-        n_att, blocked = _bump_attempt(row, detail, terminal=not http)
+        # Явный HTTP-код и сетевой сбой на подключении (reset/обрыв/DNS/connect-timeout) — запрос
+        # площадкой не обработан, повтор безопасен: даём до SEND_MAX_ATTEMPTS попыток по циклам.
+        # Read-timeout и прочее неизвестное — исход неясен, повторять нельзя (риск дубля).
+        n_att, blocked = _bump_attempt(row, detail, terminal=not _retriable(e))
         _log(f"FAIL {plat}/{acc} {kind}={ext} (попытка {n_att}/{SEND_MAX_ATTEMPTS}): {detail}")
         if blocked:
             # закрываем строку, чтобы очереди не крутили её вечно, и зовём человека
