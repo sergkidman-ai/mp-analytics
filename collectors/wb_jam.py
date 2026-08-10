@@ -59,17 +59,36 @@ def _periods(cur_days=7):
 
 
 def _post(account, path, body, tries=6):
+    """Один запрос к Джему с переспросом.
+
+    Кроме 429 переживаем 5xx и обрыв сети: у ВБ search-texts периодически отдаёт 504 Gateway
+    Timeout (прогон 10.08 умер на 174 товаре из 1000, хотя неделей раньше те же 998 прошли
+    целиком). Падать на этом нельзя — недельный срез собирается раз в неделю, второго шанса
+    до следующего понедельника нет. Пауза растёт 20/40/60… с, чтобы дать шлюзу отдышаться.
+    """
     H = {"Authorization": _token(account), "Content-Type": "application/json"}
-    for _ in range(tries):
-        r = requests.post(f"{BASE}/{path}", headers=H, json=body, timeout=120)
+    last = None
+    for attempt in range(tries):
+        try:
+            r = requests.post(f"{BASE}/{path}", headers=H, json=body, timeout=120)
+        except requests.RequestException as e:
+            last = f"сеть: {type(e).__name__}"
+            print(f"    {last}, повтор через {20 * (attempt + 1)}с", flush=True)
+            time.sleep(20 * (attempt + 1))
+            continue
         if r.status_code == 429:
             time.sleep(int(r.headers.get("Retry-After", "20")) + 2)
             continue
         if r.status_code == 403:
             raise NoJam(f"{path}: 403 — подписка «Джем» не подключена на аккаунте")
+        if r.status_code >= 500:
+            last = f"HTTP {r.status_code}"
+            print(f"    {last} на стороне ВБ, повтор через {20 * (attempt + 1)}с", flush=True)
+            time.sleep(20 * (attempt + 1))
+            continue
         r.raise_for_status()
         return r.json()
-    raise RuntimeError(f"{path}: исчерпаны попытки (429)")
+    raise RuntimeError(f"{path}: исчерпаны попытки ({last or '429'})")
 
 
 def _cd(o, k):
