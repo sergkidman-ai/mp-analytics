@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 load_dotenv("/opt/mp-analytics/.env")
 import invoice_to_po as pipe          # счёт → «Заказ поставщику»
 import upd_to_supply as upd_pipe       # УПД  → «Приёмка»
+import gtd_text                        # реестр ГТД текстом → графа 11 в готовой приёмке
 import proc_log
 import reports.ozon_removal_candidates as ozrem   # /vyvoz — кандидаты на вывоз со склада Ozon
 
@@ -194,11 +195,29 @@ def handle(msg):
 
     doc = msg.get("document")
     if not doc:
+        # Реестр ГТД текстом (Солюшнс принт с августа 2026 шлёт его в теле письма, а не файлом).
+        # Узнаём по форме, а не по команде: номер приёмки первой строкой + хотя бы один номер ГТД.
+        # Приёмка к этому моменту уже создана — дописываем только графу 11, суммы не трогаем.
+        if raw and not raw.startswith("/") and gtd_text.GTD_RE.search(raw):
+            log(f"gtd-text from {from_id}")
+            try:
+                res = gtd_text.process(raw, apply=True)
+                report = gtd_text.format_report(res)
+                log(f"gtd-text done: приёмка {res.get('number')} "
+                    f"позиций {res.get('written', 0)} err={res.get('error')}")
+            except Exception as e:
+                log("gtd-text error: " + traceback.format_exc())
+                report = f"❌ Внутренняя ошибка разбора ГТД: {type(e).__name__}: {e}"
+            send(chat_id, report, mid)
+            broadcast_others(from_id, f"👤 {sender_label(msg)} прислал(а) реестр ГТД текстом\n\n{report}")
+            return
         if (msg.get("text") or "").startswith("/"):
             send(chat_id, "Пришли файл:\n"
                           "• счёт (xls / xlsx / pdf) → создам черновик «Заказ поставщику»;\n"
                           "• УПД (xls / xlsx с «УПД»/«upd»/«передаточный документ» в имени) → создам «Приёмку» на основании заказа;\n"
                           "• УПД из ЭДО/Диадока (.xml или .zip выгрузки «в исходном формате») → тоже «Приёмку».\n"
+                          "Реестр ГТД можно прислать текстом (Спринт шлёт его письмом): первой строкой "
+                          "номер приёмки МС, ниже код КИС / наименование / № ГТД — проставлю графу 11.\n"
                           "/report — сводка: сколько обработано, по каким поставщикам, что осталось необработанным.\n"
                           "/vyvoz — кандидаты на вывоз со склада Ozon (склад · артикул · количество).\n"
                           "/oformleno [артикулы] — отметить, что заявка на вывоз оформлена (не предлагать повторно).\n"
