@@ -133,8 +133,14 @@ for r in rows:
                 problems.append(f"{tag}: {FEATURE_NAMES[s]} противоречит ВСЕЙ родне ({tally[s][False]} карточек)")
             elif tally[s][False]:
                 problems.append(f"{tag}: {FEATURE_NAMES[s]} расходится с {tally[s][False]} из {len(live_ec)} родни — глазами")
-        if tally["chip_ok"][True] == 0 and tally["chip_ok"][False] == 0:
-            problems.append(f"{tag}: чип не указан ни у нас, ни у родни — признак не проверен")
+        # чип: обоюдное молчание = совпадение (решение 10.08). Просим заполнить только там,
+        # где родня про чип ГОВОРИТ, а в шаблоне пусто — это и есть «вводим чип в шаблон».
+        if mine["chip"] is None and tally["chip_ok"][None]:
+            said = sorted({F.CHIP_NAMES[c] for c in
+                           (signs_of(x.get("name") or "", x.get("article"),
+                                     {a["name"]: a.get("value") for a in x.get("attributes", [])}.get("Название WB"))["chip"]
+                            for x in live_ec) if c})
+            problems.append(f"{tag}: чип в шаблоне не указан, у родни — {', '.join(said)}; заполнить")
 
 out.append("\n## Суффиксы кода — кто их носит в МС\n")
 for s, top in sfx_owner.items():
