@@ -3,7 +3,9 @@
 # Ежедневный цикл разгона ставок Ozon acc1: снять вчерашний день -> сделать шаг +10 %.
 # Шаг сам не выполнится, если вчерашний расход превысил потолок (--max-spend).
 set -u
-cd /opt/mp-analytics/.claude/worktrees/mkt-ozon || exit 1
+# Корень берём от расположения самого скрипта: файл живёт и в общем чекауте,
+# и в worktree, и запускаться должен из своего дерева, а не из чужого.
+cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 LOG=/opt/mp-analytics/logs/ozon_bid_ramp.log
 mkdir -p /opt/mp-analytics/logs
 {
