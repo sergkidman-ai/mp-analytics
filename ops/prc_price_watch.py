@@ -43,7 +43,7 @@ LOG_DIR = Path("/opt/mp-analytics/logs")
 # Свой бот потока — @ds_prc_bot (TG_PRC_BOT_TOKEN), адресат Сергей = 1031321444.
 # В TG_NOTIFY_ID лежат другие люди, туда прайсовые сводки слать нельзя
 # (память project_mp_telegram_channels).
-NOTIFY_ID = os.getenv("TG_PRC_NOTIFY_ID", "1031321444")
+NOTIFY_IDS = [x.strip() for x in os.getenv("TG_PRC_NOTIFY_ID", "1031321444").split(",") if x.strip()]
 TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
 TG_LIMIT = 3900
 # Почта моргает; будить человека первым же таймаутом незачем, а молчать сутки — нельзя.
@@ -60,13 +60,16 @@ def tg(text):
     """Сводка Сергею. Молчать при сбое телеграма нельзя — но и падать из-за него тоже."""
     if not TG_TOKEN:
         return "нет TG_PRC_BOT_TOKEN"
-    try:
-        r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                          data={"chat_id": NOTIFY_ID, "text": text[:TG_LIMIT],
-                                "disable_web_page_preview": "true"}, timeout=60)
-        return "ok" if r.ok else f"telegram {r.status_code}: {r.text[:200]}"
-    except Exception as exc:                                  # сеть/таймаут — не роняем прогон
-        return f"telegram: {type(exc).__name__}: {exc}"
+    out = []
+    for chat in NOTIFY_IDS:                # адресатов может быть несколько (список в .env)
+        try:
+            r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+                              data={"chat_id": chat, "text": text[:TG_LIMIT],
+                                    "disable_web_page_preview": "true"}, timeout=60)
+            out.append(f"{chat}: " + ("ok" if r.ok else f"{r.status_code} {r.text[:120]}"))
+        except Exception as exc:                              # сеть/таймаут — не роняем прогон
+            out.append(f"{chat}: {type(exc).__name__}: {exc}")
+    return "; ".join(out)
 
 
 def state_path(key):
