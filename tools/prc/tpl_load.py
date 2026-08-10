@@ -27,7 +27,8 @@ for r in range(2, ws.max_row + 1):
             rec[k] = str(rec[k]).strip()      # числовой артикул из xlsx приезжает int → МС 400/2016
     if rec["Артикул"] in a.drop:
         continue
-    rec.update(OVER.get(rec["Код"], {}))
+    # Пустой «Код» = новый внешний код, его назначает Сергей. Ключ такой строки в --over — "".
+    rec.update(OVER.get(rec["Код"] or "", {}))
     rec["Доп. поле: Название WB"], _ = wb_name(rec["Доп. поле: Название WB"])
     recs.append(rec)
 
