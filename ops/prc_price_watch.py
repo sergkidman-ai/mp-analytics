@@ -22,6 +22,7 @@ import argparse
 import io
 import json
 import os
+import re
 import sys
 import contextlib
 from datetime import datetime, timezone
@@ -39,11 +40,14 @@ from prices.profiles import get_profile
 from prices.mailbox import fetch_latest_price
 
 LOG_DIR = Path("/opt/mp-analytics/logs")
-# Сергей = 1031321444 и бот @Pro_Dropbox_bot: в TG_NOTIFY_ID лежат другие люди,
-# туда прайсовые сводки слать нельзя (память project_mp_telegram_channels).
-NOTIFY_ID = os.getenv("PRC_NOTIFY_ID", "1031321444")
-TG_TOKEN = os.getenv("DROPBOX_BOT_TOKEN", "").strip()
+# Свой бот потока — @ds_prc_bot (TG_PRC_BOT_TOKEN), адресат Сергей = 1031321444.
+# В TG_NOTIFY_ID лежат другие люди, туда прайсовые сводки слать нельзя
+# (память project_mp_telegram_channels).
+NOTIFY_ID = os.getenv("TG_PRC_NOTIFY_ID", "1031321444")
+TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
 TG_LIMIT = 3900
+# Почта моргает; будить человека первым же таймаутом незачем, а молчать сутки — нельзя.
+MAIL_ALERT_AFTER = 3                                   # подряд неудач ≈ 1.5 часа без почты
 
 
 def log(path, text):
@@ -55,7 +59,7 @@ def log(path, text):
 def tg(text):
     """Сводка Сергею. Молчать при сбое телеграма нельзя — но и падать из-за него тоже."""
     if not TG_TOKEN:
-        return "нет DROPBOX_BOT_TOKEN"
+        return "нет TG_PRC_BOT_TOKEN"
     try:
         r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
                           data={"chat_id": NOTIFY_ID, "text": text[:TG_LIMIT],
@@ -126,15 +130,70 @@ def run_load(key, dry):
     return buf.getvalue(), code or 0
 
 
-def message(profile, letter, out, code, dry):
-    """Сводка человеку: что пришло, что легло, что ждёт его рук."""
-    head = {0: "✅ загружено", 2: "⛔ загрузка ОТМЕНЕНА", 3: "❌ сбой"}.get(code, "⚠ ошибка")
+def pending_count(key):
+    """Сколько строк новинок ждут решения человека (вкладка «Новинки»). None — не смогли."""
+    try:
+        from prices import catalog
+        return len(catalog.pending_rows(key))
+    except Exception:
+        return None
+
+
+def line(out, prefix):
+    for ln in out.splitlines():
+        s = ln.strip()
+        if s.startswith(prefix):
+            return s
+    return None
+
+
+def troubles(out):
+    """Только ошибки и предупреждения прогона — консольную простыню в бот не тащим."""
+    found = []
+    for ln in out.splitlines():
+        s = ln.strip()
+        if s.startswith("⚠"):
+            found.append(s[:300])
+        elif s.startswith(("ОШИБКА:", "ОТМЕНА:", "СБОЙ:")):
+            found.append("❗ " + s[:600])
+        elif s.startswith("аномалии цены:"):
+            m = re.match(r"аномалии цены: (\d+) \(снято с загрузки (\d+)\)", s)
+            if m and m.group(1) != "0":
+                found.append(f"⚠ аномалии цены: {m.group(1)}, снято с загрузки {m.group(2)}")
+    return found
+
+
+def message(profile, letter, out, code, dry, before, after):
+    """Сводка человеку: что легло в МС, сколько новых позиций на разбор, что пошло не так."""
+    head = {0: "✅ оприходование в МС", 2: "⛔ загрузка ОТМЕНЕНА", 3: "❌ сбой"}.get(code, "⚠ ошибка")
     if dry and code == 0:
-        head = "🔎 сухой прогон"
-    keep = [ln for ln in out.splitlines()
-            if ln.strip() and not ln.startswith(("  документ ", "  удалён ", "  карточка "))]
-    return (f"{head} — {profile.title}\nПисьмо: {letter['subject'] or '—'} / {letter['date']}\n\n"
-            + "\n".join(keep[-28:]))
+        head = "🔎 сухой прогон (в МС не писали)"
+    when = letter_dt(letter)
+    lines = [f"{head} — {profile.title}",
+             f"прайс: {letter['filename']} / "
+             + (when.strftime("%d.%m %H:%M") if when else str(letter["date"]))]
+
+    loaded = line(out, "к загрузке:")
+    if loaded:
+        # «180,699,603.00 ₽» из консоли → «180 699 603 ₽»: сводку читают с телефона.
+        loaded = re.sub(r"(\d),(?=\d{3})", r"\1 ", loaded.replace(".00 ₽", " ₽"))
+        # «Загружено» пишем только когда действительно записали: на отмене/сухом прогоне
+        # в МС не легло ничего, и называть это загрузкой нельзя.
+        lines.append(loaded if (dry or code) else loaded.replace("к загрузке:", "загружено:"))
+    journal_line = line(out, "журнал: ")
+    if journal_line:
+        lines.append(journal_line)
+
+    if after is not None:
+        # «Новых» считаем дельтой очереди: строку, которую человек разобрал между прогонами,
+        # заново новой называть нечестно, а очередь показывает реальный объём работы.
+        delta = "" if before is None else f"+{max(after - before, 0)} новых, "
+        lines.append(f"на проверку человеком: {delta}всего {after} → вкладка «Новинки»")
+
+    warn = troubles(out)
+    if warn:
+        lines += [""] + warn
+    return "\n".join(lines)
 
 
 def main(argv=None):
@@ -148,11 +207,22 @@ def main(argv=None):
     profile = get_profile(args.supplier)
     logfile = LOG_DIR / f"prc_price_watch_{profile.key}.log"
 
+    fails = LOG_DIR / f"prc_price_watch_{profile.key}_mailfail.txt"
     try:
         letter = fetch_latest_price(profile.mail_folder, pattern=profile.file_pattern)
     except Exception as exc:
-        log(logfile, f"ПОЧТА НЕДОСТУПНА: {type(exc).__name__}: {exc}")
-        return 3                                  # молча: почта моргает, будить человека нечем
+        # Разовый таймаут — молча, в лог. Но если почты нет несколько проверок подряд, прайс
+        # мог прийти и остаться незамеченным — об этом человеку надо сказать.
+        n = (int(fails.read_text()) if fails.exists() else 0) + 1
+        fails.parent.mkdir(parents=True, exist_ok=True)
+        fails.write_text(str(n))
+        log(logfile, f"ПОЧТА НЕДОСТУПНА ({n} подряд): {type(exc).__name__}: {exc}")
+        if n == MAIL_ALERT_AFTER and not args.quiet:
+            log(logfile, "телеграм: " + tg(
+                f"❌ {profile.title}: почта недоступна {n} проверки подряд — прайс может "
+                f"пройти мимо.\n{type(exc).__name__}: {exc}"))
+        return 3
+    fails.unlink(missing_ok=True)
     if not letter:
         log(logfile, f"в папке «{profile.mail_folder}» писем с прайсом нет")
         return 0
@@ -164,14 +234,17 @@ def main(argv=None):
 
     log(logfile, f"новое письмо: {letter['filename']} / {letter['date']} — запускаю загрузку"
                  + (" (сухой прогон)" if args.dry else ""))
+    before = pending_count(profile.key)
     out, code = run_load(profile.key, args.dry)
+    after = pending_count(profile.key)
     log(logfile, f"итог {code}\n" + out)
     # Состояние пишем при ЛЮБОМ исходе: отменённую по аномалиям загрузку человек разбирает
     # руками, а сторож не должен долбить его тем же письмом каждые полчаса.
     if not args.dry:
         write_state(profile.key, letter, code)
     if not args.quiet:
-        log(logfile, "телеграм: " + tg(message(profile, letter, out, code, args.dry)))
+        log(logfile, "телеграм: " + tg(
+            message(profile, letter, out, code, args.dry, before, after)))
     return code
 
 
