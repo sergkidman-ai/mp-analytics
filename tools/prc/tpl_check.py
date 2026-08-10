@@ -110,6 +110,24 @@ for r in rows:
     if not str(r["Описание"] or "").strip():
         problems.append(f"{tag}: пустое описание")
 
+    # «Связь» — вторые внешние коды той же универсальной модели. Берётся у родни: если родня
+    # связь называет, а в шаблоне пусто — карточка выпадет из универсальной модели молча.
+    link_mine = {x for x in re.split(r"[;,\s]+", str(r.get("Доп. поле: Связь") or "")) if x}
+    link_kin = collections.Counter()
+    for c in live_ec:
+        v = {a["name"]: a.get("value") for a in c.get("attributes", [])}.get("Связь")
+        for x in re.split(r"[;,\s]+", str(v or "")):
+            if x:
+                link_kin[x] += 1
+    if link_kin and not link_mine:
+        problems.append(f"{tag}: «Связь» пуста, у родни — {dict(link_kin)}; заполнить")
+    elif link_mine - set(link_kin) and link_kin:
+        problems.append(f"{tag}: «Связь» {sorted(link_mine)} ≠ связь родни {dict(link_kin)}")
+    for other in link_mine:
+        if not by_ec.get(other) and not ms_api.get("/entity/product",
+                                                   {"filter": f"externalCode={other}", "limit": 1}).get("rows"):
+            problems.append(f"{tag}: «Связь» {other} — такого внешнего кода в МС нет")
+
     # шесть признаков (правило 30) — наша строка против КАЖДОЙ карточки родни
     mine = signs_of(r["Наименование"], art, r.get("Доп. поле: Название WB"))
     tally = {s: {True: 0, False: 0, None: 0} for s in SIGNS}
