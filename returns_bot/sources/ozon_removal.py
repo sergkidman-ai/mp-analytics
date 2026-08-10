@@ -42,21 +42,21 @@ ENDPOINTS = [
 ]
 
 
-def _windows(today=None):
+def _windows(today=None, count=None):
     """Окна по 3 месяца назад, как их принимает API."""
     end = today or date.today()
     out = []
-    for _ in range(WINDOWS):
+    for _ in range(WINDOWS if count is None else count):
         start = end - timedelta(days=WINDOW_DAYS)
         out.append((start.isoformat(), end.isoformat()))
         end = start - timedelta(days=1)
     return out
 
 
-def fetch_raw(account, path):
+def fetch_raw(account, path, windows=None):
     """Строки отчёта о вывозе за полгода. Дедуп по (заявка, коробка, артикул, индекс)."""
     rows, seen = [], set()
-    for date_from, date_to in _windows():
+    for date_from, date_to in _windows(count=windows):
         last_id = ""
         while True:
             body = {"date_from": date_from, "date_to": date_to, "limit": PAGE}
@@ -138,13 +138,14 @@ def normalize(account, scheme, prefix, box_rows):
     return head, items
 
 
-def collect(accounts=None):
-    """[(head, items, raw), ...] по всем аккаунтам Ozon."""
+def collect(accounts=None, quick=False):
+    """quick — одно окно (3 месяца) вместо двух: коробка живёт в пути и в пункте неделями,
+    за квартал всё живое видно, а вторая половина года — уже закрытая история."""
     out = []
     for account in (accounts or list(CRED_ENV)):
         for path, scheme, prefix in ENDPOINTS:
             boxes = OrderedDict()
-            for row in fetch_raw(account, path):
+            for row in fetch_raw(account, path, windows=1 if quick else None):
                 boxes.setdefault(_box_key(row), []).append(row)
             for box_rows in boxes.values():
                 head, items = normalize(account, scheme, prefix, box_rows)

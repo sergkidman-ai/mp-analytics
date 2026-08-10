@@ -1,0 +1,13 @@
+[Unit]
+Description=Returns weekly received report, Monday 09:20 МСК
+
+[Timer]
+# Часы сервера — UTC (systemd 249 не понимает таймзону в OnCalendar), 06:20 UTC = 09:20 МСК.
+# На 15 минут позже ежедневной сводки: обе шлёт один бот, незачем толкаться.
+OnCalendar=Mon *-*-* 06:20:00
+RandomizedDelaySec=5min
+Persistent=true
+Unit=returns-weekly.service
+
+[Install]
+WantedBy=timers.target

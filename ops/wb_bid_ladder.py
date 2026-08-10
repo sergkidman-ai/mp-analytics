@@ -13,6 +13,13 @@
   2. SKU с выручкой: расход/выручка > DRR_LIMIT → заморозить (ставку не трогаем).
   3. SKU-костёр: расход ≥ BURN_RUB за окно при НУЛЕВОЙ выручке → заморозить.
   4. Потолок MAX_CPC и пол ВБ 7.3 ₽.
+  5. МАРЖА (добавлен 07.08.2026): net_live < 0 → заморозить. Разгонять трафик на товар, который
+     теряет деньги с каждой продажи, — усиление убытка, а не рост. ДРР этого не ловит: он меряет
+     расход к ВЫРУЧКЕ и ничего не знает о себестоимости.
+     Источник — mkt_margin_control за последний снимок (read-only).
+     Заморозки по cogs_stale больше НЕТ: с 07.08.2026 витрина сама подменяет протухший FIFO живой
+     закупкой, маржа по таким SKU честная (и ниже прежней) — морозить не за что, их судит гейт
+     убытка наравне со всеми. Флаг остался пометкой о подмене и попадает в сводку.
 
 По умолчанию — DRY-RUN: считает и печатает, в ВБ НЕ пишет. Живая запись только с --apply
 (правило: данные ≠ разрешение писать; --apply даётся под конкретный прогон).
@@ -36,6 +43,8 @@ from dotenv import load_dotenv
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from reports.bid_policy import (WB_MARGIN_GATE, WB_MARGIN_FLOOR,  # noqa: E402
+                                raise_allowed)
 
 load_dotenv(BASE_DIR / ".env")
 
@@ -47,6 +56,9 @@ MAX_CPC = 25.0       # потолок ставки, ₽
 DRR_LIMIT = 0.10     # 10 % — граница Сергея
 BURN_RUB = 100.0     # расход без единой выручки за окно → костёр
 WINDOW_DAYS = 7      # окно оценки ДРР
+# Пороги маржи — из общей политики reports/bid_policy.py (одна на страницу «Ставки» и на лестницу):
+#   WB_MARGIN_GATE 25% — KPI: между ним и полом ставку поднимаем, но считаем и показываем в сводке;
+#   WB_MARGIN_FLOOR 15% — жёсткий пол (Сергей, 07.08.2026): ниже НЕ поднимаем, реклама съест остаток.
 OUT_DIR = BASE_DIR / "reports" / "data"
 
 
@@ -73,19 +85,53 @@ def _drr(account, nms, days=WINDOW_DAYS):
     return (sp / rv if rv else None), sp, rv, per
 
 
+def _margin(account, nms):
+    """Маржа по последнему снимку контроля маржи: {nm: (net_live, margin_own_live, cogs_stale)}.
+    Read-only. Снимок берём последний доступный — если контроль сегодня не отработал, гейт
+    считается по вчерашнему, но НЕ пропадает: молча поднимать ставки без маржи нельзя."""
+    d = db.query("SELECT max(captured_date) d FROM mkt_margin_control WHERE account=%s", (account,))
+    day = d[0]["d"] if d else None
+    if not day:
+        return {}, None
+    return {r["nm_id"]: (float(r["net_live"]) if r["net_live"] is not None else None,
+                         float(r["margin_own_live"]) if r["margin_own_live"] is not None else None,
+                         r["cogs_stale"])
+            for r in db.query("""
+              SELECT nm_id, net_live, margin_own_live, cogs_stale FROM mkt_margin_control
+               WHERE account=%s AND captured_date=%s AND nm_id = ANY(%s::bigint[])
+            """, (account, day, list(nms)))}, day
+
+
 def plan(account="wb_acc1", cohort="a"):
     """Считает шаг. Возвращает (rows, blocked_reason|None, stats)."""
     nms = _cohort_nms(account, cohort)
     if not nms:
         return [], "когорта пуста", {}
+    marg, marg_day = _margin(account, nms)
     cur = {r["nm_id"]: (float(r["cpc"]), r["advert_id"]) for r in db.query(
         "SELECT nm_id, cpc, advert_id FROM wb_bid_override WHERE account=%s AND nm_id = ANY(%s::bigint[])",
         (account, list(nms)))}
     acc_drr, acc_sp, acc_rv, per = _drr(account, nms)
 
-    rows, frozen = [], {"drr": 0, "burn": 0, "cap": 0, "no_adv": 0}
+    rows, watch, n_substituted = [], 0, 0
+    frozen = {"drr": 0, "burn": 0, "cap": 0, "no_adv": 0, "loss": 0, "no_margin": 0, "low_margin": 0}
     for nm, (cpc, adv) in sorted(cur.items()):
         sp, rv = per.get(nm, (0.0, 0.0))
+        net_l, marg_l, stale = marg.get(nm, (None, None, False))
+        if net_l is None:            # маржи нет: карточка не в продаже либо нет живой закупки
+            frozen["no_margin"] += 1
+            continue
+        if net_l < 0:                # убыточная штука — трафик только усилит убыток
+            frozen["loss"] += 1
+            continue
+        if stale:                    # себест подменён живой закупкой — маржа честная, не морозим
+            n_substituted += 1
+        ok, why, below_kpi = raise_allowed(marg_l)
+        if not ok:                   # ниже пола 15% — дороже реклама эту маржу просто съест
+            frozen["low_margin"] += 1
+            continue
+        if below_kpi:
+            watch += 1               # между полом и KPI: не блокируем, но считаем и показываем
         if rv > 0 and sp / rv > DRR_LIMIT:
             frozen["drr"] += 1
             continue
@@ -101,13 +147,20 @@ def plan(account="wb_acc1", cohort="a"):
             continue
         rows.append({"nm_id": nm, "advert_id": adv, "old_cpc": round(cpc, 2), "new_cpc": new,
                      "spend_7d": round(sp, 2), "revenue_7d": round(rv, 2),
-                     "drr_7d": (round(100 * sp / rv, 1) if rv else None)})
+                     "drr_7d": (round(100 * sp / rv, 1) if rv else None),
+                     "net_live": net_l, "margin_live": marg_l})
 
-    blocked = None
+    # Нет снимка маржи — шаг НЕ выполняется. Маржа решающий фактор; отсутствие данных о ней
+    # это не «гейт не сработал», а «проверить нечем» → вслепую ставки не поднимаем.
+    blocked = None if marg else ("контроль маржи пуст — гейт по марже проверить нечем, "
+                                 "шаг отменён (вслепую ставки не поднимаем)")
     if acc_drr is not None and acc_drr > DRR_LIMIT:
         blocked = (f"ДРР аккаунта за {WINDOW_DAYS} дн = {100*acc_drr:.1f}% > {100*DRR_LIMIT:.0f}% "
                    f"(расход {acc_sp:.0f} ₽ / выручка {acc_rv:.0f} ₽) — шаг отменён")
     stats = {"cohort_size": len(nms), "to_raise": len(rows), "frozen": frozen,
+             "margin_day": (marg_day.isoformat() if marg_day else None),
+             "margin_known": len(marg), "watch_below_kpi": watch,
+             "cogs_substituted": n_substituted,
              "acc_drr": (round(100 * acc_drr, 1) if acc_drr is not None else None),
              "acc_spend": acc_sp, "acc_revenue": acc_rv,
              "avg_old": (round(sum(r["old_cpc"] for r in rows) / len(rows), 2) if rows else None),
@@ -177,6 +230,7 @@ def main():
     ap.add_argument("--account", default="wb_acc1")
     ap.add_argument("--cohort", default="a", choices=["a", "all"])
     ap.add_argument("--apply", action="store_true", help="живая запись в ВБ (иначе dry-run)")
+    ap.add_argument("--notify", action="store_true", help="итог шага — в телеграм Сергею")
     ap.add_argument("--note", default=None)
     a = ap.parse_args()
 
@@ -185,7 +239,12 @@ def main():
     note = a.note or f"ladder +10% {today} cohort={a.cohort}"
     print(f"[лестница {a.cohort}] когорта {st.get('cohort_size')} SKU | к подъёму {st.get('to_raise')} | "
           f"заморожено ДРР {st['frozen']['drr']} костёр {st['frozen']['burn']} потолок {st['frozen']['cap']} "
-          f"без кампании {st['frozen']['no_adv']}")
+          f"без кампании {st['frozen']['no_adv']} УБЫТОК {st['frozen']['loss']} "
+          f"без маржи {st['frozen']['no_margin']}")
+    print(f"  гейт маржи: снимок {st.get('margin_day')}, маржа известна по {st.get('margin_known')} SKU когорты; "
+          f"ниже пола {WB_MARGIN_FLOOR:.0f}% заморожено {st['frozen']['low_margin']}; "
+          f"из поднимаемых ниже KPI {WB_MARGIN_GATE:.0f}%: {st.get('watch_below_kpi')} (не блокируем); "
+          f"себест подменён живой закупкой у {st.get('cogs_substituted')}")
     print(f"  ставка {st.get('avg_old')} → {st.get('avg_new')} ₽ | ДРР аккаунта {WINDOW_DAYS} дн: "
           f"{st.get('acc_drr')}% (расход {st.get('acc_spend'):.0f} ₽ / выручка {st.get('acc_revenue'):.0f} ₽)")
 
@@ -194,14 +253,29 @@ def main():
     out.write_text(json.dumps({"rows": rows, "stats": st, "blocked": blocked}, ensure_ascii=False))
     print(f"  список → {out}")
 
+    def notify(text):
+        if a.notify:
+            from ops.wb_daily_report import send
+            send(text)
+
     if blocked:
         print(f"  СТОП: {blocked}")
+        notify(f"*Лестница ставок ВБ — шаг {today} ОТМЕНЁН*\n{blocked}\nСтавки не менялись.")
         return 1
     if not a.apply:
         print("  DRY-RUN: в ВБ ничего не отправлено (для записи нужен --apply)")
         return 0
     ok, bad = apply_step(a.account, rows, note)
     print(f"  ЗАПИСАНО в ВБ: успешно {ok}, отказано {bad}")
+    fr = st["frozen"]
+    notify(f"*Лестница ставок ВБ — шаг {today} (+10 %)*\n"
+           f"Поднято *{ok}* SKU: {st['avg_old']} → *{st['avg_new']} ₽*"
+           + (f", отказано {bad}" if bad else "") + "\n"
+           f"Заморожено: ДРР {fr['drr']} · костры {fr['burn']} · потолок {fr['cap']} · "
+           f"убыток {fr['loss']} · без маржи {fr['no_margin']}\n"
+           f"Заморожено ниже пола {WB_MARGIN_FLOOR:.0f}% маржи: {fr['low_margin']}\n"
+           f"Из поднятых ниже KPI {WB_MARGIN_GATE:.0f}% маржи: {st.get('watch_below_kpi')}\n"
+           f"ДРР аккаунта за {WINDOW_DAYS} дн: {st['acc_drr']}% (граница {100*DRR_LIMIT:.0f}%)")
     return 0
 
 

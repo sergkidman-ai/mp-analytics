@@ -3,7 +3,8 @@
 
 Два блока: Цифровой квадрат (wb_acc1) и Дисквэр (wb_acc2). В каждом — таблица распродажи
 (wb_clearance) × живой остаток на складе WB (последний снимок wb_stocks). Сигнал: остаток WB
-стал 0 → «Поднять цену». Сотрудник сам закрывает отработанные позиции галочкой (пишутся в
+стал 0 → «Поднять цену», но если при этом едет возврат на склад (in_way_from_client) → «Возврат
+в пути», поднимать рано (Сергей, 07.08.2026). Сотрудник сам закрывает отработанные позиции галочкой (пишутся в
 wb_clearance_dismissed, поблочно), их можно вернуть. Страница статическая, перегенерируется в
 run_daily и в API dismiss/restore.
 """
@@ -125,7 +126,8 @@ def _name_of(r):
 def _rows():
     q = """
     WITH liv AS (
-      SELECT s.account, s.nm_id, sum(s.quantity) q
+      SELECT s.account, s.nm_id, sum(s.quantity) q,
+             sum(s.in_way_to_client) to_client, sum(s.in_way_from_client) from_client
       FROM wb_stocks s
       JOIN (SELECT account, max(captured_at) mx FROM wb_stocks GROUP BY account) m
         ON m.account=s.account AND m.mx=s.captured_at
@@ -134,7 +136,9 @@ def _rows():
     SELECT c.account, c.nm_id, c.vendor_code, c.brand, c.category,
            c.orig_price, c.discount_pct, c.clearance_price,
            c.uploaded_wb_stock, c.seller_stock,
-           COALESCE(l.q, 0) AS live_wb, t.title
+           COALESCE(l.q, 0) AS live_wb,
+           COALESCE(l.to_client, 0) AS to_client, COALESCE(l.from_client, 0) AS from_client,
+           t.title
     FROM wb_clearance c
     LEFT JOIN liv l ON l.account=c.account AND l.nm_id=c.nm_id
     LEFT JOIN wb_cards t ON t.account=c.account AND t.nm_id=c.nm_id
@@ -144,7 +148,11 @@ def _rows():
     out = []
     for r in db.query(q):
         live = float(r["live_wb"] or 0)
-        if live <= 0:
+        back = float(r["from_client"] or 0)     # возврат едет обратно на склад WB
+        if live <= 0 and back > 0:
+            # ноль на складе, но товар вот-вот вернётся — поднимать цену рано (Сергей, 07.08.2026)
+            sig, rank = ("amber", "🟡 Возврат в пути"), 1
+        elif live <= 0:
             sig, rank = ("red", "🔴 Поднять цену"), 0
         elif live <= LOW_THRESHOLD:
             sig, rank = ("amber", "🟡 Заканчивается"), 1
@@ -152,7 +160,8 @@ def _rows():
             sig, rank = ("green", "🟢 Распродажа"), 2
         up = float(r["uploaded_wb_stock"] or 0)
         sold = max(0, up - live)
-        out.append({**r, "live": live, "sold": sold, "sig_cls": sig[0], "sig_txt": sig[1], "rank": rank})
+        out.append({**r, "live": live, "back": back, "to_buyers": float(r["to_client"] or 0),
+                    "sold": sold, "sig_cls": sig[0], "sig_txt": sig[1], "rank": rank})
     out.sort(key=lambda x: (x["rank"], -(x["clearance_price"] or 0)))
     return out
 
@@ -216,12 +225,14 @@ def _block(acc, rows, closed, last):
             f'<td class="n">−{_rub(r["discount_pct"])}%</td>'
             f'<td class="n"><b>{_rub(r["clearance_price"])}</b></td>'
             f'<td class="n">{int(r["live"])}</td>'
+            f'<td class="n">{int(r["to_buyers"]) or "—"}</td>'
+            f'<td class="n">{int(r["back"]) or "—"}</td>'
             f'<td class="n">{_rub(r["uploaded_wb_stock"])}</td>'
             f'<td class="n">{int(r["sold"])}</td>'
             f'<td class="n">{_rub(r["seller_stock"])}</td>'
             f'<td><span class="sig {r["sig_cls"]}">{r["sig_txt"]}</span></td></tr>'
         )
-    body = "\n".join(trs) or '<tr><td colspan="11" style="text-align:center;padding:24px;color:#889">Список пуст — загрузите файл через dropbox_bot</td></tr>'
+    body = "\n".join(trs) or '<tr><td colspan="13" style="text-align:center;padding:24px;color:#889">Список пуст — загрузите файл через dropbox_bot</td></tr>'
 
     if closed:
         crs = []
@@ -239,7 +250,7 @@ def _block(acc, rows, closed, last):
   <h2 class="blk-h">🏷️ {ACC_FULL.get(acc, acc)} <span class="cnt">{n} позиций в распродаже</span> {upd}</h2>
   <div class="clr-cards">
     <div class="clr-kc red"><div class="l">🔴 Поднять цену (WB = 0)</div><div class="v">{red}</div></div>
-    <div class="clr-kc amber"><div class="l">🟡 Заканчивается (≤{LOW_THRESHOLD})</div><div class="v">{amber}</div></div>
+    <div class="clr-kc amber"><div class="l">🟡 Заканчивается (≤{LOW_THRESHOLD}) или возврат в пути</div><div class="v">{amber}</div></div>
     <div class="clr-kc green"><div class="l">🟢 Ещё продаётся</div><div class="v">{green}</div></div>
     <div class="clr-kc"><div class="l">Закрыто (цену подняли)</div><div class="v">{len(closed)}</div></div>
   </div>
@@ -250,7 +261,9 @@ def _block(acc, rows, closed, last):
   <div class="clr-scroll"><table class="clr">
     <thead><tr><th class="chk"><input type="checkbox" class="chkall" title="Выбрать все"></th>
     <th>Товар</th><th>Артикул WB</th><th>Цена</th><th>Скидка</th><th>Цена распр.</th>
-    <th>Остаток WB</th><th>Было WB</th><th>Продано</th><th>Наш склад</th><th>Сигнал</th></tr></thead>
+    <th>Остаток WB</th><th title="Продано, едет к покупателям">К покупателям</th>
+    <th title="Возврат едет обратно на склад WB — скоро снова будет в продаже">Возврат в пути</th>
+    <th>Было WB</th><th>Продано</th><th>Наш склад</th><th>Сигнал</th></tr></thead>
     <tbody>
 {body}
     </tbody>
@@ -295,6 +308,10 @@ def render():
   <h1>Распродажа остатков Wildberries</h1>
   <p class="sub">Следим за живым остатком на складе WB по двум юрлицам. Как только остаток SKU стал <b>0</b> —
   сигнал <span class="sig red">🔴 Поднять цену</span>, чтобы не продавать товар с нашего склада по скидке.
+  Если при нуле на складе <b>едет возврат</b> — <span class="sig amber">🟡 Возврат в пути</span>: товар вот-вот
+  вернётся в продажу, цену поднимать рано. «Остаток WB» — только то, что физически лежит на складе;
+  уехавшее к покупателям и едущее обратно вынесено в соседние столбцы (в ЛК ВБ они попадают в общий остаток —
+  отсюда расхождение на 1–2 штуки).
   Отработанные позиции отмечайте галочкой и закрывайте — за ними перестанем следить.
   Дата последнего обновления остатков указана в заголовке каждого юрлица.</p>
 {blocks_html}

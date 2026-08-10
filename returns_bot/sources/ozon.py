@@ -3,8 +3,12 @@
 
 Отдаёт нормализованные записи под mp_returns/mp_return_items. Только чтение.
 """
+import base64
 import os
+import re
+import subprocess
 import time
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
@@ -54,6 +58,59 @@ def giveout_barcode(account):
     png = (request_json("POST", f"{API}/v1/return/giveout/get-png", headers=h,
                         json_body={}) or {}).get("png")
     return value, png
+
+
+def giveout_pdf(account):
+    """Тот же штрихкод в печатном виде (base64 PDF): с бумаги сканер читает увереннее.
+
+    `/barcode-reset` рядом НЕ трогаем — он меняет код в кабинете, а у нас только чтение.
+    """
+    return (request_json("POST", f"{API}/v1/return/giveout/get-pdf",
+                         headers=_headers(account), json_body={}) or {}).get("pdf")
+
+
+# Срок жизни штрихкода Ozon в API не отдаёт нигде: /barcode даёт только значение,
+# /giveout/info и /giveout/list по нашим аккаунтам пусты. Дата напечатана на самом бланке
+# строкой «Штрихкод действует до 08.08.2026 11:56:15» — оттуда и берём.
+TILL_RE = re.compile(r"действует\s+до\s+(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})")
+MSK = timezone(timedelta(hours=3))     # на бланке московское время, сервер живёт в UTC
+
+
+def _pdf_text(pdf_bytes):
+    """Текст бланка. Через poppler: шрифты в PDF подмножеством, свой разбор врёт."""
+    try:
+        p = subprocess.run(["pdftotext", "-", "-"], input=pdf_bytes,
+                           capture_output=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return ""                      # нет pdftotext — просто не покажем срок, не падаем
+    return p.stdout.decode("utf-8", "replace")
+
+
+def giveout_valid_till(pdf_bytes):
+    """До какого момента код примут в пункте (МСК). None, если бланк не разобрался.
+
+    Код живёт сутки с выпуска и от повторных запросов НЕ продлевается: два запроса
+    с разницей в минуту вернули один и тот же срок (проверено 07.08.2026).
+    """
+    m = TILL_RE.search(_pdf_text(pdf_bytes or b""))
+    if not m:
+        return None
+    d, mo, y, hh, mm = (int(x) for x in m.groups())
+    try:
+        return datetime(y, mo, d, hh, mm, tzinfo=MSK)
+    except ValueError:
+        return None
+
+
+def giveout(account):
+    """Всё про штрихкод получения одним заходом: значение, PNG, печатный бланк и срок."""
+    value, png_b64 = giveout_barcode(account)
+    try:
+        pdf = base64.b64decode(giveout_pdf(account) or "") or None
+    except Exception:
+        pdf = None
+    return {"value": value, "png_b64": png_b64, "pdf": pdf,
+            "till": giveout_valid_till(pdf) if pdf else None}
 
 
 def _money(v):
@@ -117,7 +174,7 @@ def normalize(account, raw):
     return head, items
 
 
-def collect(accounts=None):
+def collect(accounts=None, quick=False):
     """[(head, items, raw), ...] по всем аккаунтам Ozon."""
     out = []
     for account in (accounts or list(CRED_ENV)):

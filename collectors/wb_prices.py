@@ -11,6 +11,7 @@ GET /api/v2/list/goods/filter?limit=1000&offset= — пагинация по в�
 import os
 import sys
 import time
+import datetime
 import pathlib
 
 import requests
@@ -61,6 +62,9 @@ def main(account="wb_acc1"):
                 "discount_pct": g.get("discount"),
                 "club_price": s.get("clubDiscountedPrice"),
                 "currency": g.get("currencyIsoCode4217") or "RUB",
+                # штамп ставим ЯВНО: у колонки DEFAULT now(), а upsert дефолт не трогает — без этого
+                # captured_at навсегда остаётся датой ПЕРВОЙ вставки и врёт про свежесть цен.
+                "captured_at": datetime.datetime.now(datetime.timezone.utc),
             })
         db.upsert("wb_price", recs, conflict_cols=["account", "nm_id"])
         total += len(recs)

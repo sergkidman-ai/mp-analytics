@@ -28,8 +28,15 @@ load_dotenv(BASE_DIR / ".env")
 REPORT_URL = "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod"
 STOCKS_URL = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"  # отключён WB 20.07.2026 (PLUG-404)
 REMAINS_URL = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains"  # замена: асинхр. отчёт остатков
-# псевдо-склады отчёта warehouse_remains — не физ. склады, в wb_stocks не пишем (иначе двойной счёт)
-_PSEUDO_WH = {"Всего находится на складах", "В пути до получателей", "В пути возвраты на склад WB"}
+# псевдо-склады отчёта warehouse_remains — не физ. склады, в остаток не считаем (иначе двойной счёт).
+# «В пути» при этом НЕ выбрасываем: без них SKU, у которого всё уехало к покупателям или едет
+# возвратом обратно, просто исчезает из отчёта и выглядит как честный ноль на складе. В ЛК он при
+# этом виден (Сергей, 07.08.2026: «в ЛК остаток 1, у вас 0»). Пишем их отдельной строкой IN_WAY_WH
+# с quantity = 0, чтобы суммы остатка не поехали.
+_IN_WAY_COL = {"В пути до получателей": "in_way_to_client",
+               "В пути возвраты на склад WB": "in_way_from_client"}
+_PSEUDO_WH = {"Всего находится на складах"} | set(_IN_WAY_COL)
+IN_WAY_WH = "(в пути)"
 CARDS_URL = "https://content-api.wildberries.ru/content/v2/get/cards/list"
 TOKEN_ENV = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}
 
@@ -179,18 +186,23 @@ def collect_stocks(account, captured_at, since="2025-01-01"):
         if nm is None:
             continue
         vc = x.get("vendorCode")
+        base = {"account": account, "nm_id": nm, "vendor_code": vc, "brand": None, "subject": None,
+                "captured_at": captured_at, "captured_ts": snap_ts}
+        in_way = {"in_way_to_client": None, "in_way_from_client": None}
         for w in (x.get("warehouses") or []):
             wh = w.get("warehouseName")
+            q = w.get("quantity")
+            col = _IN_WAY_COL.get(wh)
+            if col:
+                in_way[col] = (in_way[col] or 0) + (q or 0)
+                continue
             if not wh or wh in _PSEUDO_WH:
                 continue
-            q = w.get("quantity")
-            recs.append({
-                "account": account, "nm_id": nm, "vendor_code": vc,
-                "warehouse": wh, "quantity": q, "quantity_full": q,
-                "in_way_to_client": None, "in_way_from_client": None,
-                "brand": None, "subject": None, "captured_at": captured_at,
-                "captured_ts": snap_ts,
-            })
+            recs.append({**base, "warehouse": wh, "quantity": q, "quantity_full": q, **{
+                "in_way_to_client": None, "in_way_from_client": None}})
+        if any(in_way.values()):
+            recs.append({**base, "warehouse": IN_WAY_WH, "quantity": 0, "quantity_full": 0,
+                         **in_way})
     db.upsert("wb_stocks", recs, conflict_cols=["account", "nm_id", "warehouse", "captured_at"])
     return len(recs)
 

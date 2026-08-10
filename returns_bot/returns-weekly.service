@@ -1,0 +1,11 @@
+[Unit]
+Description=Returns weekly received report → Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python -m returns_bot.weekly_received
+StandardOutput=journal
+StandardError=journal

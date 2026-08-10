@@ -37,6 +37,7 @@ load_dotenv(BASE_DIR / ".env")
 RAW_DIR = BASE_DIR / "reports" / "data"
 ACCOUNT = "wb_acc1"
 DEFAULT_THRESHOLD = 25.0
+COGS_STALE_GAP = 0.30   # FIFO ниже живой закупки более чем на 30 % → себест протух
 
 
 def _f(v):
@@ -115,14 +116,28 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
 
     econ = db.query("""
         SELECT nm_id, vendor_code, subject, promo_price, buyer_price, payout_ratio, to_pay_u,
-               logistics_u, storage_u, accept_u, cogs_u, net_u, margin_pct_own,
+               logistics_u, storage_u, accept_u, cogs_u, cogs_source, net_u, margin_pct_own,
                sold_flag, qty_period, days_since_sale
         FROM mkt_sku_economics WHERE account=%s
     """, (account,))
 
+    # ГЕЙТ НАЛИЧИЯ (Сергей, 07.08.2026): карточек без наличия в контроле маржи быть не должно —
+    # они засоряют топ ужасами вроде −162 % по товару, которого нет в продаже.
+    # Признак «в продаже» = СВЕЖАЯ цена покупателя на карточке (card v4 → wb_price.market_*).
+    # Именно она, а НЕ остаток wb_stocks: остатки ВБ — это только FBO (477 SKU из 12009),
+    # фильтр по ним вырезал бы весь FBS, который мы возим со своего склада.
+    in_sale = {int(r["nm_id"]) for r in db.query("""
+        SELECT nm_id FROM wb_price
+         WHERE account=%s AND market_price > 0 AND market_captured_at >= now() - interval '2 days'
+    """, (account,))}
+    skipped_dead = 0
+
     recs = []
     for e in econ:
         nm = int(e["nm_id"])
+        if nm not in in_sale:
+            skipped_dead += 1
+            continue
         mapped = nm_ec.get(nm)
         ec, map_src = (mapped if mapped else (None, None))
         bp_live, status, price_date = (None, "unmapped", None)
@@ -154,6 +169,11 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
 
         below = (margin_live is not None and margin_live < threshold)
         negative = (net_live is not None and net_live < 0)
+        # СЕБЕСТ ПРОТУХ: FIFO помнил старую отгрузку, а товар с тех пор подорожал. С 07.08.2026
+        # витрина такой себест уже НЕ берёт — подставляет живую закупку и ставит source='live_stale'
+        # (маржа при этом честно опускается). Флаг оставлен как ПОМЕТКА о подмене: экономика по
+        # этим SKU стоит на восстановительной цене, а не на факте отгрузки — знать это полезно.
+        stale = (e["cogs_source"] == "live_stale")
 
         recs.append({
             "captured_date": day, "account": account, "nm_id": nm,
@@ -170,7 +190,7 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
             "margin_own_live": (round(margin_live, 2) if margin_live is not None else None),
             "net_fifo": _f(e["net_u"]),
             "margin_own_fifo": _f(e["margin_pct_own"]),
-            "below_threshold": below, "is_negative": negative,
+            "below_threshold": below, "is_negative": negative, "cogs_stale": stale,
             "threshold_pct": threshold,
         })
 
@@ -178,11 +198,11 @@ def build(account=ACCOUNT, threshold=DEFAULT_THRESHOLD, on_date=None):
     db.execute("DELETE FROM mkt_margin_control WHERE captured_date=%s AND account=%s", (day, account))
     db.upsert("mkt_margin_control", recs, conflict_cols=["captured_date", "account", "nm_id"])
 
-    _write_report(account, day, threshold, recs)
+    _write_report(account, day, threshold, recs, skipped_dead)
     return recs
 
 
-def _write_report(account, day, threshold, recs):
+def _write_report(account, day, threshold, recs, skipped_dead=0):
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     # только SKU с живой ценой считаем «в контроле»; для приоритета — сначала продающиеся/свежие
     priced = [r for r in recs if r["buy_price_live"] is not None]
@@ -192,12 +212,15 @@ def _write_report(account, day, threshold, recs):
     no_price = [r for r in recs if r["buy_status"] == "no_price"]
     stale = [r for r in recs if r["buy_status"] == "stale"]
     unmapped = [r for r in recs if r["buy_status"] == "unmapped"]
+    cogs_stale = sorted([r for r in priced if r["cogs_stale"]],
+                        key=lambda r: -(r["cogs_delta"] or 0))
 
     # CSV — весь снимок (сырьё в файл, не в чат)
     csv_path = RAW_DIR / f"margin_control_{day}.csv"
     fields = ["nm_id", "vendor_code", "external_code", "subject", "our_price", "buyer_price",
               "to_pay_u", "logistics_u", "buy_price_live", "buy_status", "fifo_cogs_u", "cogs_delta",
               "net_live", "margin_own_live", "margin_own_fifo", "below_threshold", "is_negative",
+              "cogs_stale",
               "sold_flag" if False else "qty_period"]
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -208,7 +231,7 @@ def _write_report(account, day, threshold, recs):
                         r.get("our_price"), r.get("buyer_price"), r.get("to_pay_u"), r.get("logistics_u"),
                         r.get("buy_price_live"), r.get("buy_status"), r.get("fifo_cogs_u"), r.get("cogs_delta"),
                         r.get("net_live"), r.get("margin_own_live"), r.get("margin_own_fifo"),
-                        r.get("below_threshold"), r.get("is_negative"), None])
+                        r.get("below_threshold"), r.get("is_negative"), r.get("cogs_stale"), None])
 
     # TXT — краткая сводка
     txt_path = RAW_DIR / f"margin_control_{day}.txt"
@@ -216,8 +239,15 @@ def _write_report(account, day, threshold, recs):
     lines.append(f"КОНТРОЛЬ МАРЖИ {account} · {day} · порог {threshold:.0f}% от нашей цены")
     lines.append(f"SKU всего {len(recs)}: с живой закупкой {len(priced)}, "
                  f"нет цены {len(no_price)}, послед.известная {len(stale)}, без маппинга {len(unmapped)}")
+    lines.append(f"Отсеяно как НЕ В ПРОДАЖЕ (нет свежей цены покупателя на карточке): {skipped_dead}")
     lines.append(f"ВЫПАДАЕМ по марже (<{threshold:.0f}%): {len(below)}  "
                  f"| из них ОТРИЦАТЕЛЬНАЯ: {len(negative)}")
+    if cogs_stale:
+        # ₽-дельту здесь не печатаем: после подмены fifo_cogs_u == buy_price_live, разница нулевая
+        # по построению. Величина исходного расхождения — в логе прогона витрины.
+        lines.append(f"СЕБЕСТ ПОДМЕНЁН (FIFO был ниже живой закупки >{100*COGS_STALE_GAP:.0f}%): "
+                     f"{len(cogs_stale)} SKU — экономика по ним стоит на живой закупке "
+                     f"(«почём купим сегодня»), маржа опущена честно")
     if priced:
         med = sorted(r["margin_own_live"] for r in priced if r["margin_own_live"] is not None)
         if med:

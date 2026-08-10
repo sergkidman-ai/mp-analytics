@@ -116,7 +116,7 @@ def normalize(cid, raw):
     return head, items
 
 
-def collect(cids=None):
+def collect(cids=None, quick=False):
     out = []
     for cid in (cids or campaigns()):
         for raw in fetch_raw(cid):

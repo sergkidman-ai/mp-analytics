@@ -1101,8 +1101,11 @@ def stocks(account: str = ""):
         sum(in_way_from_client)::float returns
         FROM wb_stocks WHERE account=ANY(%s) AND captured_at=%s GROUP BY 1 ORDER BY 2 DESC""",
                   (accts, cap))
+    # nm считаем по строкам с остатком: с 07.08.2026 у SKU без остатка есть строка «(в пути)»
+    # с quantity = 0, и без фильтра «SKU в наличии» включало бы уехавший к покупателям товар.
     tot = db.query("""SELECT sum(quantity)::float qty, sum(quantity_full)::float full,
-        sum(in_way_from_client)::float returns, count(DISTINCT nm_id) nm
+        sum(in_way_from_client)::float returns,
+        count(DISTINCT nm_id) FILTER (WHERE quantity > 0) nm
         FROM wb_stocks WHERE account=ANY(%s) AND captured_at=%s""", (accts, cap))[0]
     # стоимость остатков на ФБО по себестоимости: остаток × себест/ед (из margin, последний период)
     val = db.query("""
@@ -2095,6 +2098,363 @@ def warehouse_page():
     return (STATIC / "warehouse.html").read_text(encoding="utf-8")
 
 
+@app.get("/warehouse/novelties", response_class=HTMLResponse)
+def novelties_page():
+    return (STATIC / "novelties.html").read_text(encoding="utf-8")
+
+
+# Новинки поставщиков (поток prc): строки прайса, которых нет в МС по артикулу, и найденные
+# сверкой по признакам варианты нашего каталога. Человек подтверждает вариант, вписывает код
+# руками или помечает строку как новую модель.
+NOVELTY_COLORS = {"BK": "чёрный", "C": "голубой", "M": "пурпурный", "Y": "жёлтый",
+                  "BKM": "чёрный матовый", "GY": "серый", "LC": "светло-голубой",
+                  "LM": "светло-пурпурный", "R": "красный", "B": "синий", "G": "зелёный"}
+NOVELTY_CHIPS = {"chip": "с чипом", "chip_free": "с чипом без счётчика", "nochip": "без чипа"}
+
+
+NOVELTY_KINDS = {"toner": "тонер", "ink": "чернила", "cartridge": "картридж",
+                 "cleaning": "промывка", "refillable": "перезаправляемый"}
+
+
+def _novelty_view(row, prefix=""):
+    """Признаки строки словами — одинаково для новинки и для варианта каталога."""
+    return {"color": NOVELTY_COLORS.get(row[prefix + "color"], ""),
+            "measure": float(row[prefix + "measure"]) if row[prefix + "measure"] else None,
+            "chip": NOVELTY_CHIPS.get(row[prefix + "chip"], "не указан")}
+
+
+def _novelty_models(rows):
+    """{id строки: [модель с разведкой, …]} — одним запросом на всю таблицу.
+
+    Решение принимается ПО МОДЕЛИ картриджа, а не по строке прайса: один флакон тонера
+    закрывает пять моделей, и на каждую нужен свой ответ. Разведка (`prc_model_research`)
+    подтягивается из кэша — сама по себе она платная и здесь не запускается.
+
+    `new_printers` — принтеры, которых сеть нашла, а в нашем названии их нет: ровно то,
+    что стоит дописать в карточку.
+    """
+    from prices import research
+    per_row = {r["id"]: research.models_of(r) for r in rows}
+    found = research.cached([m for models in per_row.values() for m in models])
+    out = {}
+    for row in rows:
+        known = research.norm_model(f'{row["name"]} {row.get("ms_name") or ""}')
+        items = []
+        for label in per_row[row["id"]]:
+            rec = found.get(research.norm_model(label))
+            item = {"model": label, "research": None}
+            if rec:
+                printers = rec["printers"] or []
+                item["research"] = {
+                    "cartridge": rec["cartridge"], "ru": rec["ru"],
+                    "popularity": rec["popularity"],
+                    "resource_pages": rec["resource_pages"],
+                    "refill": (f'{float(rec["refill_amount"]):g} {rec["refill_unit"]}'
+                               if rec["refill_amount"] is not None else None),
+                    "printers": printers,
+                    "new_printers": [p for p in printers
+                                     if research.norm_model(p) not in known],
+                    "weight_kg": (float(rec["weight_kg"])
+                                  if rec.get("weight_kg") is not None else None),
+                    "pack_cm": ([float(rec["pack_l_cm"]), float(rec["pack_w_cm"]),
+                                 float(rec["pack_h_cm"])]
+                                if rec.get("pack_l_cm") is not None else None),
+                    "pack_source": rec.get("pack_source"),
+                    "verdict": rec["verdict"], "why": rec["why"],
+                    "confidence": rec["confidence"], "sources": rec["sources"] or [],
+                    "asked_at": rec["asked_at"].strftime("%d.%m.%Y"),
+                }
+            items.append(item)
+        out[row["id"]] = items
+    return out
+
+
+@app.get("/api/novelties")
+def novelties_api(supplier: str = "", status: str = ""):
+    """Новинки с вариантами. status: pending | matched | exists | new | partial | skip | всё.
+
+    `exists` строка получает сама: артикул поставщика точно совпал с карточкой МС, товар
+    у нас есть — оприходование его просто не нашло. Разбирать нечего, но кнопка «вернуть»
+    на месте: артикул мог случайно совпасть с карточкой другого поставщика.
+
+    `partial` — неполный набор: в прайсе есть не все цвета серии, брать в продажу рано.
+    Это не отказ, а полка ожидания: цвета доедут следующим прайсом — строка вернётся в работу.
+    """
+    where, params = ["1=1"], []
+    if supplier:
+        where.append("supplier_key = %s")
+        params.append(supplier)
+    if status:
+        where.append("decision = %s")
+        params.append(status)
+    rows = db.query(f"""
+        SELECT n.id, n.supplier_key, n.article, n.name, n.kind, n.color, n.measure, n.chip,
+               n.brand, n.price_rub, n.decision, n.ms_code, n.ms_name, n.link,
+               n.decided_at::text, n.last_seen::text, s.qty, s.stock_raw
+          FROM prc_novelty n
+          LEFT JOIN LATERAL (
+                 SELECT r.qty, r.stock_raw
+                   FROM prc_price_row r
+                   JOIN prc_price_load l ON l.id = r.load_id
+                  WHERE l.supplier_key = n.supplier_key
+                    AND upper(r.article) = upper(n.article)
+                  ORDER BY l.load_date DESC, l.id DESC LIMIT 1) s ON true
+         WHERE {' AND '.join(where)}
+         ORDER BY n.decision <> 'pending', n.name
+    """, tuple(params))
+    # Флаги сверки (`*_ok`) отдаём как есть: true — признак подтвердился, false —
+    # противоречит, null — в названии карточки его нет. Человеку в таблице нужны все три
+    # состояния: «не написано» и «не совпало» — разные новости.
+    cands = db.query("""
+        SELECT novelty_id, rank, ms_id, ms_code, ms_name, color, measure, chip,
+               shared_code, verdict, brand, kind, model_ok, kind_ok, brand_ok,
+               color_ok, resource_ok, chip_ok, score
+          FROM prc_novelty_candidate ORDER BY novelty_id, rank
+    """)
+    by_novelty = {}
+    for c in cands:
+        by_novelty.setdefault(c["novelty_id"], []).append(
+            dict(c, **_novelty_view(c), price_rub=None))
+    models = _novelty_models(rows)
+    out = []
+    for r in rows:
+        out.append(dict(r, **_novelty_view(r),
+                        price_rub=float(r["price_rub"]) if r["price_rub"] else None,
+                        candidates=by_novelty.get(r["id"], []),
+                        models=models.get(r["id"], [])))
+    counts = db.query("""SELECT decision, count(*) n FROM prc_novelty
+                          WHERE %s = '' OR supplier_key = %s
+                          GROUP BY decision""", (supplier, supplier))
+    suppliers = [r["supplier_key"] for r in
+                 db.query("SELECT DISTINCT supplier_key FROM prc_novelty ORDER BY 1")]
+    return {"rows": out, "suppliers": suppliers,
+            "counts": {c["decision"]: c["n"] for c in counts}}
+
+
+@app.get("/api/novelties/waiting")
+def novelties_waiting():
+    """Полка ожидания и найденные соседи по серии — напоминание «а не собрался ли комплект».
+
+    Строку `partial` человек отложил до полного набора, и сама она о себе не напомнит.
+    Сверяем полку с последним прайсом каждого поставщика, чёрным списком и остальной полкой:
+    пришёл `PFI121M` — покажем, что рядом лежат другие `PFI121`. Сосед из ЧС комплект
+    ЗАКРЫВАЕТ и возвращается в работу вместе со строкой (`revive`); не закрывает только
+    отсеянное по сути товара — флакон на 500 г флаконом и останется.
+    """
+    from prices import waiting
+    on_shelf = waiting.shelf()
+    matches = waiting.find(on_shelf, waiting.pool())
+    return {"shelf": len(on_shelf), "rows": [
+        {"id": m["id"], "article": m["article"], "name": m["name"],
+         "supplier_key": m["supplier_key"], "missing": m["missing"], "dead": m["dead"],
+         "verdict": waiting.verdict(m), "revive": len(m["revive"]),
+         "siblings": [{"article": s["article"], "name": s.get("name") or "",
+                       "where": waiting.SOURCE_NAMES[s["source"]] + (
+                           "" if s["source"] != "blacklist" else
+                           " — вернём вместе со строкой" if s.get("can_revive") else
+                           " — в прайсах не встречался, останется в ЧС"),
+                       "black": s["source"] == "blacklist"} for s in m["siblings"]]}
+        for m in matches]}
+
+
+class NoveltyRevive(BaseModel):
+    id: int
+
+
+@app.post("/api/novelties/revive")
+def novelties_revive(payload: NoveltyRevive):
+    """Вернуть ждущую строку в работу вместе с её соседями из чёрного списка.
+
+    Обычная кнопка «вернуть» только снимает решение со строки. Здесь работы больше: сосед
+    из ЧС в новинках отсутствует — он отсеялся до сверки с каталогом, — поэтому его снимаем
+    с ЧС и заводим как новинку. Иначе пара разъедется: строка в разборе, её вторая половина
+    по-прежнему невидима.
+    """
+    from prices import waiting
+    return waiting.revive(payload.id)
+
+
+class NoveltyDecision(BaseModel):
+    ids: list[int]
+    decision: str                                # matched | new | partial | skip | pending
+    ms_code: str = ""
+    link: str = ""                               # «Связь»: номера ДРУГИХ наших товаров
+
+
+class NoveltyLink(BaseModel):
+    ids: list[int]
+    link: str
+
+
+def _find_goods(code):
+    """Карточка по коду товара. Человек мыслит товаром («6058»), а код карточки — с суффиксом
+    поставщика (6058sk, 6058hb): принимаем обе формы и берём самую короткую карточку товара."""
+    found = db.query("""SELECT ms_id, code, name FROM ms_product
+                         WHERE NOT archived AND (upper(code) = upper(%s)
+                            OR code ~* ('^' || %s || '[a-z]*$'))
+                         ORDER BY length(code), code LIMIT 1""", (code, code))
+    return found[0] if found else None
+
+
+def _novelty_link(raw):
+    """«Связь» -> (нормализованная строка, ошибка).
+
+    Универсальная модель подходит нескольким нашим товарам (CET141644 — это и TN-328M/4310,
+    и TN-626M/6827), и таких может быть больше двух. Пишем ровно как одноимённое доп.поле МС:
+    номер товара четырьмя цифрами с ведущими нулями, разделитель «;», без пробелов.
+    Разделители на входе принимаем любые — человек напишет и «4310, 6827».
+    """
+    parts = [p for p in re.split(r"[^0-9A-Za-zА-Яа-я]+", raw or "") if p]
+    out = []
+    for part in parts:
+        item = _find_goods(part)
+        if not item:
+            return None, f"кода «{part}» нет в каталоге МС"
+        num = (re.match(r"^\d+", item["code"]) or [part])[0].zfill(4)
+        if num not in out:                       # один и тот же товар дважды не пишем
+            out.append(num)
+    return ";".join(out), None
+
+
+@app.post("/api/novelties/decide")
+def novelties_decide(payload: NoveltyDecision):
+    """Записать решение по строкам. Для matched код обязателен и должен быть в каталоге."""
+    if payload.decision not in ("matched", "new", "partial", "skip", "pending"):
+        return {"ok": False, "error": "неизвестное решение"}
+    code, item = payload.ms_code.strip(), None
+    if payload.decision == "matched":
+        if not code:
+            return {"ok": False, "error": "нужен код товара"}
+        item = _find_goods(code)
+        if not item:
+            return {"ok": False, "error": f"кода «{code}» нет в каталоге МС"}
+    link, error = _novelty_link(payload.link)
+    if error:
+        return {"ok": False, "error": f"связь: {error}"}
+    for novelty_id in payload.ids:
+        db.execute("""UPDATE prc_novelty
+                         SET decision = %s, ms_code = %s, ms_id = %s, ms_name = %s,
+                             link = coalesce(%s, link), decided_at = now()
+                       WHERE id = %s""",
+                   (payload.decision,
+                    item["code"] if item else None,
+                    item["ms_id"] if item else None,
+                    item["name"] if item else None,
+                    link or None,
+                    novelty_id))
+    return {"ok": True, "n": len(payload.ids), "link": link,
+            "ms_code": item["code"] if item else None,
+            "ms_name": item["name"] if item else None}
+
+
+@app.post("/api/novelties/link")
+def novelties_link(payload: NoveltyLink):
+    """Проставить «Связь», не трогая решение: универсальность вскрывается и потом.
+
+    Пустая строка стирает связь — это осознанное «связей нет», а не «поле не заполняли».
+    """
+    link, error = _novelty_link(payload.link)
+    if error:
+        return {"ok": False, "error": error}
+    for novelty_id in payload.ids:
+        db.execute("UPDATE prc_novelty SET link = %s WHERE id = %s", (link or None, novelty_id))
+    return {"ok": True, "n": len(payload.ids), "link": link}
+
+
+class NoveltyIds(BaseModel):
+    ids: list[int]
+    confirm: bool = False
+
+
+def _novelty_rows(ids):
+    if not ids:
+        return []
+    return db.query("""SELECT n.id, n.article, n.name, n.kind, n.decision, n.ms_name,
+                              (b.article IS NOT NULL) AS in_blacklist
+                         FROM prc_novelty n
+                         LEFT JOIN prc_blacklist b ON upper(b.article) = upper(n.article)
+                        WHERE n.id = ANY(%s)""", (list(ids),))
+
+
+# Правило Сергея 09.08: в сеть идём ТОЛЬКО под заведение карточки — по моделям строки,
+# которой присваиваем новый внешний код (`decision='new'`). Всё остальное платить не за что:
+# `matched`/`exists` уже лежат в МС, `partial` ждёт цвета на полке и карточку пока не получает,
+# `pending` ещё не разобран человеком, ЧС мы вообще не берём. Гейт серверный: интерфейс
+# кнопку прячет, но запрос мимо интерфейса всё равно упрётся сюда.
+def _research_split(rows):
+    ok, skipped = [], []
+    for r in rows:
+        if r["in_blacklist"]:
+            skipped.append({"article": r["article"], "why": "в чёрном списке — не берём"})
+        elif r["decision"] == "new":
+            ok.append(r)
+        else:
+            skipped.append({"article": r["article"], "why": {
+                "matched": "уже сопоставлена с нашей карточкой — новый код не заводим",
+                "exists": "уже в МС по артикулу",
+                "partial": "полка ожидания: карточку заведём, когда доедут цвета",
+                "skip": "не берём",
+            }.get(r["decision"], "сначала пометьте строку NEW — сеть спрашиваем "
+                                 "только под заведение карточки")})
+    return ok, skipped
+
+
+@app.get("/api/novelties/research/estimate")
+def novelties_research_estimate(ids: str = "", force: bool = False):
+    """Смета разведки. Денег НЕ тратит: считается арифметикой по числу моделей вне кэша."""
+    from prices import research
+    rows, skipped = _research_split(
+        _novelty_rows([int(x) for x in ids.split(",") if x.strip().isdigit()]))
+    est = research.estimate(rows, force=force)
+    # «Все модели уже разведаны» — неправда, когда моделей не было вовсе: строки отсеял гейт.
+    text = (research.estimate_text(est) if est["rows"] else
+            "Спрашивать нечего: сеть идёт только по строкам NEW — тем, которым заводим "
+            "карточку с новым внешним кодом.")
+    return {"ok": True, "estimate": est, "skipped": skipped, "text": text}
+
+
+@app.post("/api/novelties/research")
+def novelties_research(payload: NoveltyIds):
+    """Спросить сеть о моделях выбранных строк. ПЛАТНО — только с `confirm`.
+
+    Без подтверждения возвращаем ту же смету и `ok: false`: интерфейс показывает её человеку
+    и ждёт нажатия «Запустить». Гейт стоит и в `research.ask()` — на случай, если запрос
+    придёт мимо интерфейса.
+    """
+    from prices import research
+    rows, skipped = _research_split(_novelty_rows(payload.ids))
+    if not rows:
+        return {"ok": False, "error": "нечего спрашивать: сеть идёт только по строкам NEW — "
+                                      "тем, которым заводим карточку с новым внешним кодом",
+                "skipped": skipped}
+    try:
+        out = research.ask(rows, confirm=payload.confirm)
+    except research.NeedsConsent as need:
+        return {"ok": False, "need_confirm": True, "estimate": need.estimate,
+                "skipped": skipped, "text": research.estimate_text(need.estimate)}
+    return {"ok": True, "asked": len(out["estimate"]["to_ask"]),
+            "asked_rows": len(out["estimate"]["plan"]), "spent_usd": out["spent_usd"],
+            "errors": out["errors"], "skipped": skipped}
+
+
+@app.post("/api/novelties/blacklist")
+def novelties_blacklist(payload: NoveltyIds):
+    """Артикул в чёрный список: следующие прайсы этой строкой больше не беспокоят.
+
+    До сих пор пути в ЧС из интерфейса не было вовсе — `CS-TKY4-100` пришлось заносить
+    скриптом. Строке ставим `skip`: она разобрана, но повод виден («в ЧС»).
+    """
+    from prices import blacklist
+    rows = _novelty_rows(payload.ids)
+    if not rows:
+        return {"ok": False, "error": "строки не найдены"}
+    _, added = blacklist.add([r["article"] for r in rows], source="ui",
+                             note="из разбора новинок")
+    db.execute("""UPDATE prc_novelty SET decision = 'skip', decided_at = now()
+                   WHERE id = ANY(%s)""", (list(payload.ids),))
+    return {"ok": True, "n": len(rows), "added": added}
+
+
 @app.get("/api/warehouse")
 def warehouse_api():
     """Наш сток: наши склады + Озон ФБО (supplier_stock) + ВБ ФБО (wb_stocks), с дневной дельтой.
@@ -2110,7 +2470,8 @@ def warehouse_api():
     wb_fbo = {"accounts": [], "units": 0, "d_units": None, "captured": wcap}
     if wcap:
         wprev = db.query("SELECT max(captured_at)::text c FROM wb_stocks WHERE captured_at<%s", (wcap,))[0]["c"]
-        accs = db.query("""SELECT account, sum(quantity_full)::float units, count(DISTINCT nm_id) n
+        accs = db.query("""SELECT account, sum(quantity_full)::float units,
+            count(DISTINCT nm_id) FILTER (WHERE quantity > 0) n
             FROM wb_stocks WHERE captured_at=%s GROUP BY account ORDER BY account""", (wcap,))
         wb_fbo["accounts"] = accs
         wb_fbo["units"] = round(sum(a["units"] or 0 for a in accs), 1)

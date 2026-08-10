@@ -10,12 +10,15 @@
   to_pay_u     = promo_price * payout_ratio                          # база = акционная цена (list×(1-акция))
   net_u        = to_pay_u - logistics_u - storage_u - accept_u - cogs_u
   margin_pct_wb= net_u / buyer_price
-Логистика/приёмка: ФАКТ для проданных (margin_by_sku+sales), МЕДИАНА для непроданных.
+Логистика/приёмка: свой трейлинг за 6 мес (штук ≥ MIN_QTY_FACT) → факт опорного месяца, если он не
+тонкий → верхний квартиль фактической логистики в СВОЁМ литровом ведре (короб из габаритов карточки)
+→ медиана каталога. Фолбэк намеренно консервативен: не знаем — ошибаемся в сторону расхода.
 Рядом с форвардом: trail_* (факт окна) + last_sale_date/days_since_sale (форвард врёт, если продажи встали).
 Рычаг маржи — глубина НАШЕЙ акции (роняет базу→payout), НЕ СПП (её несёт ВБ).
-Себест (cogs_u): ТОЛЬКО из отгрузок МС за всю историю (margin_by_sku/ms_demand_pos, fin) — набор=BOM позиций
-отгрузки, одиночный=себест отгрузок последнего периода, никогда не отгружался=оценка по предмету. Карточку МС
-(buy_price/cost_seb) НЕ используем — забраковано клиентом, данные в карточках неверны.
+Себест (cogs_u): отгружался → себест отгрузок МС из margin_by_sku (fin, себест ВСЕГО документа на штуку —
+верно и для одиночек, и для комплектов, отдельной ветки наборов НЕТ); не отгружался → живая закупка
+TheCartridge по своему коду; нет и её → оценка по предмету. Карточку МС (buy_price/cost_seb) НЕ используем.
+ВЕЗДЕ порог MIN_QTY_FACT: ставка, посчитанная по 1–2 штукам (логистика, payout), — шум, а не факт.
 READ-ONLY по margin_by_sku / sales / ms_product. Пишет только свою mkt_sku_economics.
 
 Период (period_econ) — ПРОШЛЫЙ ПОЛНЫЙ месяц, вычисляется на дату запуска (не хардкод).
@@ -25,6 +28,7 @@ READ-ONLY по margin_by_sku / sales / ms_product. Пишет только св�
 import os
 import sys
 import pathlib
+import math
 import statistics
 from datetime import date, datetime, timedelta, timezone
 
@@ -34,8 +38,14 @@ from psycopg2.extras import Json
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from reports.margin_control import _mapping, COGS_STALE_GAP  # noqa: E402  — общий мост nm → код
+# TheCartridge и ЕДИНЫЙ порог протухшего себеста (объявлен один раз, в margin_control).
 
 load_dotenv(BASE_DIR / ".env")
+
+# Порог «толстой» выборки: ниже него месячные ставки расходов на штуку — шум тонкого хвоста,
+# берём медиану каталога (см. память feedback_incomplete_month_sku_trap).
+MIN_QTY_FACT = 5
 
 
 def _f(v):
@@ -88,33 +98,139 @@ def build(account="wb_acc1", period=None):
       ORDER BY article, period_from DESC
     """, (account,))}
 
-    # 3b) НАБОРЫ (комплекты): один WB nm = НЕСКОЛЬКО товаров МС в отгрузке. У margin_by_sku
-    #     qty раздут компонентами → cogs/qty = per-компонент, а цена карточки per-НАБОР → занижение.
-    multi_ms = {int(r["nm"]) for r in db.query("""
-      WITH ship AS (
-        SELECT w.payload->>'nm_id' nm, pos.ms_id, sum(pos.qty) q
-        FROM raw_wb_report w
-        JOIN ms_demand_cogs d  ON d.demand_name = w.payload->>'assembly_id'
-        JOIN ms_demand_pos pos ON pos.demand_id = d.demand_id
-        WHERE w.account=%s AND w.payload->>'nm_id' ~ '^[0-9]+$'
-        GROUP BY 1, 2 HAVING sum(pos.qty) >= 2)
-      SELECT nm FROM ship GROUP BY nm HAVING count(*) > 1
-    """, (account,))}
+    # 3b) НАБОРОВ ОТДЕЛЬНОЙ ВЕТКОЙ БОЛЬШЕ НЕТ (проверено 07.08.2026).
+    #     Прежняя логика: «несколько разных ms_id в отгрузках nm ⇒ комплект», себест = Σпозиций/max(qty).
+    #     Оба звена оказались неверны:
+    #       • детектор ловил обычные одиночки — в отгрузке рядом лежал ДРУГОЙ товар (216421567:
+    #         3 ms_id, а npos=1 в каждом документе; настоящих наборов avg npos>=2 всего 262 из 525);
+    #       • сама формула занижала в ~4 раза даже там, где набор настоящий (253913048: BOM 642 ₽
+    #         против фактических 2505 ₽/шт; 216453663: 851 против 2934; 181105203: 16 против 255).
+    #     margin_by_sku (fin) уже считает cogs как себест ВСЕГО документа отгрузки на проданную
+    #     штуку — и для одиночек, и для комплектов. Берём его, ничего не пересчитывая (правило 5).
 
-    # 3c) Себест НАБОРА = Σ(себест позиций отгрузки) / кол-во наборов (≈ max qty компонента).
-    #     Всё из ОТГРУЗОК: ms_demand_pos.cost = фактический итог позиции (Σ по документу = cogs),
-    #     БЕЗ карточки. Заменяет прежний BOM по buy_price.
-    repl_set = {int(r["nm"]): _f(r["bom"]) for r in db.query("""
-      WITH ship AS (
-        SELECT w.payload->>'nm_id' nm, pos.ms_id, sum(pos.cost) cost, sum(pos.qty) q
-        FROM raw_wb_report w
-        JOIN ms_demand_cogs d  ON d.demand_name = w.payload->>'assembly_id'
-        JOIN ms_demand_pos pos ON pos.demand_id = d.demand_id
-        WHERE w.account=%s AND w.payload->>'nm_id' ~ '^[0-9]+$'
-        GROUP BY 1, pos.ms_id)
-      SELECT nm::bigint nm, sum(cost) / NULLIF(max(q),0) bom
-      FROM ship GROUP BY nm HAVING count(*) > 1 AND max(q) >= 2
+    # 3c) Трейлинг-ставки расходов ПО SKU (логистика/хранение/приёмка на штуку) за 6 месяцев.
+    #     Медиана каталога — плохой прокси: у мелкой лёгкой карточки логистика реально 52 ₽,
+    #     а не 246 (263820406: медиана давала «маржу −23 %» там, где по факту +19…+36 %).
+    rates = {int(r["nm"]): r for r in db.query("""
+      SELECT article::bigint nm, sum(qty) q, sum(logistics) log, sum(storage) stor, sum(acceptance) acc
+      FROM margin_by_sku
+      WHERE platform='wb' AND account=%s AND qty>0 AND article ~ '^[0-9]+$'
+        AND period_from >= (current_date - interval '6 months')
+      GROUP BY 1
     """, (account,))}
+    print(f"трейлинг-ставки расходов: {len(rates)} SKU за 6 мес")
+
+    # 3d) Фолбэк логистики для карточек БЕЗ своих продаж — по ОБЪЁМУ КОРОБА, не по медиане каталога.
+    #     Логистика ВБ = функция литража (тариф base+liter×(⌈V⌉−1)×коэфф), а медиана каталога 246 ₽
+    #     навешивала полновесный короб на карточку 0.2 л и рисовала −21 % там, где реально +30 %
+    #     (272510281, 264242096/100/104 — все 0.2–0.4 л). Ставки НЕ моделируем формулой: берём
+    #     медиану НАШЕЙ фактической логистики в том же литровом ведре (см. правило «ничего не
+    #     придумывать»: это наш факт, сгруппированный по реальному драйверу цены).
+    vol = {}
+    for r in db.query("""
+      SELECT nm_id, (payload->'dimensions'->>'length')::numeric l,
+             (payload->'dimensions'->>'width')::numeric w, (payload->'dimensions'->>'height')::numeric h
+      FROM raw_wb_card_content
+      WHERE account=%s AND (payload->'dimensions'->>'length') IS NOT NULL
+    """, (account,)):
+        try:
+            v = float(r["l"]) * float(r["w"]) * float(r["h"]) / 1000.0
+        except (TypeError, ValueError):
+            continue
+        if v > 0:
+            vol[int(r["nm_id"])] = math.ceil(v)
+
+    _lb = {}
+    for _nm, _r in rates.items():
+        _q, _k = _f(_r["q"]) or 0, vol.get(_nm)
+        if _k and _q >= MIN_QTY_FACT:
+            _lb.setdefault(_k, []).append((_f(_r["log"])/_q, _f(_r["acc"])/_q))
+    #     Берём не медиану ведра, а ВЕРХНИЙ КВАРТИЛЬ: внутри ведра разброс, и медиана в 27 %
+    #     случаев занижала логистику (худший промах −1789 ₽) — то есть ЗАВЫШАЛА маржу. Там,
+    #     где мы не знаем, ошибаться надо в сторону осторожности, а не оптимизма.
+    def _p75(v):
+        return statistics.quantiles(v, n=4)[2] if len(v) >= 4 else max(v)
+
+    log_by_liter = {k: (_p75([x[0] for x in v]), _p75([x[1] for x in v]))
+                    for k, v in _lb.items() if len(v) >= 5}
+    #     КРИВАЯ ОБЪЁМА для литражей, где своего ведра нет (редкие крупные короба: 45 л, 24 л,
+    #     20 л — по одному-двум SKU, ведро не наберётся никогда). Раньше они падали на медиану
+    #     каталога 246 ₽ — короб 45 л по цене среднего картриджа, занижение расхода в разы, то есть
+    #     ЗАВЫШЕНИЕ маржи ровно на самых объёмных карточках. Тариф ВБ линеен по объёму
+    #     (база + за литр), поэтому строим прямую по наполненным вёдрам методом наименьших
+    #     квадратов и предсказываем ею. Медиана каталога остаётся ТОЛЬКО для карточек без габаритов.
+    def _fit(pts):
+        n = len(pts)
+        if n < 3:
+            return None
+        mx = sum(p[0] for p in pts) / n
+        my = sum(p[1] for p in pts) / n
+        den = sum((p[0] - mx) ** 2 for p in pts)
+        if den <= 0:
+            return None
+        b = sum((p[0] - mx) * (p[1] - my) for p in pts) / den
+        return (my - b * mx, b)
+
+    log_fit = _fit([(k, v[0]) for k, v in sorted(log_by_liter.items())])
+    acc_fit = _fit([(k, v[1]) for k, v in sorted(log_by_liter.items())])
+
+    def _by_volume(v):
+        """Логистика/приёмка на штуку для короба объёмом v л. Своё ведро → его p75; иначе кривая."""
+        if v in log_by_liter:
+            return log_by_liter[v]
+        if log_fit and acc_fit:
+            lu = max(log_fit[0] + log_fit[1] * v, min(x[0] for x in log_by_liter.values()))
+            au = max(acc_fit[0] + acc_fit[1] * v, 0.0)
+            return lu, au
+        return None
+
+    print(f"фолбэк логистики по литражу: {len(log_by_liter)} вёдер "
+          f"({min(log_by_liter, default=0)}–{max(log_by_liter, default=0)} л)"
+          + (f", кривая {log_fit[0]:.0f}+{log_fit[1]:.1f}×V ₽ для остальных объёмов" if log_fit else "")
+          + f"; медиана каталога {LOG_M:.0f} ₽ остаётся только для карточек без габаритов")
+
+    def _rates_u(nm, s, q):
+        """Логистика/хранение/приёмка на ШТУКУ для карточки nm.
+        Приоритет: свой трейлинг за 6 мес (штук ≥ MIN_QTY_FACT) → факт опорного месяца, если он
+        не тонкий → медиана каталога. Тонкая выборка врёт: у 216421567 в июле продана 1 шт при
+        1542 ₽ логистики → «маржа −67 %» на товаре, который реально даёт ~+300 ₽. Выброс сверх
+        3× медианы срезаем в медиану."""
+        r = rates.get(nm)
+        rq = _f(r["q"]) if r else 0
+        if r and rq and rq >= MIN_QTY_FACT:
+            lu, su, au = _f(r["log"])/rq, _f(r["stor"])/rq, _f(r["acc"])/rq
+        elif s and q and q >= MIN_QTY_FACT:
+            lu, su, au = _f(s["logistics"])/q, _f(s["storage"])/q, _f(s["acceptance"])/q
+        elif vol.get(nm) and _by_volume(vol[nm]):     # своих продаж нет → короб: ведро, иначе кривая
+            lu, au = _by_volume(vol[nm])
+            return lu, STOR_M, au
+        else:                                        # габаритов нет вовсе → медиана каталога
+            return LOG_M, STOR_M, ACC_M
+        if LOG_M and lu > 3*LOG_M:
+            lu = LOG_M
+        if ACC_M and au > 3*ACC_M:
+            au = ACC_M
+        return lu, su, au
+
+    # 3e) Себест для НИКОГДА НЕ ОТГРУЖАВШИХСЯ — живая закупка TheCartridge по своему коду.
+    #     Прежний фолбэк «медиана себеста отгрузок по предмету» (analog) оказался главным
+    #     источником ЗАВЫШЕНИЯ маржи: предмет «Картриджи для принтеров» — одно ведро от 34 ₽
+    #     до 3000 ₽, и на 7680 карточках медиана занижала себест на 390 ₽ (у 4469 из них —
+    #     ниже 70 % живой закупки, суммарно 9.8 млн ₽ недоучтённой себестоимости).
+    #     Живая закупка — РЕАЛЬНАЯ цена по этому самому коду, а не оценка по соседям.
+    tc_today = {r["external_code"]: (_f(r["buy_price"]), r["status"])
+                for r in db.query("SELECT external_code, buy_price, status FROM tc_buy_price_latest")}
+    tc_last = {r["external_code"]: _f(r["buy_price"])
+               for r in db.query("SELECT external_code, buy_price FROM tc_buy_price_last_known")}
+    repl_live = {}
+    for _nm, (_ec, _src) in _mapping(account, set(tc_today.keys())).items():
+        _p, _st = tc_today.get(_ec, (None, None))
+        if _p is None or _st != "ok":
+            _p = tc_last.get(_ec)
+        if _p and _p > 0:
+            repl_live[int(_nm)] = _p
+    print(f"живая закупка как фолбэк себеста: {len(repl_live)} SKU")
+
 
     # 5) subject из card_content
     subj = {int(r["nm_id"]): r["subject"] for r in db.query("""
@@ -168,15 +284,13 @@ def build(account="wb_acc1", period=None):
       GROUP BY 1 HAVING count(*) >= 10
     """, (account, TRAIL_DAYS, account))}
 
-    # 3d) Оценка по АНАЛОГУ для никогда не отгружавшихся: медиана себеста отгрузок по ПРЕДМЕТУ
-    #     (subjectName, ≥5 отгружавшихся образцов). Тоже из отгрузок, не карточка. src='analog'.
-    _sc = {}
-    for _nm, _c in repl_ship.items():
-        _s = subj.get(_nm)
-        if _s and _c and _c > 0:
-            _sc.setdefault(_s, []).append(_c)
-    repl_analog = {s: statistics.median(v) for s, v in _sc.items() if len(v) >= 5}
-    print(f"аналог-оценка по предметам: {len(repl_analog)} категорий (медиана себеста отгрузок)")
+    # 3d) ОЦЕНКИ ПО АНАЛОГУ БОЛЬШЕ НЕТ (решение Сергея, 07.08.2026).
+    #     Была медиана себеста по предмету для никогда не отгружавшихся. Предмет «Картриджи для
+    #     принтеров» — одно ведро от 34 до 3000 ₽, оценка по нему врала на сотни рублей.
+    #     Если позиции нет у TheCartridge — её обычно нет и в наличии: считать по ней нечего,
+    #     продавать и рекламировать нечего. Такие SKU остаются БЕЗ себеста и БЕЗ маржи —
+    #     они просто не участвуют в решениях. Как только цена появится, экономика посчитается
+    #     сама, а `ops/tc_price_alert.py` пришлёт «вышла из сумрака».
 
     # 6) Универсум — все карточки с ценой. 3-ценовой стек:
     #    price = до акции (v4 basic); discounted_price = акционная, ДО СПП (база комиссии/СПП);
@@ -198,15 +312,22 @@ def build(account="wb_acc1", period=None):
         before = _f(pr["price_before_promo"])  # 2671 — до акции (v4 basic / Prices price)
         promo = _f(pr["promo_price"])          # 2324 — акционная, ДО СПП = БАЗА комиссии/СПП (Prices discountedPrice)
         mkt = _f(pr["market_price"])           # 1859 — v4 product, цена покупателя ПОСЛЕ СПП
-        # себест ТОЛЬКО из отгрузок МС за всю историю (карточку НЕ используем):
-        # набор → BOM позиций отгрузки; одиночный → себест отгрузок; иначе → оценка по предмету.
-        if nm in repl_set:
-            cogs, src = repl_set[nm], "set"           # комплект: BOM из себеста позиций отгрузки
-        elif nm in repl_ship:
+        # себест: отгружался → себест отгрузок МС (margin_by_sku, там и одиночки, и комплекты —
+        # см. 3b); не отгружался → живая закупка по своему коду; нет и её → оценка по предмету.
+        # Карточку МС (buy_price/cost_seb) НЕ используем — забраковано клиентом.
+        if nm in repl_ship:
             cogs, src = repl_ship[nm], "shipment"     # одиночный: себест отгрузок (посл. период)
-        elif subj.get(nm) in repl_analog:
-            cogs, src = repl_analog[subj.get(nm)], "analog"   # никогда не продавался → оценка по предмету
-        else:
+            # ПРОТУХШИЙ FIFO (07.08.2026). Себест отгрузок честно помнит цену, по которой товар
+            # закупался — но если с тех пор он подорожал, эта цена больше не описывает нашу
+            # экономику: продав штуку, мы купим замену ДОРОЖЕ. Экономика здесь форвардная (по ней
+            # решают цену и рекламу), поэтому при разрыве больше COGS_STALE_GAP берём живую
+            # закупку. Она выше — маржа честно опускается.
+            _live = repl_live.get(nm)
+            if _live and cogs < _live * (1 - COGS_STALE_GAP):
+                cogs, src = _live, "live_stale"
+        elif nm in repl_live:
+            cogs, src = repl_live[nm], "live"         # не отгружался → живая закупка по своему коду
+        else:  # ни отгрузок, ни живой закупки → себеста НЕТ. Не выдумываем (см. 3d)
             cogs, src = None, None
             n_no_cogs += 1
         s = sold.get(nm)
@@ -214,23 +335,34 @@ def build(account="wb_acc1", period=None):
             q = _f(s["qty"]) or 0
             rb, rw = _f(s["revenue_buyer"]), _f(s["revenue_wb"])
             spp = (1 - rw/rb) if rb else SPP_M
-            log_u = (_f(s["logistics"])/q) if q else LOG_M
-            stor_u = (_f(s["storage"])/q) if q else STOR_M
-            acc_u = (_f(s["acceptance"])/q) if q else ACC_M
+            # Ставки расходов берём из факта ТОЛЬКО на достаточной выборке. На тонком хвосте
+            # (qty 1–2) месячная логистика SKU делится на одну штуку и даёт дичь: у 216421567
+            # в июле продана 1 шт, а логистики списано 1542 ₽ → «маржа −67 %» на товаре, который
+            # реально приносит ~+380 ₽ (август: qty 1, логистика 201, чистая 378).
+            # Ниже порога и при выбросе > 3× медианы — считаем по медиане каталога.
+            log_u, stor_u, acc_u = _rates_u(nm, s, q)
             net_u_act = (_f(s["net_profit"])/q) if q else None
             margin_act = (100*_f(s["net_profit"])/rw) if rw else None      # от реализации (после СПП)
             # маржа месяца от НАШЕЙ промо-цены = прибыль / выручка-до-СПП (revenue_buyer).
             # qty у наборов раздут компонентами, но здесь ÷qty сокращается → чисто и для наборов.
             margin_own_act = (100*_f(s["net_profit"])/rb) if rb else None
             sold_flag = True
-        else:  # МЕДИАНА (непроданные)
-            spp, log_u, stor_u, acc_u = SPP_M, LOG_M, STOR_M, ACC_M
+        else:  # не продавался в опорном месяце: свои трейлинг-ставки, иначе медиана каталога
+            spp = SPP_M
+            log_u, stor_u, acc_u = _rates_u(nm, None, 0)
             q = net_u_act = margin_act = margin_own_act = None
             sold_flag = False
 
         # payout-ratio: per-SKU из трейлинг-факта (к_перечисл/база, СПП-независим) → фолбэк медиана
         t = trail.get(nm)
         tb = _f(t["base"]) if t else None
+        # ГЕЙТ ТОНКОЙ ВЫБОРКИ (07.08.2026). payout по ОДНОЙ проданной штуке — шум, а не ставка:
+        # у 192567526 единственная июльская продажа дала payout 0.381 при предметном 0.609, и
+        # витрина нарисовала −2 % там, где товар в норме. Симметрично и опаснее: из 1130 тонких
+        # SKU у 559 payout ВЫШЕ предметного — это 69 тыс ₽ ЗАВЫШЕННОЙ маржи. Ниже порога
+        # берём предметную медиану; свои trail_* при этом сохраняем как справку.
+        if tb and tb > 0 and (_f(t["qty"]) or 0) < MIN_QTY_FACT:
+            tb = None
         if tb and tb > 0:
             tp, tq, tr = _f(t["pay"]), _f(t["qty"]), _f(t["realized"])
             payout, payout_src = tp / tb, "sku"

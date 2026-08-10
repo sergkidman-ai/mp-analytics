@@ -11,6 +11,7 @@
 import argparse
 import json
 import sys
+import time
 from collections import Counter
 from datetime import datetime, timezone
 
@@ -24,6 +25,10 @@ HEAD_COLS = [
     "deadline_at", "storage_days", "storage_sum", "amount",
 ]
 KEY = ["platform", "account", "return_id"]
+
+# Статусы «товар у нас на руках» — по ним ставится received_at. Строки площадок, не наши слова:
+# Ozon «Получен», ВБ «Выдано», Яндекс «забран», вывоз со стока FBO «Получена».
+RECEIVED_STATUSES = ("Получен", "Выдано", "забран", "Получена")
 
 
 def _sources(only=None):
@@ -42,21 +47,50 @@ def _sources(only=None):
     return src
 
 
-def gather(only=None):
+def gather(only=None, quick=False):
+    """quick — сбор «на сейчас»: у источников с окнами берём только свежее окно.
+    Тогда старые строки в выдачу не попадают, поэтому `store(mark_gone=False)` обязателен."""
     rows, errors = [], []
     for name, fn in _sources(only).items():
+        t0 = time.monotonic()
         try:
-            got = fn()
+            got = fn(quick=quick)
         except Exception as e:                      # одна площадка легла — остальные собираем
             errors.append(f"{name}: {type(e).__name__} {str(e)[:150]}")
             continue
+        print(f"  {name}: {len(got)} строк за {time.monotonic() - t0:.0f} с")
         for head, _items, _raw in got:
             head.setdefault("source", name)         # чем собрано — по этому считаем «пропал»
         rows += got
     return rows, errors
 
 
-def store(rows):
+def pickup_keys():
+    """Что прямо сейчас лежит и ждёт забора — снимок ДО сбора, чтобы поймать, что забрали."""
+    return {(r["platform"], r["account"], r["return_id"]) for r in db.query(
+        "SELECT platform, account, return_id FROM mp_returns "
+        " WHERE gone_at IS NULL AND stage = 'pickup'")}
+
+
+def received_since(snapshot):
+    """Из тех, что лежали в снимке, площадка теперь показывает «получено нами».
+
+    Считаем по статусу, а не по исчезновению из выдачи: в быстром сборе окно узкое,
+    и пропажа строки означает лишь то, что она не попала в окно.
+    """
+    if not snapshot:
+        return []
+    out = []
+    for r in db.query("SELECT platform, COALESCE(source, platform) AS source, account, "
+                      "       return_id, status_raw, stage FROM mp_returns "
+                      " WHERE stage <> 'pickup' AND gone_at IS NULL"):
+        key = (r["platform"], r["account"], r["return_id"])
+        if key in snapshot and pending.is_received(r["source"], r["status_raw"]):
+            out.append(key)
+    return out
+
+
+def store(rows, mark_gone=True):
     """Запись в БД. Возвращает счётчики."""
     now = datetime.now(timezone.utc)
     raw_rows, head_rows, item_rows = [], [], []
@@ -80,11 +114,20 @@ def store(rows):
     if item_rows:
         db.upsert("mp_return_items", item_rows, KEY + ["seq"])
 
+    # Дату «возврат у нас» ставим сами: у площадок её нет (см. миграцию 302). Штампуем ровно
+    # те строки, что записаны этим прогоном (last_seen = now), и только один раз — иначе дата
+    # поедет вперёд при каждом сборе и недельный отчёт будет врать.
+    db.execute("""UPDATE mp_returns SET received_at = %s
+                   WHERE received_at IS NULL AND last_seen = %s AND status_name = ANY(%s)""",
+               (now, now, list(RECEIVED_STATUSES)))
+
     # То, чего больше нет в выдаче площадки, — закрыто (забрали/отменили). Считаем В ПРЕДЕЛАХ
     # ОДНОГО ИСТОЧНИКА: у Ozon их три (returns/list, rFBS, вывоз со склада), и упавший или
     # незапущенный (`--only`) источник иначе погасил бы живые строки соседнего.
+    # В быстром сборе (узкое окно) этого делать НЕЛЬЗЯ: строка вне окна не «пропала», её просто
+    # не спрашивали. Гасим только на полном прогоне — ночном или ручном `collect`.
     gone = 0
-    for (platform, source, account), ids in seen.items():
+    for (platform, source, account), ids in (seen.items() if mark_gone else ()):
         gone += db.execute(
             "UPDATE mp_returns SET gone_at = now() "
             "WHERE platform = %s AND COALESCE(source, platform) = %s AND account = %s "
@@ -112,9 +155,11 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true", help="ничего не писать в БД")
     ap.add_argument("--only", nargs="*",
                     help="ozon | ozon_rfbs | ozon_removal | yandex | wb")
+    ap.add_argument("--quick", action="store_true",
+                    help="быстро: только свежее окно, без пометки «пропал из выдачи»")
     a = ap.parse_args(argv)
 
-    rows, errors = gather(a.only)
+    rows, errors = gather(a.only, quick=a.quick)
     print(f"получено возвратов: {len(rows)}")
     for line in summary(rows):
         print(" ", line)
@@ -124,7 +169,7 @@ def main(argv=None):
     if a.dry_run:
         print("dry-run: в БД не писали")
     elif rows:
-        st = store(rows)
+        st = store(rows, mark_gone=not a.quick)
         print(f"записано: raw={st['raw']} шапок={st['heads']} позиций={st['items']} "
               f"закрыто(пропали из API)={st['gone']}")
     return 1 if errors and not rows else 0

@@ -67,12 +67,16 @@ OZON_REMOVAL_CLOSED = {
 # --- Яндекс: shipmentStatus -------------------------------------------------------
 YANDEX_PICKUP = {
     "READY_FOR_PICKUP",            # готов к выдаче — забрать (у таких заполнен pickupTillDate)
-    "RECEIVED",                    # принят точкой выдачи
 }
 YANDEX_TRANSIT = {
     "CREATED",
     "IN_TRANSIT",
     "PREPARED",
+    # RECEIVED — «принят в пункте выдачи» логистикой, а НЕ «лежит и ждёт нас». Проверено Сергеем
+    # 07.08.2026 на заказах 58716444738 и 59558307072: в ЛК Маркета статус «Готов к отправке»,
+    # к выдаче их нет и в пункте их нет. Признак реальной готовности — `pickupTillDate`,
+    # он заполнен ровно у READY_FOR_PICKUP и пуст у всех RECEIVED (сверено по базе).
+    "RECEIVED",
 }
 YANDEX_ATTENTION = {
     "LOST",                        # потерян — спорить с площадкой
@@ -115,6 +119,21 @@ WB_TRANSIT = {
 # «Привезёт курьер» (ReturningToSellerByCourier) отложено «возможно, понадобится позже» —
 # если возвращать, то отдельной стадией, а не всем блоком transit.
 SHOW_STAGES = ("pickup",)
+
+# «Получено нами» — возврат физически у нас на руках. Сверяем по `status_raw` (машинный код там,
+# где площадка его даёт; у вывоза FBO и WB кодов нет — русская строка). Отличать от прочих
+# «закрыт» обязательно: утилизация, компенсация и отмена — это НЕ получено.
+RECEIVED_RAW = {
+    "ozon": {"ReceivedBySeller"},
+    "ozon_rfbs": {"ReceivedBySeller"},
+    "ozon_removal": {"Получена"},
+    "wb": {"Выдано"},
+    "yandex": {"PICKED"},
+}
+
+
+def is_received(source, status_raw) -> bool:
+    return (status_raw or "").strip() in RECEIVED_RAW.get(source, set())
 
 STAGE_ORDER = ["pickup", "attention", "transit", "closed"]
 STAGE_TITLE = {

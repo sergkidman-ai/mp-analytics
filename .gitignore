@@ -52,3 +52,11 @@ secrets/
 
 # deploy-worktree, из которого крон запускает поток inv (см. run_inv.py)
 .deploy/
+
+# prc: отчёты прогонов прайсов пересобираются каждой загрузкой
+docs/prc/
+tools/our_nm.txt
+tools/serp_*.csv
+tools/serp_raw_sample.json
+tools/*_summary.csv
+tools/*_detail.csv

@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Новинки поставщиков</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  main{flex:1;min-width:0;padding:22px;max-width:1480px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  h2{font-size:15px;margin:22px 0 12px}
+  .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  .whtabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
+  .whtabs a:hover{color:var(--txt);background:var(--card)}
+  .whtabs a.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  /* Панель действий липкая: пачку отмечают внизу таблицы, а кнопки нужны там же. */
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px;padding:10px 0;
+       position:sticky;top:0;z-index:5;background:var(--bg)}
+  .bar .grow{flex:1}
+  select,input,button{font:inherit;color:var(--txt);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+  button{cursor:pointer;font-weight:600}
+  button:hover{border-color:var(--acc)}
+  button.pri{background:var(--acc);border-color:var(--acc);color:#06121f}
+  button.new{border-color:var(--warn);color:var(--warn)}
+  button.danger{border-color:var(--neg);color:var(--neg)}
+  button.paid{border-color:#7aa2ff;color:#7aa2ff}
+  button:disabled{opacity:.45;cursor:default}
+  #q{width:230px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-weight:600;font-size:12px;background:var(--card);position:sticky;top:52px;z-index:4}
+  tr:last-child td{border-bottom:none}
+  tr.done{opacity:.6}
+  tr.done td{padding-top:5px;padding-bottom:5px}
+  .who{font-weight:600}
+  .art{color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}
+  .feat{font-size:12px;color:var(--mut)}
+  .pick{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .pick select{max-width:460px}
+  .pick input{width:110px;font-variant-numeric:tabular-nums}
+  .pick input.link{width:150px}
+  .ok{color:var(--pos);font-weight:700}
+  .miss{color:var(--warn)}
+  .verdict{font-size:11px;color:var(--mut);margin-top:3px}
+  /* Сетка сверки: шесть признаков строки прайса против выбранной карточки, значения рядом. */
+  .cmp{margin-top:5px;font-size:11px;border-collapse:collapse;width:100%;max-width:420px}
+  .cmp th{position:static;background:none;padding:0 6px 2px 0;text-align:left;font-size:10px;
+          text-transform:uppercase;letter-spacing:.03em}
+  .cmp td{padding:1px 6px 1px 0;border:0;vertical-align:top}
+  .cmp td.k{color:var(--mut);white-space:nowrap}
+  .cmp td.m{width:14px;text-align:center;font-weight:700}
+  .cmp tr.bad td{background:rgba(255,93,93,.08)}
+  .cmp .score{font-weight:700}
+  details.cmpwrap summary{cursor:pointer;color:var(--mut);font-size:11px;margin-top:4px}
+  .tag{font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;white-space:nowrap}
+  .tag.matched{background:rgba(55,200,113,.15);color:var(--pos)}
+  .tag.exists{background:rgba(55,200,113,.10);color:var(--pos)}
+  .tag.new{background:rgba(255,180,84,.15);color:var(--warn)}
+  .tag.partial{background:rgba(120,160,255,.15);color:#7aa2ff}
+  .tag.skip{background:rgba(138,160,181,.15);color:var(--mut)}
+  .kind{font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;background:rgba(138,160,181,.15);color:var(--mut)}
+  .kind.toner{background:rgba(255,180,84,.15);color:var(--warn)}
+  .kind.ink{background:rgba(120,160,255,.15);color:#7aa2ff}
+  .kind.cartridge{background:rgba(63,167,255,.13);color:var(--acc)}
+  /* Разведка по модели: решение принимается по МОДЕЛИ картриджа, а не по строке прайса —
+     один флакон тонера закрывает пять моделей, и у каждой свой ответ. */
+  .mdl{border-top:1px solid var(--line);padding:5px 0;font-size:12px}
+  .mdl:first-child{border-top:none;padding-top:0}
+  .mdl b{font-size:13px;font-variant-numeric:tabular-nums}
+  .mdl .f{color:var(--mut)}
+  .mdl .f i{font-style:normal;margin-right:8px;white-space:nowrap}
+  .mdl .no{color:var(--neg)}
+  .mdl .yes{color:var(--pos)}
+  .mdl details{margin-top:2px}
+  .mdl summary{cursor:pointer;color:var(--mut)}
+  .mdl .prn{margin-top:3px;line-height:1.7}
+  .mdl .prn span{border:1px solid var(--line);border-radius:6px;padding:0 5px;margin-right:4px;white-space:nowrap}
+  .mdl .prn span.add{border-color:var(--warn);color:var(--warn)}
+  .mdl .src a{color:var(--mut);font-size:11px;margin-right:8px}
+  .wait{background:var(--card);border:1px solid var(--line);border-left:3px solid #7aa2ff;
+        border-radius:12px;padding:12px 16px;margin:0 0 16px}
+  .wait h3{margin:0 0 8px;font-size:14px}
+  .wait .item{padding:7px 0;border-top:1px solid var(--line)}
+  .wait .item:first-of-type{border-top:none}
+  .wait .sib{font-size:12px;color:var(--mut);margin-top:2px}
+  .wait .sib b{color:var(--txt);font-weight:600}
+  .wait .why{font-size:12px;margin-top:2px}
+  .wait .why.go{color:var(--pos)}
+  .wait .why.stop{color:var(--warn)}
+  .wait button{margin-left:8px}
+  .big{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 16px;min-width:130px;cursor:pointer}
+  .bi:hover{border-color:var(--acc)}
+  .bi.cur{border-color:var(--acc);box-shadow:inset 0 -2px 0 var(--acc)}
+  .bi .l{color:var(--mut);font-size:12px}
+  .bi .v{font-size:22px;font-weight:700}
+  /* Предупреждение о платности: сеть не трогаем, пока человек не нажал «Запустить». */
+  .modal{position:fixed;inset:0;background:rgba(6,12,20,.72);display:flex;align-items:center;
+         justify-content:center;z-index:20}
+  .modal[hidden]{display:none}
+  .mbox{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--warn);
+        border-radius:12px;padding:18px 22px;max-width:560px}
+  .mbox h3{margin:0 0 8px;font-size:15px}
+  .mbox .mact{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse" class="cur">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main>
+  <nav class="whtabs">
+    <a href="/warehouse">🏭 Остатки складов</a>
+    <a href="/reports/wb-clearance">🏷️ Распродажа остатков ВБ</a>
+    <a href="/warehouse/novelties" class="cur">✨ Новинки</a>
+  </nav>
+
+  <p class="note" style="margin-top:0">Строки прайса, которых нет в МойСкладе по артикулу. Сверка ищет тот же товар
+  в нашем каталоге по четырём признакам: модель, цвет, ресурс печати (расхождение до 25% — норма) и чип. Выберите верный
+  вариант или впишите код руками; если такой модели у нас нет вовсе — <b>NEW</b>. Решение принимается <b>по модели
+  картриджа</b>: одна строка флакона тонера — это несколько карточек, по одной на модель, и заводим только те, которым
+  флакон даёт <b>полную заправку</b>. «Спросить сеть» отвечает по каждой модели: рынок РФ, спрос, доза заправки и полный
+  список принтеров — <b>запрос платный, смету покажем до запуска</b>, и спрашиваем <b>только по строкам NEW</b>, тем,
+  которым заводим карточку с новым внешним кодом.</p>
+
+  <div class="big" id="big"></div>
+  <div id="waiting"></div>
+
+  <div class="bar">
+    <select id="supplier"></select>
+    <select id="status">
+      <option value="pending">не разобранные</option>
+      <option value="">все</option>
+      <option value="matched">сопоставленные</option>
+      <option value="exists">уже в МС</option>
+      <option value="new">новые модели</option>
+      <option value="partial">неполный набор</option>
+      <option value="skip">не берём</option>
+    </select>
+    <select id="kind">
+      <option value="">любой тип</option>
+      <option value="cartridge">картриджи</option>
+      <option value="toner">тонер</option>
+      <option value="ink">чернила</option>
+      <option value="cleaning">промывка</option>
+      <option value="refillable">перезаправляемые</option>
+    </select>
+    <input id="q" placeholder="поиск по названию, артикулу, модели">
+    <span class="grow"></span>
+    <span class="muted" id="selinfo">отмечено 0</span>
+    <button id="bulk-ask" class="paid" disabled title="платный веб-запрос, сначала покажем смету">🌐 Спросить сеть</button>
+    <button id="bulk-new" class="new" disabled>NEW — новая модель</button>
+    <button id="bulk-partial" disabled>Неполный набор</button>
+    <button id="bulk-skip" disabled>Не берём</button>
+    <button id="bulk-black" class="danger" disabled title="артикул в чёрный список — больше не показывать">В ЧС</button>
+  </div>
+
+  <table>
+    <thead><tr>
+      <th style="width:28px"><input type="checkbox" id="all"></th>
+      <th style="width:30%">Товар поставщика</th>
+      <th style="width:34%">Модели и разведка</th>
+      <th>Наш товар</th>
+      <th style="width:88px"></th>
+    </tr></thead>
+    <tbody id="rows"><tr><td colspan="5" class="muted">загрузка…</td></tr></tbody>
+  </table>
+  <p class="note" id="foot"></p>
+</main>
+
+<div class="modal" id="modal" hidden>
+  <div class="mbox">
+    <h3>⚠️ Запрос в сеть платный</h3>
+    <p id="mtext"></p>
+    <p class="note" id="mnote"></p>
+    <div class="mact">
+      <button id="mcancel">Отмена</button>
+      <button id="mgo" class="pri">Запустить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let DATA = [], COUNTS = {};
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num = v => v == null ? "" : Number(v).toLocaleString("ru-RU");
+
+const KINDS = {toner:"тонер", ink:"чернила", cartridge:"картридж",
+               cleaning:"промывка", refillable:"перезаправляемый"};
+const POP = {high:"спрос высокий", mid:"спрос средний", low:"спрос низкий", none:"на рынке РФ нет"};
+
+function feats(r){
+  return [r.color, r.measure ? num(r.measure) : null, r.chip].filter(Boolean).join(" · ");
+}
+
+// Код карточки = номер товара + суффикс поставщика (6058sk, 6058hb). Товар — это номер,
+// поэтому его и показываем первым: человек мыслит «6058», а не «6058hb».
+const goods = code => (String(code || "").match(/^\d+/) || [""])[0];
+
+function optionLabel(c){
+  const mark = c.verdict === "совпало по всем признакам" ? "✓✓" : "•";
+  const n = goods(c.ms_code);
+  return `${mark} ${n || c.ms_code || "без кода"}${n ? " (" + c.ms_code + ")" : ""} — ${c.ms_name}`;
+}
+
+// Сетка сверки: шесть признаков, по которым строка прайса сопоставляется с нашей карточкой,
+// со значениями с обеих сторон. Человеку так видно НЕ «предложен вариант», а почему именно он.
+// Три состояния у каждого признака: ✓ подтвердился, ✗ противоречит, — в карточке не написано
+// (молчание каталога — не совпадение и не отказ, в счёт N/6 оно не идёт).
+const MARK = {true: ["✓", "pos"], false: ["✗", "neg"], null: ["—", "muted"]};
+const BAD = ["model_ok", "kind_ok", "brand_ok", "color_ok", "resource_ok", "chip_ok"];
+
+function cmpGrid(r, c){
+  if (!c) return "";
+  const model = c.model_ok === false ? "нет общего кода" : (c.shared_code || "—");
+  const lines = [
+    ["модель", c.shared_code || "—", model, c.model_ok],
+    ["тип", KINDS[r.kind] || r.kind, KINDS[c.kind] || c.kind, c.kind_ok],
+    ["бренд", r.brand, c.brand, c.brand_ok],
+    ["ресурс/объём", num(r.measure), num(c.measure), c.resource_ok],
+    ["цвет", r.color, c.color, c.color_ok],
+    ["чип", r.chip, c.chip, c.chip_ok],
+  ];
+  const body = lines.map(([key, mine, ours, ok]) => {
+    const [sign, cls] = MARK[ok] ?? MARK.null;
+    return `<tr class="${ok === false ? "bad" : ""}"><td class="k">${key}</td>
+      <td>${esc(mine || "—")}</td><td>${esc(ours || "—")}</td>
+      <td class="m ${cls}">${sign}</td></tr>`;
+  }).join("");
+  return `<table class="cmp"><tr><th class="score">сходится ${c.score}/6</th>
+      <th>строка прайса</th><th>наша карточка</th><th></th></tr>${body}</table>`;
+}
+
+// Разведка одной модели. Принтеры, которых нет в нашем названии, подсвечены: это ровно то,
+// что стоит дописать в карточку — неполный список принтеров = потерянный поиск на маркетплейсе.
+function modelCell(r){
+  if (!r.models.length) return `<span class="muted">модель не распозналась</span>`;
+  return r.models.map(m => {
+    const q = m.research;
+    if (!q) return `<div class="mdl"><b>${esc(m.model)}</b> <span class="muted">— не спрашивали</span></div>`;
+    const flags = [];
+    if (q.cartridge && q.cartridge.replace(/\W/g,"").toUpperCase() !== m.model.replace(/\W/g,"").toUpperCase())
+      flags.push(`<i>картридж ${esc(q.cartridge)}</i>`);
+    if (q.ru === true) flags.push(`<i class="yes">🇷🇺 рынок РФ</i>`);
+    if (q.ru === false) flags.push(`<i class="no">не РФ</i>`);
+    if (q.popularity) flags.push(`<i${q.popularity === "none" ? ' class="no"' : ""}>${POP[q.popularity]}</i>`);
+    // Доза заправки осмысленна только для сыпучего тонера и чернил; у готового картриджа её нет.
+    if (r.kind === "toner" || r.kind === "ink")
+      flags.push(q.refill ? `<i class="yes">заправка ${esc(q.refill)}</i>`
+                          : `<i class="muted">доза не найдена</i>`);
+    if (q.resource_pages) flags.push(`<i>${num(q.resource_pages)} стр.</i>`);
+    // Вес и короб нужны маркетплейсу при заведении карточки. Это ВЕБ-данные, не короб
+    // поставщика: помечаем источник, чтобы никто не принял их за замер.
+    flags.push(q.weight_kg ? `<i class="yes">${num(q.weight_kg)} кг</i>`
+                           : `<i class="muted">вес не найден</i>`);
+    flags.push(q.pack_cm ? `<i class="yes" title="упаковка одной штуки, источник: ${
+                              esc(q.pack_source || "веб")}">${q.pack_cm.join("×")} см</i>`
+                         : `<i class="muted">упаковка не найдена</i>`);
+    const prn = q.printers.length ? `<details><summary>принтеры: ${q.printers.length}${
+        q.new_printers.length ? ` · нет в нашем названии: ${q.new_printers.length}` : ""}</summary>
+      <div class="prn">${q.printers.map(p =>
+        `<span class="${q.new_printers.includes(p) ? "add" : ""}">${esc(p)}</span>`).join("")}</div>
+      <div class="src">${q.sources.slice(0,3).map(s =>
+        `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>`).join("")}</div>
+      </details>` : `<div class="muted">список принтеров не найден</div>`;
+    return `<div class="mdl"><b>${esc(m.model)}</b>
+      <div class="f">${flags.join("")}</div>${prn}
+      ${q.verdict ? `<div class="muted">${esc(q.verdict)}</div>` : ""}</div>`;
+  }).join("");
+}
+
+function row(r){
+  const opts = r.candidates.map((c, i) =>
+    `<option value="${esc(c.ms_code || "")}" ${i ? "" : "selected"}>${esc(optionLabel(c))}</option>`).join("");
+  const best = r.candidates[0];
+  // У разобранной строки сверяем с той карточкой, которую человек (или артикул) выбрал.
+  const done = r.candidates.find(c => c.ms_code === r.ms_code);
+  const pick = r.decision === "pending" ? `
+    <div class="pick">
+      ${r.candidates.length
+        ? `<select class="cand">${opts}<option value="">— ввести код вручную —</option></select>`
+        : `<span class="miss">в каталоге не нашлось</span>`}
+      <input class="code" placeholder="код" value="">
+      <input class="link" placeholder="связь: 4310;6827" value="${esc(r.link || "")}">
+      <button class="save pri">Это он</button>
+      <button class="mknew new">NEW</button>
+      <button class="mkpartial" title="в прайсе не все цвета серии — ждём остальные">Неполный набор</button>
+      <button class="paid" disabled title="сеть спрашиваем только по строкам NEW — тем, которым заводим карточку">🌐 сеть</button>
+      <button class="black danger" title="артикул в чёрный список">ЧС</button>
+    </div>
+    ${best ? `<div class="verdict">по коду ${esc(best.shared_code)} · ${esc(best.verdict)}${
+        r.candidates.length > 1 ? ` · ещё вариантов: ${r.candidates.length - 1}` : ""}</div>` : ""}
+    <div class="cmpbox">${cmpGrid(r, best)}</div>`
+    : `<span class="tag ${r.decision}">${r.decision === "matched" ? "сопоставлено"
+        : r.decision === "exists" ? "уже в МС (артикул совпал)"
+        : r.decision === "new" ? "новая модель"
+        : r.decision === "partial" ? "неполный набор — ждём цвета" : "не берём"}</span>
+       ${r.ms_code ? ` <b>${esc(r.ms_code)}</b> <span class="muted">${esc(r.ms_name || "")}</span>` : ""}
+       ${r.decision === "new" ? `<button class="ask paid" style="margin-left:8px"
+            title="платный веб-запрос по моделям строки">🌐 сеть</button>` : ""}
+       <button class="undo" style="margin-left:8px">вернуть</button>
+       <div class="pick" style="margin-top:6px">
+         <span class="muted">связь</span>
+         <input class="link" placeholder="4310;6827" value="${esc(r.link || "")}">
+         <button class="savelink">сохранить</button>
+       </div>
+       ${done ? `<details class="cmpwrap"><summary>сверка ${done.score}/6${
+           BAD.some(k => done[k] === false) ? " · есть расхождения" : ""
+         }</summary>${cmpGrid(r, done)}</details>` : ""}`;
+  const stock = r.qty != null ? `остаток ${num(r.qty)}` : (r.stock_raw ? esc(r.stock_raw) : "");
+  return `<tr data-id="${r.id}" class="${r.decision === "pending" ? "" : "done"}">
+    <td><input type="checkbox" class="sel"></td>
+    <td><div class="who">${esc(r.name)}</div>
+        <div class="art"><span class="kind ${esc(r.kind || "")}">${esc(KINDS[r.kind] || r.kind || "?")}</span>
+          ${esc(r.article)}${r.price_rub ? " · " + num(r.price_rub) + " ₽" : ""}${stock ? " · " + stock : ""}</div>
+        <div class="feat">${esc(feats(r))} <span class="muted">· ${esc(r.supplier_key)}</span></div></td>
+    <td>${modelCell(r)}</td>
+    <td>${pick}</td>
+    <td><span class="msg muted"></span></td>
+  </tr>`;
+}
+
+async function post(url, body, msg){
+  const res = await fetch(url, {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  const out = await res.json();
+  if (!out.ok){ if (msg) { msg.textContent = out.error; msg.className = "msg neg"; } return false; }
+  await load();
+  return true;
+}
+
+const decide = (ids, decision, code, msg, link) =>
+  post("/api/novelties/decide", {ids, decision, ms_code: code || "", link: link || ""}, msg);
+const setLink = (ids, link, msg) => post("/api/novelties/link", {ids, link}, msg);
+
+// Платный путь: сначала БЕСПЛАТНАЯ смета, потом модалка, и только по кнопке «Запустить» —
+// сам запрос. Ни один клик по таблице сеть не трогает.
+async function askNet(ids, msg){
+  if (!ids.length) return;
+  const est = await (await fetch(`/api/novelties/research/estimate?ids=${ids.join(",")}`)).json();
+  const skip = (est.skipped || []).map(s => `${s.article} — ${s.why}`);
+  if (!est.estimate.to_ask.length){
+    if (msg){
+      msg.textContent = skip.length ? skip[0] : "всё уже разведано";
+      msg.className = "msg muted";
+    } else if (skip.length) alert("Спрашивать нечего:\n" + skip.join("\n"));
+    return;
+  }
+  $("#mtext").textContent = est.text;
+  $("#mnote").textContent = "Спросим: " + est.estimate.to_ask.join(", ")
+    + (est.estimate.cached.length ? ". Из кэша (бесплатно): " + est.estimate.cached.join(", ") : "")
+    + (skip.length ? ". Пропущено — " + skip.join("; ") : "");
+  $("#modal").hidden = false;
+  $("#mgo").onclick = async () => {
+    $("#modal").hidden = true;
+    if (msg){ msg.textContent = "спрашиваем сеть…"; msg.className = "msg muted"; }
+    const out = await (await fetch("/api/novelties/research", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ids, confirm: true})})).json();
+    if (msg && out.errors && Object.keys(out.errors).length)
+      { msg.textContent = Object.values(out.errors)[0]; msg.className = "msg neg"; }
+    await load();
+  };
+}
+$("#mcancel").onclick = () => { $("#modal").hidden = true; };
+
+async function toBlacklist(ids, msg){
+  if (!ids.length) return;
+  if (!confirm(`В чёрный список: ${ids.length} строк. Этот артикул больше не появится в разборе. Продолжить?`))
+    return;
+  await post("/api/novelties/blacklist", {ids}, msg);
+}
+
+function wire(){
+  $("#rows").querySelectorAll("tr[data-id]").forEach(tr => {
+    const id = Number(tr.dataset.id), msg = tr.querySelector(".msg");
+    const sel = tr.querySelector(".cand"), code = tr.querySelector(".code");
+    // Сетка сверки идёт за выпадающим списком: перебирая варианты, человек сразу видит,
+    // чем каждый из них отличается от строки прайса.
+    const box = tr.querySelector(".cmpbox"), rec = DATA.find(x => x.id === id);
+    if (sel && code){
+      code.value = sel.value;
+      sel.onchange = () => {
+        code.value = sel.value;
+        if (box && rec) box.innerHTML = cmpGrid(rec, rec.candidates[sel.selectedIndex]);
+        code.focus();
+      };
+    }
+    const link = tr.querySelector(".link");
+    const save = tr.querySelector(".save");
+    if (save) save.onclick = () => decide([id], "matched", code.value, msg, link.value);
+    const mknew = tr.querySelector(".mknew");
+    if (mknew) mknew.onclick = () => decide([id], "new", "", msg, link.value);
+    const mkpartial = tr.querySelector(".mkpartial");
+    if (mkpartial) mkpartial.onclick = () => decide([id], "partial", "", msg, link.value);
+    const ask = tr.querySelector(".ask");
+    if (ask) ask.onclick = () => askNet([id], msg);
+    const black = tr.querySelector(".black");
+    if (black) black.onclick = () => toBlacklist([id], msg);
+    const undo = tr.querySelector(".undo");
+    if (undo) undo.onclick = () => decide([id], "pending", "", msg);
+    const savelink = tr.querySelector(".savelink");
+    if (savelink) savelink.onclick = () => setLink([id], link.value, msg);
+    tr.querySelector(".sel").onchange = marked;
+  });
+  $("#all").onchange = e => {
+    $("#rows").querySelectorAll(".sel").forEach(c => c.checked = e.target.checked);
+    marked();
+  };
+  marked();
+}
+
+function selected(){
+  return [...$("#rows").querySelectorAll("tr[data-id]")]
+    .filter(tr => tr.querySelector(".sel").checked).map(tr => Number(tr.dataset.id));
+}
+
+function marked(){
+  const n = selected().length;
+  $("#selinfo").textContent = "отмечено " + n;
+  ["#bulk-new", "#bulk-skip", "#bulk-partial", "#bulk-ask", "#bulk-black"]
+    .forEach(s => $(s).disabled = !n);
+}
+
+// Полка ожидания сама о себе не напомнит: строку отложили до полного комплекта, и она
+// пролежит там вечно. Показываем сверху, у каких ждущих строк нашлись соседи по серии.
+async function loadWaiting(){
+  const d = await (await fetch("/api/novelties/waiting")).json();
+  const box = $("#waiting");
+  if (!d.shelf){ box.innerHTML = ""; return; }
+  const items = d.rows.map(r => {
+    const sibs = r.siblings.map(s =>
+      `<b>${esc(s.article)}</b> — ${esc(s.where)}${s.name ? " · " + esc(s.name) : ""}`).join("<br>");
+    const cls = r.dead && !r.revive ? "stop" : "go";
+    const button = r.revive
+      ? `<button class="revive pair">вернуть в работу вместе с ${r.revive} из ЧС</button>`
+      : r.dead ? "" : `<button class="revive">вернуть в работу</button>`;
+    return `<div class="item" data-wait="${r.id}" data-pair="${r.revive}">
+      <div><b>${esc(r.article)}</b> <span class="muted">${esc(r.name || "")}</span> ${button}
+        <span class="msg muted"></span></div>
+      <div class="why ${cls}">${esc(r.verdict)}${
+        r.missing.length ? ` · до полного CMYK не хватает: ${esc(r.missing.join(", "))}` : ""}</div>
+      <div class="sib">${sibs}</div></div>`;
+  }).join("");
+  box.innerHTML = `<div class="wait"><h3>⏳ Лист ожидания комплектов — ${d.shelf} строк${
+      d.rows.length ? `, соседи по серии нашлись у ${d.rows.length}` : ", новых цветов не появилось"}</h3>
+    ${items}</div>`;
+  box.querySelectorAll(".revive").forEach(btn => {
+    const item = btn.closest("[data-wait]"), id = Number(item.dataset.wait);
+    btn.onclick = async () => {
+      if (!Number(item.dataset.pair)) return decide([id], "pending", "");
+      btn.disabled = true;
+      const res = await (await fetch("/api/novelties/revive", {method: "POST",
+        headers: {"Content-Type": "application/json"}, body: JSON.stringify({id})})).json();
+      const said = [res.revived.length ? `в новинки вернулись: ${res.revived.join(", ")}` : "",
+                    res.unlisted.length ? `сняты с ЧС, но заводить не из чего (не видели в прайсе): ${
+                      res.unlisted.join(", ")}` : ""].filter(Boolean).join("; ");
+      item.querySelector(".msg").textContent = said || "строка вернулась в работу";
+      setTimeout(load, 1200);
+    };
+  });
+}
+
+// Поиск и фильтр по типу — на клиенте: строк десятки, лишний поход на сервер не нужен,
+// зато набор в поле сразу сужает таблицу.
+function shown(){
+  const q = $("#q").value.trim().toLowerCase(), kind = $("#kind").value;
+  return DATA.filter(r => (!kind || r.kind === kind) && (!q ||
+    (r.name + " " + r.article + " " + (r.ms_name || "") + " " +
+     r.models.map(m => m.model).join(" ")).toLowerCase().includes(q)));
+}
+
+function draw(){
+  const rows = shown();
+  $("#rows").innerHTML = rows.length ? rows.map(row).join("")
+    : `<tr><td colspan="5" class="muted">пусто — по этому фильтру строк нет</td></tr>`;
+  $("#all").checked = false;
+  $("#foot").textContent = `показано ${rows.length} из ${DATA.length} загруженных строк`;
+  wire();
+}
+
+async function load(){
+  const supplier = $("#supplier").value || "", status = $("#status").value;
+  const d = await (await fetch(`/api/novelties?supplier=${encodeURIComponent(supplier)}&status=${status}`)).json();
+  DATA = d.rows; COUNTS = d.counts;
+  if (!$("#supplier").options.length){
+    $("#supplier").innerHTML = `<option value="">все поставщики</option>` +
+      d.suppliers.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+  }
+  const c = COUNTS, total = Object.values(c).reduce((a, b) => a + b, 0);
+  // Плитки — это и есть фильтр по статусу: цифру видно, по ней же и кликают.
+  $("#big").innerHTML = [["всего", total, ""], ["не разобрано", c.pending || 0, "pending"],
+                         ["сопоставлено", c.matched || 0, "matched"], ["уже в МС", c.exists || 0, "exists"],
+                         ["новых моделей", c.new || 0, "new"], ["неполный набор", c.partial || 0, "partial"],
+                         ["не берём", c.skip || 0, "skip"]]
+    .map(([l, v, s]) => `<div class="bi ${s === status ? "cur" : ""}" data-st="${s}">
+        <div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+  $("#big").querySelectorAll(".bi").forEach(b => b.onclick = () => {
+    $("#status").value = b.dataset.st; load();
+  });
+  draw();
+  loadWaiting();
+}
+
+$("#supplier").onchange = load;
+$("#status").onchange = load;
+$("#kind").onchange = draw;
+$("#q").oninput = draw;
+$("#bulk-new").onclick = () => decide(selected(), "new", "");
+// «Неполный набор» — полка ожидания, а не отказ: цвета доедут — вернём кнопкой «вернуть».
+$("#bulk-partial").onclick = () => decide(selected(), "partial", "");
+$("#bulk-skip").onclick = () => decide(selected(), "skip", "");
+$("#bulk-ask").onclick = () => askNet(selected());
+$("#bulk-black").onclick = () => toBlacklist(selected());
+load();
+</script>
+</body>
+</html>
