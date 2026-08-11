@@ -38,7 +38,10 @@ except ImportError:
     sys.exit("Не установлена библиотека requests. Выполни:  pip install requests")
 
 HERE = pathlib.Path(__file__).resolve().parent
-SEARCH = "https://search.wb.ru/exactmatch/ru/common/v18/search"
+SEARCH = "https://u-search.wb.ru/exactmatch/ru/common/v18/search"
+# ХОСТ важнее версии. С 09.08.2026 search.wb.ru отдаёт 429 почти на всё: замер 11.08 на 30
+# реальных ключах с паузой 1–2 с — search.wb.ru 1 успех из 30, u-search.wb.ru 30 из 30.
+# Это не бан нашего IP: с того же сервера card.wb.ru и u-search отвечают 200. Прокси не нужен.
 # Версия пути обязательна: v13 и старше отдают обрезанный ответ на 740 байт (не блокировка —
 # просто мёртвая версия). dest — новый положительный формат, старый -1257786 не работает.
 DEST = 1259570991        # Москва и область: позиция зависит от региона, фиксируем один
