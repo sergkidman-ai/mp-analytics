@@ -2533,11 +2533,15 @@ def novelties_ms_form(id: int, n: int = 1):
         others = [x for x in numbers if x != ext.zfill(4)]
         cards.append({
             "external_code": ext, "code": f"{ext}{abbr}",
+            # Все поля одинаковы у всех карточек группы (решение 11.08): человек правит уже
+            # заполненное, а не заполняет с нуля. Уникальны только коды и артикул — артикул
+            # у МС ключ, две карточки с одним артикулом он не пропустит (потому и у главной).
             "article": row["article"] if i == 0 else "",
-            "name": row["name"] if i == 0 else "", "description": row["name"] if i == 0 else "",
-            "folder": folder, "weight": weight or "",
-            "buy_price": float(row["price_rub"]) if row["price_rub"] is not None else "",
-            "wb": wb if i == 0 else "", "code128": "",
+            "name": row["name"], "description": row["name"],
+            # числа отдаём строками: обратно они приходят из полей ввода, тоже строками
+            "folder": folder, "weight": str(weight or ""),
+            "buy_price": str(row["price_rub"]) if row["price_rub"] is not None else "",
+            "wb": wb, "code128": "",
             "supplier_code": row["article"],
             "link": ";".join(others) if others else (row["link"] or ""),
         })

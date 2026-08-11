@@ -506,8 +506,13 @@ async function msLoad(n, keep){
   if (!d.ok){ $("#mslog").textContent = d.error; return false; }
   MS.folders = d.folders;
   // Коды, артикул и связь всегда берём свежие с сервера: они зависят от числа карточек.
-  MS.cards = d.cards.map((c, i) => keep && keep[i] ? {...c, ...Object.fromEntries(
-    KEEP.filter(k => keep[i][k]).map(k => [k, keep[i][k]]))} : c);
+  // Остальное у всех карточек одинаковое, поэтому добавленная карточка берёт правки первой,
+  // а не откатывается к прайсовым значениям.
+  MS.cards = d.cards.map((c, i) => {
+    const src = keep && (keep[i] || keep[0]);
+    return src ? {...c, ...Object.fromEntries(
+      KEEP.filter(k => src[k]).map(k => [k, src[k]]))} : c;
+  });
   $("#mshead").textContent = `${d.supplier} · ${d.article} · ${d.name}`;
   $("#mswarn").textContent = (d.warn || []).join(" · ");
   $("#msnote").textContent = "внешние коды и связь пересчитываются при смене числа";
