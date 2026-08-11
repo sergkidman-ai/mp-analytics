@@ -2169,8 +2169,27 @@ def _novelty_models(rows):
     return out
 
 
+# Остаток к строке новинки — ТОЛЬКО из ПОСЛЕДНЕГО удачного прайса поставщика. Раньше брали
+# последнюю строку по любому прайсу: позиция, выбывшая из наличия, тащила за собой остаток
+# месячной давности и висела в работе. Нет строки в свежем прайсе или пришла без числа —
+# у поставщика её нет.
+NOVELTY_STOCK = """
+    LEFT JOIN LATERAL (
+           SELECT r.qty, r.stock_raw
+             FROM prc_price_row r
+            WHERE r.load_id = (SELECT l.id FROM prc_price_load l
+                                WHERE l.supplier_key = n.supplier_key AND l.status = 'ok'
+                                ORDER BY l.load_date DESC, l.id DESC LIMIT 1)
+              AND upper(r.article) = upper(n.article)
+            ORDER BY r.qty DESC NULLS LAST LIMIT 1) s ON true
+"""
+# Неразобранная строка без остатка человеку не работа: карточку заводить не под что.
+# Из списка её убираем, но не удаляем — вернётся в прайс с остатком, вернётся и в работу.
+IN_STOCK = "(n.decision <> 'pending' OR coalesce(s.qty, 0) > 0)"
+
+
 @app.get("/api/novelties")
-def novelties_api(supplier: str = "", status: str = ""):
+def novelties_api(supplier: str = "", status: str = "", no_stock: bool = False):
     """Новинки с вариантами. status: pending | matched | exists | new | partial | skip | всё.
 
     `exists` строка получает сама: артикул поставщика точно совпал с карточкой МС, товар
@@ -2182,23 +2201,19 @@ def novelties_api(supplier: str = "", status: str = ""):
     """
     where, params = ["1=1"], []
     if supplier:
-        where.append("supplier_key = %s")
+        where.append("n.supplier_key = %s")
         params.append(supplier)
     if status:
-        where.append("decision = %s")
+        where.append("n.decision = %s")
         params.append(status)
+    if not no_stock:
+        where.append(IN_STOCK)
     rows = db.query(f"""
         SELECT n.id, n.supplier_key, n.article, n.name, n.kind, n.color, n.measure, n.chip,
                n.brand, n.price_rub, n.decision, n.ms_code, n.ms_name, n.link,
                n.decided_at::text, n.last_seen::text, s.qty, s.stock_raw
           FROM prc_novelty n
-          LEFT JOIN LATERAL (
-                 SELECT r.qty, r.stock_raw
-                   FROM prc_price_row r
-                   JOIN prc_price_load l ON l.id = r.load_id
-                  WHERE l.supplier_key = n.supplier_key
-                    AND upper(r.article) = upper(n.article)
-                  ORDER BY l.load_date DESC, l.id DESC LIMIT 1) s ON true
+          {NOVELTY_STOCK}
          WHERE {' AND '.join(where)}
          ORDER BY n.decision <> 'pending', n.name
     """, tuple(params))
@@ -2222,13 +2237,19 @@ def novelties_api(supplier: str = "", status: str = ""):
                         price_rub=float(r["price_rub"]) if r["price_rub"] else None,
                         candidates=by_novelty.get(r["id"], []),
                         models=models.get(r["id"], [])))
-    counts = db.query("""SELECT decision, count(*) n FROM prc_novelty
-                          WHERE %s = '' OR supplier_key = %s
-                          GROUP BY decision""", (supplier, supplier))
+    # Плитки считаем по тому же правилу, что и таблицу, иначе цифра «не разобрано» обещает
+    # работу, которой в списке нет. Сколько строк спрятал остаток — отдаём отдельно.
+    counts = db.query(f"""
+        SELECT n.decision, count(*) n, count(*) FILTER (WHERE {IN_STOCK}) shown
+          FROM prc_novelty n
+          {NOVELTY_STOCK}
+         WHERE %s = '' OR n.supplier_key = %s
+         GROUP BY n.decision""", (supplier, supplier))
     suppliers = [r["supplier_key"] for r in
                  db.query("SELECT DISTINCT supplier_key FROM prc_novelty ORDER BY 1")]
-    return {"rows": out, "suppliers": suppliers,
-            "counts": {c["decision"]: c["n"] for c in counts}}
+    hidden = sum(c["n"] - c["shown"] for c in counts)
+    return {"rows": out, "suppliers": suppliers, "hidden_no_stock": 0 if no_stock else hidden,
+            "counts": {c["decision"]: (c["n"] if no_stock else c["shown"]) for c in counts}}
 
 
 @app.get("/api/novelties/waiting")

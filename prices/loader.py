@@ -149,6 +149,13 @@ def classify(rows, profile, rate):
     cards = lookup_by_article([r["article"] for r in rows])
     ready = []
     for row in rows:
+        # Остаток проверяем ПЕРВЫМ, ещё до поиска карточки в МС. Позиции без остатка у
+        # поставщика нет: приходовать нечего, и заводить под неё карточку — тоже. Раньше
+        # проверка стояла после `not_found`, и позиция без остатка, которой нет в МС,
+        # попадала в новинки: у Сакуры так набралось 411 строк из 477 «неразобранных».
+        if not row["qty"]:
+            skipped.append({**row, "reason": "no_stock"})
+            continue
         found = cards.get(row["article"], [])
         if not found:
             skipped.append({**row, "reason": "not_found"})
@@ -169,9 +176,6 @@ def classify(rows, profile, rate):
             continue
         if row["price_raw"] in (None, "", 0):
             skipped.append({**row, "reason": "no_price", "ms_name": ms_name})
-            continue
-        if not row["qty"]:
-            skipped.append({**row, "reason": "no_stock", "ms_name": ms_name})
             continue
         ready.append({**row, "card": card, "ms_name": ms_name,
                       "price_kop": to_kopecks(row["price_raw"], rate)})

@@ -27,6 +27,8 @@
   .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px;padding:10px 0;
        position:sticky;top:0;z-index:5;background:var(--bg)}
   .bar .grow{flex:1}
+  .bar .chk{display:flex;align-items:center;gap:6px;color:var(--mut);font-size:13px;cursor:pointer}
+  .bar .chk input{margin:0}
   select,input,button{font:inherit;color:var(--txt);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
   button{cursor:pointer;font-weight:600}
   button:hover{border-color:var(--acc)}
@@ -201,6 +203,10 @@
       <option value="refillable">перезаправляемые</option>
     </select>
     <input id="q" placeholder="поиск по названию, артикулу, модели">
+    <!-- По умолчанию в работе только то, что у поставщика есть в наличии: под позицию без
+         остатка карточку заводить не под что. Галка возвращает спрятанные строки. -->
+    <label class="chk" title="показать неразобранные строки, которых нет в наличии у поставщика">
+      <input type="checkbox" id="nostock"> и без остатка</label>
     <span class="grow"></span>
     <span class="muted" id="selinfo">отмечено 0</span>
     <button id="bulk-ask" class="paid" disabled title="платный веб-запрос, сначала покажем смету">🌐 Спросить сеть</button>
@@ -263,7 +269,7 @@
 
 <script>
 const $ = s => document.querySelector(s);
-let DATA = [], COUNTS = {};
+let DATA = [], COUNTS = {}, HIDDEN = 0;
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const num = v => v == null ? "" : Number(v).toLocaleString("ru-RU");
@@ -668,14 +674,16 @@ function draw(){
   $("#rows").innerHTML = rows.length ? rows.map(row).join("")
     : `<tr><td colspan="5" class="muted">пусто — по этому фильтру строк нет</td></tr>`;
   $("#all").checked = false;
-  $("#foot").textContent = `показано ${rows.length} из ${DATA.length} загруженных строк`;
+  $("#foot").textContent = `показано ${rows.length} из ${DATA.length} загруженных строк`
+    + (HIDDEN ? ` · скрыто ${HIDDEN} неразобранных без остатка у поставщика` : "");
   wire();
 }
 
 async function load(){
   const supplier = $("#supplier").value || "", status = $("#status").value;
-  const d = await (await fetch(`/api/novelties?supplier=${encodeURIComponent(supplier)}&status=${status}`)).json();
-  DATA = d.rows; COUNTS = d.counts;
+  const d = await (await fetch(`/api/novelties?supplier=${encodeURIComponent(supplier)}` +
+    `&status=${status}&no_stock=${$("#nostock").checked ? 1 : 0}`)).json();
+  DATA = d.rows; COUNTS = d.counts; HIDDEN = d.hidden_no_stock || 0;
   if (!$("#supplier").options.length){
     $("#supplier").innerHTML = `<option value="">все поставщики</option>` +
       d.suppliers.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
@@ -698,6 +706,7 @@ async function load(){
 $("#supplier").onchange = load;
 $("#status").onchange = load;
 $("#kind").onchange = draw;
+$("#nostock").onchange = load;
 $("#q").oninput = draw;
 $("#bulk-new").onclick = () => decide(selected(), "new", "");
 // «Неполный набор» — полка ожидания, а не отказ: цвета доедут — вернём кнопкой «вернуть».
