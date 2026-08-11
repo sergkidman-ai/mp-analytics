@@ -46,6 +46,11 @@
   tbody tr:last-child td:first-child{border-bottom-left-radius:12px}
   tbody tr:last-child td:last-child{border-bottom-right-radius:12px}
   th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  /* Сакура пишет в название список принтеров одной строкой через «/» — до 214 символов без
+     единого пробела («L485/L385/L380/…/L300»). Браузер такой токен не переносит: колонка
+     товара распирает таблицу далеко за экран, и колонка действий уезжает вправо — человеку
+     кажется, что кнопки у строк Сакуры пропали. Разрешаем перенос в любом месте. */
+  td{overflow-wrap:anywhere}
   /* border-collapse:separate — нижнюю границу рисуем сами, иначе она пропадает под шапкой. */
   tbody tr:last-child td{border-bottom:none}
   /* Шапка липнет ПОД панелью действий. Высота панели плавает (кнопки переносятся на вторую
