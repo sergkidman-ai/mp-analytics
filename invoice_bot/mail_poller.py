@@ -144,7 +144,11 @@ def process_message(m, num, engine, kind):
         rep_html = getattr(engine, "format_report_html", None)
         report = rep_html(res) if rep_html else html.escape(engine.format_report(res), quote=False)
         head = html.escape(f"📧 Из почты ({kind}) · {frm[:40]}\nФайл: {fn}", quote=False)
-        tg_send(f"{head}\n\n{report}", parse_mode="HTML")
+        # Канал общего бота читают несколько человек — платежам там не место (решение Сергея
+        # 11.08.2026). Движок, у которого свой адресат (аренда → платёжный бот), помечает себя
+        # `NOTIFY_MAIL_BOT = False`; в общий бот тогда не уходит ничего, даже заголовок.
+        if getattr(engine, "NOTIFY_MAIL_BOT", True):
+            tg_send(f"{head}\n\n{report}", parse_mode="HTML")
         log(f"  {fn}: ok={res.get('ok')} created={res.get('created')} stop={res.get('stop')} err={res.get('error')}")
 
 

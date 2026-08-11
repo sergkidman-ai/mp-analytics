@@ -101,9 +101,20 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     out = run(dry_run=a.dry_run, force=a.force)
+
+    # Сверка с выпиской идёт КАЖДЫЙ день, а не только в день постановки: платёжку человек
+    # подписывает когда угодно, и висящий 'sent_prod' — единственный признак неподписанной.
+    closed = [] if a.dry_run else rc.reconcile()
+    for line in closed:
+        print(line, flush=True)
+
     if not out["fired"] and a.cron:
+        if closed:
+            rc.tg("🏠 Аренда проведена банком:\n" + "\n".join(closed))
         return 0                                   # не свой день — ни лога, ни сводки в TG
     text = report(out)
+    if closed:
+        text += "\n\nПроведено по выписке:\n" + "\n".join(closed)
     print(text, flush=True)
     # В TG идёт только то, что реально произошло: сухой прогон и «сегодня не тот день» —
     # шум, за который канал перестают читать.

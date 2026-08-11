@@ -359,15 +359,17 @@ def mark_executed_drafts(inn, agent_id=None):
     • Черновик ПОД ЗАКАЗЫ (отсрочка / по счёту). Привязка платежа закрывает `payedSum` заказа,
       `_sync_pending` снимает заказ в 'paid' — значит черновик проведён ровно тогда, когда среди
       covers_po_ids не осталось неоплаченных. Ловим ЛЮБОЙ незавершённый статус, не только
-      'sent_prod': 'error' (банк не принял, но счёт оплатили руками) и 'planned' (заплатили
-      раньше, чем поллер отправил) — деньги ушли, черновику в очереди делать нечего.
+      'sent_prod': 'error' (банк не принял, но счёт оплатили руками), 'planned' (заплатили
+      раньше, чем поллер отправил) и 'sent_sandbox' (черновик уехал в песочницу, а платили
+      руками) — деньги ушли, черновику в очереди делать нечего. 'sent_sandbox' в списке не было,
+      и черновик #8 от 29.07 висел незакрытым при полностью оплаченном заказе.
     • АВАНС. Заказов под ним нет, `payedSum` закрывать нечему, поэтому ищем сам платёж: paymentout
       этому контрагенту на ТУ ЖЕ сумму, датированный не раньше черновика. Найденный платёж
       закрепляется за черновиком (`ms_payment_id`, миграция 206) — иначе второй аванс той же
       суммы отметился бы тем же самым платежом.
     """
     done = db.query("""UPDATE payment_draft_queue q SET status='paid'
-        WHERE q.org_inn=%s AND q.inn=%s AND q.status IN ('planned', 'sent_prod', 'error')
+        WHERE q.org_inn=%s AND q.inn=%s AND q.status IN ('planned', 'sent_prod', 'sent_sandbox', 'error')
           AND coalesce(array_length(q.covers_po_ids, 1), 0) > 0
           AND EXISTS (SELECT 1 FROM po_payment_status p WHERE p.po_id = ANY(q.covers_po_ids))
           AND NOT EXISTS (SELECT 1 FROM po_payment_status p
@@ -378,7 +380,7 @@ def mark_executed_drafts(inn, agent_id=None):
     n = len(done)
 
     adv = db.query("""SELECT id, amount::float amount, created_at FROM payment_draft_queue
-        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status IN ('planned', 'sent_prod', 'error')
+        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status IN ('planned', 'sent_prod', 'sent_sandbox', 'error')
         ORDER BY created_at""", (BUYER_INN, inn))
     if not adv:
         return n

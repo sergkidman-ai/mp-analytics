@@ -138,3 +138,44 @@ def queue_draft(org_inn, payee_inn, amount, purpose_text, payee, kind, idem_key,
             cur.execute("SELECT id FROM payment_draft_queue WHERE idem_key=%s", (idem_key,))
             row = cur.fetchone()
             return (row[0] if not isinstance(row, dict) else row["id"]), False
+
+
+# ── закрытие черновиков по выписке ───────────────────────────────────────────────────────────
+def reconcile():
+    """Арендные черновики, деньги по которым реально ушли, перевести в 'paid'. → список строк.
+
+    Обычный черновик закрывает МойСклад: заказ погашен оплатой (`payedSum`) либо под аванс нашёлся
+    `paymentout`. У аренды нет ни заказа, ни строки в `supplier_payment_terms`, поэтому тем путём
+    она не закроется НИКОГДА — статус так и остался бы 'sent_prod' навсегда.
+
+    Здесь источник правды — выписка (`bank_txn`): списание с нашего счёта этому получателю на ту
+    же сумму, датированное не раньше черновика. Проводка закрепляется за черновиком
+    (`bank_txn_id`, миграция 216) — иначе одно списание закрыло бы и аренду, и коммуналку тому же
+    арендодателю. Не нашлось — черновик просто ждёт: значит, человек ещё не подписал платёжку
+    в банке (или выписка за этот день не загружена)."""
+    out = []
+    rows = db.query("""SELECT id, org_inn, inn, amount::float amount, kind, created_at::date born
+                       FROM payment_draft_queue
+                       WHERE kind IN ('rent', 'rent_utility')
+                         AND status IN ('planned', 'sent_prod', 'sent_sandbox', 'error')
+                       ORDER BY created_at, id""")
+    for r in rows:
+        hit = db.query("""SELECT b.id, b.operation_date, b.amount::float amount
+                          FROM bank_txn b
+                          WHERE b.direction='DEBIT' AND b.org_inn=%s AND b.cp_inn=%s
+                            AND abs(b.amount - %s) < 0.01 AND b.operation_date >= %s
+                            AND NOT EXISTS (SELECT 1 FROM payment_draft_queue d
+                                            WHERE d.bank_txn_id = b.id)
+                          ORDER BY b.operation_date, b.id LIMIT 1""",
+                       (r["org_inn"], r["inn"], r["amount"], r["born"]))
+        if not hit:
+            continue
+        t = hit[0]
+        db.execute("""UPDATE payment_draft_queue
+                      SET status='paid', bank_txn_id=%s,
+                          note = coalesce(note || ' | ', '') || %s
+                      WHERE id=%s AND bank_txn_id IS NULL""",
+                   (t["id"], f"проведён по выписке {t['operation_date']:%Y-%m-%d}", r["id"]))
+        out.append(f"#{r['id']} {ORG_TITLE.get(r['org_inn'], r['org_inn'])} · {rub(r['amount'])} "
+                   f"→ проведён по выписке {t['operation_date']:%Y-%m-%d}")
+    return out

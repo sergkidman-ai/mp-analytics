@@ -39,6 +39,9 @@ import payment_send as psend                     # noqa: E402
 from core import db                              # noqa: E402
 
 LOG_KIND = "rent"                 # метка для `proc_log` (mail_poller)
+NOTIFY_MAIL_BOT = False           # в общий бот invoice-bot платежи не шлём (решение Сергея
+                                  # 11.08.2026): суммы и получатели идут только в платёжный бот —
+                                  # сводкой автоотправки, а стопы — из `process` ниже.
 PURPOSE_MAX = 210                 # ограничение поля «Назначение платежа» в платёжном поручении РФ
 MONTHS = {m: i + 1 for i, m in enumerate(rc.MONTHS_GEN)}
 MONTHS.update({m: i + 1 for i, m in enumerate(rc.MONTHS_NOM)})
@@ -168,8 +171,21 @@ def guard_max(payee_inn):
 
 def process(src, create=True):
     """Контракт движка для `mail_poller`: разобрать файл и (при `create`) поставить платёж
-    в очередь. Исключения наружу не выпускаем — почтовый цикл не должен падать из-за одного
-    кривого вложения."""
+    в очередь.
+
+    Успех молчит: черновик назовёт по имени сводка автоотправки в платёжном боте, и дублировать
+    её письмом-отчётом незачем. А вот СТОП говорит сразу — иначе счёт, который предохранитель
+    не пропустил, останется незамеченным до срока оплаты. Ручной разбор (`create=False`) не
+    пишет никому: это отладочный прогон."""
+    res = _process(src, create=create)
+    if create and (res.get("stop") or res.get("error")):
+        rc.tg("🏠 Счёт аренды: платёж НЕ создан\n" + format_report(res))
+    return res
+
+
+def _process(src, create=True):
+    """Разбор и постановка. Исключения наружу не выпускаем — почтовый цикл не должен падать
+    из-за одного кривого вложения."""
     res = {"ok": False, "created": False, "stop": False, "error": None, "warns": [],
            "inv": {}, "draft_id": None}
     try:
