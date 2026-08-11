@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 load_dotenv("/opt/mp-analytics/.env")
 import invoice_to_po as pipe          # счёт → «Заказ поставщику»
 import upd_to_supply as upd_pipe       # УПД  → «Приёмка»
+import rent_invoice as rent_pipe        # счёт арендодателя → черновик платёжки (заказ НЕ создаём)
 import proc_log
 
 HOST = os.getenv("MAIL_HOST", "").strip()
@@ -34,6 +35,7 @@ PASS = os.getenv("MAIL_PASS", "").strip()
 FOLDER = os.getenv("MAIL_FOLDER", "INBOX").strip()          # папка счетов → движок заказа
 FOLDER_UPD = os.getenv("MAIL_FOLDER_UPD", "").strip()       # папка УПД → движок приёмки (пусто = выкл)
 FOLDER_SPRINT = os.getenv("MAIL_FOLDER_SPRINT", "").strip() # папка ГТД-реестров Спринта → тот же движок (авто-детект)
+FOLDER_RENT = os.getenv("MAIL_FOLDER_RENT", "").strip()     # папка счетов арендодателя → движок платежа (пусто = выкл)
 POLL = int(os.getenv("MAIL_POLL_SEC", "60"))
 TOKEN = os.getenv("TG_BOT_TOKEN", "").strip()
 NOTIFY = [x.strip() for x in os.getenv("TG_NOTIFY_ID", "").split(",") if x.strip()] or \
@@ -132,7 +134,10 @@ def process_message(m, num, engine, kind):
         path = os.path.join(INBOX, safe)
         open(path, "wb").write(data)
         res = engine.process(path, create=True)
-        proc_log.log_event("invoice" if engine is pipe else "upd", "mail", fn, frm, res)
+        # Метка журнала — у движка (`LOG_KIND`), а не по цепочке `if engine is …`: движков стало
+        # три, и очередной новый молча уезжал бы в чужую категорию журнала.
+        proc_log.log_event(getattr(engine, "LOG_KIND", "invoice" if engine is pipe else "upd"),
+                           "mail", fn, frm, res)
         if fn.lower().endswith((".xls", ".xlsx")) and res.get("ok"):
             done_stems.add(_stem(fn))       # Excel обработан → его PDF-двойник далее пропустим
         # жирным: группа поставщика, покупатель, сумма (у УПД своей html-версии нет — просто экранируем)
@@ -178,6 +183,8 @@ def main():
         routes.append((FOLDER_UPD, upd_pipe, "УПД→Приёмка"))
     if FOLDER_SPRINT:
         routes.append((FOLDER_SPRINT, upd_pipe, "Спринт ГТД→Приёмка"))
+    if FOLDER_RENT:
+        routes.append((FOLDER_RENT, rent_pipe, "Аренда→Платёжка"))
     log(f"mail-poller запущен: {USER}@{HOST}, интервал {POLL}с, notify={NOTIFY or 'НЕТ'}, "
         f"папки: {', '.join(f'{f} [{k}]' for f, _, k in routes)}")
     while True:
