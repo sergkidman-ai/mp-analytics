@@ -57,7 +57,7 @@ def sync(normalized, apply=False):
     return bank_ms.sync(normalized, apply=apply, org_inn=ORG_INN,
                         expense_item=EXPENSE_ITEM,
                         since=os.getenv("SBER_MS_SINCE") or None,
-                        link_fn=bank_ms.link_supplies)
+                        link_fn=bank_ms.link_supplies, link_in_fn=bank_ms.link_orders)
 
 
 def run(date_from, date_to, accs=None, apply=False):
