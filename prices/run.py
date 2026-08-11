@@ -27,15 +27,15 @@ OUT_DIR = Path(__file__).resolve().parent.parent / "docs" / "prc"
 
 
 def read_source(profile, file_path):
-    """(bytes прайса, имя файла, откуда взят)."""
+    """(bytes прайса, имя файла, откуда взят, письмо | None)."""
     if file_path:
         path = Path(file_path)
-        return path.read_bytes(), path.name, "file"
+        return path.read_bytes(), path.name, "file", None
     from .mailbox import fetch_latest_price          # импорт здесь: без почты работает --file
     letter = fetch_latest_price(profile.mail_folder, pattern=profile.file_pattern)
     if not letter:
         raise SystemExit(f"в папке «{profile.mail_folder}» нет письма с прайсом")
-    return letter["content"], letter["filename"], "mail"
+    return letter["content"], letter["filename"], "mail", letter
 
 
 def price_rub(raw, rate):
@@ -119,7 +119,7 @@ def main(argv=None):
 
     profile = get_profile(args.supplier)
     moment = now_msk()
-    content, filename, source_kind = read_source(profile, args.file)
+    content, filename, source_kind, letter = read_source(profile, args.file)
 
     rows, header_row = parse(content, profile)
     rate, rate_date = effective_rate(moment.date(), profile.currency, profile.markup)
@@ -220,6 +220,14 @@ def main(argv=None):
         except Exception as exc:
             status, error = "error", str(exc)[:2000]
             print(f"  ОШИБКА: {error}")
+        # Прайс лёг в МС — письмо помечаем прочитанным (задача Сергея 11.08): в почте сразу
+        # видно, что забрано. Только после удачной записи и только не на сухом прогоне —
+        # иначе наш отладочный прогон скрыл бы от человека необработанное письмо.
+        if status == "ok" and letter:
+            from .mailbox import mark_seen
+            done = mark_seen(profile.mail_folder, letter.get("imap_uid"))
+            print(f"    письмо «{letter['subject'][:60]}»: "
+                  + ("помечено прочитанным" if done else "пометить прочитанным НЕ удалось"))
     else:
         print("  сухой прогон: в МойСклад ничего не записано (нужен --apply)")
 
