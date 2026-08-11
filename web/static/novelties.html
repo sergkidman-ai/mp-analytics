@@ -36,8 +36,18 @@
   button.paid{border-color:#7aa2ff;color:#7aa2ff}
   button:disabled{opacity:.45;cursor:default}
   #q{width:230px}
-  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  /* Без `overflow:hidden`: обрезающий предок делает себя скроллпортом для липкой шапки —
+     та начинает липнуть внутри таблицы и накрывает первую строку товара. Скругление углов
+     держим на самих крайних ячейках. */
+  table{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);
+        border:1px solid var(--line);border-radius:12px}
+  thead tr:first-child th:first-child{border-top-left-radius:12px}
+  thead tr:first-child th:last-child{border-top-right-radius:12px}
+  tbody tr:last-child td:first-child{border-bottom-left-radius:12px}
+  tbody tr:last-child td:last-child{border-bottom-right-radius:12px}
   th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  /* border-collapse:separate — нижнюю границу рисуем сами, иначе она пропадает под шапкой. */
+  tbody tr:last-child td{border-bottom:none}
   /* Шапка липнет ПОД панелью действий. Высота панели плавает (кнопки переносятся на вторую
      строку на узком экране), поэтому отступ не фиксированный, а замеренный — иначе шапка
      уезжает под панель и верхняя строка таблицы не читается. */
