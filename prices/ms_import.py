@@ -376,6 +376,24 @@ def _folders():
     return out
 
 
+def next_external_codes(n=1):
+    """Следующие свободные 4-значные внешние коды, N штук подряд.
+
+    Максимум берём из нашего слепка `ms_product`, но каждый кандидат ещё и спрашиваем у МС:
+    слепок собирается раз в сутки, а карточки за это время заводят и руками.
+    """
+    from core import ms_api
+    last = query("SELECT max(external_code::int) m FROM ms_product "
+                 "WHERE external_code ~ '^[0-9]{4}$'")[0]["m"] or 0
+    out = []
+    while len(out) < n:
+        last += 1
+        if ms_api.get("/entity/product", {"filter": f"externalCode={last}", "limit": 1}).get("rows"):
+            continue
+        out.append(str(last))
+    return out
+
+
 def create_in_ms(records, supplier_id, dry=True, log=print):
     """Создать карточки в МС. Существующий артикул не трогаем — только пропускаем.
 
@@ -386,9 +404,13 @@ def create_in_ms(records, supplier_id, dry=True, log=print):
     folders, created, skipped = _folders(), [], []
     for rec in records:
         article = rec["Артикул"]
-        found = ms_api.get("/entity/product", {"filter": f"article={article}", "limit": 1})
+        # Артикул поставщика ставится только на ГЛАВНУЮ карточку позиции: если один универсальный
+        # картридж закрывает несколько наших товаров, у остальных карточек артикула нет —
+        # тогда на дубли проверяем по коду (он уникален по определению).
+        field, value = ("article", article) if article else ("code", rec["Код"])
+        found = ms_api.get("/entity/product", {"filter": f"{field}={value}", "limit": 1})
         if found.get("rows"):
-            skipped.append((article, "артикул уже есть в МС"))
+            skipped.append((value, f"{'артикул' if article else 'код'} уже есть в МС"))
             continue
         folder = folders.get(rec["Группы"])
         if not folder:
@@ -396,7 +418,7 @@ def create_in_ms(records, supplier_id, dry=True, log=print):
             continue
         body = {
             "name": rec["Наименование"], "description": rec["Описание"],
-            "code": rec["Код"], "externalCode": rec["Внешний код"], "article": article,
+            "code": rec["Код"], "externalCode": rec["Внешний код"],
             "vat": VAT, "vatEnabled": True, "useParentVat": False,
             "uom": ms_api.ref("uom", UOM_PCS),
             "country": ms_api.ref("country", COUNTRY_CN),
@@ -408,6 +430,8 @@ def create_in_ms(records, supplier_id, dry=True, log=print):
                 "type": ATTRS[col][1], "value": rec[col],
             } for col in ATTRS if rec.get(col) not in (None, "")],
         }
+        if article:                       # пустой артикул в МС не отправляем — не пустое поле, а его отсутствие
+            body["article"] = article
         if rec["Вес"]:
             body["weight"] = float(rec["Вес"])
         if rec["Закупочная цена"] != "":

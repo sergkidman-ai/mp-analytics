@@ -126,6 +126,23 @@
         border-radius:12px;padding:18px 22px;max-width:560px}
   .mbox h3{margin:0 0 8px;font-size:15px}
   .mbox .mact{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+  /* Диалог заведения карточек в МС: полей много, поэтому окно шире и со своей прокруткой. */
+  .mbox.wide{border-left-color:var(--acc);max-width:880px;width:92vw;max-height:88vh;
+             display:flex;flex-direction:column}
+  .mbox.wide .body{overflow:auto;margin:0 -22px;padding:0 22px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+  .card.main{border-color:var(--acc)}
+  .card h4{margin:0 0 8px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .card h4 label{font-weight:400;color:var(--mut);font-size:12px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .grid .f{display:flex;flex-direction:column;gap:2px}
+  .grid .f.w2{grid-column:span 2}
+  .grid .f.w4{grid-column:span 4}
+  .grid .f span{font-size:11px;color:var(--mut)}
+  .grid input,.grid select{background:var(--bg);color:var(--txt);border:1px solid var(--line);
+                           border-radius:6px;padding:4px 6px;font:inherit;font-size:12px;width:100%}
+  .mslog{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12px;margin:10px 0 0}
+  .mswarn{color:var(--warn);font-size:12px;margin:6px 0 0}
 </style>
 </head>
 <body>
@@ -210,6 +227,29 @@
     <div class="mact">
       <button id="mcancel">Отмена</button>
       <button id="mgo" class="pri">Запустить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Заведение карточек в МойСкладе: одна позиция прайса -> одна или несколько НАШИХ карточек
+     (универсальный картридж закрывает несколько наших товаров). Артикул поставщика — только
+     у главной, остальные связаны с ней через доп.поле «Связь». -->
+<div class="modal" id="msmodal" hidden>
+  <div class="mbox wide">
+    <h3>➕ Завести карточки в МойСкладе</h3>
+    <p class="note" id="mshead"></p>
+    <p class="mswarn" id="mswarn"></p>
+    <div class="body">
+      <p style="margin:6px 0"><label>карточек из этой позиции:
+        <input id="mscount" type="number" min="1" max="10" value="1" style="width:60px"></label>
+        <span class="muted" id="msnote"></span></p>
+      <div id="mscards"></div>
+      <p class="mslog" id="mslog"></p>
+    </div>
+    <div class="mact">
+      <button id="mscancel">Закрыть</button>
+      <button id="msdry">Проба</button>
+      <button id="msgo" class="pri">Создать в МС</button>
     </div>
   </div>
 </div>
@@ -321,6 +361,7 @@ function row(r){
       <button class="save pri">Это он</button>
       <button class="mknew new">NEW</button>
       <button class="mkpartial" title="в прайсе не все цвета серии — ждём остальные">Неполный набор</button>
+      <button class="toms" title="завести карточку (или несколько) в МойСкладе">➕ В МС</button>
       <button class="paid" disabled title="сеть спрашиваем только по строкам NEW — тем, которым заводим карточку">🌐 сеть</button>
       <button class="black danger" title="артикул в чёрный список">ЧС</button>
     </div>
@@ -334,6 +375,8 @@ function row(r){
        ${r.ms_code ? ` <b>${esc(r.ms_code)}</b> <span class="muted">${esc(r.ms_name || "")}</span>` : ""}
        ${r.decision === "new" ? `<button class="ask paid" style="margin-left:8px"
             title="платный веб-запрос по моделям строки">🌐 сеть</button>` : ""}
+       ${r.decision === "new" && !r.ms_code ? `<button class="toms" style="margin-left:8px"
+            title="завести карточку (или несколько) в МойСкладе">➕ В МС</button>` : ""}
        <button class="undo" style="margin-left:8px">вернуть</button>
        <div class="pick" style="margin-top:6px">
          <span class="muted">связь</span>
@@ -407,6 +450,106 @@ async function toBlacklist(ids, msg){
   await post("/api/novelties/blacklist", {ids}, msg);
 }
 
+// --- заведение карточек в МС ----------------------------------------------------------
+// Диалог не создаёт ничего сам: сервер отдаёт черновик полей, человек правит, «Проба»
+// показывает, что уйдёт в МС, и только «Создать» пишет. Коды не резервируются — занятость
+// перепроверяется на создании.
+let MS = {id: null, cards: [], folders: [], main: 0, msg: null};
+const KEEP = ["name", "description", "folder", "weight", "buy_price", "wb", "code128", "supplier_code"];
+
+function msCardHtml(c, i){
+  const opts = MS.folders.map(f =>
+    `<option ${f === c.folder ? "selected" : ""}>${esc(f)}</option>`).join("");
+  const fld = (cls, label, value, span) =>
+    `<label class="f ${span || ""}"><span>${label}</span><input class="${cls}" value="${esc(value)}"></label>`;
+  return `<div class="card ${i === MS.main ? "main" : ""}" data-i="${i}">
+    <h4>Карточка ${i + 1} · ${esc(c.code)}
+      <label><input type="radio" name="msmain" ${i === MS.main ? "checked" : ""}> главная (артикул поставщика)</label></h4>
+    <div class="grid">
+      ${fld("f-ec", "Внешний код", c.external_code)}
+      ${fld("f-code", "Код", c.code)}
+      ${fld("f-art", "Артикул", c.article, "w2")}
+      ${fld("f-name", "Наименование", c.name, "w4")}
+      ${fld("f-descr", "Описание (пусто = наименование)", c.description, "w4")}
+      <label class="f w2"><span>Группа МС</span><select class="f-folder">
+        <option value="">— выбрать —</option>${opts}</select></label>
+      ${fld("f-weight", "Вес, кг", c.weight)}
+      ${fld("f-price", "Закупочная цена, ₽", c.buy_price)}
+      ${fld("f-wb", "Название WB", c.wb, "w2")}
+      ${fld("f-bc", "Штрихкод Code128", c.code128)}
+      ${fld("f-sup", "Код поставщика", c.supplier_code)}
+      ${fld("f-link", "Связь", c.link, "w4")}
+    </div></div>`;
+}
+
+function msCollect(){
+  return [...$("#mscards").querySelectorAll(".card")].map(el => {
+    const v = cls => (el.querySelector("." + cls).value || "").trim();
+    return {external_code: v("f-ec"), code: v("f-code"), article: v("f-art"), name: v("f-name"),
+            description: v("f-descr"), folder: v("f-folder"), weight: v("f-weight"),
+            buy_price: v("f-price"), wb: v("f-wb"), code128: v("f-bc"),
+            supplier_code: v("f-sup"), link: v("f-link")};
+  });
+}
+
+function msRender(){
+  $("#mscards").innerHTML = MS.cards.map(msCardHtml).join("");
+  $("#mscards").querySelectorAll("input[name=msmain]").forEach((rb, i) => {
+    rb.onchange = () => { MS.cards = msCollect(); MS.main = i; msRender(); };
+  });
+}
+
+async function msLoad(n, keep){
+  const d = await (await fetch(`/api/novelties/ms-form?id=${MS.id}&n=${n}`)).json();
+  if (!d.ok){ $("#mslog").textContent = d.error; return false; }
+  MS.folders = d.folders;
+  // Коды, артикул и связь всегда берём свежие с сервера: они зависят от числа карточек.
+  MS.cards = d.cards.map((c, i) => keep && keep[i] ? {...c, ...Object.fromEntries(
+    KEEP.filter(k => keep[i][k]).map(k => [k, keep[i][k]]))} : c);
+  $("#mshead").textContent = `${d.supplier} · ${d.article} · ${d.name}`;
+  $("#mswarn").textContent = (d.warn || []).join(" · ");
+  $("#msnote").textContent = "внешние коды и связь пересчитываются при смене числа";
+  msRender();
+  return true;
+}
+
+async function msSend(dry){
+  $("#mslog").textContent = dry ? "проба…" : "создаём в МойСкладе…";
+  const body = {id: MS.id, cards: msCollect(), main_index: MS.main, dry};
+  const out = await (await fetch("/api/novelties/ms-create", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)})).json();
+  if (!out.ok){
+    $("#mslog").textContent = (out.errors || [out.error]).join("\n");
+    return;
+  }
+  $("#mslog").textContent = (out.log || []).join("\n")
+    + (out.skipped && out.skipped.length ? "\nпропущено: " + out.skipped.join("; ") : "");
+  if (!dry){
+    if (MS.msg){ MS.msg.textContent = `создано карточек: ${out.created}`; MS.msg.className = "msg pos"; }
+    setTimeout(() => { $("#msmodal").hidden = true; load(); }, 1200);
+  }
+}
+
+async function toMs(id, msg){
+  MS = {id, cards: [], folders: [], main: 0, msg};
+  $("#mscount").value = 1;
+  $("#mslog").textContent = "";
+  $("#msmodal").hidden = false;
+  await msLoad(1);
+}
+$("#mscancel").onclick = () => { $("#msmodal").hidden = true; };
+$("#mscount").onchange = async e => {
+  const n = Math.max(1, Math.min(10, Number(e.target.value) || 1));
+  e.target.value = n;
+  const keep = msCollect();
+  if (MS.main >= n) MS.main = 0;
+  await msLoad(n, keep);
+};
+$("#msdry").onclick = () => msSend(true);
+$("#msgo").onclick = () => {
+  if (confirm(`Создать ${MS.cards.length} карточк(и) в МойСкладе? Действие живое.`)) msSend(false);
+};
+
 function wire(){
   $("#rows").querySelectorAll("tr[data-id]").forEach(tr => {
     const id = Number(tr.dataset.id), msg = tr.querySelector(".msg");
@@ -431,6 +574,8 @@ function wire(){
     if (mkpartial) mkpartial.onclick = () => decide([id], "partial", "", msg, link.value);
     const ask = tr.querySelector(".ask");
     if (ask) ask.onclick = () => askNet([id], msg);
+    const toms = tr.querySelector(".toms");
+    if (toms) toms.onclick = () => toMs(id, msg);
     const black = tr.querySelector(".black");
     if (black) black.onclick = () => toBlacklist([id], msg);
     const undo = tr.querySelector(".undo");

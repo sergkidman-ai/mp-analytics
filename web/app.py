@@ -2455,6 +2455,223 @@ def novelties_blacklist(payload: NoveltyIds):
     return {"ok": True, "n": len(rows), "added": added}
 
 
+# --- новинка -> карточки в МойСкладе ---------------------------------------------------
+# Строка `matched` доезжает до карточки сама (`ms_import.build`: всё о товаре берётся у родни
+# по внешнему коду). У новинки родни нет — поля заполняет человек, а мы подставляем черновик.
+_MS_FOLDERS = {}                       # папки МС правят раз в год, тянуть их на каждый диалог незачем
+MS_CARDS_MAX = 10                      # больше десятка наших товаров на одну строку прайса не бывает
+
+
+def _ms_folders(refresh=False):
+    from prices import ms_import
+    if refresh or not _MS_FOLDERS:
+        _MS_FOLDERS.clear()
+        _MS_FOLDERS.update(ms_import._folders())
+    return _MS_FOLDERS
+
+
+def _folder_guess(brand, folders):
+    """Папка бренда принтера: «Kyocera» -> «Картриджи/Картриджи Kyocera Mita». Не нашли — пусто."""
+    from prices.ms_import import GROUP_PREFIX
+    first = re.split(r"[,/]", brand or "")[0].strip().lower()
+    if not first:
+        return ""
+    hits = [p for p in folders
+            if p.startswith(GROUP_PREFIX) and first in p.rsplit("/", 1)[-1].lower()]
+    return min(hits, key=len) if hits else ""
+
+
+def _ms_free(field, value):
+    """Код/внешний код свободен? Спрашиваем и слепок, и живой МС (слепок суточной давности)."""
+    from core import ms_api
+    column = {"code": "code", "externalCode": "external_code"}[field]
+    if db.query(f"SELECT 1 FROM ms_product WHERE upper({column}) = upper(%s) LIMIT 1", (value,)):
+        return False
+    return not ms_api.get("/entity/product", {"filter": f"{field}={value}", "limit": 1}).get("rows")
+
+
+@app.get("/api/novelties/ms-form")
+def novelties_ms_form(id: int, n: int = 1):
+    """Черновик карточек для строки новинки: N блоков полей + список папок МС.
+
+    Ничего не создаёт и не резервирует: коды подставлены на момент открытия диалога,
+    занятость перепроверяется при создании.
+    """
+    from prices import ms_import
+    from prices.profiles import get_profile
+    found = db.query("""SELECT id, supplier_key, article, name, brand, price_rub, link,
+                               decision, ms_code
+                          FROM prc_novelty WHERE id = %s""", (id,))
+    if not found:
+        return {"ok": False, "error": "строки не найдено"}
+    row = found[0]
+    n = max(1, min(int(n or 1), MS_CARDS_MAX))
+    try:
+        profile = get_profile(row["supplier_key"])
+        abbr = ms_import.suffix(row["article"], row["supplier_key"])
+    except (KeyError, ValueError) as exc:
+        return {"ok": False, "error": f"поставщик {row['supplier_key']}: {exc}"}
+
+    warn = []
+    weight, source = ms_import.weight_from_dims(
+        [row["article"]], only=ms_import.DIMS_SUPPLIER.get(profile.key))
+    if not weight:
+        weight, source = ms_import.weight_from_dims([row["article"]])
+    if not weight:
+        warn.append("веса нет ни в прайсе поставщика, ни у других поставщиков — заполнить руками")
+    wb, wb_note = ms_import.wb_name(row["name"])
+    if wb_note:
+        warn.append(wb_note)
+    folders = _ms_folders()
+    folder = _folder_guess(row["brand"], folders)
+    if not folder:
+        warn.append(f"папка по бренду «{row['brand'] or '—'}» не угадалась — выбрать руками")
+    codes = ms_import.next_external_codes(n)
+    numbers = [c.zfill(4) for c in codes]
+    cards = []
+    for i, ext in enumerate(codes):
+        others = [x for x in numbers if x != ext.zfill(4)]
+        cards.append({
+            "external_code": ext, "code": f"{ext}{abbr}",
+            "article": row["article"] if i == 0 else "",
+            "name": row["name"] if i == 0 else "", "description": row["name"] if i == 0 else "",
+            "folder": folder, "weight": weight or "",
+            "buy_price": float(row["price_rub"]) if row["price_rub"] is not None else "",
+            "wb": wb if i == 0 else "", "code128": "",
+            "supplier_code": row["article"],
+            "link": ";".join(others) if others else (row["link"] or ""),
+        })
+    return {"ok": True, "id": row["id"], "supplier": profile.title,
+            "article": row["article"], "name": row["name"], "n": n,
+            "weight_source": source or "", "warn": warn,
+            "folders": sorted(p for p in folders if p.startswith(ms_import.GROUP_PREFIX)),
+            "cards": cards}
+
+
+class MsCard(BaseModel):
+    external_code: str
+    code: str
+    article: str = ""
+    name: str
+    description: str = ""
+    folder: str
+    weight: str = ""
+    buy_price: str = ""
+    wb: str = ""
+    code128: str = ""
+    supplier_code: str = ""
+    link: str = ""
+
+
+class MsCreate(BaseModel):
+    id: int
+    cards: list[MsCard]
+    main_index: int = 0
+    dry: bool = True
+
+
+@app.post("/api/novelties/ms-create")
+def novelties_ms_create(payload: MsCreate):
+    """Создать карточки МС по строке новинки. `dry` — показать, что ушло бы, ничего не писать.
+
+    Атомарности нет: МС создаёт по одной карточке. Оборвались на середине — уже созданные
+    остаются, ответ перечисляет что создано и на чём встали. Повтор безопасен: занятые коды
+    отсекает проверка.
+    """
+    from prices import ms_import
+    from prices.profiles import get_profile
+    found = db.query("SELECT id, supplier_key, article, name FROM prc_novelty WHERE id = %s",
+                     (payload.id,))
+    if not found:
+        return {"ok": False, "error": "строки не найдено"}
+    row = found[0]
+    cards = payload.cards
+    if not 1 <= len(cards) <= MS_CARDS_MAX:
+        return {"ok": False, "error": f"карточек должно быть от 1 до {MS_CARDS_MAX}"}
+    if not 0 <= payload.main_index < len(cards):
+        return {"ok": False, "error": "не указана главная карточка"}
+    profile = get_profile(row["supplier_key"])
+    folders = _ms_folders()
+
+    errors, seen = [], set()
+    for i, c in enumerate(cards):
+        tag = c.code or c.external_code or f"карточка {i + 1}"
+        article = (c.article or "").strip()
+        if i == payload.main_index and not article:
+            errors.append(f"{tag}: у главной карточки должен быть артикул поставщика")
+        if i != payload.main_index and article:
+            errors.append(f"{tag}: артикул ставится только на главную карточку")
+        if not (c.name or "").strip():
+            errors.append(f"{tag}: пустое наименование")
+        if not re.fullmatch(r"\d{4}", (c.external_code or "").strip()):
+            errors.append(f"{tag}: внешний код — четыре цифры")
+        if not (c.code or "").strip():
+            errors.append(f"{tag}: пустой код")
+        if c.folder not in folders:
+            errors.append(f"{tag}: папки «{c.folder}» нет в МС")
+        for field, value in (("Вес", c.weight), ("Закупочная цена", c.buy_price)):
+            if str(value).strip():
+                try:
+                    float(str(value).replace(",", "."))
+                except ValueError:
+                    errors.append(f"{tag}: {field} «{value}» — не число")
+        for key in (("ec", c.external_code), ("code", c.code)):
+            if key in seen:
+                errors.append(f"{tag}: {key[1]} повторяется в этом же диалоге")
+            seen.add(key)
+        if re.fullmatch(r"\d{4}", (c.external_code or "").strip()) and not _ms_free("externalCode", c.external_code):
+            errors.append(f"{tag}: внешний код {c.external_code} уже занят")
+        if (c.code or "").strip() and not _ms_free("code", c.code):
+            errors.append(f"{tag}: код {c.code} уже занят")
+    if errors:
+        return {"ok": False, "error": "; ".join(errors[:6]), "errors": errors}
+
+    def number(value):
+        return str(value).replace(",", ".").strip()
+
+    def rec(i, c):
+        return {
+            "Группы": c.folder, "Код": c.code.strip(), "Внешний код": c.external_code.strip(),
+            "Наименование": c.name.strip(), "Описание": (c.description or c.name).strip(),
+            "Артикул": c.article.strip() if i == payload.main_index else "",
+            "Доп. поле: Код поставщика": (c.supplier_code or "").strip(),
+            "Единица измерения": ms_import.UOM,
+            "Закупочная цена": number(c.buy_price) if str(c.buy_price).strip() else "",
+            "НДС": ms_import.VAT,
+            "Поставщик": ms_import.MS_SUPPLIER.get(profile.key, profile.title),
+            "Вес": number(c.weight) if str(c.weight).strip() else "",
+            "Страна": ms_import.COUNTRY,
+            "Доп. поле: Гарантия/ Срок службы": ms_import.WARRANTY,
+            "Доп. поле: Название WB": (c.wb or "").strip(),
+            "Штрихкод Code128": (c.code128 or "").strip(),
+            "Доп. поле: Связь": (c.link or "").strip(),
+        }
+
+    records = [rec(i, c) for i, c in enumerate(cards)]
+    lines = []
+    try:
+        created, skipped = ms_import.create_in_ms(records, profile.supplier_ids[0],
+                                                  dry=payload.dry, log=lines.append)
+    except Exception as exc:                       # МС ответил ошибкой на середине пачки
+        return {"ok": False, "error": f"МойСклад: {type(exc).__name__}: {exc}", "log": lines}
+    if payload.dry:
+        return {"ok": True, "dry": True, "log": lines, "n": len(records)}
+
+    main = cards[payload.main_index]
+    made = {code: ms_id for ms_id, code, _ in created}
+    if made.get(main.code.strip()):
+        db.execute("""UPDATE prc_novelty
+                         SET decision = 'new', ms_code = %s, ms_id = %s, ms_name = %s,
+                             link = %s, decided_at = now()
+                       WHERE id = %s""",
+                   (main.code.strip(), made[main.code.strip()], main.name.strip(),
+                    ";".join(c.external_code.strip().zfill(4) for c in cards) or None,
+                    payload.id))
+    return {"ok": True, "dry": False, "log": lines, "created": len(created),
+            "skipped": [f"{a}: {why}" for a, why in skipped],
+            "ms_code": main.code.strip() if made.get(main.code.strip()) else None}
+
+
 @app.get("/api/warehouse")
 def warehouse_api():
     """Наш сток: наши склады + Озон ФБО (supplier_stock) + ВБ ФБО (wb_stocks), с дневной дельтой.

@@ -4,7 +4,7 @@ sys.path.insert(0, "/opt/mp-analytics")
 from dotenv import load_dotenv; load_dotenv("/opt/mp-analytics/.env")
 import openpyxl
 from core import ms_api
-from prices.ms_import import family, wb_name, query
+from prices.ms_import import family, wb_name, query, next_external_codes
 from prices import features as F
 from prices.catalog import compare, FEATURE_NAMES
 from prices.novelty import kind
@@ -49,9 +49,7 @@ by_code = ms_by("code", {r["Код"] for r in rows})
 by_art  = ms_by("article", {r["Артикул"] for r in rows})
 kin     = family(ecs)
 
-last = query("SELECT max(external_code::int) m FROM ms_product WHERE external_code ~ '^[0-9]{4}$'")[0]["m"]
-while ms_api.get("/entity/product", {"filter": f"externalCode={last+1}", "limit": 1}).get("rows"):
-    last += 1
+last = int(next_external_codes(1)[0]) - 1        # первый свободный минус один = последний занятый
 
 # суффикс кода → бренд/поставщик живых карточек
 sfx = {r["Код"][len(r["Внешний код"]):] for r in rows if r["Код"].startswith(r["Внешний код"])}
