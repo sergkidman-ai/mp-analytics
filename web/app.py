@@ -2659,9 +2659,11 @@ def novelties_ms_create(payload: MsCreate):
 
     main = cards[payload.main_index]
     made = {code: ms_id for ms_id, code, _ in created}
+    # Карточка создана — строка больше не работа: помечаем `exists` («товар в МС есть»), иначе
+    # заведённая позиция вечно висела бы среди новых моделей. В `link` — номера всех карточек.
     if made.get(main.code.strip()):
         db.execute("""UPDATE prc_novelty
-                         SET decision = 'new', ms_code = %s, ms_id = %s, ms_name = %s,
+                         SET decision = 'exists', ms_code = %s, ms_id = %s, ms_name = %s,
                              link = %s, decided_at = now()
                        WHERE id = %s""",
                    (main.code.strip(), made[main.code.strip()], main.name.strip(),
