@@ -289,7 +289,8 @@ def link_new(payments, apply=False):
         row = (f"{(p.get('moment') or '')[:10]} №{p.get('name')} "
                f"{(p.get('agent') or {}).get('name', '')[:28]} "
                f"{(p.get('sum') or 0) / 100:.2f} ₽ → {st}: {note}")
-        (lines if st in ("partial", "error") else quiet).append(row)
+        # в «громкие» идёт всё, что требует внимания: сделанное/предлагаемое и разбор руками
+        (lines if st in ("linked", "would-link", "partial", "error") else quiet).append(row)
     return stats, lines, quiet
 
 
