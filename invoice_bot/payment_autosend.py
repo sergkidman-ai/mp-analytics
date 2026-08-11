@@ -39,7 +39,9 @@ from core import db                              # noqa: E402
 PAUSE_SEC = 1.0        # пауза между платёжками: банку хватает, а прогон всё равно секундный
 KINDS_RU = {"prepayment_order": "предоплата по счёту",
             "deferred_batch": "отсрочка (пачка)",
-            "advance": "аванс"}
+            "advance": "аванс",
+            "rent": "аренда помещения",
+            "rent_utility": "коммунальные услуги по счёту"}
 
 
 def enabled():
@@ -121,7 +123,9 @@ def autosend(org_inns=None, kinds=None, dry_run=None, limit=None, actor="cron", 
     out = {"total": len(rows), "sent": 0, "errors": 0, "skipped": 0, "amount": 0.0,
            "rows": [], "by_org": {}}
     for i, r in enumerate(rows):
-        who = names.get(r["inn"], r["inn"])
+        # Имя получателя: условия оплаты → реквизиты самого черновика (у аренды поставщика
+        # в `supplier_payment_terms` нет, и в сводку падал голый ИНН) → ИНН как последний шанс.
+        who = names.get(r["inn"]) or (r.get("payee") or {}).get("payeeName") or r["inn"]
         amount = float(r["amount"])
         org = r.get("org_inn") or (orgs[0] if len(orgs) == 1 else "")
         st = out["by_org"].setdefault(org, {"sent": 0, "errors": 0, "skipped": 0,
