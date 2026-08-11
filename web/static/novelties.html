@@ -73,6 +73,10 @@
   .ok{color:var(--pos);font-weight:700}
   .miss{color:var(--warn)}
   .verdict{font-size:11px;color:var(--mut);margin-top:3px}
+  /* Ответ сервера — под кнопками строки, во всю ширину колонки: отказ должен читаться,
+     а не теряться в узкой колонке у правого края. Пустой блок места не занимает. */
+  .msg{display:block;margin-top:6px;font-size:12px;line-height:1.45}
+  .msg:empty{display:none}
   /* Сетка сверки: шесть признаков строки прайса против выбранной карточки, значения рядом. */
   .cmp{margin-top:5px;font-size:11px;border-collapse:collapse;width:100%;max-width:420px}
   .cmp th{position:static;background:none;padding:0 6px 2px 0;text-align:left;font-size:10px;
@@ -222,9 +226,8 @@
       <th style="width:30%">Товар поставщика</th>
       <th style="width:34%">Модели и разведка</th>
       <th>Наш товар</th>
-      <th style="width:88px"></th>
     </tr></thead>
-    <tbody id="rows"><tr><td colspan="5" class="muted">загрузка…</td></tr></tbody>
+    <tbody id="rows"><tr><td colspan="4" class="muted">загрузка…</td></tr></tbody>
   </table>
   <p class="note" id="foot"></p>
   <!-- Лист ожидания стоит ПОД таблицей: это напоминание, а не работа дня — сверху он
@@ -407,8 +410,10 @@ function row(r){
           ${esc(r.article)}${r.price_rub ? " · " + num(r.price_rub) + " ₽" : ""}${stock ? " · " + stock : ""}</div>
         <div class="feat">${esc(feats(r))} <span class="muted">· ${esc(r.supplier_key)}</span></div></td>
     <td>${modelCell(r)}</td>
-    <td>${pick}</td>
-    <td><span class="msg muted"></span></td>
+    <!-- Ответ сервера показываем ПОД кнопками, а не отдельной колонкой у правого края:
+         в узкой колонке отказ («кода нет в каталоге») человек просто не замечал и читал
+         это как «кнопка не работает». -->
+    <td>${pick}<div class="msg muted"></div></td>
   </tr>`;
 }
 
@@ -585,7 +590,12 @@ function wire(){
     }
     const link = tr.querySelector(".link");
     const save = tr.querySelector(".save");
-    if (save) save.onclick = () => decide([id], "matched", code.value, msg, link.value);
+    // Приоритет у поля «код»: человек мог вписать номер руками и забыть переключить список
+    // на «— ввести код вручную —». Привязываем к тому, что он ВПЕЧАТАЛ; выпадающий список
+    // подставляется только когда поле пустое. Пробелы срезаем — вставка из буфера часто
+    // приносит их с собой, и код перестаёт находиться в каталоге.
+    const chosen = () => (code.value.trim() || (sel ? sel.value : "")).trim();
+    if (save) save.onclick = () => decide([id], "matched", chosen(), msg, link.value);
     const mknew = tr.querySelector(".mknew");
     if (mknew) mknew.onclick = () => decide([id], "new", "", msg, link.value);
     const mkpartial = tr.querySelector(".mkpartial");
@@ -672,7 +682,7 @@ function shown(){
 function draw(){
   const rows = shown();
   $("#rows").innerHTML = rows.length ? rows.map(row).join("")
-    : `<tr><td colspan="5" class="muted">пусто — по этому фильтру строк нет</td></tr>`;
+    : `<tr><td colspan="4" class="muted">пусто — по этому фильтру строк нет</td></tr>`;
   $("#all").checked = false;
   $("#foot").textContent = `показано ${rows.length} из ${DATA.length} загруженных строк`
     + (HIDDEN ? ` · скрыто ${HIDDEN} неразобранных без остатка у поставщика` : "");

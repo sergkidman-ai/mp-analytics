@@ -2309,11 +2309,16 @@ class NoveltyLink(BaseModel):
 
 def _find_goods(code):
     """Карточка по коду товара. Человек мыслит товаром («6058»), а код карточки — с суффиксом
-    поставщика (6058sk, 6058hb): принимаем обе формы и берём самую короткую карточку товара."""
+    поставщика (6058sk, 6058hb): принимаем обе формы и берём самую короткую карточку товара.
+
+    Внешний код смотрим тоже: номер товара живёт именно там (у 1179msk/1179spb/1179dsk он
+    один — «1179»), и карточка с нестандартным суффиксом иначе не нашлась бы.
+    """
     found = db.query("""SELECT ms_id, code, name FROM ms_product
                          WHERE NOT archived AND (upper(code) = upper(%s)
-                            OR code ~* ('^' || %s || '[a-z]*$'))
-                         ORDER BY length(code), code LIMIT 1""", (code, code))
+                            OR code ~* ('^' || %s || '[a-z]*$')
+                            OR upper(external_code) = upper(%s))
+                         ORDER BY length(code), code LIMIT 1""", (code, code, code))
     return found[0] if found else None
 
 
@@ -2348,7 +2353,11 @@ def novelties_decide(payload: NoveltyDecision):
             return {"ok": False, "error": "нужен код товара"}
         item = _find_goods(code)
         if not item:
-            return {"ok": False, "error": f"кода «{code}» нет в каталоге МС"}
+            # Человек вводит номер товара руками, поэтому отказ должен говорить, что делать:
+            # молчаливое «нет в каталоге» он читает как «кнопка не работает».
+            return {"ok": False, "error": f"кода «{code}» нет в каталоге МС: не нашлось ни "
+                    f"карточки с кодом {code}*, ни товара с внешним кодом {code}. Проверьте "
+                    f"номер или заведите карточку кнопкой «➕ В МС»"}
     link, error = _novelty_link(payload.link)
     if error:
         return {"ok": False, "error": f"связь: {error}"}
