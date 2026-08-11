@@ -7,6 +7,14 @@
      запись при `ALFA_MS_APPLY=1` (+ `ALFA_ENV=prod`), включена 2026-07-28.
   2. **Сбер**, ООО «ДИСКВЭР» — без привязки; запись при `SBER_MS_APPLY=1`, по умолчанию
      dry-run (платежи Дисквэра пока заводит человек). См. `run_sber()`.
+Обе стороны денег замыкаются на документы: расход → приёмка (`alfa_link`), приход → заказ
+покупателя (`bank_in_link`, с 11.08.2026).
+
+Кроме ночного прогона есть ВНУТРИДНЕВНОЙ: `--today` каждые 30 минут в рабочие часы (крон
+`7,37 5-17 * * *` UTC = 08:07…20:37 МСК). Он тянет выписку за сегодня и заводит деньги в МС
+почти сразу, а не следующим утром; тяжёлый добор привязок в нём выключен. Опрос чаще выписки
+выбран вместо вебхуков Альфы осознанно (решение Сергея 11.08.2026): вебхук требует смены
+зарегистрированного `redirect_uri` на публичный домен — это заявка в банк, а не код.
 
 Расписание (crontab). ВНИМАНИЕ: **`CRON_TZ` этим cron НЕ поддерживается** (`3.0pl1-137ubuntu3`,
 система `Etc/UTC`; проверено 2026-07-28 по syslog — строка `CRON_TZ=Europe/Moscow` стояла и была
@@ -14,6 +22,9 @@
 Запуск — из deploy-worktree на main, а не из основного чекаута (там часто ветка чужого потока):
     0 4 * * * cd /opt/mp-analytics/.deploy/inv && { git checkout --detach -q main 2>/dev/null; \
         /opt/mp-analytics/venv/bin/python run_inv.py; } >> /opt/mp-analytics/alfa_statement.log 2>&1
+    7,37 5-17 * * * cd /opt/mp-analytics/.deploy/inv && \
+        /opt/mp-analytics/venv/bin/python run_inv.py --today >> /opt/mp-analytics/alfa_statement.log 2>&1
+Минуты НЕ круглые (7 и 37) намеренно: на :00 у банков пик запросов от всех клиентов сразу.
 
 Счета — в .env: `ALFA_ACCOUNT` (песочница) / `ALFA_ACCOUNT_PROD` (бой), выбор по `ALFA_ENV`;
 в каждой можно несколько через запятую.
@@ -33,6 +44,7 @@ crontab при этом трогать не нужно. Бой включён 20
     ./venv/bin/python run_inv.py                 # за вчера
     ./venv/bin/python run_inv.py 2026-07-21      # за конкретную дату
     ./venv/bin/python run_inv.py --days 7        # добор за последние 7 дней (по вчера)
+    ./venv/bin/python run_inv.py --today         # за СЕГОДНЯ, лёгкий (без добора привязок)
 """
 import os
 import sys
@@ -120,6 +132,8 @@ def dates(argv):
             pos.append(a)
     if pos:
         return [pos[0]]
+    if "--today" in argv:                                 # внутридневной прогон, см. main()
+        return [dt.datetime.now(MSK).date().isoformat()]
     yday = dt.datetime.now(MSK).date() - dt.timedelta(days=1)
     return [(yday - dt.timedelta(days=k)).isoformat() for k in range(days - 1, -1, -1)]
 
@@ -153,6 +167,9 @@ def run_day(account, date, apply):
     link_part = f"привязано к приёмкам {stats.get('linked', 0)}"
     if stats.get("link_errors"):
         link_part += f", на ручную {stats['link_errors']}"
+    link_part += f" | к заказам покупателей {stats.get('linked_in', 0)}"
+    if stats.get("link_in_errors"):
+        link_part += f", на ручную {stats['link_in_errors']}"
     log(f"счёт {account} {date}: операций {len(ops)} | "
         f"приход {stats['paymentin']} / расход {stats['paymentout']} | "
         f"уже в МС {stats['existing']}, до отсечки {stats['before_cutoff']}, "
@@ -204,8 +221,9 @@ def run_sber(days):
     Предохранитель СВОЙ, не альфовский: пишем только при `SBER_MS_APPLY=1`. По умолчанию
     dry-run — платежи Дисквэра сейчас заводит человек, и на замере 01.07–02.08 все 81
     операция уже была в МС; прогон нужен, чтобы в логе было видно, если ручной ввод отстал.
-    Привязки к приёмкам у Сбера нет: мосты «назначение → приёмка» написаны под поставщиков
-    Цифрового Квадрата (см. docs/BRIEF_INV.md, открытый вопрос 5).
+    Привязки у Сбера работают тем же движком, что у Альфы, и режутся по юрлицу платежа:
+    расход → приёмка (`alfa_link`, включено 02.08.2026), приход → заказ покупателя
+    (`bank_in_link`, 11.08.2026).
 
     → ошибок записи (сбой контура Сбера не должен ронять уже отработавшую Альфу)."""
     apply = os.getenv("SBER_MS_APPLY") == "1"
@@ -216,11 +234,15 @@ def run_sber(days):
     store_txns(ops, "sber", sber_ms.ORG_INN, f"Сбер {days[0]}…{days[-1]}")
     for msg in (stats.get("error_msgs") or [])[:10]:
         log(f"  ✗ Сбер: {msg}")
+    for msg in (stats.get("link_msgs") or [])[:10]:
+        log(f"  ⚠ Сбер, привязка вручную: {msg}")
     log(f"Сбер {days[0]}…{days[-1]}: операций {len(ops)} | "
         f"приход {stats['paymentin']} / расход {stats['paymentout']} | "
         f"уже в МС {stats['existing']}, до отсечки {stats['before_cutoff']}, "
         f"игнор {stats['ignored']} | контрагент: найден {stats['matched']}, "
         f"создан {stats['created']}, будет создан {stats['would_create']} | "
+        f"привязано к приёмкам {stats.get('linked', 0)} | "
+        f"к заказам покупателей {stats.get('linked_in', 0)} | "
         f"ошибок {stats['errors']}"
         + ("" if apply else "  [DRY-RUN: SBER_MS_APPLY≠1]"))
     return stats["errors"]
@@ -229,7 +251,13 @@ def run_sber(days):
 def main(argv):
     apply, why = apply_mode()
     accs, days = accounts(), dates(argv)
-    log(f"старт inv: счетов {len(accs)}, дат {len(days)} ({days[0]}…{days[-1]}) — {why}")
+    # `--today` — лёгкий внутридневной прогон (крон каждые 30 мин): выписка за СЕГОДНЯ → МС →
+    # привязка обеих сторон в момент записи. Добор привязок и он же самый дорогой шаг здесь не
+    # нужен: он про предоплату, ушедшую раньше поставки, а такое за полдня не «дозревает» —
+    # его делает ночной прогон.
+    light = "--today" in argv
+    log(f"старт inv{' [--today]' if light else ''}: счетов {len(accs)}, дат {len(days)} "
+        f"({days[0]}…{days[-1]}) — {why}")
 
     total_ops = total_err = failed = 0
     for account in accs:
@@ -243,10 +271,11 @@ def main(argv):
                 log(f"ОШИБКА счёт {account} {date}: {type(e).__name__}: {e}")
                 traceback.print_exc()
 
-    try:
-        relink(apply)
-    except Exception as e:
-        log(f"ОШИБКА добора привязок: {type(e).__name__}: {e}")   # не роняем прогон: деньги записаны
+    if not light:
+        try:
+            relink(apply)
+        except Exception as e:
+            log(f"ОШИБКА добора привязок: {type(e).__name__}: {e}")  # не роняем: деньги записаны
 
     try:
         total_err += run_sber(days)

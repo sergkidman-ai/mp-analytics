@@ -268,8 +268,29 @@ def link_supplies(payment, stats):
     # no-match (комиссии банка, авансы без номеров в назначении) — штатно, молча
 
 
+def link_orders(payment, stats):
+    """Привязать созданный ВХОДЯЩИЙ платёж к заказам покупателей (движок — `bank_in_link`).
+
+    Зеркало `link_supplies` для денег покупателей: мост «номер счёта в назначении → счёт
+    покупателю → его заказ». Сбой привязки так же не роняет уже записанный платёж."""
+    try:
+        from bank_in_link import link_payment                # сосед по каталогу
+        status, note = link_payment(payment, apply=True)
+    except Exception as e:                                # noqa: BLE001 — см. link_supplies
+        stats["link_in_errors"] += 1
+        stats["link_msgs"].append(f"приход №{payment.get('name')}: {type(e).__name__}: {e}")
+        return
+    if status == "linked":
+        stats["linked_in"] += 1
+    elif status in ("partial", "error"):
+        stats["link_in_errors"] += 1
+        stats["link_msgs"].append(
+            f"приход №{payment.get('name')} {payment.get('sum', 0)/100:.2f} ₽ → {note}")
+    # no-match (маркетплейсы, переводы между своими счетами, эквайринг) — штатно, молча
+
+
 def sync(normalized, apply=False, org_inn=None, expense_item="Закупка товаров",
-         since=None, link_fn=None):
+         since=None, link_fn=None, link_in_fn=None):
     """Нормализованные операции выписки → МойСклад.
 
     org_inn      — ИНН организации-владельца счёта (её же ставим фильтром антидубля);
@@ -278,13 +299,16 @@ def sync(normalized, apply=False, org_inn=None, expense_item="Закупка т�
                    заводились руками);
     link_fn      — необязательный колбэк (payment, stats) для привязки исходящего платежа
                    к приёмкам; штатное значение — `link_supplies` (см. выше), None выключает
-                   привязку для контура.
+                   привязку для контура;
+    link_in_fn   — то же для входящего платежа (штатно `link_orders`): деньги покупателя →
+                   его заказ.
     """
     org = resolve_org(org_inn)
     stats = {"paymentin": 0, "paymentout": 0, "matched": 0, "created": 0,
              "would_create": 0, "errors": 0, "existing": 0, "before_cutoff": 0, "ignored": 0,
              "error_msgs": [],         # тексты ошибок МС — иначе крон-лог немой (был «ошибок 3»)
-             "linked": 0, "link_errors": 0, "link_msgs": []}   # привязка платежей к приёмкам
+             "linked": 0, "link_errors": 0, "link_msgs": [],   # привязка платежей к приёмкам
+             "linked_in": 0, "link_in_errors": 0}              # …и приходов к заказам покупателей
     plan = []
     idx_cache = {}
     for op in normalized:
@@ -348,6 +372,8 @@ def sync(normalized, apply=False, org_inn=None, expense_item="Закупка т�
                 written = True
                 if typ == "paymentout" and link_fn:
                     link_fn(resp, stats)                 # замкнуть контур: платёж → приёмка
+                elif typ == "paymentin" and link_in_fn:
+                    link_in_fn(resp, stats)              # …и обратный: приход → заказ покупателя
             else:
                 stats["errors"] += 1
                 stats["error_msgs"].append(
