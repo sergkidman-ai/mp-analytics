@@ -43,6 +43,13 @@ from core import db                          # noqa: E402
 # Атом модели: [серия][-]цифры[суффикс]. Серия приклеена вплотную (через дефис можно), через ПРОБЕЛ —
 # уже не серия: «MFP 3103fdw» в разных карточках пишут и «LaserJet Pro 3103fdw», ядром служат цифры.
 _ATOM_RX = re.compile(r"(?<![A-Za-z0-9])(?:([A-Za-z]{1,6})-?)?(\d{2,5})([A-Za-z]{0,6})(?![A-Za-z0-9])")
+# Серия, отбитая от числа ПРОБЕЛОМ («Lexmark MX 420» = MX420). В индексе такие буквы серией не
+# считаются (см. выше — в карточках через пробел пишут линейку), но в ВОПРОСЕ покупателя это почти
+# всегда его модель: без склейки от неё остаётся голое «420», а оно цепляет и чужие бренды, и
+# посторонние числа из описаний. Склейка живёт ТОЛЬКО в запросе (_spaced_models), индекс не трогает.
+_SPACED_RX = re.compile(r"(?<![A-Za-z0-9])([A-Za-z]{1,5})\s+(\d{2,5})([A-Za-z]{0,6})(?![A-Za-z0-9])")
+# буквы, которые серией не бывают: линейка/тип устройства, приклеивать их к числу нельзя
+_SERIES_STOP = {"mfp", "mfu", "pro", "max", "plus", "the", "for", "and", "new", "sale", "set"}
 # единицы измерения сразу после числа → это не модель, а ресурс/объём/цена
 _UNIT_RX = re.compile(r"^\s*(?:стр|страниц|листов|копий|мл\b|г\b|гр\b|кг\b|мм\b|см\b|шт\b|руб|₽|%|"
                       r"dpi|ppm|мин\b|год|лет|дн\b|мес)", re.I)
@@ -99,6 +106,11 @@ def _brand_positions(text):
     return out
 
 
+def brands_in(text):
+    """Множество брендов, названных в тексте (нормализованных). Пусто — бренд не назван."""
+    return {b for _, b in _brand_positions(text)}
+
+
 def parse_models(text, allow_bare=False, default_brand=None):
     """Текст → список моделей [{brand, core, norm, raw, series, digits, suffix}].
 
@@ -129,6 +141,53 @@ def parse_models(text, allow_bare=False, default_brand=None):
         out.append({"brand": brand, "core": core, "norm": norm, "raw": m.group(0).strip(),
                     "series": series.lower(), "digits": digits, "suffix": suffix.lower()})
     return out
+
+
+def _spaced_models(text):
+    """Модели из запроса, у которых серия отбита пробелом («MX 420» → mx420). Бренд — ближайший слева."""
+    t = text or ""
+    brands = _brand_positions(t)
+    out, seen = [], set()
+    for m in _SPACED_RX.finditer(t):
+        series, digits, suffix = m.group(1).lower(), m.group(2), (m.group(3) or "").lower()
+        if series in BRANDS or series in _BRAND_RU.values() or series in _SERIES_STOP:
+            continue                                   # «Canon 647Cdw» — это бренд, а не серия
+        if _UNIT_RX.match(t[m.end():m.end() + 12]) or 1900 <= int(digits) <= 2099:
+            continue
+        norm = series + digits + suffix
+        if norm in seen:
+            continue
+        seen.add(norm)
+        brand = None
+        for pos, b in brands:
+            if pos < m.start() and m.start() - pos <= 60:
+                brand = b
+        out.append({"brand": brand, "core": series + digits, "norm": norm, "raw": m.group(0).strip(),
+                    "series": series, "digits": digits, "suffix": suffix})
+    return out
+
+
+def query_models(text, models=None):
+    """Модели ДЛЯ ПОИСКА из вопроса покупателя (+ модели карточки).
+
+    Отличия от `parse_models`: (1) серия через пробел склеивается и идёт ПЕРВОЙ — она точнее;
+    (2) голое число подавляется, если та же цифра уже пришла со склеенной серией («MX 420» ищем как
+    mx420 и НЕ ищем как 420: иначе ловится любой 420 из чужих описаний, включая другой бренд);
+    (3) моделям без своего бренда проставляется бренд из контекста вопроса.
+    """
+    ctx = brands_in(text or "")
+    default_brand = next(iter(ctx)) if len(ctx) == 1 else None
+    spaced = _spaced_models(text or "")
+    glued = {q["digits"] for q in spaced}
+    qs = spaced + [q for q in parse_models(text or "", allow_bare=True)
+                   if not (not q["series"] and not q["suffix"] and q["digits"] in glued)]
+    for extra in (models or []):
+        known = {x["norm"] for x in qs}
+        qs += [m for m in parse_models(extra, allow_bare=True, default_brand=default_brand)
+               if m["norm"] not in known]
+    for q in qs:
+        q["brand"] = q["brand"] or default_brand
+    return qs
 
 
 def compat_segments(text):
@@ -455,6 +514,12 @@ def _brand_ok(row_brand, q_brand, strict):
     return not (row_brand and q_brand and row_brand != q_brand)
 
 
+def _ctx_ok(row_brand, ctx):
+    """Бренд карточки против брендов, названных в вопросе. Покупатель сказал «Lexmark» — карточка
+    под Canon не подходит НИКОГДА, каким бы ярусом её ни нашли (в т.ч. по голому числу)."""
+    return not (ctx and row_brand and row_brand not in ctx)
+
+
 def _tier_rows(q, platform, accounts):
     """Ярусы поиска: точная норма → ядро без суффикса → без серии (с брендом) → голые цифры (с брендом).
 
@@ -489,16 +554,16 @@ def lookup(text, platform=None, kind=None, accounts=None, color_syn=None, exclud
     color_syn — синонимы цвета: если заданы, оставляем только листинги с цветом в названии.
     models — дополнительные модели (из карточки товара), если в вопросе модели нет.
     """
-    qs = parse_models(text or "", allow_bare=True)
-    for extra in (models or []):
-        qs += [m for m in parse_models(extra, allow_bare=True) if m["norm"] not in {x["norm"] for x in qs}]
+    qs = query_models(text or "", models)
     if not qs:
         return []
+    ctx = brands_in(text or "")
     hits, seen, banned = [], set(), set()
     for q in qs[:4]:
         rows = []
         for where, params, strict in _tier_rows(q, platform, accounts):
-            rows = [r for r in _fetch(where, params) if _brand_ok(r["brand"], q["brand"], strict)]
+            rows = [r for r in _fetch(where, params)
+                    if _brand_ok(r["brand"], q["brand"], strict) and _ctx_ok(r["brand"], ctx)]
             if kind_strict and kind:      # спросили фотобарабан — точное совпадение суффикса не
                 rows = [r for r in rows if r["item_kind"] == kind]   # повод остановиться на тонерах
             if rows:

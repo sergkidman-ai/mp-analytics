@@ -117,6 +117,15 @@ def _model_tokens(text):
     return out[:6]
 
 
+def _brand_clash(title, brands):
+    """Название листинга называет ДРУГОЙ бренд, чем контекст запроса → это не наш случай.
+    Спрашивали Lexmark — «Картридж для Canon Pixma MX420» не предлагаем, даже если номер совпал."""
+    if not brands:
+        return False
+    tb = compat_index.brands_in(title or "")
+    return bool(tb) and not (tb & brands)
+
+
 def _detect_color(text):
     low = (text or "").lower()
     for col, rx in _COLOR_TRIG.items():
@@ -396,7 +405,7 @@ def catalog_offer(text, product_name="", card_models=None, platform=None):
     return {"ref": ref, "url": url, "title": (h["title"] or "")[:80], "platform": h["platform"]}
 
 
-def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=None):
+def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=None, context=""):
     """Поиск НАШИХ листингов ПО КОДУ КАРТРИДЖА (не по модели принтера). Нужен для «каталог-после-веба»:
     веб определил, какой картридж нужен принтеру покупателя (напр. T0731-T0734, 222A, CLP-510D7K) —
     ищем его у нас и предлагаем площадочный артикул. codes — str или list. color — ключ цвета (уважаем,
@@ -405,6 +414,9 @@ def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=N
     if isinstance(codes, str):
         codes = [codes]
     excl = {re.sub(r"[\s-]", "", e).upper() for e in (exclude or []) if e}
+    # бренд из вопроса/карточки и из самого текста-источника кодов: код-подобным токеном сюда попадает
+    # и МОДЕЛЬ ПРИНТЕРА («MX420»), а голый ILIKE по названию не различает брендов
+    brands = compat_index.brands_in(" ".join([context or ""] + [c or "" for c in codes]))
     # вытащить код-подобные токены из строк («серия T0731-T0734» → T0731, T0734; «222A» → 222A)
     code_toks = []
     for c in codes or []:
@@ -421,6 +433,8 @@ def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=N
             # листинг, в НАЗВАНИИ которого исключённый код — это наш же несовместимый товар, пропускаем
             tnorm = re.sub(r"[\s-]", "", (h["title"] or "")).upper()
             if any(e in tnorm for e in excl):
+                continue
+            if _brand_clash(h["title"], brands):
                 continue
             seen.add(key)
             hits.append(h)

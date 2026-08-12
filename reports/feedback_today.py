@@ -404,7 +404,8 @@ def _our_offer(reply, question, product_name, models, platform, card_code=None, 
                    if not re.search(r"не\s+подход|не\s+подойд|не\s+совмест|не\s+взаимозамен|"
                                     r"разн\w+\s+(?:сери|поколен|устройств)", s, re.I))
     off = catalog_by_code(pos, platform=platform, color=color,
-                          exclude=[card_code] if card_code else None, exclude_id=item_id)
+                          exclude=[card_code] if card_code else None, exclude_id=item_id,
+                          context=(question or "") + " " + (product_name or ""))
     if not off:
         off = catalog_offer(question or "", product_name or "", models, platform)
     return off
