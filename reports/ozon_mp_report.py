@@ -71,7 +71,8 @@ def _svc_line(n):
     if "Redistribution" in n:       return "partners"
     if "PremiumCashback" in n or "IndividualPoints" in n: return "promo"
     if "Storage" in n or "MovementFromWarehouse" in n or "CargoAssortment" in n: return "fbo"
-    if "VolumeWeight" in n or "Disposal" in n: return "penalty"
+    # утилизация, обеспечение упаковочными материалами → ЛК держит их в «Других услугах»
+    if "VolumeWeight" in n or "Disposal" in n or "PackageMaterialsProvision" in n: return "penalty"
     return "delivery"
 
 
@@ -85,6 +86,10 @@ def _resid_line(ot):
     # приходит одной строкой за месяц и раньше гасила собой строку `other` (июль-2026 acc1: 18 795.28
     # против 32 353.00 переотправок → в отчёте оставалось 13 558 вместо 30 614)
     if "flexiblepaymentschedule" in o:                                    return "penalty"
+    # «Досрочная выплата» — тоже платная услуга Ozon, но в имени сидит `Accrual`, и правило
+    # «claim/compensation/accrual → compensation» ниже утаскивало её РАСХОД в приход «Компенсаций»
+    # (июль-2026 acc1: 114 193.91 поверх реальных 25 591 → в отчёте выходило 88 603)
+    if "earlypaymentaccrual" in o:                                        return "penalty"
     # частичная компенсация ПОКУПАТЕЛЮ — это не наша компенсация от Ozon, а списание; ЛК держит её
     # в «Прочих начислениях» (проверка июль-2026 acc1: 32 353.00 − 1 738.63 = 30 614.37)
     if "partialcompensationtoclient" in o:                                return "other"
