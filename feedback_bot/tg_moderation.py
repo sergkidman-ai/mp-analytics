@@ -110,7 +110,7 @@ def _pending(limit=5, days=None, kind=None):
     days = WINDOW_DAYS if days is None else days
     return db.query("""SELECT m.id, m.platform, m.account, m.kind, m.ext_id,
         f.product_name, f.body, f.pros, f.cons, f.rating, f.created_at,
-        f.draft_text, f.draft_route, f.draft_grounding
+        f.item_id, f.article, f.draft_text, f.draft_route, f.draft_grounding
         FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
              AND f.kind=m.kind AND f.ext_id=m.ext_id
@@ -196,6 +196,51 @@ def _mode_banner(account):
     return "🔴 <b>БОЕВОЙ РЕЖИМ</b> — по ✅ ответ уйдёт покупателю сразу (без дневного лимита)\n" + fact
 
 
+# ИДЕНТИФИКАЦИЯ ТОВАРА В КАРТОЧКЕ (правило Сергея 12.08.2026). Первая строка блока о товаре —
+# НАШ внутренний артикул (external_code МойСклада): по нему владелец сразу узнаёт товар, тогда как
+# площадочный номер (nmID/SKU/offerId) ему ни о чём не говорит. Дальше — площадочный артикул и имя.
+_PLAT_ART_LABEL = {"wb": "артикул ВБ", "ozon": "Ozon SKU", "yandex": "offerId Яндекса"}
+_PLAT_SUFFIX_RX = re.compile(r"^(\d{3,6})[A-Za-z0-9]{6,10}$")
+
+
+def _internal_art(platform, article, item_id):
+    """Наш внутренний артикул. WB vendorCode и offerId Яндекса — это он и есть, иногда с площадочным
+    случайным хвостом ('00281LR4TANV' → '00281'); у Ozon в raw_feedback артикула нет вовсе, берём
+    offer_id по sku. Срез хвоста неоднозначен по длине — кандидаты сверяем с ms_product и выбираем
+    самый длинный известный; не нашли — отдаём как есть, лучше приблизительный код, чем пусто."""
+    raw = str(article or "").strip()
+    if not raw and platform == "ozon" and item_id:
+        r = db.query("SELECT offer_id FROM ozon_product WHERE sku::text=%s LIMIT 1", (str(item_id),))
+        raw = str(r[0]["offer_id"]).strip() if r else ""
+    if not raw:
+        return None
+    cands = [raw]
+    m = _PLAT_SUFFIX_RX.match(raw)
+    if m:
+        d = m.group(1)
+        cands += [d[:k] for k in range(len(d), 2, -1)]
+    try:
+        known = {x["external_code"] for x in
+                 db.query("SELECT DISTINCT external_code FROM ms_product WHERE external_code = ANY(%s)",
+                          (cands,))}
+    except Exception:
+        known = set()
+    for c in cands:
+        if c in known:
+            return c
+    return cands[1] if len(cands) > 1 else raw
+
+
+def _product_block(row):
+    """Блок о товаре: внутренний артикул → площадочный → название."""
+    e = html.escape
+    ours = _internal_art(row.get("platform"), row.get("article"), row.get("item_id"))
+    plat = str(row.get("item_id") or "—")
+    label = _PLAT_ART_LABEL.get(row.get("platform"), "артикул площадки")
+    head = f"🏷 <b>Наш артикул: {e(ours)}</b>" if ours else "🏷 <b>Наш артикул: не сшит</b>"
+    return f"{head} · {label} {e(plat)}\n📦 {e(row.get('product_name') or '')[:90]}"
+
+
 def _card(row):
     e = html.escape
     note = ""
@@ -219,7 +264,8 @@ def _card(row):
     else:
         head = "❓ <b>Вопрос</b>"
         txt = (row.get('body') or '').strip()
-    return (f"{banner}{head} · {e(row['platform'])} · 📅 {ds} · {e(row.get('product_name') or '')[:70]}\n\n"
+    return (f"{banner}{head} · {e(row['platform'])} · 📅 {ds}\n"
+            f"{_product_block(row)}\n\n"
             f"<b>Покупатель:</b> {e(txt)[:600]}\n\n"
             f"<b>Наш ответ:</b>\n{e((row.get('draft_text') or '').strip())[:1500]}{note}")
 
