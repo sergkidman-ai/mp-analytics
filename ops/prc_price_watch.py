@@ -7,6 +7,11 @@
 решение «грузить или нет» принимает письмо: грузим ровно тогда, когда в папке появилось
 письмо свежее уже обработанного.
 
+Обратная сторона: прайс приходит раз в день, и после созданного оприходования ходить в почту
+до вечера незачем — сторож ставит замок на сутки (`done_today`). Замок снимает удачная
+загрузка ТОЛЬКО сегодняшнего письма; после отмены по аномалиям слежка продолжается, чтобы
+поймать исправленный прайс того же дня.
+
 Состояние — свой файл в `logs/`, а НЕ журнал `prc_price_load`: загрузка, отменённая
 проверкой аномалий, до журнала не доходит, и по журналу сторож считал бы такое письмо
 вечно новым и дёргал бы Сергея каждые полчаса.
@@ -25,7 +30,7 @@ import os
 import re
 import sys
 import contextlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
@@ -48,6 +53,7 @@ TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
 TG_LIMIT = 3900
 # Почта моргает; будить человека первым же таймаутом незачем, а молчать сутки — нельзя.
 MAIL_ALERT_AFTER = 3                                   # подряд неудач ≈ 1.5 часа без почты
+MSK = timezone(timedelta(hours=3))                     # часы сервера UTC, сутки считаем по Москве
 
 
 def log(path, text):
@@ -118,6 +124,23 @@ def is_new(letter, state):
     return new_dt == old_dt and letter["filename"] != state.get("filename")
 
 
+def done_today(state):
+    """Сегодняшний прайс этого поставщика уже превращён в оприходование?
+
+    Решение Сергея 12.08.2026: поставщик присылает прайс один раз в день, и после созданного
+    оприходования смотреть его почту сегодня незачем. Поэтому при удачной загрузке письма
+    СЕГОДНЯШНЕГО дня (по Москве) сторож до завтра в почту не ходит.
+
+    Считаем только удачу (`result == 0`): отменённую по аномалиям загрузку разбирает человек,
+    и переприсланный тем же днём исправленный прайс поймать надо — за ним и следим дальше.
+    Обойти замок можно `--force`.
+    """
+    if not state or state.get("result") != 0:
+        return False
+    dt = letter_dt(state)
+    return dt is not None and dt.astimezone(MSK).date() == datetime.now(MSK).date()
+
+
 def run_load(key, dry):
     """Прогон загрузки. -> (текст вывода, код). SystemExit — это отказ по правилу, не сбой."""
     from prices import run as prices_run
@@ -185,6 +208,14 @@ def main(argv=None):
     profile = get_profile(args.supplier)
     logfile = LOG_DIR / f"prc_price_watch_{profile.key}.log"
 
+    # Замок на сутки ставим ДО почты: незачем открывать IMAP-сессию каждые полчаса до вечера,
+    # когда сегодняшний прайс уже оприходован.
+    state = read_state(profile.key)
+    if done_today(state) and not args.force:
+        log(logfile, f"сегодняшний прайс уже загружен ({state.get('filename')}, "
+                     f"{state.get('date')}) — до завтра в почту не хожу")
+        return 0
+
     fails = LOG_DIR / f"prc_price_watch_{profile.key}_mailfail.txt"
     try:
         letter = fetch_latest_price(profile.mail_folder, pattern=profile.file_pattern)
@@ -205,7 +236,6 @@ def main(argv=None):
         log(logfile, f"в папке «{profile.mail_folder}» писем с прайсом нет")
         return 0
 
-    state = read_state(profile.key)
     if not (args.force or is_new(letter, state)):
         log(logfile, f"письмо не новое ({letter['filename']}, {letter['date']}) — пропуск")
         return 0
