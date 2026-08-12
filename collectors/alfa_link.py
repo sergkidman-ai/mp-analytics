@@ -576,11 +576,23 @@ def unlinked_sum(payment):
     return (payment.get("sum") or 0) - sum(_ops_map(payment.get("operations")).values())
 
 
-def payments_since(since, limit=100):
+def payments_since(since, limit=100, until=None, purpose=None):
     """Исходящие платежи с даты `since`, ПОСТРАНИЧНО. Постранично не для красоты: исходящих
-    ~100 в месяц, и на широком окне добора авансов одна страница молча обрезала бы хвост."""
+    ~100 в месяц, и на широком окне добора авансов одна страница молча обрезала бы хвост.
+
+    `until` и `purpose` — отбор на СТОРОНЕ МС, а не у нас (замер 12.08.2026): страница
+    `paymentout` с `expand=agent,operations` стоит ~5 с, и добор за 90 дней тянул 431 платёж
+    (5 страниц, 33 с) ради 72 нужных. Широкое окно существует только ради авансов с остатком,
+    а «аванс» — слово в назначении (`_ADVANCE`), значит его умеет отфильтровать сам МС:
+    `paymentPurpose~аванс` (сравнение регистронезависимое, сверено — та же выборка авансов).
+    """
     out, off = [], 0
-    flt = urllib.parse.quote(f"moment>={since} 00:00:00", safe="=;:")
+    terms = [f"moment>={since} 00:00:00"]
+    if until:
+        terms.append(f"moment<{until} 00:00:00")
+    if purpose:
+        terms.append(f"paymentPurpose~{purpose}")
+    flt = urllib.parse.quote(";".join(terms), safe="=;:")
     while True:
         page = get(f"/entity/paymentout?filter={flt}"
                    f"&expand=agent,operations&limit={limit}&offset={off}")
