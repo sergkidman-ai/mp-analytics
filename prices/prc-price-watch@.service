@@ -1,0 +1,16 @@
+[Unit]
+Description=Прайсы поставщиков (%i): новое письмо -> оприходование в МойСклад (поток prc)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+# %i — ключ профиля из prices/profiles.py (kaktus_msk, colortek, odissey…). Один сторож на
+# поставщика: своя почтовая папка, своё состояние logs/prc_price_watch_<ключ>.json, свой лог.
+# Загрузка идёт ТОЛЬКО когда в почте появилось письмо свежее уже обработанного —
+# решение принимает сам сторож, таймер лишь будит его (см. ops/prc_price_watch.py).
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.prc_price_watch --supplier %i
+TimeoutStartSec=30min
+StandardOutput=journal
+StandardError=journal
