@@ -354,7 +354,14 @@ def mark_executed_drafts(inn, agent_id=None):
     """Черновик → 'paid' («проведён»), когда деньги видны в МС.
 
     Факт оплаты приходит не из банка, а из МС: утренняя выписка Альфы разносится в
-    paymentin/paymentout. Отсюда два пути, по одному на форму черновика:
+    paymentin/paymentout. Отсюда три пути:
+
+    • ПЛАТЁЖ УЖЕ ЗАКРЕПЛЁН за черновиком (`ms_payment_id` заполнен). Это ставит привязчик
+      (`alfa_link.plan_draft`), когда разложил платёж по приёмкам черновика: сильнее
+      доказательства оплаты нет — конкретный paymentout сцеплен с конкретным черновиком.
+      Путь добавлен 12.08.2026 по случаю Одиссея: черновик #16 на 464 671.64 ₽ висел в
+      'sent_prod' при платеже №59764 ровно на эту сумму от 07.08, потому что поиск ниже считал
+      этот платёж «занятым» — занятым ИМ ЖЕ САМИМ. Заодно бесплатный: чистый SQL, без похода в МС.
 
     • Черновик ПОД ЗАКАЗЫ (отсрочка / по счёту). Привязка платежа закрывает `payedSum` заказа,
       `_sync_pending` снимает заказ в 'paid' — значит черновик проведён ровно тогда, когда среди
@@ -372,14 +379,23 @@ def mark_executed_drafts(inn, agent_id=None):
       фактически ушедших деньгах, пока не сложится привязка платёж→приёмка→`payedSum` (случай
       Феррета 10.08). Деньги ушли — очереди этот черновик больше не касается.
 
-    Пути независимы и оба нужны: по факту платежа закрываются деньги, ушедшие ровно на сумму
-    черновика; по заказам — случаи, где сумма не сойдётся (банк разбил платёж, поставщику
-    заплатили частями или вовсе мимо системы).
+    Пути независимы и нужны все три: закреплённый платёж — самый надёжный и самый дешёвый;
+    по факту платежа закрываются деньги, ушедшие ровно на сумму черновика; по заказам — случаи,
+    где сумма не сойдётся (банк разбил платёж, поставщику заплатили частями или мимо системы).
 
     Заказы (`po_payment_status`) при закрытии по факту платежа НЕ трогаем: они висят в 'queued',
     и в 'paid' их снимает `_sync_pending` по реальному `payedSum` из МС. Повторного черновика на
     них не возникнет — в пачку берутся только 'pending'.
     """
+    linked = db.query("""UPDATE payment_draft_queue SET status='paid',
+            note = coalesce(note || ' | ', '') || 'проведён: платёж МС закреплён за черновиком'
+        WHERE org_inn=%s AND inn=%s AND status IN ('planned', 'sent_prod', 'sent_sandbox', 'error')
+          AND ms_payment_id IS NOT NULL
+        RETURNING id, kind, amount::float amount""", (BUYER_INN, inn))
+    for d in linked:
+        print(f"[{inn}] черновик #{d['id']} ({d['kind']}) на {d['amount']}₽ проведён "
+              f"(платёж МС уже закреплён за ним привязчиком)")
+
     done = db.query("""UPDATE payment_draft_queue q SET status='paid'
         WHERE q.org_inn=%s AND q.inn=%s AND q.status IN ('planned', 'sent_prod', 'sent_sandbox', 'error')
           AND coalesce(array_length(q.covers_po_ids, 1), 0) > 0
@@ -389,7 +405,7 @@ def mark_executed_drafts(inn, agent_id=None):
         RETURNING q.id, q.amount::float amount""", (BUYER_INN, inn))
     for d in done:
         print(f"[{inn}] черновик #{d['id']} на {d['amount']}₽ проведён (все заказы закрыты в МС)")
-    n = len(done)
+    n = len(done) + len(linked)
 
     adv = db.query("""SELECT id, kind, amount::float amount, created_at FROM payment_draft_queue
         WHERE org_inn=%s AND inn=%s AND status IN ('planned', 'sent_prod', 'sent_sandbox', 'error')
@@ -397,14 +413,16 @@ def mark_executed_drafts(inn, agent_id=None):
     if not adv:
         return n
     # Занятые платежи — по всем поставщикам сразу: один paymentout не может закрыть два черновика.
-    used = {r["ms_payment_id"] for r in db.query(
-        "SELECT ms_payment_id FROM payment_draft_queue WHERE ms_payment_id IS NOT NULL")}
+    # Помним, КЕМ занят: платёж, закреплённый за самим этим черновиком, ему не помеха (случай
+    # Одиссея — свой же платёж выглядел «занятым» и черновик не закрывался).
+    used = {r["ms_payment_id"]: r["id"] for r in db.query(
+        "SELECT id, ms_payment_id FROM payment_draft_queue WHERE ms_payment_id IS NOT NULL")}
     pays = sorted(_ms_payouts_since(inn, min(a["created_at"] for a in adv).date(), agent_id),
                   key=lambda p: p.get("moment", ""))
     for a in adv:
         born = a["created_at"].strftime("%Y-%m-%d")
         for p in pays:
-            if p["id"] in used or p.get("moment", "")[:10] < born:
+            if used.get(p["id"], a["id"]) != a["id"] or p.get("moment", "")[:10] < born:
                 continue
             if abs(round(p.get("sum", 0) / 100, 2) - a["amount"]) > 0.01:
                 continue
@@ -413,7 +431,7 @@ def mark_executed_drafts(inn, agent_id=None):
                 WHERE id=%s""",
                 (p["id"], f"проведён: платёж МС №{p.get('name', '?')} от {p.get('moment', '')[:10]}",
                  a["id"]))
-            used.add(p["id"]); n += 1
+            used[p["id"]] = a["id"]; n += 1
             print(f"[{inn}] черновик #{a['id']} ({a['kind']}) на {a['amount']}₽ проведён "
                   f"(платёж МС №{p.get('name', '?')} от {p.get('moment', '')[:10]})")
             break
