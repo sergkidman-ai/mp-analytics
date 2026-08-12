@@ -363,10 +363,22 @@ def mark_executed_drafts(inn, agent_id=None):
       раньше, чем поллер отправил) и 'sent_sandbox' (черновик уехал в песочницу, а платили
       руками) — деньги ушли, черновику в очереди делать нечего. 'sent_sandbox' в списке не было,
       и черновик #8 от 29.07 висел незакрытым при полностью оплаченном заказе.
-    • АВАНС. Заказов под ним нет, `payedSum` закрывать нечему, поэтому ищем сам платёж: paymentout
-      этому контрагенту на ТУ ЖЕ сумму, датированный не раньше черновика. Найденный платёж
-      закрепляется за черновиком (`ms_payment_id`, миграция 206) — иначе второй аванс той же
-      суммы отметился бы тем же самым платежом.
+    • ФАКТ ПЛАТЕЖА — путь для черновика ЛЮБОЙ формы (правило Сергея 12.08.2026: «платёж пришёл
+      в выписке — черновик отправлен, привязан он к чему-то или нет»). Ищем сам платёж:
+      paymentout этому контрагенту на ТУ ЖЕ сумму, датированный не раньше черновика. Найденный
+      платёж закрепляется за черновиком (`ms_payment_id`, миграция 206) — иначе второй черновик
+      той же суммы отметился бы тем же самым платежом.
+      Раньше этот путь работал только для аванса, и черновик под заказы висел в 'sent_prod' при
+      фактически ушедших деньгах, пока не сложится привязка платёж→приёмка→`payedSum` (случай
+      Феррета 10.08). Деньги ушли — очереди этот черновик больше не касается.
+
+    Пути независимы и оба нужны: по факту платежа закрываются деньги, ушедшие ровно на сумму
+    черновика; по заказам — случаи, где сумма не сойдётся (банк разбил платёж, поставщику
+    заплатили частями или вовсе мимо системы).
+
+    Заказы (`po_payment_status`) при закрытии по факту платежа НЕ трогаем: они висят в 'queued',
+    и в 'paid' их снимает `_sync_pending` по реальному `payedSum` из МС. Повторного черновика на
+    них не возникнет — в пачку берутся только 'pending'.
     """
     done = db.query("""UPDATE payment_draft_queue q SET status='paid'
         WHERE q.org_inn=%s AND q.inn=%s AND q.status IN ('planned', 'sent_prod', 'sent_sandbox', 'error')
@@ -379,8 +391,8 @@ def mark_executed_drafts(inn, agent_id=None):
         print(f"[{inn}] черновик #{d['id']} на {d['amount']}₽ проведён (все заказы закрыты в МС)")
     n = len(done)
 
-    adv = db.query("""SELECT id, amount::float amount, created_at FROM payment_draft_queue
-        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status IN ('planned', 'sent_prod', 'sent_sandbox', 'error')
+    adv = db.query("""SELECT id, kind, amount::float amount, created_at FROM payment_draft_queue
+        WHERE org_inn=%s AND inn=%s AND status IN ('planned', 'sent_prod', 'sent_sandbox', 'error')
         ORDER BY created_at""", (BUYER_INN, inn))
     if not adv:
         return n
@@ -402,14 +414,19 @@ def mark_executed_drafts(inn, agent_id=None):
                 (p["id"], f"проведён: платёж МС №{p.get('name', '?')} от {p.get('moment', '')[:10]}",
                  a["id"]))
             used.add(p["id"]); n += 1
-            print(f"[{inn}] аванс #{a['id']} на {a['amount']}₽ проведён "
+            print(f"[{inn}] черновик #{a['id']} ({a['kind']}) на {a['amount']}₽ проведён "
                   f"(платёж МС №{p.get('name', '?')} от {p.get('moment', '')[:10]})")
             break
     return n
 
 
-def run(only_inn=None, methods=None):
+def run(only_inn=None, methods=None, close_only=False):
     """`methods` — набор методов оплаты, которые обрабатываем в этом прогоне (None = все).
+
+    `close_only` — ничего не создавать, только снять черновики, деньги по которым уже видны в МС
+    (`mark_executed_drafts`). Это режим внутридневного прогона каждые 30 минут: выписка приходит
+    в течение дня, и статус черновика должен идти следом, а вот НОВЫЕ платёжки собираются строго
+    два раза в сутки — иначе одна пачка отсрочки раздробилась бы на десяток.
 
     Разрез нужен вечернему прогону предоплаты: у ветки `deferred` нет гейта «не создавать второй
     planned» (он есть только у `prepayment_balance`), поэтому полный прогон дважды в день дробил
@@ -429,6 +446,9 @@ def run(only_inn=None, methods=None):
         inn, method = t["inn"], t["method"]
         agent_id = t.get("ms_agent_id")
         try:
+            if close_only:                                # внутридневной прогон: только статусы
+                mark_executed_drafts(inn, agent_id=agent_id)
+                continue
             if not methods or method in methods:
                 if method == "deferred":
                     process_deferred(inn, t.get("deferral_days") or 0,
@@ -449,11 +469,14 @@ def main():
     ap.add_argument("--org", help="ИНН нашего юрлица или 'all' (по умолчанию — из ALFA_BUYER_INN)")
     ap.add_argument("--methods", help="только эти методы оплаты, через запятую: "
                                       "deferred,prepayment_per_order,prepayment_balance")
+    ap.add_argument("--close-only", action="store_true",
+                    help="ничего не создавать, только провести черновики, деньги по которым "
+                         "уже видны в МС (режим внутридневного прогона)")
     a = ap.parse_args()
     methods = {m.strip() for m in a.methods.split(",")} if a.methods else None
 
     if not a.org:
-        run(only_inn=a.inn, methods=methods)
+        run(only_inn=a.inn, methods=methods, close_only=a.close_only)
         return
     if a.org == "all":
         import payment_send                      # реестр наших юрлиц = реестр банков
@@ -464,7 +487,7 @@ def main():
         set_org(inn)
         print(f"── организация {inn} ──")
         try:                                     # падение МС по одной фирме не съедает вторую
-            run(only_inn=a.inn, methods=methods)
+            run(only_inn=a.inn, methods=methods, close_only=a.close_only)
         except Exception as e:                   # noqa: BLE001
             print(f"[org {inn}] ОШИБКА: {type(e).__name__}: {e}")
 
