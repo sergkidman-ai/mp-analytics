@@ -104,19 +104,45 @@ def list_demand_ids(org_href, agent_href, moment_from):
     return out
 
 
+def demand_positions_qty(demand_id):
+    """{ms_id: штуки} — ФАКТИЧЕСКИЕ количества позиций документа отгрузки.
+
+    Отдельный запрос, а не поле отчёта byoperation: там `quantity` — это stock−reserve+inTransit,
+    то есть доступный остаток товара НА МОМЕНТ ЗАПРОСА, а не количество в документе (проверено
+    2026-08-12: формула сходится на всех позициях; давало отрицательные штуки и, через импутацию
+    cost_seb×qty, отрицательный себест). Строки одного товара суммируются."""
+    out, offset = {}, 0
+    while True:
+        j = get(f"/entity/demand/{demand_id}/positions?limit=1000&offset={offset}")
+        rows = j.get("rows", [])
+        for p in rows:
+            ms_id = _hid(((p.get("assortment") or {}).get("meta") or {}).get("href"))
+            out[ms_id] = out.get(ms_id, 0.0) + float(p.get("quantity") or 0)
+        offset += 1000
+        if not rows or offset >= (j.get("meta", {}) or {}).get("size", 0):
+            break
+    return out
+
+
 def byoperation_cogs(demand_id):
     """(cogs_руб, qty, positions) по отчёту «Остатки по документу». cost — копейки, итог с учётом
-    quantity. positions: [{ms_id, cost(₽ итог), qty}] — для ms_demand_pos (импутация FBO по ms_id)."""
+    количества. positions: [{ms_id, cost(₽ итог), qty}] — для ms_demand_pos (импутация FBO по ms_id).
+
+    Себест берём из отчёта (это FIFO списания), ШТУКИ — из позиций документа (см.
+    demand_positions_qty: quantity отчёта штуками не является)."""
     j = get(f"/report/stock/byoperation?operation.id={demand_id}")
     rows = j.get("rows", [])
+    qty_by_item = demand_positions_qty(demand_id)
     if not rows:
-        return 0.0, 0.0, []
+        return 0.0, sum(qty_by_item.values()), []
     pos = rows[0].get("positions", []) or []
     out = [{"ms_id": _hid((p.get("meta", {}) or {}).get("href")),
-            "cost": (p.get("cost", 0) or 0) / 100.0,
-            "qty": p.get("quantity", 0) or 0} for p in pos]
+            "cost": (p.get("cost", 0) or 0) / 100.0} for p in pos]
+    for p in out:
+        p["qty"] = qty_by_item.get(p["ms_id"], 0.0)
+    # штуки документа целиком — включая позиции, которых нет в отчёте (себест по ним 0)
+    qty = sum(qty_by_item.values())
     cogs = sum(p["cost"] for p in out)
-    qty = sum(p["qty"] for p in out)
     return cogs, qty, out
 
 
