@@ -198,14 +198,18 @@ def relink(apply):
     Стоимость шире окна почти нулевая: гейт по таблице поставщиков и исчерпанные авансы считаются
     из уже полученных `operations`, в МС идут только авансы с реальным остатком.
 
+    ВЫБОРКИ ДВЕ, а не одна широкая (замер 12.08.2026: добор занимал 40 с, из них 33 с — тяга
+    431 платежа за 90 дней ради 72 нужных). Свежее окно берём целиком, а из старого — только
+    авансы, фильтром на стороне МС по слову в назначении. Сам разбор дешёвый: привязанный платёж
+    отваливается без единого запроса в МС (33 таких = 0.9 с на всех).
+
     Сбой добора не должен ронять прогон — деньги в МС уже записаны, привязка вторична."""
     today = dt.datetime.now(MSK).date()
     fresh_since = (today - dt.timedelta(days=LINK_LOOKBACK_DAYS)).isoformat()
     sweep_since = (today - dt.timedelta(days=ADVANCE_SWEEP_DAYS)).isoformat()
-    rows = alfa_link.payments_since(sweep_since)          # одна выборка на оба захода
-    fresh = [p for p in rows if (p.get("moment") or "")[:10] >= fresh_since]
-    older_open = alfa_link.open_advances(
-        [p for p in rows if (p.get("moment") or "")[:10] < fresh_since])
+    fresh = alfa_link.payments_since(fresh_since)                     # свежее окно — целиком
+    older_open = alfa_link.open_advances(                             # старое — только авансы
+        alfa_link.payments_since(sweep_since, until=fresh_since, purpose="аванс"))
     stats, lines = alfa_link.link_new(fresh + older_open, apply=apply)
     for msg in lines[:10]:
         log(f"  ⚠ привязка вручную: {msg}")
