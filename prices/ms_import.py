@@ -36,7 +36,7 @@ from datetime import date, datetime, timedelta
 from uuid import UUID
 from pathlib import Path
 
-from core.db import query
+from core.db import execute, query
 from .features import BRANDS, BRAND_RE       # noqa: F401 — BRANDS в модуле ждут по имени
 from .profiles import get_profile
 
@@ -338,6 +338,9 @@ def build(supplier_key, decisions=("matched",), limit=None):
                          f"— по решению Сергея это норма, оставляем")
 
         records.append({
+            # Служебное поле (не колонка файла): по нему после создания карточки строка
+            # новинок получает свой итог. `write_xlsx` идёт по COLUMNS, лишний ключ ей не мешает.
+            "_novelty_id": row["id"],
             "Группы": path or "",
             "Код": f"{ext}{suffix(row['article'], profile.key)}",
             "Внешний код": ext,
@@ -456,6 +459,29 @@ def create_in_ms(records, supplier_id, dry=True, log=print):
     return created, skipped
 
 
+def mark_created(records, created):
+    """Строке новинок проставить СОЗДАННУЮ карточку и статус «уже в МС».
+
+    До этого в `ms_code` оставался код РОДСТВЕННИКА, по которому человек опознал позицию
+    («это он» → `0247gp`), и по вкладке нельзя было понять, доведена ли работа до карточки.
+    Теперь там код заведённой карточки (`0247at`), а статус `exists` уводит строку из
+    «сопоставленных»: разбирать больше нечего. Родня не теряется — у неё тот же внешний код.
+    """
+    by_code = {r["Код"]: r for r in records}
+    done = 0
+    for ms_id, code, _article in created:
+        rec = by_code.get(code)
+        if not rec or not rec.get("_novelty_id"):
+            continue
+        execute("""UPDATE prc_novelty
+                      SET decision = 'exists', ms_code = %s, ms_id = %s, ms_name = %s,
+                          decided_at = now()
+                    WHERE id = %s""",
+                (code, str(ms_id), rec["Наименование"], rec["_novelty_id"]))
+        done += 1
+    return done
+
+
 def write_xlsx(records, path):
     from openpyxl import Workbook
     wb = Workbook()
@@ -500,7 +526,9 @@ def main():
         records = [r for r in records if r["Код"] in keep]
     if args.apply or args.to_ms:
         created, skipped = create_in_ms(records, profile.supplier_ids[0], dry=not args.apply)
-        print(f"создано: {len(created)}; пропущено: {len(skipped)}; строк на входе: {len(records)}")
+        marked = mark_created(records, created) if args.apply else 0
+        print(f"создано: {len(created)}; пропущено: {len(skipped)}; строк на входе: {len(records)}"
+              + (f"; строк новинок закрыто: {marked}" if args.apply else ""))
         return
     stamp = f"{date.today():%Y-%m-%d}"
     out = Path(args.out)
