@@ -11,12 +11,21 @@
     ./venv/bin/python -m prices.blacklist --stats
 """
 import argparse
+import re
 import sys
 from pathlib import Path
 
 import psycopg2.extras
 
 from core.db import get_conn, query
+
+
+# Бренды, которые не берём совсем: правило на префикс артикула, а не перечень кодов —
+# у бренда в каждом прайсе новые коды, поимённый список за ними не угонится.
+# «ТУ» у Одиссея — товар БЕЗ УПАКОВКИ (решение Сергея 12.08.2026), продавать нечего.
+BRAND_RULES = {
+    "odissey": [(r"^ТУ\b", "ТУ — товар без упаковки, не берём (12.08.2026)")],
+}
 
 
 def norm(article):
@@ -59,17 +68,31 @@ def add(articles, source=None, note=None):
     return len(rows), len(load_set()) - before
 
 
-def mark(skipped, black, reasons=("not_found", "ambiguous")):
+def in_rules(article, supplier_key):
+    """Артикул попадает под бракующее правило поставщика? -> причина или None."""
+    for pattern, why in BRAND_RULES.get(supplier_key, []):
+        if re.match(pattern, str(article or "").strip(), re.IGNORECASE):
+            return why
+    return None
+
+
+def mark(skipped, black, reasons=("not_found", "ambiguous"), supplier_key=None):
     """Переставить причину у строк, чей артикул в ЧС: они больше не новинки.
 
     Строку не выбрасываем — она остаётся в журнале и в отчёте, но с причиной «blacklisted»,
     поэтому не попадает ни в `prc_unmatched`, ни в файл новинок.
+
+    Кроме поимённого списка работают правила по бренду (`BRAND_RULES`): целый бренд
+    поставщика, который мы не берём в принципе. Перечнем артикулов такое не закроешь —
+    в каждом прайсе у бренда новые коды.
     """
-    if not black:
+    if not black and not BRAND_RULES.get(supplier_key):
         return skipped, 0
     hits = 0
     for row in skipped:
-        if row.get("reason") in reasons and norm(row.get("article")) in black:
+        if row.get("reason") not in reasons:
+            continue
+        if norm(row.get("article")) in black or in_rules(row.get("article"), supplier_key):
             row["reason"] = "blacklisted"
             hits += 1
     return skipped, hits

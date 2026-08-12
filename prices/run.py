@@ -134,7 +134,8 @@ def main(argv=None):
     black_hits = 0
     if not args.no_db:
         from . import blacklist
-        skipped, black_hits = blacklist.mark(skipped, blacklist.load_set())
+        skipped, black_hits = blacklist.mark(skipped, blacklist.load_set(),
+                                             supplier_key=profile.key)
 
     # Отсев новинок по правилам ассортимента (объём заправки, промывка, комплектность цветов).
     # Комплект считаем по всему прайсу, кроме отсечённых категорий: цвет мог уже быть у нас.
