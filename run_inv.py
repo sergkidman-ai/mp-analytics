@@ -12,7 +12,9 @@
 
 Кроме ночного прогона есть ВНУТРИДНЕВНОЙ: `--today` каждые 30 минут в рабочие часы (крон
 `7,37 5-17 * * *` UTC = 08:07…20:37 МСК). Он тянет выписку за сегодня и заводит деньги в МС
-почти сразу, а не следующим утром; тяжёлый добор привязок в нём выключен. Опрос чаще выписки
+почти сразу, а не следующим утром, и делает ПОЛНЫЙ цикл: привязка обеих сторон в момент записи
++ добор (приёмки приходят днём, предоплата должна сесть на них днём же). Статусы черновиков
+платёжек догоняет `po_payment_watch.py --close-only` тем же крон-заданием. Опрос чаще выписки
 выбран вместо вебхуков Альфы осознанно (решение Сергея 11.08.2026): вебхук требует смены
 зарегистрированного `redirect_uri` на публичный домен — это заявка в банк, а не код.
 
@@ -22,8 +24,9 @@
 Запуск — из deploy-worktree на main, а не из основного чекаута (там часто ветка чужого потока):
     0 4 * * * cd /opt/mp-analytics/.deploy/inv && { git checkout --detach -q main 2>/dev/null; \
         /opt/mp-analytics/venv/bin/python run_inv.py; } >> /opt/mp-analytics/alfa_statement.log 2>&1
-    7,37 5-17 * * * cd /opt/mp-analytics/.deploy/inv && \
-        /opt/mp-analytics/venv/bin/python run_inv.py --today >> /opt/mp-analytics/alfa_statement.log 2>&1
+    7,37 5-17 * * * cd /opt/mp-analytics/.deploy/inv && { /opt/mp-analytics/venv/bin/python \
+        run_inv.py --today; /opt/mp-analytics/venv/bin/python invoice_bot/po_payment_watch.py \
+        --org all --close-only; } >> /opt/mp-analytics/alfa_statement.log 2>&1
 Минуты НЕ круглые (7 и 37) намеренно: на :00 у банков пик запросов от всех клиентов сразу.
 
 Счета — в .env: `ALFA_ACCOUNT` (песочница) / `ALFA_ACCOUNT_PROD` (бой), выбор по `ALFA_ENV`;
@@ -251,10 +254,10 @@ def run_sber(days):
 def main(argv):
     apply, why = apply_mode()
     accs, days = accounts(), dates(argv)
-    # `--today` — лёгкий внутридневной прогон (крон каждые 30 мин): выписка за СЕГОДНЯ → МС →
-    # привязка обеих сторон в момент записи. Добор привязок и он же самый дорогой шаг здесь не
-    # нужен: он про предоплату, ушедшую раньше поставки, а такое за полдня не «дозревает» —
-    # его делает ночной прогон.
+    # `--today` — внутридневной прогон (крон каждые 30 мин): выписка за СЕГОДНЯ → МС → привязка
+    # обеих сторон в момент записи → добор. Добор здесь ТОЖЕ нужен (правило Сергея 12.08.2026):
+    # приёмки поставщиков приходят в течение дня, и предоплата, ушедшая утром, должна сесть на
+    # приёмку днём, а не следующей ночью. Стоит он ~40 с — на получасовом такте это ничто.
     light = "--today" in argv
     log(f"старт inv{' [--today]' if light else ''}: счетов {len(accs)}, дат {len(days)} "
         f"({days[0]}…{days[-1]}) — {why}")
@@ -271,11 +274,10 @@ def main(argv):
                 log(f"ОШИБКА счёт {account} {date}: {type(e).__name__}: {e}")
                 traceback.print_exc()
 
-    if not light:
-        try:
-            relink(apply)
-        except Exception as e:
-            log(f"ОШИБКА добора привязок: {type(e).__name__}: {e}")  # не роняем: деньги записаны
+    try:
+        relink(apply)
+    except Exception as e:
+        log(f"ОШИБКА добора привязок: {type(e).__name__}: {e}")      # не роняем: деньги записаны
 
     try:
         total_err += run_sber(days)
