@@ -93,6 +93,8 @@ def _resid_line(ot):
     # частичная компенсация ПОКУПАТЕЛЮ — это не наша компенсация от Ozon, а списание; ЛК держит её
     # в «Прочих начислениях» (проверка июль-2026 acc1: 32 353.00 − 1 738.63 = 30 614.37)
     if "partialcompensationtoclient" in o:                                return "other"
+    # страхование отправления — платная услуга Ozon, блок «Другие услуги и штрафы»
+    if "insuranceservice" in o:                                           return "penalty"
     if ot == "MarketplaceAgencyFeeAggregator3plRFBS":                     return "delivery"
     if "rfbs" in o:                                                       return "partners"
     if ot in ("OperationCourierPickUpDelivery", "OperationCourierArrangement"): return "delivery"
