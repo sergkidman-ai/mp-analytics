@@ -81,6 +81,13 @@ def _resid_line(ot):
             or "promotionwithcostperorder" in o or "subscription" in o or "membership" in o
             or "premiumcashback" in o or "individualpoints" in o):        return "promo"
     if "defectrate" in o or "defectfine" in o:                            return "penalty"
+    # досрочная выплата («Гибкий график выплат») — платная услуга Ozon, не «прочее начисление»:
+    # приходит одной строкой за месяц и раньше гасила собой строку `other` (июль-2026 acc1: 18 795.28
+    # против 32 353.00 переотправок → в отчёте оставалось 13 558 вместо 30 614)
+    if "flexiblepaymentschedule" in o:                                    return "penalty"
+    # частичная компенсация ПОКУПАТЕЛЮ — это не наша компенсация от Ozon, а списание; ЛК держит её
+    # в «Прочих начислениях» (проверка июль-2026 acc1: 32 353.00 − 1 738.63 = 30 614.37)
+    if "partialcompensationtoclient" in o:                                return "other"
     if ot == "MarketplaceAgencyFeeAggregator3plRFBS":                     return "delivery"
     if "rfbs" in o:                                                       return "partners"
     if ot in ("OperationCourierPickUpDelivery", "OperationCourierArrangement"): return "delivery"
