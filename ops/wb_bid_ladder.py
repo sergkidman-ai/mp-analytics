@@ -20,6 +20,9 @@
      Заморозки по cogs_stale больше НЕТ: с 07.08.2026 витрина сама подменяет протухший FIFO живой
      закупкой, маржа по таким SKU честная (и ниже прежней) — морозить не за что, их судит гейт
      убытка наравне со всеми. Флаг остался пометкой о подмене и попадает в сводку.
+  6. КАРАНТИН ПОСЛЕ ОТКАТА (добавлен 13.08.2026): SKU, которому `ops.wb_bid_lower` за последние
+     WINDOW_DAYS дней снял ставку до пола, не поднимаем. Иначе лестница возвращает ставку через
+     сутки и откат становится холостым ходом.
 
 По умолчанию — DRY-RUN: считает и печатает, в ВБ НЕ пишет. Живая запись только с --apply
 (правило: данные ≠ разрешение писать; --apply даётся под конкретный прогон).
@@ -113,9 +116,21 @@ def plan(account="wb_acc1", cohort="a"):
         (account, list(nms)))}
     acc_drr, acc_sp, acc_rv, per = _drr(account, nms)
 
+    # Карантин после отката (добавлен 13.08.2026). `ops.wb_bid_lower` снимает ставку до пола у
+    # SKU, мёртвых и в рекламе, и в органике. Без этой проверки лестница на следующем же шаге
+    # поднимет их обратно — откат превратится в холостой ход, а деньги продолжат гореть.
+    # Срок карантина = длина окна замера: раньше просто нечем оценить, изменилось ли что-то.
+    cooled = {r["nm_id"] for r in db.query(
+        "SELECT DISTINCT nm_id FROM wb_bid_log WHERE account=%s AND author='lower' AND applied "
+        "AND ts >= now() - make_interval(days => %s)", (account, WINDOW_DAYS))}
+
     rows, watch, n_substituted = [], 0, 0
-    frozen = {"drr": 0, "burn": 0, "cap": 0, "no_adv": 0, "loss": 0, "no_margin": 0, "low_margin": 0}
+    frozen = {"drr": 0, "burn": 0, "cap": 0, "no_adv": 0, "loss": 0, "no_margin": 0,
+              "low_margin": 0, "cooldown": 0}
     for nm, (cpc, adv) in sorted(cur.items()):
+        if nm in cooled:             # только что откатили на пол — держим карантин
+            frozen["cooldown"] += 1
+            continue
         sp, rv = per.get(nm, (0.0, 0.0))
         net_l, marg_l, stale = marg.get(nm, (None, None, False))
         if net_l is None:            # маржи нет: карточка не в продаже либо нет живой закупки
@@ -270,7 +285,8 @@ def main():
     print(f"[лестница {a.cohort}] когорта {st.get('cohort_size')} SKU | к подъёму {st.get('to_raise')} | "
           f"заморожено ДРР {st['frozen']['drr']} костёр {st['frozen']['burn']} потолок {st['frozen']['cap']} "
           f"без кампании {st['frozen']['no_adv']} УБЫТОК {st['frozen']['loss']} "
-          f"без маржи {st['frozen']['no_margin']}")
+          f"без маржи {st['frozen']['no_margin']} "
+          f"карантин после отката {st['frozen']['cooldown']}")
     print(f"  гейт маржи: снимок {st.get('margin_day')}, маржа известна по {st.get('margin_known')} SKU когорты; "
           f"ниже пола {WB_MARGIN_FLOOR:.0f}% заморожено {st['frozen']['low_margin']}; "
           f"из поднимаемых ниже KPI {WB_MARGIN_GATE:.0f}%: {st.get('watch_below_kpi')} (не блокируем); "
@@ -302,7 +318,8 @@ def main():
            f"Поднято *{ok}* SKU: {st['avg_old']} → *{st['avg_new']} ₽*"
            + (f", отказано {bad}" if bad else "") + "\n"
            f"Заморожено: ДРР {fr['drr']} · костры {fr['burn']} · потолок {fr['cap']} · "
-           f"убыток {fr['loss']} · без маржи {fr['no_margin']}\n"
+           f"убыток {fr['loss']} · без маржи {fr['no_margin']} · "
+           f"карантин после отката {fr['cooldown']}\n"
            f"Заморожено ниже пола {WB_MARGIN_FLOOR:.0f}% маржи: {fr['low_margin']}\n"
            f"Из поднятых ниже KPI {WB_MARGIN_GATE:.0f}% маржи: {st.get('watch_below_kpi')}\n"
            f"ДРР аккаунта за {WINDOW_DAYS} дн: {st['acc_drr']}% (граница {100*DRR_LIMIT:.0f}%)")
