@@ -3070,6 +3070,15 @@ def wb_mp_current():
     return _wbmp.current_report()
 
 
+@app.get("/api/mp-cogs/detail", response_class=HTMLResponse)
+def mp_cogs_detail(platform: str, account: str, ym: str):
+    """Провал в строку «Себестоимость» отчётов МП: HTML-фрагмент со списком отгрузок, которые
+    ЭТОТ отчёт оплатил (что продано/сторнировано, себест, способ, статус). См.
+    reports/mp_cogs_drill."""
+    from reports import mp_cogs_drill as _drill
+    return _drill.fragment_html(platform, account, ym)
+
+
 @app.get("/api/yandex/mp-current")
 def yandex_mp_current():
     """Живой ТЕКУЩИЙ месяц Яндекс.Маркета (вне статического снапшота) + прогноз на конец месяца —
