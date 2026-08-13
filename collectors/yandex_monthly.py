@@ -177,6 +177,30 @@ def _pos_cost(positions_obj, cost):
     return tot
 
 
+def _no_revenue_orders():
+    """{orderId} заказов, по которым Маркет выручку НЕ начислил: отменённые (CANCELLED_*, вкл.
+    невыкуп CANCELLED_IN_DELIVERY) и возвращённые (RETURNED / PARTIALLY_RETURNED — деньги
+    покупателю возвращены, PAYMENT−REFUND≈0).
+
+    Решение Сергея 2026-08-13: в отчёте МП себестоимость считается только по товару, реально
+    реализованному покупателю, и критерий — факт начисления выручки в самом отчёте. Мост
+    МС↔отчёт: `customerorder.name` = `id` заказа stats/orders (проверено: 2774/2918 = 95 %).
+    Заказ, которого в отчёте нет вовсе, себеста НЕ лишается — это дыра в сырье, а не факт
+    (см. счётчик «нет в отчёте» в логе)."""
+    return {r["id"] for r in db.query(
+        """SELECT DISTINCT payload->>'id' id FROM raw_yandex_stats_order
+           WHERE account=%s AND (payload->>'status' LIKE 'CANCELLED%%'
+                                 OR payload->>'status' = ANY(%s))""",
+        (ACCOUNT, list(RETURN_STATUSES)))}
+
+
+def _known_orders():
+    """{orderId} всех заказов, известных отчёту (для счётчика «нет в отчёте»)."""
+    return {r["id"] for r in db.query(
+        "SELECT DISTINCT payload->>'id' id FROM raw_yandex_stats_order WHERE account=%s",
+        (ACCOUNT,))}
+
+
 def _ms_cogs_monthly(since="2026-01-01"):
     """ФАКТ себеста Маркета по месяцам из МС-заказов «Покупатель Маркет»/«Я.Маркет Экспресс»:
     Σ products.cost_seb × qty по позициям, месяц = moment заказа. Это те же продажи, что в
@@ -200,6 +224,10 @@ def _ms_cogs_monthly(since="2026-01-01"):
     order_month = {}                    # customerorder.name -> "YYYY-MM-01"
     order_cost = defaultdict(float)     # customerorder.name -> Σ себест заказа (кап сторно)
     agent_href = {}
+    no_rev = _no_revenue_orders()       # отчёт выручку не начислил → себест не наш расход
+    known = _known_orders()
+    skip_sum = unknown_sum = 0.0
+    skip_n = unknown_n = 0
     for name in MS_AGENTS_YA:
         rr = requests.get(f"{MS}/entity/counterparty", headers=H,
                           params={"filter": f"name={name}"}, timeout=60).json().get("rows", [])
@@ -220,8 +248,15 @@ def _ms_cogs_monthly(since="2026-01-01"):
                 if len(mo) != 7:
                     continue
                 nm = o.get("name")
-                order_month[nm] = mo + "-01"
                 c = _pos_cost(o.get("positions"), cost)
+                if nm in no_rev:        # отменён / возвращён — выручки в отчёте нет
+                    skip_sum += c
+                    skip_n += 1
+                    continue
+                if nm not in known:     # заказа нет в сырье отчёта — считаем, но помечаем
+                    unknown_sum += c
+                    unknown_n += 1
+                order_month[nm] = mo + "-01"
                 out[mo + "-01"] += c
                 order_cost[nm] += c
             offset += 100
@@ -261,6 +296,9 @@ def _ms_cogs_monthly(since="2026-01-01"):
         print(f"  [ya monthly] сторно COGS возвратов в сток: −{tot:,.0f} ₽ "
               f"по {sum(1 for nm in ret_cost if nm in order_month)} возвр.-заказам (склад ≠ Брак)"
               .replace(",", " "), flush=True)
+    print(f"  [ya monthly] себест только реализованного: отброшено {skip_n} заказов без начисленной "
+          f"выручки (отмена/возврат) на {skip_sum:,.0f} ₽; нет в сырье отчёта — {unknown_n} заказов "
+          f"на {unknown_sum:,.0f} ₽ (учтены)".replace(",", " "), flush=True)
     return dict(out)
 
 
