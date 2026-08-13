@@ -32,8 +32,10 @@ import urllib.error
 HERE = pathlib.Path(__file__).resolve().parent           # каталог collectors/
 BASE_DIR = HERE.parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(BASE_DIR))                        # core.db — выбор карточки контрагента
 sys.path.insert(0, "/opt/mp-analytics/invoice_bot")
 from ms import get, post, MS                             # noqa: E402  invoice_bot/ms.py
+import core.db as db                                     # noqa: E402
 
 _NS = _uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")  # namespace для uuid5
 
@@ -198,12 +200,53 @@ def resolve_expense_item(want):
     raise SystemExit(f"статья расходов «{want}» не найдена в МС")
 
 
-def resolve_agent(inn, name, apply):
-    """→ (agent_dict|None, статус). Матч по ИНН → по имени → создание (в apply)."""
+def terms_card(inn, org_inn=None):
+    """→ (ms_agent_id, name) карточки поставщика из условий оплаты, либо (None, None).
+
+    Условия оплаты (`supplier_payment_terms`, разрез по нашему юрлицу — миграция 207) — это
+    и есть наш реестр «какой карточкой ведём этого поставщика»: на неё же смотрит гейт
+    `alfa_link.supplier_agents()` при привязке платежей к приёмкам."""
+    q = "SELECT ms_agent_id, name FROM supplier_payment_terms WHERE inn=%s AND coalesce(ms_agent_id,'') <> ''"
+    args = [inn]
+    if org_inn:
+        q += " AND org_inn=%s"
+        args.append(org_inn)
+    rows = db.query(q + " ORDER BY updated_at DESC", tuple(args))
+    if not rows and org_inn:                              # у этого юрлица условий нет — берём общие
+        return terms_card(inn, None)
+    return (rows[0]["ms_agent_id"], rows[0]["name"]) if rows else (None, None)
+
+
+def resolve_agent(inn, name, apply, org_inn=None):
+    """→ (agent_dict|None, статус). Матч по ИНН → по имени → создание (в apply).
+
+    ИНН карточку НЕ определяет: у одного юрлица в МС бывает несколько карточек. У «Солюшнс принт»
+    (ИНН 7806486149) их две — питерская `ООО "Солюшнс принт"` и московская `ООО "Солюшнс принт" МСК`,
+    и товар идёт по МСК (правило Сергея 13.08.2026: платежи Солюшнс всегда на МСК и привязывать
+    к её приёмкам). МС отдаёт карточки в порядке создания, поэтому прежний `rows[0]` брал СТАРУЮ:
+    платёж садился на карточку без приёмок, а гейт `supplier_agents()` не находил её в условиях
+    оплаты и вообще не пытался привязать — отсюда «платёж есть, приёмки висят неоплаченными».
+
+    Выбираем так же, как черновики платёжек (`invoice_bot/payment_draft.payee_card`): карточка
+    из условий оплаты НАШЕГО юрлица. Одна карточка на ИНН — вопроса нет; несколько и в условиях
+    ни одной — берём по имени из выписки, а если и оно не совпало, честно возвращаем `ambiguous`,
+    а не «первую попавшуюся»: платёж не туда дороже разобрать, чем не завести."""
     if inn:
         rows = get(f"/entity/counterparty?filter=inn={inn}")["rows"]
-        if rows:
+        if len(rows) == 1:
             return rows[0], "inn"
+        if rows:
+            want_id, want_name = terms_card(inn, org_inn)
+            cp = next((r for r in rows if r["id"] == want_id), None)
+            if cp:
+                return cp, "inn+условия"
+            cp = next((r for r in rows if _norm(r.get("name")) == _norm(want_name or "")), None)
+            if cp:
+                return cp, "inn+условия(имя)"
+            cp = next((r for r in rows if _norm(r.get("name")) == _norm(name or "")), None)
+            if cp:
+                return cp, "inn+имя из выписки"
+            return None, f"ambiguous: {len(rows)} карточек у ИНН {inn}, нет в supplier_payment_terms"
     if name:
         q = urllib.parse.quote(name)
         for r in get(f"/entity/counterparty?search={q}&limit=5")["rows"]:
@@ -346,7 +389,7 @@ def sync(normalized, apply=False, org_inn=None, expense_item="Закупка т�
                              "syncId": sid})
                 continue
 
-        agent, ast = resolve_agent(op["counterparty_inn"], op["counterparty_name"], apply)
+        agent, ast = resolve_agent(op["counterparty_inn"], op["counterparty_name"], apply, org_inn)
         if agent is None:
             # без агента платёж в МС не создать — фиксируем в плане, но не пишем
             stats["would_create" if ast == "would-create" else "errors"] += 1
