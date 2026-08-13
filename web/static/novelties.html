@@ -22,6 +22,9 @@
   .whtabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
   .whtabs a:hover{color:var(--txt);background:var(--card)}
   .whtabs a.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+  /* Подтабы внутри раздела — тем же рисунком, но тише: это не смена раздела, а смена работы. */
+  .whtabs.sub{margin:-6px 0 14px;border-bottom:1px solid var(--line)}
+  .whtabs.sub a{font-size:12px;padding:6px 11px}
   .note{color:var(--mut);font-size:12px;margin:14px 0 0}
   /* Панель действий липкая: пачку отмечают внизу таблицы, а кнопки нужны там же. */
   .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px;padding:10px 0;
@@ -177,6 +180,14 @@
     <a href="/warehouse/novelties" class="cur">✨ Новинки</a>
   </nav>
 
+  <!-- Подтабы раздела: разбор новинок и чёрный список — две стороны одной работы,
+       поэтому живут на одной странице и переключаются без перезагрузки. -->
+  <nav class="whtabs sub" id="subtabs">
+    <a href="#" data-view="new" class="cur">✨ Разбор новинок</a>
+    <a href="#" data-view="black">🚫 Чёрный список</a>
+  </nav>
+
+  <div id="viewNew">
   <p class="note" style="margin-top:0">Строки прайса, которых нет в МойСкладе по артикулу. Сверка ищет тот же товар
   в нашем каталоге по четырём признакам: модель, цвет, ресурс печати (расхождение до 25% — норма) и чип. Выберите верный
   вариант или впишите код руками; если такой модели у нас нет вовсе — <b>NEW</b>. Решение принимается <b>по модели
@@ -233,6 +244,46 @@
   <!-- Лист ожидания стоит ПОД таблицей: это напоминание, а не работа дня — сверху он
        отодвигал разбор новинок вниз. -->
   <div id="waiting"></div>
+  </div>
+
+  <!-- Чёрный список: что мы забраковали и что из этого лежит у поставщиков прямо сейчас.
+       ЧС — не приговор навсегда: позиция могла попасть туда ошибкой или подешеветь, а
+       остаток по свежему прайсу показывает, есть ли вообще о чём говорить. -->
+  <div id="viewBlack" hidden>
+    <p class="note" style="margin-top:0">Артикулы, снятые с разбора: в «Новинках» они больше не показываются.
+    Остаток и цена — по <b>последнему загруженному прайсу</b> каждого поставщика; один артикул может лежать
+    у нескольких, тогда он и показан несколько раз. Позиции, которых нет ни в одном свежем прайсе, —
+    фильтр «нет ни в одном прайсе». Кнопка <b>«Вернуть из ЧС»</b> убирает артикул из списка, и со следующим
+    прайсом поставщика строка снова придёт на разбор; карточку в МС это не заводит. Бренд, забракованный
+    <b>правилом</b> (например «ТУ» у Одиссея), возвратом не вернуть — правило поставит его в ЧС снова,
+    о таких предупредим отдельно.</p>
+
+    <div class="big" id="bbig"></div>
+
+    <div class="bar" id="bbar">
+      <select id="bsupplier"></select>
+      <input id="bq" placeholder="поиск по артикулу и названию">
+      <span class="grow"></span>
+      <span class="muted" id="bselinfo">отмечено 0</span>
+      <button id="bulk-unblack" class="pri" disabled title="снять артикулы с чёрного списка">↩️ Вернуть из ЧС</button>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th style="width:28px"><input type="checkbox" id="ball"></th>
+        <th style="width:150px">Артикул</th>
+        <th>Наименование из прайса</th>
+        <th style="width:110px">Поставщик</th>
+        <th style="width:100px">Остаток</th>
+        <th style="width:100px">Цена</th>
+        <th style="width:100px">Добавлен</th>
+        <th style="width:110px">Источник</th>
+      </tr></thead>
+      <tbody id="brows"><tr><td colspan="8" class="muted">загрузка…</td></tr></tbody>
+    </table>
+    <p class="note" id="bfoot"></p>
+    <p class="mswarn" id="bmsg"></p>
+  </div>
 </main>
 
 <div class="modal" id="modal" hidden>
@@ -725,11 +776,132 @@ $("#bulk-skip").onclick = () => decide(selected(), "skip", "");
 $("#bulk-ask").onclick = () => askNet(selected());
 $("#bulk-black").onclick = () => toBlacklist(selected());
 
+// --- чёрный список ---------------------------------------------------------------------
+// Отдельный подтаб той же страницы: список и разбор новинок делят стили и фильтр поставщика,
+// а отдельной страницей это стоило бы копии всей вёрстки.
+let BDATA = [], BCOUNTS = {}, BTITLES = {}, BTOTAL = 0, BLOADED = false;
+const stitle = k => BTITLES[k] || k;
+
+function bview(on){
+  $("#viewNew").hidden = on;
+  $("#viewBlack").hidden = !on;
+  $("#subtabs").querySelectorAll("a").forEach(a =>
+    a.classList.toggle("cur", (a.dataset.view === "black") === on));
+  if (on && !BLOADED) loadBlack();
+  fitBar();
+}
+$("#subtabs").querySelectorAll("a").forEach(a => a.onclick = e => {
+  e.preventDefault();
+  bview(a.dataset.view === "black");
+});
+
+function brow(r){
+  // Остаток: у поставщиков он бывает не числом («много», «под заказ») — тогда показываем,
+  // что написано в прайсе, а не пустоту.
+  const qty = r.qty != null ? `<b>${num(r.qty)}</b>`
+            : r.stock_raw ? `<span class="muted">${esc(r.stock_raw)}</span>` : `<span class="muted">—</span>`;
+  const price = r.price_rub ? num(Math.round(r.price_rub)) + " ₽" : `<span class="muted">—</span>`;
+  return `<tr data-art="${esc(r.article)}">
+    <td><input type="checkbox" class="bsel"></td>
+    <td class="who">${esc(r.article)}</td>
+    <td>${esc(r.name || "")}${r.note ? `<div class="feat">${esc(r.note)}</div>` : ""}</td>
+    <td>${r.supplier_key ? esc(stitle(r.supplier_key))
+                         : `<span class="muted">нет в прайсах</span>`}</td>
+    <td>${qty}</td><td>${price}</td>
+    <td class="muted">${esc(r.added || "")}</td>
+    <td class="muted">${esc(r.source || "")}</td></tr>`;
+}
+
+function bshown(){
+  const q = $("#bq").value.trim().toLowerCase();
+  return BDATA.filter(r => !q ||
+    ((r.article || "") + " " + (r.name || "")).toLowerCase().includes(q));
+}
+
+function bdraw(){
+  const rows = bshown();
+  $("#brows").innerHTML = rows.length ? rows.map(brow).join("")
+    : `<tr><td colspan="8" class="muted">пусто — по этому фильтру записей нет</td></tr>`;
+  $("#ball").checked = false;
+  const stock = rows.filter(r => r.qty > 0).length;
+  $("#bfoot").textContent = `показано ${rows.length} строк, из них с остатком у поставщика ${stock}`;
+  $("#brows").querySelectorAll(".bsel").forEach(c => c.onchange = bmarked);
+  $("#ball").onchange = e => {
+    $("#brows").querySelectorAll(".bsel").forEach(c => c.checked = e.target.checked);
+    bmarked();
+  };
+  bmarked();
+}
+
+function bselected(){
+  return [...new Set([...$("#brows").querySelectorAll("tr[data-art]")]
+    .filter(tr => tr.querySelector(".bsel").checked).map(tr => tr.dataset.art))];
+}
+
+function bmarked(){
+  const n = bselected().length;
+  $("#bselinfo").textContent = "отмечено " + n;
+  $("#bulk-unblack").disabled = !n;
+}
+
+async function loadBlack(){
+  const sup = $("#bsupplier").value || "";
+  const d = await (await fetch(`/api/blacklist?supplier=${encodeURIComponent(sup)}`)).json();
+  BDATA = d.rows; BCOUNTS = d.counts; BTITLES = d.titles || {}; BTOTAL = d.total; BLOADED = true;
+  if (!$("#bsupplier").options.length){
+    const keys = Object.keys(BCOUNTS).filter(k => k !== "none").sort();
+    $("#bsupplier").innerHTML = `<option value="">все поставщики</option>`
+      + keys.map(k => `<option value="${esc(k)}">${esc(stitle(k))}</option>`).join("")
+      + `<option value="none">нет ни в одном прайсе</option>`;
+  }
+  // Плитки — они же фильтр: цифру видно, по ней и кликают.
+  const inprice = Object.entries(BCOUNTS).filter(([k]) => k !== "none")
+    .reduce((a, [, v]) => a + v.n, 0);
+  const withstock = Object.entries(BCOUNTS).filter(([k]) => k !== "none")
+    .reduce((a, [, v]) => a + v.with_stock, 0);
+  const tiles = [["всего в ЧС", BTOTAL, ""], ["есть в прайсах", inprice, null],
+                 ["из них с остатком", withstock, null]]
+    .concat(Object.keys(BCOUNTS).filter(k => k !== "none").sort()
+      .map(k => [stitle(k) + " · с остатком " + BCOUNTS[k].with_stock, BCOUNTS[k].n, k]))
+    .concat([["нет ни в одном прайсе", (BCOUNTS.none || {}).n || 0, "none"]]);
+  $("#bbig").innerHTML = tiles.map(([l, v, s]) =>
+    `<div class="bi ${s === null ? "" : (s === sup ? "cur" : "")}" ${s === null ? "" : `data-st="${s}"`}>
+       <div class="l">${esc(l)}</div><div class="v">${num(v)}</div></div>`).join("");
+  $("#bbig").querySelectorAll(".bi[data-st]").forEach(b => b.onclick = () => {
+    $("#bsupplier").value = b.dataset.st; loadBlack();
+  });
+  bdraw();
+}
+
+async function unblack(){
+  const arts = bselected();
+  if (!arts.length) return;
+  if (!confirm(`Снять с чёрного списка ${arts.length} артикул(ов)? Они вернутся в разбор `
+             + `новинок со следующим прайсом поставщика.`)) return;
+  $("#bulk-unblack").disabled = true;
+  const res = await (await fetch("/api/blacklist/remove", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify({articles: arts})})).json();
+  // Бренд, забракованный правилом, удалением строки не вернуть — молчать об этом нельзя,
+  // иначе человек будет считать, что вернул, а позиция снова уйдёт в ЧС на следующем прайсе.
+  $("#bmsg").textContent = res.ok
+    ? `снято с ЧС: ${res.n}` + (res.ruled && res.ruled.length
+        ? ` · но правило чёрного списка поставит обратно: ${res.ruled.join(", ")}` : "")
+    : `не вышло: ${res.error || "ошибка"}`;
+  loadBlack();
+}
+$("#bulk-unblack").onclick = unblack;
+$("#bsupplier").onchange = loadBlack;
+$("#bq").oninput = bdraw;
+
 // Замер панели действий: её высота меняется от ширины окна и от текста «отмечено N»,
 // а от неё зависит, где липнет шапка таблицы.
-const bar = document.querySelector(".bar");
-const fitBar = () => document.documentElement.style.setProperty("--barh", bar.offsetHeight + "px");
-new ResizeObserver(fitBar).observe(bar);
+// Панелей две — у разбора и у чёрного списка; у скрытой высота 0, поэтому берём большую:
+// иначе на подтабе ЧС отступ обнуляется, липкая панель садится на липкую шапку таблицы и
+// накрывает её собой.
+const bars = [...document.querySelectorAll(".bar")];
+const fitBar = () => document.documentElement.style.setProperty(
+  "--barh", Math.max(...bars.map(b => b.offsetHeight)) + "px");
+bars.forEach(b => new ResizeObserver(fitBar).observe(b));
 fitBar();
 
 load();

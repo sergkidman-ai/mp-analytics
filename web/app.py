@@ -2479,6 +2479,86 @@ def novelties_blacklist(payload: NoveltyIds):
     return {"ok": True, "n": len(rows), "added": added}
 
 
+# --- чёрный список: что забраковали и что из этого лежит у поставщиков ------------------
+# Отдельный подтаб «Новинок». Смысл: ЧС — не приговор навсегда. Позиция могла попасть туда
+# ошибкой или подешеветь, а остаток у поставщика показывает, есть ли вообще о чём говорить.
+# Цена: у строки, снятой чёрным списком, `price_rub` пустой — до пересчёта валюты она не
+# доходит. Считаем её здесь курсом самой загрузки (у рублёвых прайсов курс = 1).
+BLACKLIST_STOCK = """
+    WITH last AS (
+        SELECT DISTINCT ON (supplier_key) supplier_key, id, rate
+          FROM prc_price_load WHERE status = 'ok'
+         ORDER BY supplier_key, load_date DESC, id DESC),
+    pres AS (
+        SELECT DISTINCT ON (upper(r.article), l.supplier_key)
+               upper(r.article) article_norm, l.supplier_key, r.name, r.qty, r.stock_raw,
+               coalesce(r.price_rub, round(r.price_src * coalesce(l.rate, 1), 2)) price_rub
+          FROM last l JOIN prc_price_row r ON r.load_id = l.id
+         ORDER BY upper(r.article), l.supplier_key, r.qty DESC NULLS LAST)
+"""
+
+
+@app.get("/api/blacklist")
+def blacklist_api(supplier: str = ""):
+    """Чёрный список с остатками по СВЕЖИМ прайсам. supplier: ключ, «none» — нет ни в одном.
+
+    Одна запись ЧС даёт столько строк, у скольких поставщиков она сейчас в прайсе: один и тот
+    же артикул продают несколько, и решение «вернуть» зависит от того, у кого он лежит и почём.
+    Записи, которых нет ни в одном свежем прайсе, отдаём одной строкой без остатка.
+    """
+    rows = db.query(f"""
+        {BLACKLIST_STOCK}
+        SELECT b.article, b.article_norm, b.source, b.note, b.added_at::date::text added,
+               p.supplier_key, p.name, p.qty, p.stock_raw, p.price_rub
+          FROM prc_blacklist b
+          LEFT JOIN pres p ON p.article_norm = b.article_norm
+         WHERE %s = '' OR (%s = 'none' AND p.supplier_key IS NULL) OR p.supplier_key = %s
+         ORDER BY p.supplier_key NULLS LAST, coalesce(p.qty, 0) DESC, b.article
+    """, (supplier, supplier, supplier))
+    counts = db.query(f"""
+        {BLACKLIST_STOCK}
+        SELECT coalesce(p.supplier_key, 'none') supplier_key, count(*) n,
+               count(*) FILTER (WHERE coalesce(p.qty, 0) > 0) with_stock
+          FROM prc_blacklist b
+          LEFT JOIN pres p ON p.article_norm = b.article_norm
+         GROUP BY 1 ORDER BY 1""")
+    total = db.query("SELECT count(*) n FROM prc_blacklist")[0]["n"]
+    from prices.profiles import PROFILES
+    return {"rows": [dict(r, qty=float(r["qty"]) if r["qty"] is not None else None,
+                          price_rub=float(r["price_rub"]) if r["price_rub"] else None)
+                     for r in rows],
+            "total": total,
+            "counts": {c["supplier_key"]: {"n": c["n"], "with_stock": c["with_stock"]}
+                       for c in counts},
+            "titles": {k: p.title for k, p in PROFILES.items()}}
+
+
+class BlacklistArticles(BaseModel):
+    articles: list[str]
+
+
+@app.post("/api/blacklist/remove")
+def blacklist_remove(payload: BlacklistArticles):
+    """Снять артикулы с чёрного списка.
+
+    Карточку это не заводит и решения не меняет: строка просто перестанет отсеиваться, и в
+    следующем прайсе поставщика позиция снова придёт в «Новинки» на разбор. Бренд, забракованный
+    ПРАВИЛОМ (`blacklist.BRAND_RULES`, напр. «ТУ» у Одиссея), удалением из таблицы не вернуть —
+    правило переставит причину снова, о чём и предупреждаем.
+    """
+    from prices import blacklist
+    arts = [a.strip() for a in payload.articles if a and a.strip()]
+    if not arts:
+        return {"ok": False, "error": "не переданы артикулы"}
+    keys = [blacklist.norm(a) for a in arts]
+    gone = db.query("DELETE FROM prc_blacklist WHERE article_norm = ANY(%s) RETURNING article",
+                    (keys,))
+    ruled = sorted({a for a in arts
+                    for key in blacklist.BRAND_RULES
+                    if blacklist.in_rules(a, key)})
+    return {"ok": True, "n": len(gone), "ruled": ruled}
+
+
 # --- новинка -> карточки в МойСкладе ---------------------------------------------------
 # Строка `matched` доезжает до карточки сама (`ms_import.build`: всё о товаре берётся у родни
 # по внешнему коду). У новинки родни нет — поля заполняет человек, а мы подставляем черновик.
