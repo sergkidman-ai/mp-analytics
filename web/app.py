@@ -1395,19 +1395,25 @@ def ya_cost_reset(p: YaCostReset):
     """Убрать ручной себест и пересчитать ОДНУ отгрузку через FIFO/импутацию (откат)."""
     nm = (p.demand_name or "").strip()
     db.execute("DELETE FROM ya_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
-    row = db.query("SELECT demand_id FROM ya_cogs_demand WHERE account=%s AND demand_name=%s",
+    row = db.query("SELECT demand_id, demand_date FROM ya_cogs_demand WHERE account=%s AND demand_name=%s",
                    (p.account, nm))
     if not row or not row[0]["demand_id"]:
         return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
     from collectors import ms_demand_cogs as MDC
     from collectors.ya_cogs_demand import _cost_seb_map
+    from reports import fifo_fallback
     cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
     if cogs > 0:
         method = "ms_fifo"
     else:
-        cost_seb = _cost_seb_map()
-        cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
-        method = "imputed"
+        # своего FIFO у документа нет → FIFO ТЕХ ЖЕ товаров МС на дату отгрузки;
+        # cost_seb (средняя по остатку из карточки) — только аварийный хвост
+        cogs, method = fifo_fallback.load().impute(pos, row[0]["demand_date"])
+        if not cogs:
+            cost_seb = _cost_seb_map()
+            cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+            method = "imputed"
+        cogs = round(cogs, 2)
     db.execute("UPDATE ya_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
                (cogs, method, p.account, nm))
     return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
@@ -1496,19 +1502,25 @@ def oz_cost_reset(p: OzCostReset):
     if p.account not in OZ_COST_ACCOUNTS:
         return {"ok": False, "error": "неизвестное юрлицо Ozon"}
     db.execute("DELETE FROM oz_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
-    row = db.query("SELECT demand_id FROM oz_cogs_demand WHERE account=%s AND demand_name=%s",
+    row = db.query("SELECT demand_id, demand_date FROM oz_cogs_demand WHERE account=%s AND demand_name=%s",
                    (p.account, nm))
     if not row or not row[0]["demand_id"]:
         return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
     from collectors import ms_demand_cogs as MDC
     from collectors.oz_cogs_demand import _cost_seb_map
+    from reports import fifo_fallback
     cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
     if cogs > 0:
         method = "ms_fifo"
     else:
-        cost_seb = _cost_seb_map()
-        cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
-        method = "imputed"
+        # своего FIFO у документа нет → FIFO ТЕХ ЖЕ товаров МС на дату отгрузки;
+        # cost_seb (средняя по остатку из карточки) — только аварийный хвост
+        cogs, method = fifo_fallback.load().impute(pos, row[0]["demand_date"])
+        if not cogs:
+            cost_seb = _cost_seb_map()
+            cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+            method = "imputed"
+        cogs = round(cogs, 2)
     db.execute("UPDATE oz_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
                (cogs, method, p.account, nm))
     return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
@@ -1594,19 +1606,25 @@ def wb_cost_reset(p: WbCostReset):
     if p.account not in WB_COST_ACCOUNTS:
         return {"ok": False, "error": "неизвестное юрлицо WB"}
     db.execute("DELETE FROM wb_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
-    row = db.query("SELECT demand_id FROM wb_cogs_demand WHERE account=%s AND demand_name=%s",
+    row = db.query("SELECT demand_id, demand_date FROM wb_cogs_demand WHERE account=%s AND demand_name=%s",
                    (p.account, nm))
     if not row or not row[0]["demand_id"]:
         return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
     from collectors import ms_demand_cogs as MDC
     from collectors.wb_cogs_demand import _cost_seb_map
+    from reports import fifo_fallback
     cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
     if cogs > 0:
         method = "ms_fifo"
     else:
-        cost_seb = _cost_seb_map()
-        cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
-        method = "imputed"
+        # своего FIFO у документа нет → FIFO ТЕХ ЖЕ товаров МС на дату отгрузки;
+        # cost_seb (средняя по остатку из карточки) — только аварийный хвост
+        cogs, method = fifo_fallback.load().impute(pos, row[0]["demand_date"])
+        if not cogs:
+            cost_seb = _cost_seb_map()
+            cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+            method = "imputed"
+        cogs = round(cogs, 2)
     db.execute("UPDATE wb_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
                (cogs, method, p.account, nm))
     return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}

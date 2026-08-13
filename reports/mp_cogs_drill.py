@@ -23,7 +23,19 @@ import pathlib
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
-from reports.ya_cogs_page import _fmt, _ST  # noqa: E402
+
+def _yp():
+    """Хелперы страницы себестоимости — ЛЕНИВО. На импорте модуля нельзя: цикл
+    ozon_mp_page → mp_cogs_drill → ya_cogs_page → ozon_mp_page роняет любой вход,
+    начинающийся с ozon_mp_page (CLI reports.ozon_mp_freeze, cron границы месяца)."""
+    from reports import ya_cogs_page as Y
+    return Y
+
+
+def _fmt(v):
+    return _yp()._fmt(v)
+
+
 
 MAX_ROWS = 300          # длиннее в раскрывающийся блок не тянем — есть полный раздел «Себестоимость»
 
@@ -43,7 +55,8 @@ STATUS_LABEL = {
 # не ошибка: площадка выручку не сторнировала, потери брака живут в разделе «Себестоимость».
 NOTE_STATUS = ("Статус — судьба товара по данным МойСклад; себестоимость отчёта он не определяет: "
                "решает факт начисления или сторно выручки площадкой.")
-METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "imputed": "импутация", "manual": "ручной"}
+METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "tovar_fifo": "FIFO товара", "imputed": "импутация",
+                "manual": "ручной"}
 
 CSS = """<style>
 .drill{background:#0f1720;padding:14px 16px;border-radius:10px;margin:6px 0 10px}
@@ -155,7 +168,7 @@ def fragment_html(platform, account, ym):
     if not cfg:
         return '<div class="drill">Неизвестная площадка</div>'
     # _ST — доводка статуса 'other' старше лага до 'unreported' (см. reports/ya_cogs_page)
-    rows = db.query(cfg["sql"].replace("%(st)s", _ST), {"acc": account, "ym": ym})
+    rows = db.query(cfg["sql"].replace("%(st)s", _yp()._ST), {"acc": account, "ym": ym})
 
     tot_cogs = tot_sold = tot_ret = 0.0
     n_zero = 0

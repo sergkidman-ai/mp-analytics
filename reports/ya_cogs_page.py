@@ -43,7 +43,8 @@ FLAG_STATUSES = ("unredeemed",)
 # товар вернулся в ПРОДАВАЕМЫЙ сток → себест сторнируется, строка net-neutral (оборот и себест = 0).
 # Брак (return_defect) НЕ сторнируется: товар нельзя перепродать → себест остаётся убытком.
 STORNO_STATUSES = ("return_stock", "unredeemed")
-METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "imputed": "импутация", "manual": "ручной"}
+METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "tovar_fifo": "FIFO товара", "imputed": "импутация",
+                "manual": "ручной"}
 
 PAGE_CSS = """
 .ct{width:100%;border-collapse:collapse;margin:8px 0 4px;font-size:14px}
@@ -335,6 +336,7 @@ def detail_html(account, ym):
             f'<label>Статус <select id="fst">{opts}</select></label>'
             '<label>Способ <select id="fmt">'
             '<option value="">все</option><option value="ms_fifo">МС (FIFO)</option>'
+            '<option value="tovar_fifo">FIFO товара</option>'
             '<option value="imputed">импутация</option><option value="manual">ручной</option>'
             '</select></label>'
             f'<label>Себест <select id="fcost">{copts}</select></label>'

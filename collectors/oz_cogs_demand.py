@@ -24,6 +24,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from collectors import ms_demand_cogs as MDC  # noqa: E402  (throttled MS get + byoperation_cogs)
+from reports import fifo_fallback  # noqa: E402  (FIFO товара МС вместо cost_seb)
 
 ACCOUNTS = ("oz_acc1", "oz_acc2")          # oz_acc1 — Цифровой квадрат, oz_acc2 — Дисквэр
 AGENTS = MDC.PLATFORM["ozon"]["agents"]    # «Покупатель Озон», «Озон Экспресс»
@@ -183,7 +184,8 @@ def collect_account(account, since="2026-01-01"):
     org_href = MDC._resolve_href("organization", org_name)
     org_id = MDC._hid(org_href)
 
-    cost_seb = _cost_seb_map()
+    ff = fifo_fallback.load()            # FIFO тех же товаров МС — импутация без cost_seb
+    cost_seb = _cost_seb_map()          # аварийный хвост: товар в МС ни разу не отгружался
     manual = _manual_map(account)
     known = _known_map(account)
     fifo = _fifo_map(org_id, since)
@@ -219,8 +221,13 @@ def collect_account(account, since="2026-01-01"):
                     print(f"[oz-cogs][{account}] byoperation {nm}: {e}")
                     p = []
             if cogs <= 0:
-                cogs = sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in p)
-                method = "imputed"
+                # Себест списания — только FIFO (решение Сергея 2026-08-13). Своего FIFO у
+                # документа нет → берём FIFO ТЕХ ЖЕ товаров МС по ближайшей отгрузке до этой
+                # даты; cost_seb (средняя по остатку из карточки) — лишь аварийный хвост.
+                cogs, method = ff.impute(p, d["moment"])
+                if not cogs:
+                    cogs = sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in p)
+                    method = "imputed"
             if not qty:
                 qty = sum(x["qty"] for x in p)
         if nm in manual:                                # ручной себест — истина, побеждает всё

@@ -28,6 +28,7 @@ import re
 import bisect
 import sys
 import pathlib
+import datetime
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -61,6 +62,8 @@ class FifoFallback:
         h = self.hist.get(ms)
         if not h:
             return None
+        if isinstance(day, str):                     # коллекторы держат дату строкой YYYY-MM-DD
+            day = datetime.date.fromisoformat(day[:10])
         i = bisect.bisect_right([x[0] for x in h], day)
         return h[i - 1][1] if i else h[0][1]
 
@@ -87,6 +90,25 @@ class FifoFallback:
             if cov and cov == len(comps):
                 return tot
         return None
+
+    def unit_ms(self, ms_id, day):
+        """FIFO/шт конкретного товара МС на дату (для документов, где ms_id уже известен)."""
+        return self._by_ms(ms_id, day)
+
+    def impute(self, pos, day):
+        """(себест документа, 'tovar_fifo') по позициям [{ms_id, qty}] — FIFO ТЕХ ЖЕ товаров МС
+        на дату документа. (None, None), если FIFO нашёлся не по всем позициям: частичная сумма
+        занизила бы себест документа, а занижение себеста завышает прибыль."""
+        tot, cov, n = 0.0, 0, 0
+        for x in pos or []:
+            n += 1
+            u = self._by_ms(x["ms_id"], day)
+            if u:
+                tot += u * float(x["qty"] or 0)
+                cov += 1
+        if n and cov == n and tot > 0:
+            return tot, "tovar_fifo"
+        return None, None
 
     def unit(self, sa, day):
         """(себест/шт, источник) или (None, None). day — дата продажи (date)."""

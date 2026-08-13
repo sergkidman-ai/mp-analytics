@@ -20,6 +20,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from collectors import ms_demand_cogs as MDC  # noqa: E402  (throttled MS get + byoperation_cogs)
+from reports import fifo_fallback  # noqa: E402  (FIFO товара МС вместо cost_seb)
 
 load_dotenv(BASE_DIR / ".env")
 MS_TOK = os.getenv("MOYSKLAD_TOKEN")
@@ -143,7 +144,8 @@ def collect(since="2026-01-01"):
     if not MS_TOK:
         print("[ya-cogs] нет MOYSKLAD_TOKEN")
         return 0
-    cost_seb = _cost_seb_map()
+    ff = fifo_fallback.load()            # FIFO тех же товаров МС — импутация без cost_seb
+    cost_seb = _cost_seb_map()          # аварийный хвост: товар в МС ни разу не отгружался
     order_st = _order_status_map()
     fullprice = _ya_fullprice_map()   # для заказов с номинальной суммой в МС (<100 ₽)
     manual = _manual_map()            # ручной себест сотрудника (побеждает FIFO/импутацию)
@@ -187,8 +189,12 @@ def collect(since="2026-01-01"):
                 if cogs > 0:
                     method = "ms_fifo"
                 else:
-                    cogs = sum(cost_seb.get(p["ms_id"], 0) * p["qty"] for p in pos)
-                    method = "imputed"
+                    # Себест списания — только FIFO (решение Сергея 2026-08-13): своего FIFO
+                    # нет → FIFO ТЕХ ЖЕ товаров МС на дату; cost_seb — аварийный хвост.
+                    cogs, method = ff.impute(pos, moment)
+                    if not cogs:
+                        cogs = sum(cost_seb.get(p["ms_id"], 0) * p["qty"] for p in pos)
+                        method = "imputed"
                     if not qty:
                         qty = sum(p["qty"] for p in pos)
                 if nm in manual:                        # ручной себест — истина, побеждает всё
