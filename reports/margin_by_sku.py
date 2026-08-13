@@ -67,14 +67,41 @@ def demand_cogs_from_cache(org_id):
 
 
 def return_sellable_qty(org_id):
-    """{assembly_id(demand_name): Σ ret_qty} возвратов в ПРОДАВАЕМЫЙ сток — БЮДЖЕТ штук для сторно
-    COGS. Брак сюда не входит (sellable=FALSE). Сторно на aid ограничиваем этим кол-вом, чтобы даже
-    при смешанном возврате (часть в сток, часть в брак) дефектные штуки не попали в сторно.
+    """{assembly_id(demand_name): Σ ret_qty} возвратов в ПРОДАВАЕМЫЙ сток по данным МойСклада.
+    БОЛЬШЕ НЕ ГЕЙТ для сторно COGS (решение Сергея 2026-08-13, см. storno_budget) — оставлена как
+    справочная: раздел «Себестоимость» показывает по ней брак отдельным убытком.
     Источник — collectors/ms_return_cogs."""
     return {r["demand_name"]: float(r["q"] or 0) for r in db.query(
         """SELECT demand_name, sum(ret_qty) q FROM ms_return_cogs
            WHERE org=%s AND sellable AND demand_name IS NOT NULL GROUP BY demand_name""",
         (org_id,))}
+
+
+def storno_budget(account, ym):
+    """{assembly_id: штук, по которым выручка начислена и ещё НЕ сторнирована к началу месяца ym}.
+
+    Решение Сергея 2026-08-13: в отчётах МП себестоимость считается ТОЛЬКО по реализованному
+    покупателю товару, а критерий — факт начисления выручки в САМОМ отчёте. Поэтому бюджет сторно
+    больше не берётся из МойСклада (`return_sellable_qty`) и не режется складом «Брак»: ВБ
+    сторнировал выручку → сторнируем себест, независимо от того, куда приехал товар и провели ли
+    возврат в МС. Потери от брака живут в разделе «Себестоимость», а не здесь.
+
+    Бюджет = продано штук по этой отгрузке во ВСЕХ отчётах − возвращено в отчётах ДО ym. Он нужен
+    только против двойного сторно (один возврат отражён в двух отчётных месяцах) и против сторно
+    того, что никогда не начислялось; внутри месяца добирается через storno_used.
+    """
+    return {r["aid"]: float(r["b"]) for r in db.query("""
+        WITH s AS (
+            SELECT payload->>'assembly_id' aid,
+                   sum(CASE WHEN payload->>'supplier_oper_name'='Продажа'
+                            THEN coalesce((payload->>'quantity')::numeric,0) ELSE 0 END) sold,
+                   sum(CASE WHEN payload->>'supplier_oper_name'='Возврат'
+                             AND to_char((payload->>'create_dt')::date,'YYYY-MM') < %s
+                            THEN coalesce((payload->>'quantity')::numeric,0) ELSE 0 END) ret_before
+            FROM raw_wb_report
+            WHERE account=%s AND coalesce(payload->>'assembly_id','0') <> '0'
+            GROUP BY 1)
+        SELECT aid, greatest(sold - ret_before, 0) b FROM s WHERE sold > 0""", (ym, account))}
 
 
 def _fallback_sources(account):
@@ -142,7 +169,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     print(f"Витрина маржи {account} {ym} (по формированию)…", flush=True)
     org_id = _org_id(account)
     cogs_order = demand_cogs_from_cache(org_id)       # {aid: (cogs, qty)}
-    sell_budget = return_sellable_qty(org_id)         # {aid: sellable_ret_qty} — бюджет штук сторно
+    sell_budget = storno_budget(account, ym)          # {aid: штук с начисленной и не сторнированной выручкой}
 
     # Деньги по nm из отчётов месяца формирования (семантика = collectors/wb.normalize_sales).
     raw = db.query("""
@@ -168,6 +195,8 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     asm = defaultdict(lambda: defaultdict(float))   # aid -> nm -> qty (только Продажа, FBS)
     storno = defaultdict(float)                      # nm -> сторно COGS возвратов в сток (месяц возврата)
     storno_used = defaultdict(float)                 # aid -> уже сторнировано штук (лимит = sell_budget)
+    storno_fb = defaultdict(float)                   # источник фолбэка -> штук сторно без моста к отгрузке
+    cpu_hist, grp, setc, buy, manual = _fallback_sources(account)
     for r in money_rows_iter(raw):
         nm, a = r["nm"], money[r["nm"]]
         sa_of.setdefault(nm, r["sa"])
@@ -182,21 +211,28 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
             a["returns_sum"] += r["ra"]
             a["revenue_buyer"] -= r["rpw"]
             a["commission"] -= (r["ra"] - r["pay"])
-            # Сторно COGS: товар вернулся в ПРОДАВАЕМЫЙ сток (склад ≠ Брак) — себест исходной
-            # отгрузки надо вернуть из расходов, иначе при перепродаже спишется дважды. Себест/шт
-            # = cogs/qty исходной отгрузки (метод B), × штук возврата, но НЕ больше подтверждённого
-            # МС бюджета sellable-штук на этот aid (дефектные штуки смешанного возврата не сторнируем).
+            # Сторно COGS: ВБ сторнировал выручку по этой отгрузке — значит товар покупателю не
+            # реализован, и его себест уходит из расходов отчёта. Ни склад возврата, ни наличие
+            # документа возврата в МС роли не играют (решение Сергея 2026-08-13): критерий —
+            # факт сторно выручки в самом отчёте. Себест/шт = cogs/qty исходной отгрузки (метод B),
+            # при отсутствии моста к отгрузке — фолбэк по истории SKU (_chain_cpu). Бюджет
+            # storno_budget защищает только от двойного сторно и от сторно неначисленного.
             # Период — месяц ФОРМИРОВАНИЯ WB-строки Возврат (= месяц денежного реверса, метод A);
-            # НЕ месяц МС-документа (он отстаёт на 1–3 мес — сверено). storno_used сбрасывается на
-            # каждый месячный build: это корректно, пока WB отражает один возврат в ОДНОМ отчётном
-            # месяце (0 нарушений на данных) — та же предпосылка, что и у денежного реверса возвратов.
+            # НЕ месяц МС-документа (он отстаёт на 1–3 мес — сверено).
             aid = r["aid"]
             if aid and aid != "0":
                 take = min(r["q"], max(0.0, sell_budget.get(aid, 0.0) - storno_used[aid]))
                 cq = cogs_order.get(aid)
-                if take > 0 and cq and cq[1] > 0:
-                    storno[nm] += cq[0] / cq[1] * take
-                    storno_used[aid] += take
+                if take > 0:
+                    if cq and cq[1] > 0:
+                        storno[nm] += cq[0] / cq[1] * take
+                        storno_used[aid] += take
+                    else:
+                        u, src = _chain_cpu(nm, r["sa"], cpu_hist, grp, setc, buy, manual)
+                        if u is not None:
+                            storno[nm] += u * take
+                            storno_used[aid] += take
+                            storno_fb[src] += take
         # «Возврат» в сырье ВБ лежит с ПОЛОЖИТЕЛЬНЫМ ppvz_for_pay — вычитаем,
         # иначе «К перечислению» и чистая завышаются на 2× сумму возвратов.
         a["to_pay"] += (-r["pay"] if r["op"] == "Возврат" else r["pay"])
@@ -222,7 +258,6 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
             else:
                 unmatched_units[nm] += q
 
-    cpu_hist, grp, setc, buy, manual = _fallback_sources(account)
     cov = defaultdict(float)
     recs = []
     for nm, a in money.items():
@@ -269,7 +304,10 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     print(f"  COGS-покрытие: {covered/tot*100:.1f}% из {tot:.0f} шт ({detail})", flush=True)
     st_sum = sum(storno.values())
     if st_sum:
-        print(f"  сторно COGS возвратов в сток: −{st_sum:,.0f} ₽ по {sum(1 for v in storno.values() if v)} nm"
+        fb = ""
+        if storno_fb:
+            fb = " | без моста к отгрузке: " + ", ".join(f"{k} {v:.0f} шт" for k, v in storno_fb.items())
+        print(f"  сторно COGS возвратов: −{st_sum:,.0f} ₽ по {sum(1 for v in storno.values() if v)} nm{fb}"
               .replace(",", " "), flush=True)
     print(f"  записано {len(recs)} nm_id за {ym}", flush=True)
 
