@@ -8,12 +8,16 @@ COGS:
   FBS — готовый себест отгрузки МС из ms_demand_cogs (report/stock/byoperation, FIFO на moment
         документа; см. collectors/ms_demand_cogs.py), матч assembly_id=demand_name НАПРЯМУЮ.
         Мульти-nm отгрузка делится по nm пропорционально штукам.
-  FBO/непокрытое — цепочка фолбэков (по приоритету):
+  FBO/непокрытое — цепочка фолбэков (по приоритету). Первые четыре шага — производные ФАКТА
+        FIFO (тот же товар, просто другая продажа), дальше идут суррогаты:
         1) cpu этого месяца (из матчей FBS текущей сборки)
         2) cpu истории nm (margin_by_sku прошлых месяцев)
-        3) группа cost_seb по артикулу; 4) по префиксу (5зн→4, 6зн→5/4)
-        5) состав набора (set_cost); 6) свежая закупочная (ms_product.buy_price по группе)
-        7) ручной себест (cogs_manual, диктует клиент)
+        3) FIFO ТОВАРА МС на дату продажи — ближайшая предшествующая отгрузка того же товара
+           на любой площадке (reports/fifo_fallback.py)
+        4) набор: Σ FIFO компонентов состава (set_cost.components), только при полном покрытии
+        5) группа cost_seb по артикулу; 6) по префиксу (5зн→4, 6зн→5/4)
+        7) состав набора по закупочным (set_cost.cost); 8) свежая закупочная (ms_product.buy_price)
+        9) ручной себест (cogs_manual, диктует клиент)
 
 net_profit = to_pay − logistics − storage − acceptance − other − COGS. Деньги — якорь (не штуки).
 Запуск:  ./venv/bin/python reports/margin_by_sku.py [wb_acc1 [2026-01-01 2026-01-31]]
@@ -22,6 +26,7 @@ import os
 import re
 import sys
 import time
+import datetime
 import pathlib
 from collections import defaultdict
 
@@ -31,6 +36,7 @@ from dotenv import load_dotenv
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from reports import fifo_fallback  # noqa: E402  (FIFO товара МС — шаги 3–4 цепочки)
 
 load_dotenv(BASE_DIR / ".env")
 MS_TOK = os.getenv("MOYSKLAD_TOKEN")
@@ -106,10 +112,18 @@ def storno_budget(account, ym):
 
 def _fallback_sources(account):
     """Справочники для цепочки фолбэков (грузим один раз на сборку)."""
+    # cpu истории — ТОЛЬКО по nm, у которых была своя FBS-отгрузка с FIFO. Иначе шаг
+    # самозакрепляет суррогат: nm без единого FIFO получил себест из cost_seb, тот лёг в витрину,
+    # а на следующей сборке вернулся сюда как «история» и навсегда закрыл дорогу шагам 3–4.
     cpu_hist = {r["article"]: float(r["u"]) for r in db.query("""
+        WITH fifo_nm AS (
+            SELECT DISTINCT w.payload->>'nm_id' nm FROM raw_wb_report w
+            JOIN ms_demand_cogs d ON d.demand_name = w.payload->>'assembly_id'
+            WHERE w.account=%s AND coalesce(d.cogs,0) > 0)
         SELECT DISTINCT ON (article) article, cogs/nullif(qty,0) u FROM margin_by_sku
         WHERE platform='wb' AND account=%s AND cogs>0 AND qty>0
-        ORDER BY article, period_from DESC""", (account,))}
+          AND article IN (SELECT nm FROM fifo_nm)
+        ORDER BY article, period_from DESC""", (account, account))}
     grp = {}
     for r in db.query("""
         SELECT external_code, min(cost_seb) FILTER (WHERE cost_seb>0) mn,
@@ -134,10 +148,17 @@ def _grp_cost(g):
     return (mx if (is_set and mx) else (mn or None)) or None
 
 
-def _chain_cpu(nm, sa, cpu_hist, grp, setc, buy, manual):
-    """Себест/шт по цепочке фолбэков (шаги 2–7). None если не нашлось нигде."""
+def _chain_cpu(nm, sa, cpu_hist, grp, setc, buy, manual, ff=None, day=None):
+    """Себест/шт по цепочке фолбэков (шаги 2–9). None если не нашлось нигде.
+
+    ff/day — FIFO товара МС на дату продажи (reports/fifo_fallback.py): шаги 3–4, идут ПЕРЕД
+    суррогатами из карточки (cost_seb), потому что это факт списания того же товара."""
     if nm in cpu_hist:
         return cpu_hist[nm], "cpu_hist"
+    if ff is not None and day is not None:
+        u, src = ff.unit(sa, day)
+        if u:
+            return u, src
     # Группа МС = ведущие цифры артикула (правило клиента): Цифровой «07772»=0777+2,
     # Дисквэр «3212wqfn7m9y»=3212+случайный хвост. Пробуем полный артикул, потом 5, потом 4 цифры.
     keys = [sa] if sa else []
@@ -197,6 +218,8 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     storno_used = defaultdict(float)                 # aid -> уже сторнировано штук (лимит = sell_budget)
     storno_fb = defaultdict(float)                   # источник фолбэка -> штук сторно без моста к отгрузке
     cpu_hist, grp, setc, buy, manual = _fallback_sources(account)
+    ff = fifo_fallback.load()                        # FIFO товара МС (шаги 3–4 цепочки)
+    day = datetime.date.fromisoformat(date_to)       # отсечка: последняя отгрузка товара до конца месяца
     for r in money_rows_iter(raw):
         nm, a = r["nm"], money[r["nm"]]
         sa_of.setdefault(nm, r["sa"])
@@ -228,7 +251,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
                         storno[nm] += cq[0] / cq[1] * take
                         storno_used[aid] += take
                     else:
-                        u, src = _chain_cpu(nm, r["sa"], cpu_hist, grp, setc, buy, manual)
+                        u, src = _chain_cpu(nm, r["sa"], cpu_hist, grp, setc, buy, manual, ff, day)
                         if u is not None:
                             storno[nm] += u * take
                             storno_used[aid] += take
@@ -271,7 +294,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
                 cogs += (mc[nm] / mu[nm]) * rest
                 cov["cpu_month"] += rest
             else:
-                u, src = _chain_cpu(nm, sa_of.get(nm), cpu_hist, grp, setc, buy, manual)
+                u, src = _chain_cpu(nm, sa_of.get(nm), cpu_hist, grp, setc, buy, manual, ff, day)
                 if u is not None:
                     cogs += u * rest
                     cov[src] += rest
