@@ -45,19 +45,71 @@ COMMON_CODE_LIMIT = 400      # код, встречающийся чаще, ка
 TOP_VARIANTS = 5             # сколько вариантов показывать по одной строке прайса
 
 
-def load_catalog():
-    """Живые карточки каталога с разобранными признаками."""
+TC_FEATURES = ("color", "resource", "chip", "brand")
+
+
+def load_tc():
+    """Слепок каталога ТК: внешний код -> {признаки, коды, название}.
+
+    ТК — ПЕРВОИСТОЧНИК: там наш товар заведён один раз, признаки лежат полями и заполнены
+    заметно полнее, чем их удаётся вычитать из названий карточек МС (цвет 81% против 74%,
+    ресурс 84% против 57%). Карточки МС — товары ПОСТАВЩИКОВ, заведённые руками с их прайсов,
+    поэтому их названия и неполны, и местами ошибочны.
+
+    В API не ходим: слепок обновляет ночной коллектор `collectors/thecartridge_catalog.py`.
+    """
     rows = query("""
-        select ms_id, coalesce(code, '') as code, name, coalesce(article, '') as article
+        select external_code, title, color, resource, chip, coalesce(brand, '{}') as brand
+          from prc_tc_model
+         where gone_at is null
+    """)
+    tc = {r["external_code"]: {"title": r["title"], "color": r["color"],
+                               "resource": r["resource"], "chip": r["chip"],
+                               "brand": set(r["brand"] or ()), "codes": set()}
+          for r in rows}
+    for r in query("select code, external_code from prc_tc_code"):
+        if r["external_code"] in tc:
+            tc[r["external_code"]]["codes"].add(r["code"])
+    return tc
+
+
+def enrich(item, tc):
+    """Признаки карточки МС, дополненные первоисточником. -> какие признаки пришли из ТК.
+
+    Первоисточник ДОГОВАРИВАЕТ молчание карточки и правит её ошибки: где ТК высказался, берём
+    его значение; где молчит — остаётся разбор названия МС. Коды складываем, а не заменяем:
+    у каждого поставщика в МС свой код на один и тот же товар, и эта синонимия живёт только
+    там (в ТК синонимы есть, но не все).
+    """
+    if not tc:
+        return ()
+    item["codes"] = set(item["codes"]) | tc["codes"]
+    src = []
+    for key in TC_FEATURES:
+        if tc[key]:
+            item[key] = tc[key]
+            src.append(key)
+    item["tc"] = tc
+    return tuple(src)
+
+
+def load_catalog(tc_all=None):
+    """Живые карточки каталога с разобранными признаками (МС + первоисточник ТК)."""
+    rows = query("""
+        select ms_id, coalesce(code, '') as code, name, coalesce(article, '') as article,
+               coalesce(external_code, '') as external_code
           from ms_product
          where not archived and name is not null
     """)
+    tc_all = load_tc() if tc_all is None else tc_all
     out = []
     for row in rows:
         item = dict(row)
         item["num"] = (CODE_NUM_RE.match(item["code"]) or [None])[0]
         item["kind"] = kind(item["name"])
         item.update(F.parse(item["name"], item["article"]))
+        item["tc"] = None
+        item["feat_src"] = enrich(item, tc_all.get(item["external_code"]))
         out.append(item)
     return out
 
@@ -164,10 +216,17 @@ def chip_ok(want, got):
     Если про чип не написано ни в прайсе поставщика, ни у нас в МС — товар один и тот же, и
     признак сходится. Расхождение — только когда обе стороны сказали, и сказали разное.
     Молчание одной стороны по-прежнему `None` («у них написано, у нас нет» — не отказ).
+
+    «С чипом» против «с чипом без счётчика» — НЕ противоречие, а разная подробность: чип есть
+    в обоих случаях, просто одна сторона уточнила про счётчик, а вторая нет. Так пишут и прайсы,
+    и каталог ТК. Строгое равенство здесь давало False, а False по чипу выбрасывает кандидата
+    совсем — верная карточка пряталась. Отказ оставляем только против «без чипа».
     """
     if want is None and got is None:
         return True
     if want is None or got is None:
+        return None
+    if {want, got} == {"chip", "chip_free"}:
         return None
     return want == got
 
@@ -250,10 +309,72 @@ def match(row, index, by_id):
         best_code = max(shared, key=lambda c: (len(index[c]) == rarest, len(c)))
         hit = {"item": item, "code": best_code, "shared": len(shared), "rarity": rarest,
                "confirmed": sum(1 for x in (flags["color_ok"], flags["resource_ok"],
-                                            flags["chip_ok"]) if x)}
+                                            flags["chip_ok"]) if x),
+               "tc_confirmed": tc_confirmed(item, flags)}
         hit.update(flags)
         out.append(hit)
-    out.sort(key=lambda h: (h["brand_ok"] is False, h["rarity"], -h["confirmed"], -h["shared"]))
+    out.sort(key=lambda h: (h["brand_ok"] is False, h["rarity"],
+                            -h["tc_confirmed"], -h["confirmed"], -h["shared"]))
+    return out
+
+
+def tc_confirmed(item, flags):
+    """Сколько признаков ПЕРВОИСТОЧНИКА совпало со строкой прайса.
+
+    Отдельно от `confirmed`, потому что вес у них разный: признак из ТК — из карточки товара,
+    а признак из названия карточки МС — из того, что руками написал заводивший её человек.
+    Стоит в сортировке ПОСЛЕ редкости кода: редкий общий код по-прежнему главный сигнал,
+    а первоисточник решает, какой из карточек одной редкости встать предвыбранной.
+    """
+    return sum(1 for key in item.get("feat_src") or () if flags.get(f"{key}_ok"))
+
+
+def build_tc_index(catalog, tc_all):
+    """код -> внешние коды ТК, у которых НЕТ живой карточки МС.
+
+    Такой товар у нас ЗАВЕДЁН (он в нашем каталоге), просто ни один поставщик ещё не привёз
+    его коробку — карточки поставщика в МС нет. Человеку это не «новый товар», а подсказка:
+    заводить карточку надо под ЭТИМ внешним кодом, а не под следующим свободным, иначе в
+    каталоге появится второй код на один товар.
+    """
+    live = {item["external_code"] for item in catalog if item["external_code"]}
+    index = defaultdict(list)
+    for ec, tc in tc_all.items():
+        if ec in live:
+            continue
+        for code in tc["codes"]:
+            index[code].append(ec)
+    return {code: ecs for code, ecs in index.items() if len(ecs) <= COMMON_CODE_LIMIT}
+
+
+def tc_only(row, tc_index, tc_all):
+    """Модели ТК без карточки МС, подходящие под строку прайса. Признаки — сплошь из ТК.
+
+    Тип товара (`kind`) у модели ТК не берём: их `consumable_type` ложится на наши пять типов
+    неоднозначно, а `kind` — жёсткий фильтр отбора, и ошибка спрятала бы верный вариант.
+    """
+    found = defaultdict(set)
+    for code in row["codes"]:
+        for ec in tc_index.get(code, ()):
+            found[ec].add(code)
+    out = []
+    for ec, shared in found.items():
+        tc = tc_all[ec]
+        item = {"ms_id": None, "code": "", "external_code": ec, "name": tc["title"],
+                "article": "", "num": None, "kind": None, "codes": tc["codes"], "tc": tc,
+                "color": tc["color"], "resource": tc["resource"], "chip": tc["chip"],
+                "brand": set(tc["brand"]),
+                "feat_src": tuple(key for key in TC_FEATURES if tc[key])}
+        flags = compare(row, item)
+        if False in (flags["color_ok"], flags["resource_ok"], flags["chip_ok"]):
+            continue
+        rarest = min(len(tc_index[c]) for c in shared)
+        best_code = max(shared, key=lambda c: (len(tc_index[c]) == rarest, len(c)))
+        hit = {"item": item, "code": best_code, "shared": len(shared), "rarity": rarest,
+               "confirmed": 0, "tc_confirmed": tc_confirmed(item, flags), "tc_only": True}
+        hit.update(flags)
+        out.append(hit)
+    out.sort(key=lambda h: (h["brand_ok"] is False, h["rarity"], -h["tc_confirmed"]))
     return out
 
 
@@ -313,14 +434,17 @@ def save(rows, supplier_key, hits_by_article):
                 INSERT INTO prc_novelty_candidate (novelty_id, rank, ms_id, ms_code, ms_name,
                                                    color, measure, chip, shared_code, verdict,
                                                    brand, kind, model_ok, kind_ok, brand_ok,
-                                                   color_ok, resource_ok, chip_ok, score)
+                                                   color_ok, resource_ok, chip_ok, score,
+                                                   source, external_code, feat_src)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (novelty_id, rank, item["ms_id"], item["code"], item["name"], item["color"],
-                  measure(item), item["chip"], hit["code"], verdict(hit),
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (novelty_id, rank, item["ms_id"], item["code"] or None, item["name"],
+                  item["color"], measure(item), item["chip"], hit["code"], verdict(hit),
                   F.brand_text(item["brand"]), item["kind"], hit["model_ok"], hit["kind_ok"],
                   hit["brand_ok"], hit["color_ok"], hit["resource_ok"], hit["chip_ok"],
-                  hit["score"]))
+                  hit["score"], "tc" if hit.get("tc_only") else "ms",
+                  item.get("external_code") or None,
+                  ",".join(item.get("feat_src") or ()) or None))
         if hits and hits[0].get("by_article"):
             hit, item = hits[0], hits[0]["item"]
             if False in (hit["brand_ok"], hit["resource_ok"]):
@@ -350,14 +474,21 @@ def verdict(hit):
     Конфликты идут первыми и всегда: по пути «совпал артикул» именно они — единственный
     сигнал человеку, что за одинаковым артикулом стоят разные товары.
     """
+    item = hit.get("item") or {}
     bad = [name for key, name in FEATURE_NAMES.items() if hit.get(key) is False]
     silent = [name for key, name in FEATURE_NAMES.items() if hit.get(key) is None]
     notes = [f"НЕ СОВПАЛО: {', '.join(bad)}"] if bad else []
+    if hit.get("tc_only"):
+        notes.append(f"есть в каталоге ТК (код {item.get('external_code')}), карточки в МС нет")
+        return "; ".join(notes)
     if hit.get("by_article"):
         notes.append(f"совпал артикул поставщика ({hit['code']})")
         return "; ".join(notes)
     if silent:
         notes.append(f"не указано в каталоге: {', '.join(silent)}")
+    src = [FEATURE_NAMES[f"{key}_ok"] for key in item.get("feat_src") or ()]
+    if src:
+        notes.append(f"из каталога ТК: {', '.join(src)}")
     return "; ".join(notes) if notes else "совпало по всем признакам"
 
 
@@ -368,11 +499,16 @@ def analyze(rows, default_chip="chip", article_re=None):
     товара у нас столько, сколько поставщиков, показывать их все смысла нет). Первыми идут
     совпадения по артикулу поставщика: МойСклад при создании оприходования иногда не находит
     товар, который в базе есть, и строка приезжает в новинки зря.
+
+    Последними — подсказки из каталога ТК без карточки МС (`tc_only`): это не варианты выбора,
+    а сообщение «товар у нас заведён, коробки поставщика ещё не было; заводи под этим кодом».
     """
-    catalog = load_catalog()
+    tc_all = load_tc()
+    catalog = load_catalog(tc_all)
     by_id = {item["ms_id"]: item for item in catalog}
     index = build_index(catalog)
     art_index = build_article_index(catalog)
+    tc_index = build_tc_index(catalog, tc_all)
     hits_by_article = {}
     for row in rows:
         row["kind"] = kind(row["name"])
@@ -380,8 +516,9 @@ def analyze(rows, default_chip="chip", article_re=None):
         if row["chip"] is None:
             row["chip"] = default_chip
         seen, shown = set(), []
-        for hit in by_article(row, art_index, article_re) + match(row, index, by_id):
-            key = hit["item"]["num"] or hit["item"]["ms_id"]
+        for hit in (by_article(row, art_index, article_re) + match(row, index, by_id)
+                    + tc_only(row, tc_index, tc_all)):
+            key = hit["item"]["num"] or hit["item"]["ms_id"] or ("tc", hit["item"]["external_code"])
             if key in seen:
                 continue
             seen.add(key)

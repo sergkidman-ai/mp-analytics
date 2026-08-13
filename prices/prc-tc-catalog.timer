@@ -1,0 +1,15 @@
+[Unit]
+Description=Каталог TheCartridge: обновлять слепок раз в сутки ночью (поток prc)
+
+[Timer]
+# Часы сервера — UTC (systemd 249 не понимает таймзону в OnCalendar).
+# 00:17 UTC = 03:17 МСК: ночь у них и у нас, каталог за день меняется мало.
+# Минута не круглая — чтобы не толпиться с чужими таймерами.
+OnCalendar=*-*-* 00:17:00
+RandomizedDelaySec=5min
+# Persistent: сервер был выключен ночью — слепок обновится при первом запуске, а не через сутки.
+Persistent=true
+Unit=prc-tc-catalog.service
+
+[Install]
+WantedBy=timers.target

@@ -76,6 +76,8 @@
   .ok{color:var(--pos);font-weight:700}
   .miss{color:var(--warn)}
   .verdict{font-size:11px;color:var(--mut);margin-top:3px}
+  /* Пометка «ТК» у значения признака: оно из карточки нашего каталога, а не из названия МС. */
+  .tcsrc{font-size:9px;padding:0 3px;border:1px solid var(--mut);border-radius:3px;color:var(--mut)}
   /* Ответ сервера — под кнопками строки, во всю ширину колонки: отказ должен читаться,
      а не теряться в узкой колонке у правого края. Пустой блок места не занимает. */
   .msg{display:block;margin-top:6px;font-size:12px;line-height:1.45}
@@ -341,6 +343,9 @@ function feats(r){
 const goods = code => (String(code || "").match(/^\d+/) || [""])[0];
 
 function optionLabel(c){
+  // Вариант из каталога ТК — не выбор карточки, а подсказка: товар у нас заведён, но коробки
+  // этого поставщика в МС ещё нет. Кода карточки у него нет и быть не может.
+  if (c.source === "tc") return `➕ код ТК ${c.external_code} — ${c.ms_name} (карточки в МС нет)`;
   const mark = c.verdict === "совпало по всем признакам" ? "✓✓" : "•";
   const n = goods(c.ms_code);
   return `${mark} ${n || c.ms_code || "без кода"}${n ? " (" + c.ms_code + ")" : ""} — ${c.ms_name}`;
@@ -355,23 +360,30 @@ const BAD = ["model_ok", "kind_ok", "brand_ok", "color_ok", "resource_ok", "chip
 
 function cmpGrid(r, c){
   if (!c) return "";
+  // Признак с пометкой ТК взят из НАШЕГО каталога в TheCartridge (карточка товара), а не
+  // вычитан из названия карточки МС, которое заводили руками с прайса поставщика.
+  const from = new Set(String(c.feat_src || "").split(",").filter(Boolean));
   const model = c.model_ok === false ? "нет общего кода" : (c.shared_code || "—");
   const lines = [
-    ["модель", c.shared_code || "—", model, c.model_ok],
-    ["тип", KINDS[r.kind] || r.kind, KINDS[c.kind] || c.kind, c.kind_ok],
-    ["бренд", r.brand, c.brand, c.brand_ok],
-    ["ресурс/объём", num(r.measure), num(c.measure), c.resource_ok],
-    ["цвет", r.color, c.color, c.color_ok],
-    ["чип", r.chip, c.chip, c.chip_ok],
+    ["модель", "", c.shared_code || "—", model, c.model_ok],
+    ["тип", "", KINDS[r.kind] || r.kind, KINDS[c.kind] || c.kind, c.kind_ok],
+    ["бренд", "brand", r.brand, c.brand, c.brand_ok],
+    ["ресурс/объём", "resource", num(r.measure), num(c.measure), c.resource_ok],
+    ["цвет", "color", r.color, c.color, c.color_ok],
+    ["чип", "chip", r.chip, c.chip, c.chip_ok],
   ];
-  const body = lines.map(([key, mine, ours, ok]) => {
+  const body = lines.map(([key, feat, mine, ours, ok]) => {
     const [sign, cls] = MARK[ok] ?? MARK.null;
+    const src = feat && from.has(feat)
+      ? ` <span class="tcsrc" title="значение из нашего каталога TheCartridge (первоисточник)">ТК</span>` : "";
     return `<tr class="${ok === false ? "bad" : ""}"><td class="k">${key}</td>
-      <td>${esc(mine || "—")}</td><td>${esc(ours || "—")}</td>
+      <td>${esc(mine || "—")}</td><td>${esc(ours || "—")}${src}</td>
       <td class="m ${cls}">${sign}</td></tr>`;
   }).join("");
-  return `<table class="cmp"><tr><th class="score">сходится ${c.score}/6</th>
-      <th>строка прайса</th><th>наша карточка</th><th></th></tr>${body}</table>`;
+  const head = c.source === "tc" ? `модель ТК ${esc(c.external_code)}` : `сходится ${c.score}/6`;
+  return `<table class="cmp"><tr><th class="score">${head}</th>
+      <th>строка прайса</th><th>${c.source === "tc" ? "каталог ТК" : "наша карточка"}</th>
+      <th></th></tr>${body}</table>`;
 }
 
 // Разведка одной модели. Принтеры, которых нет в нашем названии, подсвечены: это ровно то,
@@ -569,7 +581,8 @@ function msRender(){
 }
 
 async function msLoad(n, keep){
-  const d = await (await fetch(`/api/novelties/ms-form?id=${MS.id}&n=${n}`)).json();
+  const d = await (await fetch(
+    `/api/novelties/ms-form?id=${MS.id}&n=${n}&ext=${encodeURIComponent(MS.ext || "")}`)).json();
   if (!d.ok){ $("#mslog").textContent = d.error; return false; }
   MS.folders = d.folders;
   // Коды, артикул и связь всегда берём свежие с сервера: они зависят от числа карточек.
@@ -604,8 +617,8 @@ async function msSend(dry){
   }
 }
 
-async function toMs(id, msg){
-  MS = {id, cards: [], folders: [], main: 0, msg};
+async function toMs(id, msg, ext){
+  MS = {id, cards: [], folders: [], main: 0, msg, ext: ext || ""};
   $("#mscount").value = 1;
   $("#mslog").textContent = "";
   $("#msmodal").hidden = false;
@@ -631,11 +644,16 @@ function wire(){
     // Сетка сверки идёт за выпадающим списком: перебирая варианты, человек сразу видит,
     // чем каждый из них отличается от строки прайса.
     const box = tr.querySelector(".cmpbox"), rec = DATA.find(x => x.id === id);
+    // Выбранный вариант. Последний пункт списка («ввести код вручную») варианта не имеет.
+    const picked = () => (sel && rec) ? rec.candidates[sel.selectedIndex] : null;
+    // Подсказка ТК карточки в МС не имеет, привязывать строку не к чему — зато её внешний
+    // код надо унести в диалог «➕ В МС», чтобы карточка завелась под НИМ.
+    const extOf = () => { const c = picked(); return c && c.source === "tc" ? c.external_code : ""; };
     if (sel && code){
       code.value = sel.value;
       sel.onchange = () => {
         code.value = sel.value;
-        if (box && rec) box.innerHTML = cmpGrid(rec, rec.candidates[sel.selectedIndex]);
+        if (box && rec) box.innerHTML = cmpGrid(rec, picked());
         code.focus();
       };
     }
@@ -654,7 +672,7 @@ function wire(){
     const ask = tr.querySelector(".ask");
     if (ask) ask.onclick = () => askNet([id], msg);
     const toms = tr.querySelector(".toms");
-    if (toms) toms.onclick = () => toMs(id, msg);
+    if (toms) toms.onclick = () => toMs(id, msg, extOf());
     const black = tr.querySelector(".black");
     if (black) black.onclick = () => toBlacklist([id], msg);
     const undo = tr.querySelector(".undo");

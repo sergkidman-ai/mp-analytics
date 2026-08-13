@@ -1,0 +1,14 @@
+[Unit]
+Description=Слепок каталога TheCartridge: признаки товара из первоисточника (поток prc)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+# 34 запроса по 200 моделей с паузой в секунду — их платформа рабочая, днём её не трогаем
+# (см. заголовок collectors/thecartridge_catalog.py). Разбор новинок ходит уже в БД, не в API.
+ExecStart=/opt/mp-analytics/venv/bin/python -m collectors.thecartridge_catalog
+TimeoutStartSec=30min
+StandardOutput=journal
+StandardError=journal

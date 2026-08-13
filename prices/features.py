@@ -84,8 +84,24 @@ BRAND_CANON = {
     "primera bravo": "Primera", "primera": "Primera",
 }
 
+# Регистр в названиях не значит ничего, а сравниваем мы МНОЖЕСТВА СТРОК: «OKI» и «Oki» —
+# это разные элементы множества, и пересечение пустое. В названиях карточек МС так пишутся
+# 13 брендов сразу (HP/hp, Oki/OKI, Epson/EPSON, Xerox/XEROX, Canon/CANON…), а каталог ТК
+# даёт своё третье написание. Поэтому любое найденное написание приводим к тому, что стоит
+# в BRANDS, — одно имя на производителя с обеих сторон сравнения.
+BRAND_BY_LOWER = {b.lower(): b for b in BRANDS}
+
 # Код модели: буквы+цифры, минимум 4 знака. «11000» и «CANON» — не коды.
 CODE_RE = re.compile(r"[A-ZА-Я0-9][A-ZА-Я0-9\-]{2,}", re.I)
+# Чисто цифровой ОЕМ-код: «Cet CET141570 842314/841928 голубой» — 841928 и есть код Ricoh,
+# и ровно им же названа модель в каталоге ТК («MPC2503C / 841928»). Обычная ветка `_add`
+# такие коды выбрасывает (требует букву рядом с цифрой, иначе ресурсом «11000» засорит всё),
+# поэтому берём их отдельно и с двух сторон ограничиваем длиной:
+#   ≥6 знаков — отсекает ресурс (11000) и объём (12500);
+#   ≤9 знаков — отсекает штрихкоды (13 знаков) и артикулы-номера длиннее любого ОЕМ-кода.
+# Цифры, приклеенные к буквам, не берём: 141570 внутри CET141570 — это код ПОСТАВЩИКА,
+# он уже разобран основной веткой и отдельным числом только породил бы ложные пары.
+NUM_CODE_RE = re.compile(r"(?<![A-ZА-Я0-9])(\d{6,9})(?![0-9])", re.I)
 COLOR_SUFFIX_RE = re.compile(r"(BK|BLK|MBK|MK|CY|MG|YE|YL|LC|LM|GY|[CMYKB])$", re.I)
 NOISE_CODES = {"MFP", "MPS", "A4", "A3"}
 
@@ -167,6 +183,7 @@ def codes(*texts):
             parts = [p for p in raw.upper().split("-") if p]
             for start in range(len(parts)):
                 _add(out, re.sub(r"[^A-ZА-Я0-9]", "", "".join(parts[start:])))
+        out |= set(NUM_CODE_RE.findall(str(text or "")))
     return out
 
 
@@ -181,9 +198,22 @@ def brand(name):
     """
     out = set()
     for match in BRAND_RE.finditer(str(name or "")):
-        found = match.group(1)
-        out.add(BRAND_CANON.get(found.lower(), found))
+        low = match.group(1).lower()
+        out.add(BRAND_CANON.get(low) or BRAND_BY_LOWER.get(low, match.group(1)))
     return out
+
+
+def brand_canon(name):
+    """Название бренда из чужого источника (каталог ТК) -> наше каноническое имя.
+
+    В `printer_models` у ТК свои написания («OKI», «Konica Minolta», «F+ Imaging»), и сравнивать
+    их с разбором названий МС можно только после сведения к одному имени. Неизвестный бренд
+    возвращаем как есть: список BRANDS закрытый, а терять принтерный бренд из-за этого не хочется.
+    """
+    low = str(name or "").strip().lower()
+    if not low:
+        return None
+    return BRAND_CANON.get(low) or BRAND_BY_LOWER.get(low, str(name).strip())
 
 
 def brand_text(brands):

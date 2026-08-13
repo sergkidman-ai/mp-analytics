@@ -2217,7 +2217,7 @@ def novelties_api(supplier: str = "", status: str = "", no_stock: bool = False):
     cands = db.query("""
         SELECT novelty_id, rank, ms_id, ms_code, ms_name, color, measure, chip,
                shared_code, verdict, brand, kind, model_ok, kind_ok, brand_ok,
-               color_ok, resource_ok, chip_ok, score
+               color_ok, resource_ok, chip_ok, score, source, external_code, feat_src
           FROM prc_novelty_candidate ORDER BY novelty_id, rank
     """)
     by_novelty = {}
@@ -2595,11 +2595,15 @@ def _ms_free(field, value):
 
 
 @app.get("/api/novelties/ms-form")
-def novelties_ms_form(id: int, n: int = 1):
+def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     """Черновик карточек для строки новинки: N блоков полей + список папок МС.
 
     Ничего не создаёт и не резервирует: коды подставлены на момент открытия диалога,
     занятость перепроверяется при создании.
+
+    `ext` — внешний код из каталога ТК, если строка совпала с моделью, которая у нас ЗАВЕДЕНА,
+    а карточки поставщика в МС ещё нет. Тогда первая карточка идёт под ЭТИМ кодом, а не под
+    следующим свободным: иначе на один товар в каталоге появится второй код.
     """
     from prices import ms_import
     from prices.profiles import get_profile
@@ -2630,7 +2634,15 @@ def novelties_ms_form(id: int, n: int = 1):
     folder = _folder_guess(row["brand"], folders)
     if not folder:
         warn.append(f"папка по бренду «{row['brand'] or '—'}» не угадалась — выбрать руками")
-    codes = ms_import.next_external_codes(n)
+    ext = str(ext or "").strip()
+    if ext and (not ext.isdigit() or db.query(
+            "SELECT 1 FROM ms_product WHERE external_code = %s AND NOT archived LIMIT 1", (ext,))):
+        warn.append(f"код {ext} из каталога ТК уже занят карточкой в МС — берём следующий свободный")
+        ext = ""
+    codes = ms_import.next_external_codes(n - 1 if ext else n)
+    if ext:
+        codes = [ext] + codes
+        warn.append(f"первый внешний код {ext} взят из каталога ТК: товар там уже заведён")
     numbers = [c.zfill(4) for c in codes]
     cards = []
     for i, ext in enumerate(codes):
