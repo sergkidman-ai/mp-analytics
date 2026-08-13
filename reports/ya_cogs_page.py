@@ -21,6 +21,14 @@ SIDEBAR_COST = (SIDEBAR
     .replace('<a href="/reports/cost">💰 Себестоимость</a>',
              '<a href="/reports/cost" class="cur">💰 Себестоимость</a>'))
 
+# Отгрузка со статусом 'other' («свежая, ждём отчёт») старше лага отчётов — уже не свежая, а дыра:
+# отчёт МП её так и не показал. Статус пишется на момент сбора и в закрытых месяцах заморожен,
+# поэтому доводим его до 'unreported' на рендере — иначе старьё вечно прячется в «ждём отчёт».
+# Живёт здесь (а не в mp_cogs_page) из-за направления импорта: mp_cogs_page тянет вёрстку отсюда.
+STALE_DAYS = 60
+_ST = (f"CASE WHEN status='other' AND demand_date < current_date - INTERVAL '{STALE_DAYS} days'"
+       " THEN 'unreported' ELSE status END")
+
 RET_STATUSES = ("return_stock", "return_defect", "unredeemed")
 
 STATUS_LABEL = {
@@ -144,7 +152,8 @@ def _shell(title, eyebrow, h1, body, rtab_cur="ya"):
 
 
 def overview_html(account="ya_acc1"):
-    rows = db.query("""
+    rows = db.query(f"""
+        WITH t AS (SELECT ym, our_sum, cogs, {_ST} status FROM ya_cogs_demand WHERE account=%s)
         SELECT to_char(ym,'YYYY-MM') ym,
                count(*)                                                        orders,
                count(*) FILTER (WHERE status = ANY(%s))                        returns,
@@ -152,9 +161,9 @@ def overview_html(account="ya_acc1"):
                coalesce(sum(cogs)    FILTER (WHERE status = ANY(%s)),0)::float ret_cogs,
                coalesce(sum(our_sum) FILTER (WHERE status='done'),0)::float    sales,
                coalesce(sum(cogs) FILTER (WHERE status IN ('done','return_defect')),0)::float cogs
-        FROM ya_cogs_demand WHERE account=%s
+        FROM t
         GROUP BY ym ORDER BY ym DESC
-    """, (list(RET_STATUSES), list(RET_STATUSES), list(RET_STATUSES), account))
+    """, (account, list(RET_STATUSES), list(RET_STATUSES), list(RET_STATUSES)))
     frozen = {r["ym"].strftime("%Y-%m"): r["closed_at"] for r in db.query(
         "SELECT ym, closed_at FROM ya_cogs_frozen WHERE account=%s", (account,))}
     body = ['<table class="ct"><thead><tr>'
@@ -311,8 +320,8 @@ function resetCost(nm){
 
 def detail_html(account, ym):
     """ym в формате YYYY-MM."""
-    rows = db.query("""
-        SELECT demand_name, to_char(demand_date,'YYYY-MM-DD') d, status, status_raw,
+    rows = db.query(f"""
+        SELECT demand_name, to_char(demand_date,'YYYY-MM-DD') d, {_ST} status, status_raw,
                coalesce(our_sum,0)::float our_sum, coalesce(cogs,0)::float cogs,
                coalesce(qty,0)::float qty, method
         FROM ya_cogs_demand

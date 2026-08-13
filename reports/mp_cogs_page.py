@@ -22,7 +22,7 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, MPTABS  # noqa: E402
 from reports.cost_tabs import tabs_html  # noqa: E402
-from reports.ya_cogs_page import SIDEBAR_COST, PAGE_CSS, _fmt, _pct  # noqa: E402
+from reports.ya_cogs_page import SIDEBAR_COST, PAGE_CSS, _fmt, _pct, _ST  # noqa: E402
 
 METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "imputed": "импутация", "manual": "ручной"}
 
@@ -86,6 +86,7 @@ def overview_html(cfg, acc_key):
     account, org, tab = cfg["accounts"][acc_key]
     ret, loss = list(cfg["ret_statuses"]), list(cfg["loss_statuses"])
     rows = db.query(f"""
+        WITH t AS (SELECT ym, our_sum, cogs, {_ST} status FROM {cfg['table']} WHERE account=%s)
         SELECT to_char(ym,'YYYY-MM') ym,
                count(*)                                                        orders,
                count(*) FILTER (WHERE status = ANY(%s))                        returns,
@@ -93,9 +94,9 @@ def overview_html(cfg, acc_key):
                coalesce(sum(cogs)    FILTER (WHERE status = ANY(%s)),0)::float ret_cogs,
                coalesce(sum(our_sum) FILTER (WHERE status='done'),0)::float    sales,
                coalesce(sum(cogs) FILTER (WHERE status='done' OR status = ANY(%s)),0)::float cogs
-        FROM {cfg['table']} WHERE account=%s
+        FROM t
         GROUP BY ym ORDER BY ym DESC
-    """, (ret, ret, ret, loss, account))
+    """, (account, ret, ret, ret, loss))
     frozen = {r["ym"].strftime("%Y-%m"): r["closed_at"] for r in db.query(
         f"SELECT ym, closed_at FROM {cfg['frozen_table']} WHERE account=%s", (account,))}
     body = ['<table class="ct"><thead><tr>'
@@ -229,7 +230,7 @@ def detail_html(cfg, acc_key, ym):
     pending = cfg["pending_statuses"]     # ещё не реализовано: ни оборота, ни себеста в месяце
     pending_label = cfg["pending_label"]
     rows = db.query(f"""
-        SELECT demand_name, to_char(demand_date,'YYYY-MM-DD') d, status, status_raw,
+        SELECT demand_name, to_char(demand_date,'YYYY-MM-DD') d, {_ST} status, status_raw,
                coalesce(our_sum,0)::float our_sum, coalesce(cogs,0)::float cogs,
                coalesce(qty,0)::float qty, method
         FROM {cfg['table']}
