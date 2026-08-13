@@ -52,6 +52,10 @@ CSV_CAT = {
     "product-banners.csv": "boost_shows",
     "placement.csv": "commission",
     "delivery.csv": "logistics",
+    # весь лист «средней мили», включая строки «Доставка невыкупов и возвратов» — ЛК держит их
+    # в блоке «Доставка (средняя миля)». Без этой записи такие строки не ловились правилом по
+    # имени услуги («средн»/«миля») и молча выбрасывались: июль-2026 недобор 3 642,65 ₽ (37 строк).
+    "crossregional_delivery.csv": "logistics",
     "express_delivery.csv": "logistics",
     "payment_transfer.csv": "acquiring",
     "payment_accepting.csv": "acquiring",
