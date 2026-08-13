@@ -2172,20 +2172,14 @@ def _novelty_models(rows):
 # Остаток к строке новинки — ТОЛЬКО из ПОСЛЕДНЕГО удачного прайса поставщика. Раньше брали
 # последнюю строку по любому прайсу: позиция, выбывшая из наличия, тащила за собой остаток
 # месячной давности и висела в работе. Нет строки в свежем прайсе или пришла без числа —
-# у поставщика её нет.
-NOVELTY_STOCK = """
-    LEFT JOIN LATERAL (
-           SELECT r.qty, r.stock_raw
-             FROM prc_price_row r
-            WHERE r.load_id = (SELECT l.id FROM prc_price_load l
-                                WHERE l.supplier_key = n.supplier_key AND l.status = 'ok'
-                                ORDER BY l.load_date DESC, l.id DESC LIMIT 1)
-              AND upper(r.article) = upper(n.article)
-            ORDER BY r.qty DESC NULLS LAST LIMIT 1) s ON true
-"""
-# Неразобранная строка без остатка человеку не работа: карточку заводить не под что.
-# Из списка её убираем, но не удаляем — вернётся в прайс с остатком, вернётся и в работу.
-IN_STOCK = "(n.decision <> 'pending' OR coalesce(s.qty, 0) > 0)"
+# у поставщика её нет. Неразобранная строка без остатка человеку не работа: карточку
+# заводить не под что; из списка её убираем, но не удаляем — вернётся в прайс с остатком,
+# вернётся и в работу.
+#
+# Правило живёт в `prices.catalog`, а не здесь: по нему же считает сводку сторож почты
+# (`ops.prc_price_watch`). Пока условий было два, сводка обещала всю очередь `pending`
+# и звала разбирать работу, которой на вкладке нет (Сакура 13.08.2026: 411 против 1).
+from prices.catalog import NOVELTY_STOCK, IN_STOCK  # noqa: E402
 
 
 @app.get("/api/novelties")

@@ -416,6 +416,40 @@ def pending_rows(supplier_key=None):
     return [dict(r) for r in query(sql + " order by supplier_key, article", params)]
 
 
+# Остаток новинки берём ТОЛЬКО из последнего удачного прайса поставщика: позиция, выбывшая
+# из наличия, иначе тащила бы за собой остаток месячной давности и висела бы в работе.
+NOVELTY_STOCK = """
+    LEFT JOIN LATERAL (
+           SELECT r.qty, r.stock_raw
+             FROM prc_price_row r
+            WHERE r.load_id = (SELECT l.id FROM prc_price_load l
+                                WHERE l.supplier_key = n.supplier_key AND l.status = 'ok'
+                                ORDER BY l.load_date DESC, l.id DESC LIMIT 1)
+              AND upper(r.article) = upper(n.article)
+            ORDER BY r.qty DESC NULLS LAST LIMIT 1) s ON true
+"""
+# Неразобранная строка без остатка человеку не работа: карточку заводить не под что.
+IN_STOCK = "(n.decision <> 'pending' OR coalesce(s.qty, 0) > 0)"
+
+
+def pending_in_stock(supplier_key=None):
+    """Сколько строк реально ждёт человека на вкладке «Новинки»: `pending` И есть у поставщика.
+
+    Отдельно от `pending_rows`, потому что меряют разное. `pending_rows` — вся очередь в
+    таблице (её пересобирают подсказками, там же хвост позиций, выбывших из наличия), а
+    здесь ровно то, что видно на вкладке и что можно взять в работу сегодня. Сводка в
+    телеграм обещала очередь целиком (у Сакуры 411 против 1 на вкладке, 13.08.2026) —
+    человек шёл разбирать и не находил работы.
+    """
+    where = ["n.decision = 'pending'", IN_STOCK]
+    params = ()
+    if supplier_key:
+        where.append("n.supplier_key = %s")
+        params = (supplier_key,)
+    return query(f"SELECT count(*) n FROM prc_novelty n {NOVELTY_STOCK} "
+                 f"WHERE {' AND '.join(where)}", params)[0]["n"]
+
+
 def all_rows(supplier_key=None):
     """ВСЕ строки новинок, включая разобранные. Для пересборки признаков задним числом.
 
