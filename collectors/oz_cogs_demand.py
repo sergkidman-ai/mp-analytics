@@ -72,13 +72,20 @@ def _frozen_set(account):
 
 def _eff_since(account, since, frozen):
     """Поднять since до первого дня самого раннего НЕзакрытого месяца (сплошной закрытый префикс
-    от min(ym) пропускаем — чтобы не листать в МС заведомо закрытые месяцы)."""
+    от min(ym) пропускаем — чтобы не листать в МС заведомо закрытые месяцы).
+
+    Досбор истории: если since РАНЬШЕ самого раннего собранного месяца — это осознанный бэкфилл
+    (добираем месяцы, которых в таблице нет вовсе), пропуск префикса не применяем. Закрытые месяцы
+    всё равно не перезапишутся: их отсекает фильтр по frozen при записи.
+    """
     if not frozen:
         return since
     row = db.query("SELECT min(ym) mn FROM oz_cogs_demand WHERE account=%s", (account,))
     mn = row[0]["mn"] if row else None
     if not mn:
         return since
+    if since < mn.strftime("%Y-%m-01"):
+        return since                            # бэкфилл истории — префикс не пропускаем
     y, m = mn.year, mn.month
     while f"{y:04d}-{m:02d}" in frozen:
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
