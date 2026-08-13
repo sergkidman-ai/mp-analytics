@@ -110,11 +110,18 @@ def _shop_names():
 
 
 def _names():
-    """offerId Яндекса → название товара МС.
+    """offerId Яндекса → название товара. ОСНОВНОЙ источник — карточка Маркета, МС только запасной.
 
-    Ключ — `ms_product.external_code`, НЕ `article` (сверено 28.07: у offer '0996'/'23937' article
-    пустой, товар находится только по external_code). Без названия домен-фильтр движка считает товар
-    «не расходником печати» и гонит любой вопрос на человека. article держим запасным ключом."""
+    `raw_yandex_offer.payload->mapping->marketSkuName` — имя НАШЕГО оффера на витрине Маркета
+    (при пустом берём `offer.name`, это то же название, которым мы оффер и заводили). Именно его
+    видит покупатель, задавая вопрос.
+
+    МойСклад оставлен запасным ключом (`external_code`, затем `article` — сверено 28.07: у offer
+    '0996'/'23937' article пустой). Почему не первым: `external_code` НЕ уникален — на код 6806
+    висит восемь позиций (6806ct Colortek, 6806oem, 6806sf, …), и `ORDER BY name` даёт произвольный
+    бренд по алфавиту. 13.08.2026 из-за этого вопрос про наш W1510A показывался оператору как
+    «Картридж Colortek HP W1510A». Без названия домен-фильтр движка считает товар «не расходником
+    печати» и гонит вопрос на человека, поэтому запасной источник нужен."""
     m = {}
     for r in db.query("SELECT article, name FROM ms_product WHERE article IS NOT NULL ORDER BY name"):
         m.setdefault(r["article"], r["name"])
@@ -123,6 +130,12 @@ def _names():
                          WHERE external_code IS NOT NULL ORDER BY name"""):
         ext.setdefault(r["external_code"], r["name"])
     m.update(ext)                              # external_code приоритетнее article
+    for r in db.query("""SELECT offer_id,
+                                COALESCE(NULLIF(payload->'mapping'->>'marketSkuName', ''),
+                                         NULLIF(payload->'offer'->>'name', '')) AS n
+                         FROM raw_yandex_offer"""):
+        if r["n"]:
+            m[str(r["offer_id"])] = r["n"]     # витрина Маркета важнее любого имени МС
     return m
 
 

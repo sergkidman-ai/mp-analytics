@@ -23,6 +23,7 @@ import pathlib
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db                          # noqa: E402
+from core.text_norm import fix_homoglyphs    # noqa: E402
 
 # --- карта attribute-id Ozon ---
 OZ = dict(name=4180, article=12141, vcode=9048, ptype=5708, kind=5713,
@@ -44,11 +45,11 @@ def _brand_of(text):
 
 
 def _oz_vals(attrs):
-    """attribute_id -> список строковых значений."""
+    """attribute_id -> список строковых значений (с нормализацией омоглифов, см. core/text_norm)."""
     out = {}
     for a in attrs or []:
         out.setdefault(a.get("id"), []).extend(
-            str(v.get("value", "")) for v in a.get("values", []) if v.get("value") is not None)
+            fix_homoglyphs(str(v.get("value", ""))) for v in a.get("values", []) if v.get("value") is not None)
     return out
 
 
@@ -79,7 +80,9 @@ def _walk_widget(rich_json):
 
 
 def _classify_chip(text):
-    t = (text or "").lower()
+    # омоглифы гасим и здесь: инцидент 6806 — «оснащен c чипом» с ЛАТИНСКОЙ c давал None,
+    # факт добирался из чужой карточки и покупателю обещали перестановку чипа
+    t = fix_homoglyphs(text or "").lower()
     if re.search(r"без\s+чип|чип\s+отсутств|нет\s+чип(?!\w)", t):
         return "none"
     if re.search(r"с\s*чипом|оснащ\w*\s+чип|#с_чипом|в\s+комплект\w*\s*.{0,15}чип|чип\s*[:\-]?\s*с\s*чипом", t):
@@ -132,6 +135,7 @@ def facts_ozon(payload):
     attrs = payload.get("attributes") or []
     if not attrs:
         return None
+    payload = dict(payload, name=fix_homoglyphs(payload.get("name") or "") or payload.get("name"))
     vals = _oz_vals(attrs)
     rich = _first(vals, OZ["rich"]) or ""
     annot = _first(vals, OZ["annot"]) or ""
@@ -176,7 +180,7 @@ def _wb_char(chars, *names):
             v = c.get("value")
             if isinstance(v, list):
                 v = v[0] if v else None
-            return str(v).strip() if v not in (None, "") else None
+            return fix_homoglyphs(str(v).strip()) if v not in (None, "") else None
     return None
 
 
@@ -256,8 +260,8 @@ def _merge_models(*lists):
 
 def facts_wb(payload):
     chars = payload.get("characteristics") or []
-    title = payload.get("title") or ""
-    desc = payload.get("description") or ""
+    title = fix_homoglyphs(payload.get("title") or "")
+    desc = fix_homoglyphs(payload.get("description") or "")
     chip = _classify_chip(desc + " || " + title)
     refill = "да" if re.search(r"заправочн|заправляем|для заправк|дозаправ", (desc + title).lower()) else None
     return {
@@ -283,7 +287,6 @@ class CardFacts:
     def __init__(self):
         self._oz = None      # offer_id -> payload
         self._oz_by_sku = None
-        self._oz_by_art = None   # норм-артикул -> facts (для WB-двойника)
         self._wb = {}        # nm_id -> payload | None (кэш точечных чтений, см. _wb_payload)
 
     def _ensure_oz(self):
@@ -294,18 +297,24 @@ class CardFacts:
                 if r["sku"]:
                     self._oz_by_sku[str(r["sku"])] = r["payload"]
 
-    def _ensure_oz_art(self):
-        """Индекс Ozon-фактов по норм-артикулу — источник чипа/ресурса для WB-двойника."""
-        if self._oz_by_art is None:
-            self._ensure_oz()
-            self._oz_by_art = {}
-            for p in self._oz.values():
+    def _oz_twin(self, *codes):
+        """Ozon-карточка ТОГО ЖЕ товара — только по точному коду оффера (offer_id Ozon = наш код).
+
+        Раньше двойник искался по НОРМАЛИЗОВАННОМУ артикулу и брался ПЕРВЫЙ попавшийся: на артикул
+        W1510A у нас три карточки — 5406 (без чипа, 3000), 5596 (с чипом, 3050) и наша 6806. Под одним
+        артикулом живут варианты с чипом и без, поэтому 13.08.2026 добор сужен до точного совпадения
+        товара: нет точного двойника — факт остаётся неизвестным и в ответ не идёт."""
+        self._ensure_oz()
+        for c in codes:
+            c = str(c or "").strip()
+            if not c:
+                continue
+            p = self._oz.get(c)
+            if p:
                 f = facts_ozon(p)
-                if not f:
-                    continue
-                a = _norm_art(f.get("article"))
-                if a and a not in self._oz_by_art:
-                    self._oz_by_art[a] = f
+                if f:
+                    return f
+        return None
 
     def _wb_payload(self, nm_id):
         """Карточка WB по nmID — точечным чтением с кэшем.
@@ -396,22 +405,19 @@ class CardFacts:
             ORDER BY (vendor_code = %s) DESC, nm_id LIMIT 1""", (off, re.escape(off), off))
         if not rows:
             return None
-        f = self.for_wb(rows[0]["nm_id"])
+        f = self.for_wb(rows[0]["nm_id"], code=off)
         return dict(f, facts_src="wb-двойник(offerId)") if f else None
 
-    def for_wb(self, nm_id):
+    def for_wb(self, nm_id, code=None):
+        """code — наш код товара (offerId площадки), если он известен вызывающему: по нему,
+        и только по точному совпадению, добираются факты из Ozon-карточки того же товара."""
         p = self._wb_payload(nm_id)
         if not p:
             return None
         f = facts_wb(p)
-        # добор из Ozon-двойника того же артикула, когда WB-карточка молчит
+        # добор из Ozon-двойника ТОГО ЖЕ товара, когда WB-карточка молчит
         if f.get("chip") is None or not f.get("resource") or not f.get("models"):
-            self._ensure_oz_art()
-            twin = None
-            for key in (f.get("article"), f.get("vcode")):
-                twin = self._oz_by_art.get(_norm_art(key))
-                if twin:
-                    break
+            twin = self._oz_twin(code, f.get("vcode"))
             if twin:
                 if f.get("chip") is None and twin.get("chip"):
                     f["chip"] = twin["chip"]

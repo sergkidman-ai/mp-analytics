@@ -747,9 +747,14 @@ def _answer(client, r, cf, corpus):
     if r["kind"] == "question":
         cc0 = _card_data(r, cf)
         if not r.get("product_name") and r["platform"] == "yandex":
-            # у Маркета offerId не всегда есть в МС (напр. '23937') — имя берём с карточки-двойника ВБ,
-            # иначе домен-фильтр отправит на человека любой вопрос из-за пустого названия
-            r["product_name"] = ((cf.for_yandex(r["item_id"]) or {}).get("name") or None)
+            # имя оффера на витрине Маркета (его видит покупатель) → карточка-двойник ВБ. Пустое имя
+            # отправило бы вопрос на человека домен-фильтром. МС здесь не спрашиваем: external_code
+            # не уникален и отдаёт произвольный бренд из восьми позиций (инцидент 6806, 13.08.2026).
+            rows = db.query("""SELECT COALESCE(NULLIF(payload->'mapping'->>'marketSkuName', ''),
+                                               NULLIF(payload->'offer'->>'name', '')) AS n
+                               FROM raw_yandex_offer WHERE offer_id=%s LIMIT 1""", (str(r["item_id"]),))
+            r["product_name"] = ((rows[0]["n"] if rows else None)
+                                 or (cf.for_yandex(r["item_id"]) or {}).get("name") or None)
         if not _is_consumable(r.get("product_name")):
             marker = ("⚠️ Вне профиля (товар не расходник печати) — ответ по общему знанию запрещён, "
                       "нужен ручной ответ оператора.")
@@ -782,7 +787,9 @@ def _answer(client, r, cf, corpus):
         # вне карточки → веб (источник №3, объяснит напр. L662B = европейское обозначение CX17NF)
         if r["kind"] == "question" and (intent(r["body"]) == "совместимость модели"
                                         or _is_compat_q(r["body"])):
-            fct = cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else cf.for_wb(r["item_id"])
+            fct = (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else
+                   cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else
+                   cf.for_wb(r["item_id"]))     # у Яндекса item_id = offerId, а не nmID
             code = (fct or {}).get("code")
             st, mm = _fam_status(r["body"], (fct or {}).get("models") or [])
             asked_m = _asked_models(r["body"])
