@@ -25,7 +25,7 @@ from reports.cost_tabs import tabs_html  # noqa: E402
 from reports.ya_cogs_page import SIDEBAR_COST, PAGE_CSS, _fmt, _pct, _ST  # noqa: E402
 
 METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "tovar_fifo": "FIFO товара", "nabor_fifo": "FIFO набора",
-                "analog_fifo": "FIFO аналога", "imputed": "импутация", "manual": "ручной"}
+                "analog_fifo": "FIFO аналога", "imputed": "импутация", "need_manual": "НУЖНА РУЧНАЯ СЕБЕСТ", "manual": "ручной"}
 
 # фильтр по наличию себеста (для поиска пустых → ручной ввод)
 _COST_FILTER = [("", "все"), ("zero", "= 0 (нужен ввод)"), ("pos", "> 0")]
@@ -248,7 +248,9 @@ def detail_html(cfg, acc_key, ym):
             '<option value="tovar_fifo">FIFO товара</option>'
             '<option value="nabor_fifo">FIFO набора</option>'
             '<option value="analog_fifo">FIFO аналога</option>'
-            '<option value="imputed">импутация</option><option value="manual">ручной</option>'
+            '<option value="imputed">импутация</option>'
+            '<option value="need_manual">нужна ручная себест</option>'
+            '<option value="manual">ручной</option>'
             '</select></label>'
             f'<label>Себест <select id="fcost">{copts}</select></label>'
             f'<input id="fq" placeholder="{cfg["search_ph"]}" size="22">'
@@ -288,12 +290,15 @@ def detail_html(cfg, acc_key, ym):
                     else f'<td class="num" data-v="{our_sum:.2f}">{_fmt(our_sum)}</td>')
         # ячейка «Себест». Редактируемая для: реальных продаж с 0 себеста (нужен ввод) и ручных
         # (можно поправить/сбросить). Сторно не редактируем (net-neutral).
+        # `need_manual` — FIFO нет нигде, в ячейке оценка по карточке МС: тоже даём ввести руками.
         need_input = (cogs == 0 and (st == "done" or st in loss))
         is_manual = (r["method"] == "manual")
-        editable = (st not in storno) and (need_input or is_manual)
+        need_manual = (r["method"] == "need_manual")
+        editable = (st not in storno) and (need_input or is_manual or need_manual)
         if editable:
             prefill = f"{cogs:.2f}" if cogs else ""
-            badge = ('<span class="stmark man">ручной</span>' if is_manual else '')
+            badge = ('<span class="stmark man">ручной</span>' if is_manual else
+                     '<span class="stmark man">нужна ручная</span>' if need_manual else '')
             reset = (f'<a class="stmark rst" onclick="resetCost(\'{nm}\')" title="сбросить к МС">↺</a>'
                      if is_manual else '')
             cogs_cell = (f'<td class="num" data-v="{eff_cogs:.2f}">'

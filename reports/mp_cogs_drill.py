@@ -56,7 +56,7 @@ STATUS_LABEL = {
 NOTE_STATUS = ("Статус — судьба товара по данным МойСклад; себестоимость отчёта он не определяет: "
                "решает факт начисления или сторно выручки площадкой.")
 METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "tovar_fifo": "FIFO товара", "nabor_fifo": "FIFO набора",
-                "analog_fifo": "FIFO аналога", "imputed": "импутация", "manual": "ручной"}
+                "analog_fifo": "FIFO аналога", "imputed": "импутация", "need_manual": "НУЖНА РУЧНАЯ СЕБЕСТ", "manual": "ручной"}
 
 CSS = """<style>
 .drill{background:#0f1720;padding:14px 16px;border-radius:10px;margin:6px 0 10px}

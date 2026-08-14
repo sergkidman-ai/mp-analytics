@@ -1412,7 +1412,7 @@ def ya_cost_reset(p: YaCostReset):
         if not cogs:
             cost_seb = _cost_seb_map()
             cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
-            method = "imputed"
+            method = "need_manual"   # FIFO нет нигде → ждёт ручного ввода
         cogs = round(cogs, 2)
     db.execute("UPDATE ya_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
                (cogs, method, p.account, nm))
@@ -1519,7 +1519,7 @@ def oz_cost_reset(p: OzCostReset):
         if not cogs:
             cost_seb = _cost_seb_map()
             cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
-            method = "imputed"
+            method = "need_manual"   # FIFO нет нигде → ждёт ручного ввода
         cogs = round(cogs, 2)
     db.execute("UPDATE oz_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
                (cogs, method, p.account, nm))
@@ -1623,7 +1623,7 @@ def wb_cost_reset(p: WbCostReset):
         if not cogs:
             cost_seb = _cost_seb_map()
             cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
-            method = "imputed"
+            method = "need_manual"   # FIFO нет нигде → ждёт ручного ввода
         cogs = round(cogs, 2)
     db.execute("UPDATE wb_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
                (cogs, method, p.account, nm))

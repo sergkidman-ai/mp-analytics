@@ -226,8 +226,10 @@ def collect_account(account, since="2026-01-01"):
                 # даты; cost_seb (средняя по остатку из карточки) — лишь аварийный хвост.
                 cogs, method = ff.impute(p, d["moment"])
                 if not cogs:
+                    # FIFO не существует НИГДЕ — цифра из карточки не себест списания.
+                    # `need_manual` = строка ждёт ручного ввода (решение Сергея 2026-08-14).
                     cogs = sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in p)
-                    method = "imputed"
+                    method = "need_manual"
             if not qty:
                 qty = sum(x["qty"] for x in p)
         if nm in manual:                                # ручной себест — истина, побеждает всё
@@ -243,7 +245,7 @@ def collect_account(account, since="2026-01-01"):
     if recs:
         db.upsert("oz_cogs_demand", recs, conflict_cols=["account", "demand_name"])
     print(f"[oz-cogs][{account}] отгрузок записано: {len(recs)} "
-          f"(FIFO {stats['ms_fifo']}, импутация {stats['imputed']}, ручной {stats['manual']}"
+          f"(FIFO {stats['ms_fifo']}, нужна ручная {stats['need_manual']}, ручной {stats['manual']}"
           f"; из кэша без запроса в МС {stats['из кэша']}; пропущено закрытых {skipped})")
     return len(recs)
 
