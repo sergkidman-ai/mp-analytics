@@ -144,6 +144,50 @@ def wb_name(value):
     return f"{before} для {text[match.start():]}".strip(), None
 
 
+# Цвет каталога ТК → слово в «Название WB». Смеси и редкие обозначения (BKM, PK…) сюда
+# намеренно не включены: цвет там неоднозначен, а выдумывать слово нельзя — пропускаем.
+TC_COLOR_WORD = {"BK": "черный", "C": "голубой", "M": "пурпурный", "Y": "желтый",
+                 "GY": "серый", "LC": "светло-голубой", "LM": "светло-пурпурный",
+                 "MK": "матовый черный"}
+# «с чипом без счётчика» — это тоже С чипом (см. CHIP_MAP в collectors/thecartridge_catalog).
+TC_CHIP_WORD = {"chip": "с чипом", "chip_free": "с чипом", "nochip": "без чипа"}
+XL_RE = re.compile(r"\bxl\b|увеличен", re.IGNORECASE)
+
+
+def wb_compose(external_code, price_name):
+    """«Название WB» по формуле, когда у родни его нет. Возвращает (название, замечание).
+
+    Формула (шаблон Сергея): **тип + модель + «для» + бренд принтера + цвет + чип + XL ресурс**.
+    Признаки берём из каталога ТК (`prc_tc_model`) — это первоисточник по ТОВАРУ, а не разбор
+    чужих названий: поле в МС заполняли руками и с ошибками (предлог «для» стоит у 7% значений,
+    аббревиатура поставщика заезжает в модель, чип пишут через раз), и повторять их нельзя.
+    XL — из названия прайса: это признак ПОСТАВКИ, в каталоге ТК его нет.
+
+    Каталог кода не знает или молчит о типе/модели/бренде — ничего не сочиняем, отдаём пусто
+    с замечанием: поле заполнит человек.
+    """
+    rows = query("""SELECT title, color, chip, brand, consumable_type
+                      FROM prc_tc_model WHERE external_code = %s AND gone_at IS NULL""",
+                 (external_code,))
+    if not rows:
+        return "", f"каталога ТК по коду {external_code} нет — «Название WB» заполнить вручную"
+    tc = rows[0]
+    kind = (tc["consumable_type"] or "").strip()
+    model = (tc["title"] or "").strip()
+    brand = next((b for b in (tc["brand"] or []) if b), None)
+    missing = [name for name, value in (("тип", kind), ("модель", model), ("бренд", brand))
+               if not value]
+    if missing:
+        return "", (f"в каталоге ТК по коду {external_code} нет {', '.join(missing)} — "
+                    f"«Название WB» заполнить вручную")
+    parts = [kind, model, "для", brand]
+    parts += [w for w in (TC_COLOR_WORD.get((tc["color"] or "").upper()),
+                          TC_CHIP_WORD.get(tc["chip"])) if w]
+    if XL_RE.search(price_name or ""):
+        parts.append("XL ресурс")
+    return " ".join(parts), None
+
+
 UUID_EPOCH = datetime(1582, 10, 15)
 
 
@@ -350,7 +394,11 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
         if len(wb_all) > 1:
             flags.append(f"«Название WB» у родни разное: {' / '.join(wb_all)} → взял «{wb}»")
         if not wb:
-            flags.append("у родни нет «Название WB» — заполнить вручную")
+            # У родни поля нет — собираем по формуле из каталога ТК, а не оставляем пустым:
+            # с пустым «Название WB» карточка уезжает на WB безымянной (решение Сергея 14.08).
+            wb, wb_flag = wb_compose(ext, row["name"])
+            flags.append(f"«Название WB» у родни нет — собрано по формуле из каталога ТК: «{wb}»"
+                         if wb else wb_flag)
         flags += sorted({c["wb_note"] for c in cards if c.get("wb_note")})
         if len(weight_all) > 1 and max(weight_all) > min(weight_all) * 1.2:
             flags.append(f"вес у родни расходится: {weight_all}, в файле {weight} — {source}")
