@@ -11,6 +11,10 @@ POST /api/catalog/cartridge_models  {"page":N,"limit":200}  header Api-Key  → 
 В API на каждый разбор новинок не ходим: слепок обновляется ночным таймером prc-tc-catalog
 (34 запроса в сутки), а матчинг читает `prc_tc_model` / `prc_tc_code` из БД.
 
+Связи универсальных моделей (`incoming_references` / `outgoing_references`, добавлены ТК по нашей
+просьбе 14.08.2026) уезжают в `prc_tc_link` — миграция 408. Это единственное место, где связь
+0002 ↔ 5335/5336 приходит фактом первоисточника, а не ручной пометкой на карточке МС.
+
 Признаки приводим к НАШЕЙ кодировке (prices/features.py) прямо здесь, чтобы матчер не разбирал
 их заново на каждом прогоне. Цвет и бренд гоняем через те же функции, которыми разбираются
 названия МС: одинаковый разбор с обеих сторон сравнения важнее, чем более богатый словарь
@@ -140,7 +144,26 @@ def parse(rec):
         "best_before_days": _int(rec.get("best_before_days")),
         "firmware_limit": None if rec.get("firmware_limit") in (None, "") else str(rec["firmware_limit"]),
         "raw": json.dumps(rec, ensure_ascii=False),
+        "_links": links_of(rec),        # не колонка таблицы: уезжает в prc_tc_link
     }
+
+
+def links_of(rec):
+    """Связи универсальной модели: внешний код → направления, как отдал каталог.
+
+    `incoming` и `outgoing` НЕ дубликаты друг друга (на первой странице разошлись у 76 моделей
+    из 200), поэтому направление сохраняем, а не схлопываем. Ссылку модели на саму себя
+    отбрасываем: она ничего не сообщает, а в группе связанных кодов мешает.
+    """
+    out = {}
+    for codes, key in ((rec.get("outgoing_references"), "outgoing"),
+                       (rec.get("incoming_references"), "incoming")):
+        for code in codes or []:
+            code = str(code).strip()
+            if not code or code == str(rec.get("external_code") or "").strip():
+                continue
+            out.setdefault(code, {"outgoing": False, "incoming": False})[key] = True
+    return out
 
 
 def codes_of(row):
@@ -178,10 +201,12 @@ def fetch(key):
 
 def save(rows):
     """Upsert моделей + перезалив индекса кодов. Пропавшие не удаляем, ставим gone_at."""
-    codes = []
+    codes, links = [], []
     for r in rows:
         for code, src in codes_of(r).items():
             codes.append({"code": code, "external_code": r["external_code"], "source": src})
+        for ref, way in r["_links"].items():
+            links.append({"external_code": r["external_code"], "ref_code": ref, **way})
 
     have = {r["external_code"] for r in db.query("SELECT external_code FROM prc_tc_model")}
     fresh = {r["external_code"] for r in rows}
@@ -198,8 +223,11 @@ def save(rows):
             # Индекс кодов перезаливаем целиком: правка названия в ТК должна убирать старый код,
             # а не оставлять его вечно висеть на модели.
             cur.execute("DELETE FROM prc_tc_code WHERE external_code = ANY(%s)", (sorted(fresh),))
+            # Связи перезаливаем по той же причине: снятую в ТК связь мы обязаны потерять тоже.
+            cur.execute("DELETE FROM prc_tc_link WHERE external_code = ANY(%s)", (sorted(fresh),))
     db.upsert("prc_tc_code", codes, ["code", "external_code"])
-    return new, gone, len(codes)
+    db.upsert("prc_tc_link", links, ["external_code", "ref_code"])
+    return new, gone, len(codes), len(links)
 
 
 def main():
@@ -217,12 +245,15 @@ def main():
     print(f"[tc-catalog] страниц {pages}, моделей {len(rows)}, {time.time() - t0:.0f} c")
     print(f"[tc-catalog] признаки: цвет {filled['color']}, ресурс {filled['resource']}, "
           f"чип {filled['chip']}, бренд {filled['brand']}")
+    linked = sum(1 for r in rows if r["_links"])
+    print(f"[tc-catalog] связи универсальных моделей: у {linked} моделей, "
+          f"ссылок {sum(len(r['_links']) for r in rows)}")
     if args.dry:
         print(f"[tc-catalog] --dry: в БД не пишем, кодов для индекса "
               f"{sum(len(codes_of(r)) for r in rows)}")
         return
-    new, gone, ncodes = save(rows)
-    print(f"[tc-catalog] записано {len(rows)} (новых {new}), кодов {ncodes}, "
+    new, gone, ncodes, nlinks = save(rows)
+    print(f"[tc-catalog] записано {len(rows)} (новых {new}), кодов {ncodes}, связей {nlinks}, "
           f"помечено пропавшими {gone}")
 
 
