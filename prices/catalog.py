@@ -327,6 +327,28 @@ def match(row, index, by_id):
         out.append(hit)
     out.sort(key=lambda h: (conflicts(h), not h["titled"], h["rarity"],
                             -h["tc_confirmed"], -h["confirmed"], -h["shared"]))
+    return by_goods(out)
+
+
+def by_goods(hits):
+    """Один вариант на ТОВАР, а не на карточку поставщика.
+
+    Товар у нас один (внешний код 0247), карточек под ним столько, у скольких поставщиков мы
+    его берём — 5588 занимал в списке четыре строки из пяти, и человек выбирал между коробками
+    конкурентов вместо того, чтобы выбирать товар. Оставляем лучшую карточку внешнего кода,
+    остальные отбрасываем; сколько их всего, страница считает сама по живому МС.
+
+    Карточки без внешнего кода (или с техническим кодом МС, которого нет в каталоге ТК)
+    схлопывать не по чему — каждая остаётся сама по себе.
+    """
+    out, seen = [], set()
+    for hit in hits:
+        ec = (hit["item"].get("external_code") or "").strip() if hit["item"].get("tc") else ""
+        if ec in seen:
+            continue
+        if ec:
+            seen.add(ec)
+        out.append(hit)
     return out
 
 

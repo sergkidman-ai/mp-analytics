@@ -2214,11 +2214,20 @@ def novelties_api(supplier: str = "", status: str = "", no_stock: bool = False):
     # Флаги сверки (`*_ok`) отдаём как есть: true — признак подтвердился, false —
     # противоречит, null — в названии карточки его нет. Человеку в таблице нужны все три
     # состояния: «не написано» и «не совпало» — разные новости.
+    # Вариант — это ТОВАР, а не коробка конкретного поставщика: подмешиваем название из
+    # каталога ТК (первоисточник) и число живых карточек МС под тем же внешним кодом.
+    # Считаем по живому МС, а не по слепку решения: карточку могли завести уже после разбора.
     cands = db.query("""
-        SELECT novelty_id, rank, ms_id, ms_code, ms_name, color, measure, chip,
-               shared_code, verdict, brand, kind, model_ok, kind_ok, brand_ok,
-               color_ok, resource_ok, chip_ok, score, source, external_code, feat_src
-          FROM prc_novelty_candidate ORDER BY novelty_id, rank
+        SELECT c.novelty_id, c.rank, c.ms_id, c.ms_code, c.ms_name, c.color, c.measure, c.chip,
+               c.shared_code, c.verdict, c.brand, c.kind, c.model_ok, c.kind_ok, c.brand_ok,
+               c.color_ok, c.resource_ok, c.chip_ok, c.score, c.source, c.external_code,
+               c.feat_src, t.title AS tc_title, coalesce(p.cards, 0) AS cards
+          FROM prc_novelty_candidate c
+          LEFT JOIN prc_tc_model t ON t.external_code = c.external_code AND t.gone_at IS NULL
+          LEFT JOIN (SELECT external_code, count(*) cards FROM ms_product
+                      WHERE NOT archived GROUP BY external_code) p
+                 ON p.external_code = c.external_code
+         ORDER BY c.novelty_id, c.rank
     """)
     by_novelty = {}
     for c in cands:
@@ -2312,7 +2321,7 @@ def _find_goods(code):
                          WHERE NOT archived AND (upper(code) = upper(%s)
                             OR code ~* ('^' || %s || '[a-z]*$')
                             OR upper(external_code) = upper(%s))
-                         ORDER BY length(code), code LIMIT 1""", (code, code, code))
+                         ORDER BY code IS NULL, length(code), code LIMIT 1""", (code, code, code))
     return found[0] if found else None
 
 
@@ -2328,7 +2337,7 @@ def _novelty_link(raw):
     out = []
     for part in parts:
         item = _find_goods(part)
-        if not item:
+        if not item or not item["code"]:
             return None, f"кода «{part}» нет в каталоге МС"
         num = (re.match(r"^\d+", item["code"]) or [part])[0].zfill(4)
         if num not in out:                       # один и тот же товар дважды не пишем
@@ -2352,6 +2361,11 @@ def novelties_decide(payload: NoveltyDecision):
             return {"ok": False, "error": f"кода «{code}» нет в каталоге МС: не нашлось ни "
                     f"карточки с кодом {code}*, ни товара с внешним кодом {code}. Проверьте "
                     f"номер или заведите карточку кнопкой «➕ В МС»"}
+        if not item["code"]:
+            # Внешний код есть, а карточки с кодом под ним нет: записать решение нечем
+            # (`ms_code` — ключ для прайсов), поэтому отказываем явно, а не молча пишем NULL.
+            return {"ok": False, "error": f"у товара {code} нет ни одной карточки МС с кодом — "
+                    f"заведите карточку кнопкой «➕ В МС»"}
     link, error = _novelty_link(payload.link)
     if error:
         return {"ok": False, "error": f"связь: {error}"}

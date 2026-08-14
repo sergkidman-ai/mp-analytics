@@ -76,9 +76,6 @@
   .ok{color:var(--pos);font-weight:700}
   .miss{color:var(--warn)}
   .verdict{font-size:11px;color:var(--mut);margin-top:3px}
-  /* Вариант показан, хотя признак противоречит (бренд/ресурс — там врут обе стороны):
-     человек должен увидеть конфликт, не раскрывая сетку сверки. */
-  .verdict.conflict{color:var(--neg)}
   /* Пометка «ТК» у значения признака: оно из карточки нашего каталога, а не из названия МС. */
   .tcsrc{font-size:9px;padding:0 3px;border:1px solid var(--mut);border-radius:3px;color:var(--mut)}
   /* Ответ сервера — под кнопками строки, во всю ширину колонки: отказ должен читаться,
@@ -345,14 +342,23 @@ function feats(r){
 // поэтому его и показываем первым: человек мыслит «6058», а не «6058hb».
 const goods = code => (String(code || "").match(/^\d+/) || [""])[0];
 
+// Вариант — это НАШ ТОВАР, а не коробка поставщика: показываем внешний код и название из
+// каталога ТК. Карточек МС под товаром может быть сколько угодно (у скольких поставщиков
+// берём) — они не выбор, а справка: сколько их, столько и написано.
+const isGoods = c => Boolean(c.external_code && c.tc_title);
+// Значение выбора — внешний код товара, если он известен; иначе код карточки МС, как раньше.
+// Сервер принимает обе формы (_find_goods в web/app.py).
+const pickValue = c => isGoods(c) ? c.external_code : (c.ms_code || "");
+
 function optionLabel(c){
-  // Вариант из каталога ТК — не выбор карточки, а подсказка: товар у нас заведён, но коробки
-  // этого поставщика в МС ещё нет. Кода карточки у него нет и быть не может.
-  if (c.source === "tc") return `➕ код ТК ${c.external_code} — ${c.ms_name} (карточки в МС нет)`;
   // «⚠» — вариант с противоречием по бренду или ресурсу: он больше не выбрасывается из
   // списка (опечатка поставщика в цифре прятала верную карточку), но и молча предлагать
   // его нельзя — метка видна прямо в выпадающем списке, до раскрытия сетки.
   const mark = hasConflict(c) ? "⚠" : c.verdict === "совпало по всем признакам" ? "✓✓" : "•";
+  if (isGoods(c)) {
+    const cards = c.cards ? `карточек МС: ${c.cards}` : "карточки в МС нет";
+    return `${c.cards ? mark : "➕"} ${c.external_code} — ${c.tc_title} (${cards})`;
+  }
   const n = goods(c.ms_code);
   return `${mark} ${n || c.ms_code || "без кода"}${n ? " (" + c.ms_code + ")" : ""} — ${c.ms_name}`;
 }
@@ -388,9 +394,12 @@ function cmpGrid(r, c){
       <td>${esc(mine || "—")}</td><td>${esc(ours || "—")}${src}</td>
       <td class="m ${cls}">${sign}</td></tr>`;
   }).join("");
-  const head = c.source === "tc" ? `модель ТК ${esc(c.external_code)}` : `сходится ${c.score}/6`;
+  // Слева строка прайса, справа НАШ ТОВАР. Значения справа уже пришли из каталога ТК везде,
+  // где он высказался (пометка «ТК» у значения), поэтому и колонка называется каталогом.
+  const head = isGoods(c) ? `товар ${esc(c.external_code)} · сходится ${c.score}/6`
+                          : `сходится ${c.score}/6`;
   return `<table class="cmp"><tr><th class="score">${head}</th>
-      <th>строка прайса</th><th>${c.source === "tc" ? "каталог ТК" : "наша карточка"}</th>
+      <th>строка прайса</th><th>${isGoods(c) ? "каталог ТК" : "наша карточка"}</th>
       <th></th></tr>${body}</table>`;
 }
 
@@ -434,7 +443,7 @@ function modelCell(r){
 
 function row(r){
   const opts = r.candidates.map((c, i) =>
-    `<option value="${esc(c.ms_code || "")}" ${i ? "" : "selected"}>${esc(optionLabel(c))}</option>`).join("");
+    `<option value="${esc(pickValue(c))}" ${i ? "" : "selected"}>${esc(optionLabel(c))}</option>`).join("");
   const best = r.candidates[0];
   // У разобранной строки сверяем с той карточкой, которую человек (или артикул) выбрал.
   const done = r.candidates.find(c => c.ms_code === r.ms_code);
@@ -452,8 +461,7 @@ function row(r){
       <button class="paid" disabled title="сеть спрашиваем только по строкам NEW — тем, которым заводим карточку">🌐 сеть</button>
       <button class="black danger" title="артикул в чёрный список">ЧС</button>
     </div>
-    ${best ? `<div class="verdict${hasConflict(best) ? " conflict" : ""}">по коду ${
-        esc(best.shared_code)} · ${esc(best.verdict)}${
+    ${best ? `<div class="verdict">по коду ${esc(best.shared_code)} · ${esc(best.verdict)}${
         r.candidates.length > 1 ? ` · ещё вариантов: ${r.candidates.length - 1}` : ""}</div>` : ""}
     <div class="cmpbox">${cmpGrid(r, best)}</div>`
     : `<span class="tag ${r.decision}">${r.decision === "matched" ? "сопоставлено"
@@ -655,9 +663,9 @@ function wire(){
     const box = tr.querySelector(".cmpbox"), rec = DATA.find(x => x.id === id);
     // Выбранный вариант. Последний пункт списка («ввести код вручную») варианта не имеет.
     const picked = () => (sel && rec) ? rec.candidates[sel.selectedIndex] : null;
-    // Подсказка ТК карточки в МС не имеет, привязывать строку не к чему — зато её внешний
-    // код надо унести в диалог «➕ В МС», чтобы карточка завелась под НИМ.
-    const extOf = () => { const c = picked(); return c && c.source === "tc" ? c.external_code : ""; };
+    // Товар из ТК, под которым в МС ещё нет ни одной карточки: привязывать строку не к чему —
+    // зато его внешний код надо унести в диалог «➕ В МС», чтобы карточка завелась под НИМ.
+    const extOf = () => { const c = picked(); return c && isGoods(c) && !c.cards ? c.external_code : ""; };
     if (sel && code){
       code.value = sel.value;
       sel.onchange = () => {
