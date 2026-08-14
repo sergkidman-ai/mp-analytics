@@ -76,6 +76,9 @@
   .ok{color:var(--pos);font-weight:700}
   .miss{color:var(--warn)}
   .verdict{font-size:11px;color:var(--mut);margin-top:3px}
+  /* Вариант показан, хотя признак противоречит (бренд/ресурс — там врут обе стороны):
+     человек должен увидеть конфликт, не раскрывая сетку сверки. */
+  .verdict.conflict{color:var(--neg)}
   /* Пометка «ТК» у значения признака: оно из карточки нашего каталога, а не из названия МС. */
   .tcsrc{font-size:9px;padding:0 3px;border:1px solid var(--mut);border-radius:3px;color:var(--mut)}
   /* Ответ сервера — под кнопками строки, во всю ширину колонки: отказ должен читаться,
@@ -346,7 +349,10 @@ function optionLabel(c){
   // Вариант из каталога ТК — не выбор карточки, а подсказка: товар у нас заведён, но коробки
   // этого поставщика в МС ещё нет. Кода карточки у него нет и быть не может.
   if (c.source === "tc") return `➕ код ТК ${c.external_code} — ${c.ms_name} (карточки в МС нет)`;
-  const mark = c.verdict === "совпало по всем признакам" ? "✓✓" : "•";
+  // «⚠» — вариант с противоречием по бренду или ресурсу: он больше не выбрасывается из
+  // списка (опечатка поставщика в цифре прятала верную карточку), но и молча предлагать
+  // его нельзя — метка видна прямо в выпадающем списке, до раскрытия сетки.
+  const mark = hasConflict(c) ? "⚠" : c.verdict === "совпало по всем признакам" ? "✓✓" : "•";
   const n = goods(c.ms_code);
   return `${mark} ${n || c.ms_code || "без кода"}${n ? " (" + c.ms_code + ")" : ""} — ${c.ms_name}`;
 }
@@ -356,6 +362,8 @@ function optionLabel(c){
 // Три состояния у каждого признака: ✓ подтвердился, ✗ противоречит, — в карточке не написано
 // (молчание каталога — не совпадение и не отказ, в счёт N/6 оно не идёт).
 const MARK = {true: ["✓", "pos"], false: ["✗", "neg"], null: ["—", "muted"]};
+// Мягкие противоречия — те, из-за которых вариант остаётся в списке (см. conflicts в catalog.py).
+const hasConflict = c => c && (c.brand_ok === false || c.resource_ok === false);
 const BAD = ["model_ok", "kind_ok", "brand_ok", "color_ok", "resource_ok", "chip_ok"];
 
 function cmpGrid(r, c){
@@ -444,7 +452,8 @@ function row(r){
       <button class="paid" disabled title="сеть спрашиваем только по строкам NEW — тем, которым заводим карточку">🌐 сеть</button>
       <button class="black danger" title="артикул в чёрный список">ЧС</button>
     </div>
-    ${best ? `<div class="verdict">по коду ${esc(best.shared_code)} · ${esc(best.verdict)}${
+    ${best ? `<div class="verdict${hasConflict(best) ? " conflict" : ""}">по коду ${
+        esc(best.shared_code)} · ${esc(best.verdict)}${
         r.candidates.length > 1 ? ` · ещё вариантов: ${r.candidates.length - 1}` : ""}</div>` : ""}
     <div class="cmpbox">${cmpGrid(r, best)}</div>`
     : `<span class="tag ${r.decision}">${r.decision === "matched" ? "сопоставлено"

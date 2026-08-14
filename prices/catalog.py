@@ -22,6 +22,10 @@
 У каждого признака три исхода: подтвердился (True), противоречит (False) и молчит (None —
 в названии карточки признака нет). Молчание не считается ни совпадением, ни отказом.
 
+Противоречие по цвету и чипу выбрасывает кандидата (это другой товар), по бренду и ресурсу —
+только опускает в хвост списка (`conflicts`): обе эти цифры пишутся руками с обеих сторон,
+и опечатка не должна ПРЯТАТЬ верную карточку от человека — она подсвечена красным в сетке.
+
 Каталог берём из локальной витрины `ms_product`, в МойСклад не ходим.
 """
 import argparse
@@ -65,11 +69,18 @@ def load_tc():
     """)
     tc = {r["external_code"]: {"title": r["title"], "color": r["color"],
                                "resource": r["resource"], "chip": r["chip"],
-                               "brand": set(r["brand"] or ()), "codes": set()}
+                               "brand": set(r["brand"] or ()), "codes": set(),
+                               "title_codes": set()}
           for r in rows}
-    for r in query("select code, external_code from prc_tc_code"):
-        if r["external_code"] in tc:
-            tc[r["external_code"]]["codes"].add(r["code"])
+    # Код из ЗАГОЛОВКА модели и код из поля синонимов — разной силы. W9015MC — это заголовок
+    # модели 5947 и всего лишь строчка совместимости у 5588/4491/6946: код носят 15 карточек,
+    # редкость у всех одна, и без этого различия верная модель тонула в списке (14.08.2026).
+    for r in query("select code, external_code, source from prc_tc_code"):
+        if r["external_code"] not in tc:
+            continue
+        tc[r["external_code"]]["codes"].add(r["code"])
+        if r["source"] == "title":
+            tc[r["external_code"]]["title_codes"].add(r["code"])
     return tc
 
 
@@ -84,6 +95,7 @@ def enrich(item, tc):
     if not tc:
         return ()
     item["codes"] = set(item["codes"]) | tc["codes"]
+    item["tc_title_codes"] = tc["title_codes"]
     src = []
     for key in TC_FEATURES:
         if tc[key]:
@@ -292,10 +304,10 @@ def match(row, index, by_id):
     вообще совпали случайно). Подтверждённость признаков — второй ключ: ресурс и чип
     в наших названиях указаны через раз, и их молчание не должно опускать точный код.
 
-    Бренд из списка отбора выведен намеренно: наши карточки заполняли руками, и ошибка
-    в названии («TN-321 для Brother») не должна ПРЯТАТЬ правильный вариант от человека.
-    Конфликт по бренду лишь опускает карточку в хвост списка — то есть меняет только то,
-    что предвыбрано в выпадающем списке.
+    Бренд и ресурс из списка отбора выведены намеренно: наши карточки заполняли руками, и
+    ошибка в названии («TN-321 для Brother») не должна ПРЯТАТЬ правильный вариант от человека.
+    Конфликт по ним лишь опускает карточку в хвост списка — то есть меняет только то,
+    что предвыбрано в выпадающем списке; в сетке сверки признак горит красным.
     """
     out = []
     for ms_id, shared in candidates(row, index).items():
@@ -303,19 +315,39 @@ def match(row, index, by_id):
         if row["kind"] != item["kind"]:
             continue        # флакон тонера и тонер-картридж на один принтер — разные товары
         flags = compare(row, item)
-        if False in (flags["color_ok"], flags["resource_ok"], flags["chip_ok"]):
+        if False in (flags["color_ok"], flags["chip_ok"]):
             continue
         rarest = min(len(index[c]) for c in shared)
         best_code = max(shared, key=lambda c: (len(index[c]) == rarest, len(c)))
         hit = {"item": item, "code": best_code, "shared": len(shared), "rarity": rarest,
                "confirmed": sum(1 for x in (flags["color_ok"], flags["resource_ok"],
                                             flags["chip_ok"]) if x),
-               "tc_confirmed": tc_confirmed(item, flags)}
+               "tc_confirmed": tc_confirmed(item, flags), "titled": titled(item, shared)}
         hit.update(flags)
         out.append(hit)
-    out.sort(key=lambda h: (h["brand_ok"] is False, h["rarity"],
+    out.sort(key=lambda h: (conflicts(h), not h["titled"], h["rarity"],
                             -h["tc_confirmed"], -h["confirmed"], -h["shared"]))
     return out
+
+
+def titled(item, shared):
+    """Общий код — это ЗАГОЛОВОК модели в каталоге ТК, а не строчка совместимости в синонимах.
+
+    Ключ стоит сразу после редкости кода: когда код одинаково част у всех кандидатов (W9015MC
+    носят 15 карточек), именно заголовок отличает саму модель от тех, кто её лишь упоминает.
+    """
+    return bool(shared & (item.get("tc_title_codes") or set()))
+
+
+def conflicts(hit):
+    """Сколько мягких признаков противоречит. Первый ключ сортировки: такой вариант — в хвост.
+
+    Мягкие — бренд и ресурс: оба пишутся руками с обеих сторон и обе стороны врут. Случай
+    W9015MC (14.08.2026): у поставщика в прайсе «39.6K», в каталоге ТК 396 000 — опечатка
+    поставщика в десять раз, а верная карточка (код 5947) из-за неё вообще не показывалась.
+    Молчание признака (None) конфликтом не считается.
+    """
+    return sum(1 for key in ("brand_ok", "resource_ok") if hit.get(key) is False)
 
 
 def tc_confirmed(item, flags):
@@ -363,18 +395,19 @@ def tc_only(row, tc_index, tc_all):
         item = {"ms_id": None, "code": "", "external_code": ec, "name": tc["title"],
                 "article": "", "num": None, "kind": None, "codes": tc["codes"], "tc": tc,
                 "color": tc["color"], "resource": tc["resource"], "chip": tc["chip"],
-                "brand": set(tc["brand"]),
+                "brand": set(tc["brand"]), "tc_title_codes": tc["title_codes"],
                 "feat_src": tuple(key for key in TC_FEATURES if tc[key])}
         flags = compare(row, item)
-        if False in (flags["color_ok"], flags["resource_ok"], flags["chip_ok"]):
+        if False in (flags["color_ok"], flags["chip_ok"]):
             continue
         rarest = min(len(tc_index[c]) for c in shared)
         best_code = max(shared, key=lambda c: (len(tc_index[c]) == rarest, len(c)))
         hit = {"item": item, "code": best_code, "shared": len(shared), "rarity": rarest,
-               "confirmed": 0, "tc_confirmed": tc_confirmed(item, flags), "tc_only": True}
+               "confirmed": 0, "tc_confirmed": tc_confirmed(item, flags), "tc_only": True,
+               "titled": titled(item, shared)}
         hit.update(flags)
         out.append(hit)
-    out.sort(key=lambda h: (h["brand_ok"] is False, h["rarity"], -h["tc_confirmed"]))
+    out.sort(key=lambda h: (conflicts(h), not h["titled"], h["rarity"], -h["tc_confirmed"]))
     return out
 
 
