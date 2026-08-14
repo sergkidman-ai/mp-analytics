@@ -12,12 +12,13 @@ COGS по тому же принципу, что у ВБ (margin_by_sku), но �
 Мульти-SKU отправление: деньги и COGS делятся поровну между SKU отправления (большинство
 отправлений односоставные; помечено как допущение v1).
 
-Сторно COGS возвратов в продаваемый сток: товар, вернувшийся в сток (склад ∉ {Брак, Озон}), при
-перепродаже спишет себест повторно → реверсим COGS исходной продажи в МЕСЯЦЕ возврата. Возврат
-порождает денежную оп (ClientReturnAgentOperation, accr<0) и товарную (OperationReturnGoodsFBSofRMS);
-обе несут items[] → берём MAX штук на SKU (одна физед.), кап по МС-бюджету sellable (ms_return_cogs,
-demand.name=posting). Себест/шт = cpu_global (всеисторический, продажа обычно в другом месяце).
-Гейт fail-closed: постинг без salesreturn или в Брак/Озон → бюджет 0 → без сторно.
+Сторно COGS: в отчёте МП себестоимость считается только по товару, реально реализованному
+покупателю. Озон реверсировал выручку (accr<0: ClientReturnAgentOperation /
+OperationAgentStornoDeliveredToCustomer) → реверсим и себест, в МЕСЯЦЕ реверса. Склад возврата
+(Брак / «Озон») и наличие salesreturn в МС значения не имеют — брак живёт в разделе
+«Себестоимость». Кап — бюджет storno_budget «начислено штук минус сторнировано ранее» на пару
+(отправление, SKU): только от двойного сторно и от сторно неначисленного (невыкуп до доставки).
+Себест/шт = cpu_global (всеисторический, продажа обычно в другом месяце).
 
 net = Σ(категории op) − COGS. Деньги — якорь. Пишет в margin_by_sku (platform='ozon').
 Запуск:  ./venv/bin/python reports/margin_ozon_sku.py [2026-06-01] [2026-06-30] [oz_acc1]
@@ -36,6 +37,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from collectors.ozon import categorize_operation, CATEGORIES, fetch_product_offer_map  # noqa: E402
+from reports import fifo_fallback  # noqa: E402  (FIFO товара МС — шаг перед групповой ценой)
 
 load_dotenv(BASE_DIR / ".env")
 MS_TOK = os.getenv("MOYSKLAD_TOKEN")
@@ -109,11 +111,43 @@ def sku_unit_cost_global(account, org_id):
     return {s: cogs_acc[s] / unit_acc[s] for s in unit_acc if unit_acc[s] > 0}
 
 
+def storno_budget(account, ym):
+    """{(norm_posting, sku): штук, по которым выручка начислена и ещё НЕ сторнирована к началу ym}.
+
+    Решение Сергея 2026-08-13: себестоимость в отчётах МП считается только по товару, реально
+    реализованному покупателю, а критерий — начислил ли Озон выручку по этому отправлению.
+    Склад возврата (Брак / «Озон») и наличие документа `salesreturn` в МойСклад к расчёту
+    отношения не имеют — прежний гейт `return_sellable_budget` был fail-closed и не сторнировал
+    2/3 положенного. Потери от брака остаются в разделе «Себестоимость», а не здесь.
+
+    Бюджет нужен только против двойного сторно (одно отправление реверсится в двух отчётных
+    месяцах) и против сторно того, что не начислялось: продано штук по (отправление, SKU) за всю
+    историю минус сторнировано в месяцах ДО ym. Внутри месяца добирается через used[].
+    """
+    rows = db.query("""
+        WITH t AS (
+          SELECT split_part(payload->'posting'->>'posting_number','-',1)||'-'||
+                 split_part(payload->'posting'->>'posting_number','-',2) k,
+                 it->>'sku' sku,
+                 CASE WHEN payload->>'operation_type'='OperationAgentDeliveredToCustomer'
+                       AND coalesce((payload->>'accruals_for_sale')::numeric,0) > 0
+                      THEN 1 ELSE 0 END sold,
+                 CASE WHEN (coalesce((payload->>'accruals_for_sale')::numeric,0) < 0
+                            OR payload->>'operation_type'='OperationAgentStornoDeliveredToCustomer')
+                       AND substr(payload->>'operation_date',1,7) < %s
+                      THEN 1 ELSE 0 END retb
+          FROM raw_ozon_transaction, jsonb_array_elements(payload->'items') it
+          WHERE account=%s AND payload->'posting'->>'posting_number' IS NOT NULL
+            AND it->>'sku' IS NOT NULL)
+        SELECT k, sku, sum(sold) s, sum(retb) r FROM t GROUP BY 1,2 HAVING sum(sold) > 0""",
+        (ym, account))
+    return {(x["k"], x["sku"]): max(float(x["s"]) - float(x["r"]), 0.0) for x in rows}
+
+
 def return_sellable_budget(org_id):
-    """{norm_posting: Σ sellable ret_qty} из ms_return_cogs — бюджет штук, вернувшихся в
-    ПРОДАВАЕМЫЙ сток (Звездный/Дисквер/Кантемировская, НЕ Брак/Озон). Кап сторно COGS: реверсим
-    не больше, чем МС подтвердил как возврат в сток (корректно делит и смешанные постинги
-    Брак/сток — сторнируем только сток-долю). Постинги без salesreturn → бюджет 0 → не сторним."""
+    """{norm_posting: Σ sellable ret_qty} из ms_return_cogs — возвраты в ПРОДАВАЕМЫЙ сток по данным
+    МойСклада. БОЛЬШЕ НЕ ГЕЙТ сторно COGS (см. storno_budget), оставлена как справочная для
+    раздела «Себестоимость», где брак показывается отдельным убытком."""
     rows = db.query("""SELECT demand_name, ret_qty FROM ms_return_cogs
         WHERE org=%s AND sellable=true AND demand_name IS NOT NULL""", (org_id,))
     out = defaultdict(float)
@@ -157,10 +191,12 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
     print(f"Ozon маржа {account} {date_from}..{date_to}", flush=True)
     org_id = _org_id(ms_org)
     cogs_map = posting_cogs_map(org_id)
-    sell_budget = return_sellable_budget(org_id)   # norm_posting → штук в продаваемый сток (сторно)
+    sell_budget = storno_budget(account, date_from[:7])  # (постинг,sku) → штук с начисленной выручкой
     cpu_global = sku_unit_cost_global(account, org_id)  # sku → себест/шт (вся история) для сторно
     sku2offer = fetch_product_offer_map(account)   # sku → offer_id (=external_code)
     gmap = _group_price_map()
+    ff = fifo_fallback.load()                      # FIFO товара/набора МС (перед групповой ценой)
+    day = datetime.date.fromisoformat(date_to)     # отсечка: последняя отгрузка товара до конца месяца
     # Ручной слой COGS (как у ВБ): для отправлений без матча в МС и без импутации/группы —
     # себест/ед. проставлена вручную в cogs_manual (ключ article = offer_id=external_code).
     # Заполняется, когда товар в МС под другим контрагентом/не через МС (напр. декабрьские
@@ -173,11 +209,12 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
     sku_name = {}
     posting_skus = {}                 # norm_posting -> {"skus":[...], "schema":...}
     posting_rev = defaultdict(float)  # norm_posting -> выручка (для покрытия по деньгам)
-    # Возврат порождает ДВЕ операции: денежную (ClientReturnAgentOperation, accr<0) и товарную
-    # (OperationReturnGoodsFBSofRMS, accr≥0). Обе несут те же items[]. Считаем по каждому типу
-    # отдельно → берём MAX на SKU (одна физическая единица, не сумма), затем кап по МС-бюджету.
-    ret_money = defaultdict(lambda: defaultdict(float))  # norm_posting -> sku -> штук (денежная оп)
-    ret_goods = defaultdict(lambda: defaultdict(float))  # norm_posting -> sku -> штук (товарная оп)
+    # Триггер сторно COGS — ТОЛЬКО реверс выручки Озоном (денежная оп: accr<0, т.е.
+    # ClientReturnAgentOperation / OperationAgentStornoDeliveredToCustomer). Товарная оп
+    # (OperationReturnGoodsFBSofRMS, accr=0) больше НЕ триггер: проверка 172 отправлений показала,
+    # что у 164 из них денежное сторно есть — просто у 30 в более раннем отчёте, т.е. «товарный без
+    # денежного» был артефактом помесячной нарезки. Сторно ложится в месяц реверса выручки.
+    ret_money = defaultdict(lambda: defaultdict(float))  # norm_posting -> sku -> штук (реверс выручки)
     overhead = {c: 0.0 for c in CATEGORIES}
     for op in ops:
         cats = categorize_operation(op)
@@ -200,22 +237,23 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
             posting_skus[key] = {
                 "skus": skus, "schema": (op.get("posting") or {}).get("delivery_schema") or "—"}
             posting_rev[key] += cats["revenue"]
-        elif post and (accr < 0 or op.get("operation_type") == "OperationReturnGoodsFBSofRMS"):
-            # возврат: денежная оп (accr<0: ClientReturnAgentOperation/StornoDelivered) ИЛИ товарная
-            # оп (OperationReturnGoodsFBSofRMS). items[] повторяется по штукам → qty = число записей.
+        elif post and (accr < 0
+                       or op.get("operation_type") == "OperationAgentStornoDeliveredToCustomer"):
+            # реверс выручки. items[] повторяется по штукам → qty = число записей.
             key = norm_posting(post)
-            bucket = ret_money if accr < 0 else ret_goods
             for sku in skus:
-                bucket[key][sku] += 1.0
+                ret_money[key][sku] += 1.0
 
-    # COGS на SKU тремя слоями (как у ВБ) → покрытие ~100%:
+    # COGS на SKU слоями (как у ВБ) → покрытие ~100%:
     #   1) ТОЧНО: отправление сматчилось с МС-заказом → COGS из позиций (делим по ед.).
     #   2) ИМПУТАЦИЯ: непокрытое отправление, но у SKU есть COGS/ед. из его сматченных продаж.
-    #   3) ГРУППА: fallback по offer_id=external_code (как WB-FBO), если импутации нет.
+    #   3) FIFO ТОВАРА: последняя отгрузка того же товара МС до конца месяца (любая площадка),
+    #      набор — Σ FIFO компонентов состава. Факт списания, поэтому идёт перед карточкой.
+    #   4) ГРУППА: fallback по offer_id=external_code через cost_seb — аварийный хвост.
     # Единицы: items[] повторяется по штукам (qty 3 = 3 записи) → счёт по записям.
     sku_cogs = defaultdict(float)
     m_cogs, m_units = defaultdict(float), defaultdict(int)
-    cov = {"matched": 0, "imputed": 0, "grouped": 0, "manual": 0, "missed": 0}
+    cov = {"matched": 0, "imputed": 0, "tovar_fifo": 0, "grouped": 0, "manual": 0, "missed": 0}
     rev_cov = {"covered": 0.0, "missed": 0.0}
     miss_schema = defaultdict(int)
     miss_detail, unmatched = [], []
@@ -235,56 +273,57 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
             unmatched.append((key, skus, info["schema"], rev))
     cpu_map = {s: m_cogs[s] / m_units[s] for s in m_units if m_units[s] > 0}
     for key, skus, schema, rev in unmatched:
-        used_impute = used_group = used_manual = 0
+        used_impute = used_fifo = used_group = used_manual = 0
         for s in skus:
+            off = sku2offer.get(s)
             if s in cpu_map:
                 sku_cogs[s] += cpu_map[s]
                 used_impute += 1
+                continue
+            # FIFO ТОГО ЖЕ товара МС (и набора как Σ FIFO компонентов) — факт списания, поэтому
+            # идёт ПЕРЕД групповой ценой из карточки (cost_seb = средняя по текущему остатку).
+            fc, _src = ff.unit(off, day)
+            if fc:
+                sku_cogs[s] += fc
+                used_fifo += 1
+                continue
+            fc = _fallback_cpu(off, gmap)
+            if fc is not None:
+                sku_cogs[s] += fc
+                used_group += 1
             else:
-                fc = _fallback_cpu(sku2offer.get(s), gmap)
-                if fc is not None:
-                    sku_cogs[s] += fc
-                    used_group += 1
-                else:
-                    mc = manual.get(sku2offer.get(s))
-                    if mc is not None:
-                        sku_cogs[s] += mc
-                        used_manual += 1
-        if used_impute + used_group + used_manual == 0:
+                mc = manual.get(off)
+                if mc is not None:
+                    sku_cogs[s] += mc
+                    used_manual += 1
+        if used_impute + used_fifo + used_group + used_manual == 0:
             cov["missed"] += 1
             rev_cov["missed"] += rev
             miss_schema[schema] += 1
             miss_detail.append((key, schema, rev, len(skus)))
         else:
-            best = max((("imputed", used_impute), ("grouped", used_group),
-                        ("manual", used_manual)), key=lambda x: x[1])[0]
+            best = max((("imputed", used_impute), ("tovar_fifo", used_fifo),
+                        ("grouped", used_group), ("manual", used_manual)),
+                       key=lambda x: x[1])[0]
             cov[best] += 1
             rev_cov["covered"] += rev
 
     # --- сторно COGS возвратов в продаваемый сток (в месяце возврата) ---
     # Товар, вернувшийся в сток, при перепродаже спишет себест повторно → реверсим COGS исходной
     # продажи по себест/шт этого SKU (cpu_global — всеисторический, т.к. продажа была в другом
-    # месяце; иначе группа по offer_id). Кап штук — по бюджету МС sellable на постинг (fail-closed
-    # по постингам без salesreturn и по Брак/Озон; делит смешанные). used[k] — физически потрачено
-    # штук по постингу: расходуем бюджет на КАЖДУЮ вернувшуюся штуку (даже без себеста), чтобы бюджет
-    # не «утёк» другому SKU постинга. Допущение (проверено: 0 постингов в >1 месяце) — возврат по
-    # постингу приходит в один месяц → бюджет не переиспользуется между месячными прогонами build().
+    # месяце; иначе группа по offer_id). Кап штук — по бюджету «начислено и ещё не сторнировано»
+    # на пару (отправление, SKU): он защищает только от двойного сторно и от сторно того, что
+    # никогда не начислялось (невыкуп до доставки — выручки не было, себеста тоже).
     storno = defaultdict(float)
     used = defaultdict(float)
-    for key in set(ret_money) | set(ret_goods):
-        budget = sell_budget.get(key, 0.0)
-        if budget <= 0:
-            continue
-        m, g = ret_money.get(key, {}), ret_goods.get(key, {})
-        # штук на SKU = MAX(денежная, товарная) — одна физическая единица, не двойной счёт
-        sku_q = {s: max(m.get(s, 0.0), g.get(s, 0.0)) for s in set(m) | set(g)}
+    for key, sku_q in ret_money.items():
         for s, q in sorted(sku_q.items(), key=lambda kv: -kv[1]):  # дорогие/крупные SKU первыми
-            take = min(q, budget - used[key])
+            take = min(q, max(0.0, sell_budget.get((key, s), 0.0) - used[(key, s)]))
             if take <= 0:
-                break
-            used[key] += take
-            cpu = (cpu_global.get(s) or _fallback_cpu(sku2offer.get(s), gmap)
-                   or manual.get(sku2offer.get(s)))
+                continue
+            used[(key, s)] += take
+            cpu = (cpu_global.get(s) or ff.unit(sku2offer.get(s), day)[0]
+                   or _fallback_cpu(sku2offer.get(s), gmap) or manual.get(sku2offer.get(s)))
             if cpu:
                 storno[s] += cpu * take
 
@@ -322,23 +361,27 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
     rev_total = sum(rev_cov.values()) or 1
     print(f"\n  SKU с продажами: {sum(1 for f in sku_fin.values() if f['revenue']>0)}")
     print(f"  COGS-покрытие отправлений: {covered}/{total_p} ({covered/total_p*100:.0f}%) "
-          f"= МС {cov['matched']} + импутация {cov['imputed']} + группа {cov['grouped']} "
-          f"+ ручная {cov['manual']}; без COGS {cov['missed']} {dict(miss_schema)}")
+          f"= МС {cov['matched']} + импутация {cov['imputed']} + FIFO товара {cov['tovar_fifo']} "
+          f"+ группа {cov['grouped']} + ручная {cov['manual']}; "
+          f"без COGS {cov['missed']} {dict(miss_schema)}")
     print(f"  COGS-покрытие ПО ВЫРУЧКЕ: {rev_cov['covered']/rev_total*100:.1f}% "
           f"(без COGS {rev_cov['missed']:,.0f} ₽)".replace(",", " "))
     if miss_detail:
         print("  непокрытые (posting | schema | выручка | #ед.):")
         for key, sch, rev, ns in sorted(miss_detail, key=lambda x: -x[2])[:10]:
             print(f"    {key:<16} {sch:<5} {rev:>8,.0f}  ед={ns}".replace(",", " "))
-    n_ret_post = sum(1 for k in (set(ret_money) | set(ret_goods)) if sell_budget.get(k, 0.0) > 0)
-    print(f"  сторно возвратов в сток: {tot_storno:,.0f} ₽ по {len(storno)} SKU "
-          f"({sum(used.values()):.0f} штук, {n_ret_post} постингов)".replace(",", " "))
+    n_ret_post = len({k for k, _ in used if used[(k, _)] > 0})
+    skipped = sum(1 for k, sq in ret_money.items() for s in sq
+                  if sell_budget.get((k, s), 0.0) <= 0)
+    print(f"  сторно COGS (реверс выручки Озоном): {tot_storno:,.0f} ₽ по {len(storno)} SKU "
+          f"({sum(used.values()):.0f} штук, {n_ret_post} отправлений); "
+          f"без начисленной выручки — не сторнируем: {skipped} пар".replace(",", " "))
     print(f"  записано в margin_by_sku: {len(recs)} SKU (platform=ozon)")
 
     print(f"\n=== ПОРТФЕЛЬ Ozon {account} {date_from}..{date_to} (₽) ===")
     for lbl, v in [("Выручка (SKU)", tot_rev),
                    ("− COGS брутто (из МС)", -(sum(sku_cogs.values()))),
-                   ("+ Сторно COGS возвратов в сток", tot_storno),
+                   ("+ Сторно COGS (Озон реверсировал выручку)", tot_storno),
                    ("Оверхед (реклама-кампании/подписка/эквайринг, вне SKU)",
                     sum(overhead.values()))]:
         print(f"  {lbl:<54}{v:>14,.0f}".replace(",", " "))

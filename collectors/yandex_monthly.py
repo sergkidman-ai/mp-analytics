@@ -163,105 +163,68 @@ def collect_boost(months):
     return res
 
 
-MS_AGENTS_YA = ("Покупатель Маркет", "Я.Маркет Экспресс")
-RETURN_DEFECT_STORES = {"Брак"}   # не-сток бакет; всё прочее (Звездный/Кантемировская) — сток
-
-
-def _pos_cost(positions_obj, cost):
-    """Σ cost_seb × quantity по позициям МС-документа (positions развёрнуты expand)."""
-    tot = 0.0
-    for p in (positions_obj or {}).get("rows", []):
-        a = p.get("assortment") or {}
-        msid = a.get("id") or a.get("meta", {}).get("href", "").split("/")[-1].split("?")[0]
-        tot += cost.get(msid, 0.0) * (p.get("quantity", 0) or 0)
-    return tot
-
-
 def _ms_cogs_monthly(since="2026-01-01"):
-    """ФАКТ себеста Маркета по месяцам из МС-заказов «Покупатель Маркет»/«Я.Маркет Экспресс»:
-    Σ products.cost_seb × qty по позициям, месяц = moment заказа. Это те же продажи, что в
-    stats/orders (сверка ~600 API ≈ 587 МС за месяц), поэтому покрытие фактом ~100%.
+    """ФАКТ себеста Маркета по месяцам — FIFO конкретных отгрузок из раздела «Себестоимость»
+    (`ya_cogs_demand`, метод `ms_fifo` = `byoperation` по документу отгрузки МС).
 
-    СТОРНО ВОЗВРАТОВ В СТОК: товар, вернувшийся в продаваемый сток (склад ≠ «Брак»), при
-    перепродаже спишет себест повторно (новый customerorder перепродажи считается отдельно) →
-    реверсим себест вернувшихся единиц. Возврат = документ salesreturn с demand.name = имя
-    исходного customerorder (проверено: для ЯМ salesreturn.name == demand.name == номер заказа).
-    Вычитаем из МЕСЯЦА ЗАКАЗА (где себест и был учтён) — так реверс попадает ровно туда, где
-    возникло задвоение; возвраты по заказам вне окна `since` не трогаем (их себест не в окне).
-    Кап на заказ по его себесту (защита от рассинхрона cost_seb). Дефект («Брак») НЕ сторнируем."""
-    tok = os.getenv("MOYSKLAD_TOKEN")
-    if not tok:
+    Решение Сергея 2026-08-13: единственный источник себестоимости отгрузки — FIFO. Прежний
+    расчёт (Σ `products.cost_seb` × qty по позициям МС-ЗАКАЗА) брал среднюю себестоимость
+    текущего остатка из карточки, а не стоимость конкретного списания, — заменён. Дельта
+    янв–авг 2026: −210 182 ₽ COGS (то есть чистая на столько выше).
+
+    В расход идёт только реализованное покупателю (`status='done'`). Возврат в сток, возврат
+    браком и невыкуп (`CANCELLED_IN_DELIVERY`) выручки в отчёте не имеют → их себестоимость
+    не расход отчёта МП; потери от брака живут в разделе «Себестоимость», не здесь.
+
+    Месяц — по дате ЗАКАЗА (`creationDate` из stats/orders, мост `demand_name` = `id` заказа),
+    потому что по ней же нарезана выручка в `_fold_order`: себест обязан лежать в том же месяце,
+    что и выручка своей продажи, иначе строки отчёта несопоставимы. Раздел «Себестоимость»
+    нарезан по месяцу ОТГРУЗКИ — отсюда расхождение помесячных итогов двух разделов на
+    заказах, перешедших через границу месяца (в сумме за период сходится). Заказ, которого
+    нет в сырье отчёта, кладём в месяц отгрузки.
+
+    Заказ, которого нет в сырье отчёта, себеста НЕ лишается: `ya_cogs_demand._classify`
+    относит его к `done` (дыра в сырье stats/orders, а не факт отсутствия продажи).
+
+    Источник — таблица, а не МойСклад: сеть здесь не нужна, но `collectors.ya_cogs_demand`
+    должен отработать РАНЬШЕ (в `run_daily.py` шаг стоит перед помесячной сборкой).
+    """
+    rows = db.query("""
+        WITH ord AS (   -- месяц ЗАКАЗА из сырья отчёта: мост demand_name = stats/orders.id
+            SELECT DISTINCT ON (payload->>'id') payload->>'id' oid,
+                   substr(payload->>'creationDate', 1, 7) cm
+            FROM raw_yandex_stats_order WHERE account = %s
+            ORDER BY payload->>'id', loaded_at DESC),
+        d AS (
+            SELECT coalesce(o.cm, to_char(c.ym, 'YYYY-MM')) || '-01' mo,
+                   c.cogs, c.status, c.method
+            FROM ya_cogs_demand c LEFT JOIN ord o ON o.oid = c.demand_name
+            WHERE c.account = %s)
+        SELECT mo,
+               sum(cogs) FILTER (WHERE status = 'done')                    fact,
+               count(*)  FILTER (WHERE status = 'done')                    n_done,
+               count(*)  FILTER (WHERE status <> 'done')                   n_norev,
+               sum(cogs) FILTER (WHERE status <> 'done')                   sum_norev,
+               count(*)  FILTER (WHERE status = 'done' AND method <> 'ms_fifo') n_nofifo
+        FROM d WHERE mo >= %s
+        GROUP BY 1 ORDER BY 1""", (ACCOUNT, ACCOUNT, since[:7] + "-01"))
+    out, n_norev, sum_norev, n_nofifo = {}, 0, 0.0, 0
+    for r in rows:
+        out[r["mo"]] = float(r["fact"] or 0)
+        n_norev += r["n_norev"]
+        sum_norev += float(r["sum_norev"] or 0)
+        n_nofifo += r["n_nofifo"]
+    if not rows:
+        print("  [ya monthly] ya_cogs_demand пуст — себест по фолбэк-карте SKU "
+              "(запусти collectors.ya_cogs_demand)", flush=True)
         return {}
-    H = {"Authorization": f"Bearer {tok}", "Accept-Encoding": "gzip"}
-    MS = "https://api.moysklad.ru/api/remap/1.2"
-    cost = {r["ms_id"]: float(r["cost_seb"] or 0) for r in db.query(
-        "SELECT ms_id, cost_seb FROM products WHERE cost_seb>0")}
-    out = defaultdict(float)
-    order_month = {}                    # customerorder.name -> "YYYY-MM-01"
-    order_cost = defaultdict(float)     # customerorder.name -> Σ себест заказа (кап сторно)
-    agent_href = {}
-    for name in MS_AGENTS_YA:
-        rr = requests.get(f"{MS}/entity/counterparty", headers=H,
-                          params={"filter": f"name={name}"}, timeout=60).json().get("rows", [])
-        if not rr:
-            continue
-        href = rr[0]["meta"]["href"]
-        agent_href[name] = href
-        offset = 0
-        while True:
-            r = requests.get(f"{MS}/entity/customerorder", headers=H, timeout=90, params={
-                "filter": f"agent={href};moment>={since} 00:00:00", "limit": 100, "offset": offset,
-                "expand": "positions.assortment"})
-            rows = r.json().get("rows", [])
-            if not rows:
-                break
-            for o in rows:
-                mo = (o.get("moment") or "")[:7]
-                if len(mo) != 7:
-                    continue
-                nm = o.get("name")
-                order_month[nm] = mo + "-01"
-                c = _pos_cost(o.get("positions"), cost)
-                out[mo + "-01"] += c
-                order_cost[nm] += c
-            offset += 100
-            if len(rows) < 100:
-                break
-
-    # --- сторно возвратов в продаваемый сток (в месяц заказа) ---
-    ret_cost = defaultdict(float)       # customerorder.name -> Σ себест вернувшихся единиц
-    for name, href in agent_href.items():
-        offset = 0
-        while True:
-            rows = requests.get(f"{MS}/entity/salesreturn", headers=H, timeout=90, params={
-                "filter": f"agent={href};moment>={since} 00:00:00", "limit": 100, "offset": offset,
-                "expand": "store,demand,positions.assortment"}).json().get("rows", [])
-            if not rows:
-                break
-            for d in rows:
-                store = ((d.get("store") or {}).get("name")) or None
-                # fail-closed: сторнируем ТОЛЬКО при известном не-дефектном складе
-                if not store or store in RETURN_DEFECT_STORES:
-                    continue
-                nm = (d.get("demand") or {}).get("name") or d.get("name")
-                ret_cost[nm] += _pos_cost(d.get("positions"), cost)
-            offset += 100
-            if len(rows) < 100:
-                break
-    storno = defaultdict(float)
-    for nm, rc in ret_cost.items():
-        mo = order_month.get(nm)        # заказ вне окна → себест не учтён, не вычитаем
-        if not mo:
-            continue
-        storno[mo] += min(rc, order_cost.get(nm, rc))   # кап по себесту заказа
-    for mo, s in storno.items():
-        out[mo] = out.get(mo, 0.0) - s
-    tot = sum(storno.values())
-    if tot:
-        print(f"  [ya monthly] сторно COGS возвратов в сток: −{tot:,.0f} ₽ "
-              f"по {sum(1 for nm in ret_cost if nm in order_month)} возвр.-заказам (склад ≠ Брак)"
-              .replace(",", " "), flush=True)
-    return dict(out)
+    print(f"  [ya monthly] себест = FIFO отгрузок: {len(rows)} мес, "
+          f"отброшено {n_norev} отгрузок без начисленной выручки (отмена/возврат/брак) "
+          f"на {sum_norev:,.0f} ₽".replace(",", " "), flush=True)
+    if n_nofifo:
+        print(f"  [ya monthly] ВНИМАНИЕ: {n_nofifo} учтённых отгрузок без FIFO "
+              f"(импутация/ручной) — проверь раздел «Себестоимость»", flush=True)
+    return out
 
 
 def _cost_map():

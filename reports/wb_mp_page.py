@@ -9,6 +9,7 @@
 (тек., прогноз) дорисовывает JS из /api/wb/mp-current. render() пишет файл атомарно.
 """
 import json
+from reports import mp_cogs_drill as _drill
 import os
 import tempfile
 import pathlib
@@ -94,7 +95,11 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
         else:
             txt = money(vals[i], neg=(kind == "expense"))
         pc = f'<span class="pc">{shares[i]:.1f}%</span>' if (showpc and shares[i] is not None) else ""
-        tds.append(f'<td class="num {bd[i]}">{txt}{pc}</td>')
+        ky = _C.get("K") or []
+        # ячейка месяца в строке COGS — кликабельна: раскрывает отгрузки этого отчёта
+        dy = f' data-ym="{ky[i]}"' if (k == "cogs" and i < len(ky)) else ""
+        cl = f'num {bd[i]}' + (" drill" if dy else "")
+        tds.append(f'<td class="{cl}"{dy}>{txt}{pc}</td>')
     if kind in ("margin", "count_up", "count_dn", "check"):
         rp = "—"
     else:
@@ -169,7 +174,7 @@ def build(acc):
     avg_cogs = sum(cogs[i] for i in base) / tot_ob * 100 if tot_ob else 0
     nmon = len(base)
     H = []
-    H.append(f'<section class="org"><h2><span class="orgdot"></span>{ORG[acc]} '
+    H.append(f'<section class="org" data-acc="{acc}"><h2><span class="orgdot"></span>{ORG[acc]} '
              f'<span class="muted" style="font-weight:400;font-size:13px">· Wildberries</span></h2>')
     H.append('<div class="hero">'
              f'<div class="cell"><div class="big">{money(tot_ob)} ₽</div><div class="lbl">оборот {nmon} мес</div></div>'
@@ -298,7 +303,7 @@ def render(hist=None):
     data = hist if hist is not None else json.loads(HIST_PATH.read_text(encoding="utf-8"))
     keys = data.get("period_keys", [])
     N = len(data["months"])
-    _C.update({"data": data, "M": data["months"], "N": N,
+    _C.update({"data": data, "M": data["months"], "N": N, "K": keys,
                "base": list(range(N))})       # у ВБ все замороженные месяцы финальны (нет provisional)
     html = f"""<!DOCTYPE html>
 <html lang="ru">
@@ -337,6 +342,7 @@ def render(hist=None):
   <div class="foot">{FOOT}</div>
 </main>
 {JS}
+{_drill.page_js('wb')}
 </body>
 </html>"""
     _atomic_write(OUT, html)

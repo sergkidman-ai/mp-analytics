@@ -12,7 +12,7 @@
 Источник истины — reports/data/mp_ozon_hist.json (RUNTIME STATE). Все мутации: под fcntl-локом,
 с бэкапом, атомарной записью JSON (os.replace), затем перерисовкой страницы (ozon_mp_page.render).
 Идемпотентно. Запускается из run_daily (шаг) и по cron `1 0 1 * *` (граница месяца). CLI:
-    python -m reports.ozon_mp_freeze [advance|freeze YYYY-MM|reconcile YYYY-MM|status]
+    python -m reports.ozon_mp_freeze [advance|freeze YYYY-MM|reconcile YYYY-MM|cogs [YYYY-MM …]|status]
 """
 import sys
 import json
@@ -209,6 +209,39 @@ def advance_and_reconcile():
         return changed
 
 
+def refresh_cogs(keys=None):
+    """Обновить в статике ТОЛЬКО себестоимость (и производные net/margin) уже замороженных месяцев.
+
+    Нужно, когда изменился метод расчёта COGS, а деньги площадки не менялись: полный
+    freeze_estimate откатил бы сверенные из Отчёта о реализации Продажи/Возвраты/Вознаграждение
+    обратно в оценку по транзакциям. Здесь строки денег остаются как есть, из витрины берётся
+    только cogs. keys — список 'YYYY-MM' (по умолчанию все замороженные). → список изменённых.
+    """
+    with _lock():
+        hist = _load()
+        todo = [k for k in hist["period_keys"] if keys is None or k in keys]
+        changed = []
+        for key in todo:
+            y, m = int(key[:4]), int(key[5:7])
+            i = hist["period_keys"].index(key)
+            for acc in ACCOUNTS:
+                a = hist["accounts"][acc]
+                cogs = R._cogs(acc, y, m)
+                if round(cogs) == a["cogs"][i]:
+                    continue
+                mags = {k: a["lines"][k][i] for k in _BAL_KEYS}
+                d = R._derive(mags, a["orders"][i], a["returns_cnt"][i], cogs)
+                a["cogs"][i] = round(cogs)
+                a["net"][i] = round(d["net"])
+                a["margin"][i] = round(d["margin"], 1)
+                changed.append((acc, key))
+        if changed:
+            _backup()
+            _save_atomic(hist)
+            P.render(hist)
+        return changed
+
+
 def freeze_estimate(y, m):
     """Ручная заморозка одного месяца (CLI/тест)."""
     with _lock():
@@ -251,6 +284,8 @@ if __name__ == "__main__":
     elif cmd == "reconcile" and len(args) >= 2:
         y, m = map(int, args[1].split("-"))
         print("reconciled:", reconcile_final(y, m))
+    elif cmd == "cogs":
+        print("обновлено:", refresh_cogs(args[1:] or None))
     elif cmd == "status":
         _status()
     else:

@@ -21,6 +21,14 @@ SIDEBAR_COST = (SIDEBAR
     .replace('<a href="/reports/cost">💰 Себестоимость</a>',
              '<a href="/reports/cost" class="cur">💰 Себестоимость</a>'))
 
+# Отгрузка со статусом 'other' («свежая, ждём отчёт») старше лага отчётов — уже не свежая, а дыра:
+# отчёт МП её так и не показал. Статус пишется на момент сбора и в закрытых месяцах заморожен,
+# поэтому доводим его до 'unreported' на рендере — иначе старьё вечно прячется в «ждём отчёт».
+# Живёт здесь (а не в mp_cogs_page) из-за направления импорта: mp_cogs_page тянет вёрстку отсюда.
+STALE_DAYS = 60
+_ST = (f"CASE WHEN status='other' AND demand_date < current_date - INTERVAL '{STALE_DAYS} days'"
+       " THEN 'unreported' ELSE status END")
+
 RET_STATUSES = ("return_stock", "return_defect", "unredeemed")
 
 STATUS_LABEL = {
@@ -35,7 +43,8 @@ FLAG_STATUSES = ("unredeemed",)
 # товар вернулся в ПРОДАВАЕМЫЙ сток → себест сторнируется, строка net-neutral (оборот и себест = 0).
 # Брак (return_defect) НЕ сторнируется: товар нельзя перепродать → себест остаётся убытком.
 STORNO_STATUSES = ("return_stock", "unredeemed")
-METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "imputed": "импутация", "manual": "ручной"}
+METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "tovar_fifo": "FIFO товара", "nabor_fifo": "FIFO набора",
+                "analog_fifo": "FIFO аналога", "imputed": "импутация", "need_manual": "НУЖНА РУЧНАЯ СЕБЕСТ", "manual": "ручной"}
 
 PAGE_CSS = """
 .ct{width:100%;border-collapse:collapse;margin:8px 0 4px;font-size:14px}
@@ -144,7 +153,8 @@ def _shell(title, eyebrow, h1, body, rtab_cur="ya"):
 
 
 def overview_html(account="ya_acc1"):
-    rows = db.query("""
+    rows = db.query(f"""
+        WITH t AS (SELECT ym, our_sum, cogs, {_ST} status FROM ya_cogs_demand WHERE account=%s)
         SELECT to_char(ym,'YYYY-MM') ym,
                count(*)                                                        orders,
                count(*) FILTER (WHERE status = ANY(%s))                        returns,
@@ -152,9 +162,9 @@ def overview_html(account="ya_acc1"):
                coalesce(sum(cogs)    FILTER (WHERE status = ANY(%s)),0)::float ret_cogs,
                coalesce(sum(our_sum) FILTER (WHERE status='done'),0)::float    sales,
                coalesce(sum(cogs) FILTER (WHERE status IN ('done','return_defect')),0)::float cogs
-        FROM ya_cogs_demand WHERE account=%s
+        FROM t
         GROUP BY ym ORDER BY ym DESC
-    """, (list(RET_STATUSES), list(RET_STATUSES), list(RET_STATUSES), account))
+    """, (account, list(RET_STATUSES), list(RET_STATUSES), list(RET_STATUSES)))
     frozen = {r["ym"].strftime("%Y-%m"): r["closed_at"] for r in db.query(
         "SELECT ym, closed_at FROM ya_cogs_frozen WHERE account=%s", (account,))}
     body = ['<table class="ct"><thead><tr>'
@@ -311,8 +321,8 @@ function resetCost(nm){
 
 def detail_html(account, ym):
     """ym в формате YYYY-MM."""
-    rows = db.query("""
-        SELECT demand_name, to_char(demand_date,'YYYY-MM-DD') d, status, status_raw,
+    rows = db.query(f"""
+        SELECT demand_name, to_char(demand_date,'YYYY-MM-DD') d, {_ST} status, status_raw,
                coalesce(our_sum,0)::float our_sum, coalesce(cogs,0)::float cogs,
                coalesce(qty,0)::float qty, method
         FROM ya_cogs_demand
@@ -326,7 +336,12 @@ def detail_html(account, ym):
             f'<label>Статус <select id="fst">{opts}</select></label>'
             '<label>Способ <select id="fmt">'
             '<option value="">все</option><option value="ms_fifo">МС (FIFO)</option>'
-            '<option value="imputed">импутация</option><option value="manual">ручной</option>'
+            '<option value="tovar_fifo">FIFO товара</option>'
+            '<option value="nabor_fifo">FIFO набора</option>'
+            '<option value="analog_fifo">FIFO аналога</option>'
+            '<option value="imputed">импутация</option>'
+            '<option value="need_manual">нужна ручная себест</option>'
+            '<option value="manual">ручной</option>'
             '</select></label>'
             f'<label>Себест <select id="fcost">{copts}</select></label>'
             '<input id="fq" placeholder="поиск по № отгрузки…" size="18">'
@@ -364,12 +379,15 @@ def detail_html(account, ym):
                     else f'<td class="num" data-v="{our_sum:.2f}">{_fmt(our_sum)}</td>')
         # ячейка «Себест». Редактируемая для: реальных продаж с 0 себеста (нужен ввод) и ручных
         # (можно поправить/сбросить). Сторно не редактируем (net-neutral).
+        # `need_manual` — FIFO нет нигде, в ячейке оценка по карточке МС: тоже даём ввести руками.
         need_input = (cogs == 0 and st in ("done", "return_defect"))
         is_manual = (r["method"] == "manual")
-        editable = (st not in STORNO_STATUSES) and (need_input or is_manual)
+        need_manual = (r["method"] == "need_manual")
+        editable = (st not in STORNO_STATUSES) and (need_input or is_manual or need_manual)
         if editable:
             prefill = f"{cogs:.2f}" if cogs else ""
-            badge = ('<span class="stmark man">ручной</span>' if is_manual else '')
+            badge = ('<span class="stmark man">ручной</span>' if is_manual else
+                     '<span class="stmark man">нужна ручная</span>' if need_manual else '')
             reset = (f'<a class="stmark rst" onclick="resetCost(\'{nm}\')" title="сбросить к МС">↺</a>'
                      if is_manual else '')
             cogs_cell = (f'<td class="num" data-v="{eff_cogs:.2f}">'

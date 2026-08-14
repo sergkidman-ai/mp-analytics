@@ -37,6 +37,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from collectors import ms_demand_cogs as MDC  # noqa: E402  (throttled MS get + byoperation_cogs)
+from reports import fifo_fallback  # noqa: E402  (FIFO товара МС вместо cost_seb)
 
 ACCOUNTS = ("wb_acc1", "wb_acc2")          # wb_acc1 — Цифровой квадрат, wb_acc2 — Дисквэр
 AGENTS = MDC.PLATFORM["wb"]["agents"]      # «Покупатель ВБ»
@@ -85,13 +86,20 @@ def _frozen_set(account):
 
 def _eff_since(account, since, frozen):
     """Поднять since до первого дня самого раннего НЕзакрытого месяца (сплошной закрытый префикс
-    от min(ym) пропускаем — чтобы не листать в МС заведомо закрытые месяцы)."""
+    от min(ym) пропускаем — чтобы не листать в МС заведомо закрытые месяцы).
+
+    Досбор истории: если since РАНЬШЕ самого раннего собранного месяца — это осознанный бэкфилл
+    (добираем месяцы, которых в таблице нет вовсе), пропуск префикса не применяем. Закрытые месяцы
+    всё равно не перезапишутся: их отсекает фильтр по frozen при записи.
+    """
     if not frozen:
         return since
     row = db.query("SELECT min(ym) mn FROM wb_cogs_demand WHERE account=%s", (account,))
     mn = row[0]["mn"] if row else None
     if not mn:
         return since
+    if since < mn.strftime("%Y-%m-01"):
+        return since                            # бэкфилл истории — префикс не пропускаем
     y, m = mn.year, mn.month
     while f"{y:04d}-{m:02d}" in frozen:
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
@@ -214,7 +222,8 @@ def collect_account(account, since="2026-01-01"):
     org_id = MDC._hid(org_href)
     today = dt.date.today()
 
-    cost_seb = _cost_seb_map()
+    ff = fifo_fallback.load()            # FIFO тех же товаров МС — импутация без cost_seb
+    cost_seb = _cost_seb_map()          # аварийный хвост: товар в МС ни разу не отгружался
     manual = _manual_map(account)
     known = _known_map(account)
     fifo = _fifo_map(org_id, since)
@@ -251,8 +260,17 @@ def collect_account(account, since="2026-01-01"):
                     print(f"[wb-cogs][{account}] byoperation {nm}: {e}")
                     p = []
             if cogs <= 0:
-                cogs = sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in p)
-                method = "imputed"
+                # Себест списания — только FIFO (решение Сергея 2026-08-13). Своего FIFO у
+                # документа нет → берём FIFO ТЕХ ЖЕ товаров МС по ближайшей отгрузке до этой
+                # даты; cost_seb (средняя по остатку из карточки) — лишь аварийный хвост.
+                cogs, method = ff.impute(p, d["moment"])
+                if not cogs:
+                    # FIFO не существует НИГДЕ (товар ни разу не отгружался до этой даты) —
+                    # цифра из карточки МС себестоимостью списания не является. Помечаем
+                    # `need_manual`: строка ждёт ручного ввода человеком (решение Сергея
+                    # 2026-08-14), виден флаг в провале «Отчёты МП» → «Себестоимость».
+                    cogs = sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in p)
+                    method = "need_manual"
             if not qty:
                 qty = sum(x["qty"] for x in p)
         if nm in manual:                                # ручной себест — истина, побеждает всё
@@ -270,7 +288,7 @@ def collect_account(account, since="2026-01-01"):
     if recs:
         db.upsert("wb_cogs_demand", recs, conflict_cols=["account", "demand_name"])
     print(f"[wb-cogs][{account}] отгрузок записано: {len(recs)} "
-          f"(FIFO {stats['ms_fifo']}, импутация {stats['imputed']}, ручной {stats['manual']}"
+          f"(FIFO {stats['ms_fifo']}, нужна ручная {stats['need_manual']}, ручной {stats['manual']}"
           f"; из кэша без запроса в МС {stats['из кэша']}; пропущено закрытых {skipped})")
     return len(recs)
 
