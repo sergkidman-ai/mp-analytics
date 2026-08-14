@@ -110,8 +110,12 @@ def storno_budget(account, ym):
         SELECT aid, greatest(sold - ret_before, 0) b FROM s WHERE sold > 0""", (ym, account))}
 
 
-def _fallback_sources(account):
-    """Справочники для цепочки фолбэков (грузим один раз на сборку)."""
+def _fallback_sources(account, before=None):
+    """Справочники для цепочки фолбэков (грузим один раз на сборку).
+
+    before — первый день собираемого месяца: история себеста берётся ТОЛЬКО из месяцев РАНЬШЕ него
+    (правило Сергея 2026-08-14: себест не может быть позже отгрузки). Без этого пересборка января
+    подставляла себест из самого свежего месяца витрины, то есть цену из будущего."""
     # cpu истории — ТОЛЬКО по nm, у которых была своя FBS-отгрузка с FIFO. Иначе шаг
     # самозакрепляет суррогат: nm без единого FIFO получил себест из cost_seb, тот лёг в витрину,
     # а на следующей сборке вернулся сюда как «история» и навсегда закрыл дорогу шагам 3–4.
@@ -123,7 +127,8 @@ def _fallback_sources(account):
         SELECT DISTINCT ON (article) article, cogs/nullif(qty,0) u FROM margin_by_sku
         WHERE platform='wb' AND account=%s AND cogs>0 AND qty>0
           AND article IN (SELECT nm FROM fifo_nm)
-        ORDER BY article, period_from DESC""", (account, account))}
+          AND (%s::date IS NULL OR period_from < %s::date)
+        ORDER BY article, period_from DESC""", (account, account, before, before))}
     grp = {}
     for r in db.query("""
         SELECT external_code, min(cost_seb) FILTER (WHERE cost_seb>0) mn,
@@ -217,7 +222,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     storno = defaultdict(float)                      # nm -> сторно COGS возвратов в сток (месяц возврата)
     storno_used = defaultdict(float)                 # aid -> уже сторнировано штук (лимит = sell_budget)
     storno_fb = defaultdict(float)                   # источник фолбэка -> штук сторно без моста к отгрузке
-    cpu_hist, grp, setc, buy, manual = _fallback_sources(account)
+    cpu_hist, grp, setc, buy, manual = _fallback_sources(account, date_from)
     ff = fifo_fallback.load()                        # FIFO товара МС (шаги 3–4 цепочки)
     day = datetime.date.fromisoformat(date_to)       # отсечка: последняя отгрузка товара до конца месяца
     for r in money_rows_iter(raw):
