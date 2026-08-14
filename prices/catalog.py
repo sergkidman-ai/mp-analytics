@@ -502,7 +502,11 @@ def save(rows, supplier_key, hits_by_article):
                   ",".join(item.get("feat_src") or ()) or None))
         if hits and hits[0].get("by_article"):
             hit, item = hits[0], hits[0]["item"]
-            if False in (hit["brand_ok"], hit["resource_ok"]):
+            # Артикул совпал с карточкой ЧУЖОГО поставщика (загрузчик уже это установил,
+            # `reason='foreign'`). Закрывать строку такой карточкой нельзя: товар в
+            # оприходование не попадёт, а работа будет считаться сделанной. Наоборот —
+            # возвращаем в работу, если её закрыл прошлый прогон до этого правила.
+            if row.get("reason") == "foreign" or False in (hit["brand_ok"], hit["resource_ok"]):
                 execute("""
                     UPDATE prc_novelty
                        SET decision = 'pending', ms_id = null, ms_code = null, ms_name = null,

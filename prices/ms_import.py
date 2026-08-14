@@ -62,11 +62,24 @@ CODE_SUFFIX = {
     # карточке этого формата: `0242ty` / «ТУ TK-350». Значения по умолчанию НЕТ намеренно:
     # незнакомый префикс — это новый бренд, и код ему выбирает человек, а не регулярка.
     "odissey": [(r"^AQ\b", "at"), (r"^WB\b", "wb"), (r"^ТУ\b", "ty")],
+    # У Сакуры и Колортека бренд один, аббревиатура в базе одна: `sk` у 1375 из 1384
+    # позиций последней загрузки Сакуры, `ct` у 1086 из 1091 у Колортека.
+    "sakura": [(r"", "sk")],
+    "colortek": [(r"", "ct")],
 }
 # Контрагент для колонки «Поставщик» — как он назван в МС.
 MS_SUPPLIER = {
     "kaktus_msk": 'ООО "КОМПАНИЯ ФЕРРЕТ"',
-    "odissey": 'ООО "ОДИССЕЙ"',        # есть ещё карточка 'ООО "ОДИССЕЙ" WB' — не она
+    "odissey": 'ООО "ОДИССЕЙ"',        # есть ещё карточка 'ООО "ОДИССЕЙ" WB' — см. SUPPLIER_BY_SUFFIX
+    "sakura": 'ООО "ПОЗИТИВ"',
+    "colortek": 'ООО "КОЛОРТЕК РУС"',
+}
+# У поставщика бывает несколько юрлиц, и карточки разных брендов висят на РАЗНЫХ:
+# у Одиссея `wb` — на «ООО ОДИССЕЙ WB» (проверено по живым карточкам 7086wb/7080wb/5952wb),
+# `at` — на «ООО ОДИССЕЙ». Ставим то же юрлицо, что у родни, иначе карточка окажется
+# «чужой» для своего же прайса. Ключ — аббревиатура кода; чего нет здесь — `supplier_ids[0]`.
+SUPPLIER_BY_SUFFIX = {
+    "odissey": {"wb": ("61d01266-2fe1-11f0-0a80-0f7f000bf967", 'ООО "ОДИССЕЙ" WB')},
 }
 # Чей прайс в `supplier_dims` — первоисточник веса для этого поставщика.
 DIMS_SUPPLIER = {
@@ -95,6 +108,15 @@ def suffix(article, supplier_key):
             return abbr
     raise KeyError(f"нет правила аббревиатуры кода для поставщика '{supplier_key}', "
                    f"артикул «{article}» — добавьте бренд в CODE_SUFFIX")
+
+
+def supplier_of(article, profile):
+    """(id контрагента, имя) для новой карточки: юрлицо той же группы, что у родни бренда."""
+    abbr = suffix(article, profile.key)
+    found = SUPPLIER_BY_SUFFIX.get(profile.key, {}).get(abbr)
+    if found:
+        return found
+    return profile.supplier_ids[0], MS_SUPPLIER.get(profile.key, profile.title)
 
 
 def _attrs(payload):
@@ -263,15 +285,21 @@ def _pages(text):
     return {v for v in out if 100 <= v <= 2_000_000}
 
 
-def build(supplier_key, decisions=("matched",), limit=None):
-    """Строки файла импорта + замечания по каждой строке."""
+def build(supplier_key, decisions=("matched",), limit=None, ids=None):
+    """Строки файла импорта + замечания по каждой строке.
+
+    `ids` — только эти строки новинок (кнопка «Это он» заводит карточку по одной строке;
+    решение к этому моменту уже записано, поэтому фильтр по нему остаётся общим).
+    """
     profile = get_profile(supplier_key)
     rows = query(
         """SELECT id, article, name, ms_code, price_rub, link
              FROM prc_novelty
             WHERE supplier_key = %s AND decision = ANY(%s) AND ms_code IS NOT NULL
+              AND (%s::int[] IS NULL OR id = ANY(%s::int[]))
             ORDER BY id""",
-        (profile.key, list(decisions)))
+        (profile.key, list(decisions), list(ids) if ids else None,
+         list(ids) if ids else None))
     if limit:
         rows = rows[:limit]
     kin = family({(r["ms_code"] or "")[:4] for r in rows})
@@ -337,6 +365,7 @@ def build(supplier_key, decisions=("matched",), limit=None):
             flags.append(f"ресурс отличается от родни: {sorted(new_pages)} против {sorted(kin_pages)} "
                          f"— по решению Сергея это норма, оставляем")
 
+        sup_id, sup_name = supplier_of(row["article"], profile)
         records.append({
             # Служебное поле (не колонка файла): по нему после создания карточки строка
             # новинок получает свой итог. `write_xlsx` идёт по COLUMNS, лишний ключ ей не мешает.
@@ -351,7 +380,9 @@ def build(supplier_key, decisions=("matched",), limit=None):
             "Единица измерения": UOM,
             "Закупочная цена": float(row["price_rub"]) if row["price_rub"] is not None else "",
             "НДС": VAT,
-            "Поставщик": MS_SUPPLIER.get(profile.key, profile.title),
+            # Служебное: юрлицо-владелец карточки (у поставщика их несколько, см. supplier_of)
+            "_supplier_id": sup_id,
+            "Поставщик": sup_name,
             "Вес": weight or "",
             "Страна": COUNTRY,
             "Доп. поле: Гарантия/ Срок службы": WARRANTY,
@@ -404,11 +435,21 @@ def next_external_codes(n=1):
     return out
 
 
-def create_in_ms(records, supplier_id, dry=True, log=print):
+def create_in_ms(records, supplier_id, dry=True, log=print, own=None):
     """Создать карточки в МС. Существующий артикул не трогаем — только пропускаем.
 
     Осознанно НЕ обновляем найденные карточки: перезапись живого товара из прайса —
     отдельное решение, а не побочный эффект заведения новинок.
+
+    `supplier_id` — запасное юрлицо: у записи своё (`_supplier_id`, см. `supplier_of`),
+    потому что у поставщика юрлиц несколько и карточки брендов висят на разных.
+
+    `own` — id юрлиц НАШЕЙ группы (`prices/supplier_group.own_ids`). С ним дублем считается
+    только карточка своей группы: один и тот же артикул (CET…, OEM-код) бывает заведён и у
+    другого поставщика, и та карточка нашему прайсу остатка не даст — оприходование берёт
+    товар только своей группы. Карточку с пустым поставщиком тоже считаем дублем: её
+    загрузчик берёт (владельца она не называет), и вторая карточка задвоила бы остаток.
+    Без `own` поведение прежнее: любой найденный артикул — дубль.
     """
     from core import ms_api
     folders, created, skipped = _folders(), [], []
@@ -418,8 +459,13 @@ def create_in_ms(records, supplier_id, dry=True, log=print):
         # картридж закрывает несколько наших товаров, у остальных карточек артикула нет —
         # тогда на дубли проверяем по коду (он уникален по определению).
         field, value = ("article", article) if article else ("code", rec["Код"])
-        found = ms_api.get("/entity/product", {"filter": f"{field}={value}", "limit": 1})
-        if found.get("rows"):
+        found = ms_api.get("/entity/product",
+                           {"filter": f"{field}={value}", "limit": 1 if own is None else 20})
+        rows = found.get("rows") or []
+        if rows and own is not None and article:
+            rows = [c for c in rows
+                    if (ms_api.meta_id(c, "supplier") or None) in set(own) | {None}]
+        if rows:
             skipped.append((value, f"{'артикул' if article else 'код'} уже есть в МС"))
             continue
         folder = folders.get(rec["Группы"])
@@ -432,7 +478,7 @@ def create_in_ms(records, supplier_id, dry=True, log=print):
             "vat": VAT, "vatEnabled": True, "useParentVat": False,
             "uom": ms_api.ref("uom", UOM_PCS),
             "country": ms_api.ref("country", COUNTRY_CN),
-            "supplier": ms_api.ref("counterparty", supplier_id),
+            "supplier": ms_api.ref("counterparty", rec.get("_supplier_id") or supplier_id),
             "productFolder": ms_api.ref("productfolder", folder),
             "attributes": [{
                 "meta": {"href": f"{ms_api.BASE}/entity/product/metadata/attributes/{ATTRS[col][0]}",
@@ -482,6 +528,39 @@ def mark_created(records, created):
     return done
 
 
+def mark_existing(records, profile, log=print):
+    """Строки, где карточка поставщика УЖЕ была заведена, тоже закрыть как «уже в МС».
+
+    Карточку могли завести руками или прошлым прогоном — тогда `create_in_ms` её пропускает,
+    а строка новинок остаётся висеть работой, которой нет. Закрываем только если карточка
+    принадлежит группе юрлиц ЭТОГО поставщика: чужая карточка с тем же артикулом —
+    не повод считать позицию заведённой (её как раз надо завести своей).
+    """
+    from core import ms_api
+    from .supplier_group import name_of, own_ids
+    ours, done, foreign = own_ids(profile), 0, []
+    for rec in records:
+        if not rec.get("_novelty_id"):
+            continue
+        field, value = ("article", rec["Артикул"]) if rec["Артикул"] else ("code", rec["Код"])
+        found = ms_api.get("/entity/product", {"filter": f"{field}={value}", "limit": 2}).get("rows", [])
+        mine = [c for c in found if ms_api.meta_id(c, "supplier") in ours]
+        if not mine:
+            if found:
+                foreign.append((value, name_of(ms_api.meta_id(found[0], "supplier"))))
+            continue
+        card = mine[0]
+        execute("""UPDATE prc_novelty
+                      SET decision = 'exists', ms_code = %s, ms_id = %s, ms_name = %s,
+                          decided_at = now()
+                    WHERE id = %s AND decision <> 'exists'""",
+                (card.get("code"), card["id"], card.get("name"), rec["_novelty_id"]))
+        done += 1
+    for value, who in foreign:
+        log(f"  {value}: карточка есть, но она чужая — «{who}»; строку не закрываю")
+    return done, foreign
+
+
 def write_xlsx(records, path):
     from openpyxl import Workbook
     wb = Workbook()
@@ -519,16 +598,28 @@ def main():
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / "docs" / "prc"))
     args = ap.parse_args()
 
+    from .supplier_group import own_ids
     profile = get_profile(args.supplier)
     records, notes = build(profile.key, tuple(args.decision.split(",")), args.limit)
     if args.only:
         keep = {c.strip() for c in args.only.split(",")}
         records = [r for r in records if r["Код"] in keep]
     if args.apply or args.to_ms:
-        created, skipped = create_in_ms(records, profile.supplier_ids[0], dry=not args.apply)
+        # Дубль — только карточка своей группы: тот же артикул у другого поставщика остатка
+        # нашему оприходованию не даст (см. create_in_ms).
+        created, skipped = create_in_ms(records, profile.supplier_ids[0], dry=not args.apply,
+                                        own=own_ids(profile))
         marked = mark_created(records, created) if args.apply else 0
+        was = 0
+        if args.apply and skipped:
+            # Пропущенные — те, у кого карточка уже есть; строку новинок надо закрыть тоже,
+            # иначе она висит работой, которой нет.
+            have = {v for v, why in skipped if "уже есть" in why}
+            was, _ = mark_existing([r for r in records
+                                    if (r["Артикул"] or r["Код"]) in have], profile)
         print(f"создано: {len(created)}; пропущено: {len(skipped)}; строк на входе: {len(records)}"
-              + (f"; строк новинок закрыто: {marked}" if args.apply else ""))
+              + (f"; строк новинок закрыто: {marked + was} (из них уже были в МС: {was})"
+                 if args.apply else ""))
         return
     stamp = f"{date.today():%Y-%m-%d}"
     out = Path(args.out)

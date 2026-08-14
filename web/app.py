@@ -2826,6 +2826,82 @@ def novelties_ms_create(payload: MsCreate):
             "ms_code": main.code.strip() if made.get(main.code.strip()) else None}
 
 
+# --- «Это он»: карточка ПОСТАВЩИКА под уже существующим внешним кодом --------------------
+# Это другая операция, чем «➕ В МС». Там заводится НОВЫЙ внешний код (нового товара у нас
+# нет вообще). Здесь внешний код у нас уже есть, нет только карточки ЭТОГО поставщика с его
+# артикулом — без неё его прайс не даст остатка: оприходование ищет строго по артикулу.
+# Поля берём у родни того же внешнего кода (`prices/ms_import.build`), а не у человека.
+TWIN_FIELDS = ("Код", "Внешний код", "Наименование", "Артикул", "Группы", "Поставщик",
+               "Вес", "Закупочная цена", "Штрихкод Code128", "Доп. поле: Название WB",
+               "Доп. поле: Связь")
+
+
+class TwinCreate(BaseModel):
+    id: int
+    dry: bool = True
+
+
+def _twin_draft(novelty_id):
+    """(строка новинки, черновик карточки, замечания, ошибка)."""
+    from prices import ms_import
+    found = db.query("""SELECT id, supplier_key, article, name, decision, ms_code
+                          FROM prc_novelty WHERE id = %s""", (novelty_id,))
+    if not found:
+        return None, None, [], "строки не найдено"
+    row = found[0]
+    if not row["ms_code"]:
+        return row, None, [], "у строки нет кода нашего товара — сначала «Это он»"
+    # Решение может быть уже закрыто (`exists`) — тогда карточку заводить не из чего.
+    records, notes = ms_import.build(row["supplier_key"], (row["decision"],), ids=[novelty_id])
+    if not records:
+        why = "; ".join(n[2][0] for n in notes) if notes else \
+            f"строка со статусом «{row['decision']}» карточку не заводит"
+        return row, None, [], why
+    flags = [f for n in notes if n[0] == novelty_id for f in n[2]]
+    return row, records[0], flags, None
+
+
+@app.get("/api/novelties/twin-form")
+def novelties_twin_form(id: int):
+    """Черновик карточки поставщика: что именно уйдёт в МС по кнопке «Это он»."""
+    row, rec, flags, error = _twin_draft(id)
+    if error:
+        return {"ok": False, "error": error}
+    return {"ok": True, "supplier": row["supplier_key"], "article": row["article"],
+            "name": row["name"], "warn": flags,
+            "fields": [[f, str(rec.get(f) or "")] for f in TWIN_FIELDS]}
+
+
+@app.post("/api/novelties/twin-create")
+def novelties_twin_create(payload: TwinCreate):
+    """Завести карточку поставщика под сопоставленным внешним кодом. `dry` — только показать.
+
+    Смысл кнопки: код у нас есть, а карточки ИМЕННО ЭТОГО поставщика с его артикулом нет —
+    поэтому дублем считаем только карточку своей группы (`own=own_ids`), чужая создание не
+    блокирует. Повтор кнопки безопасен: своя карточка уже есть → строка уйдёт в пропуски.
+    """
+    from prices import ms_import
+    from prices.profiles import get_profile
+    from prices.supplier_group import own_ids
+    row, rec, flags, error = _twin_draft(payload.id)
+    if error:
+        return {"ok": False, "error": error}
+    profile = get_profile(row["supplier_key"])
+    lines = []
+    try:
+        created, skipped = ms_import.create_in_ms([rec], profile.supplier_ids[0],
+                                                  dry=payload.dry, log=lines.append,
+                                                  own=own_ids(profile))
+    except Exception as exc:                       # МС ответил ошибкой — показать её человеку
+        return {"ok": False, "error": f"МойСклад: {type(exc).__name__}: {exc}", "log": lines}
+    if payload.dry:
+        return {"ok": True, "dry": True, "log": lines, "warn": flags}
+    made = ms_import.mark_created([rec], created)
+    return {"ok": True, "dry": False, "log": lines, "created": len(created), "marked": made,
+            "skipped": [f"{a}: {why}" for a, why in skipped], "warn": flags,
+            "ms_code": rec["Код"] if created else None}
+
+
 @app.get("/api/warehouse")
 def warehouse_api():
     """Наш сток: наши склады + Озон ФБО (supplier_stock) + ВБ ФБО (wb_stocks), с дневной дельтой.

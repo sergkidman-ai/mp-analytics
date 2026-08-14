@@ -143,6 +143,10 @@
   .mbox h3{margin:0 0 8px;font-size:15px}
   .mbox .mact{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
   /* Диалог заведения карточек в МС: полей много, поэтому окно шире и со своей прокруткой. */
+  table.tw{border-collapse:collapse;width:100%;font-size:12px}
+  table.tw th{text-align:left;font-weight:400;color:var(--muted);padding:3px 10px 3px 0;
+    white-space:nowrap;vertical-align:top}
+  table.tw td{padding:3px 0}
   .mbox.wide{border-left-color:var(--acc);max-width:880px;width:92vw;max-height:88vh;
              display:flex;flex-direction:column}
   .mbox.wide .body{overflow:auto;margin:0 -22px;padding:0 22px}
@@ -319,6 +323,25 @@
       <button id="mscancel">Закрыть</button>
       <button id="msdry">Проба</button>
       <button id="msgo" class="pri">Создать в МС</button>
+    </div>
+  </div>
+</div>
+
+<!-- «Это он» — карточка ЭТОГО поставщика под уже существующим внешним кодом. Поля берутся
+     у родни кода, править их здесь нечего: расхождения перечислены отдельной строкой. -->
+<div class="modal" id="twmodal" hidden>
+  <div class="mbox">
+    <h3>Завести карточку поставщика в МойСкладе</h3>
+    <p class="note" id="twhead"></p>
+    <p class="mswarn" id="twwarn"></p>
+    <div class="body">
+      <table id="twfields" class="tw"></table>
+      <p class="mslog" id="twlog"></p>
+    </div>
+    <div class="mact">
+      <button id="twcancel">Не заводить</button>
+      <button id="twdry">Проба</button>
+      <button id="twgo" class="pri">Создать в МС</button>
     </div>
   </div>
 </div>
@@ -654,6 +677,53 @@ $("#msgo").onclick = () => {
   if (confirm(`Создать ${MS.cards.length} карточк(и) в МойСкладе? Действие живое.`)) msSend(false);
 };
 
+// --- «Это он» -> карточка поставщика ---------------------------------------------------
+// Сопоставление само по себе остатка не даёт: оприходование ищет товар строго по артикулу
+// поставщика, а карточки с этим артикулом у нас нет. Поэтому сразу после решения предлагаем
+// её завести — отказаться можно, решение уже записано.
+let TW = {id: null, msg: null};
+
+async function twOpen(id, msg){
+  TW = {id, msg};
+  const d = await (await fetch(`/api/novelties/twin-form?id=${id}`)).json();
+  // Ответ показываем В МОДАЛКЕ, а не в строке таблицы: после записи решения таблица
+  // перерисовалась, и ссылка на ячейку сообщения ведёт уже в выброшенный узел.
+  $("#twfields").innerHTML = "";
+  $("#twwarn").textContent = "";
+  $("#twlog").textContent = d.ok ? "" : d.error;
+  $("#twdry").disabled = $("#twgo").disabled = !d.ok;
+  $("#twmodal").hidden = false;
+  if (!d.ok){ $("#twhead").textContent = "карточку завести нечем"; return; }
+  $("#twhead").textContent = `${d.supplier} · ${d.article} · ${d.name}`;
+  $("#twwarn").textContent = (d.warn || []).join(" · ");
+  $("#twfields").innerHTML = d.fields.map(([k, v]) =>
+    `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("");
+}
+
+async function twSend(dry){
+  $("#twlog").textContent = dry ? "проба…" : "создаём в МойСкладе…";
+  const out = await (await fetch("/api/novelties/twin-create", {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({id: TW.id, dry})})).json();
+  if (!out.ok){ $("#twlog").textContent = out.error; return; }
+  $("#twlog").textContent = (out.log || []).join("\n")
+    + (out.skipped && out.skipped.length ? "\nпропущено: " + out.skipped.join("; ") : "");
+  if (!dry){
+    if (TW.msg){
+      TW.msg.textContent = out.created ? `карточка ${out.ms_code} заведена` : "карточка не создана";
+      TW.msg.className = out.created ? "msg pos" : "msg neg";
+    }
+    setTimeout(() => { $("#twmodal").hidden = true; load(); }, 1200);
+  }
+}
+$("#twcancel").onclick = () => { $("#twmodal").hidden = true; };
+$("#twdry").onclick = () => twSend(true);
+$("#twgo").onclick = () => twSend(false);
+
+async function matchIt(id, code, msg, link){
+  if (await decide([id], "matched", code, msg, link)) await twOpen(id, msg);
+}
+
 function wire(){
   $("#rows").querySelectorAll("tr[data-id]").forEach(tr => {
     const id = Number(tr.dataset.id), msg = tr.querySelector(".msg");
@@ -681,7 +751,7 @@ function wire(){
     // подставляется только когда поле пустое. Пробелы срезаем — вставка из буфера часто
     // приносит их с собой, и код перестаёт находиться в каталоге.
     const chosen = () => (code.value.trim() || (sel ? sel.value : "")).trim();
-    if (save) save.onclick = () => decide([id], "matched", chosen(), msg, link.value);
+    if (save) save.onclick = () => matchIt(id, chosen(), msg, link.value);
     const mknew = tr.querySelector(".mknew");
     if (mknew) mknew.onclick = () => decide([id], "new", "", msg, link.value);
     const mkpartial = tr.querySelector(".mkpartial");

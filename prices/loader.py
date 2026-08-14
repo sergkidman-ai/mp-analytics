@@ -27,6 +27,7 @@ from decimal import Decimal
 from core import ms_api
 from .cbr import effective_rate, to_kopecks
 from .profiles import ORG_DIGITAL, POSITIONS_PER_DOC, STORE_REMOTE
+from .supplier_group import own_ids
 
 MSK = dt.timezone(dt.timedelta(hours=3))
 # Имя документа: «<группа>_<дата>_p<N>», плюс возможный хвост «_old<время>» — так помечаются
@@ -41,6 +42,7 @@ SKIP_REASONS = {
     "no_price": "нет цены в прайсе",
     "no_stock": "нет остатка / формулировка не разобрана",
     "ambiguous": "артикул в МС неоднозначен",
+    "foreign": "карточка МС от другого поставщика — заводим свою",
     "not_stockable": "тип позиции не приходуется на склад",
     "duplicate": "артикул повторяется в прайсе, остатки равны — цены разные",
     "duplicate_smaller": "артикул повторяется в прайсе, взята строка с бо́льшим остатком",
@@ -116,14 +118,29 @@ def lookup_by_article(articles, batch=80):
     return found
 
 
-def pick_card(cards, supplier_ids):
-    """Одна карточка из найденных по артикулу. При неоднозначности — та, что от нашей группы."""
-    if len(cards) == 1:
-        return cards[0], None
-    own = [c for c in cards if ms_api.meta_id(c, "supplier") in supplier_ids]
-    if len(own) == 1:
-        return own[0], None
-    return None, "ambiguous"
+def pick_card(cards, own):
+    """Одна карточка из найденных по артикулу — только СВОЯ, по группе юрлиц поставщика.
+
+    В оприходовании поставщика может лежать только его собственный товар. Артикулы у
+    поставщиков пересекаются (CET, OEM-коды), поэтому карточку чужой группы не берём вовсе:
+    строка уходит в новинки, и под неё заводится своя карточка (`prices/ms_import.py`).
+    Раньше единственная найденная карточка бралась без проверки владельца — так в
+    оприходования попадало 19 чужих позиций из 6156.
+
+    Карточку с НЕзаполненным поставщиком отбрасывать нельзя: пустое поле чужого владельца
+    не доказывает, а таких карточек в базе много (заводились до правила). Берём её.
+    """
+    mine = [c for c in cards if ms_api.meta_id(c, "supplier") in own]
+    if len(mine) == 1:
+        return mine[0], None
+    if mine:
+        return None, "ambiguous"
+    blank = [c for c in cards if not ms_api.meta_id(c, "supplier")]
+    if len(blank) == 1:
+        return blank[0], None
+    if blank:
+        return None, "ambiguous"
+    return None, "foreign"
 
 
 def filter_categories(rows, profile):
@@ -147,6 +164,7 @@ def classify(rows, profile, rate):
     rows, skipped = drop_duplicates(rows)
     skipped += off
     cards = lookup_by_article([r["article"] for r in rows])
+    own = own_ids(profile)
     ready = []
     for row in rows:
         # Остаток проверяем ПЕРВЫМ, ещё до поиска карточки в МС. Позиции без остатка у
@@ -160,9 +178,10 @@ def classify(rows, profile, rate):
         if not found:
             skipped.append({**row, "reason": "not_found"})
             continue
-        card, problem = pick_card(found, profile.supplier_ids)
+        card, problem = pick_card(found, own)
         if problem:
-            skipped.append({**row, "reason": problem, "ms_candidates": len(found)})
+            skipped.append({**row, "reason": problem, "ms_candidates": len(found),
+                            "ms_name": (found[0].get("name") or "") if problem == "foreign" else ""})
             continue
         ms_name = card.get("name") or ""
         if card.get("archived"):
@@ -223,12 +242,12 @@ def card_updates(ready, profile):
     Только для карточек, чей поставщик входит в группу прайса, и только тип product —
     у вариантов и комплектов своя закупочная механика, туда не лезем.
     """
-    updates = []
+    updates, own = [], own_ids(profile)
     for item in ready:
         card = item["card"]
         if card["meta"]["type"] != "product":
             continue
-        if ms_api.meta_id(card, "supplier") not in profile.supplier_ids:
+        if ms_api.meta_id(card, "supplier") not in own:
             continue
         patch = {"meta": card["meta"], "id": card["id"]}
         changed = False

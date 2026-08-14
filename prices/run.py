@@ -66,7 +66,7 @@ def write_reports(profile, moment, ready, skipped, watch, out_dir):
 
     # Формат внешнего загрузчика (name;price;quantity;msId;defective;Barcode;sku) —
     # чтобы список новинок читался теми же глазами, что и «Необработанные товары МС».
-    unmatched = [r for r in skipped if r["reason"] in ("not_found", "ambiguous")]
+    unmatched = [r for r in skipped if r["reason"] in ("not_found", "ambiguous", "foreign")]
     unmatched_path = out_dir / f"{profile.key}_{stamp}_unmatched.txt"
     with unmatched_path.open("w", encoding="utf-8") as fh:
         for row in unmatched:
@@ -180,8 +180,8 @@ def main(argv=None):
     if not args.no_db:
         from . import catalog
         novelties = [{"name": r["name"], "article": r["article"],
-                      "price": price_rub(r["price_raw"], rate)}
-                     for r in skipped if r["reason"] in ("not_found", "ambiguous")]
+                      "price": price_rub(r["price_raw"], rate), "reason": r["reason"]}
+                     for r in skipped if r["reason"] in ("not_found", "ambiguous", "foreign")]
         matched, auto = catalog.sync(novelties, profile.key, profile.default_chip,
                                      profile.article_re)
         print(f"  сверка новинок с каталогом: {matched} из {len(novelties)} нашли пару "
