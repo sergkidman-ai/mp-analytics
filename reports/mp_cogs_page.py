@@ -24,8 +24,8 @@ from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, MPTABS  # noqa: E402
 from reports.cost_tabs import tabs_html  # noqa: E402
 from reports.ya_cogs_page import SIDEBAR_COST, PAGE_CSS, _fmt, _pct, _ST  # noqa: E402
 
-METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "tovar_fifo": "FIFO товара", "imputed": "импутация",
-                "manual": "ручной"}
+METHOD_LABEL = {"ms_fifo": "МС (FIFO)", "tovar_fifo": "FIFO товара", "nabor_fifo": "FIFO набора",
+                "analog_fifo": "FIFO аналога", "imputed": "импутация", "manual": "ручной"}
 
 # фильтр по наличию себеста (для поиска пустых → ручной ввод)
 _COST_FILTER = [("", "все"), ("zero", "= 0 (нужен ввод)"), ("pos", "> 0")]
@@ -246,6 +246,8 @@ def detail_html(cfg, acc_key, ym):
             '<label>Способ <select id="fmt">'
             '<option value="">все</option><option value="ms_fifo">МС (FIFO)</option>'
             '<option value="tovar_fifo">FIFO товара</option>'
+            '<option value="nabor_fifo">FIFO набора</option>'
+            '<option value="analog_fifo">FIFO аналога</option>'
             '<option value="imputed">импутация</option><option value="manual">ручной</option>'
             '</select></label>'
             f'<label>Себест <select id="fcost">{copts}</select></label>'

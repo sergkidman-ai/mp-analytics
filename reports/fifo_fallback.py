@@ -16,8 +16,16 @@
   2) `nabor_fifo` — набор: состав из `set_cost.components` (кэш `mix_data` TheCartridge),
      себест = Σ FIFO компонентов на ту же дату. Отдаём ТОЛЬКО при полном покрытии состава:
      частичная сумма занижает себест набора, а занижение себеста завышает прибыль.
+  3) `analog_fifo` — связи универсальных моделей (`prc_tc_link`, каталог TheCartridge, поток prc):
+     один и тот же картридж продаётся под разными кодами (Q2612A = Canon 703). Покупатель заказал
+     5335, а со склада ушёл 0002 — в приёмках и отгрузках МС 5335 не найти, 0002 найдётся.
+     Поэтому, если своего FIFO нет, берём FIFO связанного кода на ту же дату. Направление ссылки
+     не важно (взаимозаменяемость симметрична), связи читаем в обе стороны. Если FIFO нашёлся
+     у нескольких связанных кодов — берём МАКСИМАЛЬНЫЙ: где не знаем точно, ошибаемся в сторону
+     расхода, а не завышенной прибыли.
 
 Покрытие хвоста WB 2026 (181 шт без FIFO по nm): товар 152 шт, набор 16 шт, без источника 13 шт.
+Связи закрывают ещё ~40 % остатка (219 из 556 шт продаж 2026 без FIFO товара/набора).
 
 Использование:
     from reports import fifo_fallback as FF
@@ -51,10 +59,12 @@ def keys(sa):
 
 
 class FifoFallback:
-    def __init__(self, hist, ec2ms, sets):
+    def __init__(self, hist, ec2ms, sets, links=None, ms2ec=None):
         self.hist = hist        # {ms_id: [(дата, себест/шт), …] по возрастанию даты}
         self.ec2ms = ec2ms      # {external_code: [ms_id, …]}
         self.sets = sets        # {external_code: [external_code компонента, …]}
+        self.links = links or {}    # {external_code: [связанный код, …]} — универсальные модели
+        self.ms2ec = ms2ec or {}    # {ms_id: external_code} — вход в связи от позиции документа
 
     def _by_ms(self, ms, day):
         """FIFO/шт по ближайшей предшествующей отгрузке товара (или первой после, если раньше
@@ -75,15 +85,31 @@ class FifoFallback:
                     return u
         return None
 
+    def _analog(self, kk, day):
+        """FIFO связанной универсальной модели (тот же картридж под другим кодом). Из всех
+        связей с историей берём МАКСИМАЛЬНУЮ себестоимость — см. шапку модуля."""
+        best = None
+        for k in kk:
+            for rc in self.links.get(k, ()):
+                u = self._tovar([rc], day)
+                if u and (best is None or u > best):
+                    best = u
+        return best
+
+    def _tovar_or_analog(self, kk, day):
+        return self._tovar(kk, day) or self._analog(kk, day)
+
     def _nabor(self, kk, day):
-        """Σ FIFO компонентов набора. None, если состав неизвестен или покрыт не полностью."""
+        """Σ FIFO компонентов набора. None, если состав неизвестен или покрыт не полностью.
+        Компонент без своего FIFO ищется по связям универсальных моделей — иначе набор целиком
+        свалился бы в карточку МС из-за одной ненайденной позиции."""
         for k in kk:
             comps = self.sets.get(k)
             if not comps:
                 continue
             tot, cov = 0.0, 0
             for ec in comps:
-                u = self._tovar([str(ec)], day)
+                u = self._tovar_or_analog([str(ec)], day)
                 if u:
                     tot += u
                     cov += 1
@@ -96,18 +122,23 @@ class FifoFallback:
         return self._by_ms(ms_id, day)
 
     def impute(self, pos, day):
-        """(себест документа, 'tovar_fifo') по позициям [{ms_id, qty}] — FIFO ТЕХ ЖЕ товаров МС
-        на дату документа. (None, None), если FIFO нашёлся не по всем позициям: частичная сумма
+        """(себест документа, метод) по позициям [{ms_id, qty}] — FIFO ТЕХ ЖЕ товаров МС на дату
+        документа, а где своего FIFO нет — FIFO связанной универсальной модели (тогда метод
+        'analog_fifo'). (None, None), если источник нашёлся не по всем позициям: частичная сумма
         занизила бы себест документа, а занижение себеста завышает прибыль."""
-        tot, cov, n = 0.0, 0, 0
+        tot, cov, n, used_analog = 0.0, 0, 0, False
         for x in pos or []:
             n += 1
             u = self._by_ms(x["ms_id"], day)
+            if not u:
+                ec = self.ms2ec.get(x["ms_id"])
+                u = self._analog([ec], day) if ec else None
+                used_analog = used_analog or bool(u)
             if u:
                 tot += u * float(x["qty"] or 0)
                 cov += 1
         if n and cov == n and tot > 0:
-            return tot, "tovar_fifo"
+            return tot, ("analog_fifo" if used_analog else "tovar_fifo")
         return None, None
 
     def unit(self, sa, day):
@@ -121,6 +152,9 @@ class FifoFallback:
         u = self._nabor(kk, day)
         if u:
             return u, "nabor_fifo"
+        u = self._analog(kk, day)
+        if u:
+            return u, "analog_fifo"
         return None, None
 
 
@@ -131,19 +165,25 @@ def load():
                          FROM ms_demand_pos p JOIN ms_demand_cogs c ON c.demand_id = p.demand_id
                          WHERE p.qty > 0 AND p.cost > 0 ORDER BY p.ms_id, c.moment"""):
         hist.setdefault(r["ms_id"], []).append((r["d"], float(r["u"])))
-    ec2ms = {}
+    ec2ms, ms2ec = {}, {}
     for r in db.query("SELECT external_code, ms_id FROM products WHERE external_code IS NOT NULL"):
         ec2ms.setdefault(r["external_code"], []).append(r["ms_id"])
+        ms2ec[r["ms_id"]] = r["external_code"]
     sets = {}
     for r in db.query("""SELECT external_code, components FROM set_cost
                          WHERE components IS NOT NULL AND n_components > 0"""):
         c = r["components"]
         if isinstance(c, list) and c:
             sets[r["external_code"]] = [str(x) for x in c]
-    return FifoFallback(hist, ec2ms, sets)
+    links = {}                   # связи универсальных моделей, обе стороны (поток prc, миграция 408)
+    if db.query("SELECT to_regclass('public.prc_tc_link') t")[0]["t"]:   # без 408 работаем без связей
+        for r in db.query("SELECT external_code, ref_code FROM prc_tc_link"):
+            links.setdefault(r["external_code"], []).append(r["ref_code"])
+            links.setdefault(r["ref_code"], []).append(r["external_code"])
+    return FifoFallback(hist, ec2ms, sets, links, ms2ec)
 
 
 if __name__ == "__main__":       # self-check: покрытие справочников
     fb = load()
     print(f"товаров с FIFO-историей: {len(fb.hist)}, external_code→ms: {len(fb.ec2ms)}, "
-          f"наборов с составом: {len(fb.sets)}")
+          f"наборов с составом: {len(fb.sets)}, кодов со связями: {len(fb.links)}")
