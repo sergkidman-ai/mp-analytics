@@ -1,0 +1,24 @@
+=== C9380A
+  док=4    2017-09-26 Печатающая головка HP C9380A                         | invoiceout=1, demand=1, supply=1, customerorder=1
+  док=3    2020-12-03 К-ж HP C9380A HP № 72 Печатающая головка черная и се | customerorder=1, invoiceout=1, enter=1
+=== C9384A
+  док=10   2017-09-26 Печатающая головка HP C9384A                         | invoiceout=2, customerorder=2, demand=2, purchaseorder=2
+  док=3    2020-12-03 К-ж HP C9384A HP №72 Печатающая головка  матовая, че | customerorder=1, invoiceout=1, enter=1
+=== CF256A
+  док=5    2019-01-30 Картридж CF256A OR                                   | purchaseorder=1, demand=1, supply=1, invoiceout=1
+  док=5    2020-12-03 CF256A К-ж HP 56A лазерный (7400 стр), оригинал      | purchaseorder=1, customerorder=1, supply=1, demand=1
+=== CF530A
+  док=13   2020-12-03 CF530A K-ж HP 205A Black CLJ Pro MFP M180/181, ориги | customerorder=3, supply=3, demand=3, purchaseorder=3
+  док=4    2019-07-19 Чип HP CF530A                                        | supply=1, customerorder=1, demand=1, purchaseorder=1
+=== CLI-8C/M/Y/0621B029
+  док=4    2020-10-12 Набор картриджей CLI-8 C/M/Y мульти-упаковка OR      | purchaseorder=1, demand=1, customerorder=1, supply=1
+  док=5    2020-12-03 К-ж CANON CLI-8 C/M/Y мульти-упаковка 0621B029       | demand=1, supply=1, customerorder=1, purchaseorder=1
+=== CLT-Y404S/XEV
+  док=1    2020-12-03 К-ж Samsung CLT-404-серия желтый для SL-C430/C430W/C | customerorder=1
+  док=4    2020-12-03 К-ж SAMSUNG-hp CLT-404-серия желтый для SL-C430/C430 | supply=1, purchaseorder=1, customerorder=1, demand=1
+=== PG-445/8283B001
+  док=1    2020-12-03 К-ж CANON PG-445 к Pixma MG2440/2540 стандартный чер | enter=1
+  док=4    2019-09-26 Картридж PG-445 BK OR                                | customerorder=1, demand=1, supply=1, purchaseorder=1
+=== PG-445XL
+  док=4    2021-06-22 Картридж Canon PG-445XL (8282B001) черный            | supply=1, demand=1, customerorder=1, purchaseorder=1
+  док=13   2018-09-07 Картридж PG-445XL BK OR                              | customerorder=4, invoiceout=3, demand=2, purchaseorder=2

@@ -1,0 +1,2436 @@
+[
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/3ee36504-9f29-11ea-0a80-05d80004110b",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=3ee3576e-9f29-11ea-0a80-05d800041109"
+  },
+  "id": "3ee36504-9f29-11ea-0a80-05d80004110b",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/d5807479-ac23-11e8-9ff4-3150000cb7e3",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=d5807479-ac23-11e8-9ff4-3150000cb7e3"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2026-01-12 22:02:25.930",
+  "name": "Картридж HP 932XL Bk OR",
+  "description": "Картридж HP DJ CN053AE HP 932XL Officejet (1000 страниц) черный",
+  "code": "CN053AE",
+  "externalCode": "CN053AE",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи струйные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/4ce124da-3484-11eb-0a80-03ad0009313a",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=4ce124da-3484-11eb-0a80-03ad0009313a"
+   }
+  },
+  "effectiveVat": 22,
+  "effectiveVatEnabled": true,
+  "vat": 22,
+  "vatEnabled": true,
+  "useParentVat": false,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/3ee36504-9f29-11ea-0a80-05d80004110b/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 99000.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 500425.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20313326"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/727e2c1e-e195-11e8-9109-f8fc001f279c",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=727e2c1e-e195-11e8-9109-f8fc001f279c"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/785d91a6-5298-11ec-0a80-0949000f53fe",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "785d91a6-5298-11ec-0a80-0949000f53fe",
+    "name": "Ссылка",
+    "type": "link",
+    "value": "https://digitalsquare.ru/index.php?option=com_virtuemart&category_id=2&flypage=yagendoo_VaMazing_2.tpl&lang=ru&limitstart=0&page=shop.product_details&product_id=5031"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b24055cd-529a-11ec-0a80-08c60010c152",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b24055cd-529a-11ec-0a80-08c60010c152",
+    "name": "Изображение",
+    "type": "link",
+    "value": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5655b943b8ff2.jpg"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+    "name": "Стоп лист",
+    "type": "boolean",
+    "value": false
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "CN053AE",
+  "weight": 0.05,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/3ee36504-9f29-11ea-0a80-05d80004110b/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/599ae0f4-9f29-11ea-0a80-012d000401e6",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=599ad952-9f29-11ea-0a80-012d000401e4"
+  },
+  "id": "599ae0f4-9f29-11ea-0a80-012d000401e6",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/d5807479-ac23-11e8-9ff4-3150000cb7e3",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=d5807479-ac23-11e8-9ff4-3150000cb7e3"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-08-12 10:52:47.715",
+  "name": "Картридж HP 933XL Cyan OR",
+  "description": "Картридж HP DJ CN054AE HP 933XL Officejet (825 страниц) голубой",
+  "code": "CN054AE",
+  "externalCode": "CN054AE",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи струйные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/4ce124da-3484-11eb-0a80-03ad0009313a",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=4ce124da-3484-11eb-0a80-03ad0009313a"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/599ae0f4-9f29-11ea-0a80-012d000401e6/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 99000.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 138539.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20313395"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/727e2c1e-e195-11e8-9109-f8fc001f279c",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=727e2c1e-e195-11e8-9109-f8fc001f279c"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/785d91a6-5298-11ec-0a80-0949000f53fe",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "785d91a6-5298-11ec-0a80-0949000f53fe",
+    "name": "Ссылка",
+    "type": "link",
+    "value": "https://digitalsquare.ru/index.php?option=com_virtuemart&category_id=2&flypage=yagendoo_VaMazing_2.tpl&lang=ru&limitstart=0&page=shop.product_details&product_id=5039"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b24055cd-529a-11ec-0a80-08c60010c152",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b24055cd-529a-11ec-0a80-08c60010c152",
+    "name": "Изображение",
+    "type": "link",
+    "value": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5655b987003c3.jpg"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+    "name": "Стоп лист",
+    "type": "boolean",
+    "value": false
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "CN054AE",
+  "weight": 0.05,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/599ae0f4-9f29-11ea-0a80-012d000401e6/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/77e31594-9f29-11ea-0a80-03690003b0bb",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=77e30a7e-9f29-11ea-0a80-03690003b0b9"
+  },
+  "id": "77e31594-9f29-11ea-0a80-03690003b0bb",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/d5807479-ac23-11e8-9ff4-3150000cb7e3",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=d5807479-ac23-11e8-9ff4-3150000cb7e3"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-08-12 10:52:47.719",
+  "name": "Картридж HP 933XL Magenta OR",
+  "description": "Картридж HP DJ CN055AE HP 933XL Officejet (825 страниц) пурпурный",
+  "code": "CN055AE",
+  "externalCode": "CN055AE",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи струйные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/4ce124da-3484-11eb-0a80-03ad0009313a",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=4ce124da-3484-11eb-0a80-03ad0009313a"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/77e31594-9f29-11ea-0a80-03690003b0bb/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 99000.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 259000.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20313456"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/727e2c1e-e195-11e8-9109-f8fc001f279c",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=727e2c1e-e195-11e8-9109-f8fc001f279c"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/785d91a6-5298-11ec-0a80-0949000f53fe",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "785d91a6-5298-11ec-0a80-0949000f53fe",
+    "name": "Ссылка",
+    "type": "link",
+    "value": "https://digitalsquare.ru/index.php?option=com_virtuemart&category_id=2&flypage=yagendoo_VaMazing_2.tpl&lang=ru&limitstart=0&page=shop.product_details&product_id=5040"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b24055cd-529a-11ec-0a80-08c60010c152",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b24055cd-529a-11ec-0a80-08c60010c152",
+    "name": "Изображение",
+    "type": "link",
+    "value": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5655b99368d8d.jpg"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+    "name": "Стоп лист",
+    "type": "boolean",
+    "value": false
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "CN055AE",
+  "weight": 0.05,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/77e31594-9f29-11ea-0a80-03690003b0bb/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/91086390-9f29-11ea-0a80-05d800041c45",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=91085a12-9f29-11ea-0a80-05d800041c43"
+  },
+  "id": "91086390-9f29-11ea-0a80-05d800041c45",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/d5807479-ac23-11e8-9ff4-3150000cb7e3",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=d5807479-ac23-11e8-9ff4-3150000cb7e3"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-08-12 10:52:47.732",
+  "name": "Картридж HP 933XL Yellow OR",
+  "description": "Картридж HP DJ CN056AE HP 933XL Officejet (825 страниц) желтый",
+  "code": "CN056AE",
+  "externalCode": "CN056AE",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи струйные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/4ce124da-3484-11eb-0a80-03ad0009313a",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=4ce124da-3484-11eb-0a80-03ad0009313a"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/91086390-9f29-11ea-0a80-05d800041c45/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 99000.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 138539.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20313517"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/727e2c1e-e195-11e8-9109-f8fc001f279c",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=727e2c1e-e195-11e8-9109-f8fc001f279c"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/785d91a6-5298-11ec-0a80-0949000f53fe",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "785d91a6-5298-11ec-0a80-0949000f53fe",
+    "name": "Ссылка",
+    "type": "link",
+    "value": "https://digitalsquare.ru/index.php?option=com_virtuemart&category_id=2&flypage=yagendoo_VaMazing_2.tpl&lang=ru&limitstart=0&page=shop.product_details&product_id=5041"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b24055cd-529a-11ec-0a80-08c60010c152",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b24055cd-529a-11ec-0a80-08c60010c152",
+    "name": "Изображение",
+    "type": "link",
+    "value": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5655b9a03135c.jpg"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+    "name": "Стоп лист",
+    "type": "boolean",
+    "value": false
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "CN056AE",
+  "weight": 0.05,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/91086390-9f29-11ea-0a80-05d800041c45/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/866f19db-ed03-11ea-0a80-04f50043530f",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=866f0e2e-ed03-11ea-0a80-04f50043530c"
+  },
+  "id": "866f19db-ed03-11ea-0a80-04f50043530f",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/c360ac26-3451-416d-8de9-9447e90ee9b4",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=c360ac26-3451-416d-8de9-9447e90ee9b4"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-06-06 04:32:38.891",
+  "name": "Картридж HP 207X лазерный черный (3150 стр) OR",
+  "description": "Картридж HP 207X лазерный черный (3150 стр)",
+  "externalCode": "gJ1qZXFMiAGCb7qjrqfnn0",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи лазерные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/72841e49-3481-11eb-0a80-063700082d31",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=72841e49-3481-11eb-0a80-063700082d31"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/866f19db-ed03-11ea-0a80-04f50043530f/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 170000.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20287405"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/0cee6337-ce48-11e9-0a80-03b70007330b",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=0cee6337-ce48-11e9-0a80-03b70007330b"
+   }
+  },
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "W2210X\t",
+  "weight": 0.77,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/866f19db-ed03-11ea-0a80-04f50043530f/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/98526992-3530-11eb-0a80-0653001590c5",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=9852626e-3530-11eb-0a80-0653001590c2"
+  },
+  "id": "98526992-3530-11eb-0a80-0653001590c5",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/c360ac26-3451-416d-8de9-9447e90ee9b4",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=c360ac26-3451-416d-8de9-9447e90ee9b4"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-06-06 04:33:51.512",
+  "name": "Картридж лазерный HP 207X для HP M255/MFP M282/M283 3,15К (О) черный W2210X",
+  "description": "W2210X  К-ж HP 207X  лазерный черный (3150 стр), ориг.",
+  "externalCode": "lFFg2EHGie1VRJEh99KeX3",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи лазерные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/72841e49-3481-11eb-0a80-063700082d31",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=72841e49-3481-11eb-0a80-063700082d31"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/98526992-3530-11eb-0a80-0653001590c5/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 1206320.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20291914"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/727e2c1e-e195-11e8-9109-f8fc001f279c",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=727e2c1e-e195-11e8-9109-f8fc001f279c"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "00-05800"
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "W2210X",
+  "weight": 0.0,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/98526992-3530-11eb-0a80-0653001590c5/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/1510b1b7-ed04-11ea-0a80-00e90043b02e",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=1510aa1e-ed04-11ea-0a80-00e90043b02c"
+  },
+  "id": "1510b1b7-ed04-11ea-0a80-00e90043b02e",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/d5807479-ac23-11e8-9ff4-3150000cb7e3",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=d5807479-ac23-11e8-9ff4-3150000cb7e3"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-06-06 04:32:37.052",
+  "name": "Картридж HP 207X лазерный голубой (2450 стр) OR",
+  "description": "Картридж HP 207X лазерный голубой (2450 стр)",
+  "externalCode": "FNNhQTNUhQfJCNZOvbJ9K1",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи лазерные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/72841e49-3481-11eb-0a80-063700082d31",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=72841e49-3481-11eb-0a80-063700082d31"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/1510b1b7-ed04-11ea-0a80-00e90043b02e/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 170000.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20287221"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/0cee6337-ce48-11e9-0a80-03b70007330b",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=0cee6337-ce48-11e9-0a80-03b70007330b"
+   }
+  },
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "W2211X\t",
+  "weight": 0.77,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/1510b1b7-ed04-11ea-0a80-00e90043b02e/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/985441d6-3530-11eb-0a80-0653001590cd",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=98543c9c-3530-11eb-0a80-0653001590ca"
+  },
+  "id": "985441d6-3530-11eb-0a80-0653001590cd",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/c360ac26-3451-416d-8de9-9447e90ee9b4",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=c360ac26-3451-416d-8de9-9447e90ee9b4"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-06-06 04:33:51.941",
+  "name": "W2211X  К-ж HP 207X  лазерный голубой (2450 стр), ориг.",
+  "description": "W2211X  К-ж HP 207X  лазерный голубой (2450 стр), ориг.",
+  "externalCode": "WT6-xT6LgiMMKw1oBZNl13",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи лазерные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/72841e49-3481-11eb-0a80-063700082d31",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=72841e49-3481-11eb-0a80-063700082d31"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/985441d6-3530-11eb-0a80-0653001590cd/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 1350500.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20291938"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/727e2c1e-e195-11e8-9109-f8fc001f279c",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=727e2c1e-e195-11e8-9109-f8fc001f279c"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "00-05801"
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "W2211X",
+  "weight": 0.0,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/985441d6-3530-11eb-0a80-0653001590cd/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/548f75a5-ed04-11ea-0a80-011f004437b9",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=548f6d4b-ed04-11ea-0a80-011f004437b7"
+  },
+  "id": "548f75a5-ed04-11ea-0a80-011f004437b9",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/d5807479-ac23-11e8-9ff4-3150000cb7e3",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=d5807479-ac23-11e8-9ff4-3150000cb7e3"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-06-06 04:32:37.885",
+  "name": "Картридж HP 207X лазерный желтый (2450 стр) OR",
+  "description": "Картридж HP 207X лазерный желтый (2450 стр)",
+  "externalCode": "nFqWTgySiHZNluJvtrB1t3",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи лазерные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/72841e49-3481-11eb-0a80-063700082d31",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=72841e49-3481-11eb-0a80-063700082d31"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/548f75a5-ed04-11ea-0a80-011f004437b9/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 170000.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20287290"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/0cee6337-ce48-11e9-0a80-03b70007330b",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=0cee6337-ce48-11e9-0a80-03b70007330b"
+   }
+  },
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "W2212X\t",
+  "weight": 0.77,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/548f75a5-ed04-11ea-0a80-011f004437b9/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/98561b03-3530-11eb-0a80-0653001590d5",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=98561561-3530-11eb-0a80-0653001590d2"
+  },
+  "id": "98561b03-3530-11eb-0a80-0653001590d5",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/c360ac26-3451-416d-8de9-9447e90ee9b4",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=c360ac26-3451-416d-8de9-9447e90ee9b4"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-06-06 04:33:52.180",
+  "name": "W2212X  К-ж HP 207X  лазерный желтый (2450 стр), ориг.",
+  "description": "W2212X  К-ж HP 207X  лазерный желтый (2450 стр), ориг.",
+  "externalCode": "Xhi1XvuRivZlkyfKVbv4x1",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи лазерные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/72841e49-3481-11eb-0a80-063700082d31",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=72841e49-3481-11eb-0a80-063700082d31"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/98561b03-3530-11eb-0a80-0653001590d5/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 1350500.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20291952"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/727e2c1e-e195-11e8-9109-f8fc001f279c",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=727e2c1e-e195-11e8-9109-f8fc001f279c"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "00-05802"
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "W2212X",
+  "weight": 0.0,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/98561b03-3530-11eb-0a80-0653001590d5/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/985822e9-3530-11eb-0a80-0653001590dd",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=98581d75-3530-11eb-0a80-0653001590da"
+  },
+  "id": "985822e9-3530-11eb-0a80-0653001590dd",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/c360ac26-3451-416d-8de9-9447e90ee9b4",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=c360ac26-3451-416d-8de9-9447e90ee9b4"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-06-06 04:33:52.431",
+  "name": "W2213X  К-ж HP 207X  лазерный пурпурный (2450 стр), ориг.",
+  "description": "W2213X  К-ж HP 207X  лазерный пурпурный (2450 стр), ориг.",
+  "externalCode": "-N-66Op5hPGoVO6QjMAj-1",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи лазерные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/72841e49-3481-11eb-0a80-063700082d31",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=72841e49-3481-11eb-0a80-063700082d31"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/985822e9-3530-11eb-0a80-0653001590dd/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 1481295.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20291976"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/727e2c1e-e195-11e8-9109-f8fc001f279c",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=727e2c1e-e195-11e8-9109-f8fc001f279c"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "00-05803"
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "W2213X",
+  "weight": 0.0,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/985822e9-3530-11eb-0a80-0653001590dd/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/c24a46a5-ed04-11ea-0a80-09e00043af83",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=c24a3c93-ed04-11ea-0a80-09e00043af81"
+  },
+  "id": "c24a46a5-ed04-11ea-0a80-09e00043af83",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/d5807479-ac23-11e8-9ff4-3150000cb7e3",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=d5807479-ac23-11e8-9ff4-3150000cb7e3"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/0781cac3-d269-11e4-90a2-8ecb00041113",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2025-06-06 04:33:54.669",
+  "name": "Картридж HP 207X лазерный пурпурный (2450 стр) OR",
+  "description": "Картридж HP 207X лазерный пурпурный (2450 стр)",
+  "externalCode": "JmTsngzPjN4TixDXjVLID0",
+  "archived": false,
+  "pathName": "Оригинальные картриджи/Картриджи лазерные HP",
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/72841e49-3481-11eb-0a80-063700082d31",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=72841e49-3481-11eb-0a80-063700082d31"
+   }
+  },
+  "effectiveVat": 0,
+  "effectiveVatEnabled": false,
+  "useParentVat": true,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/c24a46a5-ed04-11ea-0a80-09e00043af83/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 170000.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20292171"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/0cee6337-ce48-11e9-0a80-03b70007330b",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=0cee6337-ce48-11e9-0a80-03b70007330b"
+   }
+  },
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "article": "W2213X\t",
+  "weight": 0.77,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/c24a46a5-ed04-11ea-0a80-09e00043af83/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/0a4cf120-4c01-11ef-0a80-072c0037d4ac",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=0a4ce7a4-4c01-11ef-0a80-072c0037d4a9"
+  },
+  "id": "0a4cf120-4c01-11ef-0a80-072c0037d4ac",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/c360ac26-3451-416d-8de9-9447e90ee9b4",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=c360ac26-3451-416d-8de9-9447e90ee9b4"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/51301b37-7c23-11ed-0a80-011600031378",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2026-01-12 21:31:49.879",
+  "name": "Браслет из натурального жемчуга на руку Инфинити",
+  "description": "Браслет из натурального жемчуга на руку Инфинити",
+  "code": "wb7lcevdr4",
+  "externalCode": "wb7lcevdr4",
+  "archived": false,
+  "pathName": "",
+  "effectiveVat": 22,
+  "effectiveVatEnabled": true,
+  "vat": 22,
+  "vatEnabled": true,
+  "useParentVat": false,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/0a4cf120-4c01-11ef-0a80-072c0037d4ac/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20391645"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/bc8ceef2-401e-11ef-0a80-00ac0007364f",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=bc8ceef2-401e-11ef-0a80-00ac0007364f"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+    "name": "Стоп лист",
+    "type": "boolean",
+    "value": false
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Браслет из натурального жемчуга на руку Инфинити"
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "article": "wb7lcevdr4",
+  "weight": 0.0,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/0a4cf120-4c01-11ef-0a80-072c0037d4ac/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/738f23af-401e-11ef-0a80-00ac00072351",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=738f1894-401e-11ef-0a80-00ac0007234e"
+  },
+  "id": "738f23af-401e-11ef-0a80-00ac00072351",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/c360ac26-3451-416d-8de9-9447e90ee9b4",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=c360ac26-3451-416d-8de9-9447e90ee9b4"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/51301b37-7c23-11ed-0a80-011600031378",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2026-01-12 21:31:50.068",
+  "name": "Браслет из натурального жемчуга на руку Древо жизни",
+  "description": "Браслет из натурального жемчуга на руку Древо жизни",
+  "code": "wb7lcevdr4",
+  "externalCode": "wb7lcevdr4",
+  "archived": false,
+  "pathName": "",
+  "effectiveVat": 22,
+  "effectiveVatEnabled": true,
+  "vat": 22,
+  "vatEnabled": true,
+  "useParentVat": false,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/738f23af-401e-11ef-0a80-00ac00072351/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 1,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20389727"
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+    "name": "Стоп лист",
+    "type": "boolean",
+    "value": false
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Браслет из натурального жемчуга на руку"
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "article": "wb7lcevdr4",
+  "weight": 0.0,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/738f23af-401e-11ef-0a80-00ac00072351/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ },
+ {
+  "meta": {
+   "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/cf308316-a503-11ef-0a80-0d53002980b5",
+   "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata",
+   "type": "product",
+   "mediaType": "application/json",
+   "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=cf307a1e-a503-11ef-0a80-0d53002980b2"
+  },
+  "id": "cf308316-a503-11ef-0a80-0d53002980b5",
+  "accountId": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+  "owner": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/employee/c360ac26-3451-416d-8de9-9447e90ee9b4",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/employee/metadata",
+    "type": "employee",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#employee/edit?id=c360ac26-3451-416d-8de9-9447e90ee9b4"
+   }
+  },
+  "shared": true,
+  "group": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/group/51301b37-7c23-11ed-0a80-011600031378",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/group/metadata",
+    "type": "group",
+    "mediaType": "application/json"
+   }
+  },
+  "updated": "2026-01-12 21:31:50.125",
+  "name": "Браслет из натурального жемчуга с сердцем",
+  "description": "Браслет из натурального жемчуга с сердцем",
+  "code": "wb7lcevdr4",
+  "externalCode": "wb7lcevdr4",
+  "archived": false,
+  "pathName": "",
+  "effectiveVat": 22,
+  "effectiveVatEnabled": true,
+  "vat": 22,
+  "vatEnabled": true,
+  "useParentVat": false,
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "images": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/cf308316-a503-11ef-0a80-0d53002980b5/images",
+    "type": "image",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "minPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "buyPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "barcodes": [
+   {
+    "ean8": "20424299"
+   }
+  ],
+  "supplier": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/bc8ceef2-401e-11ef-0a80-00ac0007364f",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/metadata",
+    "type": "counterparty",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#company/edit?id=bc8ceef2-401e-11ef-0a80-00ac0007364f"
+   }
+  },
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+    "name": "Стоп лист",
+    "type": "boolean",
+    "value": false
+   }
+  ],
+  "paymentItemType": "GOOD",
+  "discountProhibited": false,
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "article": "wb7lcevdr4",
+  "weight": 0.0,
+  "volume": 0.0,
+  "variantsCount": 0,
+  "isSerialTrackable": false,
+  "files": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/cf308316-a503-11ef-0a80-0d53002980b5/files",
+    "type": "files",
+    "mediaType": "application/json",
+    "size": 0,
+    "limit": 1000,
+    "offset": 0
+   }
+  },
+  "trackingType": "NOT_TRACKED"
+ }
+]
