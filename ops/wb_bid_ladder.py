@@ -10,7 +10,11 @@
 
 ГЕЙТЫ (проверяются ДО записи, любой сработавший снимает SKU с шага; аккаунтный — отменяет весь шаг):
   1. АККАУНТ: ДРР рекламы за окно > DRR_LIMIT → шаг НЕ выполняется совсем.
-  2. SKU с выручкой: расход/выручка > DRR_LIMIT → заморозить (ставку не трогаем).
+  2. SKU с выручкой: расход/выручка > СВОЕГО потолка ДРР → заморозить (ставку не трогаем).
+     Потолок индивидуальный (14.08.2026): «маржа_live − WB_MARGIN_GATE». Реклама вычитается
+     ровно из той маржи, по которой меряется KPI-25 %, поэтому товар с маржой 45 % может отдать
+     рекламе 20 %, а товар с маржой 27 % — только 2 %. Общий порог 10 % первому запрещал расти,
+     второму разрешал провалиться ниже KPI. DRR_LIMIT остался только аккаунтным (гейт 1).
   3. SKU-костёр: расход ≥ BURN_RUB за окно при НУЛЕВОЙ выручке → заморозить.
   4. Потолок MAX_CPC и пол ВБ 7.3 ₽.
   5. МАРЖА (добавлен 07.08.2026): net_live < 0 → заморозить. Разгонять трафик на товар, который
@@ -23,6 +27,16 @@
   6. КАРАНТИН ПОСЛЕ ОТКАТА (добавлен 13.08.2026): SKU, которому `ops.wb_bid_lower` за последние
      WINDOW_DAYS дней снял ставку до пола, не поднимаем. Иначе лестница возвращает ставку через
      сутки и откат становится холостым ходом.
+  7. ПРИЗНАКИ ЖИЗНИ (добавлен 16.08.2026): потратил ≥ MIN_SPEND за окно и при этом НОЛЬ по всем
+     трём сигналам — рекламный заказ, органический заказ, добавление в корзину — → заморозить.
+     Это 🟤 бордовый, его дело понижать (`ops.wb_bid_lower`), а не поднимать. Прежней защиты
+     BURN_RUB не хватало: 100 ₽ без выручки за неделю — слишком щедро, SKU тратил 20–40 ₽
+     с нулём заказов, под гейт не попадал и рос каждый прогон. Шаг 14.08 так создал 129 новых
+     бордовых. Товар, который ещё НЕ тратил (< MIN_SPEND), считается непроверенным и растёт.
+
+РИТМ — РАЗ В НЕДЕЛЮ (Сергей, 16.08.2026: «тех что мы повышаем делаем аккуратно раз в неделю
+на 10 %»). Было «через день»: за 8 дней ставка удваивалась, а окно замера — те же 7 дней, то есть
+следующий шаг делался раньше, чем видно результат предыдущего. Крон через день снят 16.08.2026.
 
 По умолчанию — DRY-RUN: считает и печатает, в ВБ НЕ пишет. Живая запись только с --apply
 (правило: данные ≠ разрешение писать; --apply даётся под конкретный прогон).
@@ -58,6 +72,7 @@ STEP = 1.10          # +10 % за шаг
 MAX_CPC = 25.0       # потолок ставки, ₽
 DRR_LIMIT = 0.10     # 10 % — граница Сергея
 BURN_RUB = 100.0     # расход без единой выручки за окно → костёр
+MIN_SPEND = 1.0      # ₽ за окно: ниже этого товар считается непроверенным, а не мёртвым
 WINDOW_DAYS = 7      # окно оценки ДРР
 # Пороги маржи — из общей политики reports/bid_policy.py (одна на страницу «Ставки» и на лестницу):
 #   WB_MARGIN_GATE 25% — KPI: между ним и полом ставку поднимаем, но считаем и показываем в сводке;
@@ -86,6 +101,34 @@ def _drr(account, nms, days=WINDOW_DAYS):
     """, (account, days, list(nms)))}
     sp, rv = float(acc["sp"] or 0), float(acc["rv"] or 0)
     return (sp / rv if rv else None), sp, rv, per
+
+
+def _life(account, nms, days=WINDOW_DAYS):
+    """Признаки жизни за окно: рекламные заказы + органика (заказы и корзина).
+
+    Нужны, чтобы отличить 🟢 зелёный от 🟤 бордового. Лестница до 14.08.2026 их не смотрела:
+    единственной защитой был `BURN_RUB` — «расход ≥ 100 ₽ без выручки». Порог оказался слишком
+    щедрым: SKU тратил 20–40 ₽ в неделю с нулём заказов, под гейт не попадал и получал +10 %
+    каждый прогон. Так за один шаг 14.08 родилось 129 новых бордовых.
+
+    Джем отдаёт скользящее окно 7 дней с меткой начала и приезжает на день-два позже рекламы,
+    поэтому берём самый свежий доступный отчёт. Если органики нет вовсе — возвращаем None,
+    и решение принимается по одной рекламе (мягче, но не вслепую).
+    """
+    ad = {r["nm_id"]: int(r["o"] or 0) for r in db.query("""
+      SELECT nm_id, sum(orders) o FROM wb_ad_nm_daily
+       WHERE account=%s AND dt > current_date - %s AND nm_id = ANY(%s::bigint[]) GROUP BY 1
+    """, (account, days, list(nms)))}
+    d = db.query("SELECT max(period_start) d FROM wb_search_report WHERE account=%s", (account,))
+    jam_day = d[0]["d"] if d else None
+    org = {}
+    if jam_day:
+        org = {r["nm_id"]: (int(r["orders"] or 0), int(r["add_to_cart"] or 0))
+               for r in db.query("""
+                 SELECT nm_id, orders, add_to_cart FROM wb_search_report
+                  WHERE account=%s AND period_start=%s AND nm_id = ANY(%s::bigint[])
+               """, (account, jam_day, list(nms)))}
+    return ad, org, jam_day
 
 
 def _margin(account, nms):
@@ -124,9 +167,11 @@ def plan(account="wb_acc1", cohort="a"):
         "SELECT DISTINCT nm_id FROM wb_bid_log WHERE account=%s AND author='lower' AND applied "
         "AND ts >= now() - make_interval(days => %s)", (account, WINDOW_DAYS))}
 
+    ad_ord, org_sig, jam_day = _life(account, nms)
+
     rows, watch, n_substituted = [], 0, 0
     frozen = {"drr": 0, "burn": 0, "cap": 0, "no_adv": 0, "loss": 0, "no_margin": 0,
-              "low_margin": 0, "cooldown": 0}
+              "low_margin": 0, "cooldown": 0, "dead": 0}
     for nm, (cpc, adv) in sorted(cur.items()):
         if nm in cooled:             # только что откатили на пол — держим карантин
             frozen["cooldown"] += 1
@@ -147,8 +192,21 @@ def plan(account="wb_acc1", cohort="a"):
             continue
         if below_kpi:
             watch += 1               # между полом и KPI: не блокируем, но считаем и показываем
-        if rv > 0 and sp / rv > DRR_LIMIT:
+        # Потолок ДРР ИНДИВИДУАЛЬНЫЙ (14.08.2026), а не общие 10 % на всех. Реклама вычитается
+        # ровно из той маржи, по которой меряется KPI-25 %: товар с маржой 45 % может отдать
+        # рекламе 20 % и остаться в KPI, товар с маржой 27 % — только 2 %. Общий порог первому
+        # запрещал расти, второму разрешал провалиться ниже KPI.
+        cap_drr = max(0.0, (marg_l - WB_MARGIN_GATE) / 100.0)
+        if rv > 0 and sp / rv > cap_drr:
             frozen["drr"] += 1
+            continue
+        # Признаки жизни. Поднимаем только тех, кто ЛИБО ещё не тратил (не проверен — даём шанс),
+        # ЛИБО уже отзывается: заказ в рекламе, заказ в органике или добавление в корзину.
+        # Потратил деньги и мёртв по всем трём — это бордовый, его понижает ops.wb_bid_lower.
+        o_ad = ad_ord.get(nm, 0)
+        o_org, cart = org_sig.get(nm, (0, 0))
+        if sp >= MIN_SPEND and o_ad == 0 and o_org == 0 and cart == 0:
+            frozen["dead"] += 1
             continue
         if rv == 0 and sp >= BURN_RUB:
             frozen["burn"] += 1
@@ -175,6 +233,7 @@ def plan(account="wb_acc1", cohort="a"):
     stats = {"cohort_size": len(nms), "to_raise": len(rows), "frozen": frozen,
              "margin_day": (marg_day.isoformat() if marg_day else None),
              "margin_known": len(marg), "watch_below_kpi": watch,
+             "jam_day": (jam_day.isoformat() if jam_day else None),
              "cogs_substituted": n_substituted,
              "acc_drr": (round(100 * acc_drr, 1) if acc_drr is not None else None),
              "acc_spend": acc_sp, "acc_revenue": acc_rv,
@@ -283,7 +342,8 @@ def main():
     today = datetime.date.today().isoformat()
     note = a.note or f"ladder +10% {today} cohort={a.cohort}"
     print(f"[лестница {a.cohort}] когорта {st.get('cohort_size')} SKU | к подъёму {st.get('to_raise')} | "
-          f"заморожено ДРР {st['frozen']['drr']} костёр {st['frozen']['burn']} потолок {st['frozen']['cap']} "
+          f"заморожено ДРР {st['frozen']['drr']} мёртвые {st['frozen']['dead']} "
+          f"костёр {st['frozen']['burn']} потолок {st['frozen']['cap']} "
           f"без кампании {st['frozen']['no_adv']} УБЫТОК {st['frozen']['loss']} "
           f"без маржи {st['frozen']['no_margin']} "
           f"карантин после отката {st['frozen']['cooldown']}")
@@ -317,7 +377,8 @@ def main():
     notify(f"*Лестница ставок ВБ — шаг {today} (+10 %)*\n"
            f"Поднято *{ok}* SKU: {st['avg_old']} → *{st['avg_new']} ₽*"
            + (f", отказано {bad}" if bad else "") + "\n"
-           f"Заморожено: ДРР {fr['drr']} · костры {fr['burn']} · потолок {fr['cap']} · "
+           f"Заморожено: ДРР {fr['drr']} · мёртвые {fr['dead']} · костры {fr['burn']} · "
+           f"потолок {fr['cap']} · "
            f"убыток {fr['loss']} · без маржи {fr['no_margin']} · "
            f"карантин после отката {fr['cooldown']}\n"
            f"Заморожено ниже пола {WB_MARGIN_FLOOR:.0f}% маржи: {fr['low_margin']}\n"
