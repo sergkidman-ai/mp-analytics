@@ -215,7 +215,18 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
     sku2offer = fetch_product_offer_map(account)   # sku → offer_id (=external_code)
     gmap = _group_price_map()
     ff = fifo_fallback.load()                      # FIFO товара/набора МС (перед групповой ценой)
-    day = datetime.date.fromisoformat(date_to)     # отсечка: последняя отгрузка товара до конца месяца
+    # Опорная дата фолбэка FIFO — ДЕНЬ ЗАКАЗА отправления (posting.order_date), а не конец месяца
+    # (решение Сергея 16.08.2026): конец месяца брал списание, случившееся ПОСЛЕ продажи.
+    month_end = datetime.date.fromisoformat(date_to)
+
+    def _day(s):
+        """Дата заказа отправления; нет её — конец периода (прежнее поведение)."""
+        try:
+            return datetime.date.fromisoformat(str(s)[:10]) if s else month_end
+        except ValueError:
+            return month_end
+
+    posting_day = {}                               # norm_posting -> день заказа
     # Ручной слой COGS (как у ВБ): для отправлений без матча в МС и без импутации/группы —
     # себест/ед. проставлена вручную в cogs_manual (ключ article = offer_id=external_code).
     # Заполняется, когда товар в МС под другим контрагентом/не через МС (напр. декабрьские
@@ -251,6 +262,10 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
             for c, v in cats.items():
                 sku_fin[sku][c] += v * share
         post = (op.get("posting") or {}).get("posting_number")
+        if post:
+            posting_day.setdefault(norm_posting(post),
+                                   _day((op.get("posting") or {}).get("order_date")
+                                        or op.get("operation_date")))
         if post and cats["revenue"] > 0:
             key = norm_posting(post)
             posting_skus[key] = {
@@ -301,7 +316,7 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
                 continue
             # FIFO ТОГО ЖЕ товара МС (и набора как Σ FIFO компонентов) — факт списания, поэтому
             # идёт ПЕРЕД групповой ценой из карточки (cost_seb = средняя по текущему остатку).
-            fc, _src = ff.unit(off, day)
+            fc, _src = ff.unit(off, posting_day.get(key, month_end))
             if fc:
                 sku_cogs[s] += fc
                 used_fifo += 1
@@ -347,7 +362,8 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
             cpu, src = punit.get(key), "отгрузка (МС)"
             if not cpu:
                 for v, nm_src in ((cpu_global.get(s), "средняя по SKU"),
-                                  (ff.unit(sku2offer.get(s), day)[0], "FIFO товара"),
+                                  (ff.unit(sku2offer.get(s),
+                                           posting_day.get(key, month_end))[0], "FIFO товара"),
                                   (_fallback_cpu(sku2offer.get(s), gmap), "группа"),
                                   (manual.get(sku2offer.get(s)), "ручная")):
                     if v:

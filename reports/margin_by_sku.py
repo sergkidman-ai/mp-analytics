@@ -201,6 +201,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     raw = db.query("""
         SELECT payload->>'nm_id' nm, payload->>'sa_name' sa,
                payload->>'supplier_oper_name' op, payload->>'assembly_id' aid,
+               payload->>'order_dt' ord_dt,
                coalesce((payload->>'quantity')::numeric,0) q,
                coalesce((payload->>'retail_price_withdisc_rub')::numeric,0) rpw,
                coalesce((payload->>'retail_amount')::numeric,0) ra,
@@ -224,10 +225,25 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     storno_fb = defaultdict(float)                   # источник фолбэка -> штук сторно без моста к отгрузке
     cpu_hist, grp, setc, buy, manual = _fallback_sources(account, date_from)
     ff = fifo_fallback.load()                        # FIFO товара МС (шаги 3–4 цепочки)
-    day = datetime.date.fromisoformat(date_to)       # отсечка: последняя отгрузка товара до конца месяца
+    # Опорная дата фолбэка FIFO — ДЕНЬ ЗАКАЗА строки (order_dt), а не конец месяца
+    # (решение Сергея 16.08.2026). Конец месяца брал последнюю отгрузку товара ПОСЛЕ продажи,
+    # то есть себест из будущего; правильный ориентир — цена списания на день, когда товар продан.
+    month_end = datetime.date.fromisoformat(date_to)
+
+    def _day(s):
+        """Дата заказа строки; если ВБ её не дал — конец периода (прежнее поведение)."""
+        try:
+            return datetime.date.fromisoformat(s) if s else month_end
+        except ValueError:
+            return month_end
+
+    last_ord = {}                                    # nm -> день последнего заказа в периоде
     for r in money_rows_iter(raw):
         nm, a = r["nm"], money[r["nm"]]
         sa_of.setdefault(nm, r["sa"])
+        d = _day(r["ord"])
+        if r["op"] == "Продажа" and (nm not in last_ord or d > last_ord[nm]):
+            last_ord[nm] = d
         if r["op"] == "Продажа":
             a["qty"] += r["q"]
             a["revenue_buyer"] += r["rpw"]
@@ -256,7 +272,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
                         storno[nm] += cq[0] / cq[1] * take
                         storno_used[aid] += take
                     else:
-                        u, src = _chain_cpu(nm, r["sa"], cpu_hist, grp, setc, buy, manual, ff, day)
+                        u, src = _chain_cpu(nm, r["sa"], cpu_hist, grp, setc, buy, manual, ff, d)
                         if u is not None:
                             storno[nm] += u * take
                             storno_used[aid] += take
@@ -299,7 +315,8 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
                 cogs += (mc[nm] / mu[nm]) * rest
                 cov["cpu_month"] += rest
             else:
-                u, src = _chain_cpu(nm, sa_of.get(nm), cpu_hist, grp, setc, buy, manual, ff, day)
+                u, src = _chain_cpu(nm, sa_of.get(nm), cpu_hist, grp, setc, buy, manual, ff,
+                                    last_ord.get(nm, month_end))
                 if u is not None:
                     cogs += u * rest
                     cov[src] += rest
@@ -344,6 +361,7 @@ def money_rows_iter(raw):
     """Нормализация типов строк денег (Decimal→float) — единая точка."""
     for r in raw:
         yield {"nm": r["nm"], "sa": r["sa"], "op": r["op"], "aid": r["aid"],
+               "ord": (r["ord_dt"] or "")[:10],
                "q": float(r["q"]), "rpw": float(r["rpw"]), "ra": float(r["ra"]),
                "pay": float(r["pay"]), "del": float(r["del"]), "st": float(r["st"]),
                "acc": float(r["acc"]), "oth": float(r["oth"])}
