@@ -34,6 +34,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from collectors import yandex_closure  # noqa: E402
+from reports import yandex_ad_contract  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
 API = "https://api.partner.market.yandex.ru"
@@ -394,6 +395,12 @@ def _write_finance(fin, agg, since):
     # документами (raw_yandex_closure), сверено с ЛК до копейки. Фолбэк на stats/orders,
     # если closure за месяц не собран. См. collectors/yandex_closure.py.
     clo = yandex_closure.closure_monthly(ACCOUNT)
+    # Реклама по отдельному договору на размещение (354817/19) — ручной ввод, Партнёр-API
+    # её не отдаёт ни одним отчётом (проверено 17.08.2026). См. reports/yandex_ad_contract.py.
+    ad_contract = yandex_ad_contract.monthly(ACCOUNT)
+    if ad_contract:
+        print(f"  [ya monthly] реклама по договорам: {len(ad_contract)} мес, "
+              f"{sum(ad_contract.values()):,.2f} ₽".replace(",", " "), flush=True)
     frecs = []
     for mo, f in sorted(fin.items()):
         map_cogs = round(f["cogs"] + (f["qty"] - f["qty_cov"]) * (f["cogs"] / f["qty_cov"])
@@ -425,10 +432,16 @@ def _write_finance(fin, agg, since):
         f["boost_shows"] = s.get("boost_shows") or 0.0
         f["shelf"] = s.get("shelf") or 0.0
         loyalty = s.get("reviews") or 0.0        # Программа лояльности и отзывы → в продвижение
+        # Реклама по отдельному договору на размещение (354817/19): в Партнёр-API её нет
+        # ни в одном отчёте, суммы вводятся руками (reports/yandex_ad_contract.py).
+        # Считаем её компонентом продвижения — как бусты, полки и лояльность.
+        adc = ad_contract.get(mo, 0.0)
         if s.get("ad") is not None:      # отчёт услуг за месяц собран (даже если реклама = 0)
-            f["promotion"] = s["ad"] + loyalty
+            f["promotion"] = s["ad"] + loyalty + adc
         elif mo in boost:                # иначе фолбэк на API продвижения
-            f["promotion"] = boost[mo] + loyalty
+            f["promotion"] = boost[mo] + loyalty + adc
+        else:                            # услуг нет вовсе — договор всё равно расход
+            f["promotion"] = f["promotion"] + adc
         frecs.append({"account": ACCOUNT, "month": mo,
                       "revenue": round(f["revenue"], 2), "subsidy": round(f["subsidy"], 2),
                       "orders": int(f["orders"]),
@@ -441,6 +454,7 @@ def _write_finance(fin, agg, since):
                       "boost_sales": round(f["boost_sales"], 2),
                       "boost_shows": round(f["boost_shows"], 2),
                       "shelf": round(f["shelf"], 2),
+                      "ad_contract": round(adc, 2),
                       "unredeemed_orders": int(f["unredeemed_orders"]),
                       "unredeemed_cost": round(f["unredeemed_cost"], 2),
                       # fact is not None (а не truthy): нетто-COGS после сторно возвратов может
@@ -453,7 +467,7 @@ def _write_finance(fin, agg, since):
                   update_cols=["revenue", "subsidy", "orders", "returns_orders", "returns_sum",
                                "fee", "delivery", "transfer", "promotion", "agency", "other_fee",
                                "subscription_cost", "reviews_cost",
-                               "boost_sales", "boost_shows", "shelf",
+                               "boost_sales", "boost_shows", "shelf", "ad_contract",
                                "unredeemed_orders", "unredeemed_cost", "cogs", "cogs_cov_pct"])
         db.execute("UPDATE yandex_finance_monthly SET updated_at=now() WHERE account=%s", (ACCOUNT,))
     for r in frecs:
