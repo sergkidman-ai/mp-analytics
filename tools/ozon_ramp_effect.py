@@ -10,16 +10,22 @@
 Окна (нормируются на число ФАКТИЧЕСКИХ дней с данными, не на календарь):
   ДО    — с начала витрины по 07.08 включительно (последний день перед первым шагом);
   ПОСЛЕ — с 09.08 (первый полный день после шага 08.08) по последний день витрины.
-В витрине НЕТ 13.08 и 16.08 (отчёт Ozon в те дни не собрался), поэтому «после» короче
-и всё считается в пересчёте на день.
+Дни, за которые отчёт Ozon не собрался, в витрине отсутствуют (на 17.08 это 13.08) —
+поэтому «после» короче и всё считается в пересчёте на день; пропуски перечислены в шапке.
 
 Органика в CSV есть (недели 27.07–03.08 и 03.08–10.08), но эффект разгона по ней НЕ виден:
 разгон начался 08.08, то есть на «послед» неделю приходится 2 дня из 7, а недели 10–17.08
 в базе ещё нет (лаг Ozon ~2 дня). Колонки d_org_* — фон, не результат.
 
 Контроль обязателен: те же окна считаются для не-разгоняемых SKU acc1 и для всего acc2
-(там разгона не было). Без контроля любое движение спишется на разгон, хотя в августе
-общие продажи просели одинаково на обоих аккаунтах.
+(там разгона не было). Без контроля любое движение спишется на разгон.
+
+И ещё одна ловушка: окно «после» перекошено по выходным — 3 выходных из 7 дней против
+2 из 12 в «до». На Ozon выходные тише буден, поэтому по календарным дням получается
+мнимая «просадка рынка» −15 %, а на будних днях те же продажи, наоборот, +5 %.
+Поэтому контроль печатается двумя блоками: по всем дням и только по будням; смотреть
+надо на будний. Флаг --weekdays пересчитывает по будням вообще всё, включая вердикты
+(но для вердиктов полное окно надёжнее: «ноль заказов» за 7 дней весомее, чем за 4).
 
 Классы (колонка verdict):
   WIN        — после разгона есть рекламные заказы и ДРР в норме → ставку держать/поднимать;
@@ -50,6 +56,7 @@ MARGIN_HAIRCUT = 10.6      # бриф п.34: margin_own_live завышена
 KPI_MARGIN = 17.0
 DRR_LIMIT = 15.0
 SPLIT = dt.date(2026, 8, 8)     # день первого шага разгона
+WD = ''                         # заполняется --weekdays: фильтр «только будни»
 
 f2 = lambda x: float(x or 0)
 
@@ -65,6 +72,8 @@ CR = {1: 0.06, 2: 0.05, 3: 0.04, 4: 0.03, 5: 0.02}
 def fetch(acc):
     days = [r['d'] for r in db.query(
         "SELECT DISTINCT stat_date d FROM mkt_ozon_ads_sku_daily WHERE account=%s ORDER BY 1", (acc,))]
+    if WD:
+        days = [d for d in days if d.weekday() < 5]
     pre_days = [d for d in days if d <= SPLIT - dt.timedelta(days=1)]
     post_days = [d for d in days if d >= SPLIT + dt.timedelta(days=1)]
     weeks = [r['period_start'] for r in db.query("""
@@ -90,14 +99,14 @@ def fetch(acc):
                avg(bid) FILTER (WHERE bid > 0) bid_avg,
                count(DISTINCT stat_date) n_days
           FROM mkt_ozon_ads_sku_daily
-         WHERE account=%(a)s AND stat_date <= %(p1)s GROUP BY 1),
+         WHERE account=%(a)s AND stat_date <= %(p1)s """ + WD + """ GROUP BY 1),
     post AS (
         SELECT sku::text sku, sum(views) views, sum(clicks) clicks, sum(money_spent) spend,
                sum(orders_qty) ord, sum(orders_money) rev,
                avg(bid) FILTER (WHERE bid > 0) bid_avg,
                count(DISTINCT stat_date) n_days
           FROM mkt_ozon_ads_sku_daily
-         WHERE account=%(a)s AND stat_date >= %(p2)s GROUP BY 1),
+         WHERE account=%(a)s AND stat_date >= %(p2)s """ + WD + """ GROUP BY 1),
     bidnow AS (
         SELECT sku::text sku, max(bid) bid
           FROM ozon_bids WHERE account=%(a)s
@@ -234,7 +243,7 @@ def classify(r):
                     f"{f2(r['post_clicks']):.0f} кликов и 0 заказов, продаж за 90 дн нет")
 
 
-def control(pre_days, post_days):
+def control(pre_days, post_days, wd=''):
     """Те же окна для не-разгоняемых SKU acc1 и для acc2 — чтобы отделить разгон от рынка."""
     rows = db.query("""
     WITH ramp AS (SELECT DISTINCT sku::text sku FROM mkt_ozon_bid_ramp WHERE account='oz_acc1'),
@@ -246,7 +255,7 @@ def control(pre_days, post_days):
              a.stat_date, a.money_spent, a.clicks, a.orders_qty, a.orders_money
         FROM mkt_ozon_ads_sku_daily a
         LEFT JOIN ramp r ON r.sku = a.sku::text AND a.account='oz_acc1'
-       WHERE a.stat_date <= %(p1)s OR a.stat_date >= %(p2)s)
+       WHERE (a.stat_date <= %(p1)s OR a.stat_date >= %(p2)s) """ + wd + """)
     SELECT grp, w, round(sum(money_spent)/count(DISTINCT stat_date)) sp_d,
            round(sum(clicks)::numeric/count(DISTINCT stat_date)) cl_d,
            round(sum(orders_qty)::numeric/count(DISTINCT stat_date),1) or_d,
@@ -261,6 +270,7 @@ def control(pre_days, post_days):
         FROM raw_ozon_posting p, jsonb_array_elements(p.payload->'products') pr
        WHERE p.status<>'cancelled'
          AND p.in_process_at::date BETWEEN %(p0)s AND %(p3)s
+         """ + wd.replace('a.stat_date', 'p.in_process_at::date') + """
        GROUP BY 1,2 ORDER BY 1,2""",
                      {'p1': pre_days[-1], 'p0': pre_days[0], 'p3': post_days[-1]})
     return rows, sales
@@ -296,7 +306,13 @@ def write(name, rows, header):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--account', default='oz_acc1')
+    ap.add_argument('--weekdays', action='store_true',
+                    help='считать только по будням: окно «после» перекошено по выходным '
+                         '(3 из 7 против 2 из 12 в «до»), это одно смещает все итоги')
     a = ap.parse_args()
+    global WD
+    if a.weekdays:
+        WD = 'AND extract(isodow from stat_date) <= 5'
     acc = a.account
     short = acc.replace('oz_', '')
 
@@ -304,8 +320,11 @@ def main():
     for r in rows:
         r['verdict_ramp'], r['why'] = classify(r)
 
+    span = {post_days[0] + dt.timedelta(i) for i in range((post_days[-1] - post_days[0]).days + 1)}
+    miss = sorted(span - set(post_days))
+    gap = (', нет ' + ', '.join(d.strftime('%d.%m') for d in miss)) if miss else ''
     hdr = (f'{acc}: эффект разгона ставок. ДО {pre_days[0]}..{pre_days[-1]} ({len(pre_days)} дн) / '
-           f'ПОСЛЕ {post_days[0]}..{post_days[-1]} ({len(post_days)} дн, нет 13.08 и 16.08); '
+           f'ПОСЛЕ {post_days[0]}..{post_days[-1]} ({len(post_days)} дн{gap}); '
            f'органика неделя {w_pre} → {w_post}; ставки на {dt.date.today()}; '
            f'маржа = margin_own_live − {MARGIN_HAIRCUT} п.п.; построено {dt.date.today()}')
 
@@ -343,14 +362,19 @@ def main():
         print(f'  {v:<8} {len(g):>5} SKU | расход {n(S(g,"post_spend_d"))} ₽/дн '
               f'(было {n(S(g,"pre_spend_d"))}) | заказы {S(g,"post_ord"):.0f} '
               f'на {n(S(g,"post_rev"))} ₽ | продажи 90 дн {n(S(g,"rev90"))} ₽ — {LABEL[v]}')
-    cr, sales = control(pre_days, post_days)
-    print('\nконтроль (в день, реклама):')
-    for r in cr:
-        print(f"  {r['grp']:<24} {r['w']:<6} расход {n(f2(r['sp_d']))} ₽ | клики {f2(r['cl_d']):.0f}"
-              f" | CPC {r['cpc']} ₽ | заказы {f2(r['or_d']):.1f} | рекл. выручка {n(f2(r['rev_d']))} ₽")
-    print('контроль (в день, ФАКТ продаж по постингам):')
-    for r in sales:
-        print(f"  {r['acc']:<24} {r['w']:<6} {n(f2(r['rev_d']))} ₽/дн")
+    # Контроль печатается ДВАЖДЫ. Окно «после» перекошено по выходным (3 из 7 против 2 из 12
+    # в «до»), а выходные на Ozon тише буден — по календарным дням это одно даёт мнимую
+    # «просадку рынка». Будний срез снимает перекос; расхождение между блоками = вес выходных.
+    for lbl, wd in (('по всем дням', ''),
+                    ('только будни', 'AND extract(isodow from a.stat_date) <= 5')):
+        cr, sales = control(pre_days, post_days, wd)
+        print(f'\nконтроль, {lbl} (в день, реклама):')
+        for r in cr:
+            print(f"  {r['grp']:<24} {r['w']:<6} расход {n(f2(r['sp_d']))} ₽ | клики {f2(r['cl_d']):.0f}"
+                  f" | CPC {r['cpc']} ₽ | заказы {f2(r['or_d']):.1f} | рекл. выручка {n(f2(r['rev_d']))} ₽")
+        print(f'контроль, {lbl} (в день, ФАКТ продаж по постингам):')
+        for r in sales:
+            print(f"  {r['acc']:<24} {r['w']:<6} {n(f2(r['rev_d']))} ₽/дн")
 
     print(f'\nПОНИЖАТЬ: {len(down)} SKU, сейчас {n(S(down,"post_spend_d"))} ₽/дн '
           f'(~{n(S(down,"post_spend_d")*30)} ₽/мес) → {p_down}')
