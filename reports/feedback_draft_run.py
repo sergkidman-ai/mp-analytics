@@ -90,8 +90,11 @@ def _first_name(payload):
 
 
 def _short(name):
+    # имя товара идёт в ТЕКСТ ПОКУПАТЕЛЮ (шаблоны позитива/негатива) — внутренние складские пометки
+    # МС («*ВНИМАНИЕ*», «White Box», «не идёт в аппарат …») вырезаем, они только для оператора
+    from reports.prompt_privacy import public_name
     name = re.sub(r"^(Картридж(и)?|Фотобарабан|Чернила|Набор\s+картриджей|Заправочный\s+комплект)\s+", "",
-                  name or "", flags=re.I).strip()
+                  public_name(name), flags=re.I).strip()
     return (name[:55] + "…") if len(name) > 56 else (name or "ваш товар")
 
 

@@ -26,6 +26,8 @@ from reports.feedback_drafts import _write_html, _classify, _norm, MODEL_RX  # n
 from reports.feedback_corpus import load_corpus            # noqa: E402
 from reports.card_facts import CardFacts                   # noqa: E402
 from reports.catalog import catalog_block                  # noqa: E402
+from reports.prompt_privacy import (public_name, assert_public_facts,       # noqa: E402
+                                    scrub_finance, public_block)
 
 _CHIP_RU = {"installed": "с чипом (уже установлен, докупать не нужно)",
             "not_required": "чип уже установлен, дополнительно докупать/ставить не требуется",
@@ -44,8 +46,10 @@ def _card_data(r, cf):
                          platform=r.get("platform"),
                          card_color=" ".join(str((f or {}).get(k) or "") for k in ("color", "colormode")))
            if r["kind"] == "question" else "")
+    cat = public_block(cat, "CARD_DATA/КАТАЛОГ")
     if not f:
         return cat  # карточки нет, но каталог по наличию может быть
+    assert_public_facts(f, "CARD_DATA")   # запрет на уровне сборки: цены/остатки/поставщики — не наружу
     lines = []
     if f.get("code"):       lines.append(f"код картриджа: {f['code']} (можно назвать покупателю)")
     if f.get("kind"):       lines.append(f"тип: {f['kind']}" + (f" / {f['ptype']}" if f.get("ptype") else ""))
@@ -63,8 +67,8 @@ def _card_data(r, cf):
     if f.get("annot"):
         lines.append("ОПИСАНИЕ КАРТОЧКИ (свободный текст — бери отсюда состав/комплектацию набора, модель "
                      "картриджа, число листов; факты в полях выше приоритетнее): " + f["annot"][:600])
-    head = f"Товар: {f.get('name') or r['product_name']} (артикул {f.get('article') or '—'})"
-    block = head + "\nФАКТЫ КАРТОЧКИ:\n- " + "\n- ".join(lines)
+    head = f"Товар: {public_name(f.get('name') or r['product_name'])} (артикул {f.get('article') or '—'})"
+    block = head + "\nФАКТЫ КАРТОЧКИ:\n- " + scrub_finance("\n- ".join(lines), "ФАКТЫ КАРТОЧКИ")
     if f.get("chip_src"):
         block += f"\n(чип уточнён по Ozon-двойнику того же артикула)"
     return block + ("\n\n" + cat if cat else "")
@@ -227,8 +231,10 @@ def _user_block(r, name, compat, examples, hint=None):
             f"чип/комплектация/гарантия) — обязательно ответь И на неё тоже по CARD_DATA, не только на "
             f"совместимость. Если по этой второй теме данных в CARD_DATA нет — не выдумывай и не молчи, "
             f"а честно предложи покупателю уточнить у нас.\n")
+    # ТОВАР — внутреннее складское имя МС: служебные пометки («*ВНИМАНИЕ*», «White Box», «не идёт
+    # в аппарат …») режем ЗДЕСЬ, на сборке промпта, а не только запретом в системном промпте.
     return (f"{_fewshot(examples)}\n\n"
-            f"ПЛОЩАДКА: {r['platform']}\nТОВАР: {r['product_name']}\n"
+            f"ПЛОЩАДКА: {r['platform']}\nТОВАР: {public_name(r['product_name'])}\n"
             f"ИМЯ ПОКУПАТЕЛЯ: {name}\n"
             f"CARD_DATA (характеристики/совместимость карточки, единственный источник фактов):\n"
             f"\"\"\"{card[:2500]}\"\"\"\n"

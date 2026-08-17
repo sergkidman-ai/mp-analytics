@@ -18,6 +18,7 @@ import pathlib
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from reports.llm_client import create_with_retry                                 # noqa: E402
+from reports.prompt_privacy import public_name, public_block                     # noqa: E402
 
 WEB_SYSTEM = """Ты — специалист поддержки магазина картриджей «Цифровой квадрат» (Wildberries, Ozon).
 Покупатель спрашивает, подойдёт ли наш картридж к его принтеру. В КАРТОЧКЕ этой модели нет — но
@@ -65,8 +66,10 @@ WEB_MAX_USES = int(os.environ.get("FEEDBACK_WEB_MAX_USES", "1"))
 def web_compat(client, question, product_name, card_summary, model=None):
     """Веб-проверка совместимости. client — тот же Anthropic(relay). None если недоступно/пусто."""
     model = model or WEB_MODEL
-    prompt = (f"НАШ ТОВАР: {product_name}\n"
-              f"ФАКТЫ НАШЕЙ КАРТОЧКИ (для сверки серии/ресурса):\n{(card_summary or '(нет)')[:1200]}\n\n"
+    # наружу (веб-поиск) уходит только опубликованное: имя без складских пометок + факты карточки
+    prompt = (f"НАШ ТОВАР: {public_name(product_name)}\n"
+              f"ФАКТЫ НАШЕЙ КАРТОЧКИ (для сверки серии/ресурса):\n"
+              f"{(public_block(card_summary, 'web_compat') or '(нет)')[:1200]}\n\n"
               f"ВОПРОС ПОКУПАТЕЛЯ:\n\"\"\"{(question or '')[:600]}\"\"\"\n\n"
               f"Определи по вебу, подойдёт ли наш картридж этому принтеру. Верни JSON.")
     try:
@@ -130,8 +133,9 @@ def web_fact(client, question, product_name, card_summary, model=None, draft="")
     model = model or WEB_MODEL
     draft_line = (f"УЖЕ ГОТОВАЯ ЧАСТЬ ОТВЕТА (не повторяй её, только допиши недостающее):\n"
                   f"\"\"\"{(draft or '')[:400]}\"\"\"\n\n" if (draft or "").strip() else "")
-    prompt = (f"НАШ ТОВАР: {product_name}\n"
-              f"ФАКТЫ НАШЕЙ КАРТОЧКИ (в т.ч. блок КАТАЛОГ, если есть):\n{(card_summary or '(нет)')[:1400]}\n\n"
+    prompt = (f"НАШ ТОВАР: {public_name(product_name)}\n"
+              f"ФАКТЫ НАШЕЙ КАРТОЧКИ (в т.ч. блок КАТАЛОГ, если есть):\n"
+              f"{(public_block(card_summary, 'web_fact') or '(нет)')[:1400]}\n\n"
               f"{draft_line}"
               f"ВОПРОС ПОКУПАТЕЛЯ:\n\"\"\"{(question or '')[:600]}\"\"\"\n\n"
               f"Найди ответ в вебе. Верни JSON.")
