@@ -27,6 +27,7 @@ load_dotenv(BASE_DIR / ".env")
 BASE = "https://seller-analytics-api.wildberries.ru/api/v2/search-report"
 TOKEN_ENV = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}
 PAUSE = 5            # пауза между запросами (лимитер WB)
+BATCH_TEXTS = 50     # товаров в одном запросе product/search-texts (потолок ВБ: 100 → 400)
 MIN_OPEN = 5        # порог трафика для среза «где горит» (длинный хвост не трогаем)
 MIN_OPEN_CORE = 1   # порог для кора: берём всё, где был хоть один вход в карточку
 MAX_NMIDS = 400     # потолок товаров за прогон — держит время в разумных рамках (400×5с ≈ 33 мин)
@@ -163,23 +164,33 @@ def fetch_report(account, cur, past):
 
 
 def fetch_search_texts(account, nm_ids, cur, past):
-    """Поисковые запросы по списку товаров (по одному nmId за запрос — стабильнее)."""
+    """Поисковые запросы по списку товаров. Пачками по BATCH_TEXTS товаров за запрос.
+
+    Замер 17.08.2026 (последний день подписки, пробы jam_probe2/3): ВБ принимает СПИСОК nmId,
+    а `limit=30` действует НА КАЖДЫЙ товар, не на ответ целиком (5 товаров → 86 строк, максимум
+    28 на товар). Потолок пачки — 50 товаров: с 100 приходит 400. Потолок limit — 30, со 100
+    тоже 400. Старая схема «по одному nmId за запрос» стоила 5 с на товар, из-за чего срез
+    упирался в `ORDER BY open_card DESC LIMIT` и за всё время покрыл 2 048 nm из 14 579 —
+    88 % каталога никогда не спрашивали. Пачкой весь каталог проходится за ~30 мин.
+    """
     piso = cur["start"]
     total = 0
-    for i, nm in enumerate(nm_ids, 1):
-        body = {"currentPeriod": cur, "pastPeriod": past, "nmIds": [nm],
+    batches = [nm_ids[i:i + BATCH_TEXTS] for i in range(0, len(nm_ids), BATCH_TEXTS)]
+    for i, chunk in enumerate(batches, 1):
+        body = {"currentPeriod": cur, "pastPeriod": past, "nmIds": list(chunk),
                 "topOrderBy": "openCard", "orderBy": {"field": "openCard", "mode": "desc"},
                 "limit": 30, "offset": 0}
         items = ((_post(account, "product/search-texts", body).get("data") or {}).get("items")) or []
         recs = []
         for it in items:
+            nm = it.get("nmId")
             fr = _cd(it, "frequency")
             mp, ap = _cd(it, "medianPosition"), _cd(it, "avgPosition")
             oc = it.get("openCard") or {}
             atc, otc = _cd(it, "addToCart"), _cd(it, "openToCart")
             od, vis = _cd(it, "orders"), _cd(it, "visibility")
             recs.append({
-                "account": account, "period_start": piso, "nm_id": it.get("nmId") or nm,
+                "account": account, "period_start": piso, "nm_id": nm,
                 "text": it.get("text"),
                 "frequency": fr[0], "frequency_dyn": fr[1], "week_frequency": it.get("weekFrequency"),
                 "median_position": mp[0], "median_position_dyn": mp[1],
@@ -196,8 +207,10 @@ def fetch_search_texts(account, nm_ids, cur, past):
         if recs:
             db.upsert("wb_search_text", recs, conflict_cols=["account", "period_start", "nm_id", "text"])
             total += len(recs)
-        if i % 10 == 0:
-            print(f"  [jam texts {account}] {i}/{len(nm_ids)} товаров, запросов {total}", flush=True)
+        if i % 5 == 0 or i == len(batches):
+            print(f"  [jam texts {account}] пачка {i}/{len(batches)}"
+                  f" ({min(i * BATCH_TEXTS, len(nm_ids))}/{len(nm_ids)} товаров),"
+                  f" запросов {total}", flush=True)
         time.sleep(PAUSE)
     print(f"[jam texts {account}] товаров {len(nm_ids)}, запросов записано: {total}", flush=True)
     return total
@@ -251,6 +264,17 @@ def _target_nmids(account, piso, scope="problem"):
         return _problem_nmids(account, piso)
     if scope == "traffic":
         return _traffic_nmids(account, piso)
+    if scope == "full":
+        # Весь каталог. Стал возможен только с пачками по 50 (BATCH_TEXTS): раньше это было
+        # 14 579 запросов по 5 с ≈ 20 часов, теперь ~292 запроса ≈ 30 мин. Порядок — по трафику,
+        # чтобы при обрыве успело записаться главное.
+        return [r["nm_id"] for r in db.query("""
+            SELECT c.nm_id FROM wb_cards c
+            LEFT JOIN wb_search_report r ON r.account = c.account AND r.nm_id = c.nm_id
+                                        AND r.period_start = %s
+            WHERE c.account = %s
+            ORDER BY COALESCE(r.open_card, 0) DESC, c.nm_id
+        """, (piso, account))]
     core = _core_nmids(account, piso)
     if scope == "core":
         return core
