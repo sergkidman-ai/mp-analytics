@@ -48,9 +48,10 @@ ACCOUNTS = ("ya_acc1",)
 # сырые строки витрины yandex_finance_monthly (положительные величины)
 _BAL_KEYS = ["revenue", "subsidy", "fee", "delivery", "transfer", "promotion",
              "agency", "other_fee", "subscription_cost", "reviews_cost",
-             "boost_sales", "boost_shows", "shelf", "returns_money"]
+             "boost_sales", "boost_shows", "shelf", "ad_contract", "returns_money"]
 # расходы площадки, из которых складывается «Итого расходы Маркета» (= mp_cost в _ya_business).
-# promotion — родительская строка (= boost_sales+boost_shows+shelf+reviews_cost «лояльность»),
+# promotion — родительская строка (= boost_sales+boost_shows+shelf+reviews_cost «лояльность»
+# + ad_contract «реклама по отдельному договору на размещение», ручной ввод),
 # в сумму берём ЕЁ, а компоненты показываем под-строками (не суммируем дважды). reviews_cost
 # сюда НЕ входит отдельно — он уже внутри promotion (иначе двойной счёт).
 MP_EXP = ["fee", "delivery", "transfer", "promotion", "agency", "other_fee",
@@ -64,6 +65,7 @@ KIND = {
     "orders": "count_up", "returns_cnt": "count_dn", "check": "check",
     "fee": "expense", "delivery": "expense", "transfer": "expense", "promotion": "expense",
     "boost_sales": "expense", "boost_shows": "expense", "shelf": "expense",
+    "ad_contract": "expense",
     "agency": "expense", "other_fee": "expense", "subscription_cost": "expense",
     "reviews_cost": "expense", "returns_money": "expense", "itog": "expense", "cogs": "expense",
     "payout": "inflow", "net": "inflow", "margin": "margin",
@@ -85,7 +87,7 @@ def _row(y, m):
                   other_fee::float other_fee, subscription_cost::float subscription_cost,
                   reviews_cost::float reviews_cost, cogs::float cogs,
                   boost_sales::float boost_sales, boost_shows::float boost_shows,
-                  shelf::float shelf
+                  shelf::float shelf, ad_contract::float ad_contract
              FROM yandex_finance_monthly
              WHERE account='ya_acc1' AND month=make_date(%s,%s,1)""",
         (y, m))
@@ -216,9 +218,12 @@ def current_report():
     if per and proj_orders > 0:
         fc_mags = {k: per[k] * proj_orders for k in _BAL_KEYS}
         fc_mags["subscription_cost"] = per["_sub_month"]     # фикс-подписка, не масштабируем
-        # promotion держим согласованной с частями (родитель = бусты + полки + лояльность)
+        # реклама по договору на размещение — фикс месяца из ручного ввода, а не на заказ
+        fc_mags["ad_contract"] = float(mags.get("ad_contract") or 0)
+        # promotion держим согласованной с частями (родитель = бусты + полки + лояльность + договор)
         fc_mags["promotion"] = (fc_mags["boost_sales"] + fc_mags["boost_shows"]
-                                + fc_mags["shelf"] + fc_mags["reviews_cost"])
+                                + fc_mags["shelf"] + fc_mags["reviews_cost"]
+                                + fc_mags["ad_contract"])
         fc_cogs = per["cogs"] * proj_orders
         fc_retc = per["_ret_rate"] * proj_orders
         forecast = _derive(fc_mags, proj_orders, fc_retc, fc_cogs)
