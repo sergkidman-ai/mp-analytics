@@ -51,6 +51,10 @@ ART = BASE_DIR / "docs" / "feedback_today_artifact.html"
 # WEB_MODEL/DeepSeek, отзывы — на общей MODEL/DeepSeek, как раньше). Sonnet-сплит в feedback_web.py убран.
 QUESTION_MODEL = os.environ.get("FEEDBACK_QUESTION_MODEL", "claude-opus-5")
 
+# Сводка последнего run(): {'drafts', 'fails': [{platform,kind,ext_id,err}], 'llm_calls', 'web_calls'}.
+# Читает feedback_bot.health.report_cycle, чтобы сообщить, что именно не ушло и почему.
+LAST_RUN = {"drafts": 0, "fails": [], "llm_calls": 0, "web_calls": 0}
+
 # $ за 1M токенов (in, out) — для оценки стоимости прогона. DeepSeek не тарифицируем (нет цены в контуре
 # задачи, отдельный биллинг), Opus/Sonnet — по прайсу Anthropic.
 _PRICING = {
@@ -1011,6 +1015,7 @@ def run(since="2026-06-17"):
           f"Корпус few-shot: {len(corpus.items)}.", flush=True)
 
     out, nllm, nweb, nfail = [], 0, 0, 0
+    fails = []
     for i, r in enumerate(rows, 1):
         try:
             outd, reply, route, conf, ground, ul, uw = _answer(client, r, cf, corpus)
@@ -1019,6 +1024,10 @@ def run(since="2026-06-17"):
             # покупатель ждёт следующего цикла, чем получит служебный текст. draft_src_hash не
             # проставлен → _gather() возьмёт эту запись снова через 2 часа.
             nfail += 1
+            # причину копим для health.report_cycle: молчаливый провал недопустим — 13.08.2026
+            # четыре дня вопросы падали на пустом балансе Anthropic, а цикл рапортовал OK
+            fails.append({"platform": r["platform"], "kind": r["kind"], "ext_id": r["ext_id"],
+                          "err": f"{type(e).__name__}: {str(e)[:200]}"})
             print(f"[{i}/{len(rows)}] ПРОПУСК без черновика {r['platform']}/{r['kind']} "
                   f"{r['ext_id']}: {type(e).__name__}: {str(e)[:120]}", flush=True)
             continue
@@ -1042,6 +1051,10 @@ def run(since="2026-06-17"):
     print(_COST.summary(), flush=True)
     _COST.persist()
     print(f"Артефакт-файл: {ART}", flush=True)
+    # сводка прогона для feedback_bot.health.report_cycle — возврат run() не трогаем, его читают
+    # другие вызывающие (ручные прогоны, backfill)
+    global LAST_RUN
+    LAST_RUN = {"drafts": len(out), "fails": fails, "llm_calls": nllm, "web_calls": nweb}
     return out
 
 

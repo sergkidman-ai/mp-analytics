@@ -80,10 +80,27 @@ def _index_line():
             f"листингов {m['items_total']}")
 
 
+def _unanswered_total():
+    """Сколько содержательных обращений висит без ответа на площадках — контекст для алерта."""
+    try:
+        r = db.query("""SELECT count(*) n FROM raw_feedback
+            WHERE is_answered=false AND NOT skipped_old AND posted_at IS NULL
+            AND created_at > now() - make_interval(days => %s)""", (DRAFT_SINCE_DAYS,))
+        return r[0]["n"] if r else None
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
 def main(no_send=None):
     no_send = (os.environ.get("FEEDBACK_CYCLE_NO_SEND", "0") == "1") if no_send is None else no_send
     started = time.strftime("%Y-%m-%d %H:%M:%S")
     _log(f"=== цикл начат {started}{' · РЕЖИМ БЕЗ ОТПРАВКИ (--no-send)' if no_send else ''} ===")
+
+    # Шаг 0: провайдеры ДО генерации. Пустой баланс — главная причина простоя (13.08.2026, четыре
+    # дня молча падали все вопросы), поэтому ругаемся заранее, а не после впустую сожжённого цикла.
+    # Цикл не прерываем: умер один провайдер — второй должен доработать свою часть очереди.
+    from feedback_bot import health
+    _step("0/5 предполёт: балансы и доступность моделей", health.preflight)
 
     from collectors import feedback_collect_all
     _step("1/5 сбор по каналам", feedback_collect_all.main)
@@ -102,6 +119,7 @@ def main(no_send=None):
     _step("3/5 генерация черновиков", feedback_today.run, since=since)
 
     from feedback_bot import tg_moderation
+    auto = None
     if no_send:
         # Всё, что уходит наружу (площадки + карточки оператору), в тестовом прогоне пропускаем.
         # Очередь модерации при этом наполняется — карточки уйдут следующим боевым циклом.
@@ -110,10 +128,18 @@ def main(no_send=None):
         _step("3b/5 слив хвоста старой схемы лимита (deferred)", tg_moderation.flush_deferred)
 
         from collectors import feedback_autosend
-        _step("4/5 авто-отправка позитив-шаблонов", feedback_autosend.run)
+        auto = _step("4/5 авто-отправка позитив-шаблонов", feedback_autosend.run)
 
         sent = _step("5/5 карточки модерации в Telegram", tg_moderation.send_batch, limit=MOD_CYCLE_BATCH)
         _log(f"карточек отправлено: {sent if sent is not None else 0}")
+
+    # Итог: если хоть что-то НЕ ушло — сказать об этом с причиной. Без этого цикл рапортует OK
+    # даже когда все до одного ответа провалились.
+    _step("итог: контроль неотправленного", health.report_cycle,
+          fails=(feedback_today.LAST_RUN or {}).get("fails"),
+          drafts=(feedback_today.LAST_RUN or {}).get("drafts", 0),
+          autosend=(auto if not no_send else None),
+          pending=_unanswered_total())
 
     _log("=== цикл завершён ===")
 
