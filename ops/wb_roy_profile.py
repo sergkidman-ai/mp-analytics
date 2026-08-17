@@ -3,11 +3,11 @@
 """ops/wb_roy_profile.py — недельный Рой по ПРОФИЛЮ ЦЕЛИКОМ: реклама + органика вместе.
 
 ЗАЧЕМ ОТДЕЛЬНЫЙ СКРИПТ. Правило Сергея, повторённое несколько раз: позицию судим не по
-рекламному отчёту, а по профилю в целом — сколько товар суммарно заказали и на сколько вырос
-или упал ОН, а не его рекламная строка. Причина не в педантичности: на ВБ работает гало —
-рекламный показ поднимает карточку в органике, и заказ приходит уже без клика по рекламе.
+рекламному отчёту, а по профилю в целом — сколько товар суммарно заказали и сколько это стоило.
 `ops/wb_roy_week.py` считал ДРР как расход/выручка_РЕКЛАМЫ и потому системно завышал его:
 знаменатель был меньше настоящего. Товар, окупившийся органикой, попадал в красные.
+Гало отдельно НЕ меряем (решение Сергея 17.08.2026: «гонять за призраками») — оно и не нужно,
+общий знаменатель ловит и рекламный, и органический заказ одинаково.
 
 ЧТО СЧИТАЕМ:
   выручка_всего  — sales-funnel v3 за неделю (все заказы ВБ по nm, и рекламные, и органические);
@@ -16,9 +16,9 @@
   потолок ДРР    — индивидуальный: маржа_live − WB_MARGIN_GATE (реклама вычитается из той же
                    маржи, по которой меряется KPI-25 %).
 
-ГАЛО меряем, а не постулируем: SKU режутся по изменению расхода неделя-к-неделе, и по каждой
-группе сравнивается рост ОРГАНИЧЕСКИХ заказов. Если гало есть, группа с выросшим расходом
-обязана расти в органике быстрее группы, которую не трогали.
+КОГО ДОБАВЛЯТЬ. Отдельный блок: SKU, которых в рекламе НЕТ вообще (нет строки в
+wb_bid_override), но по общей метрике они этого заслуживают — есть заказы за неделю и маржа
+не ниже KPI. Реклама расширяется не только вглубь по уже ведомым, но и вширь.
 
 Данные воронки за произвольную неделю в БД не лежат (wb_funnel ключуется месяцем), поэтому
 скрипт читает их из JSON-выгрузки, снятой отдельно: {"w1": {nm: {...}}, "w2": {nm: {...}}}.
@@ -42,6 +42,7 @@ W1 = ('2026-08-03', '2026-08-09')      # прошлая неделя, пн-вс
 W2 = ('2026-08-10', '2026-08-16')      # отчётная неделя, пн-вс
 JAM2 = '2026-08-10'                    # окно Джема 10-16.08 — совпадает с W2 день в день
 JAM1 = '2026-08-03'
+CORE_MONTHS = ('2026-05-01', '2026-07-01')   # три полных месяца для ядра кандидатов
 
 
 def _ads(d1, d2):
@@ -95,38 +96,7 @@ def main(path):
         print(f"{lbl:22}{x:>12,.0f}{y:>12,.0f}{d(x, y):>9}")
     print(f"{'ДРР ПРОФИЛЯ':22}{100*as1/s1 if s1 else 0:>11.1f}%{100*as2/s2 if s2 else 0:>11.1f}%")
 
-    # ── 2. Гало: группируем по изменению расхода, смотрим ОРГАНИКУ
-    print(f"\nГАЛО-ТЕСТ. Группы по изменению расхода рекламы, рост считается по ОРГАНИЧЕСКИМ заказам")
-    print(f"{'группа':26}{'SKU':>6}{'расход ₽':>10}{'орг.закз':>10}{'орг.закз':>10}"
-          f"{'дельта':>9}{'открытия':>10}{'дельта':>9}")
-    groups = {'расход вырос вдвое+': [], 'расход вырос': [], 'расход не менялся': [],
-              'расход упал': [], 'не тратили обе недели': []}
-    for nm in set(list(f1) + list(f2) + list(bids)):
-        sp1 = float((a1.get(nm) or {}).get('s') or 0)
-        sp2 = float((a2.get(nm) or {}).get('s') or 0)
-        if sp1 < 1 and sp2 < 1:
-            k = 'не тратили обе недели'
-        elif sp1 < 1 <= sp2 or (sp1 and sp2 / sp1 >= 2):
-            k = 'расход вырос вдвое+'
-        elif sp2 > sp1 * 1.1:
-            k = 'расход вырос'
-        elif sp2 < sp1 * 0.9:
-            k = 'расход упал'
-        else:
-            k = 'расход не менялся'
-        groups[k].append(nm)
-    for k, nms in groups.items():
-        if not nms:
-            continue
-        sp2 = sum(float((a2.get(n) or {}).get('s') or 0) for n in nms)
-        oo1 = sum((f1.get(n) or {}).get('ord', 0) - int((a1.get(n) or {}).get('o') or 0) for n in nms)
-        oo2 = sum((f2.get(n) or {}).get('ord', 0) - int((a2.get(n) or {}).get('o') or 0) for n in nms)
-        op_1 = sum((f1.get(n) or {}).get('o', 0) for n in nms)
-        op_2 = sum((f2.get(n) or {}).get('o', 0) for n in nms)
-        print(f"{k:26}{len(nms):>6}{sp2:>10,.0f}{oo1:>10}{oo2:>10}{d(oo1, oo2):>9}"
-              f"{op_2:>10,}{d(op_1, op_2):>9}")
-
-    # ── 3. Цвета по профилю
+    # ── 2. Цвета по профилю
     rows = []
     for nm, (cpc, adv) in bids.items():
         a = a2.get(nm) or {}
@@ -194,6 +164,79 @@ def main(path):
         print(f"{k:14}{len(g):>6}{sp:>10,.0f}{rv:>13,.0f}"
               f"{(100*sp/rv if rv else 0):>8.1f}%{sum(r['tot_o'] for r in g):>11}"
               f"{sum(r['org_o'] for r in g):>11}{sum(r['prev_o'] for r in g):>10}")
+
+    # ── 3. Кого ДОБАВИТЬ: продаётся сам, ставки нет вовсе
+    cand = []
+    for nm, f in f2.items():
+        if nm in bids:
+            continue
+        m = marg.get(nm)
+        if m is None or m < WB_MARGIN_GATE:
+            continue
+        tot_o = int(f.get('ord') or 0)
+        if tot_o <= 0:
+            continue
+        rev = float(f.get('sum') or 0)
+        cand.append(dict(nm=nm, m=m, cap=max(0.0, m - WB_MARGIN_GATE), o=tot_o, rev=rev,
+                         prev=int((f1.get(nm) or {}).get('ord') or 0),
+                         cart=int(f.get('c') or 0), oc=int(f.get('o') or 0),
+                         pos=(float(j2[nm]['avg_position']) if j2.get(nm) and j2[nm].get('avg_position') else None),
+                         budget=max(0.0, m - WB_MARGIN_GATE) / 100 * rev))
+    cand.sort(key=lambda r: -r['budget'])
+    nom = [r for r in f2.values()]
+    print(f"\nКОГО ДОБАВИТЬ В РЕКЛАМУ · продаются сами, ставки нет · {len(cand)} SKU")
+    print(f"  вне рекламы всего {len(f2)-len(bids)} nm; из них с заказами за неделю "
+          f"{sum(1 for nm, f in f2.items() if nm not in bids and int(f.get('ord') or 0) > 0)}, "
+          f"из них в KPI по марже {len(cand)}")
+    print(f"  их заказы {sum(r['o'] for r in cand)} шт, выручка {sum(r['rev'] for r in cand):,.0f} ₽, "
+          f"свободный бюджет до потолков ≈ {sum(r['budget'] for r in cand):,.0f} ₽/нед")
+    print(f"  {'nm_id':>11}{'маржа%':>8}{'потолок%':>9}{'заказы':>7}{'было':>6}{'выручка ₽':>11}{'бюджет ₽':>9}")
+    for r in cand[:12]:
+        print(f"  {r['nm']:>11}{r['m']:>8.1f}{r['cap']:>9.1f}{r['o']:>7}{r['prev']:>6}"
+              f"{r['rev']:>11,.0f}{r['budget']:>9,.0f}")
+
+    # ── 3б. То же, но на трёх месяцах: одна неделя с одним заказом — это шум,
+    # порог MIN_QTY_FACT из витрины экономики придуман ровно за этим.
+    core = []
+    for x in db.query("""select article, count(*) mo, sum(qty) q, sum(revenue_buyer) rev
+                           from sales where platform='wb' and account=%s and granularity='month'
+                            and period_from between %s and %s
+                          group by 1 having sum(qty) > 0""", (ACC, *CORE_MONTHS)):
+        try:
+            nm = int(x['article'])
+        except (TypeError, ValueError):
+            continue
+        m = marg.get(nm)
+        if nm in bids or m is None or m < WB_MARGIN_GATE:
+            continue
+        mo, q, rev = int(x['mo']), float(x['q']), float(x['rev'])
+        if mo < 2 or q < 3:                      # продаётся стабильно, а не разово
+            continue
+        core.append(dict(nm=nm, mo=mo, q=q, rev=rev, m=m, wk=(m - WB_MARGIN_GATE) / 100 * rev / 13))
+    core.sort(key=lambda r: -r['rev'])
+    print(f"\n  ЯДРО КАНДИДАТОВ на {CORE_MONTHS[0][:7]}–{CORE_MONTHS[1][:7]} (≥2 месяцев с продажами и ≥3 шт): "
+          f"{len(core)} SKU, {sum(r['q'] for r in core):,.0f} шт, {sum(r['rev'] for r in core):,.0f} ₽; "
+          f"бюджет до потолков ≈ {sum(r['wk'] for r in core):,.0f} ₽/нед")
+    pk = BASE_DIR / 'docs' / 'reports' / f"mkt_roy_add_core_{W2[1]}.csv"
+    with io.open(pk, 'w', encoding='utf-8-sig', newline='') as fh:
+        w = csv.writer(fh, delimiter=';')
+        w.writerow(['nm_id', 'месяцев_с_продажами', 'штук_3мес', 'выручка_3мес_₽',
+                    'маржа_live_%', 'бюджет_₽_нед'])
+        for r in core:
+            w.writerow([r['nm'], r['mo'], f"{r['q']:.0f}", f"{r['rev']:.0f}",
+                        f"{r['m']:.1f}", f"{r['wk']:.0f}"])
+    print(f"  ядро: {pk}")
+
+    pc = BASE_DIR / 'docs' / 'reports' / f"mkt_roy_add_{W2[1]}.csv"
+    with io.open(pc, 'w', encoding='utf-8-sig', newline='') as fh:
+        w = csv.writer(fh, delimiter=';')
+        w.writerow(['nm_id', 'маржа_live_%', 'ДРР_потолок_%', 'заказы_неделя', 'заказы_прошлая',
+                    'выручка_₽', 'бюджет_до_потолка_₽_нед', 'в_корзину', 'открытия', 'орг_позиция'])
+        for r in cand:
+            w.writerow([r['nm'], f"{r['m']:.1f}", f"{r['cap']:.1f}", r['o'], r['prev'],
+                        f"{r['rev']:.0f}", f"{r['budget']:.0f}", r['cart'], r['oc'],
+                        f"{r['pos']:.0f}" if r['pos'] else ''])
+    print(f"  список: {pc}")
 
     p = BASE_DIR / 'docs' / 'reports' / f"mkt_roy_profile_{W2[1]}.csv"
     with io.open(p, 'w', encoding='utf-8-sig', newline='') as fh:
