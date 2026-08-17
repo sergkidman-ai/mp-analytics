@@ -44,30 +44,53 @@ def cmd_plan(acc):
     print(f'план разгона: {n} позиций в mkt_ozon_bid_ramp (status=planned)')
 
 
-def _report(acc, d_from, d_to):
-    """Асинхронный отчёт Performance API в разрезе SKU: {campaign_id: rows}."""
+def _report(acc, d_from, d_to, patience=300, tries=2):
+    """Асинхронный отчёт Performance API в разрезе SKU: {campaign_id: rows}.
+
+    NOT_STARTED — это очередь на стороне Ozon, а не ошибка: отчёт просто ещё не начали
+    считать. 13.08 и 16.08 потерялись именно так — ждали 5 минут и молча писали 0 строк.
+    Поэтому: ждём `patience` секунд и при NOT_STARTED заказываем отчёт заново (`tries`)."""
     H = {'Authorization': f'Bearer {_token(acc)}', 'Content-Type': 'application/json'}
     ids = [str(r['campaign_id']) for r in db.query("""SELECT DISTINCT campaign_id FROM ozon_bids
         WHERE account=%s AND captured_at=(SELECT max(captured_at) FROM ozon_bids WHERE account=%s)""", (acc, acc))]
     out = {}
     for i in range(0, len(ids), 10):                       # не больше 10 кампаний за запрос
         body = {'campaigns': ids[i:i + 10], 'dateFrom': d_from, 'dateTo': d_to, 'groupBy': 'NO_GROUP_BY'}
-        r = requests.post(f'{PERF}/api/client/statistics/json', headers=H, json=body, timeout=120)
-        r.raise_for_status()
-        uuid = r.json().get('UUID') or r.json().get('uuid')
-        for _ in range(60):
-            time.sleep(5)
-            st = requests.get(f'{PERF}/api/client/statistics/{uuid}', headers=H, timeout=60).json().get('state')
-            if st in ('OK', 'ERROR', 'CANCELLED'):
+        for attempt in range(1, tries + 1):
+            r = requests.post(f'{PERF}/api/client/statistics/json', headers=H, json=body, timeout=120)
+            r.raise_for_status()
+            uuid = r.json().get('UUID') or r.json().get('uuid')
+            st = None
+            for _ in range(max(1, patience // 5)):
+                time.sleep(5)
+                st = requests.get(f'{PERF}/api/client/statistics/{uuid}', headers=H, timeout=60).json().get('state')
+                if st in ('OK', 'ERROR', 'CANCELLED'):
+                    break
+            if st == 'OK':
+                rep = requests.get(f'{PERF}/api/client/statistics/report', headers=H,
+                                   params={'UUID': uuid}, timeout=180)
+                out.update(rep.json())
                 break
-        if st != 'OK':
-            print(f'  отчёт {uuid}: {st} — пропуск'); continue
-        rep = requests.get(f'{PERF}/api/client/statistics/report', headers=H, params={'UUID': uuid}, timeout=180)
-        out.update(rep.json())
+            print(f'  отчёт {uuid}: {st} (попытка {attempt}/{tries})', flush=True)
     return out
 
 
-def cmd_snapshot(acc, day):
+def cmd_gaps(acc, days, patience):
+    """Добрать дни, за которые в витрине пусто. Вызывается ежедневно — дыры сами зарастают."""
+    today = dt.date.today()
+    have = {r['stat_date'] for r in db.query(
+        """SELECT DISTINCT stat_date FROM mkt_ozon_ads_sku_daily
+           WHERE account=%s AND stat_date >= %s""", (acc, today - dt.timedelta(days=days)))}
+    miss = [today - dt.timedelta(days=i) for i in range(1, days + 1)]
+    miss = [d for d in sorted(miss) if d not in have]
+    if not miss:
+        print(f'{acc}: дыр за последние {days} дн нет'); return
+    print(f'{acc}: добираю {len(miss)} дн: ' + ', '.join(d.strftime("%d.%m") for d in miss), flush=True)
+    for d in miss:
+        cmd_snapshot(acc, str(d), patience=patience)
+
+
+def cmd_snapshot(acc, day, patience=300):
     bids = {(r['cid'], r['sku']): r for r in
             [{'cid': str(x['campaign_id']), 'sku': str(x['sku']), 'bid': float(x['bid'])} for x in
              db.query("""SELECT campaign_id, sku, max(bid) bid FROM ozon_bids WHERE account=%s
@@ -76,7 +99,7 @@ def cmd_snapshot(acc, day):
     bridge = {r['sku']: r['offer_id'] for r in
               db.query('SELECT sku, offer_id FROM ozon_product WHERE account=%s', (acc,))}
     agg, n = {}, 0
-    for cid, blk in _report(acc, day, day).items():
+    for cid, blk in _report(acc, day, day, patience=patience).items():
         for row in blk.get('report', {}).get('rows', []):
             if not row.get('sku'):
                 continue
@@ -160,17 +183,22 @@ def cmd_step(acc, day, apply_, limit, cap=8000.0):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['plan', 'snapshot', 'step'])
+    ap.add_argument('cmd', choices=['plan', 'snapshot', 'step', 'gaps'])
     ap.add_argument('--account', default=ACC)
     ap.add_argument('--date', default=str(dt.date.today() - dt.timedelta(days=1)))
     ap.add_argument('--apply', action='store_true', help='ОТПРАВИТЬ ставки в Ozon (только по команде Сергея)')
     ap.add_argument('--limit', type=int, default=0, help='ограничить число позиций шага (обкатка)')
+    ap.add_argument('--days', type=int, default=10, help='gaps: глубина проверки дыр в витрине')
+    ap.add_argument('--patience', type=int, default=1800,
+                    help='gaps/snapshot: сколько секунд ждать отчёт Ozon (NOT_STARTED = очередь)')
     ap.add_argument('--max-spend', type=float, default=8000.0,
                     help='потолок дневного расхода acc1, выше которого разгон останавливается')
     a = ap.parse_args()
     if a.cmd == 'plan':
         cmd_plan(a.account)
     elif a.cmd == 'snapshot':
-        cmd_snapshot(a.account, a.date)
+        cmd_snapshot(a.account, a.date, patience=a.patience)
+    elif a.cmd == 'gaps':
+        cmd_gaps(a.account, a.days, a.patience)
     else:
         cmd_step(a.account, str(dt.date.today()), a.apply, a.limit, a.max_spend)
