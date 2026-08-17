@@ -261,8 +261,12 @@ def _log(rows_):
                [v for r in rows_ for v in (r[c] for c in cols)])
 
 
-def apply_step(account, rows, note):
-    """Живая запись. Группируем по кампании: один PATCH на advert_id."""
+def apply_step(account, rows, note, author="ladder"):
+    """Живая запись. Группируем по кампании: один PATCH на advert_id.
+
+    author — кто инициировал правку: пишется в wb_bid_log и wb_bid_override.
+    По нему лестница отличает свой кулдаун от чужой правки (lower / roy).
+    """
     token = os.getenv(TOKEN_ENV[account], "")
     if not token:
         raise RuntimeError(f"{TOKEN_ENV[account]} не задан")
@@ -293,12 +297,12 @@ def apply_step(account, rows, note):
                 hit = (nm, cpc) in alive
                 logs.append({"account": account, "nm_id": nm, "advert_id": adv, "action": "api_set",
                              "applied": hit, "old_cpc": old, "new_cpc": cpc,
-                             "old_source": "api_set", "author": "ladder", "note": note})
+                             "old_source": "api_set", "author": author, "note": note})
                 ok, bad = (ok + 1, bad) if hit else (ok, bad + 1)
             if alive:
                 db.upsert("wb_bid_override",
                           [{"account": account, "nm_id": nm, "cpc": cpc, "source": "api_set",
-                            "advert_id": adv, "note": note, "author": "ladder", "updated_at": now}
+                            "advert_id": adv, "note": note, "author": author, "updated_at": now}
                            for nm, cpc in alive],
                           conflict_cols=["account", "nm_id"],
                           update_cols=["cpc", "source", "advert_id", "note", "author", "updated_at"])
@@ -309,7 +313,7 @@ def apply_step(account, rows, note):
             old = next(r["old_cpc"] for r in rows if r["nm_id"] == nm)
             logs.append({"account": account, "nm_id": nm, "advert_id": adv, "action": "api_set",
                          "applied": applied, "old_cpc": old, "new_cpc": cpc,
-                         "old_source": "api_set", "author": "ladder", "note": note})
+                         "old_source": "api_set", "author": author, "note": note})
             if applied:
                 ok += 1
             else:
@@ -317,7 +321,7 @@ def apply_step(account, rows, note):
         if applied:
             db.upsert("wb_bid_override",
                       [{"account": account, "nm_id": nm, "cpc": cpc, "source": "api_set",
-                        "advert_id": adv, "note": note, "author": "ladder", "updated_at": now}
+                        "advert_id": adv, "note": note, "author": author, "updated_at": now}
                        for nm, cpc in pairs],
                       conflict_cols=["account", "nm_id"],
                       update_cols=["cpc", "source", "advert_id", "note", "author", "updated_at"])
