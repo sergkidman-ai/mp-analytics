@@ -1,0 +1,12 @@
+[Unit]
+Description=Алерт в Telegram: цикл ответов не доработал (падение/OOM)
+# Зовётся из OnFailure= у feedback-cycle.service. Внутренний отчёт (health.report_cycle) работает
+# только когда цикл дожил до конца; убитый OOM-killer'ом процесс отчитаться не может — для этого
+# и нужен внешний юнит.
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/feedback_bot/health.py --cycle-failed
+StandardOutput=journal
+StandardError=journal
