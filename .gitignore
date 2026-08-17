@@ -1,4 +1,29 @@
+# --- секреты: НИКОГДА не в git ---
+# .env и любые его варианты/бэкапы (.env.bak_*, .env.prod, .env.local ...),
+# кроме шаблона без значений
 .env
+.env.*
+!.env.example
+*.env.bak
+*.env.bak.*
+env.bak_*
+
+# учётки Claude Code и их бэкапы
+.claude/.credentials.json
+.claude/.credentials.json.*
+.claude/settings.local.json
+
+# приватные ключи, сертификаты, хранилища ключей — в любом месте дерева
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# рантайм-логи (в т.ч. журнал guard_side_effects)
+logs/
+
 __pycache__/
 *.pyc
 venv/
