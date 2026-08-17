@@ -72,6 +72,24 @@ def demand_cogs_from_cache(org_id):
     return {r["demand_name"]: (float(r["cogs"] or 0), float(r["qty"] or 0)) for r in rows}
 
 
+def sold_units_by_demand(account):
+    """{assembly_id: штук ПРОДАНО по отчётам ВБ за всю историю} — знаменатель себеста/шт при сторно.
+
+    Начисление себеста делит cogs документа на штуки ВБ (`c * q / tot_q` ниже), поэтому и сторно
+    обязано делить на них же. Штуки МС (`ms_demand_cogs.qty`) для наборов больше: набор = 1 позиция
+    ВБ = 4–5 строк компонентов в МС, и деление на них занижало сторно в 4–5 раз (159 возвратов,
+    недо-сторно 145 тыс ₽ за окт-2025…авг-2026; правка по решению Сергея 2026-08-17).
+    Всю историю, а не месяц: возврат почти всегда приходит позже месяца продажи.
+    """
+    return {r["aid"]: float(r["q"]) for r in db.query("""
+        SELECT payload->>'assembly_id' aid,
+               sum(coalesce((payload->>'quantity')::numeric,0)) q
+          FROM raw_wb_report
+         WHERE account=%s AND payload->>'supplier_oper_name'='Продажа'
+           AND coalesce(payload->>'assembly_id','0') <> '0'
+         GROUP BY 1 HAVING sum(coalesce((payload->>'quantity')::numeric,0)) > 0""", (account,))}
+
+
 def return_sellable_qty(org_id):
     """{assembly_id(demand_name): Σ ret_qty} возвратов в ПРОДАВАЕМЫЙ сток по данным МойСклада.
     БОЛЬШЕ НЕ ГЕЙТ для сторно COGS (решение Сергея 2026-08-13, см. storno_budget) — оставлена как
@@ -196,6 +214,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     org_id = _org_id(account)
     cogs_order = demand_cogs_from_cache(org_id)       # {aid: (cogs, qty)}
     sell_budget = storno_budget(account, ym)          # {aid: штук с начисленной и не сторнированной выручкой}
+    sold_units = sold_units_by_demand(account)        # {aid: штук ВБ} — знаменатель себеста/шт сторно
 
     # Деньги по nm из отчётов месяца формирования (семантика = collectors/wb.normalize_sales).
     raw = db.query("""
@@ -267,9 +286,12 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
             if aid and aid != "0":
                 take = min(r["q"], max(0.0, sell_budget.get(aid, 0.0) - storno_used[aid]))
                 cq = cogs_order.get(aid)
+                # Знаменатель — штуки ВБ этой отгрузки (как при начислении), НЕ штуки МС:
+                # набор = 1 позиция ВБ = несколько строк в МС (см. sold_units_by_demand).
+                den = sold_units.get(aid) or (cq[1] if cq else 0)
                 if take > 0:
-                    if cq and cq[1] > 0:
-                        storno[nm] += cq[0] / cq[1] * take
+                    if cq and cq[0] and den > 0:
+                        storno[nm] += cq[0] / den * take
                         storno_used[aid] += take
                     else:
                         u, src = _chain_cpu(nm, r["sa"], cpu_hist, grp, setc, buy, manual, ff, d)
