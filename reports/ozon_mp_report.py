@@ -211,13 +211,34 @@ def _cogs(account, y, m):
     return float(r[0]["c"])
 
 
-def _month_last_day(y, m):
-    r = db.query(
-        """SELECT max((payload->>'operation_date')::date) mx FROM raw_ozon_transaction
-             WHERE (payload->>'operation_date')::date>=make_date(%s,%s,1)
-             AND (payload->>'operation_date')::date<(make_date(%s,%s,1)+interval '1 month')""",
-        (y, m, y, m))
-    return r[0]["mx"]
+def _month_last_day(y, m, account=None):
+    """Дата последней транзакции месяца. account=None — по всем аккаунтам (есть ли данные
+    вообще). Для прогноза берём ПО СВОЕМУ аккаунту: общий max задаёт elapsed/remaining/окно
+    ставки по самому свежему аккаунту, и отставший занижается трижды — неполный MTD × ставка,
+    размытая днями без данных, × remaining, посчитанный как будто всё собрано."""
+    sql = """SELECT max((payload->>'operation_date')::date) mx FROM raw_ozon_transaction
+               WHERE (payload->>'operation_date')::date>=make_date(%s,%s,1)
+               AND (payload->>'operation_date')::date<(make_date(%s,%s,1)+interval '1 month')"""
+    args = [y, m, y, m]
+    if account:
+        sql += " AND account=%s"
+        args.append(account)
+    return db.query(sql, tuple(args))[0]["mx"]
+
+
+def _lag_note(last_acc):
+    """Текст-предупреждение, если аккаунты собраны на РАЗНЫЕ даты (иначе пустая строка).
+    Готовим на стороне Python, чтобы JS страницы остался тривиальным (см. ozon_mp_page)."""
+    have = {a: d for a, d in last_acc.items() if d}
+    if len(set(have.values())) < 2:
+        return ""
+    parts = ", ".join(f"{a} — по {d.isoformat()}" for a, d in sorted(have.items()))
+    empty = [a for a, d in last_acc.items() if not d]
+    if empty:
+        parts += ", " + ", ".join(f"{a} — данных за месяц нет" for a in sorted(empty))
+    return ("<b>Данные собраны неравномерно</b> (" + parts +
+            "): факт и прогноз каждого аккаунта считаются от СВОЕЙ даты, поэтому столбцы аккаунтов "
+            "покрывают разное число дней. ")
 
 
 def realiz_sales(account, y, m):
@@ -347,17 +368,21 @@ def current_report():
     days_in = calendar.monthrange(y, m)[1]
     elapsed = last.day
     remaining = days_in - elapsed
-    # окно скользящей дневной ставки: WINDOW_DAYS дней, кончая последним днём с данными.
-    # Оно непрерывно и свободно пересекает границу месяца → «сплошной поток», переход
-    # месяца для прогноза незначим (в начале августа окно ещё захватывает июль).
-    if last:
-        w1 = (last - dt.timedelta(days=WINDOW_DAYS - 1)).isoformat()
-        w2 = (last + dt.timedelta(days=1)).isoformat()
-    else:
-        w1, w2 = _month_bounds(y, m)
 
-    out = {}
+    out, last_acc = {}, {}
     for acc in ACCOUNTS:
+        # Своя дата последних данных на каждый аккаунт (см. _month_last_day). Аккаунт без данных
+        # в месяце: elapsed=0, а окно ставки якорим по общей дате — иначе якорить не к чему.
+        la = _month_last_day(y, m, acc)
+        last_acc[acc] = la
+        anchor = la or last
+        elapsed_a = la.day if la else 0
+        remaining_a = days_in - elapsed_a
+        # окно скользящей дневной ставки: WINDOW_DAYS дней, кончая последним днём с данными.
+        # Оно непрерывно и свободно пересекает границу месяца → «сплошной поток», переход
+        # месяца для прогноза незначим (в начале августа окно ещё захватывает июль).
+        w1 = (anchor - dt.timedelta(days=WINDOW_DAYS - 1)).isoformat()
+        w2 = (anchor + dt.timedelta(days=1)).isoformat()
         mags, sub = _accumulate(acc, y, m)              # факт с начала месяца (MTD)
         orders, retc = op_counts(acc, y, m)
         cogs = _cogs(acc, y, m)
@@ -374,12 +399,12 @@ def current_report():
         for k in mags:
             if k == "promo":
                 rate_ex = (win[k] - win_sub) / WINDOW_DAYS     # ставка promo без подписки
-                fc_mags[k] = (mags[k] - sub) + rate_ex * remaining + sub_exp
+                fc_mags[k] = (mags[k] - sub) + rate_ex * remaining_a + sub_exp
             else:
-                fc_mags[k] = mags[k] + rate[k] * remaining
+                fc_mags[k] = mags[k] + rate[k] * remaining_a
         win_o, win_r = op_counts_range(acc, w1, w2)
-        fc_orders = orders + win_o / WINDOW_DAYS * remaining
-        fc_retc = retc + win_r / WINDOW_DAYS * remaining
+        fc_orders = orders + win_o / WINDOW_DAYS * remaining_a
+        fc_retc = retc + win_r / WINDOW_DAYS * remaining_a
         # COGS привязана к продажам (margin_by_sku помесячный, дневного среза нет):
         # forecast_cogs = forecast_sales × (COGS ÷ Продажи текущего месяца).
         cogs_ratio = cogs / mags["sales"] if mags["sales"] else 0
@@ -403,7 +428,9 @@ def current_report():
         "month": {"label": MONTHS_RU[m - 1], "month_key": f"{y}-{m:02d}",
                   "elapsed_days": elapsed, "days_in_month": days_in,
                   "remaining_days": remaining, "window_days": WINDOW_DAYS,
-                  "last_date": last.isoformat() if last else None, "estimate": True},
+                  "last_date": last.isoformat() if last else None, "estimate": True,
+                  "last_by_acc": {a: (d.isoformat() if d else None) for a, d in last_acc.items()},
+                  "lag_note": _lag_note(last_acc)},
         "accounts": out,
     }
 
