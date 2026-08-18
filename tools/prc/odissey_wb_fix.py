@@ -1,12 +1,17 @@
 # поток: prc
 # -*- coding: utf-8 -*-
-"""Одиссей: развести карточки по двум юрлицам — White Box и всё остальное.
+"""Одиссей: собрать карточки White Box на отдельном юрлице.
 
-White Box («белая», небрендированная коробка) по решению Сергея 18.08.2026 живёт на отдельном
-контрагенте «ООО ОДИССЕЙ WB», остальной ассортимент Одиссея (Аквамарин, Hi-Black и пр.) —
-на «ООО ОДИССЕЙ». Признак бренда — `ms_import.is_white_box`: метка в НАИМЕНОВАНИИ, префикс
-артикула «WB …» как подстраховка. Тот же признак теперь ставит поставщика при заведении новых
-карточек (`ms_import.supplier_of`), так что процесс и разбор старого не могут разъехаться.
+White Box («белая», небрендированная коробка) по решению Сергея 18.08.2026 живёт на контрагенте
+«ООО ОДИССЕЙ WB». Признак бренда — `ms_import.is_white_box`: метка в НАИМЕНОВАНИИ, префикс
+артикула «WB …» как подстраховка. Тот же признак ставит поставщика при заведении новых карточек
+(`ms_import.supplier_of`), так что процесс и разбор старого не могут разъехаться.
+
+ДВИЖЕНИЕ ТОЛЬКО В ОДНУ СТОРОНУ — «ОДИССЕЙ» → «ОДИССЕЙ WB». Обратный ход запрещён решением
+Сергея 18.08.2026: на «ОДИССЕЙ WB» живут не только White Box, но и СТРУЙНЫЕ картриджи
+(Аквамарин и пр.). Первый прогон снял оттуда 461 струйную карточку, их вернули из бэкапа
+`backups/odissey_wb_2026-08-18/`. Пока признак струйки не оговорён (см. `docs/BRIEF_PRC.md`,
+п. 0a), скрипт с «ОДИССЕЙ WB» не снимает ничего.
 
 Сверх правила скрипт показывает, где с ним спорит СУФФИКС НАШЕГО КОДА (`1234wb`): код
 присваивал человек, и расхождение — повод посмотреть глазами, а не молча переписать.
@@ -49,22 +54,23 @@ def cards(supplier_id, archived):
 
 
 def plan(with_archived):
-    """[(карточка, куда, почему)] — только те, у кого юрлицо не совпало с брендом."""
+    """[(карточка, куда, почему)] — карточки White Box, лежащие не на своём юрлице.
+
+    Односторонне: собираем White Box на «ОДИССЕЙ WB» и НЕ снимаем ничего обратно (см. шапку).
+    """
     moves, seen = [], 0
     for sid, title in (OD, ODW):
         for archived in ((False, True) if with_archived else (False,)):
             for p in cards(sid, archived):
                 seen += 1
                 wb = is_white_box(p.get("name"), p.get("article"))
-                want = ODW if wb else OD
-                if want[0] == sid:
-                    continue
+                if not wb or sid == ODW[0]:
+                    continue                       # обратный ход запрещён (см. шапку модуля)
+                want = ODW
                 tail = CODE_TAIL.match(p.get("code") or "")
                 tail = (tail.group(1).lower() if tail else "")
                 note = ""
-                if tail == "wb" and not wb:
-                    note = "код оканчивается на wb, а метки бренда в имени нет"
-                elif tail and tail != "wb" and wb:
+                if tail and tail != "wb":
                     note = f"код оканчивается на {tail}, а в имени метка White Box"
                 moves.append((p, want, note))
     return moves, seen
@@ -89,8 +95,7 @@ def main():
     args = ap.parse_args()
 
     moves, seen = plan(args.with_archived)
-    to_wb = [m for m in moves if m[1] is ODW]
-    to_od = [m for m in moves if m[1] is OD]
+    to_wb = moves
     with open(args.out, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh, delimiter=";")
         w.writerow(["куда", "код", "артикул", "внешний код", "наименование", "архив", "замечание"])
@@ -99,7 +104,6 @@ def main():
                         p.get("name"), "да" if p.get("archived") else "", note])
     print(f"карточек просмотрено: {seen}")
     print(f"  на «ОДИССЕЙ WB»: {len(to_wb)}   (архивных {sum(1 for m in to_wb if m[0].get('archived'))})")
-    print(f"  на «ОДИССЕЙ»:    {len(to_od)}   (архивных {sum(1 for m in to_od if m[0].get('archived'))})")
     print(f"  спорят с суффиксом кода: {sum(1 for m in moves if m[2])}")
     print("отчёт ->", args.out)
     if args.apply:
