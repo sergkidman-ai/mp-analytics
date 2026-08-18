@@ -266,7 +266,9 @@ def _live_month():
 # ---------- форматирование / подсветка (совпадает с gen_reports.py) ----------
 def _money(v, neg=False):
     v = round(v); s = f"{abs(v):,}".replace(",", " ")
-    return ("−" if (neg or v < 0) else "") + s
+    if neg:
+        return ("+" if v < 0 else "−") + s      # отрицательный расход = приход нам
+    return ("−" if v < 0 else "") + s
 
 
 def _fmt(key, v):

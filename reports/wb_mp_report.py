@@ -16,8 +16,9 @@
   Логистика      = Σ delivery_rub
   Хранение       = Σ storage_fee
   Приёмка        = Σ acceptance
-  Прочие удерж.  = Σ (deduction + penalty + cashback_amount)   ← баллы лояльности, штрафы
-  Итого к оплате = К перечислению − Логистика − Хранение − Приёмка − Прочие
+  Прочие удерж.  = Σ (deduction≥0 + penalty + cashback_amount)  ← продвижение, баллы, штрафы
+  Компенсации ВБ = Σ (−deduction<0)  ← «Добровольная выплата за товары…» — ПРИХОД нам
+  Итого к оплате = К перечислению − Логистика − Хранение − Приёмка − Прочие + Компенсации
   COGS           = margin_by_sku platform='wb' (себест отгрузок МС по assembly_id)
   Чистая         = Итого к оплате − COGS
 
@@ -58,7 +59,8 @@ WINDOW_DAYS = 14
 # строки Баланса (величины ≥0, знак/направление задаёт KIND).
 # own_price = «Продажа по нашей цене» (retail_price_withdisc_rub, ДО СПП) — это ОБОРОТ (база %);
 # sales = «ВБ реализовал» (retail_amount, ПОСЛЕ СПП, что заплатил покупатель).
-_BAL_KEYS = ["own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance", "other"]
+_BAL_KEYS = ["own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance",
+             "other", "compensation"]
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
              "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
@@ -67,6 +69,7 @@ KIND = {
     "own_price": "inflow", "sales": "inflow", "spp": "expense", "returns": "expense",
     "commission": "expense", "to_pay": "inflow",
     "delivery": "expense", "storage": "expense", "acceptance": "expense", "other": "expense",
+    "compensation": "inflow",   # выплаты ВБ нам (отрицательный deduction) — приход, не расход
     "wb_exp": "expense",        # Итого расходы ВБ = наша цена − Итого к оплате (все удержания площадки)
     "itog": "inflow",           # Итого к оплате = выплата (положительная, НЕ сумма расходов как у Ozon)
     "cogs": "expense", "net": "inflow", "margin": "margin",
@@ -88,6 +91,7 @@ def _agg(account, d1, d2):
              coalesce(sum(st),0) storage,
              coalesce(sum(acc),0) acceptance,
              coalesce(sum(oth),0) other,
+             coalesce(sum(comp),0) compensation,
              coalesce(sum(CASE WHEN op='Продажа' THEN q ELSE 0 END),0) orders,
              coalesce(sum(CASE WHEN op='Возврат' THEN q ELSE 0 END),0) returns_cnt
            FROM (
@@ -99,9 +103,10 @@ def _agg(account, d1, d2):
                     coalesce((payload->>'delivery_rub')::numeric,0) del,
                     coalesce((payload->>'storage_fee')::numeric,0) st,
                     coalesce((payload->>'acceptance')::numeric,0) acc,
-                    coalesce((payload->>'deduction')::numeric,0)
+                    greatest(coalesce((payload->>'deduction')::numeric,0),0)
                       +coalesce((payload->>'penalty')::numeric,0)
-                      +coalesce((payload->>'cashback_amount')::numeric,0) oth
+                      +coalesce((payload->>'cashback_amount')::numeric,0) oth,
+                    -least(coalesce((payload->>'deduction')::numeric,0),0) comp
              FROM raw_wb_report
              WHERE account=%s
                AND (payload->>'create_dt')::date>=%s
@@ -110,7 +115,7 @@ def _agg(account, d1, d2):
         (account, d1, d2))[0]
     return {k: float(r[k] or 0) for k in
             ("own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance",
-             "other", "orders", "returns_cnt")}
+             "other", "compensation", "orders", "returns_cnt")}
 
 
 def _month_bounds(y, m):
@@ -162,8 +167,13 @@ def _live_month():
 
 # ---------- форматирование / подсветка ----------
 def _money(v, neg=False):
+    """neg=True — расходная строка: положительная величина печатается со знаком «−».
+    ОТРИЦАТЕЛЬНЫЙ расход = деньги пришли нам → печатаем «+», а не «−» (иначе колонка
+    не сходится глазами: подытоги считаются по знаковому значению)."""
     v = round(v); s = f"{abs(v):,}".replace(",", " ")
-    return ("−" if (neg or v < 0) else "") + s
+    if neg:
+        return ("+" if v < 0 else "−") + s
+    return ("−" if v < 0 else "") + s
 
 
 def _fmt(key, v):
@@ -192,14 +202,16 @@ def _hist_series(acc, key):
     keys = H.get("period_keys", [])
     prov = set(H.get("provisional", []))
     idx = [i for i in range(n) if i >= len(keys) or keys[i] not in prov]
+    comp = L.get("compensation") or [0] * n          # совместимость со снапшотом без строки
     if key in _BAL_KEYS:
-        vals = L[key]
+        vals = L.get(key) or [0] * n
     elif key == "spp":
         vals = [L["own_price"][i] - L["sales"][i] for i in range(n)]
     elif key == "itog":
-        vals = [L["to_pay"][i] - sum(L[x][i] for x in EXP) for i in range(n)]
+        vals = [L["to_pay"][i] - sum(L[x][i] for x in EXP) + comp[i] for i in range(n)]
     elif key == "wb_exp":
-        vals = [L["own_price"][i] - (L["to_pay"][i] - sum(L[x][i] for x in EXP)) for i in range(n)]
+        vals = [L["own_price"][i] - (L["to_pay"][i] - sum(L[x][i] for x in EXP) + comp[i])
+                for i in range(n)]
     elif key == "commission":
         vals = a["commission"]
     elif key in ("cogs", "net", "margin", "orders", "returns_cnt"):
@@ -238,7 +250,7 @@ def _derive(mags, orders, retc, cogs):
     own = mags["own_price"]
     spp = own - mags["sales"]
     commission = mags["sales"] - mags["returns"] - mags["to_pay"]
-    itog = mags["to_pay"] - sum(mags[k] for k in EXP)
+    itog = mags["to_pay"] - sum(mags[k] for k in EXP) + mags.get("compensation", 0.0)
     wb_exp = own - itog          # все удержания ВБ: возврат+СПП+комиссия+логистика+хранение+приёмка+прочие
     net = itog - cogs
     return {**mags, "spp": spp, "commission": commission, "wb_exp": wb_exp, "itog": itog,
@@ -274,7 +286,8 @@ def current_report():
         win = _agg(acc, w1, w2)
         rate = {k: win[k] / WINDOW_DAYS for k in win}
         fc = {k: mtd[k] + rate[k] * remaining for k in
-              ("own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance", "other")}
+              ("own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance",
+               "other", "compensation")}
         fc_orders = mtd["orders"] + rate["orders"] * remaining
         fc_retc = mtd["returns_cnt"] + rate["returns_cnt"] * remaining
         # COGS привязана к продажам (margin_by_sku помесячный): fc_cogs = fc_sales × (COGS÷Прод MTD).
