@@ -81,6 +81,19 @@ MS_SUPPLIER = {
 SUPPLIER_BY_SUFFIX = {
     "odissey": {"wb": ("61d01266-2fe1-11f0-0a80-0f7f000bf967", 'ООО "ОДИССЕЙ" WB')},
 }
+# White Box — «белая», небрендированная коробка. Решение Сергея 18.08.2026: этот бренд
+# отделяем от остального ассортимента Одиссея и вешаем на юрлицо «ООО ОДИССЕЙ WB».
+# Признак берём ИЗ НАИМЕНОВАНИЯ — так отличает человек и так написано в прайсе
+# («… 3K White Box»). Префикс артикула «WB CF259A» — подстраховка: в живых карточках
+# нашлись имена без метки («WB MLT-D203U») и с опечаткой («Wite Box»).
+WHITE_BOX_NAME = re.compile(r"(?<![0-9A-Za-zА-Яа-я])(?:WB|Wh?ite\s?Box)(?![0-9A-Za-zА-Яа-я])",
+                            re.IGNORECASE)
+WHITE_BOX_ARTICLE = re.compile(r"^\s*WB\b", re.IGNORECASE)
+
+
+def is_white_box(name, article=""):
+    """True, если товар Одиссея — бренда White Box (см. SUPPLIER_BY_SUFFIX)."""
+    return bool(WHITE_BOX_NAME.search(name or "")) or bool(WHITE_BOX_ARTICLE.match(article or ""))
 # Чей прайс в `supplier_dims` — первоисточник веса для этого поставщика.
 DIMS_SUPPLIER = {
     "kaktus_msk": ("cactus",),
@@ -101,8 +114,46 @@ GROUP_SUPPLIER = ("Картриджи/Картриджи G&G", "Картридж
 GROUP_PREFIX = "Картриджи/"
 
 
-def suffix(article, supplier_key):
-    """Аббревиатура поставщика для колонки «Код»."""
+# Аббревиатура кода идёт по БРЕНДУ, а бренд зашит в НАЗВАНИЕ товара (правило Сергея 18.08.2026:
+# «человек смотрит на название товара — в нём бренд, по бренду назначается аббревиатура»).
+# Порядок важен: «БУЛАТ s-Line» — это s-Line (`sl`), а не Булат (`bt`); голый «БУЛАТ» — `bt`.
+# Проверено на 17 380 живых карточках с нашим кодом: правило совпало с фактическим кодом в 98.9 %.
+# 7Q СОЗНАТЕЛЬНО НЕ ВКЛЮЧЁН: у него 613 карточек `7q` против 60 `bt` (90 %) — «без сомнений»
+# не получается, такие карточки уходят человеку. Чего нет в списке — тоже человеку.
+BRAND_ABBR = [
+    ("sl", r"s-?line"),          # 1137 из 1158
+    ("el", r"e-?line"),          # 224 из 233
+    ("bt", r"булат|bulat"),      # 231 из 240 (после s-Line/e-Line)
+    ("bs", r"blossom"),          # 2355 из 2355
+    ("pl", r"profiline"),        # 1435 из 1437
+    ("gp", r"galaprint"),        # 1134 из 1142
+    ("sf", r"superfine"),        # 1732 из 1733
+    ("t2", r"\bt2\b"),           # 1032 из 1035
+    ("ep", r"easy\s?print"),     # 860 из 861
+    ("hb", r"hi-?black"),        # 1219 из 1221
+    ("np", r"net\s?product"),    # 399 из 401
+    ("cs", r"cactus"),           # 2988 из 3032
+    ("sk", r"sakura"),           # 1836 из 1850
+]
+BRAND_ABBR = [(abbr, re.compile(rx, re.IGNORECASE)) for abbr, rx in BRAND_ABBR]
+
+
+def abbr_by_name(name):
+    """Аббревиатура по бренду из названия товара или None (бренда нет — решает человек)."""
+    for abbr, rx in BRAND_ABBR:
+        if rx.search(name or ""):
+            return abbr
+    return None
+
+
+def suffix(article, supplier_key, name=""):
+    """Аббревиатура поставщика для колонки «Код».
+
+    У Одиссея White Box опознаётся по НАИМЕНОВАНИЮ (`is_white_box`), а не только по префиксу
+    артикула: в прайсе метка стоит в названии, и артикул её иногда не несёт.
+    """
+    if supplier_key == "odissey" and is_white_box(name, article):
+        return "wb"
     for pattern, abbr in CODE_SUFFIX.get(supplier_key, []):
         if not pattern or re.search(pattern, article or "", re.IGNORECASE):
             return abbr
@@ -110,9 +161,9 @@ def suffix(article, supplier_key):
                    f"артикул «{article}» — добавьте бренд в CODE_SUFFIX")
 
 
-def supplier_of(article, profile):
+def supplier_of(article, profile, name=""):
     """(id контрагента, имя) для новой карточки: юрлицо той же группы, что у родни бренда."""
-    abbr = suffix(article, profile.key)
+    abbr = suffix(article, profile.key, name)
     found = SUPPLIER_BY_SUFFIX.get(profile.key, {}).get(abbr)
     if found:
         return found
@@ -413,13 +464,13 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
             flags.append(f"ресурс отличается от родни: {sorted(new_pages)} против {sorted(kin_pages)} "
                          f"— по решению Сергея это норма, оставляем")
 
-        sup_id, sup_name = supplier_of(row["article"], profile)
+        sup_id, sup_name = supplier_of(row["article"], profile, row["name"])
         records.append({
             # Служебное поле (не колонка файла): по нему после создания карточки строка
             # новинок получает свой итог. `write_xlsx` идёт по COLUMNS, лишний ключ ей не мешает.
             "_novelty_id": row["id"],
             "Группы": path or "",
-            "Код": f"{ext}{suffix(row['article'], profile.key)}",
+            "Код": f"{ext}{suffix(row['article'], profile.key, row['name'])}",
             "Внешний код": ext,
             "Наименование": row["name"],
             "Описание": row["name"],

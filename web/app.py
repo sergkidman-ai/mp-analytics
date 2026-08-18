@@ -2771,7 +2771,7 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     n = max(1, min(int(n or 1), MS_CARDS_MAX))
     try:
         profile = get_profile(row["supplier_key"])
-        abbr = ms_import.suffix(row["article"], row["supplier_key"])
+        abbr = ms_import.suffix(row["article"], row["supplier_key"], row["name"])
     except (KeyError, ValueError) as exc:
         return {"ok": False, "error": f"поставщик {row['supplier_key']}: {exc}"}
 

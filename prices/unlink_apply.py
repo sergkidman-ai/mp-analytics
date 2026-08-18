@@ -8,10 +8,12 @@ TheCartridge — товар не продаётся. Карточку НЕ ду�
 
 Что пишем в карточку:
   externalCode  — наш 4-значный код товара (из вкладки «Несопоставлено», выбор человека);
-  code          — внутренний код `<внешний код><аббревиатура бренда поставщика>`, ТОЛЬКО если
-                  аббревиатура известна из `prices.ms_import.CODE_SUFFIX`. Незнакомый бренд —
-                  код НЕ придумываем (то же правило, что в загрузчике), карточка уезжает
-                  без внутреннего кода, в отчёте это видно;
+  code          — внутренний код `<внешний код><аббревиатура бренда>`. Бренд читаем ИЗ НАЗВАНИЯ
+                  товара (`ms_import.abbr_by_name`, правило Сергея 18.08.2026), не из артикула:
+                  у Булата под одним поставщиком едут s-Line / e-Line / Булат, у ВТТ —
+                  Hi-Black / NetProduct. Бренда в названии нет → правило поставщика
+                  (`CODE_SUFFIX`), нет и его → код НЕ придумываем, карточка уезжает без
+                  внутреннего кода и попадает в сводку — доназначает человек;
   «Название WB» — доп. поле по формуле `tools/prc/wb_fill.compose` из каталога ТК; заполняем,
                   только если поле пустое, а внешний код есть в `prc_tc_model`.
 
@@ -41,10 +43,19 @@ OUR_CODE_RE = re.compile(r"^\d{4}$")
 PAUSE = 0.3
 
 
-def _suffix(article, supplier_key):
-    """Аббревиатура бренда или None — незнакомый поставщик/бренд не выдумываем."""
+def _suffix(article, supplier_key, name=""):
+    """Аббревиатура бренда или None — незнакомый бренд не выдумываем.
+
+    Сначала БРЕНД ИЗ НАЗВАНИЯ (`ms_import.abbr_by_name`) — так делает человек: у Булата и ВТТ
+    под одним поставщиком едут разные бренды (s-Line / e-Line / Булат, Hi-Black / NetProduct),
+    и артикул их не различает. Не нашли бренда — падаем на правило поставщика (Кактус, Сакура,
+    Колортек, Одиссей: там бренд один или задан префиксом артикула). Нет и его — код не ставим.
+    """
+    found = ms_import.abbr_by_name(name)
+    if found:
+        return found
     try:
-        return ms_import.suffix(article or "", supplier_key or "")
+        return ms_import.suffix(article or "", supplier_key or "", name)
     except KeyError:
         return None
 
@@ -90,7 +101,7 @@ def plan(ids=None):
         if OUR_CODE_RE.match(have):
             drop.append({**r, "why": f"карточка уже сведена: внешний код {have}"})
             continue
-        abbr = _suffix(r["article"], r["supplier_key"])
+        abbr = _suffix(r["article"], r["supplier_key"], r["name"])
         if abbr and abbr in twins.get(code, {}):
             drop.append({**r, "why": f"под кодом {code} уже есть карточка «{twins[code][abbr]}» "
                                      f"того же бренда — это дубль, решает человек"})
