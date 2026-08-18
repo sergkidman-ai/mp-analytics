@@ -88,6 +88,33 @@ OOM-killer'ом на генерации черновиков: 4.65 ГБ из 5.9
 `settings.json` и хук только после rebase/merge на `main`. Ключ RAPID стоит перевыпустить —
 он лежал открытым текстом в локальных настройках.
 
+## ТЕХДОЛГ: untracked `.claude/settings.json` в worktree (18.08.2026)
+
+18.08.2026 канонический `.claude/settings.json` разложен **копированием** (стратегия S) в 15
+worktree: `fin-intramonth-date`, `fin-cogs-realized`, `fin-byop-qty`, `fin-oz-mp-lines`,
+`fin-ya-services`, `mkt-ozon`, `inv-incoming-link`, `inv-gtd`, `inv-rent`, `prc-colortek`,
+`ret`, `fin-oz-cogs`, `fin-wb-cogs`, `gab`, `inv-alfa-prod-handoff`. Мержа/ребейза не было,
+история веток не тронута, `.deploy/inv` (чекаут крона) не трогали.
+
+Почему копирование, а не merge: в зарегистрированном хуке путь АБСОЛЮТНЫЙ
+(`/opt/mp-analytics/tools/hooks/guard_side_effects.py`), поэтому код guard'а един и живёт
+в общем чекауте. Worktree нужен ровно один файл — `.claude/settings.json`.
+
+**ДОЛГ.** В этих worktree файл лежит как untracked (`?? .claude/`). Когда поток будет
+мержить/ребейзить свою ветку на `main`, git ОТКАЖЕТСЯ перезаписывать untracked-файл
+tracked-версией: «untracked working tree file '.claude/settings.json' would be overwritten».
+
+Порядок действий владельца потока ПЕРЕД merge/rebase на `main`:
+
+```bash
+rm .claude/settings.json      # удалить локальную копию
+git merge main                # (или rebase) — дальше файл приезжает как обычный tracked
+```
+
+Долг закрывается сам собой по мере того, как потоки сливаются с `main`: после мержа файл
+становится отслеживаемым и копия больше не нужна. Проверить, где ещё лежит копия:
+`git -C <worktree> status --porcelain | grep '.claude/'`.
+
 ---
 ### Правила ведения
 - Обновлять в конце каждого значимого блока работы.
