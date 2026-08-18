@@ -25,6 +25,7 @@ import pathlib
 from collections import defaultdict
 
 from core import db
+from ops.ozon_lines_registry import RESID_OPS, SERVICES
 
 HIST_PATH = pathlib.Path(__file__).resolve().parent / "data" / "mp_ozon_hist.json"
 
@@ -45,10 +46,14 @@ def _hist():
     return _HIST_CACHE["data"]
 
 ACCOUNTS = ("oz_acc1", "oz_acc2")
-EXP = ["returns", "commission", "delivery", "partners", "fbo", "promo", "penalty"]
+EXP = ["returns", "commission", "delivery", "partners", "fbo", "promo", "penalty",
+       "unclassified"]
 WINDOW_DAYS = 14  # окно скользящей дневной ставки для прогноза («период в прошлом»)
 _BAL_KEYS = ["sales", "returns", "commission", "delivery", "partners", "fbo",
-             "promo", "penalty", "compensation", "other"]
+             "promo", "penalty", "unclassified", "compensation", "other"]
+# строки, где величина копится «расход-положительный» (residual), а по смыслу это ПРИХОД нам:
+# знак разворачиваем один раз в _balance_range, дальше величина уже в терминах своей строки
+_RESID_INFLOW = ("compensation", "other")
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
              "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
@@ -58,6 +63,7 @@ KIND = {
     "orders": "count_up", "returns_cnt": "count_dn", "check": "check",
     "returns": "expense", "commission": "expense", "delivery": "expense",
     "partners": "expense", "fbo": "expense", "promo": "expense", "penalty": "expense",
+    "unclassified": "expense",
     "itog": "expense", "cogs": "expense",
     "compensation": "inflow", "other": "inflow", "net": "inflow", "margin": "margin",
 }
@@ -65,44 +71,21 @@ KIND = {
 
 # ---------- реконструкция Баланса (порт scratchpad/oz_balance.py) ----------
 def _svc_line(n):
-    if "Stars" in n:                return "partners"     # звёзды → услуги партнёров
-    if "Membership" in n:           return "promo"        # подписка-процент
-    if "Acquiring" in n:            return "partners"     # эквайринг
-    if "Redistribution" in n:       return "partners"
-    if "PremiumCashback" in n or "IndividualPoints" in n: return "promo"
-    if "Storage" in n or "MovementFromWarehouse" in n or "CargoAssortment" in n: return "fbo"
-    # утилизация, обеспечение упаковочными материалами → ЛК держит их в «Других услугах»
-    if "VolumeWeight" in n or "Disposal" in n or "PackageMaterialsProvision" in n: return "penalty"
-    return "delivery"
+    """Услуга внутри операции → строка отчёта. Источник истины — реестр `ops/ozon_lines_registry`
+    (сверен с ЛК). Незнакомое имя НЕ растворяем в логистике: оно уходит в «Неклассифицировано»,
+    чтобы новая платная услуга была видна, а не съедена фолбэком."""
+    hit = SERVICES.get(n)
+    return hit[0] if hit else "unclassified"
 
 
 def _resid_line(ot):
-    o = ot.lower()
-    if ("costperclick" in o or "pointsforreviews" in o or "acceleratedproductreviews" in o
-            or "promotionwithcostperorder" in o or "subscription" in o or "membership" in o
-            or "premiumcashback" in o or "individualpoints" in o):        return "promo"
-    if "defectrate" in o or "defectfine" in o:                            return "penalty"
-    # досрочная выплата («Гибкий график выплат») — платная услуга Ozon, не «прочее начисление»:
-    # приходит одной строкой за месяц и раньше гасила собой строку `other` (июль-2026 acc1: 18 795.28
-    # против 32 353.00 переотправок → в отчёте оставалось 13 558 вместо 30 614)
-    if "flexiblepaymentschedule" in o:                                    return "penalty"
-    # «Досрочная выплата» — тоже платная услуга Ozon, но в имени сидит `Accrual`, и правило
-    # «claim/compensation/accrual → compensation» ниже утаскивало её РАСХОД в приход «Компенсаций»
-    # (июль-2026 acc1: 114 193.91 поверх реальных 25 591 → в отчёте выходило 88 603)
-    if "earlypaymentaccrual" in o:                                        return "penalty"
-    # частичная компенсация ПОКУПАТЕЛЮ — это не наша компенсация от Ozon, а списание; ЛК держит её
-    # в «Прочих начислениях» (проверка июль-2026 acc1: 32 353.00 − 1 738.63 = 30 614.37)
-    if "partialcompensationtoclient" in o:                                return "other"
-    # страхование отправления — платная услуга Ozon, блок «Другие услуги и штрафы»
-    if "insuranceservice" in o:                                           return "penalty"
-    if ot == "MarketplaceAgencyFeeAggregator3plRFBS":                     return "delivery"
-    if "rfbs" in o:                                                       return "partners"
-    if ot in ("OperationCourierPickUpDelivery", "OperationCourierArrangement"): return "delivery"
-    if "servicestorage" in o:                                             return "fbo"
-    if "claim" in o or "compensation" in o or "accrual" in o:             return "compensation"
-    if "correction" in o:                                                 return "other"
-    if "reexposure" in o:                                                 return "other"
-    return "other"
+    """Тип операции (остаток amount после начислений/комиссии/услуг) → строка отчёта.
+    Фолбэк — «Неклассифицировано» (расход), а НЕ «Прочие начисления» (приход): неизвестное
+    начисление раньше приходило в отчёт со знаком плюс и завышало чистую («Досрочная выплата»
+    114 194 ₽ в июле-2026, «Закрепление отзыва» 327 750 ₽ в декабре-2025). Ошибаемся в сторону
+    расхода; новый код разбирается по ЛК и вносится в реестр."""
+    hit = RESID_OPS.get(ot)
+    return hit[0] if hit else "unclassified"
 
 
 def _balance_range(account, d1, d2):
@@ -134,10 +117,16 @@ def _balance_range(account, d1, d2):
             L[_svc_line(s.get("name", ""))] += -pr
         res = am - acc - cm - ss
         ot = p.get("operation_type", "")
-        L[_resid_line(ot)] += -res
+        if abs(res) > 0.005:            # копеечный остаток округления — не повод для строки
+            L[_resid_line(ot)] += -res
         if ot.startswith("OperationSubscription"):
             sub += -res
-    return {k: abs(L.get(k, 0.0)) for k in _BAL_KEYS}, abs(sub)
+    # Знак — часть данных: `abs()` здесь стирал направление и месяц, где удержания перевесили
+    # начисления, уходил в отчёт приходом (ноя-2025 27 057 ₽, дек-2025 278 584 ₽ по acc1).
+    # Величины приводим к смыслу своей строки; отрицательная величина = движение в другую сторону,
+    # и рендер покажет её со знаком «+» (расход, который оказался приходом).
+    return ({k: (-L.get(k, 0.0) if k in _RESID_INFLOW else L.get(k, 0.0)) for k in _BAL_KEYS},
+            abs(sub))
 
 
 def _month_bounds(y, m):
@@ -299,9 +288,9 @@ def _hist_series(acc, key):
     prov = set(H.get("provisional", []))
     idx = [i for i in range(n) if i >= len(keys) or keys[i] not in prov]
     if key in _BAL_KEYS:
-        vals = L[key]
+        vals = L.get(key) or [0] * n
     elif key == "itog":
-        vals = [sum(L[x][i] for x in EXP) for i in range(n)]
+        vals = [sum((L.get(x) or [0] * n)[i] for x in EXP) for i in range(n)]
     elif key in ("cogs", "net", "margin", "orders", "returns_cnt"):
         vals = a[key]
     elif key == "check":

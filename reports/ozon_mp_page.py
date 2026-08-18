@@ -20,7 +20,8 @@ HIST_PATH = BASE_DIR / "reports" / "data" / "mp_ozon_hist.json"
 OUT = BASE_DIR / "web" / "static" / "reports.html"
 
 ORG = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр"}
-EXP = ["returns", "commission", "delivery", "partners", "fbo", "promo", "penalty"]
+EXP = ["returns", "commission", "delivery", "partners", "fbo", "promo", "penalty",
+       "unclassified"]
 
 # контекст рендера (заполняется в render(), читается хелперами — как globals в оригинале)
 _C = {"data": None, "M": [], "N": 0, "base": [], "prov": set()}
@@ -160,6 +161,7 @@ def line2(a, b, c=None, amax=None):
 def build(acc):
     data, M, N, prov = _C["data"], _C["M"], _C["N"], _C["prov"]
     a = data["accounts"][acc]; L = a["lines"]; ob = L["sales"]
+    L.setdefault("unclassified", [0] * N)          # строка появилась позже снапшота
     cogs = a["cogs"]; net = a["net"]; margin = a["margin"]
     cogs_pct = [(cogs[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
     itog = [sum(L[k][i] for k in EXP) for i in range(N)]
@@ -219,6 +221,9 @@ def build(acc):
     H.append(row("Услуги ФБО", L["fbo"], "expense", ob, k="fbo"))
     H.append(row("Продвижение и реклама", L["promo"], "expense", ob, showpc=True, k="promo"))
     H.append(row("Другие услуги и штрафы", L["penalty"], "expense", ob, k="penalty"))
+    # строку рисуем ВСЕГДА, даже нулевую: живой столбец дозаполняется JS только в существующие
+    # tr[data-k], и «спрятанная до перегенерации» строка скрыла бы ровно то, ради чего заведена
+    H.append(row("Неклассифицировано", L["unclassified"], "expense", ob, k="unclassified"))
     H.append(row("Итого расходы Ozon", itog, "expense", ob, tag="расчёт", showpc=True, subtot=True, k="itog"))
     H.append(sect("Начисления в плюс"))
     H.append(row("Компенсации и декомпенсации", L["compensation"], "inflow", ob, k="compensation"))
