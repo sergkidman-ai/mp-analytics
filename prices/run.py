@@ -158,6 +158,17 @@ def main(argv=None):
           f"в {info['docs']} документах")
     for reason, count in sorted(info["skipped_by_reason"].items(), key=lambda kv: -kv[1]):
         print(f"  пропущено {count:>5} — {SKIP_REASONS.get(reason, reason)}")
+    # Архив в прайсе — в бот. Строкой с ⚠, потому что `prc_price_watch.troubles()` тащит
+    # Сергею только такие строки: молча оставить архивную позицию нельзя (её отправка
+    # в новинки заводит ВТОРУЮ карточку товара, который у нас уже есть), а ронять из-за
+    # неё загрузку всего прайса — тоже нет.
+    if info["skipped_by_reason"].get("archived"):
+        print(f"  ⚠ архивные карточки в прайсе: {info['skipped_by_reason']['archived']} "
+              f"— в оприходование не пошли, живой родни того же кода нет "
+              f"(см. {skipped_path.name}, причина archived)")
+    if info.get("archived_swapped"):
+        print(f"  ⚠ архивных карточек заменено живой роднёй того же внешнего кода: "
+              f"{info['archived_swapped']}")
     print(f"  прошлых документов группы на «Удаленном складе»: {info['stale_docs']}")
     print(f"  карточек к обновлению: {info['card_updates']}")
     median = (f"{anom['median_ratio']:.3f}" if anom["median_ratio"] is not None
