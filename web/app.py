@@ -2688,7 +2688,9 @@ def unlinked_decide(payload: UnlinkedDecision):
     «Свести» (decision=matched) — единственное решение, которое ПИШЕТ в МойСклад: карточке
     поставщика проставляется наш 4-значный внешний код, внутренний код с аббревиатурой бренда
     (если правило аббревиатуры известно) и доп. поле «Название WB» по формуле каталога ТК
-    (решение Сергея 18.08.2026). Карточка остаётся той же — оприходования и остатки целы,
+    (`tools/prc/wb_fill.compose`), а следом `tools/prc/unlink_fill` добирает описание, группу,
+    поставщика, вес, единицу измерения и штрихкод code128 — карточка обязана уйти полной по
+    всем 11 полям (решение Сергея 18.08.2026). Карточка остаётся той же — оприходования и остатки целы,
     остаток начинает уходить в TheCartridge. Остальные решения (new/skip/pending) — только
     пометка строки, в МС ничего не идёт.
     """
@@ -2734,6 +2736,18 @@ def unlinked_decide(payload: UnlinkedDecision):
             why = unlink_apply.note(todo, drop)
             if drop:
                 why += " | " + "; ".join(f"{d['article']}: {d['why']}" for d in drop[:3])
+            # Карточка обязана уйти полной (правило Сергея 18.08.2026: 11 полей) — сразу за
+            # кодом добираем описание, группу, поставщика, вес, ед. изм. и code128.
+            if written:
+                from tools.prc import unlink_fill
+                try:
+                    f_todo, f_drop = unlink_fill.plan(payload.ids)
+                    unlink_fill.apply(f_todo, dry=False, log=lambda *a: None)
+                    tail = unlink_fill.note(f_todo, f_drop)
+                    if tail:
+                        why += " | " + tail
+                except Exception as exc:
+                    why += f" | дозаполнение не прошло: {exc}"
         except Exception as exc:                     # МС недоступен/отказал — решение уже в БД
             why = f"в МойСклад не записано: {exc}"
     return {"ok": True, "n": len(payload.ids), "written": written, "why": why,

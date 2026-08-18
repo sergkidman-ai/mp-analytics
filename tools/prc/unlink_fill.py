@@ -121,7 +121,11 @@ def plan(ids=None):
             continue
         have = card.get("barcodes") or []
         item = {"ms_id": r["ms_id"], "article": r["article"], "name": r["name"],
-                "code": r["target_code"], "supplier": sup, "uom": uom, "folder": folder,
+                "code": r["target_code"],
+                "supplier": None if card.get("supplier") else sup,
+                "supplier_name": sup[1],
+                "uom": None if card.get("uom") else uom,
+                "folder": None if card.get("productFolder") else folder,
                 "description": None if (card.get("description") or "").strip() else card["name"],
                 "barcodes": None if any("code128" in b for b in have) else have + [{"code128": c128}],
                 "c128": c128, "folder_had": bool(card.get("productFolder")),
@@ -140,16 +144,23 @@ def apply(todo, dry=True, log=print):
         body = []
         for r in chunk:
             payload = {"meta": {"href": f"{ms_api.BASE}/entity/product/{r['ms_id']}",
-                                "type": "product", "mediaType": "application/json"},
-                       "supplier": ms_api.ref("counterparty", r["supplier"][0]),
-                       "uom": r["uom"], "productFolder": r["folder"]}
+                                "type": "product", "mediaType": "application/json"}}
+            if r["supplier"]:                       # что на карточке уже стоит — не трогаем
+                payload["supplier"] = ms_api.ref("counterparty", r["supplier"][0])
+            if r["uom"]:
+                payload["uom"] = r["uom"]
+            if r["folder"]:
+                payload["productFolder"] = r["folder"]
             if r["description"]:
                 payload["description"] = r["description"]
             if r["barcodes"]:
                 payload["barcodes"] = r["barcodes"]
             if r["weight"]:
                 payload["weight"] = r["weight"]
-            body.append(payload)
+            if len(payload) > 1:                    # нечего дозаполнять — карточку не дёргаем
+                body.append(payload)
+        if not body:
+            continue
         if dry:
             log(f"[проба] пачка {start // 100 + 1}: {len(body)} карточек — ничего не записано")
             continue
@@ -158,6 +169,25 @@ def apply(todo, dry=True, log=print):
         log(f"[запись] {done} из {len(todo)}")
         time.sleep(PAUSE)
     return done
+
+
+def note(todo, drop):
+    """Короткая сводка для UI: что дозаполнили, что не смогли."""
+    if not todo and not drop:
+        return ""
+    lines = []
+    if todo:
+        filled = []
+        for field, key in (("описание", "description"), ("группа", "folder"),
+                           ("поставщик", "supplier"), ("ед. изм.", "uom"),
+                           ("вес", "weight"), ("code128", "barcodes")):
+            n = sum(1 for i in todo if i.get(key))
+            if n:
+                filled.append(field)
+        lines.append("дозаполнено: " + (", ".join(filled) if filled else "нечего, всё уже стояло"))
+    if drop:
+        lines.append("; ".join(f"{d['article']}: {d['why']}" for d in drop[:3]))
+    return " | ".join(lines)
 
 
 def main(argv=None):
@@ -169,7 +199,7 @@ def main(argv=None):
     todo, drop = plan(args.id)
     for d in drop:
         print(f"  ✗ {d['article']} → {d['target_code']}: {d['why']}")
-    by_sup = collections.Counter(i["supplier"][1] for i in todo)
+    by_sup = collections.Counter(i["supplier_name"] for i in todo)
     print(f"  к записи {len(todo)}, отбраковано {len(drop)}")
     print("  поставщик: " + ", ".join(f"{n} — {c}" for (n), c in by_sup.most_common()))
     print(f"  описание заполним у {sum(1 for i in todo if i['description'])}, "
