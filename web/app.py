@@ -2682,11 +2682,14 @@ def unlinked_api(supplier: str = "", status: str = ""):
 
 @app.post("/api/unlinked/decide")
 def unlinked_decide(payload: UnlinkedDecision):
-    """Записать решение по безкодовым карточкам. В МойСклад НИЧЕГО не пишет.
+    """Записать решение по безкодовым карточкам.
 
-    Что делает «Свести» на стороне МС (перенести код, слить карточки, снять артикул)
-    Сергей решает после разбора самих карточек — до этого решения кнопка только помечает
-    строку и запоминает, с какой нашей карточкой её свели.
+    «Свести» (decision=matched) — единственное решение, которое ПИШЕТ в МойСклад: карточке
+    поставщика проставляется наш 4-значный внешний код, внутренний код с аббревиатурой бренда
+    (если правило аббревиатуры известно) и доп. поле «Название WB» по формуле каталога ТК
+    (решение Сергея 18.08.2026). Карточка остаётся той же — оприходования и остатки целы,
+    остаток начинает уходить в TheCartridge. Остальные решения (new/skip/pending) — только
+    пометка строки, в МС ничего не идёт.
     """
     if payload.decision not in ("matched", "new", "skip", "pending"):
         return {"ok": False, "error": "неизвестное решение"}
@@ -2715,7 +2718,18 @@ def unlinked_decide(payload: UnlinkedDecision):
                     (item["external_code"] or item["code"]) if item else None,
                     item["name"] if item else None,
                     payload.note, ms_id))
-    return {"ok": True, "n": len(payload.ids),
+    written, why = 0, ""
+    if payload.decision == "matched":
+        from prices import unlink_apply
+        try:
+            todo, drop = unlink_apply.plan(payload.ids)
+            written = unlink_apply.apply(todo, dry=False, log=lambda *a: None)
+            why = unlink_apply.note(todo, drop)
+            if drop:
+                why += " | " + "; ".join(f"{d['article']}: {d['why']}" for d in drop[:3])
+        except Exception as exc:                     # МС недоступен/отказал — решение уже в БД
+            why = f"в МойСклад не записано: {exc}"
+    return {"ok": True, "n": len(payload.ids), "written": written, "why": why,
             "target_code": (item["external_code"] or item["code"]) if item else None,
             "target_name": item["name"] if item else None}
 

@@ -24,12 +24,12 @@
 ## Территория потока
 
 `prices/` (`profiles, mailbox, parser, cbr, loader, anomaly, blacklist, mailout, journal, run,
-novelty, features, catalog, ms_import, waiting, research, supplier_group`, юниты
+novelty, features, catalog, ms_import, waiting, research, supplier_group, unlinked, unlink_apply`, юниты
 `prc-price-watch@.{service,timer}`) · `core/ms_api.py` (общий клиент МС, пишет пока только prc) ·
 `ops/prc_price_watch.py` · `tools/prc/` (`tpl_check, tpl_load, tpl_verify, enter_audit, tc_bench,
-tc_ms_diff, tc_links`) · `collectors/thecartridge_catalog.py` · миграции **400–408** ·
+tc_ms_diff, tc_links, wb_fill, cat_fix`) · `collectors/thecartridge_catalog.py` · миграции **400–409** ·
 UI `web/static/novelties.html` + роуты `/warehouse/novelties`, `/api/novelties*`, `/api/blacklist*`
-в `web/app.py` · отчёты `docs/prc/`, `docs/reports/`.
+и `/api/unlinked*` в `web/app.py` · отчёты `docs/prc/`, `docs/reports/`.
 
 ## Состояние на 16.08.2026
 
@@ -80,12 +80,21 @@ UI `web/static/novelties.html` + роуты `/warehouse/novelties`, `/api/novelt
      (`prc_unlinked`, `prc_unlinked_candidate`), вкладка **«🔗 Несопоставлено»** в «Новинках»,
      роуты `/api/unlinked`, `/api/unlinked/decide`. Решение пишется только в нашу базу.
    - **Позиции из оприходований НЕ убираем** (решение Сергея 18.08.2026) — вкладка даёт видимость.
-   - **ЖДЁТ СЕРГЕЯ: что делает «Свести».** Показаны образцы (`docs/reports/prc_unlinked_sample.md`,
-     полный список `docs/reports/prc_unlinked.csv`). Рекомендация: ПРОСТАВИТЬ безкодовой карточке
-     наш внешний код + `code` с суффиксом поставщика. Слияние карточек не нужно — ни один из 361
-     артикула не встречается на карточке с кодом, то есть это единственная карточка поставщика
-     на этот товар, а один внешний код и так несёт по карточке на каждого поставщика.
-   - Запись в МС — только по отдельному «ок».
+   - **«Свести» РЕШЕНО (Сергей, 18.08.2026): проставляем карточке наш внешний код + `code`
+     с аббревиатурой бренда + доп. поле «Название WB» по формуле.** Слияние карточек не нужно —
+     ни один из 361 артикула не встречается на карточке с кодом, то есть это единственная карточка
+     поставщика на этот товар, а один внешний код и так несёт по карточке на каждого поставщика.
+     Реализация: `prices/unlink_apply.py` (`plan` / `apply` / `note`), «Название WB» берётся
+     из `tools/prc/wb_fill.compose` по каталогу ТК; кнопка «Свести» в UI теперь пишет живьём,
+     «Завести новую» и «Не наш товар» — по-прежнему только пометка строки.
+     Отбраковка до записи: не 4 цифры, карточка уже сведена, под кодом уже есть карточка той же
+     аббревиатуры (дубль поставщика — решает человек).
+   - **Аббревиатура кода: правила есть только для `kaktus_msk/odissey/sakura/colortek`**
+     (`prices/ms_import.CODE_SUFFIX`). У bulat/vtt/profiline/easy_print/rapid/ramis аббревиатура
+     идёт по БРЕНДУ внутри поставщика (bulat: sl/sg/7q/bt/el, vtt: hb/np, profiline: pl/gp,
+     easy_print: t2/ep, rapid: sf/oem) — регуляркой не угадываем (правило потока). Пока правила нет,
+     карточка получает внешний код и «Название WB», а `code` остаётся пустым; в сводке это видно.
+     **Открытый вопрос Сергею:** дать правило префикс→аббревиатура по этим поставщикам.
    **Архив закрыт правилом в загрузчике (18.08.2026).** Премиса «архив попадает в оприходования
    на Удаленный склад» НЕ подтвердилась: там архивных позиций **0**, все 136 — ручные документы
    2014–2019 на Кантемировской/Звездном (их не трогаем, решение Сергея). Настоящая беда другая:
