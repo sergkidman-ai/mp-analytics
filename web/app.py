@@ -2290,6 +2290,7 @@ def novelties_waiting():
         {"id": m["id"], "article": m["article"], "name": m["name"],
          "supplier_key": m["supplier_key"], "missing": m["missing"], "dead": m["dead"],
          "verdict": waiting.verdict(m), "revive": len(m["revive"]),
+         "ready": waiting.ready(m),   # комплект полон — только такие можно возвращать в работу
          "siblings": [{"article": s["article"], "name": s.get("name") or "",
                        "where": waiting.SOURCE_NAMES[s["source"]] + (
                            "" if s["source"] != "blacklist" else

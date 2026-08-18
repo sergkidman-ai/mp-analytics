@@ -214,9 +214,12 @@ def main(argv=None):
             where = ", ".join(f"{s['article']} — {waiting.SOURCE_NAMES[s['source']]}"
                               for s in row["siblings"][:3])
             print(f"     {row['article']}: {where} → {waiting.verdict(row)}")
-        if matches:
+        if any(waiting.ready(m) for m in matches):
             print(f"     подробности: {waiting_path.name}; вернуть в работу — "
                   f"вкладка «Новинки», фильтр «неполный набор»")
+        elif matches:
+            print(f"     подробности: {waiting_path.name}; возвращать пока нечего — "
+                  f"ни у одной строки комплект не полон")
 
     status, error = "ok", None
     if args.apply:

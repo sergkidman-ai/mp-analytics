@@ -250,10 +250,21 @@ def pool(price_rows=None, supplier_key=None):
 
 
 def verdict(match):
-    """Что делать со строкой — словами, одинаково в консоли, файле и на вкладке."""
-    if match["revive"]:
+    """Что делать со строкой — словами, одинаково в консоли, файле и на вкладке.
+
+    «Вернуть в работу» говорим ТОЛЬКО когда комплект действительно полон (`missing` пуст).
+    Правка Сергея 18.08.2026: совет «комплект собрался» выдавался по одному факту соседа,
+    без проверки полноты, и `CS-I-CL441C` + `CS-I-PG440` из ЧС каждый прогон звали заводить
+    пару, в которой не хватает пурпурного и жёлтого. Сосед — по-прежнему повод показать
+    строку человеку, но не повод её возвращать.
+    """
+    lack = ", ".join(match["missing"])
+    if match["revive"] and not match["missing"]:
         return (f"комплект собрался: вернуть в работу вместе с {len(match['revive'])} из ЧС "
                 f"({', '.join(s['article'] for s in match['revive'])})")
+    if match["revive"]:
+        return (f"сосед в ЧС есть ({', '.join(s['article'] for s in match['revive'])}), "
+                f"но комплект не полон — нет {lack}: ждём дальше")
     if match["unknown_black"]:
         return ("часть серии в ЧС, но в прайсах мы её не видели — "
                 f"спросить у поставщика ({', '.join(s['article'] for s in match['unknown_black'])})")
@@ -261,17 +272,26 @@ def verdict(match):
         return "ждать нечего: цвет есть только в том, что мы не берём (объём/тип/категория)"
     if match["suspect"]:
         return "сосед отсеян по правилам, цвет по артикулу не определить — посмотреть глазами"
+    if match["missing"]:
+        return f"сосед по серии нашёлся, но комплект не полон — нет {lack}: ждём дальше"
     return "цвета появились — можно вернуть в работу"
+
+
+def ready(match):
+    """Строка, которую МОЖНО возвращать в работу: комплект полон."""
+    return not match["missing"]
 
 
 def summary(matches):
     """Одна строка для консоли прогона."""
     if not matches:
         return "новых цветов к ждущим строкам не пришло"
-    pairs = sum(1 for m in matches if m["revive"])
+    pairs = sum(1 for m in matches if m["revive"] and ready(m))
+    partial = sum(1 for m in matches if not ready(m))
     ask = sum(1 for m in matches if m["unknown_black"] and not m["revive"])
     dead = sum(1 for m in matches if m["dead"] and not m["revive"] and not m["unknown_black"])
     tail = f", из них собрались с соседом из ЧС {pairs}" if pairs else ""
+    tail += f", комплект ещё не полон {partial}" if partial else ""
     tail += f", спросить у поставщика {ask}" if ask else ""
     tail += f", ждать нечего {dead}" if dead else ""
     return f"соседи по серии нашлись у {len(matches)} ждущих строк{tail}"
