@@ -192,10 +192,18 @@ def report(items):
 
 
 def mark(items, want):
-    """Пометить строки уровня как «Свести» — решение ложится в нашу базу, МС не трогаем."""
-    n = 0
+    """Пометить строки уровня как «Свести» — решение ложится в нашу базу, МС не трогаем.
+
+    Помечаем только те, где заполняются ВСЕ ТРИ поля: внешний код, внутренний код с аббревиатурой
+    бренда и «Название WB» (команда Сергея 18.08.2026 — заводить только однозначные). Строка без
+    бренда в названии или без кода в каталоге ТК остаётся человеку.
+    """
+    n, part = 0, 0
     for i in items:
         if i["tier"] != want or i["decision"] != "pending":
+            continue
+        if not (i["ms_code"] and i["wb_name"]):
+            part += 1
             continue
         db.execute("""UPDATE prc_unlinked
                          SET decision = 'matched', target_code = %s, target_name = %s,
@@ -205,7 +213,7 @@ def mark(items, want):
                     f"автоотбор уровня {want}: один код в лидерах, балл {i['score']}",
                     i["ms_id"]))
         n += 1
-    return n
+    return n, part
 
 
 def main(argv=None):
@@ -220,7 +228,9 @@ def main(argv=None):
     print(f"  без аббревиатуры бренда среди A+B: {len(no_abbr)}")
     print(f"  отчёт: {REPORT_MD.relative_to(BASE_DIR)}, {REPORT_CSV.relative_to(BASE_DIR)}")
     if args.mark:
-        print(f"  помечено «Свести»: {mark(items, args.mark)} (в МойСклад ничего не записано)")
+        n, part = mark(items, args.mark)
+        print(f"  помечено «Свести»: {n}; отложено неполных (нет кода бренда или Названия WB): "
+              f"{part} (в МойСклад ничего не записано)")
     return 0
 
 
