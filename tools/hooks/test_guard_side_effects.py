@@ -406,5 +406,31 @@ class T13LoggingHygiene(unittest.TestCase):
             self.assertIn(p.returncode, (0, 2), f"хук упал на входе: {bad!r}")
 
 
+class T14StatementScope(unittest.TestCase):
+    """Разбор «читатель + секрет» идёт по ИНСТРУКЦИЯМ, а не по всей строке целиком.
+
+    Регрессия, пойманная вживую: безобидная пакетная команда «проверь .gitignore
+    циклом; потом прогони тесты | tail -4» блокировалась, потому что секретный путь
+    из первой инструкции склеивался с читателем из последней.
+    """
+
+    def test_reader_in_neighbouring_statement_is_not_a_leak(self):
+        cmd = ('for f in .env .env.bak_x; do git check-ignore -q -- "$f"; done; '
+               'python3 -m unittest tools.hooks.test_guard_side_effects | tail -4')
+        self.assertIn(tier(cmd), ("allow", "log"))
+
+    def test_indirect_read_inside_same_loop_still_denied(self):
+        cmd = 'for f in .env; do cat "$f"; done'
+        self.assertEqual(tier(cmd), "deny")
+
+    def test_indirect_read_in_same_statement_chain_still_denied(self):
+        self.assertEqual(tier('x=.env && cat "$x"'), "deny")
+
+    def test_safe_ops_on_secret_file_stay_autonomous(self):
+        for c in ["ls -la .env", "wc -l .env", "git check-ignore -q -- .env",
+                  "test -f .env && echo есть"]:
+            self.assertIn(tier(c), ("allow", "log"), c)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

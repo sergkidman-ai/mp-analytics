@@ -62,6 +62,32 @@ OOM-killer'ом на генерации черновиков: 4.65 ГБ из 5.9
 Замерить память после планового цикла 15:04 UTC (`free -m` + `ps` по Claude Code, свести
 в файл) и принести Сергею один выбор по гигиене сессий с оценкой, а не список вариантов.
 
+## Auto-mode проекта + SIDE-EFFECT / PRODUCTION GUARD (внедрено 18.08.2026)
+
+* **`.claude/settings.json`** — канонический набор permissions проекта (коммитится, наследуется
+  всеми worktree, созданными от этого коммита). `defaultMode: acceptEdits`; 125 allow / 15 ask / 18 deny.
+* **`.gitignore`** — закрыты `.env.*` (бэкапы `.env.bak_*` лежали неигнорируемыми),
+  `.claude/.credentials.json*`, `*.key/*.pem/*.p12/*.pfx/*.jks/*.keystore`, `logs/`.
+* **`tools/hooks/guard_side_effects.py`** — PreToolUse-хук. Работает и под
+  `--dangerously-skip-permissions` (ночной режим), т.е. это последняя линия защиты.
+  Уровни: AUTONOMOUS → AUTONOMOUS+LOG → ASK → HARD DENY; хук умеет только ПОДНИМАТЬ планку.
+  Классы: secret_read, secret_exfil, bank_prod, mp_write, db_destructive, git_dangerous,
+  fs_destructive, service_prod, obfuscation. Журнал `logs/guard_side_effects.jsonl`
+  (команда обеззаражена, значения секретов не пишутся никогда).
+* **`tools/hooks/test_guard_side_effects.py`** — 61 тест (`python3 -m unittest`). Тестам НЕ нужны
+  ни `.env`, ни venv, ни боевые данные площадок/банка — проверено прогоном в чистом worktree.
+* **`.claude/settings.local.json`** — вычищен с 398 накопленных allow до 5 машинно-специфичных;
+  из правил удалён боевой ключ RAPID, лежавший открытым текстом в allow-правиле `curl`.
+
+Запреты: значения секретов не попадают ни в permission-правила, ни в журнал хука; приложению
+пользоваться секретом из окружения не мешаем, Клоду читать/печатать/отправлять/коммитить
+ЗНАЧЕНИЕ секрета запрещено; ослабление guard'а — только правкой файла и с объяснением, что
+именно становится автономным.
+
+Открыто: старые worktree (`fin-*`, `gab`, `inv-*`, `mkt-ozon`, `prc-*`, `ret`) получат
+`settings.json` и хук только после rebase/merge на `main`. Ключ RAPID стоит перевыпустить —
+он лежал открытым текстом в локальных настройках.
+
 ---
 ### Правила ведения
 - Обновлять в конце каждого значимого блока работы.

@@ -81,6 +81,17 @@ def worst(verdicts):
 
 # ─────────────────────── словари распознавания ───────────────────────
 
+# Ключевые слова оболочки — это не команды: `for f in .env ...` не является
+# «неизвестной операцией над секретом» (поймано вживую при проверке .gitignore).
+SHELL_KEYWORDS = {
+    "for", "in", "do", "done", "if", "then", "else", "elif", "fi", "while",
+    "until", "case", "esac", "function", "select", "time", "cd", "export",
+    "local", "return", "source", ".", "[", "[[", "{", "}",
+}
+
+# Шаблоны без значений — не секреты.
+TEMPLATE_RE = re.compile(r"\.(example|sample|template|dist)$", re.I)
+
 # Пути, значение которых Клод не должен видеть/печатать/отправлять/коммитить.
 SECRET_PATH_RE = re.compile(
     r"(^|/)\.env($|[._-])"          # .env, .env.bak_*, .env.prod
@@ -285,9 +296,15 @@ def is_mass(joined):
 
 # ─────────────────────────── детекторы ───────────────────────────
 
+def is_secret_path(s):
+    return bool(SECRET_PATH_RE.search(s)) and not TEMPLATE_RE.search(s)
+
+
 def d_secret_read(env, cmd, args, joined, tool):
     """Чтение/печать значений секретов."""
-    secret_args = [a for a in args if SECRET_PATH_RE.search(a)]
+    if cmd in SHELL_KEYWORDS:
+        return None
+    secret_args = [a for a in args if is_secret_path(a)]
     if secret_args:
         if cmd in READERS:
             return Verdict(DENY, "secret_read",
@@ -309,6 +326,68 @@ def d_secret_read(env, cmd, args, joined, tool):
         return Verdict(DENY, "secret_read", "печать значения секретной переменной окружения.")
     if cmd in ("echo", "printf") and SECRET_NAME_RE.search(joined) and "$" in joined:
         return Verdict(DENY, "secret_read", "печать значения секрета через $-подстановку.")
+    return None
+
+
+_STMT_OPENERS = {"for", "while", "until", "if", "case", "select"}
+_STMT_CLOSERS = {"done", "fi", "esac"}
+
+
+def split_statements(command):
+    """Команда -> список ЗАКОНЧЕННЫХ инструкций (разрыв по `;` и переводу строки).
+
+    В отличие от split_segments(), НЕ разрывает составные конструкции: цикл
+    `for f in <секрет>; do <читатель> $f; done` остаётся одной инструкцией,
+    поэтому связка «секрет + читатель» внутри цикла по-прежнему видна.
+    Зато читатель из СОСЕДНЕЙ инструкции больше не склеивается с секретом из
+    предыдущей — это давало ложные срабатывания на безобидных пакетных командах.
+    """
+    stmts, buf, depth = [], [], 0
+    for chunk in re.split(r"[;\n]", command):
+        buf.append(chunk)
+        for w in re.findall(r"[A-Za-z_]+", chunk):
+            if w in _STMT_OPENERS:
+                depth += 1
+            elif w in _STMT_CLOSERS:
+                depth = max(0, depth - 1)
+        if depth == 0:
+            s = ";".join(buf).strip()
+            if s:
+                stmts.append(s)
+            buf = []
+    if buf:
+        s = ";".join(buf).strip()
+        if s:
+            stmts.append(s)
+    return stmts or [command]
+
+
+def _secret_read_in_stmt(command):
+
+    """Читатель + секретный путь ГДЕ УГОДНО в команде.
+
+    Закрывает обход через переменную: `for f in .env; do cat $f; done` — в сегменте
+    с `cat` секретного пути уже нет, поэтому посегментной проверки мало.
+    """
+    # `=` тоже разделитель: ловим `x=<секрет>` и `--file=<секрет>`.
+    words = re.findall(r"[^\s\"'|;&<>()=]+", command)
+    if not any(is_secret_path(w) for w in words):
+        return None
+    names = {os.path.basename(w) for w in words}
+    hit = sorted(names & READERS)
+    if hit:
+        return Verdict(DENY, "secret_read",
+                       f"в команде есть и секретный файл, и читающая команда ({hit[0]}) — "
+                       "значение ключа попало бы в контекст сессии.")
+    return None
+
+
+def d_secret_read_whole(command):
+    """Связка «читатель + секретный путь» — ПОИНСТРУКЦИОННО (см. split_statements)."""
+    for stmt in split_statements(command):
+        v = _secret_read_in_stmt(stmt)
+        if v:
+            return v
     return None
 
 
@@ -467,7 +546,7 @@ def d_git(env, cmd, args, joined, cwd):
                            "смена ветки в ОБЩЕМ чекауте /opt/mp-analytics (CLAUDE.md правило 14): "
                            "HEAD уедет под всеми параллельными сессиями. Работайте в worktree.")
     if sub == "add":
-        secret_args = [a for a in args if SECRET_PATH_RE.search(a)]
+        secret_args = [a for a in args if is_secret_path(a)]
         if secret_args:
             return Verdict(DENY, "git_dangerous",
                            f"попытка закоммитить секрет ({secret_args[0]}).")
@@ -537,7 +616,9 @@ def d_obfuscation(command, degraded):
 
 def classify_bash(command, cwd=REPO):
     verdicts = []
-    verdicts.append(d_secret_exfil(command))          # по всей команде: переупорядочивание не спасает
+    # проверки по ВСЕЙ команде: переупорядочивание и переменные не спасают
+    verdicts.append(d_secret_exfil(command))
+    verdicts.append(d_secret_read_whole(command))
     segments, _ = split_segments(command)
     degraded_any = False
     for seg in segments:
@@ -566,7 +647,7 @@ def classify_bash(command, cwd=REPO):
 
 def classify_file_tool(tool, tool_input):
     path = tool_input.get("file_path") or tool_input.get("path") or ""
-    if path and SECRET_PATH_RE.search(path):
+    if path and is_secret_path(path):
         if tool == "Read":
             return Verdict(DENY, "secret_read",
                            f"чтение секретного файла ({os.path.basename(path)}) в контекст сессии.")

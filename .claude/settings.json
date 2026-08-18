@@ -113,6 +113,10 @@
       "Bash(./venv/bin/pip list:*)",
       "Bash(python3 -m unittest:*)",
       "Bash(python3 tools/territory_guard.py:*)",
+      "Bash(WORKSTREAM_OVERRIDE=1 ./venv/bin/python:*)",
+      "Bash(PYTHONPATH=. ./venv/bin/python:*)",
+      "Bash(PYTHONPATH=/opt/mp-analytics ./venv/bin/python:*)",
+      "Bash(timeout:*)",
 
       "Bash(psql:*)",
       "Bash(docker ps:*)",
