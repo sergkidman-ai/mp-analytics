@@ -36,12 +36,24 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from reports.bid_policy import WB_MARGIN_GATE, WB_MARGIN_FLOOR  # noqa: E402
+from ops import wb_roy_weeks as roy_weeks  # noqa: E402
 
 ACC, FLOOR = 'wb_acc1', 7.30
+# Недели считаются от воскресенья отчётной недели (--end); по умолчанию — последнее закрытое.
+# Окно Джема (period_start) совпадает с началом недели день в день.
 W1 = ('2026-08-03', '2026-08-09')      # прошлая неделя, пн-вс
 W2 = ('2026-08-10', '2026-08-16')      # отчётная неделя, пн-вс
-JAM2 = '2026-08-10'                    # окно Джема 10-16.08 — совпадает с W2 день в день
+JAM2 = '2026-08-10'
 JAM1 = '2026-08-03'
+
+
+def set_weeks(end):
+    """end — date воскресенья отчётной недели. Проставляет окна модуля."""
+    global W1, W2, JAM1, JAM2
+    w1, w2 = roy_weeks.weeks(end)
+    W1 = (w1[0].isoformat(), w1[1].isoformat())
+    W2 = (w2[0].isoformat(), w2[1].isoformat())
+    JAM1, JAM2 = W1[0], W2[0]
 CORE_MONTHS = ('2026-05-01', '2026-07-01')   # три полных месяца для ядра кандидатов
 
 
@@ -259,4 +271,17 @@ def main(path):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'funnel_weeks.json')
+    import argparse
+    import datetime
+    ap = argparse.ArgumentParser()
+    ap.add_argument('path', nargs='?', default='',
+                    help='json воронки за две недели; по умолчанию — по --end из docs/reports')
+    ap.add_argument('--end', default='', help='воскресенье отчётной недели (по умолчанию последнее)')
+    a = ap.parse_args()
+    end = datetime.date.fromisoformat(a.end) if a.end else roy_weeks.last_sunday()
+    set_weeks(end)
+    src = a.path or str(BASE_DIR / 'docs' / 'reports' / f'mkt_roy_funnel_{end}.json')
+    if not pathlib.Path(src).exists():
+        sys.exit(f"нет воронки за неделю: {src}\nсначала: ./venv/bin/python -m ops.wb_roy_weeks --end {end}")
+    print(f"Рой по профилю: неделя {W2[0]}..{W2[1]} против {W1[0]}..{W1[1]}")
+    main(src)

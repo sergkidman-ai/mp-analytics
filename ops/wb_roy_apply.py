@@ -34,13 +34,17 @@ from ops.wb_bid_ladder import FLOOR, MAX_CPC, STEP, apply_step  # noqa: E402
 
 CUT = 0.90
 RULES = {'🟢 зелёный': 'up', '🔴 красный': 'down', '🟤 бордовый': 'floor'}
+BLACK = '⚫ вывод'
 
 
-def build(path):
+def build(path, rules=RULES, only=None):
     plan, skip = [], {}
     with open(path, encoding='utf-8-sig') as fh:
         for r in csv.DictReader(fh, delimiter=';'):
-            rule = RULES.get(r['цвет'])
+            rule = rules.get(r['цвет'])
+            if rule and only and rule not in only:
+                skip[f'{r["цвет"]}: вне --only'] = skip.get(f'{r["цвет"]}: вне --only', 0) + 1
+                continue
             if not rule:
                 skip[r['цвет']] = skip.get(r['цвет'], 0) + 1
                 continue
@@ -66,12 +70,21 @@ def main():
     ap.add_argument('csv_path')
     ap.add_argument('--account', default='wb_acc1')
     ap.add_argument('--apply', action='store_true', help='живая запись в ВБ')
+    ap.add_argument('--blackout', action='store_true',
+                    help='включить ⚫ вывод: ставку на пол (удаление из кампании — руками в ЛК)')
+    ap.add_argument('--only', default='',
+                    help='подмножество правил через запятую: up,down,floor')
+    ap.add_argument('--notify', action='store_true', help='итог в телеграм Сергею')
     a = ap.parse_args()
 
-    plan, skip = build(a.csv_path)
+    rules = dict(RULES)
+    if a.blackout:
+        rules[BLACK] = 'floor'
+    only = {x.strip() for x in a.only.split(',') if x.strip()} or None
+    plan, skip = build(a.csv_path, rules, only)
     print(f"ПЛАН ПО ОТЧЁТУ {pathlib.Path(a.csv_path).name} · {a.account}")
     print(f"{'цвет':14}{'SKU':>6}{'кампаний':>10}{'ставка была':>13}{'станет':>10}{'дельта ₽':>10}")
-    for color in RULES:
+    for color in rules:
         g = [r for r in plan if r['color'] == color]
         if not g:
             continue
@@ -89,6 +102,15 @@ def main():
     note = f"roy weekly {pathlib.Path(a.csv_path).stem}"
     ok, bad = apply_step(a.account, plan, note, author='roy')
     print(f"\nОТПРАВЛЕНО В ВБ: применено {ok}, отклонено {bad}")
+    if a.notify:
+        from ops.wb_daily_report import send
+        by = {}
+        for r in plan:
+            by[r['color']] = by.get(r['color'], 0) + 1
+        parts = ', '.join(f"{c} {n}" for c, n in sorted(by.items(), key=lambda x: -x[1]))
+        send(f"*Рой ВБ — {pathlib.Path(a.csv_path).stem}*\n"
+             f"Записано *{ok}* ставок" + (f", отклонено {bad}" if bad else "") + f"\n{parts}\n"
+             f"Подъём зелёных не автоматизирован — ждёт вашего слова.")
 
 
 if __name__ == '__main__':
