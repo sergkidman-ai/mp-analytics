@@ -15,11 +15,18 @@ TheCartridge — товар не продаётся. Карточку НЕ ду�
                   (`CODE_SUFFIX`), нет и его → код НЕ придумываем, карточка уезжает без
                   внутреннего кода и попадает в сводку — доназначает человек;
   «Название WB» — доп. поле по формуле `tools/prc/wb_fill.compose` из каталога ТК; заполняем,
-                  только если поле пустое, а внешний код есть в `prc_tc_model`.
+                  только если поле пустое, а внешний код есть в `prc_tc_model`. Значение НЕ
+                  копируем у соседа по внешнему коду: родню заполняли руками и с ошибками.
+
+Карточка УЖЕ несёт наш код (человек проставил её руками до нажатия): коды не трогаем — ни
+внешний, ни внутренний, — но «Название WB» дозаполняем, если оно пустое (правило Сергея
+18.08.2026: кнопка обязана оставить поле заполненным в любом случае). Внешний код карточки
+разошёлся с выбором во вкладке — не пишем ничего, это спор для человека.
 
 Проверки до записи (строка отбраковывается, ничего не пишем):
   · целевой код не 4 цифры;
-  · карточка уже несёт наш 4-значный внешний код (сведена раньше);
+  · карточка сведена под ДРУГОЙ 4-значный код;
+  · карточка сведена под этот же код, а «Название WB» уже стоит либо не собирается;
   · под этим внешним кодом уже живёт карточка с ТАКОЙ ЖЕ аббревиатурой бренда — это дубль
     того же поставщика, значит настоящая пара уже есть и решает человек.
 
@@ -98,17 +105,19 @@ def plan(ids=None):
             drop.append({**r, "why": f"карточка не читается: {exc}"})
             continue
         have = (card.get("externalCode") or "").strip()
-        if OUR_CODE_RE.match(have):
-            drop.append({**r, "why": f"карточка уже сведена: внешний код {have}"})
+        already = bool(OUR_CODE_RE.match(have))
+        if already and have != code:
+            drop.append({**r, "why": f"карточка уже сведена под другой код {have} — "
+                                     f"расхождение с выбором {code}, решает человек"})
             continue
         abbr = _suffix(r["article"], r["supplier_key"], r["name"])
-        if abbr and abbr in twins.get(code, {}):
+        if not already and abbr and abbr in twins.get(code, {}):
             drop.append({**r, "why": f"под кодом {code} уже есть карточка «{twins[code][abbr]}» "
                                      f"того же бренда — это дубль, решает человек"})
             continue
         item = {"ms_id": r["ms_id"], "article": r["article"], "name": r["name"],
-                "supplier_key": r["supplier_key"], "external_code": code,
-                "code": f"{code}{abbr}" if abbr else None,
+                "supplier_key": r["supplier_key"], "external_code": code, "already": already,
+                "code": None if already else (f"{code}{abbr}" if abbr else None),
                 "attributes": card.get("attributes") or [], "wb_name": None, "wb_why": ""}
         if wb_fill._wb_value(card):
             item["wb_why"] = "поле уже заполнено"
@@ -117,6 +126,10 @@ def plan(ids=None):
         else:
             value, why = wb_fill.compose(catalog[code])
             item["wb_name"], item["wb_why"] = (value or None), why
+        if already and not item["wb_name"]:
+            drop.append({**r, "why": f"карточка уже сведена: внешний код {have}; "
+                                     f"«Название WB» не пишем — {item['wb_why']}"})
+            continue
         todo.append(item)
         time.sleep(PAUSE)
     return todo, drop
@@ -130,10 +143,11 @@ def apply(todo, dry=True, log=print):
         body = []
         for r in chunk:
             payload = {"meta": {"href": f"{ms_api.BASE}/entity/product/{r['ms_id']}",
-                                "type": "product", "mediaType": "application/json"},
-                       "externalCode": r["external_code"]}
-            if r["code"]:
-                payload["code"] = r["code"]
+                                "type": "product", "mediaType": "application/json"}}
+            if not r.get("already"):            # уже сведённой карточке коды не переписываем
+                payload["externalCode"] = r["external_code"]
+                if r["code"]:
+                    payload["code"] = r["code"]
             if r["wb_name"]:
                 attrs = [a for a in r["attributes"] if a.get("name") != wb_fill.WB_ATTR]
                 attrs.append({
