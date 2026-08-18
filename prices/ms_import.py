@@ -74,9 +74,9 @@ MS_SUPPLIER = {
     "sakura": 'ООО "ПОЗИТИВ"',
     "colortek": 'ООО "КОЛОРТЕК РУС"',
 }
-# У поставщика бывает несколько юрлиц, и карточки разных брендов висят на РАЗНЫХ:
-# у Одиссея `wb` — на «ООО ОДИССЕЙ WB» (проверено по живым карточкам 7086wb/7080wb/5952wb),
-# `at` — на «ООО ОДИССЕЙ». Ставим то же юрлицо, что у родни, иначе карточка окажется
+# У поставщика бывает несколько юрлиц, и карточки висят на РАЗНЫХ: у Одиссея на «ООО ОДИССЕЙ WB»
+# — бренд White Box и ВСЯ СТРУЙКА любого бренда (см. `supplier_of`), на «ООО ОДИССЕЙ» — остальная
+# брендованная лазерка (`at` Аквамарин, `hb` Hi-Black). Ставим то же юрлицо, что у родни, иначе карточка окажется
 # «чужой» для своего же прайса. Ключ — аббревиатура кода; чего нет здесь — `supplier_ids[0]`.
 SUPPLIER_BY_SUFFIX = {
     "odissey": {"wb": ("61d01266-2fe1-11f0-0a80-0f7f000bf967", 'ООО "ОДИССЕЙ" WB')},
@@ -94,6 +94,19 @@ WHITE_BOX_ARTICLE = re.compile(r"^\s*WB\b", re.IGNORECASE)
 def is_white_box(name, article=""):
     """True, если товар Одиссея — бренда White Box (см. SUPPLIER_BY_SUFFIX)."""
     return bool(WHITE_BOX_NAME.search(name or "")) or bool(WHITE_BOX_ARTICLE.match(article or ""))
+
+
+# Струйка Одиссея живёт на том же юрлице «ООО ОДИССЕЙ WB», что и White Box (решение Сергея
+# 18.08.2026 — им же отменён обратный переезд 461 струйной карточки). Признак берём из
+# КАТЕГОРИИ МС: «Картриджи/Картриджи Epson/струйные epson», «…/струйные hp», «…/струйные canon».
+# Категория — родной признак справочника и надёжнее разбора наименования: по имени струйник
+# отличается только кодом модели (T0801, CL-41, PGI-425), а список кодов бесконечен.
+INKJET_PATH = re.compile(r"струйн", re.IGNORECASE)
+
+
+def is_inkjet(path):
+    """True, если карточка лежит в струйной категории МС (см. INKJET_PATH)."""
+    return bool(INKJET_PATH.search(path or ""))
 # Чей прайс в `supplier_dims` — первоисточник веса для этого поставщика.
 DIMS_SUPPLIER = {
     "kaktus_msk": ("cactus",),
@@ -161,8 +174,15 @@ def suffix(article, supplier_key, name=""):
                    f"артикул «{article}» — добавьте бренд в CODE_SUFFIX")
 
 
-def supplier_of(article, profile, name=""):
-    """(id контрагента, имя) для новой карточки: юрлицо той же группы, что у родни бренда."""
+def supplier_of(article, profile, name="", path=""):
+    """(id контрагента, имя) для новой карточки: юрлицо той же группы, что у родни бренда.
+
+    У Одиссея на «ООО ОДИССЕЙ WB» сидят ДВА набора: бренд White Box (метка в наименовании)
+    и вся струйка (категория МС, `is_inkjet`) — независимо от бренда. Аббревиатуру кода это
+    не трогает: струйный Аквамарин остаётся `…at`, меняется только юрлицо.
+    """
+    if profile.key == "odissey" and (is_white_box(name, article) or is_inkjet(path)):
+        return SUPPLIER_BY_SUFFIX["odissey"]["wb"]
     abbr = suffix(article, profile.key, name)
     found = SUPPLIER_BY_SUFFIX.get(profile.key, {}).get(abbr)
     if found:
@@ -464,7 +484,7 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
             flags.append(f"ресурс отличается от родни: {sorted(new_pages)} против {sorted(kin_pages)} "
                          f"— по решению Сергея это норма, оставляем")
 
-        sup_id, sup_name = supplier_of(row["article"], profile, row["name"])
+        sup_id, sup_name = supplier_of(row["article"], profile, row["name"], path)
         records.append({
             # Служебное поле (не колонка файла): по нему после создания карточки строка
             # новинок получает свой итог. `write_xlsx` идёт по COLUMNS, лишний ключ ей не мешает.

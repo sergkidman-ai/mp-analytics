@@ -10,8 +10,8 @@ White Box («белая», небрендированная коробка) по
 ДВИЖЕНИЕ ТОЛЬКО В ОДНУ СТОРОНУ — «ОДИССЕЙ» → «ОДИССЕЙ WB». Обратный ход запрещён решением
 Сергея 18.08.2026: на «ОДИССЕЙ WB» живут не только White Box, но и СТРУЙНЫЕ картриджи
 (Аквамарин и пр.). Первый прогон снял оттуда 461 струйную карточку, их вернули из бэкапа
-`backups/odissey_wb_2026-08-18/`. Пока признак струйки не оговорён (см. `docs/BRIEF_PRC.md`,
-п. 0a), скрипт с «ОДИССЕЙ WB» не снимает ничего.
+`backups/odissey_wb_2026-08-18/`. Струйку он теперь, наоборот, ТУДА собирает — по категории МС
+(`ms_import.is_inkjet`), но снять с «ОДИССЕЙ WB» по-прежнему не может ничего.
 
 Сверх правила скрипт показывает, где с ним спорит СУФФИКС НАШЕГО КОДА (`1234wb`): код
 присваивал человек, и расхождение — повод посмотреть глазами, а не молча переписать.
@@ -27,7 +27,7 @@ import time
 from pathlib import Path
 
 from core import ms_api
-from prices.ms_import import is_white_box
+from prices.ms_import import is_inkjet, is_white_box
 
 OD = ("7225fcf1-10f7-11ea-0a80-06380004eeda", 'ООО "ОДИССЕЙ"')
 ODW = ("61d01266-2fe1-11f0-0a80-0f7f000bf967", 'ООО "ОДИССЕЙ" WB')
@@ -54,9 +54,11 @@ def cards(supplier_id, archived):
 
 
 def plan(with_archived):
-    """[(карточка, куда, почему)] — карточки White Box, лежащие не на своём юрлице.
+    """[(карточка, куда, почему)] — карточки, которым место на «ОДИССЕЙ WB».
 
-    Односторонне: собираем White Box на «ОДИССЕЙ WB» и НЕ снимаем ничего обратно (см. шапку).
+    Туда идут ДВА набора: бренд White Box (метка в наименовании) и вся струйка (категория МС
+    `…/струйные <бренд>`), см. `ms_import.supplier_of`. Односторонне: собираем на «ОДИССЕЙ WB»
+    и НЕ снимаем оттуда ничего (см. шапку модуля).
     """
     moves, seen = [], 0
     for sid, title in (OD, ODW):
@@ -64,15 +66,15 @@ def plan(with_archived):
             for p in cards(sid, archived):
                 seen += 1
                 wb = is_white_box(p.get("name"), p.get("article"))
-                if not wb or sid == ODW[0]:
+                ink = is_inkjet(p.get("pathName"))
+                if not (wb or ink) or sid == ODW[0]:
                     continue                       # обратный ход запрещён (см. шапку модуля)
-                want = ODW
+                why = "White Box" if wb else f"струйная категория: {p.get('pathName')}"
                 tail = CODE_TAIL.match(p.get("code") or "")
                 tail = (tail.group(1).lower() if tail else "")
-                note = ""
-                if tail and tail != "wb":
-                    note = f"код оканчивается на {tail}, а в имени метка White Box"
-                moves.append((p, want, note))
+                if wb and tail and tail != "wb":
+                    why += f"; код оканчивается на {tail} — посмотреть глазами"
+                moves.append((p, ODW, why))
     return moves, seen
 
 
@@ -98,13 +100,14 @@ def main():
     to_wb = moves
     with open(args.out, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh, delimiter=";")
-        w.writerow(["куда", "код", "артикул", "внешний код", "наименование", "архив", "замечание"])
+        w.writerow(["куда", "код", "артикул", "внешний код", "наименование", "архив", "почему"])
         for p, want, note in sorted(moves, key=lambda m: (m[1][1], m[0].get("code") or "")):
             w.writerow([want[1], p.get("code"), p.get("article"), p.get("externalCode"),
                         p.get("name"), "да" if p.get("archived") else "", note])
     print(f"карточек просмотрено: {seen}")
     print(f"  на «ОДИССЕЙ WB»: {len(to_wb)}   (архивных {sum(1 for m in to_wb if m[0].get('archived'))})")
-    print(f"  спорят с суффиксом кода: {sum(1 for m in moves if m[2])}")
+    print(f"  из них по метке White Box: {sum(1 for m in moves if m[2].startswith('White Box'))}")
+    print(f"  спорят с суффиксом кода:  {sum(1 for m in moves if 'глазами' in m[2])}")
     print("отчёт ->", args.out)
     if args.apply:
         apply(moves)
