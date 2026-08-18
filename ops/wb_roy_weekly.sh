@@ -14,6 +14,8 @@ LOG=/opt/mp-analytics/wb_roy_weekly.log
   $PY -m ops.wb_roy_weeks --end "$END"                     || echo "!! воронка acc1 не собралась"
   $PY -m ops.wb_roy_weeks --account wb_acc2 --end "$END"   || echo "!! воронка acc2 не собралась"
   $PY -m ops.wb_week_compare --end "$END"                  || echo "!! сравнение недель не вышло"
+  $PY -m ops.wb_breadth --end "$END"                       || echo "!! ширина acc1 не посчиталась"
+  $PY -m ops.wb_breadth --account wb_acc2 --end "$END"     || echo "!! ширина acc2 не посчиталась"
   $PY -m ops.wb_roy_profile --end "$END"                   || echo "!! профиль не построился"
   CSV="docs/reports/mkt_roy_profile_${END}.csv"
   if [ -s "$CSV" ]; then
