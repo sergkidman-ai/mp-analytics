@@ -36,7 +36,11 @@ from core import db
 
 OUT = '/opt/mp-analytics/docs/reports'
 PPO_RATE = 0.05          # оплата за заказ, оба аккаунта с 09-10.08
-MARGIN_HAIRCUT = 10.6    # п.п., поправка к margin_own_live (бриф п.34)
+# п.п., нераспределённые по SKU расходы аккаунта БЕЗ рекламы: подписка, досрочная выплата,
+# нерекомендованный слот, ускоренный сбор отзывов, гибкий график, доставка realFBS.
+# Реклама (клик, ППО, Звёздные) в поправку не входит: потолок ставки и так решает,
+# сколько рекламы мы можем себе позволить, — вычитать её дважды нельзя. Июль-2026.
+MARGIN_HAIRCUT = {'oz_acc1': 4.6, 'oz_acc2': 5.0}
 KPI_MARGIN = 17.0        # ниже — рекламу не разгоняем
 SEARCH_RECENT_WEEKS = 4
 
@@ -50,6 +54,7 @@ def price_bucket(p):
 
 def fetch(acc):
     """Один проход по БД: словарь sku -> паспорт."""
+    hc = MARGIN_HAIRCUT[acc]
     win = db.query("""SELECT min(stat_date) d0, max(stat_date) d1, count(DISTINCT stat_date) n
                         FROM mkt_ozon_ads_sku_daily WHERE account=%s""", (acc,))[0]
     ads_days = int(win['n'] or 0)
@@ -176,7 +181,7 @@ def fetch(acc):
         # органический трафик = поисковые показы, не относящиеся к рекламным показам
         r['traffic_ever'] = (vw > 0 or f2(r['s_views_all']) > 0 or f2(r['qty_all']) > 0)
         mg = r['margin_own_live']
-        r['margin_safe'] = round(f2(mg) - MARGIN_HAIRCUT, 1) if mg is not None else None
+        r['margin_safe'] = round(f2(mg) - hc, 1) if mg is not None else None
         cr = cr_b.get(price_bucket(r['our_price']), cr_acc)
         r['cr_bucket'] = round(cr, 4)
         pr = f2(r['our_price'])
@@ -223,7 +228,7 @@ def main():
     rows, ads_days, win, weeks = fetch(acc)
     hdr = (f'{acc}: реклама {win["d0"]}..{win["d1"]} ({ads_days} дн), '
            f'поиск {len(weeks)} нед с {min(weeks) if weeks else "-"}, продажи вся история, '
-           f'маржа: margin_safe = margin_own_live - {MARGIN_HAIRCUT} п.п.; '
+           f'маржа: margin_safe = margin_own_live - {MARGIN_HAIRCUT[acc]} п.п.; '
            f'построено {dt.date.today()}')
 
     for r in rows:
