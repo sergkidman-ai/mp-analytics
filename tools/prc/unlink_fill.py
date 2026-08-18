@@ -47,6 +47,9 @@ SUPPLIER = {
     "bulat": ("0b9561fe-1468-11ec-0a80-05dc0004fec6", "ИП Капшук Наталья Сергеевна"),
     "vtt": ("3e1d1aab-5f56-11e9-9109-f8fc00164628", 'ООО "КПД"(ВТТ)'),
     "kaktus_msk": ("0b14dc16-c51e-11ef-0a80-0c79000af987", 'ООО "КОМПАНИЯ ФЕРРЕТ"'),
+    # блоссом (bs): 10 из 12 живых карточек бренда стоят на «КОМПАНИЯ БЛОССОМ», остальные —
+    # на «КАРТРИДЖ ТРЕЙД» (Блоссом); берём преобладающего.
+    "blossom": ("141a0940-99f7-11e7-7a34-5acf0005e7dc", 'ООО "КОМПАНИЯ БЛОССОМ"'),
 }
 UOM_NAME = "шт"
 UUID_EPOCH = datetime.datetime(1582, 10, 15)
@@ -91,10 +94,15 @@ def kin(code, skip_id):
     return folder, (codes.most_common(1)[0][0] if codes else None), weight
 
 
-def plan():
+def plan(ids=None):
     """Что дозаполним. Источник — строки, уже сведённые кнопкой «Свести»."""
-    rows = db.query("SELECT ms_id, article, name, supplier_key, target_code FROM prc_unlinked "
-                    "WHERE decision = 'matched' AND target_code ~ '^[0-9]{4}$'")
+    sql = ("SELECT ms_id, article, name, supplier_key, target_code FROM prc_unlinked "
+           "WHERE decision = 'matched' AND target_code ~ '^[0-9]{4}$'")
+    params = ()
+    if ids:
+        sql += " AND ms_id = ANY(%s)"
+        params = (list(ids),)
+    rows = db.query(sql, params)
     uom = uom_ref()
     todo, drop = [], []
     for r in rows:
@@ -155,9 +163,10 @@ def apply(todo, dry=True, log=print):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Дозаполнить сведённые карточки поставщиков")
     ap.add_argument("--apply", action="store_true", help="писать в МойСклад (по умолчанию проба)")
+    ap.add_argument("--id", action="append", help="только эти ms_id")
     args = ap.parse_args(argv)
 
-    todo, drop = plan()
+    todo, drop = plan(args.id)
     for d in drop:
         print(f"  ✗ {d['article']} → {d['target_code']}: {d['why']}")
     by_sup = collections.Counter(i["supplier"][1] for i in todo)
