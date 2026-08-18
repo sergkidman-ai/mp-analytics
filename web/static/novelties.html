@@ -129,6 +129,9 @@
   .wait .why.stop{color:var(--warn)}
   .wait button{margin-left:8px}
   .big{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 16px}
+  /* Вариант на вкладке «Несопоставлено» кликабелен: клик кладёт его код в поле решения. */
+  .cand{border-left:3px solid var(--line);padding:2px 0 2px 8px;margin:0 0 6px;cursor:pointer}
+  .cand:hover{border-left-color:var(--acc,#3b82f6)}
   .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 16px;min-width:130px;cursor:pointer}
   .bi:hover{border-color:var(--acc)}
   .bi.cur{border-color:var(--acc);box-shadow:inset 0 -2px 0 var(--acc)}
@@ -191,6 +194,7 @@
   <nav class="whtabs sub" id="subtabs">
     <a href="#" data-view="new" class="cur">✨ Разбор новинок</a>
     <a href="#" data-view="black">🚫 Чёрный список</a>
+    <a href="#" data-view="unlinked">🔗 Несопоставлено</a>
   </nav>
 
   <div id="viewNew">
@@ -289,6 +293,51 @@
     </table>
     <p class="note" id="bfoot"></p>
     <p class="mswarn" id="bmsg"></p>
+  </div>
+
+  <!-- Несопоставлено: карточки, которые УЖЕ лежат в оприходованиях, но без нашего
+       4-значного внешнего кода. Это зеркало «Новинок»: там строка прайса без карточки,
+       здесь карточка без кода. Цена вопроса — остаток: без кода он виден только в МС
+       и дальше в ТК не уходит, то есть товар лежит на складе поставщика невидимкой. -->
+  <div id="viewUnlinked" hidden>
+    <p class="note" style="margin-top:0">Карточки из <b>актуальных оприходований</b> на «Удаленном складе»,
+    у которых в поле «Внешний код» стоит автогенерация МойСклада вместо наших четырёх цифр. Остаток берётся
+    из позиций самого оприходования: прайсы Булата, ВТТ, Рамис и Блоссома к нам не приходят — их грузит
+    внешний загрузчик. Вариант подобран по признакам (модель, тип, бренд, цвет, ресурс, чип) среди карточек,
+    у которых наш код есть. <b>Свести</b> — записать решение «это тот же товар, код такой-то»;
+    <b>в МойСклад это ничего не пишет</b>, запись — отдельным решением. Позиции из оприходования не убираются.</p>
+
+    <div class="big" id="ubig"></div>
+
+    <div class="bar" id="ubar">
+      <select id="usupplier"></select>
+      <select id="ustatus">
+        <option value="pending">не разобранные</option>
+        <option value="">все</option>
+        <option value="matched">сведённые</option>
+        <option value="new">нашей карточки нет</option>
+        <option value="skip">не берём</option>
+      </select>
+      <input id="uq" placeholder="поиск по названию и артикулу">
+      <span class="grow"></span>
+      <span class="muted" id="uselinfo">отмечено 0</span>
+      <input id="ucode" placeholder="код нашего товара" style="width:150px">
+      <button id="ubulk-match" class="pri" disabled title="свести отмеченные с товаром по коду">🔗 Свести</button>
+      <button id="ubulk-new" class="new" disabled title="нашей карточки такого товара нет">Нет у нас</button>
+      <button id="ubulk-skip" disabled>Не берём</button>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th style="width:28px"><input type="checkbox" id="uall"></th>
+        <th style="width:38%">Карточка без кода</th>
+        <th>Наш товар — варианты</th>
+        <th style="width:150px">Решение</th>
+      </tr></thead>
+      <tbody id="urows"><tr><td colspan="4" class="muted">загрузка…</td></tr></tbody>
+    </table>
+    <p class="note" id="ufoot"></p>
+    <p class="mswarn" id="umsg"></p>
   </div>
 </main>
 
@@ -887,17 +936,21 @@ $("#bulk-black").onclick = () => toBlacklist(selected());
 let BDATA = [], BCOUNTS = {}, BTITLES = {}, BTOTAL = 0, BLOADED = false;
 const stitle = k => BTITLES[k] || k;
 
-function bview(on){
-  $("#viewNew").hidden = on;
-  $("#viewBlack").hidden = !on;
+// Подтабов стало три, поэтому переключатель принимает ИМЯ вида, а не «чёрный список: да/нет».
+// Данные каждого вида грузятся при первом показе: три запроса на входе в раздел незачем.
+function bview(name){
+  $("#viewNew").hidden      = name !== "new";
+  $("#viewBlack").hidden    = name !== "black";
+  $("#viewUnlinked").hidden = name !== "unlinked";
   $("#subtabs").querySelectorAll("a").forEach(a =>
-    a.classList.toggle("cur", (a.dataset.view === "black") === on));
-  if (on && !BLOADED) loadBlack();
+    a.classList.toggle("cur", a.dataset.view === name));
+  if (name === "black" && !BLOADED) loadBlack();
+  if (name === "unlinked" && !ULOADED) loadUnlinked();
   fitBar();
 }
 $("#subtabs").querySelectorAll("a").forEach(a => a.onclick = e => {
   e.preventDefault();
-  bview(a.dataset.view === "black");
+  bview(a.dataset.view);
 });
 
 function brow(r){
@@ -998,11 +1051,137 @@ $("#bulk-unblack").onclick = unblack;
 $("#bsupplier").onchange = loadBlack;
 $("#bq").oninput = bdraw;
 
+// ——— Несопоставлено: карточки оприходований без нашего внешнего кода ———————————————
+// Своя загрузка и своя отрисовка, а не ветка в разборе новинок: там строка прайса без
+// карточки, здесь карточка без кода — разные ключи (ms_id против id новинки) и разные
+// решения. Общее только устройство таблицы, поэтому делим стили, а не код.
+let UDATA = [], UCOUNTS = {}, ULOADED = false;
+const USTATUS = {pending: "не разобрано", matched: "сведено", new: "нашей карточки нет",
+                 skip: "не берём"};
+
+async function loadUnlinked(){
+  const sup = $("#usupplier").value || "", st = $("#ustatus").value;
+  const d = await (await fetch(`/api/unlinked?supplier=${encodeURIComponent(sup)}`
+                             + `&status=${encodeURIComponent(st)}`)).json();
+  UDATA = d.rows; UCOUNTS = d.counts || {}; ULOADED = true;
+  if (!$("#usupplier").options.length){
+    $("#usupplier").innerHTML = `<option value="">все поставщики</option>`
+      + (d.suppliers || []).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join("");
+  }
+  const total = Object.values(UCOUNTS).reduce((a, v) => a + v, 0);
+  const tiles = [["всего карточек", total, null]].concat(
+    Object.keys(USTATUS).map(k => [USTATUS[k], UCOUNTS[k] || 0, k]));
+  $("#ubig").innerHTML = tiles.map(([l, v, k]) =>
+    `<div class="bi ${k === null ? "" : (k === st ? "cur" : "")}" ${k === null ? "" : `data-st="${k}"`}>
+       <div class="l">${esc(l)}</div><div class="v">${num(v)}</div></div>`).join("");
+  $("#ubig").querySelectorAll(".bi[data-st]").forEach(b => b.onclick = () => {
+    $("#ustatus").value = b.dataset.st; loadUnlinked();
+  });
+  udraw();
+}
+
+function ucand(c){
+  // «карточек N» — сколько живых карточек МС уже висит под этим кодом. Это НЕ дубли:
+  // один внешний код = один товар, карточек под ним столько, сколько поставщиков. Цифра
+  // нужна как мера уверенности: код, под которым уже пять карточек, — точно наш товар.
+  const flag = (v, name) => v === true ? "" : v === false ? `<b>≠${name}</b>` : `?${name}`;
+  const marks = [flag(c.model_ok, "модель"), flag(c.kind_ok, "тип"), flag(c.brand_ok, "бренд"),
+                 flag(c.color_ok, "цвет"), flag(c.resource_ok, "ресурс"), flag(c.chip_ok, "чип")]
+    .filter(Boolean).join(" ");
+  return `<div class="cand" data-code="${esc(c.external_code || "")}">
+    <b>${esc(c.external_code || "—")}</b> ${esc(c.cand_name || "")}
+    <div class="feat">карточек под кодом: ${num(c.cards)}${marks ? " · " + marks : ""}</div>
+    ${c.tc_title ? `<div class="feat">ТК: ${esc(c.tc_title)}</div>` : ""}
+  </div>`;
+}
+
+function urow(r){
+  const cands = (r.candidates || []).slice(0, 4).map(ucand).join("")
+    || `<span class="muted">вариантов не нашли — вероятно, товара такой модели у нас нет</span>`;
+  const done = r.decision !== "pending"
+    ? `<div class="feat">${esc(USTATUS[r.decision] || r.decision)}${
+        r.target_code ? ` → <b>${esc(r.target_code)}</b>` : ""}</div>` : "";
+  return `<tr data-id="${esc(r.ms_id)}">
+    <td><input type="checkbox" class="usel"></td>
+    <td>
+      <div>${esc(r.name || "")}</div>
+      <div class="feat">${esc(r.supplier_key)} · артикул <b>${esc(r.article || "—")}</b>
+        · ${num(r.qty)} шт · документов ${num(r.docs)}</div>
+      <div class="feat">${esc(r.category || "без категории")}${
+        r.archived ? " · <b>в архиве</b>" : ""}</div>
+    </td>
+    <td>${cands}</td>
+    <td>${done}<button class="umatch" ${r.candidates && r.candidates.length ? "" : "disabled"}
+        title="свести с первым вариантом">🔗 Свести</button></td>
+  </tr>`;
+}
+
+function udraw(){
+  const q = ($("#uq").value || "").trim().toLowerCase();
+  const rows = UDATA.filter(r => !q
+    || (r.name || "").toLowerCase().includes(q)
+    || (r.article || "").toLowerCase().includes(q));
+  $("#urows").innerHTML = rows.length
+    ? rows.map(urow).join("")
+    : `<tr><td colspan="4" class="muted">ничего не нашлось</td></tr>`;
+  $("#ufoot").textContent = `показано ${rows.length} из ${UDATA.length};`
+    + ` штук в оприходованиях: ${num(rows.reduce((a, r) => a + (r.qty || 0), 0))}`;
+  // Клик по варианту подставляет его код в поле — руками четыре цифры набирать незачем.
+  $("#urows").querySelectorAll(".cand").forEach(c => c.onclick = () => {
+    if (c.dataset.code) $("#ucode").value = c.dataset.code;
+  });
+  $("#urows").querySelectorAll(".usel").forEach(c => c.onchange = usel);
+  $("#urows").querySelectorAll(".umatch").forEach(b => b.onclick = () => {
+    const tr = b.closest("tr");
+    const row = UDATA.find(r => r.ms_id === tr.dataset.id);
+    const code = ($("#ucode").value || "").trim()
+      || (row.candidates[0] || {}).external_code || "";
+    udecide([tr.dataset.id], "matched", code);
+  });
+  usel();
+}
+
+const uselected = () => [...$("#urows").querySelectorAll(".usel:checked")]
+  .map(c => c.closest("tr").dataset.id);
+
+function usel(){
+  const n = uselected().length;
+  $("#uselinfo").textContent = `отмечено ${n}`;
+  ["#ubulk-match", "#ubulk-new", "#ubulk-skip"].forEach(b => $(b).disabled = !n);
+  fitBar();
+}
+
+async function udecide(ids, decision, code){
+  if (!ids.length) return;
+  const res = await (await fetch("/api/unlinked/decide", {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ids, decision, target: code || ""})})).json();
+  // Решение живёт в нашей базе; в МойСклад оно ничего не пишет — об этом говорим прямо,
+  // иначе человек уйдёт с вкладки в уверенности, что код уже проставлен в карточке.
+  $("#umsg").textContent = res.ok
+    ? `записано решений: ${res.n}` + (res.target_code ? ` → ${res.target_code} ${res.target_name || ""}` : "")
+      + " · в МойСклад пока не записано"
+    : `не вышло: ${res.error || "ошибка"}`;
+  $("#umsg").className = res.ok ? "note" : "mswarn";
+  if (res.ok) loadUnlinked();
+}
+
+$("#uall").onchange = e => {
+  $("#urows").querySelectorAll(".usel").forEach(c => c.checked = e.target.checked);
+  usel();
+};
+$("#ubulk-match").onclick = () => udecide(uselected(), "matched", ($("#ucode").value || "").trim());
+$("#ubulk-new").onclick   = () => udecide(uselected(), "new", "");
+$("#ubulk-skip").onclick  = () => udecide(uselected(), "skip", "");
+$("#usupplier").onchange = loadUnlinked;
+$("#ustatus").onchange = loadUnlinked;
+$("#uq").oninput = udraw;
+
 // Замер панели действий: её высота меняется от ширины окна и от текста «отмечено N»,
 // а от неё зависит, где липнет шапка таблицы.
-// Панелей две — у разбора и у чёрного списка; у скрытой высота 0, поэтому берём большую:
-// иначе на подтабе ЧС отступ обнуляется, липкая панель садится на липкую шапку таблицы и
-// накрывает её собой.
+// Панелей три — у разбора, чёрного списка и «Несопоставлено»; у скрытой высота 0, поэтому
+// берём большую: иначе на соседнем подтабе отступ обнуляется, липкая панель садится на
+// липкую шапку таблицы и накрывает её собой.
 const bars = [...document.querySelectorAll(".bar")];
 const fitBar = () => document.documentElement.style.setProperty(
   "--barh", Math.max(...bars.map(b => b.offsetHeight)) + "px");

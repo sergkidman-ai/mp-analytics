@@ -34,10 +34,12 @@ MSK = dt.timezone(dt.timedelta(hours=3))
 # прошлые документы на время замены (см. apply_to_ms). Хвост в шаблоне обязателен: иначе
 # документ, оставшийся от прерванного прогона, следующий прогон не увидит и не уберёт.
 DOC_NAME_RE = "^{key}_\\d{{4}}-\\d{{2}}-\\d{{2}}_p\\d+(_old\\d+)*$"
+# Наш внешний код — ровно 4 цифры (правило 24). Всё остальное в поле — автогенерация МС.
+OUR_CODE_RE = re.compile(r"^\d{4}$")
 
 SKIP_REASONS = {
     "not_found": "нет товара в МС по артикулу",
-    "archived": "товар архивный",
+    "archived": "карточка в архиве, живой родни того же кода нет — решает человек",
     "defective": "«брак» в наименовании МС",
     "no_price": "нет цены в прайсе",
     "no_stock": "нет остатка / формулировка не разобрана",
@@ -118,6 +120,52 @@ def lookup_by_article(articles, batch=80):
     return found
 
 
+def lookup_archived(articles, batch=80):
+    """{артикул -> [АРХИВНЫЕ карточки МС]}. Отдельным запросом, потому что иначе их не видно.
+
+    Грабли МС, на которых легко потерять товар: `/entity/assortment` и `/entity/product`
+    архивные карточки НЕ отдают вовсе — ни по `id`, ни по `article`, ни по `code`. Без флага
+    `archived=true` архивная карточка выглядит как «товара в МС нет», строка уезжает в новинки,
+    и под товар, который у нас уже заведён, заводится второй. Проверено 18.08.2026:
+    `article=MRV-X28179` без флага — пусто, с флагом — карточка есть.
+
+    Спрашиваем только про артикулы, по которым живой карточки не нашлось: лишний запрос на
+    каждый прайс ни к чему, а таких строк единицы.
+    """
+    found = {}
+    clean = [a for a in articles if ";" not in a and "=" not in a]
+    for i in range(0, len(clean), batch):
+        chunk = clean[i:i + batch]
+        rows = ms_api.get("/entity/assortment", {
+            "limit": 1000,
+            "filter": [f"article={a}" for a in chunk] + ["archived=true"],
+        }).get("rows", [])
+        for row in rows:
+            found.setdefault((row.get("article") or "").strip(), []).append(row)
+    return found
+
+
+def live_twins(codes, batch=40):
+    """{внешний код -> [живые карточки того же кода]} — родня архивной карточки.
+
+    Карточек одного внешнего кода у нас столько, сколько поставщиков (`3223sp` в архиве,
+    а `3223spb`, `3223dsk`, `3223msk` живы). Товар при этом ОДИН, и остаток поставщика
+    честно ложится на живую карточку его группы — заводить новую не нужно.
+    """
+    out = {}
+    codes = [c for c in codes if c]
+    for i in range(0, len(codes), batch):
+        rows = ms_api.get("/entity/assortment", {
+            "limit": 1000,
+            "filter": [f"externalCode={c}" for c in codes[i:i + batch]],
+        }).get("rows", [])
+        for row in rows:
+            if row.get("archived"):
+                continue
+            out.setdefault((row.get("externalCode") or "").strip(), []).append(row)
+    return out
+
+
 def pick_card(cards, own):
     """Одна карточка из найденных по артикулу — только СВОЯ, по группе юрлиц поставщика.
 
@@ -158,6 +206,46 @@ def filter_categories(rows, profile):
     return keep, [{**r, "reason": "category_off"} for r in dropped]
 
 
+def archive_swaps(rows, cards, own):
+    """Что делать с товаром, чья карточка МС ушла в архив.
+
+    -> ({артикул -> ЖИВАЯ карточка на замену}, {артикул -> архивная карточка без замены}).
+
+    Правило (задача Сергея 18.08.2026): архивная карточка в оприходовании недопустима —
+    остаток встаёт на мёртвый товар и дальше в ТК не уходит. Но и молча выбрасывать строку
+    нельзя: до этой правки архивная карточка вообще не находилась (МС её не отдаёт без флага
+    `archived=true`), строка уезжала в новинки с причиной `not_found`, и под уже заведённый
+    товар заводился дубль.
+
+    Порядок: живая родня того же ВНЕШНЕГО кода и той же группы поставщика → берём её и
+    приходуем на неё. Родни нет — строка не пропадает молча, а уходит в причину `archived`,
+    в отчёт прогона и в уведомление PRC-бота: решение «достать из архива или завести новую»
+    принимает человек, а не загрузчик.
+    """
+    misses = {r["article"] for r in rows if r["qty"] and not cards.get(r["article"])}
+    if not misses:
+        return {}, {}
+    archived = {}
+    for article, found in lookup_archived(misses).items():
+        card, _ = pick_card(found, own)
+        if card is not None:
+            archived[article] = card
+    if not archived:
+        return {}, {}
+    twins = live_twins({(c.get("externalCode") or "").strip() for c in archived.values()})
+    swaps, orphans = {}, {}
+    for article, card in archived.items():
+        code = (card.get("externalCode") or "").strip()
+        live, problem = (None, "no_code")
+        if OUR_CODE_RE.match(code):
+            live, problem = pick_card(twins.get(code, []), own)
+        if live is not None and not problem:
+            swaps[article] = live
+        else:
+            orphans[article] = card
+    return swaps, orphans
+
+
 def classify(rows, profile, rate):
     """Строки прайса -> (позиции к загрузке, пропущенные с причиной)."""
     rows, off = filter_categories(rows, profile)
@@ -165,6 +253,7 @@ def classify(rows, profile, rate):
     skipped += off
     cards = lookup_by_article([r["article"] for r in rows])
     own = own_ids(profile)
+    swaps, archived_only = archive_swaps(rows, cards, own)
     ready = []
     for row in rows:
         # Остаток проверяем ПЕРВЫМ, ещё до поиска карточки в МС. Позиции без остатка у
@@ -176,8 +265,19 @@ def classify(rows, profile, rate):
             continue
         found = cards.get(row["article"], [])
         if not found:
-            skipped.append({**row, "reason": "not_found"})
-            continue
+            # Архивная карточка не «не найдена»: товар у нас заведён. Отправить такую строку
+            # в новинки — значит завести второй такой же товар, поэтому разбираем отдельно.
+            if row["article"] in swaps:
+                found = [swaps[row["article"]]]
+                row = {**row, "archived_swap": archived_only.get(row["article"])
+                       or swaps[row["article"]].get("externalCode")}
+            elif row["article"] in archived_only:
+                skipped.append({**row, "reason": "archived",
+                                "ms_name": archived_only[row["article"]].get("name") or ""})
+                continue
+            else:
+                skipped.append({**row, "reason": "not_found"})
+                continue
         card, problem = pick_card(found, own)
         if problem:
             skipped.append({**row, "reason": problem, "ms_candidates": len(found),
@@ -185,6 +285,8 @@ def classify(rows, profile, rate):
             continue
         ms_name = card.get("name") or ""
         if card.get("archived"):
+            # Досюда архивная карточка дойти уже не должна (её отсекает `archive_swaps`),
+            # но проверка остаётся: архив в оприходовании — это остаток на мёртвой карточке.
             skipped.append({**row, "reason": "archived", "ms_name": ms_name})
             continue
         if "брак" in ms_name.lower():
@@ -215,7 +317,17 @@ def existing_docs(profile):
 
 
 def build_docs(ready, profile, moment):
-    """Позиции -> тела документов по POSITIONS_PER_DOC штук."""
+    """Позиции -> тела документов по POSITIONS_PER_DOC штук.
+
+    Перед сборкой — гейт по архиву. Отбор идёт в `classify`, но документ создаётся один раз
+    и потом живёт в МС месяцами, поэтому проверяем ещё раз здесь: архивная позиция в
+    оприходовании — это остаток на мёртвой карточке, который никуда дальше не уйдёт.
+    """
+    dead = [i for i in ready if (i.get("card") or {}).get("archived")]
+    if dead:
+        raise RuntimeError(
+            f"{profile.key}: архивные карточки в позициях ({len(dead)}), "
+            f"первая — {dead[0].get('article')} / {dead[0].get('ms_name')}")
     stamp = moment.strftime("%Y-%m-%d")
     docs = []
     for page, start in enumerate(range(0, len(ready), POSITIONS_PER_DOC), start=1):
@@ -323,6 +435,9 @@ def summarize(ready, skipped, docs, stale, updates, rate, rate_date, profile, so
         "rows_loaded": len(ready),
         "rows_skipped": len(skipped),
         "skipped_by_reason": counts,
+        # Сколько строк спасено подменой архивной карточки на живую родню того же кода:
+        # до правила 18.08.2026 они молча уезжали в новинки как «нет товара в МС».
+        "archived_swapped": sum(1 for i in ready if i.get("archived_swap")),
         "docs": len(docs),
         "stale_docs": len(stale),
         "card_updates": len(updates),

@@ -2617,6 +2617,109 @@ def _folder_guess(brand, folders):
     return min(hits, key=len) if hits else ""
 
 
+class UnlinkedDecision(BaseModel):
+    ids: list[str]                                   # ms_id безкодовых карточек
+    decision: str                                    # matched | new | skip | pending
+    target: str = ""                                 # код нашей карточки (внешний 4-значный)
+    note: str = ""
+
+
+@app.get("/api/unlinked")
+def unlinked_api(supplier: str = "", status: str = ""):
+    """Карточки из оприходований, у которых нет нашего внешнего кода («Несопоставлено»).
+
+    Почему отдельная таблица, а не `prc_novelty`: новинка — это строка ПРАЙСА, которой нет
+    карточки; здесь наоборот — карточка есть и лежит в оприходовании, нет только нашего
+    4-значного кода, поэтому остаток видит МС и дальше в ТК не уходит. Плюс у Булата, ВТТ,
+    Рамис и Блоссома прайс к нам вообще не приходит (грузит внешний загрузчик) — строки
+    `prc_price_row` для них не существует, и остаток берём из позиций самого оприходования.
+
+    Решение человека здесь ничего в МС не пишет: это разбор, запись — отдельным «ок».
+    """
+    where, params = ["1=1"], []
+    if supplier:
+        where.append("u.supplier_key = %s")
+        params.append(supplier)
+    if status:
+        where.append("u.decision = %s")
+        params.append(status)
+    rows = db.query(f"""
+        SELECT u.ms_id, u.ms_code, u.article, u.name, u.supplier_key, u.ext_raw, u.archived,
+               u.category, u.qty, u.docs, u.doc_name, u.doc_date::text, u.store,
+               u.decision, u.target_ms_id, u.target_code, u.target_name,
+               u.decided_at::text, u.last_seen::text, u.note
+          FROM prc_unlinked u
+         WHERE {' AND '.join(where)}
+         ORDER BY u.decision <> 'pending', u.supplier_key, u.name
+    """, tuple(params))
+    cands = db.query("""
+        SELECT c.ms_id, c.rank, c.cand_ms_id, c.cand_code, c.external_code, c.cand_name,
+               c.color, c.measure, c.chip, c.brand, c.kind, c.shared_code, c.verdict,
+               c.model_ok, c.kind_ok, c.brand_ok, c.color_ok, c.resource_ok, c.chip_ok,
+               c.score, c.by_article, c.feat_src,
+               t.title AS tc_title, coalesce(p.cards, 0) AS cards
+          FROM prc_unlinked_candidate c
+          LEFT JOIN prc_tc_model t ON t.external_code = c.external_code AND t.gone_at IS NULL
+          LEFT JOIN (SELECT external_code, count(*) cards FROM ms_product
+                      WHERE NOT archived GROUP BY external_code) p
+                 ON p.external_code = c.external_code
+         ORDER BY c.ms_id, c.rank
+    """)
+    by_card = {}
+    for c in cands:
+        by_card.setdefault(c["ms_id"], []).append(dict(c, **_novelty_view(c)))
+    out = [dict(r, qty=float(r["qty"]) if r["qty"] is not None else None,
+                candidates=by_card.get(r["ms_id"], []))
+           for r in rows]
+    counts = db.query("""SELECT decision, count(*) n FROM prc_unlinked
+                          WHERE %s = '' OR supplier_key = %s
+                          GROUP BY decision""", (supplier, supplier))
+    suppliers = [r["supplier_key"] for r in
+                 db.query("SELECT DISTINCT supplier_key FROM prc_unlinked ORDER BY 1")]
+    return {"rows": out, "suppliers": suppliers,
+            "counts": {c["decision"]: c["n"] for c in counts}}
+
+
+@app.post("/api/unlinked/decide")
+def unlinked_decide(payload: UnlinkedDecision):
+    """Записать решение по безкодовым карточкам. В МойСклад НИЧЕГО не пишет.
+
+    Что делает «Свести» на стороне МС (перенести код, слить карточки, снять артикул)
+    Сергей решает после разбора самих карточек — до этого решения кнопка только помечает
+    строку и запоминает, с какой нашей карточкой её свели.
+    """
+    if payload.decision not in ("matched", "new", "skip", "pending"):
+        return {"ok": False, "error": "неизвестное решение"}
+    item = None
+    if payload.decision == "matched":
+        code = payload.target.strip()
+        if not code:
+            return {"ok": False, "error": "нужен код нашей карточки"}
+        item = _find_goods(code)
+        if not item:
+            return {"ok": False, "error": f"кода «{code}» нет в каталоге МС: не нашлось ни "
+                    f"карточки с кодом {code}*, ни товара с внешним кодом {code}"}
+        # Пишем НАШ 4-значный внешний код, а не code карточки: code несёт суффикс поставщика
+        # (6058sk), а сводим мы с товаром, который у этого кода один на всех поставщиков.
+        ext = db.query("SELECT external_code FROM ms_product WHERE ms_id = %s",
+                       (item["ms_id"],))
+        item = dict(item, external_code=(ext[0]["external_code"] if ext else None))
+    for ms_id in payload.ids:
+        db.execute("""UPDATE prc_unlinked
+                         SET decision = %s, target_ms_id = %s, target_code = %s,
+                             target_name = %s, note = coalesce(nullif(%s, ''), note),
+                             decided_at = now()
+                       WHERE ms_id = %s""",
+                   (payload.decision,
+                    item["ms_id"] if item else None,
+                    (item["external_code"] or item["code"]) if item else None,
+                    item["name"] if item else None,
+                    payload.note, ms_id))
+    return {"ok": True, "n": len(payload.ids),
+            "target_code": (item["external_code"] or item["code"]) if item else None,
+            "target_name": item["name"] if item else None}
+
+
 def _ms_free(field, value):
     """Код/внешний код свободен? Спрашиваем и слепок, и живой МС (слепок суточной давности)."""
     from core import ms_api
