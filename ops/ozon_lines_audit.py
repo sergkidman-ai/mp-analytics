@@ -3,8 +3,10 @@
 
 Три проверки за один прогон:
   1. НОВЫЙ КОД — тип операции или услуга, которых нет в `ops/ozon_lines_registry.py`.
-     Такой код молча уезжает в фолбэк (`other` для операций, `delivery` для услуг) и тихо
-     перекашивает отчёт — ровно так «Досрочная выплата» попала в «Компенсации» (июль-2026).
+     С 18.08.2026 такой код уходит в строку `unclassified` («Неклассифицировано», расход) —
+     раньше фолбэк был `other`/`delivery`, и новое начисление тихо приходило в отчёт ПРИХОДОМ
+     («Досрочная выплата», июль-2026). Строка видна во вкладке, но разобрать код и внести
+     его в реестр всё равно нужно: `unclassified` — это «не знаем», а не классификация.
   2. СМЕНА СТРОКИ — код есть в реестре, но текущие правила `reports/ozon_mp_report.py`
      кладут его в другую строку, чем зафиксировано. Ловит случайную правку классификатора.
   3. СВЕРКА С ЛК — если для (аккаунт, месяц) есть эталон в `LK_REF`, сравниваем 10 строк.
@@ -27,7 +29,7 @@ from reports import ozon_mp_report as R                      # noqa: E402
 
 ACCOUNTS = ("oz_acc1", "oz_acc2")
 LINES = ("sales", "returns", "commission", "delivery", "partners", "fbo",
-         "promo", "penalty", "compensation", "other")
+         "promo", "penalty", "unclassified", "compensation", "other")
 
 
 def _months(since, until):
@@ -102,6 +104,8 @@ def audit(since, until):
                 b = dict(b)
                 b["sales"], b["returns"], b["commission"] = rs
             for line in LINES:
+                if line not in ref:            # строка новее эталона ЛК — сверять не с чем
+                    continue
                 delta = round(b[line]) - ref[line]
                 if delta:
                     lk.append((acc, f"{y}-{m:02d}", line, ref[line], round(b[line]), delta))
@@ -111,7 +115,7 @@ def audit(since, until):
 def report(comp, new, moved, lk, since, until, out_path):
     L = [f"# Аудит строк Финансы→Баланс Ozon, {since}…{until}", "",
          f"Прогон {datetime.date.today().isoformat()}, `ops/ozon_lines_audit.py`.", ""]
-    L.append("## Новые коды (нет в реестре — уехали в фолбэк)")
+    L.append("## Новые коды (нет в реестре — ушли в «Неклассифицировано»)")
     L += ["", "нет" if not new else ""] if not new else [""]
     for kind, code, got in new:
         L.append(f"- **{code}** ({kind}) → сейчас падает в `{got}`")
