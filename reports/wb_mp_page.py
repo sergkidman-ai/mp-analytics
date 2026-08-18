@@ -21,7 +21,7 @@ HIST_PATH = BASE_DIR / "reports" / "data" / "mp_wb_hist.json"
 OUT = BASE_DIR / "web" / "static" / "reports_wb.html"
 
 ORG = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр"}
-EXP = ["delivery", "storage", "acceptance", "other"]
+EXP = ["delivery", "storage", "acceptance", "ads", "points", "penalty", "other"]
 
 _C = {"data": None, "M": [], "N": 0, "base": []}
 
@@ -33,7 +33,7 @@ def money(v, neg=False):
         return "—"
     v = round(v); s = f"{abs(v):,}".replace(",", " ")
     if neg:
-        return ("+" if v < 0 else "−") + s
+        return ("" if v == 0 else "+" if v < 0 else "−") + s
     return ("−" if v < 0 else "") + s
 
 
@@ -217,7 +217,10 @@ def build(acc):
     H.append(row("Логистика", L["delivery"], "expense", ob, showpc=True, k="delivery"))
     H.append(row("Хранение", L["storage"], "expense", ob, k="storage"))
     H.append(row("Приёмка", L["acceptance"], "expense", ob, k="acceptance"))
-    H.append(row("Прочие удержания (продвижение, баллы, штрафы)", L["other"], "expense", ob, showpc=True, k="other"))
+    H.append(row("Продвижение WB (реклама)", L["ads"], "expense", ob, showpc=True, k="ads"))
+    H.append(row("Баллы и лояльность", L["points"], "expense", ob, k="points"))
+    H.append(row("Штрафы", L["penalty"], "expense", ob, k="penalty"))
+    H.append(row("Прочие удержания (отзывы, утилизация)", L["other"], "expense", ob, k="other"))
     H.append(row("Компенсации ВБ (выплаты нам)", comp, "inflow", ob, k="compensation"))
     H.append(row("Итого расходы ВБ", wb_exp, "expense", ob, tag="расчёт", showpc=True, subtot=True, k="wb_exp"))
     H.append(row("Итого к оплате", itog, "inflow", ob, tag="расчёт", showpc=True, subtot=True, k="itog"))

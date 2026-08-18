@@ -16,9 +16,12 @@
   Логистика      = Σ delivery_rub
   Хранение       = Σ storage_fee
   Приёмка        = Σ acceptance
-  Прочие удерж.  = Σ (deduction≥0 + penalty + cashback_amount)  ← продвижение, баллы, штрафы
+  Продвижение WB = Σ deduction≥0 где bonus_type_name ~ «Продвижение»  ← реклама
+  Баллы          = Σ cashback_amount
+  Штрафы         = Σ penalty  (минус = сторно штрафа)
+  Прочие удерж.  = Σ deduction≥0 прочих типов (списание за отзыв, утилизация)
   Компенсации ВБ = Σ (−deduction<0)  ← «Добровольная выплата за товары…» — ПРИХОД нам
-  Итого к оплате = К перечислению − Логистика − Хранение − Приёмка − Прочие + Компенсации
+  Итого к оплате = К перечислению − все удержания выше + Компенсации
   COGS           = margin_by_sku platform='wb' (себест отгрузок МС по assembly_id)
   Чистая         = Итого к оплате − COGS
 
@@ -54,13 +57,14 @@ def _hist():
 
 
 ACCOUNTS = ("wb_acc1", "wb_acc2")
-EXP = ["delivery", "storage", "acceptance", "other"]      # расходы, вычитаемые из К перечислению
+EXP = ["delivery", "storage", "acceptance", "ads", "points", "penalty", "other"]
+# ^ расходы, вычитаемые из К перечислению
 WINDOW_DAYS = 14
 # строки Баланса (величины ≥0, знак/направление задаёт KIND).
 # own_price = «Продажа по нашей цене» (retail_price_withdisc_rub, ДО СПП) — это ОБОРОТ (база %);
 # sales = «ВБ реализовал» (retail_amount, ПОСЛЕ СПП, что заплатил покупатель).
 _BAL_KEYS = ["own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance",
-             "other", "compensation"]
+             "ads", "points", "penalty", "other", "compensation"]
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
              "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
@@ -68,7 +72,11 @@ MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
 KIND = {
     "own_price": "inflow", "sales": "inflow", "spp": "expense", "returns": "expense",
     "commission": "expense", "to_pay": "inflow",
-    "delivery": "expense", "storage": "expense", "acceptance": "expense", "other": "expense",
+    "delivery": "expense", "storage": "expense", "acceptance": "expense",
+    "ads": "expense",       # «Оказание услуг „WB Продвижение“» — реклама, управляемый рычаг
+    "points": "expense",    # cashback_amount — баллы и лояльность
+    "penalty": "expense",   # штрафы (отрицательное значение = сторно штрафа)
+    "other": "expense",     # остаток: списания за отзывы, утилизация и пр.
     "compensation": "inflow",   # выплаты ВБ нам (отрицательный deduction) — приход, не расход
     "wb_exp": "expense",        # Итого расходы ВБ = наша цена − Итого к оплате (все удержания площадки)
     "itog": "inflow",           # Итого к оплате = выплата (положительная, НЕ сумма расходов как у Ozon)
@@ -90,6 +98,9 @@ def _agg(account, d1, d2):
              coalesce(sum(del),0) delivery,
              coalesce(sum(st),0) storage,
              coalesce(sum(acc),0) acceptance,
+             coalesce(sum(ads),0) ads,
+             coalesce(sum(points),0) points,
+             coalesce(sum(pen),0) penalty,
              coalesce(sum(oth),0) other,
              coalesce(sum(comp),0) compensation,
              coalesce(sum(CASE WHEN op='Продажа' THEN q ELSE 0 END),0) orders,
@@ -103,9 +114,15 @@ def _agg(account, d1, d2):
                     coalesce((payload->>'delivery_rub')::numeric,0) del,
                     coalesce((payload->>'storage_fee')::numeric,0) st,
                     coalesce((payload->>'acceptance')::numeric,0) acc,
-                    greatest(coalesce((payload->>'deduction')::numeric,0),0)
-                      +coalesce((payload->>'penalty')::numeric,0)
-                      +coalesce((payload->>'cashback_amount')::numeric,0) oth,
+                    CASE WHEN payload->>'bonus_type_name' ilike '%%продвижение%%'
+                         THEN greatest(coalesce((payload->>'deduction')::numeric,0),0)
+                         ELSE 0 END ads,
+                    coalesce((payload->>'cashback_amount')::numeric,0) points,
+                    coalesce((payload->>'penalty')::numeric,0) pen,
+                    CASE WHEN payload->>'bonus_type_name' ilike '%%продвижение%%'
+                         THEN 0
+                         ELSE greatest(coalesce((payload->>'deduction')::numeric,0),0)
+                         END oth,
                     -least(coalesce((payload->>'deduction')::numeric,0),0) comp
              FROM raw_wb_report
              WHERE account=%s
@@ -115,7 +132,7 @@ def _agg(account, d1, d2):
         (account, d1, d2))[0]
     return {k: float(r[k] or 0) for k in
             ("own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance",
-             "other", "compensation", "orders", "returns_cnt")}
+             "ads", "points", "penalty", "other", "compensation", "orders", "returns_cnt")}
 
 
 def _month_bounds(y, m):
@@ -172,7 +189,7 @@ def _money(v, neg=False):
     не сходится глазами: подытоги считаются по знаковому значению)."""
     v = round(v); s = f"{abs(v):,}".replace(",", " ")
     if neg:
-        return ("+" if v < 0 else "−") + s
+        return ("" if v == 0 else "+" if v < 0 else "−") + s
     return ("−" if v < 0 else "") + s
 
 
@@ -287,7 +304,7 @@ def current_report():
         rate = {k: win[k] / WINDOW_DAYS for k in win}
         fc = {k: mtd[k] + rate[k] * remaining for k in
               ("own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance",
-               "other", "compensation")}
+               "ads", "points", "penalty", "other", "compensation")}
         fc_orders = mtd["orders"] + rate["orders"] * remaining
         fc_retc = mtd["returns_cnt"] + rate["returns_cnt"] * remaining
         # COGS привязана к продажам (margin_by_sku помесячный): fc_cogs = fc_sales × (COGS÷Прод MTD).

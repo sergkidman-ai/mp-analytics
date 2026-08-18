@@ -254,7 +254,7 @@ def current_report():
 def _money(v, neg=False):
     v = round(v); s = f"{abs(v):,}".replace(",", " ")
     if neg:
-        return ("+" if v < 0 else "−") + s      # отрицательный расход = приход нам
+        return ("" if v == 0 else "+" if v < 0 else "−") + s   # отрицательный расход = приход нам
     return ("−" if v < 0 else "") + s
 
 
