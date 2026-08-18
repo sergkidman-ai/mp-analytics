@@ -21,8 +21,17 @@
 2. ПОСТФАКТУМ (`report_cycle`) — после цикла. Считаем, сколько ответов не создано и не отправлено,
    и по какой причине; молчаливый провал невозможен.
 
+Цвет по классу причины (правка 18.08.2026). Сбой провайдера бывает двух родов, и путать их
+нельзя: баланс/ключ/имя модели без Сергея не сдвинутся — это 🔴 с конкретным действием; 529
+Overloaded, 429, 5xx и таймаут проходят сами — это 🟡 «моргнул», и звать пополнять баланс тут
+вредно. Повод: 18.08.2026 в 17:26 одиночный 529 в пробе Anthropic ушёл как 🔴 «Ответы не уходят ·
+Пополнить: console.anthropic.com», хотя баланс был полон, цикл прошёл целиком (все 5 шагов OK,
+3 ответа отправлено) и ни один вопрос не встал. Транзитный сбой во ВТОРОМ цикле подряд всё же
+становится 🔴 (простой, а не блик) — счётчик серии в состоянии, ключ `<провайдер>_probe`.
+
 Дедуп. Одна и та же беда повторяется каждые 2 часа, поэтому одинаковый алерт не шлём чаще
-FEEDBACK_ALERT_REPEAT_HOURS (12 ч). Когда проблема уходит — обязательно шлём «восстановлено»,
+FEEDBACK_ALERT_REPEAT_HOURS (12 ч). Ключ включает класс причины и цвет: транзитный блик не должен
+заглушить настоящий «кончился баланс», а эскалация 🟡 → 🔴 не должна быть съедена своим же 🟡. Когда проблема уходит — обязательно шлём «восстановлено»,
 иначе «тихо» неотличимо от «сломано».
 
 Настройки (.env):
@@ -140,29 +149,117 @@ def anthropic_probe():
     if not PROBE:
         return True, "проба отключена (FEEDBACK_HEALTH_PROBE=0)"
     try:
-        from reports.llm_client import client_for
-        c = client_for("claude-opus-5")
-        c.messages.create(model=os.environ.get("FEEDBACK_QUESTION_MODEL", "claude-opus-5"),
-                          max_tokens=1, messages=[{"role": "user", "content": "hi"}])
+        from reports.llm_client import client_for, create_with_retry
+        model = os.environ.get("FEEDBACK_QUESTION_MODEL", "claude-opus-5")
+        c = client_for(model)
+        # Через create_with_retry, а не голым create: одиночный 529 Overloaded у Anthropic — обычное
+        # дело, а сама генерация всё равно ходит с повторами, поэтому голая проба строже реальности.
+        # Инцидент 18.08.2026 17:26: один блик 529 поднял 🔴 «ответы не уходят · пополнить баланс»,
+        # хотя баланс был полон, цикл прошёл целиком и ни один вопрос не встал.
+        create_with_retry(c, model=model, max_tokens=1, messages=[{"role": "user", "content": "hi"}])
         return True, None
     except Exception as e:                                   # noqa: BLE001
         return False, f"{type(e).__name__}: {str(e)[:200]}"
 
 
-def _why(err):
-    """Человеческая причина вместо трейса — чтобы в Telegram было понятно без разбора логов."""
+# Класс беды решает две вещи: цвет (🔴 нужен Сергей / 🟡 пройдёт само) и подпись «что делать».
+# До 18.08.2026 класса не было: ЛЮБОЙ сбой провайдера получал 🔴 и подпись «Пополнить баланс»,
+# поэтому транзитный 529 читался как пустой счёт и звал пополнять полный кошелёк.
+BILLING, AUTH, CONFIG, TRANSIENT, UNKNOWN = "billing", "auth", "config", "transient", "unknown"
+
+_LABEL = {"deepseek": "DeepSeek", "anthropic": "Anthropic (Claude)"}
+_HINTS = {
+    "deepseek": {BILLING: "Пополнить: platform.deepseek.com → Top up",
+                 AUTH: "Проверить DEEPSEEK_API_KEY в .env",
+                 CONFIG: "Проверить имя модели deepseek-* в .env"},
+    "anthropic": {BILLING: "Пополнить: console.anthropic.com → Plans &amp; Billing",
+                  AUTH: "Проверить ANTHROPIC_API_KEY в .env",
+                  CONFIG: "Проверить FEEDBACK_QUESTION_MODEL / FEEDBACK_WEB_MODEL в .env"},
+}
+
+
+def classify(err):
+    """(причина по-русски, класс). Порядок важен: 529 и 5xx ловим ДО общего «connection»."""
     e = (err or "").lower()
     if "credit balance is too low" in e or "insufficient balance" in e or "402" in e:
-        return "КОНЧИЛСЯ БАЛАНС"
-    if "authentication" in e or "401" in e or "invalid api key" in e:
-        return "ключ не принят (401)"
+        return "КОНЧИЛСЯ БАЛАНС", BILLING
+    if "authentication" in e or "401" in e or "invalid api key" in e or "invalid_api_key" in e:
+        return "ключ не принят (401)", AUTH
+    if "overload" in e or "529" in e:
+        return "провайдер перегружен (529)", TRANSIENT
     if "rate limit" in e or "429" in e:
-        return "лимит запросов (429)"
-    if "timeout" in e or "timed out" in e or "connection" in e:
-        return "нет связи с API (таймаут/relay)"
+        return "лимит запросов (429)", TRANSIENT
     if "not_found" in e or "404" in e:
-        return "модель недоступна (404)"
-    return (err or "неизвестная причина")[:120]
+        return "модель недоступна (404)", CONFIG
+    if any(s in e for s in ("500", "502", "503", "504", "internal server", "bad gateway")):
+        return "сбой на стороне API (5xx)", TRANSIENT
+    if "timeout" in e or "timed out" in e or "connection" in e:
+        return "нет связи с API (таймаут/relay)", TRANSIENT
+    return (err or "неизвестная причина")[:120], UNKNOWN
+
+
+def _why(err):
+    """Человеческая причина вместо трейса — чтобы в Telegram было понятно без разбора логов."""
+    return classify(err)[0]
+
+
+def _streak(key, failed):
+    """Сколько прогонов подряд провалилась эта проверка. Отличает блик от простоя: транзитный
+    сбой в первый раз — 🟡, тот же во втором цикле подряд — уже 🔴 (но всё равно не «пополнить»)."""
+    st = _state()
+    fails = st.setdefault("fails", {})
+    n = int(fails.get(key, 0)) + 1 if failed else 0
+    if failed:
+        fails[key] = n
+    else:
+        fails.pop(key, None)
+    _save(st)
+    return n
+
+
+def alert_provider_down(provider, err, who, extra=""):
+    """Сообщить, что провайдер не отвечает. Возвращает причину (для лога и res["problems"]).
+
+    Ключ дедупа включает класс и цвет: транзитный блик не должен на 12 ч заглушить настоящий
+    «кончился баланс» (до 18.08.2026 глушил — ключ был один на все причины), а эскалация
+    🟡 → 🔴 не должна быть съедена дедупом своего же 🟡.
+    """
+    reason, cls = classify(err)
+    n = _streak(f"{provider}_probe", True)
+    blip = cls == TRANSIENT and n <= 1
+    if blip:
+        text = (f"🟡 <b>Провайдер моргнул</b>\nПровайдер: {_LABEL[provider]}\n"
+                f"Причина: <b>{reason}</b>\nЗатронуто: {who}{extra}\n\n"
+                f"Это на стороне провайдера, повторов внутри пробы не хватило. Ответы попробуют "
+                f"уйти следующим циклом (через 2 ч) — если само не пройдёт, придёт 🔴.")
+        key = f"{provider}_down:{cls}:blip"
+    else:
+        streak = f"\nПодряд циклов без ответа: {n}" if cls == TRANSIENT else ""
+        hint = _HINTS.get(provider, {}).get(cls) or (
+            # Транзитная причина, но она уже не блик: пополнять нечего, лечится не здесь.
+            "Это сторона провайдера, а не баланс. Проверить status.anthropic.com и relay; "
+            "движок продолжает работать той половиной, у которой провайдер жив."
+            if cls == TRANSIENT else
+            "Смотреть трейс: journalctl -u feedback-cycle.service -n 100 --no-pager")
+        text = (f"🔴 <b>Ответы не уходят</b>\nПровайдер: {_LABEL[provider]}\n"
+                f"Причина: <b>{reason}</b>\nВстало: {who}{extra}{streak}\n\n{hint}")
+        key = f"{provider}_down:{cls}"
+    notify(text, key=key, repeat_hours=(6 if cls == TRANSIENT else None))
+    return reason
+
+
+def _resolve_provider(provider, text):
+    """Провайдер снова отвечает: обнулить серию, снять отметки беды ЛЮБОГО класса, сказать 🟢 раз."""
+    _streak(f"{provider}_probe", False)
+    st = _state()
+    alerts = st.get("alerts") or {}
+    hit = [k for k in alerts if k.startswith(f"{provider}_down")]
+    if not hit:
+        return
+    for k in hit:
+        alerts.pop(k)
+    _save(st)
+    notify(text)
 
 
 # ─────────────────────────────── предполёт ───────────────────────────────
@@ -190,12 +287,11 @@ def preflight():
         res["deepseek"] = {"ok": ok, "usd": usd, "err": err}
         who = roles(is_deepseek)
         if not ok:
-            res["problems"].append(f"DeepSeek недоступен ({_why(err)}) — не уйдут: {who}")
-            notify(f"🔴 <b>Ответы не уходят</b>\nПровайдер: DeepSeek\nПричина: <b>{_why(err)}</b>\n"
-                   f"Встало: {who}\nОстаток: {'—' if usd is None else f'${usd:.2f}'}\n\n"
-                   f"Пополнить: platform.deepseek.com → Top up", key="deepseek_down")
+            reason = alert_provider_down("deepseek", err, who,
+                                         extra=f"\nОстаток: {'—' if usd is None else f'${usd:.2f}'}")
+            res["problems"].append(f"DeepSeek недоступен ({reason}) — не уйдут: {who}")
         else:
-            _resolve("deepseek_down", f"🟢 DeepSeek снова отвечает (остаток ${usd:.2f}) — {who} пошли")
+            _resolve_provider("deepseek", f"🟢 DeepSeek снова отвечает (остаток ${usd:.2f}) — {who} пошли")
             if usd is not None and usd < DS_MIN_USD:
                 res["problems"].append(f"DeepSeek на исходе: ${usd:.2f}")
                 notify(f"🟡 <b>Баланс DeepSeek на исходе</b>\nОстаток: <b>${usd:.2f}</b> "
@@ -209,12 +305,10 @@ def preflight():
         res["anthropic"] = {"ok": ok, "err": err}
         who = roles(lambda m: not is_deepseek(m))
         if not ok:
-            res["problems"].append(f"Anthropic недоступен ({_why(err)}) — не уйдут: {who}")
-            notify(f"🔴 <b>Ответы не уходят</b>\nПровайдер: Anthropic (Claude)\n"
-                   f"Причина: <b>{_why(err)}</b>\nВстало: {who}\n\n"
-                   f"Пополнить: console.anthropic.com → Plans &amp; Billing", key="anthropic_down")
+            reason = alert_provider_down("anthropic", err, who)
+            res["problems"].append(f"Anthropic недоступен ({reason}) — не уйдут: {who}")
         else:
-            _resolve("anthropic_down", f"🟢 Anthropic снова отвечает — {who} пошли")
+            _resolve_provider("anthropic", f"🟢 Anthropic снова отвечает — {who} пошли")
 
     _log("предполёт: " + ("; ".join(res["problems"]) if res["problems"] else "провайдеры в порядке"))
     return res
