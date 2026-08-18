@@ -28,8 +28,11 @@ TheCartridge — товар не продаётся. Карточку НЕ ду�
   · карточка в архиве (её убрали руками — код туда не пишем);
   · карточка сведена под ДРУГОЙ 4-значный код;
   · карточка сведена под этот же код, а «Название WB» уже стоит либо не собирается;
-  · под этим внешним кодом уже живёт карточка с ТАКОЙ ЖЕ аббревиатурой бренда — это дубль
-    того же поставщика, значит настоящая пара уже есть и решает человек.
+  · под этим внешним кодом уже живёт карточка того же бренда С ТЕМ ЖЕ АРТИКУЛОМ поставщика —
+    товар уже заведён, сирота лишняя, решает человек. Тот же бренд с ДРУГИМ артикулом дублем
+    НЕ считается: у поставщика бывает по два SKU на один наш товар, остатки у них свои
+    (правило Сергея 18.08.2026), — такую карточку сводим, `code` совпадёт с роднёй, МС это
+    допускает (под 3146 и так два `3146sp`).
 
     ./venv/bin/python -m prices.unlink_apply --dry            # что бы записали (по decision=matched)
     ./venv/bin/python -m prices.unlink_apply --apply
@@ -69,16 +72,23 @@ def _suffix(article, supplier_key, name=""):
 
 
 def _twins(codes):
-    """внешний код → {аббревиатура: код} живой родни (чтобы не сделать дубль поставщика)."""
+    """внешний код → {аббревиатура: [(код, артикул поставщика)]} живой родни.
+
+    Дубль — это карточка того же бренда С ТЕМ ЖЕ АРТИКУЛОМ поставщика: значит товар уже заведён
+    и сирота лишняя. Тот же бренд, но ДРУГОЙ артикул — законная вторая карточка поставщика
+    (у Blossom «1 туба» 106R02611 и 106R02608 — разные SKU одного нашего товара, остатки свои,
+    правило Сергея 18.08.2026). МС одинаковый `code` у двух карточек допускает.
+    """
     out = {}
     for code in sorted(set(codes)):
-        rows = db.query("SELECT code FROM ms_product WHERE external_code = %s AND NOT archived",
-                        (code,))
+        rows = db.query("SELECT code, article FROM ms_product "
+                        "WHERE external_code = %s AND NOT archived", (code,))
         seen = {}
         for r in rows:
             ms_code = (r["code"] or "").strip()
             if ms_code.startswith(code):
-                seen[ms_code[4:].strip().lower()] = ms_code
+                seen.setdefault(ms_code[4:].strip().lower(), []).append(
+                    (ms_code, (r["article"] or "").strip().lower()))
         out[code] = seen
     return out
 
@@ -115,9 +125,11 @@ def plan(ids=None):
                                      f"расхождение с выбором {code}, решает человек"})
             continue
         abbr = _suffix(r["article"], r["supplier_key"], r["name"])
-        if not already and abbr and abbr in twins.get(code, {}):
-            drop.append({**r, "why": f"под кодом {code} уже есть карточка «{twins[code][abbr]}» "
-                                     f"того же бренда — это дубль, решает человек"})
+        art = (r["article"] or "").strip().lower()
+        same = [t for t in twins.get(code, {}).get(abbr, []) if t[1] and t[1] == art] if abbr else []
+        if not already and same:
+            drop.append({**r, "why": f"под кодом {code} уже есть карточка «{same[0][0]}» того же "
+                                     f"бренда с тем же артикулом — это дубль, решает человек"})
             continue
         item = {"ms_id": r["ms_id"], "article": r["article"], "name": r["name"],
                 "supplier_key": r["supplier_key"], "external_code": code, "already": already,
