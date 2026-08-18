@@ -2707,6 +2707,12 @@ def unlinked_decide(payload: UnlinkedDecision):
         ext = db.query("SELECT external_code FROM ms_product WHERE ms_id = %s",
                        (item["ms_id"],))
         item = dict(item, external_code=(ext[0]["external_code"] if ext else None))
+        # Свести можно только с товаром, у которого есть НАШ 4-значный внешний код: именно его
+        # мы проставляем безкодовой карточке. Иначе решение сохранится, а запись молча не
+        # состоится — человек уйдёт с вкладки в уверенности, что карточка сведена.
+        if not re.fullmatch(r"\d{4}", (item["external_code"] or "")):
+            return {"ok": False, "error": f"у карточки «{item['code']}» нет нашего 4-значного "
+                    f"внешнего кода — сводить не с чем"}
     for ms_id in payload.ids:
         db.execute("""UPDATE prc_unlinked
                          SET decision = %s, target_ms_id = %s, target_code = %s,
