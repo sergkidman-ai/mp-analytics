@@ -15,7 +15,12 @@
                         кактус (cs) → ООО «КОМПАНИЯ ФЕРРЕТ»;
   Единица измерения   — «шт»;
   Штрихкод Code128    — тот же, что у родни по внешнему коду: code128 у нас общий на ТОВАР
-                        (одно значение на всех поставщиков), в отличие от личного ean8.
+                        (одно значение на всех поставщиков), в отличие от личного ean8;
+  Вес                 — как у родни того же кода, заведённой ПОСЛЕДНЕЙ (задача Сергея 18.08.2026).
+                        Даты создания в карточке МС нет, но id карточки — UUID v1, и в нём зашито
+                        время создания: сверено с журналом изменений (`/audit`, событие `create`)
+                        — совпадает до секунды. Берём последнюю по этому времени карточку, У КОТОРОЙ
+                        вес не нулевой: копировать ноль бессмысленно, а нули в родне встречаются.
 
 Пустые поля только дозаполняем: что уже стоит на карточке — не трогаем. Родни с папкой или
 code128 нет → строка уезжает в отбраковку, к человеку.
@@ -25,6 +30,8 @@ code128 нет → строка уезжает в отбраковку, к че�
 """
 import sys
 import time
+import uuid
+import datetime
 import pathlib
 import argparse
 import collections
@@ -42,6 +49,7 @@ SUPPLIER = {
     "kaktus_msk": ("0b14dc16-c51e-11ef-0a80-0c79000af987", 'ООО "КОМПАНИЯ ФЕРРЕТ"'),
 }
 UOM_NAME = "шт"
+UUID_EPOCH = datetime.datetime(1582, 10, 15)
 PAUSE = 0.05
 
 
@@ -55,19 +63,32 @@ def uom_ref():
     raise RuntimeError(f"в справочнике МС нет единицы измерения «{UOM_NAME}»")
 
 
+def born(ms_id):
+    """Когда карточка заведена: время из UUID v1 (в самой карточке даты создания нет)."""
+    f = uuid.UUID(ms_id).fields
+    ticks = ((f[2] & 0x0fff) << 48) | (f[1] << 32) | f[0]
+    return UUID_EPOCH + datetime.timedelta(microseconds=ticks // 10)
+
+
 def kin(code, skip_id):
-    """Папка и code128 живой родни по внешнему коду. Пусто — значит образца нет."""
-    folder, codes = None, collections.Counter()
-    for t in db.query("SELECT ms_id FROM ms_product WHERE external_code = %s "
-                      "AND NOT archived AND ms_id <> %s", (code, skip_id))[:4]:
+    """Папка, code128 и вес живой родни по внешнему коду. Пусто — значит образца нет."""
+    folder, codes, weights = None, collections.Counter(), []
+    for t in sorted(db.query("SELECT ms_id FROM ms_product WHERE external_code = %s "
+                             "AND NOT archived AND ms_id <> %s", (code, skip_id)),
+                    key=lambda t: born(t["ms_id"]), reverse=True):
         card = ms_api.get(f"/entity/product/{t['ms_id']}", params={"expand": "productFolder"})
         if folder is None and card.get("productFolder"):
             folder = {"meta": card["productFolder"]["meta"]}
         for b in card.get("barcodes") or []:
             if "code128" in b:
                 codes[b["code128"]] += 1
+        if card.get("weight"):
+            weights.append((born(t["ms_id"]), float(card["weight"])))
         time.sleep(PAUSE)
-    return folder, (codes.most_common(1)[0][0] if codes else None)
+        if folder and codes and weights:
+            break
+    weight = max(weights)[1] if weights else None
+    return folder, (codes.most_common(1)[0][0] if codes else None), weight
 
 
 def plan():
@@ -85,7 +106,7 @@ def plan():
         if not sup:
             drop.append({**r, "why": f"не знаем контрагента поставщика «{r['supplier_key']}»"})
             continue
-        folder, c128 = kin(r["target_code"], r["ms_id"])
+        folder, c128, weight = kin(r["target_code"], r["ms_id"])
         if not folder or not c128:
             drop.append({**r, "why": "у родни по внешнему коду нет "
                                      + ("папки" if not folder else "штрихкода code128")})
@@ -95,7 +116,9 @@ def plan():
                 "code": r["target_code"], "supplier": sup, "uom": uom, "folder": folder,
                 "description": None if (card.get("description") or "").strip() else card["name"],
                 "barcodes": None if any("code128" in b for b in have) else have + [{"code128": c128}],
-                "c128": c128, "folder_had": bool(card.get("productFolder"))}
+                "c128": c128, "folder_had": bool(card.get("productFolder")),
+                "weight": None if card.get("weight") else weight,
+                "weight_had": bool(card.get("weight"))}
         todo.append(item)
         time.sleep(PAUSE)
     return todo, drop
@@ -116,6 +139,8 @@ def apply(todo, dry=True, log=print):
                 payload["description"] = r["description"]
             if r["barcodes"]:
                 payload["barcodes"] = r["barcodes"]
+            if r["weight"]:
+                payload["weight"] = r["weight"]
             body.append(payload)
         if dry:
             log(f"[проба] пачка {start // 100 + 1}: {len(body)} карточек — ничего не записано")
@@ -141,6 +166,10 @@ def main(argv=None):
     print(f"  описание заполним у {sum(1 for i in todo if i['description'])}, "
           f"code128 добавим {sum(1 for i in todo if i['barcodes'])}, "
           f"папка уже стояла у {sum(1 for i in todo if i['folder_had'])}")
+    no_w = [i["article"] for i in todo if not i["weight"] and not i["weight_had"]]
+    print(f"  вес проставим у {sum(1 for i in todo if i['weight'])}, "
+          f"уже стоял у {sum(1 for i in todo if i['weight_had'])}"
+          + (f"; неоткуда взять (у родни ноль): {len(no_w)} — {', '.join(no_w[:5])}" if no_w else ""))
     apply(todo, dry=not args.apply)
     return 0
 
