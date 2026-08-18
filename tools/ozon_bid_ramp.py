@@ -5,6 +5,8 @@
 #   snapshot  — снять статистику по позициям за день и текущие ставки (наблюдение)
 #   step      — посчитать шаг дня (+10 %); БЕЗ --apply только пишет план в журнал
 #   step --apply  — отправить ставки в Ozon. ТОЛЬКО по прямой команде Сергея.
+#   rollback  — вернуть доразгонную ставку тем, кто за окно не дал ни одного заказа
+#               (конвертеры не трогаем); --apply отправляет, без него сухой прогон.
 #
 # Снимок обязателен ДО первого шага: без базовой линии рост не с чем сравнивать.
 import sys, csv, time, json, argparse, datetime as dt
@@ -181,14 +183,97 @@ def cmd_step(acc, day, apply_, limit, cap=8000.0):
             print(f'  кампания {cid}: {len(items)} ставок -> {code} {resp[:80]}')
 
 
+ROLLBACK_SQL = """
+WITH first_step AS (
+  SELECT DISTINCT ON (campaign_id, sku) campaign_id, sku::text sku, bid_before
+  FROM mkt_ozon_bid_step_log WHERE account=%(acc)s AND applied
+  ORDER BY campaign_id, sku, step_date),
+last_bid AS (
+  SELECT campaign_id, sku::text sku, max(bid) bid FROM ozon_bids
+  WHERE account=%(acc)s AND captured_at=(SELECT max(captured_at) FROM ozon_bids WHERE account=%(acc)s)
+  GROUP BY 1,2),
+perf AS (
+  SELECT campaign_id, sku::text sku, sum(money_spent) spend, sum(orders_qty) ord,
+         sum(orders_money) rev, sum(clicks) clicks, sum(views) views
+  FROM mkt_ozon_ads_sku_daily WHERE account=%(acc)s AND stat_date >= %(since)s
+  GROUP BY 1,2)
+SELECT f.campaign_id::text campaign_id, f.sku, f.bid_before::float pre_bid, b.bid::float cur_bid,
+       coalesce(p.spend,0)::float spend, coalesce(p.ord,0)::float ord, coalesce(p.rev,0)::float rev,
+       coalesce(p.clicks,0)::int clicks, coalesce(p.views,0)::int views
+FROM first_step f JOIN last_bid b USING (campaign_id, sku)
+LEFT JOIN perf p ON p.campaign_id=f.campaign_id AND p.sku=f.sku
+"""
+
+
+def cmd_rollback(acc, apply_, since='2026-08-08', week=None, batch=100):
+    """Откат разгона: позициям, которые за окно наблюдения не дали НИ ОДНОГО заказа,
+    возвращаем доразгонную ставку (bid_before первого применённого шага).
+    Конвертеры (заказы > 0) не трогаем. Без --apply на площадку ничего не уходит."""
+    from tools.ozon_weekly_bids import ensure_journal
+    ensure_journal()
+    today = dt.date.today()
+    week = week or str(today - dt.timedelta(days=today.weekday()))
+    rows = db.query(ROLLBACK_SQL, {'acc': acc, 'since': since})
+    zero = [r for r in rows if float(r['ord'] or 0) == 0]
+    conv = [r for r in rows if float(r['ord'] or 0) > 0]
+    plan = {}
+    for r in zero:
+        cur, pre = float(r['cur_bid']), float(r['pre_bid'])
+        if cur - pre < 0.01:
+            continue
+        plan.setdefault(r['campaign_id'], []).append((r['sku'], cur, pre, r))
+    total = sum(len(v) for v in plan.values())
+    s_cur = sum(c for v in plan.values() for _, c, _, _ in v)
+    s_pre = sum(p for v in plan.values() for _, _, p, _ in v)
+    spend = sum(float(r['spend'] or 0) for r in zero)
+    print(f'откат разгона {acc}: когорта {len(rows)} пар, без заказов с {since} — {len(zero)}, '
+          f'конвертеров {len(conv)} (не трогаем)')
+    print(f'к отправке {total} пар в {len(plan)} кампаниях: сумма ставок {s_cur:,.0f} → {s_pre:,.0f} ₽ '
+          f'(−{s_cur - s_pre:,.0f}); их расход за окно {spend:,.0f} ₽'
+          + ('' if apply_ else '   [DRY-RUN, на площадку ничего не уходит]'))
+    if not apply_:
+        return
+    sent = failed = 0
+    for cid, items in plan.items():
+        for i in range(0, len(items), batch):
+            chunk = items[i:i + batch]
+            code, resp = _apply_bids(acc, cid, [(s, p) for s, _, p, _ in chunk])
+            ok = code in (200, 201)
+            sent += len(chunk) if ok else 0
+            failed += 0 if ok else len(chunk)
+            for sku, cur, pre, r in chunk:
+                db.execute("""INSERT INTO mkt_ozon_bid_journal
+                      (decided_on,week_start,account,campaign_id,sku,tier,action,bid_before,bid_after,
+                       reason,m_before,applied,applied_at,api_response,review_on)
+                      VALUES (%s,%s,%s,%s,%s,'red','rollback',%s,%s,%s,%s,%s,now(),%s,%s)
+                    ON CONFLICT (week_start,account,campaign_id,sku) DO UPDATE SET
+                      decided_on=EXCLUDED.decided_on, action=EXCLUDED.action,
+                      bid_before=EXCLUDED.bid_before, bid_after=EXCLUDED.bid_after,
+                      reason=EXCLUDED.reason, m_before=EXCLUDED.m_before, applied=EXCLUDED.applied,
+                      applied_at=EXCLUDED.applied_at, api_response=EXCLUDED.api_response,
+                      review_on=EXCLUDED.review_on""",
+                    (today, week, acc, cid, sku, cur, pre,
+                     f"откат разгона: с {since} ноль заказов при расходе {float(r['spend'] or 0):.0f} ₽ "
+                     f"и {r['clicks']} кликах; ставка {cur:.2f} → доразгонная {pre:.2f} ₽",
+                     json.dumps({'spend': float(r['spend'] or 0), 'orders': 0, 'clicks': r['clicks'],
+                                 'views': r['views'], 'window_from': since}), ok,
+                     f'{code} {resp[:120]}', today + dt.timedelta(days=7)))
+            print(f'  кампания {cid}: {len(chunk)} ставок -> {code} {resp[:60]}')
+            time.sleep(1.0)
+    print(f'итог: применено {sent}, ошибок {failed}; решения записаны в mkt_ozon_bid_journal '
+          f'(week_start={week}, action=rollback)')
+
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['plan', 'snapshot', 'step', 'gaps'])
+    ap.add_argument('cmd', choices=['plan', 'snapshot', 'step', 'gaps', 'rollback'])
     ap.add_argument('--account', default=ACC)
     ap.add_argument('--date', default=str(dt.date.today() - dt.timedelta(days=1)))
     ap.add_argument('--apply', action='store_true', help='ОТПРАВИТЬ ставки в Ozon (только по команде Сергея)')
     ap.add_argument('--limit', type=int, default=0, help='ограничить число позиций шага (обкатка)')
     ap.add_argument('--days', type=int, default=10, help='gaps: глубина проверки дыр в витрине')
+    ap.add_argument('--since', default='2026-08-08',
+                    help='rollback: с какой даты считаем заказы разогнанных позиций')
     ap.add_argument('--patience', type=int, default=1800,
                     help='gaps/snapshot: сколько секунд ждать отчёт Ozon (NOT_STARTED = очередь)')
     ap.add_argument('--max-spend', type=float, default=8000.0,
@@ -200,5 +285,7 @@ if __name__ == '__main__':
         cmd_snapshot(a.account, a.date, patience=a.patience)
     elif a.cmd == 'gaps':
         cmd_gaps(a.account, a.days, a.patience)
+    elif a.cmd == 'rollback':
+        cmd_rollback(a.account, a.apply, since=a.since)
     else:
         cmd_step(a.account, str(dt.date.today()), a.apply, a.limit, a.max_spend)
