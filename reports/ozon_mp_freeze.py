@@ -5,9 +5,11 @@
 1. В конце последнего дня месяца (по МСК) месяц замораживается в статику из ОЦЕНКИ по
    транзакциям (Отчёт о реализации ещё не вышел) → сплит «—», помечается provisional; сразу
    начинается новый живой месяц (его отдаёт /api/ozon/mp-current).
-2. После выхода Отчёта о реализации (~8–10 числа след. месяца) provisional-месяц сверяется:
-   Продажи/Возвраты/Вознаграждение + сплит берутся из реализации, расходные строки остаются из
-   транзакций; пометка provisional снимается.
+2. После выхода Отчёта о реализации (~8–10 числа след. месяца) provisional-месяц сверяется
+   ПОАККАУНТНО: у кого отчёт вышел — Продажи/Возвраты/Вознаграждение + сплит берутся из
+   реализации, расходные строки остаются из транзакций, и этот аккаунт больше не переоценивается
+   (иначе следующий refresh откатил бы официальные цифры в оценку). Пометка provisional у месяца
+   снимается, когда сверены ВСЕ аккаунты; поаккаунтный прогресс — в hist["reconciled"].
 
 Источник истины — reports/data/mp_ozon_hist.json (RUNTIME STATE). Все мутации: под fcntl-локом,
 с бэкапом, атомарной записью JSON (os.replace), затем перерисовкой страницы (ozon_mp_page.render).
@@ -109,10 +111,20 @@ def _slot(hist, key):
     return i
 
 
-def _estimate_record(y, m):
+def _reconciled(hist):
+    """hist["reconciled"] = {acc: [period_key…]} — аккаунты, УЖЕ сверенные с реализацией по
+    ещё не закрытым (provisional) месяцам. Ключ выбрасывается, когда сверены все аккаунты:
+    список хранит только незавершённые месяцы и не растёт бесконечно."""
+    r = hist.setdefault("reconciled", {})
+    for acc in ACCOUNTS:
+        r.setdefault(acc, [])
+    return r
+
+
+def _estimate_record(y, m, accounts=None):
     """per-acc запись месяца из ТРАНЗАКЦИЙ (оценка): 10 строк + split=None + производные."""
     out = {}
-    for acc in ACCOUNTS:
+    for acc in (accounts if accounts is not None else ACCOUNTS):
         mags = R.balance(acc, y, m)
         orders, retc = R.op_counts(acc, y, m)
         cogs = R._cogs(acc, y, m)
@@ -124,7 +136,7 @@ def _estimate_record(y, m):
 
 
 def _put(hist, i, per_acc):
-    for acc in ACCOUNTS:
+    for acc in per_acc:
         a = hist["accounts"][acc]; rec = per_acc[acc]
         for k in _BAL_KEYS:
             a["lines"][k][i] = rec["lines"][k]
@@ -135,10 +147,15 @@ def _put(hist, i, per_acc):
 
 # ---------- freeze / reconcile (мутируют hist in-memory) ----------
 def _freeze_estimate(hist, y, m):
-    """Заморозить месяц из оценки по транзакциям, пометить provisional. → period_key."""
+    """Заморозить месяц из оценки по транзакциям, пометить provisional. → period_key.
+    Уже сверенные с реализацией аккаунты НЕ трогаем: их цифры официальные, переоценка была бы
+    откатом назад (та же причина, что у refresh_cogs)."""
     key = _key(y, m)
     i = _slot(hist, key)
-    _put(hist, i, _estimate_record(y, m))
+    done = _reconciled(hist)
+    todo = [a for a in ACCOUNTS if key not in done[a]]
+    if todo:
+        _put(hist, i, _estimate_record(y, m, todo))
     prov = hist.setdefault("provisional", [])
     if key not in prov:
         prov.append(key)
@@ -146,19 +163,24 @@ def _freeze_estimate(hist, y, m):
 
 
 def _reconcile_final(hist, y, m):
-    """Сверить provisional-месяц с Отчётом о реализации (нужен по ОБОИМ аккаунтам). Заменяет
-    Продажи/Возвраты/Вознаграждение + сплит из реализации, расходы оставляет из оценки,
-    пересчитывает net/margin, снимает provisional. → period_key или None (реализации ещё нет)."""
+    """Сверить provisional-месяц с Отчётом о реализации ПОАККАУНТНО: у кого отчёт вышел, тот
+    получает официальные Продажи/Возвраты/Вознаграждение + сплит сразу, не дожидаясь второго
+    аккаунта (расходы остаются из оценки, net/margin пересчитываются). Отсутствие отчёта у одного
+    аккаунта больше не блокирует второй. provisional снимается, только когда сверены ВСЕ.
+    → (period_key|None, [сверённые в этот раз аккаунты]); key не None ⇔ месяц закрыт полностью."""
+    key = _key(y, m)
+    done = _reconciled(hist)
     rs, sp = {}, {}
-    for acc in ACCOUNTS:
+    for acc in [a for a in ACCOUNTS if key not in done[a]]:
         r = R.realiz_sales(acc, y, m)
         s = OZR.sales_split(acc, y, m)
         if r is None or s is None:
-            return None
+            continue                                   # отчёта ещё нет — ждём, остальных не держим
         rs[acc], sp[acc] = r, s
-    key = _key(y, m)
+    if not rs and any(key not in done[a] for a in ACCOUNTS):
+        return None, []                                # ждём первый отчёт — менять нечего
     i = _slot(hist, key)
-    for acc in ACCOUNTS:
+    for acc in rs:
         a = hist["accounts"][acc]
         prod, ret, comm = rs[acc]
         mags = {k: a["lines"][k][i] for k in _BAL_KEYS}      # оценочные 10 строк
@@ -170,10 +192,15 @@ def _reconcile_final(hist, y, m):
         a["split"][i] = {"rev": round(sp[acc]["revenue"]), "bonus": round(sp[acc]["bonus"]),
                          "part": round(sp[acc]["partners"])}
         a["net"][i] = round(d["net"]); a["margin"][i] = round(d["margin"], 1)
+        done[acc].append(key)
+    if any(key not in done[a] for a in ACCOUNTS):       # ждём оставшиеся аккаунты
+        return None, list(rs)
     prov = hist.setdefault("provisional", [])
     if key in prov:
         prov.remove(key)
-    return key
+    for acc in ACCOUNTS:                               # месяц закрыт — маркер прогресса не нужен
+        done[acc].remove(key)
+    return key, list(rs)
 
 
 # ---------- orchestration ----------
@@ -195,10 +222,11 @@ def advance_and_reconcile():
             structural = True
         for key in list(hist.get("provisional", [])):
             yy, mm = int(key[:4]), int(key[5:7])
-            if _reconcile_final(hist, yy, mm):               # реализация вышла → окончательная сверка
-                changed.append(("reconcile", key))
+            full, done_acc = _reconcile_final(hist, yy, mm)   # реализация вышла → сверка (поаккаунтно)
+            if done_acc:
+                changed.append(("reconcile", f"{key} {'+'.join(done_acc)}"))
                 structural = True
-            else:                                            # реализации ещё нет — освежаем оценку
+            if not full:                                     # у кого отчёта нет — освежаем оценку
                 _freeze_estimate(hist, yy, mm)               # (доберём поздние транзакции месяца)
                 changed.append(("refresh", key))
         if changed:
@@ -254,11 +282,13 @@ def freeze_estimate(y, m):
 
 
 def reconcile_final(y, m):
-    """Ручная сверка одного месяца (CLI/тест). → key или None если реализации нет."""
+    """Ручная сверка одного месяца (CLI/тест). → key, если месяц закрыт полностью (сверены все
+    аккаунты); None — если сверить пока нечего ИЛИ сверилась только часть аккаунтов (их цифры
+    всё равно сохраняются, см. второй элемент кортежа _reconcile_final)."""
     with _lock():
         hist = _load()
-        key = _reconcile_final(hist, y, m)
-        if key:
+        key, done_acc = _reconcile_final(hist, y, m)
+        if done_acc:
             _backup()
             _save_atomic(hist)
             P.render(hist)
@@ -269,7 +299,13 @@ def _status():
     hist = _load()
     cur = datetime.datetime.now(MSK)
     print("period_keys:", hist["period_keys"])
-    print("provisional:", hist.get("provisional", []))
+    prov = hist.get("provisional", [])
+    print("provisional:", prov)
+    rec = hist.get("reconciled", {})
+    for key in prov:
+        acc_done = [a for a in ACCOUNTS if key in rec.get(a, [])]
+        print(f"  {key}: сверено с реализацией {acc_done or '—'}, "
+              f"ждём {[a for a in ACCOUNTS if a not in acc_done]}")
     print("live month:", R._live_month(), "| МСК сейчас:", _key(cur.year, cur.month))
 
 
