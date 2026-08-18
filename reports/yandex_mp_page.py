@@ -30,7 +30,9 @@ def money(v, neg=False):
     if v is None:
         return "—"
     v = round(v); s = f"{abs(v):,}".replace(",", " ")
-    return ("−" if (neg or v < 0) else "") + s
+    if neg:
+        return ("+" if v < 0 else "−") + s      # отрицательный расход = приход нам
+    return ("−" if v < 0 else "") + s
 
 
 def _base_stats(comp):

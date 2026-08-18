@@ -27,10 +27,14 @@ _C = {"data": None, "M": [], "N": 0, "base": []}
 
 
 def money(v, neg=False):
+    """neg=True — расходная строка. ОТРИЦАТЕЛЬНЫЙ расход = деньги пришли нам → печатаем «+»
+    (иначе он неотличим от расхода и колонка не сходится глазами: подытог считается по знаку)."""
     if v is None:
         return "—"
     v = round(v); s = f"{abs(v):,}".replace(",", " ")
-    return ("−" if (neg or v < 0) else "") + s
+    if neg:
+        return ("+" if v < 0 else "−") + s
+    return ("−" if v < 0 else "") + s
 
 
 def _base_stats(comp):
@@ -163,7 +167,8 @@ def build(acc):
     cogs = a["cogs"]; net = a["net"]; margin = a["margin"]
     commission = a["commission"]
     cogs_pct = [(cogs[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
-    itog = [L["to_pay"][i] - sum(L[k][i] for k in EXP) for i in range(N)]
+    comp = L.get("compensation") or [0] * N            # выплаты ВБ нам — приход, не расход
+    itog = [L["to_pay"][i] - sum(L[k][i] for k in EXP) + comp[i] for i in range(N)]
     wb_exp = [ob[i] - itog[i] for i in range(N)]                 # все удержания ВБ = наша цена − Итого к оплате
     wb_exp_pct = [(wb_exp[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
     orders = a["orders"]; retc = a["returns_cnt"]
@@ -212,7 +217,8 @@ def build(acc):
     H.append(row("Логистика", L["delivery"], "expense", ob, showpc=True, k="delivery"))
     H.append(row("Хранение", L["storage"], "expense", ob, k="storage"))
     H.append(row("Приёмка", L["acceptance"], "expense", ob, k="acceptance"))
-    H.append(row("Прочие удержания (баллы, штрафы)", L["other"], "expense", ob, showpc=True, k="other"))
+    H.append(row("Прочие удержания (продвижение, баллы, штрафы)", L["other"], "expense", ob, showpc=True, k="other"))
+    H.append(row("Компенсации ВБ (выплаты нам)", comp, "inflow", ob, k="compensation"))
     H.append(row("Итого расходы ВБ", wb_exp, "expense", ob, tag="расчёт", showpc=True, subtot=True, k="wb_exp"))
     H.append(row("Итого к оплате", itog, "inflow", ob, tag="расчёт", showpc=True, subtot=True, k="itog"))
     H.append(sect("Наши данные (не из отчёта МП)"))
