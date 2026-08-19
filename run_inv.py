@@ -210,7 +210,12 @@ def relink(apply):
     fresh = alfa_link.payments_since(fresh_since)                     # свежее окно — целиком
     older_open = alfa_link.open_advances(                             # старое — только авансы
         alfa_link.payments_since(sweep_since, until=fresh_since, purpose="аванс"))
-    stats, lines = alfa_link.link_new(fresh + older_open, apply=apply)
+    # ПОРЯДОК = ДАТА ДЕНЕГ. МС отдаёт платежи без сортировки (проверено 19.08.2026: 12.08, 17.08,
+    # 10.08, 10.08, 15.08, 19.08…), а старые авансы шли вообще хвостом списка — свежий платёж
+    # забирал приёмки вперёд неизрасходованного предыдущего. Сортировка + гейт очереди в
+    # `alfa_link.older_open_advance` дают FIFO: старший аванс тратится первым.
+    pool = sorted(fresh + older_open, key=lambda p: ((p.get("moment") or ""), p.get("id") or ""))
+    stats, lines = alfa_link.link_new(pool, apply=apply)
     for msg in lines[:10]:
         log(f"  ⚠ привязка вручную: {msg}")
     done = stats["linked"] if apply else stats["would_link"]
@@ -219,6 +224,8 @@ def relink(apply):
         f"{len(older_open)} | {'привязано' if apply else 'привязалось бы'} {done}, "
         f"уже закрыто {stats['already']}, ждут поставки {stats['no_match']}, "
         f"на ручную {stats['partial'] + stats['errors']}"
+        + (f", ждут очереди аванса {stats['advance_wait']}" if stats.get("advance_wait") else "")
+        + (f", ручных авансов пропущено {stats['manual_skip']}" if stats.get("manual_skip") else "")
         + (f", авансы отложены {stats['advance_off']}" if stats.get("advance_off") else ""))
 
 

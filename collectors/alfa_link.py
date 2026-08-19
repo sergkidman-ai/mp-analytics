@@ -36,6 +36,20 @@
 Черновик ещё правят — деньги на нём исказят учёт; непринятая приёмка деньги пока не ждёт.
 Внутри одного юрлица: организация платежа = организация приёмки (`_org_href`).
 
+АВАНСЫ — ОЧЕРЕДЬ FIFO (решение Сергея 19.08.2026). Пока у поставщика есть БОЛЕЕ РАННИЙ аванс с
+неизрасходованным остатком, свежий платёж приёмки не забирает (`older_open_advance` → статус
+`advance-wait`): сначала полностью тратится предыдущий, потом начинается следующий. Раньше
+порядок задавала выдача МС — она не отсортирована, и свежий платёж расхватывал приёмки вперёд
+старого (аванс Тонероптторга от 13.08 так и висел с остатком 38 771.78 ₽). Гейт снимается сам:
+как только старший аванс израсходован, младший разбирается на том же прогоне.
+
+ТОЛЬКО ПЛАТЕЖИ ИЗ ВЫПИСКИ. Разбираем лишь то, что записал наш конвейер (`from_bank`, признак —
+`syncId`). Авансы, заведённые в МС руками до подключения банковского API, не привязываем никуда
+и в баланс поставщика не берём (статус `manual-skip`) — их остатки владелец разносит сам.
+
+БАЛАНС ПОСТАВЩИКА (`advance_balance`) = Σ неизрасходованных остатков его авансов. Это же число —
+гейт черновика нового аванса в `invoice_bot/po_payment_watch.py`; заказы в него не входят.
+
 Запуск отдельно (добор ранее созданных платежей):
     ./venv/bin/python collectors/alfa_link.py 2026-07-01            # dry-run с даты
     ./venv/bin/python collectors/alfa_link.py 2026-07-01 --apply    # записать
@@ -69,6 +83,19 @@ ADVANCE_LOOKBACK = 45                                    # приёмки ДО �
 # Разнос авансов пишет в документы, которые владелец ведёт руками, поэтому по умолчанию ВЫКЛЮЧЕН.
 # Включение — `ALFA_LINK_ADVANCE=1` в .env, после того как dry-run показан и согласован.
 ADVANCE_ON = os.getenv("ALFA_LINK_ADVANCE") == "1"
+ADVANCE_QUEUE_LOOKBACK = 180                             # окно поиска более ранних открытых авансов
+
+
+def from_bank(payment):
+    """Платёж записан НАШИМ конвейером из банковской выписки (`bank_ms.sync`), а не руками в МС.
+
+    Признак — поле `syncId`: туда кладётся uuid банковской операции (идемпотентность записи).
+    У платежей, заведённых человеком до подключения банковского API, его нет: у Цифрового
+    Квадрата граница 27.07.2026, у Дисквэра — 03.08.2026 (проверено по МС).
+
+    Решение Сергея 19.08.2026: старые ручные авансы с остатком не привязываем никуда и в баланс
+    поставщика не берём — их разносил человек, наша очередь про них ничего не знает."""
+    return bool(payment.get("syncId"))
 
 
 def get(path, tries=5):
@@ -493,6 +520,47 @@ def agent_supplies(agent_href, since, org_href):
     return sorted((s for s in out if linkable(s)), key=lambda s: s.get("moment") or "")
 
 
+def open_advances_of(agent_href, org_href, since, before=None):
+    """Авансы ЭТОГО поставщика у ЭТОГО юрлица с неизрасходованным остатком, по возрастанию даты.
+
+    Два применения:
+      • ОЧЕРЕДЬ (FIFO): `before=moment платежа` — есть ли аванс СТАРШЕ разбираемого, который ещё
+        не израсходован. Пока такой есть, свежий платёж приёмки не забирает (решение Сергея
+        19.08.2026: сначала закрываем предыдущий, потом начинаем тратить следующий);
+      • БАЛАНС поставщика (`advance_balance`) — сколько наших денег у него ещё лежит.
+
+    Берём только платежи из банковской выписки (`from_bank`) и только со словом «аванс» в
+    назначении — фильтром на СТОРОНЕ МС, как в `payments_since` (страница с `expand=operations`
+    дорогая, тянуть все исходящие ради двух авансов незачем)."""
+    terms = [f"agent={agent_href}", f"organization={org_href}",
+             f"moment>={since} 00:00:00", "paymentPurpose~аванс"]
+    if before:
+        terms.append(f"moment<{before}")
+    flt = urllib.parse.quote(";".join(terms), safe="=;:")
+    out, off = [], 0
+    while True:
+        page = get(f"/entity/paymentout?filter={flt}&expand=operations&limit=100&offset={off}")
+        rows = page.get("rows", [])
+        out.extend(rows)
+        if len(rows) < 100:
+            break
+        off += 100
+    return sorted((p for p in out if from_bank(p) and unlinked_sum(p) > 0),
+                  key=lambda p: ((p.get("moment") or ""), p.get("id") or ""))
+
+
+def advance_balance(agent_href, org_href, since=None):
+    """Баланс поставщика = Σ НЕИЗРАСХОДОВАННЫХ остатков его авансов (копейки) + сами платежи.
+
+    Это то же число, что видно в МС: сумма платежа минус всё, что уже привязано к приёмкам.
+    Заказы поставщику сюда НЕ входят — заказ ещё не расход аванса, деньги у поставщика лежат,
+    пока не пришла приёмка (решение Сергея 19.08.2026; прежний расчёт по заказам завышал расход
+    и плодил лишние авансы)."""
+    since = since or (dt.date.today() - dt.timedelta(days=ADVANCE_QUEUE_LOOKBACK)).isoformat()
+    rows = open_advances_of(agent_href, org_href, since)
+    return sum(unlinked_sum(p) for p in rows), rows
+
+
 def plan_advance(payment):
     """Раскладка АВАНСА: неоплаченные приёмки этого поставщика по возрастанию даты, пока хватает
     денег; хвостовая закрывается частично. Правило снято с ручной практики владельца и сверено
@@ -611,7 +679,25 @@ def open_advances(payments):
 
     Только авансы: у остальных платежей остаток означает частичную привязку РУКАМИ владельца
     (сами мы частичную не пишем — см. предохранитель в шапке модуля), туда лезть нельзя."""
-    return [p for p in payments if unlinked_sum(p) > 0 and is_advance(p)]
+    return [p for p in payments if unlinked_sum(p) > 0 and is_advance(p) and from_bank(p)]
+
+
+def older_open_advance(payment):
+    """Самый ранний НЕизрасходованный аванс того же поставщика/юрлица СТАРШЕ этого платежа.
+
+    Пока он есть, разбираемый платёж приёмки не забирает: очередь строго по дате денег, иначе
+    свежий аванс съедает поставки, а предыдущий висит неизрасходованным (случай Тонероптторга —
+    платёж от 13.08 с остатком 38 771.78 ₽ при уже ушедшем авансе от 19.08).
+
+    Не тупик: как только старший аванс израсходуется (в этом же проходе — он идёт по очереди
+    раньше), гейт снимется сам. Если приёмок нет вообще, забирать всё равно нечего."""
+    agent_href, org_href = _agent_href(payment), _org_href(payment)
+    if not agent_href or not org_href or not payment.get("moment"):
+        return None
+    since = (dt.date.fromisoformat(payment["moment"][:10])
+             - dt.timedelta(days=ADVANCE_QUEUE_LOOKBACK)).isoformat()
+    rows = open_advances_of(agent_href, org_href, since, before=payment["moment"])
+    return rows[0] if rows else None
 
 
 def _write(payment, ops, note):
@@ -678,6 +764,15 @@ def link_payment(payment, apply=False):
     if advance:                                  # 2) аванс — FIFO по неоплаченным приёмкам
         if not ADVANCE_ON:
             return "advance-off", "аванс: разнос выключен (ALFA_LINK_ADVANCE≠1)"
+        if not from_bank(payment):
+            # ручной аванс до подключения банка: его разносил человек, мы в него не лезем
+            return "manual-skip", "аванс заведён в МС руками (нет syncId) — не привязываем"
+        older = older_open_advance(payment)
+        if older:
+            return "advance-wait", (
+                f"очередь: сначала расходуется аванс №{older.get('name')} от "
+                f"{(older.get('moment') or '')[:10]}, на нём ещё "
+                f"{unlinked_sum(older)/100:,.2f} ₽")
         a_ops, a_left, a_note = plan_advance(payment)
         if not a_ops:
             # остаток исчерпан — аванс закрыт; остаток есть, но приёмок нет — ждём поставки
@@ -693,12 +788,14 @@ def link_payment(payment, apply=False):
 def link_new(payments, apply=False):
     """Привязка пачки платежей (вызывается из alfa_ms.sync). → (stats, строки лога)."""
     stats, lines = {"linked": 0, "would_link": 0, "already": 0, "no_match": 0,
-                    "partial": 0, "errors": 0, "advance_off": 0, "not_supplier": 0}, []
+                    "partial": 0, "errors": 0, "advance_off": 0, "not_supplier": 0,
+                    "advance_wait": 0, "manual_skip": 0}, []
     for p in payments:
         status, note = link_payment(p, apply=apply)
         key = {"linked": "linked", "would-link": "would_link", "already": "already",
                "no-match": "no_match", "partial": "partial", "error": "errors",
-               "advance-off": "advance_off", "not-supplier": "not_supplier"}[status]
+               "advance-off": "advance_off", "not-supplier": "not_supplier",
+               "advance-wait": "advance_wait", "manual-skip": "manual_skip"}[status]
         stats[key] += 1
         if status in ("partial", "error"):
             lines.append(f"платёж №{p.get('name')} {p['sum']/100:.2f} ₽: {note}")
@@ -713,12 +810,14 @@ def main(argv):
     flt = urllib.parse.quote(f"moment>={since} 00:00:00")
     rows = get(f"/entity/paymentout?filter={flt}&expand=agent,operations&limit=100").get("rows", [])
     print(f"исходящих платежей с {since}: {len(rows)} — {'ЗАПИСЬ' if apply else 'DRY-RUN'}")
-    for p in rows:
+    for p in sorted(rows, key=lambda x: ((x.get("moment") or ""), x.get("id") or "")):
         status, note = link_payment(p, apply=apply)
         if status in ("already", "not-supplier") and "--all" not in argv:
             continue
         mark = {"linked": "✓", "would-link": "•", "partial": "⚠", "error": "✗",
-                "no-match": "·", "advance-off": "○", "not-supplier": "–"}[status]
+                "no-match": "·", "advance-off": "○", "not-supplier": "–",
+                "advance-wait": "⏳", "manual-skip": "✋",
+                "already": "="}.get(status, "?")   # `--all` показывает и уже разнесённые
         print(f"  {mark} №{p.get('name'):>8} {p['sum']/100:>11.2f} ₽ "
               f"{((p.get('agent') or {}).get('name') or '')[:26]:26} {status}: {note}")
 
