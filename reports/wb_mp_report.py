@@ -70,7 +70,7 @@ MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
 
 # kind по ключу строки — формат и направление подсветки
 KIND = {
-    "own_price": "inflow", "sales": "inflow", "spp": "expense", "returns": "expense",
+    "own_price": "inflow", "sales": "inflow", "spp": "inflow", "returns": "expense",
     "returns_pay": "expense",   # сторно ppvz_for_pay по возвратам — уже внутри «К перечислению»
     "commission": "expense", "to_pay": "inflow",
     "delivery": "expense", "storage": "expense", "acceptance": "expense",
