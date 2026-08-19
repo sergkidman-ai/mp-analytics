@@ -1,0 +1,92 @@
+[
+ {
+  "old_id": "346a790b-306a-11ee-0a80-014e00039f83",
+  "old_article": "BS-KX-FAD473А7",
+  "new_id": "7e0a6105-9bd1-11f1-0a80-0cbf002e01df",
+  "new_article": "BS-KX-FAD473A7",
+  "code": "1316bs",
+  "externalCode": "1316",
+  "barcodes": 2,
+  "name": "Картридж Panasonic KX-FAD473А7 барабан для KX-MB2110/2117/2130/2137/2177, 10000 стр.,Blossom"
+ },
+ {
+  "old_id": "b816f22b-cac1-11eb-0a80-081700129590",
+  "old_article": "BS-PFI-120С",
+  "new_id": "7e4e5260-9bd1-11f1-0a80-1eaf002d81a9",
+  "new_article": "BS-PFI-120C",
+  "code": "3561bs",
+  "externalCode": "3561",
+  "barcodes": 2,
+  "name": "Картридж PFI-120C (2886C001) BS"
+ },
+ {
+  "old_id": "fd15b0f7-d8aa-11ef-0a80-1733000ab1f7",
+  "old_article": "CS-C055HС",
+  "new_id": "7e8fa819-9bd1-11f1-0a80-1a5f002e699c",
+  "new_article": "CS-C055HC",
+  "code": "5385cs",
+  "externalCode": "5385",
+  "barcodes": 2,
+  "name": "Картридж 055H C (3019C002) CS"
+ },
+ {
+  "old_id": "434b8245-1e4b-11eb-0a80-05d200087418",
+  "old_article": "CS-PH7760М",
+  "new_id": "7ec2f4b3-9bd1-11f1-0a80-16ba002e57c8",
+  "new_article": "CS-PH7760M",
+  "code": "0654cs",
+  "externalCode": "0654",
+  "barcodes": 2,
+  "name": "Картридж лазерный Cactus 106R01161 CS-PH7760М пурпурный бар.в компл. (25000стр.) для Xerox Phaser 7760/7760dn/7760dx/7760dxf"
+ },
+ {
+  "old_id": "a243159e-f8e4-11ef-0a80-0be0000be766",
+  "old_article": "CS-THМ247",
+  "new_id": "7efae98b-9bd1-11f1-0a80-1eaf002d81d2",
+  "new_article": "CS-THM247",
+  "code": "5742cs",
+  "externalCode": "5742",
+  "barcodes": 2,
+  "name": "Картридж лазерный Cactus CS-THМ247 THМ247 черный (13000стр.) для Катюша Р247/М247"
+ },
+ {
+  "old_id": "42103741-1e4b-11eb-0a80-05d200087117",
+  "old_article": "CS-TK8115С",
+  "new_id": "7f4aa5b0-9bd1-11f1-0a80-06a300070ddf",
+  "new_article": "CS-TK8115C",
+  "code": "2412cs",
+  "externalCode": "2412",
+  "barcodes": 2,
+  "name": "Картридж лазерный Cactus CS-TK8115С голубой (6000стр.) для Kyocera Mita Ecosys M8124cidn/M8130cidn"
+ },
+ {
+  "old_id": "dd9a75c9-9b92-11eb-0a80-0646002465d8",
+  "old_article": "GP_TK-5270C_С_WC",
+  "new_id": "7f939bab-9bd1-11f1-0a80-005c002dd337",
+  "new_article": "GP_TK-5270C_C_WC",
+  "code": "2401gp",
+  "externalCode": "2401",
+  "barcodes": 2,
+  "name": "Картридж TK-5270C с бункером отработанного тонера GP"
+ },
+ {
+  "old_id": "450f7ada-3d98-11ed-0a80-0d28004ef2d1",
+  "old_article": "PL_TK-5270C_С_WC",
+  "new_id": "7fd38c29-9bd1-11f1-0a80-09f8002e4f35",
+  "new_article": "PL_TK-5270C_C_WC",
+  "code": "2401pl",
+  "externalCode": "2401",
+  "barcodes": 2,
+  "name": "Тонер-туба TK-5270C Cyan 6000 копий ProfiLine"
+ },
+ {
+  "old_id": "4acd066f-6abb-11eb-0a80-02d900095abd",
+  "old_article": "СS-TN321C",
+  "new_id": "800c7982-9bd1-11f1-0a80-196f002cdd71",
+  "new_article": "CS-TN321C",
+  "code": "2030cs",
+  "externalCode": "2030",
+  "barcodes": 2,
+  "name": "Картридж TN-321C голубой CS"
+ }
+]
