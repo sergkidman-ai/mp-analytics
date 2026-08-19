@@ -17,6 +17,10 @@ LOG=/opt/mp-analytics/wb_roy_weekly.log
   $PY -m ops.wb_breadth --end "$END"                       || echo "!! ширина acc1 не посчиталась"
   $PY -m ops.wb_breadth --account wb_acc2 --end "$END"     || echo "!! ширина acc2 не посчиталась"
   $PY -m ops.wb_roy_profile --end "$END"                   || echo "!! профиль не построился"
+  # acc2 «ДисКвэр»: цвета и таблица ставок строятся, но НЕ применяются — аккаунт весь
+  # стоит на полу 7.30, понижать нечего, а вывод из рекламы делается руками (в API ВБ
+  # нет метода снять номенклатуру с кампании). Файл — для ручного решения.
+  $PY -m ops.wb_roy_profile --account wb_acc2 --end "$END" || echo "!! профиль acc2 не построился"
   CSV="docs/reports/mkt_roy_profile_${END}.csv"
   if [ -s "$CSV" ]; then
     $PY -m ops.wb_roy_apply "$CSV" --only floor,down --blackout --apply --notify
