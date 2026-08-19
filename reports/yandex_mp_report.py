@@ -46,9 +46,13 @@ def _hist():
 
 ACCOUNTS = ("ya_acc1",)
 # сырые строки витрины yandex_finance_monthly (положительные величины)
-_BAL_KEYS = ["revenue", "subsidy", "fee", "delivery", "transfer", "promotion",
+_BAL_KEYS = ["revenue", "netting", "subsidy", "fee", "delivery", "transfer", "promotion",
              "agency", "other_fee", "subscription_cost", "reviews_cost",
              "boost_sales", "boost_shows", "shelf", "ad_contract", "returns_money"]
+# ВАЖНО: строки удержаний здесь — НАЧИСЛЕННЫЕ (гросс), см. balance(): к сумме, оплаченной
+# деньгами, прибавлен зачёт баллами Маркета по той же категории. Оборот тоже гросс
+# (revenue + netting), поэтому «Итого к перечислению» не меняется ни на рубль:
+# (выручка + зачёт) − (услуги + зачёт) ≡ выручка − услуги.
 # расходы площадки, из которых складывается «Итого расходы Маркета» (= mp_cost в _ya_business).
 # promotion — родительская строка (= boost_sales+boost_shows+shelf+reviews_cost «лояльность»
 # + ad_contract «реклама по отдельному договору на размещение», ручной ввод),
@@ -61,7 +65,7 @@ MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
              "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
 KIND = {
-    "revenue": "inflow", "subsidy": "inflow", "own": "inflow",
+    "revenue": "inflow", "netting": "inflow", "subsidy": "inflow", "own": "inflow",
     "orders": "count_up", "returns_cnt": "count_dn", "check": "check",
     "fee": "expense", "delivery": "expense", "transfer": "expense", "promotion": "expense",
     "boost_sales": "expense", "boost_shows": "expense", "shelf": "expense",
@@ -87,17 +91,39 @@ def _row(y, m):
                   other_fee::float other_fee, subscription_cost::float subscription_cost,
                   reviews_cost::float reviews_cost, cogs::float cogs,
                   boost_sales::float boost_sales, boost_shows::float boost_shows,
-                  shelf::float shelf, ad_contract::float ad_contract
+                  shelf::float shelf, ad_contract::float ad_contract,
+                  netting::float netting, netting_fee::float netting_fee,
+                  netting_delivery::float netting_delivery,
+                  netting_boost_sales::float netting_boost_sales,
+                  netting_boost_shows::float netting_boost_shows,
+                  netting_shelf::float netting_shelf,
+                  netting_promotion::float netting_promotion
              FROM yandex_finance_monthly
              WHERE account='ya_acc1' AND month=make_date(%s,%s,1)""",
         (y, m))
     return r[0] if r else None
 
 
+# зачёт баллами Маркета по категориям: какую строку удержаний он гасит
+_NETT_OF = {"fee": "netting_fee", "delivery": "netting_delivery",
+            "promotion": "netting_promotion", "boost_sales": "netting_boost_sales",
+            "boost_shows": "netting_boost_shows", "shelf": "netting_shelf"}
+
+
 def balance(y, m):
-    """{line: magnitude} сырых строк за месяц (0 если строки нет)."""
+    """{line: magnitude} строк за месяц (0 если строки нет), удержания — НАЧИСЛЕННЫЕ.
+
+    Маркет не платит нам субсидию деньгами: он гасит ею собственные услуги (взаимозачёт,
+    `NETTING` в отчёте о стоимости услуг). В отчёте видна уже нетто-сумма — «сколько списали
+    деньгами», из-за чего вкладка Маркета выглядела дешевле Ozon и ВБ (там оборот = наша цена,
+    а скидка площадки — строка внутри оборота). Возвращаем ту же форму: к каждой строке услуг
+    прибавляем погашенную баллами часть, а сам зачёт отдаёт строка `netting` внутри оборота."""
     r = _row(y, m)
-    return {k: float((r[k] if r else 0) or 0) for k in _BAL_KEYS}
+    b = {k: float((r[k] if r else 0) or 0) for k in _BAL_KEYS}
+    if r:
+        for line, nk in _NETT_OF.items():
+            b[line] += float(r[nk] or 0)
+    return b
 
 
 def op_counts(y, m):
@@ -114,12 +140,18 @@ def _cogs(y, m):
 
 # ---------- деривативы (та же формула, что _ya_business) ----------
 def _derive(m, orders, retc, cogs):
-    """Оборот = оплата покупателя (subsidy — доплата Маркета, отдельными деньгами НЕ поступает,
-    держим справочно, в деньги/чистую не берём — сверено с ЛК «Подлежит перечислению»).
+    """Оборот-ГРОСС = оплата покупателя + зачёт баллами Маркета (обе части из актов), удержания —
+    начисленные. Форма общая с Ozon («Баллы за скидки за счёт Озон») и ВБ («СПП за счёт ВБ»).
+
+    Берём именно ЗАЧЁТ, а не `subsidy` (субсидию по заказам): subsidy живёт в месяце ЗАКАЗА, а акт
+    приходит с лагом (июнь-2026: зачёт 909 098 при субсидии 730 154; июль: 935 413 при 1 000 052) —
+    от неё поехало бы «Итого к перечислению», сверенное с ЛК. subsidy остаётся справочной строкой.
+
     Итого удержания Маркета = ТОЛЬКО услуги (без возвратов); возвраты — отдельная строка. Итого к
-    перечислению = Оборот − услуги − возвраты (возвраты учитываются здесь). Формула ЛК: Подлежит
-    перечислению = оплата − услуги − возвраты (июнь-2026: 1 441 719 − 591 460 − 92 478 = 757 781 ≈ ЛК)."""
-    own = m["revenue"]
+    перечислению = Оборот − услуги − возвраты, и зачёт в нём сокращается: (оплата + зачёт) −
+    (услуги деньгами + зачёт) = оплата − услуги. Формула ЛК: Подлежит перечислению = оплата −
+    услуги − возвраты (июнь-2026: 1 441 719 − 591 460 − 92 478 = 757 781 ≈ ЛК)."""
+    own = m["revenue"] + m.get("netting", 0.0)
     ret_money = m.get("returns_money", 0.0)
     services = sum(m[k] for k in MP_EXP)
     itog = services                      # Итого удержания Маркета = услуги (без возвратов)
@@ -281,7 +313,9 @@ def _hist_series(key):
     """Ряд значений (через _basis) закрытых месяцев для эталона подсветки."""
     H = _hist()
     a = H["accounts"]["ya_acc1"]; L = a["lines"]
-    ob = [L["revenue"][i] + L["subsidy"][i] for i in range(len(a["orders"]))]
+    # база подсветки = база процентов на странице: оборот-гросс (выручка + зачёт баллами).
+    # Раньше здесь стояла subsidy — подсветка считалась от одной базы, проценты от другой (находка D).
+    ob = [L["revenue"][i] + L["netting"][i] for i in range(len(a["orders"]))]
     n = len(ob)
     if key == "own":
         vals = ob
