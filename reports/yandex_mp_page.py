@@ -216,9 +216,12 @@ def build(acc):
     H.append(row("Агентское вознаграждение", L["agency"], "expense", ob, k="agency"))
     H.append(row("Прочие удержания", L["other_fee"], "expense", ob, k="other_fee"))
     H.append(row("Подписка (Маркет)", L["subscription_cost"], "expense", ob, k="subscription_cost"))
-    H.append(row("Итого удержания Маркета (услуги)", itog, "expense", ob, tag="расчёт", showpc=True, subtot=True, k="itog"))
+    H.append(row("Итого удержания Маркета (без возвратов)", itog, "expense", ob, tag="расчёт",
+                 showpc=True, subtot=True, k="itog"))
+    H.append(sect("Возвраты"))
     H.append(row("Возвраты (удержано)", ret_money, "expense", ob, showpc=True, k="returns_money"))
-    H.append(row("Итого к перечислению", payout, "inflow", ob, tag="ЛК", showpc=True, subtot=True, k="payout"))
+    H.append(row("Итого к перечислению", payout, "inflow", ob, tag="ЛК", showpc=True,
+                 subtot=True, k="payout"))
     H.append(sect("Наши данные (не из отчёта МП)"))
     H.append(row("Себестоимость (COGS)", cogs, "expense", ob, tag="наша", showpc=True, k="cogs"))
     H.append(sect("Итог (расчёт над константами)"))

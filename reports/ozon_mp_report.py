@@ -48,6 +48,10 @@ def _hist():
 ACCOUNTS = ("oz_acc1", "oz_acc2")
 EXP = ["returns", "commission", "delivery", "partners", "fbo", "promo", "penalty",
        "unclassified"]
+# Удержания ЗА УСЛУГИ И КОМИССИЮ — без возвратов: возврат не услуга площадки, а сторно продажи,
+# и внутри «Итого удержания» он гулял бы вместе с долей возвратов (июль-2026: 60.5% против
+# честных 57.2% от оборота) и зашумлял бы подсветку ±0.5σ. Возвраты — свой раздел и свой ряд.
+EXP_SVC = [k for k in EXP if k != "returns"]
 WINDOW_DAYS = 14  # окно скользящей дневной ставки для прогноза («период в прошлом»)
 _BAL_KEYS = ["sales", "returns", "commission", "delivery", "partners", "fbo",
              "promo", "penalty", "unclassified", "compensation", "other"]
@@ -64,7 +68,7 @@ KIND = {
     "returns": "expense", "commission": "expense", "delivery": "expense",
     "partners": "expense", "fbo": "expense", "promo": "expense", "penalty": "expense",
     "unclassified": "expense",
-    "itog": "expense", "cogs": "expense",
+    "itog": "expense", "payout": "inflow", "cogs": "expense",
     "compensation": "inflow", "other": "inflow", "net": "inflow", "margin": "margin",
 }
 
@@ -311,7 +315,11 @@ def _hist_series(acc, key):
     if key in _BAL_KEYS:
         vals = L.get(key) or [0] * n
     elif key == "itog":
-        vals = [sum((L.get(x) or [0] * n)[i] for x in EXP) for i in range(n)]
+        vals = [sum((L.get(x) or [0] * n)[i] for x in EXP_SVC) for i in range(n)]
+    elif key == "payout":
+        g = lambda x: L.get(x) or [0] * n
+        vals = [L["sales"][i] - sum(g(x)[i] for x in EXP_SVC) - g("returns")[i]
+                + g("compensation")[i] + g("other")[i] for i in range(n)]
     elif key in ("cogs", "net", "margin", "orders", "returns_cnt"):
         vals = a[key]
     elif key == "check":
@@ -345,12 +353,16 @@ def _band(acc, key, v, oborot_cur):
 
 
 def _derive(mags, orders, retc, cogs):
-    """itog/payout/net/margin/check из строк Баланса."""
-    itog = sum(mags[k] for k in EXP)
-    payout = mags["sales"] - itog + mags["compensation"] + mags["other"]
+    """itog/payout/net/margin/check из строк Баланса.
+
+    itog = удержания за услуги и комиссию БЕЗ возвратов (EXP_SVC); возвраты вычитаются
+    отдельной строкой — как на вкладках ВБ и Маркета. Сумма payout от перекладки не меняется."""
+    itog = sum(mags[k] for k in EXP_SVC)
+    payout = mags["sales"] - itog - mags["returns"] + mags["compensation"] + mags["other"]
     net = payout - cogs
     sales = mags["sales"]
-    return {**mags, "itog": itog, "cogs": cogs, "orders": orders, "returns_cnt": retc,
+    return {**mags, "itog": itog, "payout": payout, "cogs": cogs,
+            "orders": orders, "returns_cnt": retc,
             "net": net, "margin": (net / sales * 100 if sales else 0),
             "check": (sales / orders if orders else 0),
             "rev": None, "bon": None, "par": None}

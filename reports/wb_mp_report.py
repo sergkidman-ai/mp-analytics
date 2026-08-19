@@ -63,14 +63,15 @@ WINDOW_DAYS = 14
 # строки Баланса (величины ≥0, знак/направление задаёт KIND).
 # own_price = «Продажа по нашей цене» (retail_price_withdisc_rub, ДО СПП) — это ОБОРОТ (база %);
 # sales = «ВБ реализовал» (retail_amount, ПОСЛЕ СПП, что заплатил покупатель).
-_BAL_KEYS = ["own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance",
-             "ads", "points", "penalty", "other", "compensation"]
+_BAL_KEYS = ["own_price", "sales", "returns", "returns_pay", "to_pay", "delivery", "storage",
+             "acceptance", "ads", "points", "penalty", "other", "compensation"]
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
              "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
 # kind по ключу строки — формат и направление подсветки
 KIND = {
     "own_price": "inflow", "sales": "inflow", "spp": "expense", "returns": "expense",
+    "returns_pay": "expense",   # сторно ppvz_for_pay по возвратам — уже внутри «К перечислению»
     "commission": "expense", "to_pay": "inflow",
     "delivery": "expense", "storage": "expense", "acceptance": "expense",
     "ads": "expense",       # «Оказание услуг „WB Продвижение“» — реклама, управляемый рычаг
@@ -94,6 +95,7 @@ def _agg(account, d1, d2):
              coalesce(sum(CASE WHEN op='Продажа' THEN rpw ELSE 0 END),0) own_price,
              coalesce(sum(CASE WHEN op='Продажа' THEN ra ELSE 0 END),0) sales,
              coalesce(sum(CASE WHEN op='Возврат' THEN ra ELSE 0 END),0) returns,
+             coalesce(sum(CASE WHEN op='Возврат' THEN pay ELSE 0 END),0) returns_pay,
              coalesce(sum(CASE WHEN op='Возврат' THEN -pay ELSE pay END),0) to_pay,
              coalesce(sum(del),0) delivery,
              coalesce(sum(st),0) storage,
@@ -131,8 +133,9 @@ def _agg(account, d1, d2):
            ) t""",
         (account, d1, d2))[0]
     return {k: float(r[k] or 0) for k in
-            ("own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance",
-             "ads", "points", "penalty", "other", "compensation", "orders", "returns_cnt")}
+            ("own_price", "sales", "returns", "returns_pay", "to_pay", "delivery", "storage",
+             "acceptance", "ads", "points", "penalty", "other", "compensation", "orders",
+             "returns_cnt")}
 
 
 def _month_bounds(y, m):
@@ -234,7 +237,8 @@ def _hist_series(acc, key):
     elif key == "itog":
         vals = [L["to_pay"][i] - sum(L[x][i] for x in EXP) + comp[i] for i in range(n)]
     elif key == "wb_exp":
-        vals = [L["own_price"][i] - (L["to_pay"][i] - sum(L[x][i] for x in EXP) + comp[i])
+        retp = L.get("returns_pay") or [0] * n        # снапшот до 19.08.2026 — строки нет
+        vals = [L["own_price"][i] - (L["to_pay"][i] - sum(L[x][i] for x in EXP) + comp[i]) - retp[i]
                 for i in range(n)]
     elif key == "commission":
         vals = a["commission"]
@@ -275,7 +279,10 @@ def _derive(mags, orders, retc, cogs):
     spp = own - mags["sales"]
     commission = mags["sales"] - mags["returns"] - mags["to_pay"]
     itog = mags["to_pay"] - sum(mags[k] for k in EXP) + mags.get("compensation", 0.0)
-    wb_exp = own - itog          # все удержания ВБ: возврат+СПП+комиссия+логистика+хранение+приёмка+прочие
+    # Удержания ВБ БЕЗ возвратов: сторно возвратов (ppvz_for_pay по операции «Возврат») уже сидит
+    # внутри to_pay, поэтому вычитаем его явно — возврат не услуга площадки, а сторно продажи,
+    # и внутри «Итого удержания» он гулял бы вместе с долей возвратов (единое правило со всеми МП).
+    wb_exp = own - itog - mags.get("returns_pay", 0.0)
     net = itog - cogs
     return {**mags, "spp": spp, "commission": commission, "wb_exp": wb_exp, "itog": itog,
             "cogs": cogs, "orders": orders, "returns_cnt": retc, "net": net,
@@ -332,8 +339,8 @@ def current_report():
         win = _agg(acc, w1, w2)
         rate = {k: win[k] / WINDOW_DAYS for k in win}
         fc = {k: mtd[k] + rate[k] * remaining_a for k in
-              ("own_price", "sales", "returns", "to_pay", "delivery", "storage", "acceptance",
-               "ads", "points", "penalty", "other", "compensation")}
+              ("own_price", "sales", "returns", "returns_pay", "to_pay", "delivery", "storage",
+               "acceptance", "ads", "points", "penalty", "other", "compensation")}
         fc_orders = mtd["orders"] + rate["orders"] * remaining_a
         fc_retc = mtd["returns_cnt"] + rate["returns_cnt"] * remaining_a
         # COGS привязана к продажам (margin_by_sku помесячный): fc_cogs = fc_sales × (COGS÷Прод MTD).
