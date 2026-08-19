@@ -39,6 +39,18 @@ from reports.bid_policy import WB_MARGIN_GATE, WB_MARGIN_FLOOR  # noqa: E402
 from ops import wb_roy_weeks as roy_weeks  # noqa: E402
 
 ACC, FLOOR = 'wb_acc1', 7.30
+SFX = ''          # суффикс файлов: пусто для acc1, '_wb_acc2' для второго аккаунта
+
+
+def set_account(acc):
+    """Переключить аккаунт целиком: запросы и имена файлов.
+
+    У ВБ НЕТ геттера текущей ставки — источник текущих CPC это наш `wb_bid_override`, который
+    заполняется только нашими же записями. На acc2 он пуст, поэтому до первой посадки ставок
+    колонка «ставка_₽» там пустая, а цвета считаются по факту расхода и марже (18.08.2026)."""
+    global ACC, SFX
+    ACC = acc
+    SFX = '' if acc == 'wb_acc1' else f'_{acc}'
 # Недели считаются от воскресенья отчётной недели (--end); по умолчанию — последнее закрытое.
 # Окно Джема (period_start) совпадает с началом недели день в день.
 W1 = ('2026-08-03', '2026-08-09')      # прошлая неделя, пн-вс
@@ -79,6 +91,18 @@ def main(path):
     j2, j1 = _jam(JAM2), _jam(JAM1)
     bids = {r['nm_id']: (float(r['cpc']), r['advert_id']) for r in db.query(
         "select nm_id, cpc, advert_id from wb_bid_override where account=%s", (ACC,))}
+    if not bids:
+        # Аккаунт ещё не заведён в лестницу: наших записей ставок нет, геттера у ВБ нет.
+        # Тогда текущая ставка берётся ФАКТОМ из открутки за неделю (расход/клики), а без
+        # кликов считается полом. Это нижняя оценка ставки: факт CPC <= назначенной ставки.
+        bids = {r['nm_id']: (max(FLOOR, float(r['s']) / r['c']) if r['c'] else FLOOR, r['adv'])
+                for r in db.query("""select nm_id, max(advert_id) adv,
+                                            sum(spend) s, sum(clicks) c
+                                       from wb_ad_nm_daily
+                                      where account=%s and dt between %s and %s
+                                      group by nm_id""", (ACC, *W2))}
+        print(f"[ставки] в wb_bid_override по {ACC} пусто → текущий CPC взят фактом "
+              f"из открутки {W2[0]}–{W2[1]}: {len(bids)} SKU")
     md = db.query("select max(captured_date) d from mkt_margin_control where account=%s",
                   (ACC,))[0]['d']
     marg = {r['nm_id']: (float(r['margin_own_live']) if r['margin_own_live'] is not None else None)
@@ -197,7 +221,7 @@ def main(path):
     cand.sort(key=lambda r: -r['budget'])
     nom = [r for r in f2.values()]
     print(f"\nКОГО ДОБАВИТЬ В РЕКЛАМУ · продаются сами, ставки нет · {len(cand)} SKU")
-    print(f"  вне рекламы всего {len(f2)-len(bids)} nm; из них с заказами за неделю "
+    print(f"  вне рекламы всего {len(set(f2) - set(bids))} nm; из них с заказами за неделю "
           f"{sum(1 for nm, f in f2.items() if nm not in bids and int(f.get('ord') or 0) > 0)}, "
           f"из них в KPI по марже {len(cand)}")
     print(f"  их заказы {sum(r['o'] for r in cand)} шт, выручка {sum(r['rev'] for r in cand):,.0f} ₽, "
@@ -229,7 +253,7 @@ def main(path):
     print(f"\n  ЯДРО КАНДИДАТОВ на {CORE_MONTHS[0][:7]}–{CORE_MONTHS[1][:7]} (≥2 месяцев с продажами и ≥3 шт): "
           f"{len(core)} SKU, {sum(r['q'] for r in core):,.0f} шт, {sum(r['rev'] for r in core):,.0f} ₽; "
           f"бюджет до потолков ≈ {sum(r['wk'] for r in core):,.0f} ₽/нед")
-    pk = BASE_DIR / 'docs' / 'reports' / f"mkt_roy_add_core_{W2[1]}.csv"
+    pk = BASE_DIR / 'docs' / 'reports' / f"mkt_roy_add_core_{W2[1]}{SFX}.csv"
     with io.open(pk, 'w', encoding='utf-8-sig', newline='') as fh:
         w = csv.writer(fh, delimiter=';')
         w.writerow(['nm_id', 'месяцев_с_продажами', 'штук_3мес', 'выручка_3мес_₽',
@@ -239,7 +263,7 @@ def main(path):
                         f"{r['m']:.1f}", f"{r['wk']:.0f}"])
     print(f"  ядро: {pk}")
 
-    pc = BASE_DIR / 'docs' / 'reports' / f"mkt_roy_add_{W2[1]}.csv"
+    pc = BASE_DIR / 'docs' / 'reports' / f"mkt_roy_add_{W2[1]}{SFX}.csv"
     with io.open(pc, 'w', encoding='utf-8-sig', newline='') as fh:
         w = csv.writer(fh, delimiter=';')
         w.writerow(['nm_id', 'маржа_live_%', 'ДРР_потолок_%', 'заказы_неделя', 'заказы_прошлая',
@@ -250,7 +274,7 @@ def main(path):
                         f"{r['pos']:.0f}" if r['pos'] else ''])
     print(f"  список: {pc}")
 
-    p = BASE_DIR / 'docs' / 'reports' / f"mkt_roy_profile_{W2[1]}.csv"
+    p = BASE_DIR / 'docs' / 'reports' / f"mkt_roy_profile_{W2[1]}{SFX}.csv"
     with io.open(p, 'w', encoding='utf-8-sig', newline='') as fh:
         w = csv.writer(fh, delimiter=';')
         w.writerow(['nm_id', 'advert_id', 'цвет', 'действие', 'причина', 'ставка_₽', 'маржа_live_%',
@@ -277,11 +301,14 @@ if __name__ == '__main__':
     ap.add_argument('path', nargs='?', default='',
                     help='json воронки за две недели; по умолчанию — по --end из docs/reports')
     ap.add_argument('--end', default='', help='воскресенье отчётной недели (по умолчанию последнее)')
+    ap.add_argument('--account', default='wb_acc1', help='wb_acc1 | wb_acc2')
     a = ap.parse_args()
+    set_account(a.account)
     end = datetime.date.fromisoformat(a.end) if a.end else roy_weeks.last_sunday()
     set_weeks(end)
-    src = a.path or str(BASE_DIR / 'docs' / 'reports' / f'mkt_roy_funnel_{end}.json')
+    src = a.path or str(BASE_DIR / 'docs' / 'reports' / f'mkt_roy_funnel_{end}{SFX}.json')
     if not pathlib.Path(src).exists():
-        sys.exit(f"нет воронки за неделю: {src}\nсначала: ./venv/bin/python -m ops.wb_roy_weeks --end {end}")
+        sys.exit(f"нет воронки за неделю: {src}\nсначала: ./venv/bin/python -m ops.wb_roy_weeks "
+                 f"--account {a.account} --end {end}")
     print(f"Рой по профилю: неделя {W2[0]}..{W2[1]} против {W1[0]}..{W1[1]}")
     main(src)

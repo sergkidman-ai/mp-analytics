@@ -1,7 +1,7 @@
 # поток: mkt
 """reports/margin_control.py — ежедневный контроль маржи на ЖИВОЙ себестоимости TheCartridge.
 
-Считает по каждому WB acc1 SKU юнит-экономику на восстановительной закупке (tc_buy_price):
+Считает по каждому WB SKU (аккаунт --account, по умолчанию acc1) юнит-экономику на восстановительной закупке (tc_buy_price):
     net_live = to_pay_u − logistics_u − storage_u − accept_u − buy_price_live
     margin_own_live = 100 * net_live / our_price      (наша промо-цена, до СПП — KPI)
 Цена/комиссия(payout)/логистика — из витрины mkt_sku_economics (fin/mkt форвард, read-only).
@@ -52,12 +52,16 @@ def _mapping(account, known_codes):
        • shipment — путь отгрузки nm→ms_demand_pos→ms_product (реальный отгружаемый товар);
        • barcode  — баркод продажи → ms_barcode → ms_product;
        • vendor   — полный vendorCode ВБ = код платформы (4-значный материнский артикул);
-       • prefix   — vendorCode ВБ = <4 цифры материнский код><цифра цвета/принтера>; дочерние листинги
+       • prefix   — vendorCode ВБ = <4 цифры материнский код><хвост>; дочерние листинги
                     5597X делят цену материнского 5597 (то же FBO-префиксное правило fin, товар-уровень).
+                    Хвост не обязан быть цифрой: на wb_acc2 артикулы вида 2720XH5NQT29 (4 цифры + буквы),
+                    и префиксный мост — единственный рабочий для этого аккаунта (18.08.2026: 14 286
+                    карточек из 14 446; баркодный мост даёт там 3 штуки).
     """
     m = {}  # nm -> (ec, src); присваиваем от слабого к сильному
     cards = db.query(
-        "SELECT nm_id, vendor_code vc FROM wb_cards WHERE account=%s AND vendor_code ~ '^[0-9]+$'",
+        "SELECT nm_id, vendor_code vc FROM wb_cards WHERE account=%s "
+        "AND vendor_code ~ '^[0-9]{4}'",
         (account,))
 
     # prefix (слабейший): 5+ цифр → первые 4, если материнский код известен платформе
@@ -215,8 +219,11 @@ def _write_report(account, day, threshold, recs, skipped_dead=0):
     cogs_stale = sorted([r for r in priced if r["cogs_stale"]],
                         key=lambda r: -(r["cogs_delta"] or 0))
 
-    # CSV — весь снимок (сырьё в файл, не в чат)
-    csv_path = RAW_DIR / f"margin_control_{day}.csv"
+    # CSV — весь снимок (сырьё в файл, не в чат).
+    # Суффикс аккаунта: acc1 пишет без суффикса (совместимость с ежедневным кроном),
+    # второй аккаунт — со своим, иначе прогоны затирают файлы друг друга.
+    sfx = "" if account == "wb_acc1" else f"_{account}"
+    csv_path = RAW_DIR / f"margin_control_{day}{sfx}.csv"
     fields = ["nm_id", "vendor_code", "external_code", "subject", "our_price", "buyer_price",
               "to_pay_u", "logistics_u", "buy_price_live", "buy_status", "fifo_cogs_u", "cogs_delta",
               "net_live", "margin_own_live", "margin_own_fifo", "below_threshold", "is_negative",
@@ -234,7 +241,7 @@ def _write_report(account, day, threshold, recs, skipped_dead=0):
                         r.get("below_threshold"), r.get("is_negative"), r.get("cogs_stale"), None])
 
     # TXT — краткая сводка
-    txt_path = RAW_DIR / f"margin_control_{day}.txt"
+    txt_path = RAW_DIR / f"margin_control_{day}{sfx}.txt"
     lines = []
     lines.append(f"КОНТРОЛЬ МАРЖИ {account} · {day} · порог {threshold:.0f}% от нашей цены")
     lines.append(f"SKU всего {len(recs)}: с живой закупкой {len(priced)}, "
@@ -275,10 +282,13 @@ def _write_report(account, day, threshold, recs, skipped_dead=0):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
+    acc = ACCOUNT
+    if "--account" in args:
+        acc = args[args.index("--account") + 1]
     thr = DEFAULT_THRESHOLD
     if "--threshold" in args:
         thr = float(args[args.index("--threshold") + 1])
     d = None
     if "--date" in args:
         d = args[args.index("--date") + 1]
-    build(threshold=thr, on_date=d)
+    build(account=acc, threshold=thr, on_date=d)

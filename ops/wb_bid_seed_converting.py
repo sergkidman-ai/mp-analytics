@@ -27,13 +27,32 @@ from ops.wb_bid_ladder import apply_step, FLOOR
 ACC = "wb_acc1"
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--source", default="top10", choices=["top10", "clicked", "organic"])
+ap.add_argument("--account", default="wb_acc1", choices=["wb_acc1", "wb_acc2"])
+ap.add_argument("--source", default="top10", choices=["top10", "clicked", "organic", "file"])
+ap.add_argument("--file", help="для --source file: CSV со столбцом nm_id (напр. пул ширины из ops/wb_breadth)")
 ap.add_argument("--min-opens", type=int, default=1, help="порог открытий карточки для --source organic")
 ap.add_argument("--cpc", type=float, default=10.90, help="стартовая ставка, ₽ (уровень кора)")
 ap.add_argument("--apply", action="store_true", help="живая запись в ВБ (иначе dry-run)")
 A = ap.parse_args()
+ACC = A.account
 
-if A.source == "top10":
+if A.source == "file":
+    # Готовый список номенклатур (пул ширины из ops/wb_breadth: спрос есть, показов нет).
+    # Берём только те, у кого ставка ещё не назначена, — чужие правки лестницы не трогаем.
+    import csv as _csv
+    with open(A.file, encoding="utf-8-sig") as fh:
+        want = sorted({int(r["nm_id"]) for r in _csv.DictReader(fh, delimiter=";") if r.get("nm_id")})
+    cand = db.query("""
+      select d.nm_id, sum(d.clicks) cl, sum(d.orders) o, round(sum(d.spend)::numeric,2) sp,
+             c.vendor_code vc, c.title
+        from wb_ad_nm_daily d
+        left join wb_cards c on c.nm_id=d.nm_id and c.account=d.account
+        left join wb_bid_override b on b.nm_id=d.nm_id and b.account=d.account
+       where d.account=%s and b.nm_id is null and d.nm_id = any(%s::bigint[])
+       group by d.nm_id, c.vendor_code, c.title
+    """, (ACC, want))
+    print(f"из файла {len(want)} nm, в рекламе аккаунта и без назначенной ставки {len(cand)}")
+elif A.source == "top10":
     cand = db.query("""
       select t.nm_id, t.text, t.orders o, c.vendor_code vc, c.title
         from wb_search_text t
