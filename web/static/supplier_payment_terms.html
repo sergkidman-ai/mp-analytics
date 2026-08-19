@@ -145,7 +145,7 @@ function renderOrgBar(){
 async function setOrg(v){
   if(editing&&!confirm('Правка не сохранена. Переключить юрлицо и потерять изменения?'))return;
   org=v;localStorage.setItem('ptOrg',v);editing=false;deleted=[];
-  renderOrgBar();await loadTerms();await loadQueue();
+  renderOrgBar();await loadTerms();await loadQueue();loadBalances();
 }
 const orgQ=()=>org?('?org='+encodeURIComponent(org)):'';
 
@@ -190,11 +190,12 @@ function renderTerms(){
   $('#terms thead').innerHTML=`<tr>${all?'<th>Юрлицо</th>':''}
     <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th>
     <th>Сумма аванса ₽</th><th>Порог баланса ₽</th>
+    <th title="Сколько наших денег ещё лежит у поставщика: неизрасходованные остатки авансов в МойСкладе. Красным — просадка ниже порога (поллер закажет новый аванс). Кнопка «сверка» — поправка по данным поставщика">Баланс ₽</th>
     <th title="Ставка НДС поставщика — из неё собирается НДС-оговорка в назначении платежа">НДС</th>
     <th title="Через сколько рабочих дней после счёта плановая дата приёмки в заказе МС (08:00). Срок — свойство ГРУППЫ поставщика: действует и на счета других её юрлиц">Срок доставки</th>
     <th>Активен</th><th></th></tr>`;
   const orgCell=r=>all?`<td class="muted">${esc(orgShort(r.org_inn))}</td>`:'';
-  const cols=all?12:11;
+  const cols=all?13:12;
   $('#terms tbody').innerHTML=rows.map((r,i)=>editing?`<tr>
     ${orgCell(r)}
     <td><input value="${esc(r.inn)}" placeholder="10 цифр" maxlength="12" oninput="rows[${i}].inn=this.value"></td>
@@ -206,6 +207,7 @@ function renderTerms(){
     <td>${r.method==='deferred'?`<input type="number" value="${r.payment_cap??''}" placeholder="вся сумма" oninput="rows[${i}].payment_cap=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.advance_amount??''}" placeholder="₽" oninput="rows[${i}].advance_amount=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.balance_threshold??''}" placeholder="₽" oninput="rows[${i}].balance_threshold=+this.value||null">`:'<span class="muted">—</span>'}</td>
+    <td class="muted">—</td>
     <td><select onchange="rows[${i}].vat_rate=this.value===''?null:+this.value">
       ${VAT_RATES.map(([v,t])=>`<option value="${v}"${String(r.vat_rate??'')===v?' selected':''}>${t}</option>`).join('')}
     </select></td>
@@ -223,6 +225,7 @@ function renderTerms(){
     <td>${r.method==='deferred'?(r.payment_cap==null?'<span class="muted">вся сумма</span>':rub(r.payment_cap)):'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?rub(r.advance_amount):'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?rub(r.balance_threshold):'<span class="muted">—</span>'}</td>
+    <td>${balCell(r)}</td>
     <td>${vatLabel(r.vat_rate)}</td>
     <td${grpTitle(r)}>${delivLabel(r.delivery_days)}${r.group?` <span class="muted">· гр. ${esc(r.group)}</span>`:''}</td>
     <td style="text-align:center">${r.active!==false?'✓':'<span class="muted">выкл</span>'}</td>
@@ -267,6 +270,49 @@ async function saveAll(){
   editing=false;deleted=[];
   await loadTerms();
   alert('Сохранено');
+}
+// ── Баланс аванса ───────────────────────────────────────────────────────────
+// Считается в МойСкладе (пара страниц на поставщика — секунды), поэтому отдельным запросом
+// ПОСЛЕ отрисовки таблицы: условия оплаты должны открываться мгновенно.
+// Это то же число, что стоит в гейте черновика аванса (po_payment_watch), а не второй расчёт.
+let bal={};
+function balCell(r){
+  if(r.method!=='prepayment_balance')return '<span class="muted">—</span>';
+  const b=bal[r.org_inn+'|'+r.inn];
+  if(!b)return '<span class="muted">…</span>';
+  if(b.error)return `<span class="muted" title="${esc(b.error)}">ошибка</span>`;
+  if(b.balance==null)return '<span class="muted">нет в МС</span>';
+  const low=r.balance_threshold!=null&&b.balance<r.balance_threshold;
+  const tip=[(b.advances||[]).map(a=>`№${a.name} от ${a.moment} — ${rub(a.left)}`).join(', ')||'открытых авансов нет',
+             b.adjust?`поправка сверки ${b.adjust>0?'+':''}${Math.round(b.adjust)} ₽ к расчёту ${rub(b.computed)}`:'']
+            .filter(Boolean).join(' · ');
+  return `<span title="${esc(tip)}"${low?' style="color:#c33;font-weight:600"':''}>${rub(b.balance)}</span>`
+       +(b.adjust?' <span class="muted" title="учтена поправка сверки">✎</span>':'')
+       +` <button class="ebtn" style="padding:0 6px;font-size:11px" title="сверка с поставщиком: ввести, сколько числится за нами"`
+       +` onclick="reconcile('${r.org_inn}','${r.inn}')">сверка</button>`;
+}
+async function loadBalances(){
+  bal={};
+  const d=await api('/api/suppliers/advance-balance'+orgQ());
+  (d.items||[]).forEach(x=>bal[x.org_inn+'|'+x.inn]=x);
+  renderTerms();
+}
+// Сверка не перезаписывает расчёт, а запоминает РАЗРЫВ (сколько числится у поставщика минус
+// наш расчёт): расчётная часть дальше живёт сама (новые авансы и приёмки её двигают),
+// поправка держит разницу до следующей сверки. Пустой ввод — снять поправку.
+async function reconcile(o,inn){
+  const b=bal[o+'|'+inn]||{};
+  const v=prompt(`Сверка с поставщиком.\nНаш расчёт: ${b.computed==null?'—':b.computed} ₽`
+    +(b.adjust?` (сейчас с поправкой ${b.adjust>0?'+':''}${b.adjust} → ${b.balance} ₽)`:'')
+    +`\n\nСколько числится за нами по данным поставщика, ₽?\nПусто = снять поправку.`,
+    b.balance==null?'':String(b.balance));
+  if(v===null)return;
+  const body={org_inn:o,inn:inn};
+  if(v.trim()==='')body.reset=true;else body.stated=v.trim();
+  const r=await(await fetch('/api/suppliers/advance-balance/adjust',
+    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  if(!r.ok){alert('Не сохранил: '+(r.error||'?'));return;}
+  await loadBalances();
 }
 async function loadTerms(){
   const d=await api('/api/suppliers/payment-terms'+orgQ());
@@ -363,6 +409,7 @@ async function loadQueue(){
   if(org&&!orgs.some(x=>x.inn===org))org=orgs[0]?orgs[0].inn:'';   // ИНН из старого localStorage
   renderOrgBar();
   await loadTerms();await loadQueue();
+  loadBalances();          // без await: страница не ждёт похода в МойСклад
 })();
 </script>
 </body>

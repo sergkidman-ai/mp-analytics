@@ -23,9 +23,11 @@
                             задолженности). Гейта по живому остатку на р/с НЕТ: банк не даёт
                             ЮЛ метод остатка (см. alfa_payment_draft.get_balance).
   • prepayment_per_order  — каждый новый заказ сразу отдельным черновиком (без пачек/остатка).
-  • prepayment_balance    — аванс наперёд; баланс считается на лету (Σ отправленных авансов −
-                            Σ сумм заказов с момента последнего аванса), пополняем при просадке
-                            ниже порога.
+  • prepayment_balance    — аванс наперёд; баланс = Σ НЕИЗРАСХОДОВАННЫХ остатков авансовых
+                            платежей в МС (`alfa_link.advance_balance`) плюс поправка последней
+                            сверки с поставщиком (`supplier_balance_adjust`, миграция 217),
+                            пополняем при просадке ниже порога. Заказы в баланс НЕ входят
+                            (решение Сергея 19.08.2026), только справкой в примечании.
 
 Запуск:
   ./venv/bin/python invoice_bot/po_payment_watch.py            # прогон по всем активным
@@ -43,6 +45,9 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, "/opt/mp-analytics")          # фолбэк (canonical checkout может быть на другой ветке)
 sys.path.insert(0, os.path.dirname(_HERE))       # корень ЭТОГО чекаута/worktree — приоритет
 sys.path.insert(0, _HERE)                        # invoice_bot/ (для голого `import ms`)
+# ВАЖНО: до `from ms import ...` — соседние модули дописывают в sys.path пути ОБЩЕГО чекаута
+# и в worktree подтягивается чужой (main) collectors/alfa_link.
+import collectors.alfa_link as alfa_link   # noqa: E402  (остаток аванса — его арифметика)
 from ms import get, MS as MSU          # noqa: E402
 from core import db                    # noqa: E402
 
@@ -300,6 +305,46 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
     return len(picked)
 
 
+def _advances_str(rows):
+    """Открытые авансы одной строкой для примечания черновика/лога."""
+    return ", ".join(f"№{p.get('name')} от {(p.get('moment') or '')[:10]} — "
+                     f"{alfa_link.unlinked_sum(p) / 100:.2f}₽" for p in rows)
+
+
+def _advance_balance(inn, agent_id=None):
+    """Баланс аванса поставщика, ₽ = Σ неизрасходованных остатков его авансов в МС + поправка
+    последней сверки. Возвращает (баланс | None если контрагента нет, строки авансов, поправка).
+
+    Считаем ровно то, что видно в МС: сумма авансового платежа минус всё, что уже привязано к
+    его приёмкам. ЗАКАЗЫ в баланс не входят — заказ ещё не расход аванса, деньги лежат у
+    поставщика, пока не пришла приёмка (решение Сергея 19.08.2026; прежний расчёт «последний
+    аванс минус сумма заказов» завышал расход втрое и плодил лишние авансы: Тонероптторгу
+    черновик 19.08 при живом остатке 38 771.78 ₽ и пороге 10 000 ₽).
+
+    Берём только платежи, записанные из банковской выписки (`alfa_link.from_bank`): ручные
+    доинтеграционные авансы никуда не привязываются и в баланс не попадают.
+
+    Поправка (`supplier_balance_adjust`, миграция 217) — дельта последней сверки с поставщиком:
+    расчётная часть продолжает двигаться сама, поправка держит разрыв до следующей сверки."""
+    cid = _counterparty_id(inn, agent_id)
+    if not cid:
+        print(f"[{inn}] контрагент не найден в МС — пропуск")
+        return None, [], 0.0
+    kop, rows = alfa_link.advance_balance(f"{MSU}/entity/counterparty/{cid}",
+                                          f"{MSU}/entity/organization/{_org_id()}")
+    adj = db.query("""SELECT delta::float delta FROM supplier_balance_adjust
+        WHERE org_inn=%s AND inn=%s ORDER BY checked_at DESC LIMIT 1""", (BUYER_INN, inn))
+    delta = adj[0]["delta"] if adj else 0.0
+    return round(kop / 100 + delta, 2), rows, delta
+
+
+def _reserved_by_orders(inn, agent_id=None):
+    """Справочно: сколько денег «обещано» заказами, по которым приёмки ещё нет (₽).
+    В гейт НЕ входит — это будущий расход аванса, а не сегодняшний."""
+    orders = _fetch_purchase_orders(inn, date.today() - timedelta(days=LOOKBACK_DAYS), agent_id)
+    return round(sum(max(0, (o.get("sum") or 0) - (o.get("shippedSum") or 0)) for o in orders) / 100, 2)
+
+
 def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=None):
     if not advance_amount or not balance_threshold:
         print(f"[{inn}] аванс/баланс: не задана сумма аванса или порог — пропуск")
@@ -309,24 +354,24 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=
         (BUYER_INN, inn))[0]["n"]
     if already_planned:
         return 0   # уже есть неотправленный черновик аванса — не плодим второй
-    last = db.query("""SELECT amount::float amount, created_at FROM payment_draft_queue
-        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status IN ('sent_sandbox','sent_prod','paid')
-        ORDER BY created_at DESC LIMIT 1""", (BUYER_INN, inn))
-    if not last:
-        balance = 0.0
-    else:
-        since = last[0]["created_at"]
-        orders = _fetch_purchase_orders(inn, since.date(), agent_id)
-        consumed = sum(o.get("sum", 0) / 100 for o in orders if o.get("moment", "") >= since.strftime("%Y-%m-%d %H:%M:%S"))
-        balance = round(last[0]["amount"] - consumed, 2)
-    if balance >= balance_threshold:
+    balance, rows, delta = _advance_balance(inn, agent_id)
+    if balance is None:
         return 0
+    adv_s = _advances_str(rows) or "открытых авансов нет"
+    delta_s = f"; поправка сверки {delta:+.2f}₽" if delta else ""
+    if balance >= balance_threshold:
+        print(f"[{inn}] аванс/баланс: баланс {balance}₽ ≥ порог {balance_threshold}₽ "
+              f"({adv_s}{delta_s}) — черновик не нужен")
+        return 0
+    reserved = _reserved_by_orders(inn, agent_id)
+    note = (f"баланс {balance}₽ < порог {balance_threshold}₽{delta_s}; {adv_s}"
+            + (f"; зарезервировано заказами без приёмки {reserved}₽" if reserved else ""))
     with db.get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status, note)
                 VALUES (%s, %s, 'advance', %s, NULL, 'planned', %s)""",
-                (BUYER_INN, inn, advance_amount, f"баланс {balance}₽ < порог {balance_threshold}₽"))
-    print(f"[{inn}] аванс/баланс: баланс {balance}₽ < порог {balance_threshold}₽ — запланирован аванс {advance_amount}₽")
+                (BUYER_INN, inn, advance_amount, note))
+    print(f"[{inn}] аванс/баланс: {note} — запланирован аванс {advance_amount}₽")
     return 1
 
 

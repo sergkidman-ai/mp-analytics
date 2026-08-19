@@ -1841,6 +1841,90 @@ def suppliers_payment_terms_delete(p: dict):
     return {"ok": True, "inn": inn, "org_inn": org}
 
 
+# ── Баланс аванса поставщика (метод prepayment_balance, поток: inv) ─────────
+@app.get("/api/suppliers/advance-balance")
+def suppliers_advance_balance(org: str | None = None, inn: str | None = None):
+    """Сколько НАШИХ денег ещё лежит у поставщика: Σ неизрасходованных остатков его авансовых
+    платежей в МС + поправка последней сверки (`supplier_balance_adjust`, миграция 217).
+
+    Ровно это число — гейт черновика аванса (`po_payment_watch.process_prepayment_balance`),
+    поэтому считаем его тем же кодом, а не вторым SQL: расхождение расчёта на экране и в
+    поллере хуже отсутствия колонки.
+
+    Отдельным запросом, а НЕ полем в `/payment-terms`: на каждого поставщика уходит пара
+    страниц в МС (секунды), таблица условий должна открываться мгновенно."""
+    where, params = "WHERE method = 'prepayment_balance' AND active", ()
+    if org:
+        where, params = where + " AND org_inn = %s", (org,)
+    if inn:
+        where, params = where + " AND inn = %s", params + (inn,)
+    rows = db.query(f"""SELECT org_inn, inn, name, balance_threshold::float balance_threshold,
+        ms_agent_id FROM supplier_payment_terms {where} ORDER BY org_inn, name""", params)
+    try:
+        sys.path.insert(0, str(BASE_DIR))
+        from invoice_bot import po_payment_watch as W
+    except Exception as e:
+        return {"items": [], "error": f"{type(e).__name__}: {e}"}
+    out = []
+    for r in rows:
+        item = {"org_inn": r["org_inn"], "inn": r["inn"], "name": r["name"],
+                "threshold": r["balance_threshold"]}
+        try:
+            W.set_org(r["org_inn"])
+            bal, adv, delta = W._advance_balance(r["inn"], r["ms_agent_id"])
+            item.update(balance=bal, adjust=delta,
+                        computed=None if bal is None else round(bal - delta, 2),
+                        advances=[{"name": a.get("name"),
+                                   "moment": (a.get("moment") or "")[:10],
+                                   "left": round(W.alfa_link.unlinked_sum(a) / 100, 2)}
+                                  for a in adv])
+        except Exception as e:
+            item["error"] = f"{type(e).__name__}: {e}"
+        out.append(item)
+    return {"items": out}
+
+
+@app.post("/api/suppliers/advance-balance/adjust")
+def suppliers_advance_balance_adjust(p: dict):
+    """Сверка с поставщиком: человек вводит, сколько у него ЧИСЛИТСЯ за нами, — храним разрыв.
+
+    Пишем ДЕЛЬТУ (`stated − computed`), а не абсолютное число: расчётная часть продолжает жить
+    (новые авансы и приёмки её двигают), поправка держит разрыв до следующей сверки. Строки не
+    правим и не удаляем — это журнал сверок, в расчёт идёт последняя по `checked_at`.
+    `reset: true` — снять поправку (пишем нулевую дельту, история остаётся)."""
+    org = (p.get("org_inn") or "").strip()
+    inn = (p.get("inn") or "").strip()
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
+    if not re.fullmatch(r"\d{10,12}", inn):
+        return {"ok": False, "error": "inn должен быть 10-12 цифр"}
+    sys.path.insert(0, str(BASE_DIR))
+    from invoice_bot import po_payment_watch as W
+    row = db.query("""SELECT ms_agent_id FROM supplier_payment_terms
+                      WHERE org_inn = %s AND inn = %s""", (org, inn))
+    if not row:
+        return {"ok": False, "error": "поставщик не найден в графике оплаты"}
+    W.set_org(org)
+    bal, _adv, delta = W._advance_balance(inn, row[0]["ms_agent_id"])
+    if bal is None:
+        return {"ok": False, "error": "контрагент не найден в МойСклад"}
+    computed = round(bal - delta, 2)          # расчёт БЕЗ действующей поправки
+    if p.get("reset"):
+        stated, new_delta = computed, 0.0
+    else:
+        try:
+            stated = round(float(str(p.get("stated")).replace(",", ".").replace(" ", "")), 2)
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "не разобрал сумму сверки"}
+        new_delta = round(stated - computed, 2)
+    db.execute("""INSERT INTO supplier_balance_adjust(org_inn, inn, computed, stated, delta, author, note)
+                  VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+               (org, inn, computed, stated, new_delta,
+                (p.get("author") or "web").strip()[:64], (p.get("note") or "").strip()[:500]))
+    return {"ok": True, "computed": computed, "stated": stated, "delta": new_delta,
+            "balance": round(computed + new_delta, 2)}
+
+
 @app.get("/api/suppliers/payment-terms/queue")
 def suppliers_payment_terms_queue(org: str | None = None):
     # name — из условий оплаты по ИНН: в таблице показываем контрагента, а не голый ИНН.
