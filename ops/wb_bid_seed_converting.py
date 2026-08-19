@@ -142,5 +142,5 @@ for r in sorted(rows, key=lambda x: -x["net"])[:8]:
 if not A.apply:
     print("\n[dry-run] живой записи не было")
 elif rows:
-    ok, bad = apply_step(ACC, rows, note=f"посадка в кор «{A.source}» {FLOOR}→{A.cpc}")
+    ok, bad = apply_step(ACC, rows, note=f"посадка в кор «{A.source}» {FLOOR}→{A.cpc}", author="seed")
     print(f"\nЗАПИСЬ В ВБ: успешно {ok}, ошибок {bad}")
