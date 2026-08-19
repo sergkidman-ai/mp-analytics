@@ -33,6 +33,7 @@ sys.path.insert(0, str(BASE_DIR))
 from ops.wb_bid_ladder import FLOOR, MAX_CPC, STEP, apply_step  # noqa: E402
 
 CUT = 0.90
+SEED_GRACE_DAYS = 14   # карантин только что посаженных: см. seed_quarantine()
 RULES = {'🟢 зелёный': 'up', '🔴 красный': 'down', '🟤 бордовый': 'floor'}
 BLACK = '⚫ вывод'
 
@@ -65,6 +66,21 @@ def build(path, rules=RULES, only=None):
     return plan, skip
 
 
+def seed_quarantine(account, days=SEED_GRACE_DAYS):
+    """nm_id, которым ставку ПОСАДИЛИ (author='seed') за последние `days` дней.
+
+    Зачем. Посадка в кор поднимает карточку с пола, чтобы она НАКОНЕЦ получила показы;
+    цвет Роя в первую же неделю после этого закономерно бордовый («расход есть, заказов нет»),
+    и автопонижение вернуло бы её на пол раньше, чем эксперимент успел что-то показать.
+    Две недели — это ровно окно замера ширины показа (ops/wb_breadth.py).
+    """
+    from core import db
+    return {r['nm_id'] for r in db.query(
+        """select distinct nm_id from wb_bid_log
+             where account=%s and author='seed' and applied
+               and ts > now() - (%s || ' days')::interval""", (account, days))}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('csv_path')
@@ -82,6 +98,12 @@ def main():
         rules[BLACK] = 'floor'
     only = {x.strip() for x in a.only.split(',') if x.strip()} or None
     plan, skip = build(a.csv_path, rules, only)
+    fresh = seed_quarantine(a.account)
+    if fresh:
+        held = [r for r in plan if r['nm_id'] in fresh]
+        if held:
+            plan = [r for r in plan if r['nm_id'] not in fresh]
+            skip[f'карантин посадки {SEED_GRACE_DAYS} дн.'] = len(held)
     print(f"ПЛАН ПО ОТЧЁТУ {pathlib.Path(a.csv_path).name} · {a.account}")
     print(f"{'цвет':14}{'SKU':>6}{'кампаний':>10}{'ставка была':>13}{'станет':>10}{'дельта ₽':>10}")
     for color in rules:

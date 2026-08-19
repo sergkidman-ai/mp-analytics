@@ -242,16 +242,27 @@ def plan(account="wb_acc1", cohort="a"):
     return rows, blocked, stats
 
 
-def _patch_group(token, advert_id, nm_cpcs):
+def _patch_group(token, advert_id, nm_cpcs, tries=3):
+    """PATCH одной кампании. Сеть повторяется: разрыв TLS до advert-api не должен ронять
+    весь недельный прогон (19.08.2026: одиночный SSLEOFError оборвал применение Роя на
+    первой же кампании). Повтор безопасен — ставка задаётся значением, а не приращением."""
     body = {"bids": [{"advert_id": int(advert_id),
                       "nm_bids": [{"nm_id": int(nm), "bid_kopecks": round(float(c) * 100),
                                    "placement": "search"} for nm, c in nm_cpcs]}]}
-    r = requests.patch(WB_ADS_HOST + "/api/advert/v1/bids", json=body, timeout=60,
-                       headers={"Authorization": token, "Content-Type": "application/json"})
-    try:
-        return r.status_code, r.json(), body
-    except Exception:
-        return r.status_code, {"_text": r.text[:500]}, body
+    for attempt in range(1, tries + 1):
+        try:
+            r = requests.patch(WB_ADS_HOST + "/api/advert/v1/bids", json=body, timeout=60,
+                               headers={"Authorization": token, "Content-Type": "application/json"})
+        except requests.exceptions.RequestException as e:
+            if attempt == tries:
+                return 0, {"_net": f"{type(e).__name__}: {str(e)[:200]}"}, body
+            print(f"  [сеть] кампания {advert_id}: {type(e).__name__}, повтор {attempt}/{tries - 1}", flush=True)
+            time.sleep(5 * attempt)
+            continue
+        try:
+            return r.status_code, r.json(), body
+        except Exception:
+            return r.status_code, {"_text": r.text[:500]}, body
 
 
 def _log(rows_):
