@@ -6,11 +6,14 @@
 раз в неделю смотрим ПРОШЛУЮ ПОЛНУЮ неделю и двигаем ставку на один шаг ±10 %,
 никуда не разгоняясь и ни в какой потолок не упираясь.
 
-  🟢 GREEN     +10 %  — реклама окупается и есть куда расти;
-  🟡 YELLOW    держим — всё в порядке, но ни повышать, ни понижать причин нет;
-  🔴 RED       −10 %  — трафик есть, отдачи нет, ест бюджет;
-  🟤 BORDEAUX  в пол  — вторую неделю подряд ноль отдачи; кандидат на снятие через неделю,
-                        если за эту неделю не реабилитируется;
+  🟢 GREEN     +10 %  — заказы есть, реклама окупается (ДРР ≤ 10 %);
+  🟡 YELLOW    держим — заказы есть, но реклама уже подъедает (ДРР 10–15 %);
+  🔴 RED       −10 %  — заказы есть, но реклама ест (ДРР > 15 %);
+  🟤 BORDEAUX  в пол  — кликов достаточно, заказов нет. НЕ снимаем: ставка в полу
+                        продолжает давать показы, а показы работают на всю выдачу
+                        (эффект ореола — снятие волны 1 09.08 стоило нам половины
+                        платных показов acc1). Снятие — только после REMOVE_WEEKS
+                        недель подряд в полу без единого заказа и по прямой команде;
   ➕ ENTER     завести — не в рекламе, но прошлую неделю отработал хорошо сам;
   ⏸ WATCH     нет данных — кликов слишком мало, чтобы вообще судить.
 
@@ -35,8 +38,9 @@
              (на момент решения последняя закрытая неделя обычно на неделю старше);
   продажи  — raw_ozon_posting; экономика — mkt_ozon_margin_control (последний снимок).
 
-Маржа из margin_control завышена на 10,6 п.п. (бриф п.34) — потолок считается по
-margin_safe = margin_own_live − MARGIN_HAIRCUT.
+Маржа, потолки и KPI в решении НЕ участвуют (убраны 19.08.2026 по команде Сергея:
+«сделай базово, не заморачивайся»). Единственный критерий — факт прошедшей недели:
+есть заказы и какой ДРР. margin_safe и ceiling остаются в отчёте справочными колонками.
 """
 import argparse
 import csv
@@ -51,13 +55,15 @@ from core import db
 OUT = '/opt/mp-analytics/docs/reports'
 PPO_RATE = 0.05           # оплата за заказ, оба аккаунта с 09-10.08
 MARGIN_HAIRCUT = 10.6     # п.п., поправка к margin_own_live (бриф п.34)
-KPI_MARGIN = 17.0         # ниже — в рекламу не заводим
+KPI_MARGIN = 17.0         # справочно, в решении не участвует
 STEP_PCT = 10.0           # шаг недели, вверх и вниз
-DRR_LIMIT = 15.0          # выше — реклама не окупается
+DRR_GOOD = 10.0           # ДРР не выше — растим
+DRR_LIMIT = 15.0          # выше — снижаем
 MIN_CLICKS = 8            # меньше кликов за неделю — судить не о чем
 MIN_SPEND_JUDGE = 50.0    # ...либо расход меньше этого
 BID_FLOOR = 6.0           # «в пол»: минимальная рабочая ставка
-HEADROOM_MIN = 10.0       # % запаса до потолка, меньше — вверх не двигаем
+HEADROOM_MIN = 10.0       # справочно, в решении не участвует
+REMOVE_WEEKS = 4          # столько недель подряд в полу без заказов — только тогда снятие
 CR = {1: 0.06, 2: 0.05, 3: 0.04, 4: 0.03, 5: 0.02}   # клик→заказ по ценовым бакетам
 
 f2 = lambda x: float(x or 0)
@@ -283,92 +289,60 @@ def history(acc):
 
 
 def classify(r, hist):
-    """(тир, действие, новая ставка, причина). Порядок правил = приоритет."""
+    """(тир, действие, новая ставка, причина). Только факт недели: заказы и ДРР."""
     bid = f2(r['bid'])
     cl, sp, orders = f2(r['w_clicks']), f2(r['w_spend']), f2(r['w_orders'])
-    p_cl, p_orders, p_sp = f2(r['p_clicks']), f2(r['p_orders']), f2(r['p_spend'])
-    drr, ceil = r['drr'], r['ceiling']
+    p_orders = f2(r['p_orders'])
+    drr = r['drr']
     prev = hist[-1] if hist else None
-    was_down = prev and prev['action'] in ('down10', 'floor')
+    floor_weeks = sum(1 for h in hist if h['action'] == 'floor')
 
-    # ── не в рекламе: стоит ли заводить
+    # ── не в рекламе: заводим, если товар продаётся сам
     if not r['in_ads']:
-        good = (f2(r['qty_w']) >= 1 or f2(r['o_gmv']) > 0)
-        can = (r['margin_safe'] is not None and r['margin_safe'] >= KPI_MARGIN
-               and ceil and ceil >= BID_FLOOR and r['avail'])
-        # спрос по фразам покрывает лишь ~1/3 оборота, поэтому его отсутствие
-        # не может быть вето: достаточно любого признака живой органики
-        live = f2(r['o_demand']) > 0 or f2(r['o_views']) > 0 or f2(r['qty_w']) >= 1
-        if good and can and live:
-            start = round(min(ceil * 0.5, max(BID_FLOOR, ceil * 0.5)), 1)
-            return ('enter', 'enter', max(BID_FLOOR, start),
+        if (f2(r['qty_w']) >= 1 or f2(r['o_gmv']) > 0) and r['avail']:
+            return ('enter', 'enter', BID_FLOOR,
                     f"вне рекламы, но неделю отработал сам: продажи {f2(r['qty_w']):.0f} шт, "
-                    f"органика {f2(r['o_gmv']):,.0f} ₽, показы {f2(r['o_views']):,.0f}, "
-                    f"спрос по фразам {f2(r['o_demand']):,.0f}; "
-                    f"маржа_safe {r['margin_safe']} % ≥ KPI; старт {max(BID_FLOOR, start):.1f} ₽ "
-                    f"при потолке {ceil} ₽".replace(',', ' '))
+                    f"органика {f2(r['o_gmv']):,.0f} ₽. Заводим с пола {BID_FLOOR:.0f} ₽"
+                    .replace(',', ' '))
         return (None, None, None, None)
 
-    # накопленная история: у длинного хвоста одна неделя ничего не доказывает,
-    # но три недели по три клика — уже доказывают
     c_cl, c_sp, c_or, c_days = f2(r['c_clicks']), f2(r['c_spend']), f2(r['c_orders']), f2(r['c_days'])
 
-    # ── никогда ничего не продавал: реклама тут не «пока не выстрелила», а мимо кассы
-    if f2(r['qty_all']) == 0 and c_sp >= 30:
-        return ('bordeaux', 'floor', BID_FLOOR,
-                f"ни одной продажи за всю доступную историю (не только реклама): "
-                f"{c_cl:.0f} кликов, {c_sp:.0f} ₽ рекламы впустую. В пол и на снятие")
-
-    # ── бордовый: за всё время наблюдения ни одного заказа при заметном расходе
-    if c_or == 0 and (c_sp >= 150 or c_cl >= MIN_CLICKS * 2):
-        note = ' (уже понижали — не реабилитировался)' if was_down else ''
-        return ('bordeaux', 'floor', BID_FLOOR,
-                f"за все {c_days:.0f} дн наблюдения ни одного заказа: {c_cl:.0f} кликов, "
-                f"{c_sp:.0f} ₽ впустую{note}. Ставка в пол, через неделю — снятие, если не оживёт")
-
-    # ── данных мало — не трогаем (только если и накопленного нет)
+    # ── судить не о чем: трафика за неделю почти нет и накопленного тоже
     if cl < MIN_CLICKS and sp < MIN_SPEND_JUDGE and c_sp < 150 and c_cl < MIN_CLICKS * 2:
         return ('watch', 'hold', bid,
-                f"кликов за неделю {cl:.0f} (за всё время {c_cl:.0f}), расход {sp:.0f} ₽ "
-                f"(накоплено {c_sp:.0f} ₽) — судить не о чем, наблюдаем")
+                f"кликов за неделю {cl:.0f} (за всё время {c_cl:.0f}), расход {sp:.0f} ₽ — "
+                f"наблюдаем, ставку не трогаем")
 
-    # ── красный: платим, отдачи нет либо она дороже допустимого
-    if orders == 0 and (cl >= MIN_CLICKS or sp >= MIN_SPEND_JUDGE):
-        hist = f"; за всё время {c_or:.0f} заказ(ов) при расходе {c_sp:.0f} ₽" if c_or else ""
-        return ('red', 'down10', max(BID_FLOOR, round(bid * (1 - STEP_PCT / 100), 1)),
-                f"{cl:.0f} кликов, {sp:.0f} ₽ и ни одного заказа за неделю{hist}")
+    # ── заказов нет: в пол и держим ради показов, снятие только по счётчику недель
     if orders == 0:
+        new_bid = BID_FLOOR if bid > BID_FLOOR else bid
+        tail = ''
+        if floor_weeks + 1 >= REMOVE_WEEKS and c_or == 0:
+            tail = (f". {floor_weeks + 1}-я неделя в полу без заказов — можно выносить "
+                    f"на снятие, но только отдельным решением")
+        return ('bordeaux', 'floor', new_bid,
+                f"{cl:.0f} кликов, {sp:.0f} ₽ и ни одного заказа за неделю "
+                f"(за всё время {c_or:.0f} заказ(ов) при {c_sp:.0f} ₽). Ставка в пол, "
+                f"показы оставляем{tail}")
+
+    # ── заказы есть: решает ДРР
+    if drr is None:
         return ('yellow', 'hold', bid,
-                f"за неделю заказов нет, но и трафика почти нет ({cl:.0f} кликов, {sp:.0f} ₽); "
-                f"за всё время {c_or:.0f} заказ(ов) — держим")
-    if drr is not None and drr > DRR_LIMIT:
+                f"{orders:.0f} заказ(ов) на {f2(r['w_rev']):.0f} ₽, ДРР не считается — держим")
+    if drr > DRR_LIMIT:
         return ('red', 'down10', max(BID_FLOOR, round(bid * (1 - STEP_PCT / 100), 1)),
-                f"ДРР {drr} % при пределе {DRR_LIMIT} % (расход {sp:.0f} ₽ на выручку "
-                f"{f2(r['w_rev']):.0f} ₽)")
-    if ceil is not None and bid > ceil:
-        return ('red', 'down10', max(BID_FLOOR, round(min(bid * (1 - STEP_PCT / 100), ceil), 1)),
-                f"ставка {bid} ₽ выше потолка по марже {ceil} ₽ (конверсия {r['cr_src']} "
-                f"{100 * f2(r['cr_used']):.1f} %) — заказы есть, но в убыток")
-
-    # ── зелёный: окупается, динамика не хуже, есть запас
-    grew = orders >= p_orders or p_orders == 0
-    if (r['headroom_pct'] is not None and r['headroom_pct'] >= HEADROOM_MIN and grew
-            and (drr is None or drr <= DRR_LIMIT)):
-        new = round(min(bid * (1 + STEP_PCT / 100), ceil), 1)
-        if new > bid:
-            org = ''
-            if r['o_pos'] and f2(r['o_pos']) > 30 and f2(r['o_demand']) > 0:
-                org = f", органика слабая (позиция {f2(r['o_pos']):.0f}) при спросе {f2(r['o_demand']):,.0f}".replace(',', ' ')
-            return ('green', 'up10', new,
-                    f"{orders:.0f} заказ(ов) на {f2(r['w_rev']):.0f} ₽, ДРР "
-                    f"{drr if drr is not None else '—'} %, было {p_orders:.0f}; "
-                    f"ставка {bid} ₽ при потолке {ceil} ₽{org}")
-
-    # ── жёлтый: всё в порядке, но роста не даём
-    why = ('запаса до потолка нет' if (r['headroom_pct'] is not None and r['headroom_pct'] < HEADROOM_MIN)
-           else 'неделя хуже предыдущей' if not grew else 'потолок не считается (нет экономики)')
-    return ('yellow', 'hold', bid,
-            f"{orders:.0f} заказ(ов), ДРР {drr if drr is not None else '—'} % — держим: {why}")
+                f"{orders:.0f} заказ(ов), но ДРР {drr} % выше предела {DRR_LIMIT} % "
+                f"(расход {sp:.0f} ₽ на выручку {f2(r['w_rev']):.0f} ₽) — реклама ест")
+    if drr > DRR_GOOD:
+        return ('yellow', 'hold', bid,
+                f"{orders:.0f} заказ(ов), ДРР {drr} % — окупается, но подъедает "
+                f"(коридор {DRR_GOOD}–{DRR_LIMIT} %). Держим ставку {bid} ₽")
+    new_bid = round(bid * (1 + STEP_PCT / 100), 1)
+    was = f", было {p_orders:.0f} заказ(ов)" if p_orders else ""
+    return ('green', 'up10', new_bid,
+            f"{orders:.0f} заказ(ов) на {f2(r['w_rev']):.0f} ₽, ДРР {drr} % ≤ {DRR_GOOD} %{was}; "
+            f"ставка {bid} → {new_bid} ₽")
 
 
 def cmd_plan(acc, w0, save):
