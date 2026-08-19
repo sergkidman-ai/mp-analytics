@@ -61,8 +61,15 @@ def build(path, rules=RULES, only=None):
             if abs(new - old) < 0.01:
                 skip[f'{r["цвет"]}: ставка уже на месте'] = skip.get(f'{r["цвет"]}: ставка уже на месте', 0) + 1
                 continue
+            # запас по деньгам: сколько ₽/нед можно ещё потратить на этой позиции, не пробив
+            # свой потолок ДРР. Нужен для --max-up: если поднимаем не всех, то самых денежных.
+            try:
+                head = (float(r['ДРР_потолок_%'] or 0) - float(r['ДРР_профиля_%'] or 0)) / 100 * \
+                       float(r['выручка_ВСЯ_₽'] or 0)
+            except (TypeError, ValueError):
+                head = 0.0
             plan.append({'nm_id': int(r['nm_id']), 'advert_id': int(adv), 'color': r['цвет'],
-                         'rule': rule, 'old_cpc': old, 'new_cpc': new})
+                         'rule': rule, 'old_cpc': old, 'new_cpc': new, 'headroom': round(head, 2)})
     return plan, skip
 
 
@@ -90,6 +97,9 @@ def main():
                     help='включить ⚫ вывод: ставку на пол (удаление из кампании — руками в ЛК)')
     ap.add_argument('--only', default='',
                     help='подмножество правил через запятую: up,down,floor')
+    ap.add_argument('--max-up', type=int, default=0,
+                    help='поднимать не более N зелёных за прогон (0 — без ограничения); '
+                         'отбор по запасу ₽/нед до своего потолка ДРР')
     ap.add_argument('--notify', action='store_true', help='итог в телеграм Сергею')
     a = ap.parse_args()
 
@@ -104,6 +114,12 @@ def main():
         if held:
             plan = [r for r in plan if r['nm_id'] not in fresh]
             skip[f'карантин посадки {SEED_GRACE_DAYS} дн.'] = len(held)
+    if a.max_up:
+        ups = [r for r in plan if r['rule'] == 'up']
+        if len(ups) > a.max_up:
+            keep = {id(r) for r in sorted(ups, key=lambda x: -x['headroom'])[:a.max_up]}
+            plan = [r for r in plan if r['rule'] != 'up' or id(r) in keep]
+            skip[f'зелёные сверх --max-up {a.max_up}'] = len(ups) - a.max_up
     print(f"ПЛАН ПО ОТЧЁТУ {pathlib.Path(a.csv_path).name} · {a.account}")
     print(f"{'цвет':14}{'SKU':>6}{'кампаний':>10}{'ставка была':>13}{'станет':>10}{'дельта ₽':>10}")
     for color in rules:
