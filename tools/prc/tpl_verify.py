@@ -23,7 +23,7 @@ for r in range(2, ws.max_row + 1):
     bc = [b["code128"] for b in p.get("barcodes", []) if "code128" in b]
     want = {
         "externalCode": str(rec["Внешний код"]), "article": str(rec["Артикул"]),
-        "name": rec["Наименование"], "weight": float(rec["Вес"]),
+        "name": rec["Наименование"], "weight": float(rec["Вес"] or 0),   # пустой вес в шаблоне → МС хранит 0.0
         "buyPrice": round(float(rec["Закупочная цена"]) * 100),
         "vat": 22, "uom": "шт", "country": "Китай",
         "code128": [str(rec["Штрихкод Code128"])] if rec.get("Штрихкод Code128") else [],

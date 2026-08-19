@@ -1,0 +1,138 @@
+[
+ {
+  "id": "3ab5a3a2-faaf-11f0-0a80-17f5005650a8",
+  "code": "1795sg",
+  "article": "SG-C801/810-DRUM-44064010",
+  "externalCode": "1795",
+  "archived": false,
+  "name": "Драм-картридж Smart Graphics SG-C801, 810-DRUM-44064010 для OKI C801dn, C810dn, C830dn (Пурпурный, 20000 стр.), совместимый"
+ },
+ {
+  "id": "3acd5ef0-faaf-11f0-0a80-17f500565134",
+  "code": "1796sg",
+  "article": "SG-C801/810-DRUM-44064012",
+  "externalCode": "1796",
+  "archived": false,
+  "name": "Драм-картридж Smart Graphics SG-C801, 810-DRUM-44064012 для OKI C801dn, C810dn, C830dn (Чёрный, 20000 стр.), совместимый"
+ },
+ {
+  "id": "3ac15d61-faaf-11f0-0a80-17f50056512d",
+  "code": "1797sg",
+  "article": "SG-C801/810-DRUM-44064011",
+  "externalCode": "1797",
+  "archived": false,
+  "name": "Драм-картридж Smart Graphics SG-C801, 810-DRUM-44064011 для OKI C801dn, C810dn, C830dn (Голубой, 20000 стр.), совместимый"
+ },
+ {
+  "id": "639f4774-01b6-11f1-0a80-11da0012bb4b",
+  "code": "3966sg",
+  "article": "SG-C823/C833/С843C",
+  "externalCode": "3966",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-C823, C833, С843C для OKI C823, C833, C843 (Голубой, 7000 стр.), совместимый"
+ },
+ {
+  "id": "63aa2d0e-01b6-11f1-0a80-11da0012bb57",
+  "code": "3967sg",
+  "article": "SG-C823/C833/С843M",
+  "externalCode": "3967",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-C823, C833, С843M для OKI C823, C833, C843 (Пурпурный, 7000 стр.), совместимый"
+ },
+ {
+  "id": "63b4e6bd-01b6-11f1-0a80-11da0012bb63",
+  "code": "3968sg",
+  "article": "SG-C823/C833/С843Y",
+  "externalCode": "3968",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-C823, C833, С843Y для OKI C823, C833, C843 (Жёлтый, 7000 стр.), совместимый"
+ },
+ {
+  "id": "63ea790b-01b6-11f1-0a80-11da0012bbdd",
+  "code": "3772sg",
+  "article": "SG-C833/С843Bk-46443116",
+  "externalCode": "3772",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-C833, С843Bk-46443116 для OKI C833, C843 (Чёрный, 10000 стр.), совместимый"
+ },
+ {
+  "id": "63f5b694-01b6-11f1-0a80-11da0012bc16",
+  "code": "3773sg",
+  "article": "SG-C833/С843C-46443115",
+  "externalCode": "3773",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-C833, С843C-46443115 для OKI C833, C843 (Голубой, 10000 стр.), совместимый"
+ },
+ {
+  "id": "a1f78b67-0d62-11f1-0a80-02a8003c2653",
+  "code": "5124sg",
+  "article": "SG-MC873/MC883M-45862815",
+  "externalCode": "5124",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-MC873, MC883M-45862815 для OKI MC873, MC883 (Пурпурный, 10000 стр.), совместимый"
+ },
+ {
+  "id": "a203f0ca-0d62-11f1-0a80-02a8003c26a3",
+  "code": "5125sg",
+  "article": "SG-MC873/MC883Y-45862814",
+  "externalCode": "5125",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-MC873, MC883Y-45862814 для OKI MC873, MC883 (Жёлтый, 10000 стр.), совместимый"
+ },
+ {
+  "id": "845d3e44-21fe-11f1-0a80-188a002b48ac",
+  "code": "4804sg",
+  "article": "SG-IM-C6000BK-842283",
+  "externalCode": "4804",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-IM-C6000BK-842283 для Ricoh IM C6000, IM C4500, IM C5500 (Чёрный, 33000 стр.), совместимый"
+ },
+ {
+  "id": "5a162a34-16c2-11f1-0a80-0b5d000a33cc",
+  "code": "4216sg",
+  "article": "SG-IM-C3500Bk-842255",
+  "externalCode": "4216",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-IM-C3500Bk-842255 для Ricoh Aficio IM C3000, IM C3500 (Чёрный, 31000 стр.), совместимый"
+ },
+ {
+  "id": "59f40a6a-16c2-11f1-0a80-0b5d000a33b7",
+  "code": "4217sg",
+  "article": "SG-IM-C3500C-842258",
+  "externalCode": "4217",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-IM-C3500C-842258 для Ricoh Aficio IM C3000, IM C3500 (Голубой, 19000 стр.), совместимый"
+ },
+ {
+  "id": "59fe8d8f-16c2-11f1-0a80-0b5d000a33be",
+  "code": "4218sg",
+  "article": "SG-IM-C3500M-842257",
+  "externalCode": "4218",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-IM-C3500M-842257 для Ricoh Aficio IM C3000, IM C3500 (Пурпурный, 19000 стр.), совместимый"
+ },
+ {
+  "id": "5a0a4742-16c2-11f1-0a80-0b5d000a33c5",
+  "code": "4219sg",
+  "article": "SG-IM-C3500Y-842256",
+  "externalCode": "4219",
+  "archived": false,
+  "name": "Тонер-картридж Smart Graphics SG-IM-C3500Y-842256 для Ricoh Aficio IM C3000, IM C3500 (Жёлтый, 19000 стр.), совместимый"
+ },
+ {
+  "id": "3a922218-faaf-11f0-0a80-17f500565086",
+  "code": "3481sg",
+  "article": "SG-C610M-DRUM",
+  "externalCode": "3481",
+  "archived": false,
+  "name": "Драм-картридж Smart Graphics SG-C610M-DRUM для OKI C610, C610dm, C610dn (Пурпурный, 20000 стр.), совместимый"
+ },
+ {
+  "id": "3aa99daa-faaf-11f0-0a80-17f50056509b",
+  "code": "1798sg",
+  "article": "SG-C801/810-DRUM-4064009",
+  "externalCode": "1798",
+  "archived": false,
+  "name": "Драм-картридж Smart Graphics SG-C801, 810-DRUM-4064009 для OKI C801dn, C810dn, C830dn (Жёлтый, 20000 стр.), совместимый"
+ }
+]
