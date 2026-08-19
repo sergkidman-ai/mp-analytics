@@ -389,7 +389,15 @@ def _write_finance(fin, agg, since):
                sum(cost) FILTER (WHERE category='shelf')::float        shelf,
                sum(cost) FILTER (WHERE category IN ('boost_sales','boost_shows','shelf'))::float ad,
                sum(cost) FILTER (WHERE category='subscription')::float subscription,
-               sum(cost) FILTER (WHERE category='reviews')::float      reviews
+               sum(cost) FILTER (WHERE category='reviews')::float      reviews,
+               -- зачёт баллами Маркета: услуга начислена, но погашена не деньгами, а субсидией.
+               -- Нужен, чтобы показать оборот и удержания ГРОСС (как «Баллы» у Ozon и СПП у ВБ):
+               -- начислено = cost + netting. На деньги и на «Итого к перечислению» не влияет.
+               sum(coalesce(netting,0))::float                          netting,
+               sum(coalesce(netting,0)) FILTER (WHERE category='commission')::float netting_fee,
+               sum(coalesce(netting,0)) FILTER (WHERE category='logistics')::float  netting_delivery,
+               sum(coalesce(netting,0)) FILTER (
+                   WHERE category IN ('boost_sales','boost_shows','shelf','reviews'))::float netting_promotion
         FROM raw_yandex_services WHERE account=%s GROUP BY ym""", (ACCOUNT,))}
     # Выручка и возвраты — из детализированного отчёта о схождении с закрывающими
     # документами (raw_yandex_closure), сверено с ЛК до копейки. Фолбэк на stats/orders,
@@ -455,6 +463,10 @@ def _write_finance(fin, agg, since):
                       "boost_shows": round(f["boost_shows"], 2),
                       "shelf": round(f["shelf"], 2),
                       "ad_contract": round(adc, 2),
+                      "netting": round(s.get("netting") or 0, 2),
+                      "netting_fee": round(s.get("netting_fee") or 0, 2),
+                      "netting_delivery": round(s.get("netting_delivery") or 0, 2),
+                      "netting_promotion": round(s.get("netting_promotion") or 0, 2),
                       "unredeemed_orders": int(f["unredeemed_orders"]),
                       "unredeemed_cost": round(f["unredeemed_cost"], 2),
                       # fact is not None (а не truthy): нетто-COGS после сторно возвратов может
@@ -468,6 +480,7 @@ def _write_finance(fin, agg, since):
                                "fee", "delivery", "transfer", "promotion", "agency", "other_fee",
                                "subscription_cost", "reviews_cost",
                                "boost_sales", "boost_shows", "shelf", "ad_contract",
+                               "netting", "netting_fee", "netting_delivery", "netting_promotion",
                                "unredeemed_orders", "unredeemed_cost", "cogs", "cogs_cov_pct"])
         db.execute("UPDATE yandex_finance_monthly SET updated_at=now() WHERE account=%s", (ACCOUNT,))
     for r in frecs:
