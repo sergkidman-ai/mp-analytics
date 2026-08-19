@@ -22,6 +22,7 @@ OUT = BASE_DIR / "web" / "static" / "reports.html"
 ORG = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр"}
 EXP = ["returns", "commission", "delivery", "partners", "fbo", "promo", "penalty",
        "unclassified"]
+EXP_SVC = [k for k in EXP if k != "returns"]   # удержания без возвратов (см. ozon_mp_report)
 
 # контекст рендера (заполняется в render(), читается хелперами — как globals в оригинале)
 _C = {"data": None, "M": [], "N": 0, "base": [], "prov": set()}
@@ -164,7 +165,9 @@ def build(acc):
     L.setdefault("unclassified", [0] * N)          # строка появилась позже снапшота
     cogs = a["cogs"]; net = a["net"]; margin = a["margin"]
     cogs_pct = [(cogs[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
-    itog = [sum(L[k][i] for k in EXP) for i in range(N)]
+    itog = [sum(L[k][i] for k in EXP_SVC) for i in range(N)]
+    payout = [ob[i] - itog[i] - L["returns"][i] + L["compensation"][i] + L["other"][i]
+              for i in range(N)]
     itog_pct = [(itog[i] / ob[i] * 100 if ob[i] else 0) for i in range(N)]
     # сплит может быть null у provisional-месяцев (нет Отчёта о реализации) → None → «—»
     rev = [(s["rev"] if s else None) for s in a["split"]]
@@ -190,10 +193,10 @@ def build(acc):
              f'<div class="chart"><h3>Оборот и чистая</h3>{bars_line(ob, net)}'
              '<div class="leg"><span><i style="border-color:var(--acc)"></i>оборот</span>'
              '<span><i style="border-color:var(--warn)"></i>чистая</span></div></div>'
-             f'<div class="chart"><h3>Маржа, COGS и расходы Ozon</h3>{line2(margin, cogs_pct, itog_pct)}'
+             f'<div class="chart"><h3>Маржа, COGS и удержания Ozon</h3>{line2(margin, cogs_pct, itog_pct)}'
              '<div class="leg"><span><i style="border-color:var(--pos)"></i>маржа %</span>'
              '<span><i style="border-color:var(--neg)"></i>COGS %</span>'
-             '<span><i style="border-color:var(--acc)"></i>расходы Ozon %</span></div></div></div>')
+             '<span><i style="border-color:var(--acc)"></i>удержания Ozon %</span></div></div></div>')
     jul_ttl = "Текущий месяц — оценка по транзакциям до выхода Отчёта о реализации"
     fc_ttl = "Прогноз на конец месяца (факт + дневная ставка за скользящее окно × остаток дней)"
     prov_ttl = "Оценка по транзакциям — ещё не сверено с Отчётом о реализации"
@@ -213,8 +216,7 @@ def build(acc):
     H.append(row("Выручка (деньги покупателя)", rev, "inflow", ob, sub=True, k="rev"))
     H.append(row("Баллы за скидки (за счёт Озон)", bon, "inflow", ob, sub=True, showpc=True, k="bon"))
     H.append(row("Программы партнёров", par, "inflow", ob, sub=True, k="par"))
-    H.append(sect("Расходы площадки (удержания)"))
-    H.append(row("Возвраты", L["returns"], "expense", ob, k="returns"))
+    H.append(sect("Удержания площадки"))
     H.append(row("Вознаграждение Ozon", L["commission"], "expense", ob, showpc=True, k="commission"))
     H.append(row("Услуги доставки (логистика)", L["delivery"], "expense", ob, showpc=True, k="delivery"))
     H.append(row("Услуги партнёров", L["partners"], "expense", ob, k="partners"))
@@ -224,10 +226,15 @@ def build(acc):
     # строку рисуем ВСЕГДА, даже нулевую: живой столбец дозаполняется JS только в существующие
     # tr[data-k], и «спрятанная до перегенерации» строка скрыла бы ровно то, ради чего заведена
     H.append(row("Неклассифицировано", L["unclassified"], "expense", ob, k="unclassified"))
-    H.append(row("Итого расходы Ozon", itog, "expense", ob, tag="расчёт", showpc=True, subtot=True, k="itog"))
+    H.append(row("Итого удержания Ozon (без возвратов)", itog, "expense", ob, tag="расчёт",
+                 showpc=True, subtot=True, k="itog"))
     H.append(sect("Начисления в плюс"))
     H.append(row("Компенсации и декомпенсации", L["compensation"], "inflow", ob, k="compensation"))
     H.append(row("Прочие начисления", L["other"], "inflow", ob, k="other"))
+    H.append(sect("Возвраты"))
+    H.append(row("Возвраты (удержано)", L["returns"], "expense", ob, showpc=True, k="returns"))
+    H.append(row("Итого к перечислению", payout, "inflow", ob, tag="расчёт", showpc=True,
+                 subtot=True, k="payout"))
     H.append(sect("Наши данные (не из отчёта МП)"))
     H.append(row("Себестоимость (COGS)", cogs, "expense", ob, tag="наша", showpc=True, k="cogs"))
     H.append(sect("Итог (расчёт над константами)"))
@@ -362,7 +369,9 @@ SUB = ('Данные <b>1:1 из раздела Финансы → Баланс<
 FOOT = ('Все строки воспроизводят <b>Финансы → Баланс</b> Ozon 1:1. Продажи / Возвраты / Вознаграждение — '
         'из официального <b>отчёта о реализации</b> (он же даёт сплит Продаж); расходные услуги — '
         'реконструкция из транзакций (сверка с ЛК ЦК: январь Σ|Δ|=2 ₽, июнь Σ|Δ|=215 ₽ на 10 строках). '
-        '«Итого расходы Ozon» = сумма 7 расходных статей (компенсации и прочие — отдельно, в плюс). '
+        '«Итого удержания Ozon» = комиссия + услуги + штрафы <b>без возвратов</b> (возврат — не услуга '
+        'площадки, а сторно продажи: он вычитается своей строкой ниже, как на вкладках ВБ и Маркета). '
+        '«Итого к перечислению» = Продажи − удержания − возвраты + компенсации и прочие начисления. '
         'Эквайринг и звёзды входят в «Услуги партнёров», подписки/баллы за отзывы/продвижение — в '
         '«Продвижение и рекламу» (как в ЛК). Себестоимость — FIFO из МойСклад, покрытие 97–100%. '
         'Месяц замораживается в статику в конце последнего дня из оценки по транзакциям (сплит «—», помечен '
