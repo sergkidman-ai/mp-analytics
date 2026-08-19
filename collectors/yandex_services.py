@@ -65,6 +65,13 @@ CSV_CAT = {
     "business_subscription.csv": "subscription",
 }
 DATE_COLS = ("SERVICE_DATE", "SERVICE_DATE_TIME")
+# Взаимозачёт баллов Маркета (миграция 067). Маркет начисляет услугу по раздутому тарифу и тут же
+# гасит её субсидией; деньгами с нас идёт только остаток. accrued/netting нужны, чтобы показать
+# оборот и удержания ГРОСС — как «Баллы за скидки» у Ozon и СПП у ВБ.
+ACCRUED_COL = "AMOUNT_WITHOUT_BONUSES"                  # API: начислено до скидок и зачёта
+NETTING_COL = "NETTING"                                 # API: погашено баллами
+ACCR_HDR = "Стоимость услуги без скидок и наценок"      # файл ЛК: та же величина
+NETT_HDR = "Скидка за участие в совместных акциях"      # файл ЛК: тот же зачёт
 BONUS_COLS = ("BONUS_PAID", "PAYMENT_WITH_BONUSES")
 # Реальная оплата ₽ лежит в РАЗНЫХ колонках у разных услуг (сверено с ручной выгрузкой ЛК):
 #   буст продаж → PREPAID+POSTPAID; буст показов/баннеры → PAYMENT;
@@ -175,6 +182,26 @@ def _header_row(ws):
     return None, {}
 
 
+def _header_row2(ws, hr):
+    """Имена колонок второго уровня шапки (лист «Размещение»: AJ/AX названы в hr,
+    а «Скидка за участие в совместных акциях» и прочие — строкой ниже). Отдельный словарь,
+    чтобы не менять разбор колонок стоимости."""
+    if not hr:
+        return {}
+    names = [(str(ws.cell(hr + 1, c).value).strip() if ws.cell(hr + 1, c).value is not None else "")
+             for c in range(1, ws.max_column + 1)]
+    return {n: i + 1 for i, n in enumerate(names) if n}
+
+
+def _col(h, h2, prefix):
+    """Номер колонки по префиксу имени: сначала основная шапка, потом вторая."""
+    for m in (h, h2):
+        for n, c in m.items():
+            if n.startswith(prefix):
+                return c
+    return None
+
+
 def parse(path):
     """Возвращает список нормализованных строк услуг (dict)."""
     wb = openpyxl.load_workbook(path, data_only=True)
@@ -201,11 +228,20 @@ def parse(path):
         dc = h.get(date_col) or next((h[k] for k in h if "оказания услуги" in k), None)
         oc = next((h[x] for x in ORDER_HDRS if x in h), None)
         sc = next((h[x] for x in SKU_HDRS if x in h), None)
+        h2 = _header_row2(ws, hr)
+        nc = _col(h, h2, NETT_HDR)          # зачёт баллами
+        ac = _col(h, h2, ACCR_HDR)          # начислено до скидок
         n = 0
         for r in range(hr + 1, ws.max_row + 1):
             cost = sum(_num(ws.cell(r, c).value) for c in cc)
             bonus = _num(ws.cell(r, bc).value) if bc else 0.0
-            if cost == 0 and bonus == 0:
+            nett = _num(ws.cell(r, nc).value) if nc else None
+            accr = _num(ws.cell(r, ac).value) if ac else None
+            if accr is None and nett is not None:
+                accr = round(cost + nett, 2)
+            # строку, полностью погашенную зачётом (cost = 0), раньше выбрасывали — теперь она
+            # нужна: без неё не видно ни начисления, ни зачёта.
+            if cost == 0 and bonus == 0 and not nett:
                 continue
             dval = ws.cell(r, dc).value if dc else None
             ym = _ym(dval)
@@ -219,9 +255,13 @@ def parse(path):
                 "ym": ym, "svc_date": _svc_date(dval),
                 "order_id": order_id, "sku": sku,
                 "cost": round(cost, 2), "bonus": round(bonus, 2), "source": "file",
+                "accrued": None if accr is None else round(accr, 2),
+                "netting": None if nett is None else round(nett, 2),
                 "row_hash": hashlib.md5(("file|" + key).encode()).hexdigest(),
                 "payload": Json({"service": sheet, "ym": ym, "order_id": order_id,
-                                 "sku": sku, "cost": round(cost, 2), "bonus": round(bonus, 2)}),
+                                 "sku": sku, "cost": round(cost, 2), "bonus": round(bonus, 2),
+                                 "accrued": None if accr is None else round(accr, 2),
+                                 "netting": None if nett is None else round(nett, 2)}),
             })
             n += 1
         print(f"  [services] «{sheet}»: {n} строк, Σ оплата "
@@ -312,7 +352,11 @@ def collect_api(months=None, account=ACCOUNT):
                 skipped[fname] = skipped.get(fname, 0) + 1
                 continue
             cost = _csv_cost(fname, rec)
-            if cost == 0:
+            nett = _fnum(rec[NETTING_COL]) if NETTING_COL in rec else None
+            accr = _fnum(rec[ACCRUED_COL]) if ACCRUED_COL in rec else None
+            if accr is None and nett is not None:
+                accr = round(cost + nett, 2)
+            if cost == 0 and not nett:          # полностью погашенную зачётом строку сохраняем
                 continue
             dval = next((rec[c] for c in DATE_COLS if rec.get(c)), None)
             ym = _ym(dval)
@@ -326,10 +370,14 @@ def collect_api(months=None, account=ACCOUNT):
                 "account": account, "service": fname.replace(".csv", ""), "category": cat,
                 "ym": ym, "svc_date": _svc_date(dval), "order_id": order_id, "sku": sku,
                 "cost": round(cost, 2), "bonus": round(bonus, 2), "source": "api",
+                "accrued": None if accr is None else round(accr, 2),
+                "netting": None if nett is None else round(nett, 2),
                 "row_hash": hashlib.md5(key.encode()).hexdigest(),
                 "payload": Json({"file": fname, "ym": ym, "order_id": order_id, "sku": sku,
                                  "service_name": rec.get("SERVICE_NAME"),
-                                 "cost": round(cost, 2), "bonus": round(bonus, 2)}),
+                                 "cost": round(cost, 2), "bonus": round(bonus, 2),
+                                 "accrued": None if accr is None else round(accr, 2),
+                                 "netting": None if nett is None else round(nett, 2)}),
             })
     if not rows:
         print(f"  [services/api] строк нет за {d_from}..{d_to} (глубина API?)", flush=True)
