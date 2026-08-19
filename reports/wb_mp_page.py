@@ -14,7 +14,7 @@ import os
 import tempfile
 import pathlib
 
-from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, SIDEBAR, MPTABS
+from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, SIDEBAR, MPTABS, TAIL_JS
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 HIST_PATH = BASE_DIR / "reports" / "data" / "mp_wb_hist.json"
@@ -121,7 +121,7 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
 
 
 def sect(t):
-    return f'<tr class="sect"><td colspan="{_C["N"] + 5}">{t}</td></tr>'
+    return f'<tr class="sect"><td colspan="{_C["N"] + 5}"><span>{t}</span></td></tr>'
 
 
 def bars_line(oborot, net):
@@ -364,6 +364,7 @@ def render(hist=None):
   <div class="foot">{FOOT}</div>
 </main>
 {JS}
+{TAIL_JS}
 {_drill.page_js('wb')}
 </body>
 </html>"""

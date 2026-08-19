@@ -72,6 +72,7 @@ KIND = {
     "ad_contract": "expense",
     "agency": "expense", "other_fee": "expense", "subscription_cost": "expense",
     "reviews_cost": "expense", "returns_money": "expense", "itog": "expense", "cogs": "expense",
+    "itog_money": "expense",
     "payout": "inflow", "net": "inflow", "margin": "margin",
 }
 
@@ -157,7 +158,11 @@ def _derive(m, orders, retc, cogs):
     itog = services                      # Итого удержания Маркета = услуги (без возвратов)
     payout = own - services - ret_money  # к перечислению: возвраты вычитаются
     net = payout - cogs
-    return {**m, "own": own, "itog": itog, "payout": payout, "cogs": cogs,
+    # мост «начислено → деньгами»: часть услуг Маркет гасит своими баллами (зачёт), остальное
+    # реально удерживает из выручки покупателя. Зачёт весь сидит внутри MP_EXP (комиссия, логистика,
+    # бусты/полки), поэтому itog − netting — ровно денежная часть, без остатка.
+    itog_money = itog - m.get("netting", 0.0)
+    return {**m, "own": own, "itog": itog, "itog_money": itog_money, "payout": payout, "cogs": cogs,
             "returns_money": ret_money, "services": services,
             "orders": orders, "returns_cnt": retc, "net": net,
             "margin": (net / own * 100 if own else 0),
@@ -323,6 +328,8 @@ def _hist_series(key):
         vals = L[key]
     elif key == "itog":
         vals = [sum(L[x][i] for x in MP_EXP) for i in range(n)]   # услуги (без возвратов)
+    elif key == "itog_money":
+        vals = [sum(L[x][i] for x in MP_EXP) - L["netting"][i] for i in range(n)]
     elif key == "payout":
         rm = L.get("returns_money", [0] * n)
         vals = [ob[i] - sum(L[x][i] for x in MP_EXP) - rm[i] for i in range(n)]  # − услуги − возвраты
