@@ -397,7 +397,10 @@ def _write_finance(fin, agg, since):
                sum(coalesce(netting,0)) FILTER (WHERE category='commission')::float netting_fee,
                sum(coalesce(netting,0)) FILTER (WHERE category='logistics')::float  netting_delivery,
                sum(coalesce(netting,0)) FILTER (
-                   WHERE category IN ('boost_sales','boost_shows','shelf','reviews'))::float netting_promotion
+                   WHERE category IN ('boost_sales','boost_shows','shelf','reviews'))::float netting_promotion,
+               sum(coalesce(netting,0)) FILTER (WHERE category='boost_sales')::float netting_boost_sales,
+               sum(coalesce(netting,0)) FILTER (WHERE category='boost_shows')::float netting_boost_shows,
+               sum(coalesce(netting,0)) FILTER (WHERE category='shelf')::float       netting_shelf
         FROM raw_yandex_services WHERE account=%s GROUP BY ym""", (ACCOUNT,))}
     # Выручка и возвраты — из детализированного отчёта о схождении с закрывающими
     # документами (raw_yandex_closure), сверено с ЛК до копейки. Фолбэк на stats/orders,
@@ -467,6 +470,9 @@ def _write_finance(fin, agg, since):
                       "netting_fee": round(s.get("netting_fee") or 0, 2),
                       "netting_delivery": round(s.get("netting_delivery") or 0, 2),
                       "netting_promotion": round(s.get("netting_promotion") or 0, 2),
+                      "netting_boost_sales": round(s.get("netting_boost_sales") or 0, 2),
+                      "netting_boost_shows": round(s.get("netting_boost_shows") or 0, 2),
+                      "netting_shelf": round(s.get("netting_shelf") or 0, 2),
                       "unredeemed_orders": int(f["unredeemed_orders"]),
                       "unredeemed_cost": round(f["unredeemed_cost"], 2),
                       # fact is not None (а не truthy): нетто-COGS после сторно возвратов может
@@ -481,6 +487,7 @@ def _write_finance(fin, agg, since):
                                "subscription_cost", "reviews_cost",
                                "boost_sales", "boost_shows", "shelf", "ad_contract",
                                "netting", "netting_fee", "netting_delivery", "netting_promotion",
+                               "netting_boost_sales", "netting_boost_shows", "netting_shelf",
                                "unredeemed_orders", "unredeemed_cost", "cogs", "cogs_cov_pct"])
         db.execute("UPDATE yandex_finance_monthly SET updated_at=now() WHERE account=%s", (ACCOUNT,))
     for r in frecs:
