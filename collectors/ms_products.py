@@ -4,6 +4,13 @@
 sale_price; article/code/external_code; archived) и ms_barcode (barcode -> ms_id).
 buy_price/value в МС в копейках → ÷100. Это основа для себестоимости, поставщиков, дефицита.
 
+ВАЖНО (19.08.2026): /entity/product БЕЗ фильтра отдаёт только НЕархивные карточки. Пока справочник
+собирался одним таким проходом, архивированная человеком карточка навсегда оставалась в ms_product
+живой, со старым артикулом и кодом («зомби»): 97 архивных + 158 удалённых на 44.8k живых, из-за них
+сверки видели несуществующие дубли (разбор — docs/reports/prc_ms_stale_2026-08-19.md). Поэтому _write
+ВСЕГДА добирает второй проход filter=archived=true и помечает архивными тех, кого нет ни в одном
+проходе (значит, карточку удалили). Гейт от обрыва выкачки — см. _mark_gone.
+
 Запуск:  ./venv/bin/python collectors/ms_products.py
 """
 import os
@@ -18,7 +25,9 @@ from dotenv import load_dotenv
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
+import psycopg2.extras  # noqa: E402
 from core import db  # noqa: E402
+from core.db import get_conn  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
 MS = "https://api.moysklad.ru/api/remap/1.2"
@@ -58,7 +67,46 @@ def _build(rows, prod_recs, bc_recs):
                 bc_recs.append({"barcode": str(v).strip(), "ms_id": msid})
 
 
+def _archived_pass(prod_recs, bc_recs):
+    """Второй проход по АРХИВНЫМ карточкам (в обычной выдаче их нет)."""
+    off, n = 0, 0
+    while True:
+        j = _get(f"/entity/product?limit=1000&offset={off}&filter=archived=true")
+        rows = j.get("rows", [])
+        _build(rows, prod_recs, bc_recs)
+        n += len(rows); off += 1000
+        if len(rows) < 1000:
+            break
+    return n
+
+
+def _mark_gone(seen_ids, n_live):
+    """Кого нет ни в живой, ни в архивной выдаче — тот удалён из МС: помечаем archived.
+
+    Гейт: если живых карточек пришло заметно меньше, чем уже числится в справочнике (обрыв
+    выкачки, таймаут, урезанный список извне) — ничего не помечаем, иначе разом «похороним»
+    живой каталог. Следующий полный прогон доберёт.
+    """
+    have = db.query("SELECT count(*) AS n FROM ms_product WHERE NOT archived")[0]["n"]
+    if have and n_live < have * 0.9:
+        print(f"  [ms] пометка удалённых ПРОПУЩЕНА: пришло {n_live} живых против {have} в справочнике",
+              flush=True)
+        return 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("CREATE TEMP TABLE _ms_seen (ms_id text PRIMARY KEY) ON COMMIT DROP")
+            psycopg2.extras.execute_values(
+                cur, "INSERT INTO _ms_seen (ms_id) VALUES %s ON CONFLICT DO NOTHING",
+                [(i,) for i in seen_ids], page_size=5000)
+            cur.execute("""UPDATE ms_product p SET archived = true
+                            WHERE NOT p.archived
+                              AND NOT EXISTS (SELECT 1 FROM _ms_seen s WHERE s.ms_id = p.ms_id)""")
+            return cur.rowcount
+
+
 def _write(prod_recs, bc_recs):
+    n_live = len(prod_recs)
+    n_arch = _archived_pass(prod_recs, bc_recs)
     db.upsert("ms_product", prod_recs, conflict_cols=["ms_id"],
               update_cols=["name", "article", "code", "external_code", "buy_price", "sale_price", "archived"])
     # дедуп баркодов (PK barcode)
@@ -67,8 +115,10 @@ def _write(prod_recs, bc_recs):
         if b["barcode"] and b["barcode"] not in seen:
             seen.add(b["barcode"]); ded.append(b)
     db.upsert("ms_barcode", ded, conflict_cols=["barcode"], update_cols=["ms_id"])
+    n_gone = _mark_gone([r["ms_id"] for r in prod_recs], n_live)
     withbuy = sum(1 for r in prod_recs if r["buy_price"])
-    print(f"Записано: {len(prod_recs)} товаров (с закупочной {withbuy}) | баркодов {len(ded)}", flush=True)
+    print(f"Записано: {len(prod_recs)} товаров (живых {n_live}, архивных {n_arch}, "
+          f"с закупочной {withbuy}) | баркодов {len(ded)} | помечено удалённых {n_gone}", flush=True)
 
 
 def main(products=None):
