@@ -1,0 +1,2592 @@
+[
+ {
+  "id": "5579c7b5-89b2-11e8-9ff4-315000355c97",
+  "code": "0136bs",
+  "externalCode": "0136",
+  "article": "BS-CLI-8C",
+  "name": "Картридж CLI-8 C BS",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20035266"
+   },
+   {
+    "code128": "DSTOP0000136"
+   }
+  ],
+  "weight": 0.05,
+  "buyPrice": {
+   "value": 6900.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 33300.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/785d91a6-5298-11ec-0a80-0949000f53fe",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "785d91a6-5298-11ec-0a80-0949000f53fe",
+    "name": "Ссылка",
+    "type": "link",
+    "value": "https://digitalsquare.ru/index.php?option=com_virtuemart&category_id=3&flypage=yagendoo_VaMazing_2.tpl&lang=ru&limitstart=0&page=shop.product_details&product_id=136"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b24055cd-529a-11ec-0a80-08c60010c152",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b24055cd-529a-11ec-0a80-08c60010c152",
+    "name": "Изображение",
+    "type": "link",
+    "value": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5226ec0217812.jpg"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/5631bdb3-6011-11ed-0a80-0225000b5855",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "5631bdb3-6011-11ed-0a80-0225000b5855",
+    "name": "Бренд",
+    "type": "string",
+    "value": "Blossom"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "CLI-8C"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+    "name": "Доп. название модели",
+    "type": "string",
+    "value": "0621B024"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "голубой"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "с чипом"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Картридж CLI-8C Canon голубой с чипом"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a883238f-6012-11ed-0a80-0225000bddc2",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a883238f-6012-11ed-0a80-0225000bddc2",
+    "name": "Длина, см.",
+    "type": "string",
+    "value": "6"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/00c43da1-4f03-11ee-0a80-082e001b3a61",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "00c43da1-4f03-11ee-0a80-082e001b3a61",
+    "name": "Ширина, см.",
+    "type": "string",
+    "value": "5"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+    "name": "Высота, см.",
+    "type": "string",
+    "value": "9"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661cbf9-1550-11f0-0a80-0b56001266d9",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661cbf9-1550-11f0-0a80-0b56001266d9",
+    "name": "Ячейка СПБ",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/bf776ef3-16b9-11f0-0a80-166b0009ac9f",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=bf776ef3-16b9-11f0-0a80-166b0009ac9f"
+     },
+     "name": "CANON-08"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+    "name": "Ячейка МСК",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/bf776ef3-16b9-11f0-0a80-166b0009ac9f",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=bf776ef3-16b9-11f0-0a80-166b0009ac9f"
+     },
+     "name": "CANON-08"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+    "name": "Ячейка Дубровка",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/bf776ef3-16b9-11f0-0a80-166b0009ac9f",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=bf776ef3-16b9-11f0-0a80-166b0009ac9f"
+     },
+     "name": "CANON-08"
+    }
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/54542920-3a0b-11e6-7a69-9711000d7601",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=54542920-3a0b-11e6-7a69-9711000d7601"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Струйный картридж Blossom BS-CLI-8C для Canon PIXMA ip3300/iP4300/iP4200RFB/iP4200/iP4300/iP4500/iP5200/iP5200R/iP6600D/iP6700D/Pro9000/MP500/MP530/MP600/MP600R/MP800/MP800R/MP810/MP830/MP950/MP960/MP970/MX850, cyan, 14мл."
+ },
+ {
+  "id": "edd3a023-3d7e-11f1-0a80-17dd001b27ce",
+  "code": "2031cs",
+  "externalCode": "2031",
+  "article": "СS-TN-321BK",
+  "name": "Картридж лазерный Cactus СS-TN-321BK черный (27000стр.) для Konica Minolta bizhub C224/C224e/C284/C284e/C364",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20545505"
+   },
+   {
+    "code128": "DSYHB0002031"
+   }
+  ],
+  "weight": 1.2,
+  "buyPrice": {
+   "value": 209400.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "СS-TN-321BK"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "TN-321 K"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+    "name": "Доп. название модели",
+    "type": "string",
+    "value": "A33K150"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/33207840-6019-11ed-0a80-0ed5000d3b5e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "33207840-6019-11ed-0a80-0ed5000d3b5e",
+    "name": "Ресурс (поставщика)",
+    "type": "string",
+    "value": "27000"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Картридж TN-321K Konica черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661cbf9-1550-11f0-0a80-0b56001266d9",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661cbf9-1550-11f0-0a80-0b56001266d9",
+    "name": "Ячейка СПБ",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebc67af-1551-11f0-0a80-0c63002bdbbf",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebc67af-1551-11f0-0a80-0c63002bdbbf"
+     },
+     "name": "KONICA"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+    "name": "Ячейка МСК",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebc67af-1551-11f0-0a80-0c63002bdbbf",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebc67af-1551-11f0-0a80-0c63002bdbbf"
+     },
+     "name": "KONICA"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+    "name": "Ячейка Дубровка",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebc67af-1551-11f0-0a80-0c63002bdbbf",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebc67af-1551-11f0-0a80-0c63002bdbbf"
+     },
+     "name": "KONICA"
+    }
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/6aaf3120-9af1-11e8-9109-f8fc000f9d1f",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=6aaf3120-9af1-11e8-9109-f8fc000f9d1f"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Картридж лазерный Cactus СS-TN-321BK черный (27000стр.) для Konica Minolta bizhub C224/C224e/C284/C284e/C364"
+ },
+ {
+  "id": "edadf86c-3d7e-11f1-0a80-17dd001b27b6",
+  "code": "2030cs",
+  "externalCode": "2030",
+  "article": "СS-TN-321C",
+  "name": "Картридж лазерный Cactus CS-TN-321C СS-TN-321C голубой (25000стр.) для Konica Minolta bizhub C224/C224e/C284/C284e/C364",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20545475"
+   },
+   {
+    "code128": "DSLIQ0002030"
+   }
+  ],
+  "weight": 1.2,
+  "buyPrice": {
+   "value": 347800.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "СS-TN-321C"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "TN-321 C"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+    "name": "Доп. название модели",
+    "type": "string",
+    "value": "A33K450"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "голубой"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/33207840-6019-11ed-0a80-0ed5000d3b5e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "33207840-6019-11ed-0a80-0ed5000d3b5e",
+    "name": "Ресурс (поставщика)",
+    "type": "string",
+    "value": "25000"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Картридж TN-321C Brother голубой"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661cbf9-1550-11f0-0a80-0b56001266d9",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661cbf9-1550-11f0-0a80-0b56001266d9",
+    "name": "Ячейка СПБ",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebc67af-1551-11f0-0a80-0c63002bdbbf",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebc67af-1551-11f0-0a80-0c63002bdbbf"
+     },
+     "name": "KONICA"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+    "name": "Ячейка МСК",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebc67af-1551-11f0-0a80-0c63002bdbbf",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebc67af-1551-11f0-0a80-0c63002bdbbf"
+     },
+     "name": "KONICA"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+    "name": "Ячейка Дубровка",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebc67af-1551-11f0-0a80-0c63002bdbbf",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebc67af-1551-11f0-0a80-0c63002bdbbf"
+     },
+     "name": "KONICA"
+    }
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/6aaf3120-9af1-11e8-9109-f8fc000f9d1f",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=6aaf3120-9af1-11e8-9109-f8fc000f9d1f"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Картридж лазерный Cactus CS-TN-321C СS-TN-321C голубой (25000стр.) для Konica Minolta bizhub C224/C224e/C284/C284e/C364"
+ },
+ {
+  "id": "edba4a60-3d7e-11f1-0a80-17dd001b27be",
+  "code": "2032cs",
+  "externalCode": "2032",
+  "article": "СS-TN-321M",
+  "name": "Картридж лазерный Cactus CS-TN-321M СS-TN-321M пурпурный (25000стр.) для Konica Minolta bizhub C224/C224e/C284/C284e/C364",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20545482"
+   },
+   {
+    "code128": "DSETM0002032"
+   }
+  ],
+  "weight": 1.2,
+  "buyPrice": {
+   "value": 347800.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "СS-TN-321M"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "TN-321 M"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+    "name": "Доп. название модели",
+    "type": "string",
+    "value": "A33K350"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "пурпурный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/33207840-6019-11ed-0a80-0ed5000d3b5e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "33207840-6019-11ed-0a80-0ed5000d3b5e",
+    "name": "Ресурс (поставщика)",
+    "type": "string",
+    "value": "25000"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Картридж TN-321M Konica пурпурный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/6aaf3120-9af1-11e8-9109-f8fc000f9d1f",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=6aaf3120-9af1-11e8-9109-f8fc000f9d1f"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Картридж лазерный Cactus CS-TN-321M СS-TN-321M пурпурный (25000стр.) для Konica Minolta bizhub C224/C224e/C284/C284e/C364"
+ },
+ {
+  "id": "edc70203-3d7e-11f1-0a80-17dd001b27c7",
+  "code": "2033cs",
+  "externalCode": "2033",
+  "article": "СS-TN-321Y",
+  "name": "Картридж лазерный Cactus CS-TN-321Y СS-TN-321Y желтый (25000стр.) для Konica Minolta bizhub C224/C224e/C284/C284e/C364",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20545499"
+   },
+   {
+    "code128": "DSTQN0002033"
+   }
+  ],
+  "weight": 1.2,
+  "buyPrice": {
+   "value": 347800.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "СS-TN-321Y"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "TN-321 Y"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+    "name": "Доп. название модели",
+    "type": "string",
+    "value": "A33K250"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "желтый"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/33207840-6019-11ed-0a80-0ed5000d3b5e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "33207840-6019-11ed-0a80-0ed5000d3b5e",
+    "name": "Ресурс (поставщика)",
+    "type": "string",
+    "value": "25000"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Картридж TN-321Y Konica желтый"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/6aaf3120-9af1-11e8-9109-f8fc000f9d1f",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=6aaf3120-9af1-11e8-9109-f8fc000f9d1f"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Картридж лазерный Cactus CS-TN-321Y СS-TN-321Y желтый (25000стр.) для Konica Minolta bizhub C224/C224e/C284/C284e/C364"
+ },
+ {
+  "id": "ad28b7c8-c366-11ee-0a80-02660058319e",
+  "code": "0103nv",
+  "externalCode": "0103",
+  "article": "NV-CC364X/CE390X",
+  "name": "Картридж NVP совместимый NV-CC364X/CE390X",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20352462"
+   },
+   {
+    "code128": "DSHZF0000103"
+   }
+  ],
+  "weight": 2.71,
+  "buyPrice": {
+   "value": 189255.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "NV-CC364X/CE390X"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "CC364X"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+    "name": "Доп. название модели",
+    "type": "string",
+    "value": "64X"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Картридж CC364X HP 64X XL ресурс"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661cbf9-1550-11f0-0a80-0b56001266d9",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661cbf9-1550-11f0-0a80-0b56001266d9",
+    "name": "Ячейка СПБ",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/06b94275-1552-11f0-0a80-002a001288e7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=06b94275-1552-11f0-0a80-002a001288e7"
+     },
+     "name": "HP-01"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+    "name": "Ячейка МСК",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/06b94275-1552-11f0-0a80-002a001288e7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=06b94275-1552-11f0-0a80-002a001288e7"
+     },
+     "name": "HP-01"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+    "name": "Ячейка Дубровка",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/06b94275-1552-11f0-0a80-002a001288e7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=06b94275-1552-11f0-0a80-002a001288e7"
+     },
+     "name": "HP-01"
+    }
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/18d7bcbe-73ac-40af-8543-bb293581a4d3",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=18d7bcbe-73ac-40af-8543-bb293581a4d3"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Картридж NVP совместимый NV-CC364X/CE390X"
+ },
+ {
+  "id": "cb5aa655-b06f-11ea-0a80-02fe0038791e",
+  "code": "0103nv",
+  "externalCode": "0103",
+  "article": "NV-CC364X/CE390Х",
+  "name": "Картридж NVP совместимый NV-CC364X/CE390Х",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20093693"
+   },
+   {
+    "code128": "DSHZF0000103"
+   }
+  ],
+  "weight": 3.3,
+  "buyPrice": {
+   "value": 255530.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 260700.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "A3498"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/eb81d33e-30d0-11ec-0a80-0253000c3335",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "eb81d33e-30d0-11ec-0a80-0253000c3335",
+    "name": "EAN/UPC",
+    "type": "string",
+    "value": "4660016635397"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/785d91a6-5298-11ec-0a80-0949000f53fe",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "785d91a6-5298-11ec-0a80-0949000f53fe",
+    "name": "Ссылка",
+    "type": "link",
+    "value": "https://digitalsquare.ru/index.php?option=com_virtuemart&category_id=2&flypage=yagendoo_VaMazing_2.tpl&lang=ru&limitstart=0&page=shop.product_details&product_id=103"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b24055cd-529a-11ec-0a80-08c60010c152",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b24055cd-529a-11ec-0a80-08c60010c152",
+    "name": "Изображение",
+    "type": "link",
+    "value": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________520b53178c22c.jpg"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/5631bdb3-6011-11ed-0a80-0225000b5855",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "5631bdb3-6011-11ed-0a80-0225000b5855",
+    "name": "Бренд",
+    "type": "string",
+    "value": "NV PRINT"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "CC364X"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+    "name": "Доп. название модели",
+    "type": "string",
+    "value": "64X"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Картридж CC364X HP 64X XL ресурс"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a883238f-6012-11ed-0a80-0225000bddc2",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a883238f-6012-11ed-0a80-0225000bddc2",
+    "name": "Длина, см.",
+    "type": "string",
+    "value": "41"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/00c43da1-4f03-11ee-0a80-082e001b3a61",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "00c43da1-4f03-11ee-0a80-082e001b3a61",
+    "name": "Ширина, см.",
+    "type": "string",
+    "value": "18"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+    "name": "Высота, см.",
+    "type": "string",
+    "value": "31"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661cbf9-1550-11f0-0a80-0b56001266d9",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661cbf9-1550-11f0-0a80-0b56001266d9",
+    "name": "Ячейка СПБ",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/06b94275-1552-11f0-0a80-002a001288e7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=06b94275-1552-11f0-0a80-002a001288e7"
+     },
+     "name": "HP-01"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+    "name": "Ячейка МСК",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/06b94275-1552-11f0-0a80-002a001288e7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=06b94275-1552-11f0-0a80-002a001288e7"
+     },
+     "name": "HP-01"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+    "name": "Ячейка Дубровка",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/06b94275-1552-11f0-0a80-002a001288e7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=06b94275-1552-11f0-0a80-002a001288e7"
+     },
+     "name": "HP-01"
+    }
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/18d7bcbe-73ac-40af-8543-bb293581a4d3",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=18d7bcbe-73ac-40af-8543-bb293581a4d3"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Картридж NVP совместимый NV-CC364X/CE390Х для HP LaserJet P4015dn/P4015n/P4015tn/P4015x/P4515n/P4515tn/P4515x/P4515xm/Enterprise 600 M602dn/M602n/M602x/M603dn/M603n/M603xh/M4555/M4555f/M4555fskm (24000k)"
+ },
+ {
+  "id": "0de2fd3a-59f2-11ed-0a80-04220003f248",
+  "code": "0235nv",
+  "externalCode": "0235",
+  "article": "NV-KXFAD412A",
+  "name": "Блок фотобарабана NVP совместимый NV-KX-FAD412A",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20147945"
+   },
+   {
+    "code128": "DSMUU0000235"
+   }
+  ],
+  "weight": 1.194,
+  "buyPrice": {
+   "value": 288860.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 287600.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "22499"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/5631bdb3-6011-11ed-0a80-0225000b5855",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "5631bdb3-6011-11ed-0a80-0225000b5855",
+    "name": "Бренд",
+    "type": "string",
+    "value": "NV PRINT"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "KX-FAD412A DU"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Фотобарабан KX-FAD412A Panasonic"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a883238f-6012-11ed-0a80-0225000bddc2",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a883238f-6012-11ed-0a80-0225000bddc2",
+    "name": "Длина, см.",
+    "type": "string",
+    "value": "34"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/00c43da1-4f03-11ee-0a80-082e001b3a61",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "00c43da1-4f03-11ee-0a80-082e001b3a61",
+    "name": "Ширина, см.",
+    "type": "string",
+    "value": "18"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+    "name": "Высота, см.",
+    "type": "string",
+    "value": "14"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661cbf9-1550-11f0-0a80-0b56001266d9",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661cbf9-1550-11f0-0a80-0b56001266d9",
+    "name": "Ячейка СПБ",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebe4522-1551-11f0-0a80-0c63002bdbc8",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebe4522-1551-11f0-0a80-0c63002bdbc8"
+     },
+     "name": "PANASONIC"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+    "name": "Ячейка МСК",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebe4522-1551-11f0-0a80-0c63002bdbc8",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebe4522-1551-11f0-0a80-0c63002bdbc8"
+     },
+     "name": "PANASONIC"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+    "name": "Ячейка Дубровка",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebe4522-1551-11f0-0a80-0c63002bdbc8",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebe4522-1551-11f0-0a80-0c63002bdbc8"
+     },
+     "name": "PANASONIC"
+    }
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/b6d836dc-98f2-4d87-aba0-085f6466f349",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=b6d836dc-98f2-4d87-aba0-085f6466f349"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Блок фотобарабана NVP совместимый NV-KX-FAD412A"
+ },
+ {
+  "id": "353bdaf1-0f7b-4a94-90a7-20dfc17ef473",
+  "code": "0235nv",
+  "externalCode": "0235",
+  "article": "NV-KXFAD412А",
+  "name": "Барабан KX-FAD412A NV",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20148614"
+   },
+   {
+    "code128": "DSMUU0000235"
+   }
+  ],
+  "weight": 1.2,
+  "buyPrice": {
+   "value": 176880.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 287600.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "22499"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/eb81d33e-30d0-11ec-0a80-0253000c3335",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "eb81d33e-30d0-11ec-0a80-0253000c3335",
+    "name": "EAN/UPC",
+    "type": "string",
+    "value": "4620747111386"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/785d91a6-5298-11ec-0a80-0949000f53fe",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "785d91a6-5298-11ec-0a80-0949000f53fe",
+    "name": "Ссылка",
+    "type": "link",
+    "value": "https://digitalsquare.ru/index.php?option=com_virtuemart&category_id=25&flypage=yagendoo_VaMazing_2.tpl&lang=ru&limitstart=0&page=shop.product_details&product_id=394"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b24055cd-529a-11ec-0a80-08c60010c152",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b24055cd-529a-11ec-0a80-08c60010c152",
+    "name": "Изображение",
+    "type": "link",
+    "value": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/KX-FAD412A_.jpg"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/5631bdb3-6011-11ed-0a80-0225000b5855",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "5631bdb3-6011-11ed-0a80-0225000b5855",
+    "name": "Бренд",
+    "type": "string",
+    "value": "NV PRINT"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "KX-FAD412A DU"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Фотобарабан KX-FAD412A Panasonic"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a883238f-6012-11ed-0a80-0225000bddc2",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a883238f-6012-11ed-0a80-0225000bddc2",
+    "name": "Длина, см.",
+    "type": "string",
+    "value": "34"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/00c43da1-4f03-11ee-0a80-082e001b3a61",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "00c43da1-4f03-11ee-0a80-082e001b3a61",
+    "name": "Ширина, см.",
+    "type": "string",
+    "value": "18"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+    "name": "Высота, см.",
+    "type": "string",
+    "value": "14"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661cbf9-1550-11f0-0a80-0b56001266d9",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661cbf9-1550-11f0-0a80-0b56001266d9",
+    "name": "Ячейка СПБ",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebe4522-1551-11f0-0a80-0c63002bdbc8",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebe4522-1551-11f0-0a80-0c63002bdbc8"
+     },
+     "name": "PANASONIC"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+    "name": "Ячейка МСК",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebe4522-1551-11f0-0a80-0c63002bdbc8",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebe4522-1551-11f0-0a80-0c63002bdbc8"
+     },
+     "name": "PANASONIC"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+    "name": "Ячейка Дубровка",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eebe4522-1551-11f0-0a80-0c63002bdbc8",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eebe4522-1551-11f0-0a80-0c63002bdbc8"
+     },
+     "name": "PANASONIC"
+    }
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/b6d836dc-98f2-4d87-aba0-085f6466f349",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=b6d836dc-98f2-4d87-aba0-085f6466f349"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Барабан NVP совместимый Panasonic KX-FAD412А для KX-MB2000/2020/2030 (6000k)"
+ },
+ {
+  "id": "5d55d6fc-3baa-11f0-0a80-15c80008a2de",
+  "code": "3644pl",
+  "externalCode": "3644",
+  "article": "PL_C-EXV51BK_BK",
+  "name": "Картридж PL-C-EXV51BK для принтеров Canon iR Advance C5500ser/С5500/С5535/С5540/С5550/С5560 69000 копий Black ProfiLine",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20469566"
+   },
+   {
+    "code128": "DSANL0003644"
+   }
+  ],
+  "weight": 1.3,
+  "buyPrice": {
+   "value": 0.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 0.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "PL_C-EXV51BK_BK"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "C-EXV51Bk"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+    "name": "Доп. название модели",
+    "type": "string",
+    "value": "0481C002"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/33207840-6019-11ed-0a80-0ed5000d3b5e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "33207840-6019-11ed-0a80-0ed5000d3b5e",
+    "name": "Ресурс (поставщика)",
+    "type": "string",
+    "value": "69000"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Картридж C-EXV51Bk для Canon 0481C002 черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+    "name": "Ячейка МСК",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eeba4fc0-1551-11f0-0a80-0c63002bdbba",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eeba4fc0-1551-11f0-0a80-0c63002bdbba"
+     },
+     "name": "CANON-02"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+    "name": "Ячейка Дубровка",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eeba4fc0-1551-11f0-0a80-0c63002bdbba",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eeba4fc0-1551-11f0-0a80-0c63002bdbba"
+     },
+     "name": "CANON-02"
+    }
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/85d2622b-11b8-4939-977c-0e68ff47f632",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=85d2622b-11b8-4939-977c-0e68ff47f632"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Картридж PL-C-EXV51BK для принтеров Canon iR Advance C5500ser/С5500/С5535/С5540/С5550/С5560 69000 копий Black ProfiLine"
+ },
+ {
+  "id": "1856a825-7a29-11ed-0a80-073a007a0d0d",
+  "code": "3644pl",
+  "externalCode": "3644",
+  "article": "PL_С-EXV51BK_BK",
+  "name": "Картридж C-EXV51BK 69000 копий Black ProfiLine",
+  "archived": false,
+  "barcodes": [
+   {
+    "ean8": "20021252"
+   },
+   {
+    "code128": "DSANL0003644"
+   }
+  ],
+  "weight": 1.3,
+  "buyPrice": {
+   "value": 727385.0,
+   "currency": {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+     "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+     "type": "currency",
+     "mediaType": "application/json",
+     "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+    }
+   }
+  },
+  "salePrices": [
+   {
+    "value": 620000.0,
+    "currency": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/currency/20d3bd8c-bde9-47cc-ba24-b299ba80b6d7",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/currency/metadata",
+      "type": "currency",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#currency/edit?id=20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
+     }
+    },
+    "priceType": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype/2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+      "type": "pricetype",
+      "mediaType": "application/json"
+     },
+     "id": "2ced1f8e-c71a-4532-83ca-40fb64c5c931",
+     "name": "Цена продажи",
+     "externalCode": "cbcf493b-55bc-11d9-848a-00112f43529a"
+    }
+   }
+  ],
+  "attributes": [
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+    "name": "Код поставщика",
+    "type": "string",
+    "value": "PL_С-EXV51BK_BK"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/5631bdb3-6011-11ed-0a80-0225000b5855",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "5631bdb3-6011-11ed-0a80-0225000b5855",
+    "name": "Бренд",
+    "type": "string",
+    "value": "ProfiLine"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+    "name": "Модель",
+    "type": "string",
+    "value": "C-EXV51Bk"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+    "name": "Доп. название модели",
+    "type": "string",
+    "value": "0481C002"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+    "name": "Цвет",
+    "type": "string",
+    "value": "черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+    "name": "Чип",
+    "type": "string",
+    "value": "не указан"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/33207840-6019-11ed-0a80-0ed5000d3b5e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "33207840-6019-11ed-0a80-0ed5000d3b5e",
+    "name": "Ресурс (поставщика)",
+    "type": "string",
+    "value": "69000"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+    "name": "Название WB",
+    "type": "text",
+    "value": "Картридж C-EXV51Bk Canon 0481C002 черный"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+    "name": "Гарантия/ Срок службы",
+    "type": "long",
+    "value": 365
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a883238f-6012-11ed-0a80-0225000bddc2",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "a883238f-6012-11ed-0a80-0225000bddc2",
+    "name": "Длина, см.",
+    "type": "string",
+    "value": "20"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/00c43da1-4f03-11ee-0a80-082e001b3a61",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "00c43da1-4f03-11ee-0a80-082e001b3a61",
+    "name": "Ширина, см.",
+    "type": "string",
+    "value": "37"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+    "name": "Высота, см.",
+    "type": "string",
+    "value": "15"
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+    "name": "Ячейка МСК",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eeba4fc0-1551-11f0-0a80-0c63002bdbba",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eeba4fc0-1551-11f0-0a80-0c63002bdbba"
+     },
+     "name": "CANON-02"
+    }
+   },
+   {
+    "meta": {
+     "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+     "type": "attributemetadata",
+     "mediaType": "application/json"
+    },
+    "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+    "name": "Ячейка Дубровка",
+    "type": "customentity",
+    "value": {
+     "meta": {
+      "href": "https://api.moysklad.ru/api/remap/1.2/entity/customentity/a8a8d3c9-154f-11f0-0a80-175100129f7d/eeba4fc0-1551-11f0-0a80-0c63002bdbba",
+      "metadataHref": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+      "type": "customentity",
+      "mediaType": "application/json",
+      "uuidHref": "https://online.moysklad.ru/app/#custom_a8a8d3c9-154f-11f0-0a80-175100129f7d/edit?id=eeba4fc0-1551-11f0-0a80-0c63002bdbba"
+     },
+     "name": "CANON-02"
+    }
+   }
+  ],
+  "productFolder": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/85d2622b-11b8-4939-977c-0e68ff47f632",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/productfolder/metadata",
+    "type": "productfolder",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#good/edit?id=85d2622b-11b8-4939-977c-0e68ff47f632"
+   }
+  },
+  "uom": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/uom/19f1edc0-fc42-4001-94cb-c9ec9c62ec10",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/uom/metadata",
+    "type": "uom",
+    "mediaType": "application/json"
+   }
+  },
+  "country": {
+   "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/country/fd44cd2e-b398-4222-9c43-f75688bdf327",
+    "metadataHref": "https://api.moysklad.ru/api/remap/1.2/entity/country/metadata",
+    "type": "country",
+    "mediaType": "application/json",
+    "uuidHref": "https://online.moysklad.ru/app/#country/edit?id=fd44cd2e-b398-4222-9c43-f75688bdf327"
+   }
+  },
+  "description": "Картридж PL-C-EXV51BK для принтеров Canon iR Advance C5500ser/С5500/С5535/С5540/С5550/С5560 69000 копий Black ProfiLine"
+ }
+]
