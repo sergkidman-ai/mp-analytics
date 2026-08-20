@@ -124,37 +124,62 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
 
 
 def sect(t):
-    return f'<tr class="sect"><td colspan="12">{t}</td></tr>'
+    return f'<tr class="sect"><td colspan="{_C["N"] + 5}"><span>{t}</span></td></tr>'
+
+
+TAIL_JS = """<script>
+/* Таблица открывается на ПОСЛЕДНИХ месяцах: свежий месяц виден сразу, прокрутка нужна НАЗАД,
+   в историю, а не вперёд. Живые столбцы («тек.»/«прогноз») дозаполняются fetch-ом уже после
+   загрузки и расширяют таблицу — поэтому доводим хвост ещё раз по таймеру, но только пока
+   пользователь сам не тронул прокрутку. */
+(function(){
+  var touched=false;
+  ['wheel','pointerdown','touchstart','keydown'].forEach(function(e){
+    document.addEventListener(e,function(){touched=true;},{passive:true,capture:true});});
+  function tail(){ if(touched) return;
+    document.querySelectorAll('#mpr .card').forEach(function(c){ c.scrollLeft=c.scrollWidth; }); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',tail); else tail();
+  window.addEventListener('load',tail);
+  setTimeout(tail,500); setTimeout(tail,1500);
+})();
+</script>"""
 
 
 def bars_line(oborot, net):
+    """Столбики оборота + линия чистой. Геометрия ПАРАМЕТРИЧЕСКАЯ (шаг от N): раньше шаг был
+    зашит под 6 месяцев (75.3 px), и с 7-го месяца столбик уезжал за viewBox — июль-2026 не было
+    видно на графике вовсе."""
     M, N = _C["M"], _C["N"]
-    hi = max(oborot); W, H = 500, 140
-    out = []
+    hi = max(oborot) or 1; W, H = 500, 140
+    step = (W - 40) / N
+    bars, circs = [], []
     for i in range(N):
-        x = 39.1 + i * 75.3; h = (oborot[i] / hi) * 96 + 2; y = 128 - h
-        out.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="45.2" height="{h:.1f}" rx="3" fill="var(--acc)" opacity=".85"/>'
-                   f'<text x="{x + 22.6:.1f}" y="138" text-anchor="middle" class="axt">{M[i]}</text>')
+        x = 20 + i * step + step * 0.12; h = (oborot[i] / hi) * 96 + 2; y = 128 - h
+        bw = step * 0.6
+        bars.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:.1f}" height="{h:.1f}" rx="3" fill="var(--acc)" opacity=".85"/>'
+                    f'<text x="{x + bw / 2:.1f}" y="138" text-anchor="middle" class="axt">{M[i]}</text>')
     nl = []
     for i in range(N):
-        x = 61.7 + i * 75.3; y = 128 - (net[i] / hi) * 96 - 2; nl.append(f"{x:.1f},{y:.1f}")
-        out.append(f"<circle cx={x:.1f} cy={y:.1f} r=2.3 fill='var(--warn)'/>")
+        x = 20 + i * step + step * 0.42; y = 128 - (net[i] / hi) * 96 - 2
+        nl.append(f"{x:.1f},{y:.1f}")
+        circs.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.3" fill="var(--warn)"/>')
     poly = f'<polyline points="{" ".join(nl)}" fill="none" stroke="var(--warn)" stroke-width="2"/>'
-    return (f'<svg viewBox="0 0 {W} {H}" width="100%">' + "".join(out[:2 * N]) + poly +
-            "".join(o for o in out if o.startswith("<circle")) + '</svg>')
+    return f'<svg viewBox="0 0 {W} {H}" width="100%">' + "".join(bars) + poly + "".join(circs) + '</svg>'
 
 
 def line2(a, b, c=None, amax=None):
+    """Линии (маржа / COGS / расходы). Шаг тоже параметрический — было зашито 90.4 px под 6 мес."""
     M, N = _C["M"], _C["N"]
     W, H = 500, 140
     ser = [(a, "var(--pos)"), (b, "var(--neg)")] + ([(c, "var(--acc)")] if c is not None else [])
-    hi = amax or max(max(s) for s, _ in ser); lo = 0
+    hi = amax or max(max(s) for s, _ in ser) or 1; lo = 0
+    step = (W - 48) / (N - 1 or 1)
 
     def pl(vals, col):
-        pts = [f"{24 + i * 90.4:.1f},{128 - ((v - lo) / ((hi - lo) or 1)) * 95:.1f}" for i, v in enumerate(vals)]
+        pts = [f"{24 + i * step:.1f},{128 - ((v - lo) / ((hi - lo) or 1)) * 95:.1f}" for i, v in enumerate(vals)]
         cs = "".join(f'<circle cx="{p.split(",")[0]}" cy="{p.split(",")[1]}" r="2.3" fill="{col}"/>' for p in pts)
         return f'<polyline points="{" ".join(pts)}" fill="none" stroke="{col}" stroke-width="2"/>' + cs
-    ax = "".join(f'<text x="{24 + i * 90.4:.1f}" y="138" text-anchor="middle" class="axt">{M[i]}</text>' for i in range(N))
+    ax = "".join(f'<text x="{24 + i * step:.1f}" y="138" text-anchor="middle" class="axt">{M[i]}</text>' for i in range(N))
     return (f'<svg viewBox="0 0 {W} {H}" width="100%">' + "".join(pl(s, col) for s, col in ser)
             + ax + '</svg>')
 
@@ -296,6 +321,11 @@ REPORT_CSS = """
 #mpr thead th{position:sticky;top:0;background:var(--card);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--mut);font-weight:650;z-index:2}
 #mpr th:first-child,#mpr td.lbl{text-align:left;white-space:normal}
 #mpr td.lbl{font-weight:560;min-width:205px}
+/* первый столбец закреплён по горизонтали: таблица открывается на ПОСЛЕДНИХ месяцах
+   (см. TAIL_JS), и без закрепления подпись статьи уезжала бы из вида */
+#mpr th:first-child{left:0;z-index:3;background:var(--card)}
+#mpr td.lbl{position:sticky;left:0;z-index:1;background:var(--card)}
+#mpr tr.sect td>span{position:sticky;left:11px;display:inline-block}
 #mpr td.lbl.ind{font-weight:430}
 #mpr tr.sub td{color:var(--mut)}
 #mpr tr.sub td.lbl.ind{padding-left:24px;position:relative}
@@ -470,6 +500,7 @@ def render(hist=None):
   <div class="foot">{FOOT}</div>
 </main>
 {JS}
+{TAIL_JS}
 {_drill.page_js('ozon')}
 </body>
 </html>"""
