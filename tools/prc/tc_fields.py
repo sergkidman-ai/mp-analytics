@@ -36,6 +36,7 @@
 
 Свод правил по полям, архивации и созданию карточки — `docs/MS_CARD_FIELDS.md`.
 """
+import os
 import re
 import sys
 import csv
@@ -52,7 +53,8 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db, ms_api                     # noqa: E402
 from prices import features as F                # noqa: E402
 
-PAUSE = 0.3          # пауза между пачками записи
+PAUSE = float(os.environ.get("TC_PAUSE", "0.3"))   # пауза между пачками; TC_PAUSE — щадящий темп,
+                                                   # когда в МС параллельно работают люди
 
 # Доп. поля товара МС: имя → (id, тип). Имена полей в МС меняли, переиспользуя id
 # («Список принтеров» → «Чип», «Ресурс печати» → «Ресурс (поставщика)»), поэтому ключ здесь
@@ -238,7 +240,7 @@ def plan_card(card, tc):
     return new, conflicts
 
 
-def collect(from_db, fields, limit=None, only=None):
+def collect(from_db, fields, limit=None, only=None, sink=None):
     todo, conflicts, skip = [], [], collections.Counter()
     tc_all = catalog()
     for card in cards(from_db, limit, only):
@@ -264,9 +266,13 @@ def collect(from_db, fields, limit=None, only=None):
         if not diff:
             skip["уже верно"] += 1
             continue
-        todo.append({"ms_id": card["id"], "code": card.get("code"), "ec": ec,
-                     "name": card.get("name"), "cur": cur, "new": diff,
-                     "attributes": card.get("attributes") or []})
+        row = {"ms_id": card["id"], "code": card.get("code"), "ec": ec,
+               "name": card.get("name"), "cur": cur, "new": diff}
+        if sink:
+            # Пишем на ходу, пачками. Копить полные списки атрибутов 38 тыс. карточек до конца
+            # сбора нельзя: ~0.5 ГБ, прогон 20.08.2026 убил OOM-killer сразу после сбора.
+            sink.add({**row, "attributes": card.get("attributes") or []})
+        todo.append(row)
     return todo, conflicts, skip
 
 
@@ -358,6 +364,36 @@ def apply(todo, dry=True, log=print):
     return done
 
 
+class Sink:
+    """Потоковая запись: слепок «как было» → POST пачкой → пачка забыта (память не растёт).
+
+    Слепок пишется ПЕРЕД записью и построчно (`before.jsonl`), чтобы обрыв прогона не оставил
+    уже изменённые карточки без сохранённых старых значений.
+    """
+
+    def __init__(self, bak_path, chunk=100, log=print):
+        self.bak, self.chunk, self.log = bak_path, chunk, log
+        self.buf, self.done = [], 0
+
+    def add(self, row):
+        self.buf.append(row)
+        if len(self.buf) >= self.chunk:
+            self.flush()
+
+    def flush(self):
+        if not self.buf:
+            return
+        with open(self.bak, "a", encoding="utf-8") as fh:
+            for r in self.buf:
+                fh.write(json.dumps({k: r[k] for k in ("ms_id", "code", "ec", "cur", "new")},
+                                    ensure_ascii=False) + "\n")
+        apply(self.buf, dry=False, log=lambda *a: None)
+        self.done += len(self.buf)
+        self.buf = []
+        if self.done % 1000 == 0:
+            self.log(f"[запись] {self.done}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true", help="писать в МойСклад (иначе только отчёт)")
@@ -375,12 +411,15 @@ def main():
             raise SystemExit(f"неизвестные поля: {', '.join(sorted(bad))}")
     only = {c.strip() for c in args.only.split(",")} if args.only else None
 
-    todo, conflicts, skip = collect(args.from_db, fields, args.limit, only)
-
     day = date.today().isoformat()
     rep = BASE_DIR / "docs" / "reports" / f"prc_tc_fields_{day}.csv"
     bak_dir = BASE_DIR / "backups" / f"prc_tc_fields_{day}"
     bak_dir.mkdir(parents=True, exist_ok=True)
+
+    sink = Sink(bak_dir / "before.jsonl") if args.apply else None
+    todo, conflicts, skip = collect(args.from_db, fields, args.limit, only, sink)
+    if sink:
+        sink.flush()
     write_report(todo, rep)
     backup(todo, bak_dir / "before.json")
 
@@ -403,9 +442,9 @@ def main():
         print(f"конфликты «{field}» ({n}): {path}")
     print(f"бэкап текущих значений: {bak_dir / 'before.json'}")
 
-    if args.apply:
-        done = apply(todo, dry=False)
-        print(f"записано карточек: {done}")
+    if sink:
+        print(f"записано карточек: {sink.done}")
+        print(f"слепок «как было»: {bak_dir / 'before.jsonl'}")
     else:
         print("режим отчёта; запись — с --apply")
 
