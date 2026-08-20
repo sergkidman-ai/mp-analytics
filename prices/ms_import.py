@@ -544,16 +544,27 @@ def _folders():
 def next_external_codes(n=1):
     """Следующие свободные 4-значные внешние коды, N штук подряд.
 
+    Хвост нумерации считаем по ЖИВЫМ карточкам. Единственная архивная карточка «24" Монитор NEC»
+    сидит на коде 9999 (наследие, к картриджам отношения не имеет) и уводила счётчик на 10000 —
+    пятизначный код, а правило 24 требует ровно четыре цифры (на нём же построены маски Code128).
+    Живой хвост — 7200, дальше и продолжаем.
+
+    ЗАНЯТЫМ при этом считается и архивный код: карточку возвращают из архива, и коды столкнулись бы,
+    поэтому спрашиваем МС дважды — по живым и по archived=true (обычный фильтр архив не отдаёт).
     Максимум берём из нашего слепка `ms_product`, но каждый кандидат ещё и спрашиваем у МС:
     слепок собирается раз в сутки, а карточки за это время заводят и руками.
     """
     from core import ms_api
     last = query("SELECT max(external_code::int) m FROM ms_product "
-                 "WHERE external_code ~ '^[0-9]{4}$'")[0]["m"] or 0
+                 "WHERE external_code ~ '^[0-9]{4}$' AND NOT archived")[0]["m"] or 0
     out = []
     while len(out) < n:
         last += 1
-        if ms_api.get("/entity/product", {"filter": f"externalCode={last}", "limit": 1}).get("rows"):
+        if last > 9999:
+            raise RuntimeError("свободные 4-значные внешние коды кончились (правило 24) — решает человек")
+        if (ms_api.get("/entity/product", {"filter": f"externalCode={last}", "limit": 1}).get("rows")
+                or ms_api.get("/entity/product",
+                              {"filter": f"externalCode={last};archived=true", "limit": 1}).get("rows")):
             continue
         out.append(str(last))
     return out

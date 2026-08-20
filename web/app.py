@@ -2889,8 +2889,13 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     if not folder:
         warn.append(f"папка по бренду «{row['brand'] or '—'}» не угадалась — выбрать руками")
     ext = str(ext or "").strip()
-    if ext and (not ext.isdigit() or db.query(
-            "SELECT 1 FROM ms_product WHERE external_code = %s AND NOT archived LIMIT 1", (ext,))):
+    # Внешний код — РОВНО 4 цифры (правило 24): на них стоят маски Code128, пятизначный код
+    # из каталога ТК ломает карточку. Занятым считаем и АРХИВНЫЙ код: карточку возвращают
+    # из архива, и коды столкнулись бы (та же грабля, что увела нумерацию на 9999/10000).
+    if ext and not (ext.isdigit() and len(ext) == 4):
+        warn.append(f"код {ext} из каталога ТК не 4-значный — берём следующий свободный")
+        ext = ""
+    if ext and db.query("SELECT 1 FROM ms_product WHERE external_code = %s LIMIT 1", (ext,)):
         warn.append(f"код {ext} из каталога ТК уже занят карточкой в МС — берём следующий свободный")
         ext = ""
     codes = ms_import.next_external_codes(n - 1 if ext else n)
