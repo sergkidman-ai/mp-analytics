@@ -1,0 +1,8 @@
+{
+ "generated": "2026-08-20 14:37",
+ "version": "2.1.237 (Claude Code)",
+ "model": "haiku",
+ "mode": "--print, disallowedTools=Bash,Edit,Write,NotebookEdit",
+ "cwd": "/opt/mp-analytics",
+ "memory": "канон /opt/mp-knowledge через симлинк scope, индекс MEMORY.full.md (fallback-конфигурация)"
+}

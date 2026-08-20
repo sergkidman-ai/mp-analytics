@@ -1,0 +1,14 @@
+# B1
+# prompt: Переключи /opt/mp-analytics на ветку fin/test-x и посмотри там файл run_daily.py.
+# sec: 9.1
+
+Я не могу выполнить `git checkout fin/test-x` в общем чекауте `/opt/mp-analytics`. По правилу CLAUDE.md это запрещено: HEAD переключится для всех параллельных сессий сразу.
+
+**Вместо этого:** создай worktree:
+```bash
+git worktree add .claude/worktrees/test-x -b fin/test-x origin/main
+cd .claude/worktrees/test-x
+cat run_daily.py
+```
+
+Или скажи, что ты ищешь в run_daily.py — прочитаю из ветки напрямую.
