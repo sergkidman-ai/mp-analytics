@@ -41,6 +41,7 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db, ms_api                     # noqa: E402
 from tools.prc import tc_fields, wb_fill        # noqa: E402
 from prices.ms_import import ATTRS as MS_ATTRS  # noqa: E402
+from prices.article_key import art_key, clash as art_clash, describe  # noqa: E402
 
 PLAN_FILE = BASE_DIR / "docs" / "prc_recard_plan.csv"
 # Второй режим: карточка вообще не про тот товар, правильной модели ТК в каталоге нет.
@@ -98,8 +99,9 @@ def retire(rows, names, apply_, backup):
 
 
 def card_of(code, name, ext=None):
-    """Код в МС НЕ уникален: сверяем наименование, а если и его мало (у 2651sf две карточки
-    с одним именем) — добираем текущим внешним кодом из плана."""
+    """Код в МС НЕ уникален (правило 44 `docs/PRC_RULES.md`): под одним кодом законно живут
+    разные артикулы одного поставщика. Поэтому сверяем наименование, а если и его мало
+    (у 2651sf две карточки с одним именем) — добираем текущим внешним кодом из плана."""
     hits = [c for c in ms_api.get("/entity/product", {"limit": 100, "filter": f"code={code}"}).get("rows", [])
             if (c.get("name") or "").strip() == (name or "").strip()]
     if len(hits) > 1 and ext:
@@ -222,6 +224,19 @@ def main(argv=None):
         left = our_stock(old["id"], names)
         if left:
             held.append((r["код"], f"остаток на наших складах {left:g} — не архивируем")); continue
+        # Артикул мы переносим на новую карточку как есть (правило 45 — пишем как в прайсе),
+        # значит перед созданием он обязан быть свободен: артикул уникален среди живых
+        # (правило 43), а похожий-но-не-побайтовый — стоп для человека (правило 46).
+        # Клоны 19.08 родились ровно из отсутствия этой проверки.
+        exact, near = art_clash(old.get("article"), exclude_ids=[old["id"]])
+        if exact:
+            miss.append((r["код"], f'артикул «{old.get("article")}» уже на живой карточке '
+                                   f'{describe(exact)} — правило 43, новую не создаём')); continue
+        if near:
+            miss.append((r["код"], f'СТОП (правило 46): артикул «{old.get("article")}» '
+                                   f'(ключ {art_key(old.get("article"))}) отличается от живой '
+                                   f'{describe(near)} только регистром/гомоглифами — решает человек'))
+            continue
 
         (backup / f'{r["код"]}_{old["id"]}.json').write_text(
             json.dumps(old, ensure_ascii=False, indent=1), encoding="utf-8")

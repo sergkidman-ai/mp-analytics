@@ -8,6 +8,7 @@ from prices.ms_import import family, wb_name, query, next_external_codes
 from prices import features as F
 from prices.catalog import compare, FEATURE_NAMES
 from prices.novelty import kind
+from prices.article_key import art_key, clash as art_clash, describe
 
 SIGNS = ("model_ok", "kind_ok", "brand_ok", "color_ok", "resource_ok", "chip_ok")
 
@@ -46,7 +47,6 @@ def ms_by(field, values):
 ecs   = {r["Внешний код"] for r in rows}
 by_ec   = ms_by("externalCode", ecs)
 by_code = ms_by("code", {r["Код"] for r in rows})
-by_art  = ms_by("article", {r["Артикул"] for r in rows})
 kin     = family(ecs)
 
 last = int(next_external_codes(1)[0]) - 1        # первый свободный минус один = последний занятый
@@ -75,11 +75,22 @@ for r in rows:
         problems.append(f"{tag}: внешнего кода нет в файле (последний занятый {last})")
     elif not live_ec:
         problems.append(f"{tag}: внешний код {ec} в МС свободен — это НОВЫЙ код (правило 25: вверх от {last})")
+    # Код повторяться МОЖЕТ (правило 44): под одним кодом живут разные артикулы одного
+    # поставщика. Проблема — не занятый код, а занятая ПАРА «код + артикул» и занятый артикул.
     if by_code.get(code):
-        problems.append(f"{tag}: код карточки занят — «{by_code[code][0].get('name')[:60]}»")
-    if by_art.get(art):
-        problems.append(f"{tag}: артикул {art} уже на карточке(ах) " +
-                        ", ".join(f"{c.get('code')}/вн.{c.get('externalCode')}" for c in by_art[art]))
+        twins = [c for c in by_code[code] if not c.get("archived")]
+        out.append(f"- Код занят у {len(twins)} карточек (норма, правило 44): " +
+                   ", ".join(f"«{c.get('article')}»" for c in twins[:6]))
+        if [c for c in twins if (c.get("article") or "") == art]:
+            problems.append(f"{tag}: пара «код {code} + артикул {art}» в МС уже есть — это дубль")
+    exact, near = art_clash(art)   # локальная `clash` ниже — другое, не путать
+    if exact:
+        problems.append(f"{tag}: артикул {art} уже на живой карточке (правило 43, уникален): "
+                        + describe(exact))
+    if near:
+        problems.append(f"{tag}: СТОП (правило 46) — в МС живёт похожий артикул, отличается только "
+                        f"регистром/буквой-двойником: {describe(near)}. Ключ {art_key(art)}. "
+                        f"Решает человек: тот же товар (дубль) или правда разные артикулы поставщика")
     fam = kin.get(ec, [])
     paths = sorted({c["path"] for c in fam if c["path"]})
     b128  = sorted({c["code128"] for c in fam if c["code128"]})

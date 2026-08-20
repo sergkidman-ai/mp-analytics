@@ -1,4 +1,9 @@
-# поток: prc — сверка созданных карточек чтением из МС с исходным шаблоном
+# поток: prc — сверка созданных карточек чтением из МС с исходным шаблоном.
+#
+# Карточку ищем по ПАРЕ «код + артикул» (правило 44 `docs/PRC_RULES.md`): код в МС повторяться
+# МОЖЕТ — под одним кодом живут разные артикулы одного поставщика (разные партии). Уникален
+# артикул (правило 43), он и разводит карточки под общим кодом. Раньше сверка шла по одному коду
+# и падала «карточек в МС 2» на законных соседях.
 import sys
 sys.path.insert(0, "/opt/mp-analytics")
 from dotenv import load_dotenv; load_dotenv("/opt/mp-analytics/.env")
@@ -15,14 +20,21 @@ for r in range(2, ws.max_row + 1):
     code = str(rec.get("Код") or "")
     if codes and code not in codes:
         continue
-    rows = ms_api.get("/entity/product", {"filter": f"code={code}", "limit": 2, "expand": "productFolder,uom,country"}).get("rows", [])
-    if len(rows) != 1:
-        print(f"  {code}: карточек в МС {len(rows)}"); bad += 1; continue
-    p = rows[0]
+    art = str(rec["Артикул"])
+    rows = ms_api.get("/entity/product", {"filter": f"code={code}", "limit": 100,
+                                          "expand": "productFolder,uom,country"}).get("rows", [])
+    same = [x for x in rows if (x.get("article") or "") == art]
+    if len(same) != 1:
+        print(f"  {code}: под кодом карточек {len(rows)}, из них с артикулом «{art}» — {len(same)}")
+        bad += 1; continue
+    if len(rows) > 1:                       # норма по правилу 44, но пусть будет видно
+        print(f"  {code}: код общий с {len(rows) - 1} карточкой(ами): " +
+              ", ".join(f"«{x.get('article')}»" for x in rows if x is not same[0]))
+    p = same[0]
     at = {a["name"]: a.get("value") for a in p.get("attributes", [])}
     bc = [b["code128"] for b in p.get("barcodes", []) if "code128" in b]
     want = {
-        "externalCode": str(rec["Внешний код"]), "article": str(rec["Артикул"]),
+        "externalCode": str(rec["Внешний код"]), "article": art,
         "name": rec["Наименование"], "weight": float(rec["Вес"] or 0),   # пустой вес в шаблоне → МС хранит 0.0
         "buyPrice": round(float(rec["Закупочная цена"]) * 100),
         "vat": 22, "uom": "шт", "country": "Китай",
