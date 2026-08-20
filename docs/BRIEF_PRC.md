@@ -33,7 +33,7 @@ UI `web/static/novelties.html` + роуты `/warehouse/novelties`, `/api/novelt
 
 ## Состояние на 20.08.2026 — поля ТК → карточки МС
 
-**Свод правил: `docs/PRC_TC_FIELDS_RULES.md`** (поля, идентификаторы, архив, создание карточки).
+**Свод правил: `docs/MS_CARD_FIELDS.md`** (поля, идентификаторы, архив, создание карточки).
 Коммит `a6ef417` в `main`. Скрипты: `tools/prc/tc_fields.py`, `tools/prc/recard.py`.
 
 Сделано (записано в МС 20.08.2026 по команде Сергея):

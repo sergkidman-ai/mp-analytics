@@ -34,7 +34,7 @@
     ./venv/bin/python tools/prc/tc_fields.py --from-db       # отчёт по слепку raw_moysklad_product
     ./venv/bin/python tools/prc/tc_fields.py --apply [--limit N] [--only 0011,0054] [--fields Чип]
 
-Свод правил по полям, архивации и созданию карточки — `docs/PRC_TC_FIELDS_RULES.md`.
+Свод правил по полям, архивации и созданию карточки — `docs/MS_CARD_FIELDS.md`.
 """
 import re
 import sys

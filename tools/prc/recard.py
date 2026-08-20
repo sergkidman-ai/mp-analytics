@@ -26,7 +26,7 @@
     ./venv/bin/python tools/prc/recard.py --apply         # весь список
     ./venv/bin/python tools/prc/recard.py --retire --apply # в архив без замены
 
-Свод правил по полям, архивации и созданию карточки — `docs/PRC_TC_FIELDS_RULES.md`.
+Свод правил по полям, архивации и созданию карточки — `docs/MS_CARD_FIELDS.md`.
 """
 import sys
 import json
@@ -39,7 +39,8 @@ BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BASE_DIR))
 
 from core import db, ms_api                     # noqa: E402
-from tools.prc import tc_fields                 # noqa: E402
+from tools.prc import tc_fields, wb_fill        # noqa: E402
+from prices.ms_import import ATTRS as MS_ATTRS  # noqa: E402
 
 PLAN_FILE = BASE_DIR / "docs" / "prc_recard_plan.csv"
 # Второй режим: карточка вообще не про тот товар, правильной модели ТК в каталоге нет.
@@ -128,6 +129,16 @@ def code128_of(code):
     return None
 
 
+_RAW = {}
+
+
+def _tc_raw():
+    """Сырьё каталога ТК под формулу «Названия WB» — один запрос на прогон."""
+    if not _RAW:
+        _RAW.update(wb_fill.tc_models())
+    return _RAW
+
+
 def new_body(old, code, tc_row):
     """Новая карточка = наполнение старой + правильный внешний код + поля из ТК."""
     keep = ("name", "description", "article", "vat", "vatEnabled", "useParentVat",
@@ -145,7 +156,18 @@ def new_body(old, code, tc_row):
     # Прочие доп. поля карточки (Код поставщика, Название WB, Гарантия, габариты, ячейки…)
     # переносим ЦЕЛИКОМ: новая карточка — тот же товар, теряться им нельзя.
     fresh, _ = tc_fields.plan_card({**old, "externalCode": code, "attributes": []}, tc_row)
-    body["attributes"] = [a for a in (old.get("attributes") or []) if a["name"] not in tc_fields.ATTRS]
+    # «Название WB» НЕ переносим: оно собирается по формуле из каталога ТК под НОВЫЙ внешний
+    # код (`wb_fill.compose`, правило 41 в docs/PRC_RULES.md). У старой карточки оно от прежнего,
+    # неверного кода — перенести значит потянуть ошибку за собой.
+    body["attributes"] = [a for a in (old.get("attributes") or [])
+                          if a["name"] not in tc_fields.ATTRS and a["name"] != wb_fill.WB_ATTR]
+    wb, _why = wb_fill.compose(_tc_raw().get(code) or {})
+    if wb:
+        aid, atype = MS_ATTRS[f"Доп. поле: {wb_fill.WB_ATTR}"]
+        body["attributes"].append({
+            "meta": {"href": f"{ms_api.BASE}/entity/product/metadata/attributes/{aid}",
+                     "type": "attributemetadata", "mediaType": "application/json"},
+            "type": atype, "value": wb})
     body["attributes"] += [{
         "meta": {"href": f"{ms_api.BASE}/entity/product/metadata/attributes/{tc_fields.ATTRS[f][0]}",
                  "type": "attributemetadata", "mediaType": "application/json"},
