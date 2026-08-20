@@ -1,0 +1,173 @@
+[
+ {
+  "id": "7e0a6105-9bd1-11f1-0a80-0cbf002e01df",
+  "code": "1316bs",
+  "article": "BS-KX-FAD473A7",
+  "externalCode": "1316",
+  "archived": false,
+  "name": "Картридж Panasonic KX-FAD473А7 барабан для KX-MB2110/2117/2130/2137/2177, 10000 стр.,Blossom",
+  "barcodes": [
+   {
+    "ean8": "20148201"
+   },
+   {
+    "code128": "DSXDC0001316"
+   }
+  ],
+  "twins": [
+   "1fd85946-9c13-11ee-0a80-061100057bc7"
+  ]
+ },
+ {
+  "id": "7e4e5260-9bd1-11f1-0a80-1eaf002d81a9",
+  "code": "3561bs",
+  "article": "BS-PFI-120C",
+  "externalCode": "3561",
+  "archived": false,
+  "name": "Картридж PFI-120C (2886C001) BS",
+  "barcodes": [
+   {
+    "ean8": "20039349"
+   },
+   {
+    "code128": "DSOKA0003561"
+   }
+  ],
+  "twins": [
+   "2e012150-1593-11ee-0a80-001e002ccdd7"
+  ]
+ },
+ {
+  "id": "7e8fa819-9bd1-11f1-0a80-1a5f002e699c",
+  "code": "5385cs",
+  "article": "CS-C055HC",
+  "externalCode": "5385",
+  "archived": false,
+  "name": "Картридж 055H C (3019C002) CS",
+  "barcodes": [
+   {
+    "ean8": "20439590"
+   },
+   {
+    "code128": "DSTXZ0005385"
+   }
+  ],
+  "twins": [
+   "df34e096-04b5-11ec-0a80-094a003d061b"
+  ]
+ },
+ {
+  "id": "7ec2f4b3-9bd1-11f1-0a80-16ba002e57c8",
+  "code": "0654cs",
+  "article": "CS-PH7760M",
+  "externalCode": "0654",
+  "archived": false,
+  "name": "Картридж лазерный Cactus 106R01161 CS-PH7760М пурпурный бар.в компл. (25000стр.) для Xerox Phaser 7760/7760dn/7760dx/7760dxf",
+  "barcodes": [
+   {
+    "ean8": "20177218"
+   },
+   {
+    "code128": "DSDIX0000654"
+   }
+  ],
+  "twins": [
+   "a4142de1-2554-11ee-0a80-0b0c000a4545"
+  ]
+ },
+ {
+  "id": "7efae98b-9bd1-11f1-0a80-1eaf002d81d2",
+  "code": "5742cs",
+  "article": "CS-THM247",
+  "externalCode": "5742",
+  "archived": false,
+  "name": "Картридж лазерный Cactus CS-THМ247 THМ247 черный (13000стр.) для Катюша Р247/М247",
+  "barcodes": [
+   {
+    "ean8": "20449797"
+   },
+   {
+    "code128": "DSWMH0005742"
+   }
+  ],
+  "twins": [
+   "48c2e864-0663-11f1-0a80-166b0027e9bf"
+  ]
+ },
+ {
+  "id": "7f4aa5b0-9bd1-11f1-0a80-06a300070ddf",
+  "code": "2412cs",
+  "article": "CS-TK8115C",
+  "externalCode": "2412",
+  "archived": false,
+  "name": "Картридж лазерный Cactus CS-TK8115С голубой (6000стр.) для Kyocera Mita Ecosys M8124cidn/M8130cidn",
+  "barcodes": [
+   {
+    "ean8": "20124090"
+   },
+   {
+    "code128": "DSDBH0002412"
+   }
+  ],
+  "twins": [
+   "6dd46a0b-443a-11eb-0a80-08500009fdbf"
+  ]
+ },
+ {
+  "id": "7f939bab-9bd1-11f1-0a80-005c002dd337",
+  "code": "2401gp",
+  "article": "GP_TK-5270C_C_WC",
+  "externalCode": "2401",
+  "archived": false,
+  "name": "Картридж TK-5270C с бункером отработанного тонера GP",
+  "barcodes": [
+   {
+    "ean8": "20134877"
+   },
+   {
+    "code128": "DSRCX0002401"
+   }
+  ],
+  "twins": [
+   "5da4750f-3baa-11f0-0a80-15c80008a30b"
+  ]
+ },
+ {
+  "id": "7fd38c29-9bd1-11f1-0a80-09f8002e4f35",
+  "code": "2401pl",
+  "article": "PL_TK-5270C_C_WC",
+  "externalCode": "2401",
+  "archived": false,
+  "name": "Тонер-туба TK-5270C Cyan 6000 копий ProfiLine",
+  "barcodes": [
+   {
+    "ean8": "20124953"
+   },
+   {
+    "code128": "DSRCX0002401"
+   }
+  ],
+  "twins": [
+   "5d5e5d91-3baa-11f0-0a80-15c80008a2e3"
+  ]
+ },
+ {
+  "id": "800c7982-9bd1-11f1-0a80-196f002cdd71",
+  "code": "2030cs",
+  "article": "CS-TN321C",
+  "externalCode": "2030",
+  "archived": false,
+  "name": "Картридж TN-321C голубой CS",
+  "barcodes": [
+   {
+    "ean8": "20117948"
+   },
+   {
+    "code128": "DSLIQ0002030"
+   }
+  ],
+  "twins": [
+   "3d743b98-1e4b-11eb-0a80-05d2000865e9"
+  ]
+ }
+]
