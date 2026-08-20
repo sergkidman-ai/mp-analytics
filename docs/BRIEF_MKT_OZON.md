@@ -175,7 +175,8 @@
     `docs/experiments/cohorts/ACCOUNT_STABLE_CORE_2026-08-20.csv`, состав не менять).
     Тесты: `tests/test_ozon_rollback_filter.py`, `tests/test_ozon_exp_itt.py` — 19 шт.
     Сверки: 21–24.08 G6 ежедневно · 26.08 E6 · 02.09 E7 · 08.09 E5 · 09.09 E8.
-    E3 = **VOID**. Отчёт этапа: `scratchpad/mkt_ozon_measurement_safety_v1.md`.
+    E3 = **VOID**. Коммит P0: `95996f7` (23 файла). Отчёт этапа:
+    `scratchpad/mkt_ozon_measurement_safety_v1.md`.
 22. **Ждёт «да» Сергея:** возврат трёх связок, снятых дефектом фильтра отката 18.08 —
     `10659516/863418800` 12→19,33 · `10626733/1658970308` 18→24 · `12704286/864225280` 8→12,89.
     Сухой прогон: `docs/reports/ozon_e7b_restore_dryrun_2026-08-20.md`, применение —
