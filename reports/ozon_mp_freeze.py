@@ -93,6 +93,17 @@ def _next_month(y, m):
     return (y + 1, 1) if m == 12 else (y, m + 1)
 
 
+def _det_arr(a, ln, code, n):
+    """Массив помесячных значений подстроки детализации; создаётся нулями на всю историю."""
+    d = a.setdefault("detail", {}).setdefault(ln, {})
+    arr = d.get(code)
+    if arr is None:
+        arr = d[code] = [0] * n
+    while len(arr) < n:
+        arr.append(0)
+    return arr
+
+
 def _slot(hist, key):
     """Индекс месяца по period_key; если нет — создаёт слот, расширяя ВСЕ параллельные массивы."""
     keys = hist["period_keys"]
@@ -108,6 +119,9 @@ def _slot(hist, key):
         a["split"].append(None)
         for k in _DERIVED:
             a[k].append(0)
+        for codes in (a.get("detail") or {}).values():
+            for arr in codes.values():
+                arr.append(0)
     return i
 
 
@@ -122,14 +136,18 @@ def _reconciled(hist):
 
 
 def _estimate_record(y, m, accounts=None):
-    """per-acc запись месяца из ТРАНЗАКЦИЙ (оценка): 10 строк + split=None + производные."""
+    """per-acc запись месяца из ТРАНЗАКЦИЙ (оценка): 10 строк + split=None + производные
+    + detail (разрез 4 расходных строк по услугам/операциям Ozon)."""
     out = {}
     for acc in (accounts if accounts is not None else ACCOUNTS):
         mags = R.balance(acc, y, m)
+        det = R.balance_detail(acc, y, m)
         orders, retc = R.op_counts(acc, y, m)
         cogs = R._cogs(acc, y, m)
         d = R._derive(mags, orders, retc, cogs)
         out[acc] = {"lines": {k: round(mags[k]) for k in _BAL_KEYS}, "split": None,
+                    "detail": {ln: {c: round(v) for c, v in det.get(ln, {}).items()}
+                               for ln in R.DETAIL_LINES},
                     "cogs": round(cogs), "net": round(d["net"]), "margin": round(d["margin"], 1),
                     "orders": orders, "returns_cnt": retc}
     return out
@@ -143,6 +161,19 @@ def _put(hist, i, per_acc):
         a["split"][i] = rec["split"]
         for k in _DERIVED:
             a[k][i] = rec[k]
+        _put_detail(hist, a, i, rec.get("detail"))
+
+
+def _put_detail(hist, a, i, detail):
+    """Записать разрез месяца i. Коды, которых в этом месяце нет, обнуляются (а не тянут
+    прошлое значение) — иначе повторная заморозка оставила бы призрак старой услуги."""
+    if not detail:
+        return
+    n = len(hist["period_keys"])
+    for ln, codes in detail.items():
+        known = a.setdefault("detail", {}).setdefault(ln, {})
+        for code in set(known) | set(codes):
+            _det_arr(a, ln, code, n)[i] = codes.get(code, 0)
 
 
 # ---------- freeze / reconcile (мутируют hist in-memory) ----------
@@ -270,6 +301,38 @@ def refresh_cogs(keys=None):
         return changed
 
 
+def refresh_detail(keys=None):
+    """Пересобрать в статике ТОЛЬКО разрез расходных строк по услугам (detail).
+
+    Безопасно для сверённых месяцев: сверка с Отчётом о реализации переписывает лишь
+    Продажи/Возвраты/Вознаграждение, а Доставка/Услуги партнёров/Реклама/Другие всегда остаются
+    оценкой по транзакциям — тем же источником, из которого считается разрез.
+    keys — список 'YYYY-MM' (по умолчанию все замороженные). → список изменённых (acc, key)."""
+    with _lock():
+        hist = _load()
+        todo = [k for k in hist["period_keys"] if keys is None or k in keys]
+        changed = []
+        for key in todo:
+            y, m = int(key[:4]), int(key[5:7])
+            i = hist["period_keys"].index(key)
+            for acc in ACCOUNTS:
+                a = hist["accounts"][acc]
+                det = R.balance_detail(acc, y, m)
+                new = {ln: {c: round(v) for c, v in det.get(ln, {}).items()}
+                       for ln in R.DETAIL_LINES}
+                old = {ln: {c: arr[i] for c, arr in ((a.get("detail") or {}).get(ln) or {}).items()
+                            if arr[i]} for ln in R.DETAIL_LINES}
+                if old == {ln: {c: v for c, v in new[ln].items() if v} for ln in R.DETAIL_LINES}:
+                    continue
+                _put_detail(hist, a, i, new)
+                changed.append((acc, key))
+        if changed:
+            _backup()
+            _save_atomic(hist)
+            P.render(hist)
+        return changed
+
+
 def freeze_estimate(y, m):
     """Ручная заморозка одного месяца (CLI/тест)."""
     with _lock():
@@ -320,6 +383,9 @@ if __name__ == "__main__":
     elif cmd == "reconcile" and len(args) >= 2:
         y, m = map(int, args[1].split("-"))
         print("reconciled:", reconcile_final(y, m))
+    elif cmd == "detail":
+        ch = refresh_detail(args[1:] or None)
+        print(f"detail обновлён: {len(ch)} (аккаунт, месяц)")
     elif cmd == "cogs":
         print("обновлено:", refresh_cogs(args[1:] or None))
     elif cmd == "status":

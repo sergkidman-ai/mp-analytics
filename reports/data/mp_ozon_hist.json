@@ -192,7 +192,413 @@
     62,
     79,
     79
-   ]
+   ],
+   "detail": {
+    "delivery": {
+     "OP:OperationCourierArrangement": [
+      12600,
+      12600,
+      15400,
+      16100,
+      16100,
+      16100,
+      17430
+     ],
+     "MarketplaceServiceItemReturnNotDelivToCustomer": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "MarketplaceServiceItemDropoffSC": [
+      60,
+      20,
+      20,
+      0,
+      0,
+      40,
+      180
+     ],
+     "OP:OperationCourierPickUpDelivery": [
+      26234,
+      22542,
+      27607,
+      28856,
+      28892,
+      26778,
+      26266
+     ],
+     "MarketplaceServiceItemReturnAfterDelivToCustomer": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "MarketplaceServiceItemDropoffPVZ": [
+      2730,
+      2850,
+      3850,
+      1940,
+      1100,
+      190,
+      0
+     ],
+     "MarketplaceServiceItemDropoffPickup": [
+      17760,
+      16940,
+      20440,
+      18280,
+      19100,
+      21020,
+      18339
+     ],
+     "OP:MarketplaceAgencyFeeAggregator3plRFBS": [
+      1415,
+      1920,
+      1800,
+      2580,
+      2580,
+      3000,
+      2460
+     ],
+     "MarketplaceServiceItemReturnFlowLogistic": [
+      20518,
+      22066,
+      26448,
+      10939,
+      8676,
+      9863,
+      10852
+     ],
+     "MarketplaceServiceItemReturnPartGoodsCustomer": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "MarketplaceServiceItemDirectFlowLogistic": [
+      525951,
+      509416,
+      639717,
+      342184,
+      282118,
+      262604,
+      221422
+     ],
+     "MarketplaceServiceItemDeliveryToHandoverPlaceOzon": [
+      0,
+      0,
+      0,
+      5850,
+      8225,
+      9050,
+      7025
+     ]
+    },
+    "partners": {
+     "MarketplaceServiceItemRedistributionDropOffApvz": [
+      6540,
+      5720,
+      8060,
+      5280,
+      6320,
+      2980,
+      1830
+     ],
+     "MarketplaceRedistributionOfAcquiringOperation": [
+      50568,
+      53344,
+      60656,
+      75574,
+      60053,
+      60581,
+      61041
+     ],
+     "MarketplaceServiceItemRedistributionLastMileCourier": [
+      16646,
+      15210,
+      16785,
+      9596,
+      11459,
+      10708,
+      10290
+     ],
+     "MarketplaceServiceItemTemporaryStorageRedistribution": [
+      1275,
+      234,
+      147,
+      531,
+      2241,
+      804,
+      303
+     ],
+     "OP:MarketplaceServiceEasyReturnRfbs": [
+      540,
+      240,
+      122,
+      0,
+      214,
+      244,
+      396
+     ],
+     "MarketplaceServiceItemRedistributionReturnsPVZ": [
+      585,
+      570,
+      675,
+      630,
+      435,
+      600,
+      480
+     ],
+     "OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": [
+      48012,
+      65238,
+      65300,
+      91181,
+      109404,
+      117861,
+      86347
+     ],
+     "MarketplaceServiceItemRedistributionLastMilePVZ": [
+      -250,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "MarketplaceServiceItemPackageRedistribution": [
+      0,
+      0,
+      160,
+      100,
+      80,
+      100,
+      240
+     ],
+     "ItemAgentServiceStarsMembership": [
+      0,
+      0,
+      0,
+      0,
+      48328,
+      152410,
+      159900
+     ]
+    },
+    "promo": {
+     "OP:OperationPointsForReviews": [
+      56554,
+      35853,
+      37039,
+      6954,
+      0,
+      0,
+      0
+     ],
+     "OP:OperationMarketplaceCostPerClick": [
+      363635,
+      274502,
+      190207,
+      212137,
+      196415,
+      172519,
+      169648
+     ],
+     "MarketplaceServiceItemElectronicServicesPremiumCashbackIndividualPoints": [
+      11200,
+      12232,
+      15586,
+      9358,
+      136,
+      0,
+      0
+     ],
+     "OP:OperationSubscriptionPremiumPlus": [
+      24990,
+      24990,
+      24990,
+      24990,
+      24990,
+      24990,
+      0
+     ],
+     "OP:OperationPromotionWithCostPerOrder": [
+      0,
+      0,
+      4889,
+      406178,
+      378939,
+      406566,
+      541441
+     ],
+     "OP:OperationMarketplaceAcceleratedProductReviews": [
+      0,
+      0,
+      0,
+      27377,
+      24302,
+      87755,
+      73810
+     ],
+     "PremiumMembershipCommission": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      25848,
+      261188
+     ],
+     "OP:OperationSubscriptionPremiumPro": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      24990,
+      24990
+     ]
+    },
+    "penalty": {
+     "OP:DefectRateCancellation": [
+      3718,
+      588,
+      -100,
+      0,
+      0,
+      0,
+      0
+     ],
+     "OP:DefectRateDetailed": [
+      46242,
+      24559,
+      207,
+      0,
+      0,
+      0,
+      0
+     ],
+     "MarketplaceServiceVolumeWeightCharacsProcessing": [
+      150,
+      0,
+      300,
+      2100,
+      600,
+      1650,
+      0
+     ],
+     "OP:DefectRateShipmentDelay": [
+      20952,
+      6858,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "OP:DefectRateWrongItem": [
+      603,
+      669,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "OP:DefectFineShipmentDelayRated": [
+      0,
+      4405,
+      43283,
+      62807,
+      101778,
+      92508,
+      90986
+     ],
+     "OP:DefectFineWrongItem": [
+      0,
+      150,
+      761,
+      1969,
+      0,
+      600,
+      1099
+     ],
+     "MarketplaceServiceItemDisposalDetailed": [
+      0,
+      30,
+      0,
+      0,
+      437,
+      104,
+      25
+     ],
+     "OP:DefectFineShipmentDelay": [
+      0,
+      2706,
+      10771,
+      1475,
+      17876,
+      15155,
+      4442
+     ],
+     "OP:DefectFineCancellation": [
+      0,
+      0,
+      2471,
+      1220,
+      5168,
+      750,
+      2626
+     ],
+     "MarketplaceServiceItemPackageMaterialsProvision": [
+      0,
+      0,
+      80,
+      50,
+      40,
+      50,
+      120
+     ],
+     "OP:DefectFineShipmentDelayRatedCancelled": [
+      0,
+      0,
+      -751,
+      -1528,
+      -2188,
+      -2186,
+      -1753
+     ],
+     "OP:OperationMarketplaceServiceEarlyPaymentAccrual": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      114194
+     ],
+     "OP:OperationMarketplaceFlexiblePaymentSchedule": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      18795
+     ]
+    }
+   }
   },
   "oz_acc2": {
    "lines": {
@@ -377,7 +783,368 @@
     38,
     18,
     27
-   ]
+   ],
+   "detail": {
+    "delivery": {
+     "MarketplaceServiceItemReturnAfterDelivToCustomer": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "MarketplaceServiceItemDropoffPVZ": [
+      1500,
+      1610,
+      2310,
+      5140,
+      4680,
+      3600,
+      3310
+     ],
+     "OP:MarketplaceAgencyFeeAggregator3plRFBS": [
+      135,
+      120,
+      200,
+      240,
+      820,
+      860,
+      620
+     ],
+     "MarketplaceServiceItemReturnNotDelivToCustomer": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "MarketplaceServiceItemReturnFlowLogistic": [
+      2787,
+      1731,
+      2314,
+      4242,
+      5114,
+      1951,
+      2925
+     ],
+     "MarketplaceServiceItemReturnPartGoodsCustomer": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "MarketplaceServiceItemDirectFlowLogistic": [
+      43604,
+      38123,
+      63655,
+      105203,
+      80190,
+      61482,
+      47971
+     ],
+     "MarketplaceServiceItemDeliveryToHandoverPlaceOzon": [
+      0,
+      0,
+      0,
+      3100,
+      3425,
+      2450,
+      2575
+     ]
+    },
+    "partners": {
+     "MarketplaceServiceItemRedistributionDropOffApvz": [
+      3000,
+      3220,
+      4620,
+      10280,
+      9360,
+      7200,
+      4950
+     ],
+     "MarketplaceServiceItemRedistributionLastMileCourier": [
+      1661,
+      1749,
+      2102,
+      3567,
+      3826,
+      3189,
+      2589
+     ],
+     "MarketplaceServiceItemTemporaryStorageRedistribution": [
+      1302,
+      0,
+      96,
+      45,
+      192,
+      102,
+      48
+     ],
+     "MarketplaceRedistributionOfAcquiringOperation": [
+      4466,
+      5121,
+      15320,
+      20063,
+      14209,
+      14052,
+      12570
+     ],
+     "ItemAgentServiceStarsMembership": [
+      4536,
+      5557,
+      9093,
+      17770,
+      41683,
+      41197,
+      37300
+     ],
+     "MarketplaceServiceItemRedistributionReturnsPVZ": [
+      345,
+      30,
+      75,
+      135,
+      300,
+      180,
+      135
+     ],
+     "OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": [
+      4208,
+      3383,
+      6037,
+      7581,
+      30960,
+      36689,
+      20824
+     ],
+     "MarketplaceServiceItemPackageRedistribution": [
+      0,
+      0,
+      10,
+      30,
+      110,
+      30,
+      60
+     ],
+     "OP:MarketplaceServiceEasyReturnRfbs": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      152
+     ]
+    },
+    "promo": {
+     "OP:OperationMarketplaceCostPerClick": [
+      67483,
+      57304,
+      93702,
+      120542,
+      125692,
+      82234,
+      62610
+     ],
+     "MarketplaceServiceItemElectronicServicesPremiumCashbackIndividualPoints": [
+      1344,
+      1763,
+      2597,
+      3476,
+      169,
+      0,
+      0
+     ],
+     "OP:OperationPointsForReviews": [
+      4172,
+      3221,
+      3294,
+      1610,
+      0,
+      0,
+      0
+     ],
+     "OP:OperationSubscriptionPremium": [
+      9990,
+      9990,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "OP:OperationSubscriptionPremiumPlus": [
+      0,
+      0,
+      24990,
+      24990,
+      24990,
+      24990,
+      24990
+     ],
+     "OP:OperationPromotionWithCostPerOrder": [
+      0,
+      0,
+      96100,
+      141953,
+      123682,
+      106724,
+      97783
+     ],
+     "OP:OperationMarketplaceAcceleratedProductReviews": [
+      0,
+      0,
+      0,
+      32062,
+      8784,
+      17678,
+      15555
+     ]
+    },
+    "penalty": {
+     "OP:DefectRateCancellation": [
+      5659,
+      3710,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "OP:DefectRateDetailed": [
+      4734,
+      4337,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "MarketplaceServiceVolumeWeightCharacsProcessing": [
+      1800,
+      0,
+      0,
+      900,
+      1500,
+      1350,
+      600
+     ],
+     "MarketplaceServiceItemDisposalDetailed": [
+      300,
+      25,
+      150,
+      0,
+      0,
+      150,
+      0
+     ],
+     "OP:DefectRateShipmentDelay": [
+      5612,
+      6012,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "OP:DefectFineShipmentDelayRated": [
+      0,
+      100,
+      8723,
+      29824,
+      31559,
+      23933,
+      20287
+     ],
+     "OP:DefectFineShipmentDelay": [
+      0,
+      691,
+      4960,
+      4926,
+      19918,
+      4116,
+      3005
+     ],
+     "OP:DefectFineCancellation": [
+      0,
+      0,
+      1119,
+      4083,
+      4419,
+      795,
+      188
+     ],
+     "OP:DefectFineWrongItem": [
+      0,
+      0,
+      150,
+      0,
+      0,
+      896,
+      0
+     ],
+     "MarketplaceServiceItemPackageMaterialsProvision": [
+      0,
+      0,
+      5,
+      15,
+      55,
+      15,
+      30
+     ],
+     "OP:DefectFineShipmentDelayRatedCancelled": [
+      0,
+      0,
+      -100,
+      -53,
+      -852,
+      -233,
+      -2695
+     ],
+     "OP:DefectFineIncomplete": [
+      0,
+      0,
+      0,
+      0,
+      776,
+      0,
+      0
+     ],
+     "OP:OperationMarketplaceServiceEarlyPaymentAccrual": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      23935
+     ],
+     "OP:OperationMarketplaceFlexiblePaymentSchedule": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      8296
+     ],
+     "OP:InsuranceServiceSellerItem": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1129
+     ]
+    }
+   }
   }
  },
  "period_keys": [
