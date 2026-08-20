@@ -142,8 +142,11 @@ def new_body(old, code, tc_row):
     bar = code128_of(code)
     if bar:
         body["barcodes"].append({"code128": bar})
+    # Прочие доп. поля карточки (Код поставщика, Название WB, Гарантия, габариты, ячейки…)
+    # переносим ЦЕЛИКОМ: новая карточка — тот же товар, теряться им нельзя.
     fresh, _ = tc_fields.plan_card({**old, "externalCode": code, "attributes": []}, tc_row)
-    body["attributes"] = [{
+    body["attributes"] = [a for a in (old.get("attributes") or []) if a["name"] not in tc_fields.ATTRS]
+    body["attributes"] += [{
         "meta": {"href": f"{ms_api.BASE}/entity/product/metadata/attributes/{tc_fields.ATTRS[f][0]}",
                  "type": "attributemetadata", "mediaType": "application/json"},
         "type": tc_fields.ATTRS[f][1], "value": v} for f, v in fresh.items()]
