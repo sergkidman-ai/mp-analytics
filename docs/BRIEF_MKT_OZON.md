@@ -154,3 +154,30 @@
 19. **Ждём «да»:** поднять ставки до новых потолков на A+B (acc1 361 SKU, acc2 149 SKU),
     оценка 45–50 тыс ₽/нед против нынешних 30 — внутри одобренного ДРР 3 % (63 тыс ₽/нед).
     Отчёт: https://claude.ai/code/artifact/2f42f3fc-264a-47f2-9b59-f04b9c4b6e00
+
+20. **20.08 — измерение и безопасность (P0).** Откат разгона чинён: решение принимается по SKU
+    аккаунта, а не по связке campaign×sku (один заказ Ozon атрибутирует одной кампании, поэтому
+    продающийся товар выглядел нулевым в соседних), плюс запрет отправки при отстающей витрине.
+    Тесты `tests/test_ozon_rollback_filter.py`. Эксперименты E5–E8 описаны контрактами в
+    `docs/experiments/ozon_experiments.json`, состав групп — в `docs/experiments/cohorts/`,
+    оценка — `tools/ozon_exp_eval.py` (только SELECT): `snapshot | balance | eval --exp | g6`.
+    E3 (214 решений от 17.08) — **VOID, не применять**. Календарь сверок и пороги G6 —
+    `docs/experiments/ozon_check_calendar.md`; расписание не включено, запуск руками.
+    Отчёт: `scratchpad/mkt_ozon_measurement_safety_v1.md`.
+
+21. **20.08 — P0 закрыт.** ITT: назначенный SKU не выбывает из группы. E8 — SKU `930641253`
+    остаётся в A с `applied=false` (Ozon отклонил ставку), per-protocol только вторично
+    (`eval --mode pp`). E6: 1 326/142/138 — это связки, 1 146/93 — SKU, потерь нет
+    (`docs/reports/ozon_exp_E6_reconciliation_2026-08-20.md`); наличие для acc2 BLOCKED —
+    аккаунт не связан с МС. G6 двухуровневый: хвост YELLOW >15 % / RED >25 %, показы ядра
+    YELLOW <90 % / RED <70 %; ядра считаются раздельно — `E5_CORE_SAMPLE` (40 SKU, это выборка
+    E5, а не ядро аккаунта) и `ACCOUNT_STABLE_CORE` (81 SKU, зафиксирован по данным до 19.08,
+    `docs/experiments/cohorts/ACCOUNT_STABLE_CORE_2026-08-20.csv`, состав не менять).
+    Тесты: `tests/test_ozon_rollback_filter.py`, `tests/test_ozon_exp_itt.py` — 19 шт.
+    Сверки: 21–24.08 G6 ежедневно · 26.08 E6 · 02.09 E7 · 08.09 E5 · 09.09 E8.
+    E3 = **VOID**. Отчёт этапа: `scratchpad/mkt_ozon_measurement_safety_v1.md`.
+22. **Ждёт «да» Сергея:** возврат трёх связок, снятых дефектом фильтра отката 18.08 —
+    `10659516/863418800` 12→19,33 · `10626733/1658970308` 18→24 · `12704286/864225280` 8→12,89.
+    Сухой прогон: `docs/reports/ozon_e7b_restore_dryrun_2026-08-20.md`, применение —
+    `venv/bin/python tools/ozon_e7b_restore.py --apply` (событие `E7B_RESTORE_AFTER_E4_FILTER_BUG`,
+    ни в одну когорту E5–E8 эти SKU не входят).

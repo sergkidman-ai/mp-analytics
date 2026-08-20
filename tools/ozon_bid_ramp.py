@@ -196,13 +196,51 @@ perf AS (
   SELECT campaign_id, sku::text sku, sum(money_spent) spend, sum(orders_qty) ord,
          sum(orders_money) rev, sum(clicks) clicks, sum(views) views
   FROM mkt_ozon_ads_sku_daily WHERE account=%(acc)s AND stat_date >= %(since)s
-  GROUP BY 1,2)
+  GROUP BY 1,2),
+-- Заказы того же SKU во ВСЕХ кампаниях. Товар стоит в нескольких кампаниях сразу, заказ
+-- достаётся одной из них; считать конвертером только связку = откатывать продающийся товар
+-- в его «молчащей» кампании. Проверено 19.08.2026: из 21 такого SKU 17 имели заказ в другой
+-- кампании (409 325 ₽ выручки, ДРР 2,6 %%) и были откачены по ошибке.
+-- Знак процента в комментарии обязан быть удвоен: psycopg2 разбирает %% во ВСЁМ тексте
+-- запроса, включая комментарии, и одиночный знак процента ломает выполнение («argument formats can't
+-- be mixed»). Проверено тестом tests/test_ozon_rollback_filter.py.
+perf_sku AS (
+  SELECT sku::text sku, sum(orders_qty) ord_sku, sum(orders_money) rev_sku
+  FROM mkt_ozon_ads_sku_daily WHERE account=%(acc)s AND stat_date >= %(since)s
+  GROUP BY 1)
 SELECT f.campaign_id::text campaign_id, f.sku, f.bid_before::float pre_bid, b.bid::float cur_bid,
        coalesce(p.spend,0)::float spend, coalesce(p.ord,0)::float ord, coalesce(p.rev,0)::float rev,
-       coalesce(p.clicks,0)::int clicks, coalesce(p.views,0)::int views
+       coalesce(p.clicks,0)::int clicks, coalesce(p.views,0)::int views,
+       coalesce(ps.ord_sku,0)::float ord_sku, coalesce(ps.rev_sku,0)::float rev_sku
 FROM first_step f JOIN last_bid b USING (campaign_id, sku)
 LEFT JOIN perf p ON p.campaign_id=f.campaign_id AND p.sku=f.sku
+LEFT JOIN perf_sku ps ON ps.sku=f.sku
 """
+
+
+def stale_stats(last_stat_date, today, max_lag_days=1):
+    """Витрина протухла: свежий день статистики старше вчерашнего.
+
+    Заказ приходит в витрину днём позже показа, и откат, запущенный до загрузки последнего
+    дня, видит конвертера нулевым. Пока витрина отстаёт — отправлять откат нельзя."""
+    return last_stat_date is None or (today - last_stat_date).days > max_lag_days
+
+
+def split_converters(rows):
+    """Разделить когорту отката на «нулевых» и конвертеров ПО SKU, а не по связке campaign×sku.
+
+    Один SKU стоит в нескольких кампаниях сразу, а заказ Ozon атрибутирует ровно одной из них.
+    Фильтр по связке (`ord`) считает товар нулевым в каждой «молчащей» кампании и откатывает
+    ставку продающемуся товару. Проверено 19.08.2026 на откате E4: так были откачены 21 SKU
+    с 409 325 ₽ рекламной выручки. Единица решения — SKU по аккаунту (`ord_sku`).
+
+    Возвращает (zero, conv, cross): cross — связки, где заказов нет именно тут, но SKU продаёт
+    в другой кампании; ровно те, что раньше уходили в откат по ошибке.
+    """
+    zero = [r for r in rows if float(r.get('ord_sku') or 0) == 0]
+    conv = [r for r in rows if float(r.get('ord_sku') or 0) > 0]
+    cross = [r for r in conv if float(r.get('ord') or 0) == 0]
+    return zero, conv, cross
 
 
 def cmd_rollback(acc, apply_, since='2026-08-08', week=None, batch=100):
@@ -214,8 +252,7 @@ def cmd_rollback(acc, apply_, since='2026-08-08', week=None, batch=100):
     today = dt.date.today()
     week = week or str(today - dt.timedelta(days=today.weekday()))
     rows = db.query(ROLLBACK_SQL, {'acc': acc, 'since': since})
-    zero = [r for r in rows if float(r['ord'] or 0) == 0]
-    conv = [r for r in rows if float(r['ord'] or 0) > 0]
+    zero, conv, cross = split_converters(rows)
     plan = {}
     for r in zero:
         cur, pre = float(r['cur_bid']), float(r['pre_bid'])
@@ -228,10 +265,19 @@ def cmd_rollback(acc, apply_, since='2026-08-08', week=None, batch=100):
     spend = sum(float(r['spend'] or 0) for r in zero)
     print(f'откат разгона {acc}: когорта {len(rows)} пар, без заказов с {since} — {len(zero)}, '
           f'конвертеров {len(conv)} (не трогаем)')
+    cross_rev = {r['sku']: float(r['rev_sku'] or 0) for r in cross}
+    print(f'  из них {len(cross)} связок держим только потому, что SKU продаёт в ДРУГОЙ кампании: '
+          f'{len(cross_rev)} SKU, {sum(cross_rev.values()):,.0f} ₽ рекламной выручки '
+          f'(по старому фильтру они уходили в откат)')
     print(f'к отправке {total} пар в {len(plan)} кампаниях: сумма ставок {s_cur:,.0f} → {s_pre:,.0f} ₽ '
           f'(−{s_cur - s_pre:,.0f}); их расход за окно {spend:,.0f} ₽'
           + ('' if apply_ else '   [DRY-RUN, на площадку ничего не уходит]'))
     if not apply_:
+        return
+    last = db.query("""SELECT max(stat_date) d FROM mkt_ozon_ads_sku_daily WHERE account=%s""", (acc,))[0]['d']
+    if stale_stats(last, today):
+        print(f'ОТКАТ НЕ ОТПРАВЛЕН: витрина отстаёт (свежий день {last}, сегодня {today}). '
+              f'Сначала догнать статистику (gaps), иначе вчерашние конвертеры выглядят нулевыми.')
         return
     sent = failed = 0
     for cid, items in plan.items():
