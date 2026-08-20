@@ -412,8 +412,11 @@ def main():
     only = {c.strip() for c in args.only.split(",")} if args.only else None
 
     day = date.today().isoformat()
-    rep = BASE_DIR / "docs" / "reports" / f"prc_tc_fields_{day}.csv"
-    bak_dir = BASE_DIR / "backups" / f"prc_tc_fields_{day}"
+    # Частичный прогон (--only/--limit) не должен затирать файлы полного: они одного дня,
+    # а видят разное. 20.08.2026 разбор трёх кодов снёс отчёт и список конфликтов по чипу.
+    part = "_part" if (only or args.limit) else ""
+    rep = BASE_DIR / "docs" / "reports" / f"prc_tc_fields_{day}{part}.csv"
+    bak_dir = BASE_DIR / "backups" / f"prc_tc_fields_{day}{part}"
     bak_dir.mkdir(parents=True, exist_ok=True)
 
     sink = Sink(bak_dir / "before.jsonl") if args.apply else None
@@ -426,7 +429,7 @@ def main():
     outs = []
     for field, tag in (("Цвет", "color"), ("Чип", "chip")):
         rows = [r for r in conflicts if r["поле"] == field]
-        base = BASE_DIR / "docs" / "reports" / f"prc_tc_fields_{tag}_conflicts_{day}"
+        base = BASE_DIR / "docs" / "reports" / f"prc_tc_fields_{tag}_conflicts_{day}{part}"
         write_conflicts(rows, base.with_suffix(".csv"))
         write_xlsx(rows, base.with_suffix(".xlsx"), f"конфликты {field}")
         outs.append((field, len(rows), base.with_suffix(".xlsx")))
