@@ -79,6 +79,16 @@ def bands(comp, good_up):
     return out
 
 
+
+# Порог значимости подсветки подстрок — общий с живыми столбцами (константы в *_mp_report).
+def _mute(bd, vals, oborot):
+    """Погасить заливку незначимых ячеек подстроки (список bands на месте не меняем)."""
+    if sum(1 for v in vals if v) < R.DET_MIN_MONTHS:
+        return ["" for _ in bd]
+    return ["" if (vals[i] is None or abs(vals[i]) < R.DET_MIN_SHARE * (oborot[i] or 0)) else b
+            for i, b in enumerate(bd)]
+
+
 def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False, sect_pct=None, k="",
         expand="", detof=""):
     """kind: inflow|expense|margin|count_up|count_dn|check. None в vals → ячейка «—» (provisional
@@ -94,6 +104,8 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
     else:                                    # inflow | margin | count_up | check
         comp, good_up = vals, True
     bd = bands(comp, good_up)
+    if detof:                       # подстрока: гасим заливку на шумных ячейках
+        bd = _mute(bd, vals, oborot)
     tds = []
     for i in range(N):
         if vals[i] is None:
