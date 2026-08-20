@@ -85,3 +85,7 @@ tools/serp_*.csv
 tools/serp_raw_sample.json
 tools/*_summary.csv
 tools/*_detail.csv
+
+# канонический стор знания — отдельный репозиторий /opt/mp-knowledge
+.kb
+bin/mpsess.local

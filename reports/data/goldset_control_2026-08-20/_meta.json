@@ -1,0 +1,8 @@
+{
+ "generated": "2026-08-20 13:10",
+ "version": "2.1.237 (Claude Code)",
+ "model": "haiku",
+ "mode": "--print, disallowedTools=Bash,Edit,Write,NotebookEdit",
+ "cwd": "/opt/mp-analytics",
+ "memory": "полный MEMORY.md скоупа репозитория, без изменений"
+}

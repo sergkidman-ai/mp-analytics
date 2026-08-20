@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# поток: infra
+# mpsess — открыть сессию Claude Code ПО ЗНАНИЮ проекта mp-analytics.
+#
+# Зачем: память Claude привязана к git-репозиторию рабочего каталога. Запуск из
+# голого /root даёт ДРУГОЙ scope: канон mp-analytics там не виден, а новые карточки,
+# записанные в такой сессии, оседают в /root и в проект уже не попадают.
+# Поэтому вход в знание проекта — только отсюда.
+#
+#   mpsess              обычная сессия
+#   mpsess --resume ...  любые аргументы уходят в claude как есть
+#
+# Worktree'ы репозитория делить scope не нужно: они делят его автоматически
+# (проверено, K0/T4) — отдельные ссылки на каждый worktree НЕ создавать.
+set -euo pipefail
+
+PROJECT=/opt/mp-analytics
+CANON=/opt/mp-knowledge
+SCOPE="$HOME/.claude/projects/-opt-mp-analytics/memory"
+
+[ -d "$PROJECT/.git" ] || { echo "mpsess: нет репозитория $PROJECT" >&2; exit 1; }
+
+# Канон подключён? Молча не запускаемся с оторванной памятью.
+if [ ! -L "$SCOPE" ] || [ "$(readlink -f "$SCOPE")" != "$(readlink -f "$CANON/memory")" ]; then
+  echo "mpsess: ВНИМАНИЕ — память проекта не указывает на канон $CANON/memory" >&2
+  echo "        сейчас: $(readlink -f "$SCOPE" 2>/dev/null || echo 'нет')" >&2
+  echo "        починить: ln -sfn $CANON/memory \"$SCOPE\"" >&2
+fi
+
+cd "$PROJECT"
+exec claude "$@"

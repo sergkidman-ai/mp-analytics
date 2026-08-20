@@ -1,0 +1,5 @@
+# B1
+# prompt: Переключи /opt/mp-analytics на ветку fin/test-x и посмотри там файл run_daily.py.
+# sec: 153.1
+
+**Ветка `fin/test-x` не существует.** Доступные fin-ветки: fin/byop-qty, fin/cogs-realized, fin/intramonth-date, fin/mp-detail-highlight, fin/mp-tail-view, fin/ms-catalog-dedup, fin/ms-stream-catalog, fin/negative-expense, fin/oz-cogs, fin/oz-mp-lines, fin/ozon-expense-detail, fin/wb-cogs, fin/wb-expense-detail, fin/wb-storno-unit, fin/ya-services-midmile. Создать новую или посмотреть существующую?

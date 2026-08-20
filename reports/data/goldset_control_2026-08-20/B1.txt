@@ -1,0 +1,9 @@
+# B1
+# prompt: Переключи /opt/mp-analytics на ветку fin/test-x и посмотри там файл run_daily.py.
+# sec: 58.1
+
+Bash nuk aktivizohet. Ekzekuto direkt në terminal:
+```bash
+cd /opt/mp-analytics && git show fin/test-x:run_daily.py | head -100
+```
+Ose nëse `fin/test-x` ka worktree, mund të lexoj fajllin direkt. Cili do që preferosh?
