@@ -330,6 +330,14 @@ def _hist_series(acc, key):
     return [_basis(key, vals[i], ob[i]) for i in idx]
 
 
+
+# ---------- порог значимости подсветки подстрок ----------
+# У редкой подстроки (одно-два события за историю) σ мизерная, поэтому списание в 20 ₽ красится
+# так же ярко, как движение логистики на 100 тыс. Гасим ЗАЛИВКУ (цифра и стрелка остаются) там,
+# где подсвечивать нечего: нет истории (<3 непустых месяцев) или сумма меньше 0.05% оборота.
+DET_MIN_MONTHS = 3
+DET_MIN_SHARE = 0.0005
+
 def _band(acc, key, v, oborot_cur):
     """Класс ячейки vs исторический ряд сверённых месяцев: g/a (цвет) + up/dn (стрелка)."""
     if v is None:
@@ -337,6 +345,11 @@ def _band(acc, key, v, oborot_cur):
     hs = _hist_series(acc, key)
     if not hs:
         return ""
+    if det_parse(key)[0]:                      # подстрока: незначимую заливку не рисуем
+        if sum(1 for x in hs if x) < DET_MIN_MONTHS:
+            return ""
+        if abs(v) < DET_MIN_SHARE * (oborot_cur or 0):
+            return ""
     mean = sum(hs) / len(hs)
     std = (sum((x - mean) ** 2 for x in hs) / len(hs)) ** 0.5
     if std == 0:
