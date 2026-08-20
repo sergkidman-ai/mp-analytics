@@ -37,6 +37,7 @@ import datetime as dt
 import pathlib
 
 from core import db
+from ops import wb_lines_registry as REG
 
 HIST_PATH = pathlib.Path(__file__).resolve().parent / "data" / "mp_wb_hist.json"
 
@@ -59,6 +60,10 @@ def _hist():
 ACCOUNTS = ("wb_acc1", "wb_acc2")
 EXP = ["delivery", "storage", "acceptance", "ads", "points", "penalty", "other"]
 # ^ расходы, вычитаемые из К перечислению
+# расходные строки с разрезом на подстроки (детализация лежит в снапшоте: accounts[acc]["detail"]).
+# Логистика — синтетический разрез (прямая/обратная/коррекция), остальные — по тексту ВБ
+# (bonus_type_name, для баллов supplier_oper_name), схлопнутому ops.wb_lines_registry.norm.
+DETAIL_LINES = ("delivery", "points", "penalty", "other", "compensation")
 WINDOW_DAYS = 14
 # строки Баланса (величины ≥0, знак/направление задаёт KIND).
 # own_price = «Продажа по нашей цене» (retail_price_withdisc_rub, ДО СПП) — это ОБОРОТ (база %);
@@ -86,29 +91,42 @@ KIND = {
 }
 
 
+# ---------- ключи подстрок детализации ----------
+def det_key(line, code):
+    """line_key подстроки: 'd:<строка>:<ключ>'. По нему JS страницы находит живые столбцы,
+    а сама подстрока наследует kind (формат/направление подсветки) у родительской строки."""
+    return f"d:{line}:{code}"
+
+
+def det_parse(key):
+    """('delivery', 'L:fwd') для 'd:delivery:L:fwd'; (None, None) — обычная строка.
+    Ключ может содержать ':' (синтетические коды логистики) — режем ровно два раза."""
+    if not isinstance(key, str) or not key.startswith("d:"):
+        return None, None
+    _, line, code = key.split(":", 2)
+    return line, code
+
+
+def det_label(code):
+    """Человеческая подпись подстроки; незнакомый тип печатается как есть (см. реестр)."""
+    return REG.label(code)
+
+
+def _kind(key):
+    line, _ = det_parse(key)
+    return KIND[line] if line else KIND[key]
+
+
 # ---------- агрегат Баланса из raw_wb_report по формированию ----------
-def _agg(account, d1, d2):
-    """Суммы строк Баланса за полуинтервал create_dt [d1, d2) (строки 'YYYY-MM-DD').
-    Один SELECT — все величины разом (деньги + шт продаж/возвратов)."""
-    r = db.query(
-        """SELECT
-             coalesce(sum(CASE WHEN op='Продажа' THEN rpw ELSE 0 END),0) own_price,
-             coalesce(sum(CASE WHEN op='Продажа' THEN ra ELSE 0 END),0) sales,
-             coalesce(sum(CASE WHEN op='Возврат' THEN ra ELSE 0 END),0) returns,
-             coalesce(sum(CASE WHEN op='Возврат' THEN pay ELSE 0 END),0) returns_pay,
-             coalesce(sum(CASE WHEN op='Возврат' THEN -pay ELSE pay END),0) to_pay,
-             coalesce(sum(del),0) delivery,
-             coalesce(sum(st),0) storage,
-             coalesce(sum(acc),0) acceptance,
-             coalesce(sum(ads),0) ads,
-             coalesce(sum(points),0) points,
-             coalesce(sum(pen),0) penalty,
-             coalesce(sum(oth),0) other,
-             coalesce(sum(comp),0) compensation,
-             coalesce(sum(CASE WHEN op='Продажа' THEN q ELSE 0 END),0) orders,
-             coalesce(sum(CASE WHEN op='Возврат' THEN q ELSE 0 END),0) returns_cnt
-           FROM (
+# Источник строк — ОДИН текст на агрегат и на детализацию: иначе подстроки перестанут сходиться
+# с родителем при любой правке условия (реклама/прочее делятся по bonus_type_name).
+_SRC = """
              SELECT payload->>'supplier_oper_name' op,
+                    coalesce(payload->>'bonus_type_name','') btn,
+                    CASE WHEN payload->>'supplier_oper_name'='Логистика'
+                              AND coalesce((payload->>'return_amount')::numeric,0)>0 THEN 'L:rev'
+                         WHEN payload->>'supplier_oper_name'='Логистика' THEN 'L:fwd'
+                         ELSE 'L:corr' END dcode,
                     coalesce((payload->>'quantity')::numeric,0) q,
                     coalesce((payload->>'retail_price_withdisc_rub')::numeric,0) rpw,
                     coalesce((payload->>'retail_amount')::numeric,0) ra,
@@ -130,12 +148,65 @@ def _agg(account, d1, d2):
              WHERE account=%s
                AND (payload->>'create_dt')::date>=%s
                AND (payload->>'create_dt')::date<%s
-           ) t""",
+"""
+
+
+def _agg(account, d1, d2):
+    """Суммы строк Баланса за полуинтервал create_dt [d1, d2) (строки 'YYYY-MM-DD').
+    Один SELECT — все величины разом (деньги + шт продаж/возвратов)."""
+    r = db.query(
+        """SELECT
+             coalesce(sum(CASE WHEN op='Продажа' THEN rpw ELSE 0 END),0) own_price,
+             coalesce(sum(CASE WHEN op='Продажа' THEN ra ELSE 0 END),0) sales,
+             coalesce(sum(CASE WHEN op='Возврат' THEN ra ELSE 0 END),0) returns,
+             coalesce(sum(CASE WHEN op='Возврат' THEN pay ELSE 0 END),0) returns_pay,
+             coalesce(sum(CASE WHEN op='Возврат' THEN -pay ELSE pay END),0) to_pay,
+             coalesce(sum(del),0) delivery,
+             coalesce(sum(st),0) storage,
+             coalesce(sum(acc),0) acceptance,
+             coalesce(sum(ads),0) ads,
+             coalesce(sum(points),0) points,
+             coalesce(sum(pen),0) penalty,
+             coalesce(sum(oth),0) other,
+             coalesce(sum(comp),0) compensation,
+             coalesce(sum(CASE WHEN op='Продажа' THEN q ELSE 0 END),0) orders,
+             coalesce(sum(CASE WHEN op='Возврат' THEN q ELSE 0 END),0) returns_cnt
+           FROM (""" + _SRC + """) t""",
         (account, d1, d2))[0]
     return {k: float(r[k] or 0) for k in
             ("own_price", "sales", "returns", "returns_pay", "to_pay", "delivery", "storage",
              "acceptance", "ads", "points", "penalty", "other", "compensation", "orders",
              "returns_cnt")}
+
+
+def _agg_detail(account, d1, d2):
+    """{строка: {ключ: сумма}} — разрез расходных строк DETAIL_LINES за тот же полуинтервал.
+
+    SQL группирует по СЫРОМУ тексту ВБ, схлопывание номеров документов делает Python (REG.norm):
+    так нормализация живёт в одном месте, а не дублируется на диалекте SQL. Групп десятки —
+    цена схлопывания нулевая. Σ подстрок ≡ родитель по построению (тот же _SRC, те же CASE)."""
+    rows = db.query(
+        """SELECT op, btn, dcode,
+                  coalesce(sum(del),0) delivery, coalesce(sum(points),0) points,
+                  coalesce(sum(pen),0) penalty, coalesce(sum(oth),0) other,
+                  coalesce(sum(comp),0) compensation
+           FROM (""" + _SRC + """) t
+           GROUP BY op, btn, dcode""",
+        (account, d1, d2))
+    det = {ln: {} for ln in DETAIL_LINES}
+    for r in rows:
+        # ключ строки: у логистики — синтетический признак, у денежных удержаний — текст ВБ
+        # (bonus_type_name), а если ВБ его не заполнил — имя операции, чтобы не слиплось в «».
+        txt = REG.norm(r["btn"]) or ("OP:" + REG.norm(r["op"]))
+        keys = {"delivery": r["dcode"], "points": "OP:" + REG.norm(r["op"]),
+                "penalty": txt, "other": txt, "compensation": txt}
+        for ln in DETAIL_LINES:
+            v = float(r[ln] or 0)
+            if v:
+                d = det[ln]
+                k = keys[ln]
+                d[k] = d.get(k, 0.0) + v
+    return det
 
 
 def _month_bounds(y, m):
@@ -148,6 +219,11 @@ def balance(account, y, m):
     """{line: magnitude} — строки Баланса за месяц формирования (величины ≥0)."""
     a = _agg(account, *_month_bounds(y, m))
     return {k: a[k] for k in _BAL_KEYS}
+
+
+def balance_detail(account, y, m):
+    """{строка: {ключ: величина}} — разрез расходных строк за месяц формирования (для снапшота)."""
+    return _agg_detail(account, *_month_bounds(y, m))
 
 
 def op_counts(account, y, m):
@@ -206,7 +282,7 @@ def _money(v, neg=False):
 def _fmt(key, v):
     if v is None:
         return "—"
-    k = KIND[key]
+    k = _kind(key)
     if k == "margin":
         return f"{v:.1f}%"
     if k in ("count_up", "count_dn"):
@@ -215,11 +291,11 @@ def _fmt(key, v):
 
 
 def _basis(key, v, oborot):
-    return (v / oborot * 100 if oborot else 0) if KIND[key] == "expense" else v
+    return (v / oborot * 100 if oborot else 0) if _kind(key) == "expense" else v
 
 
 def _good_up(key):
-    return KIND[key] not in ("expense", "count_dn")
+    return _kind(key) not in ("expense", "count_dn")
 
 
 def _hist_series(acc, key):
@@ -230,7 +306,10 @@ def _hist_series(acc, key):
     prov = set(H.get("provisional", []))
     idx = [i for i in range(n) if i >= len(keys) or keys[i] not in prov]
     comp = L.get("compensation") or [0] * n          # совместимость со снапшотом без строки
-    if key in _BAL_KEYS:
+    d_line, d_code = det_parse(key)
+    if d_line:                                       # подстрока детализации (снапшот без неё → нули)
+        vals = ((a.get("detail") or {}).get(d_line) or {}).get(d_code) or [0] * n
+    elif key in _BAL_KEYS:
         vals = L.get(key) or [0] * n
     elif key == "spp":
         vals = [L["own_price"][i] - L["sales"][i] for i in range(n)]
@@ -331,12 +410,18 @@ def current_report():
         # пересекает границу месяца (в начале августа окно ещё захватывает июльские отчёты).
         w1 = (anchor - dt.timedelta(days=WINDOW_DAYS - 1)).isoformat()
         w2 = (anchor + dt.timedelta(days=1)).isoformat()
-        mtd = _agg(acc, *_month_bounds(y, m))           # факт MTD (по формированию)
+        d1, d2 = _month_bounds(y, m)
+        mtd = _agg(acc, d1, d2)                         # факт MTD (по формированию)
+        det = _agg_detail(acc, d1, d2)                  # тот же MTD в разрезе подстрок
         cogs = _cogs(acc, y, m)
         actual = _derive(mtd, mtd["orders"], mtd["returns_cnt"], cogs)
+        for ln in DETAIL_LINES:
+            for c, v in det.get(ln, {}).items():
+                actual[det_key(ln, c)] = v
         # Прогноз = факт MTD + дневная ставка окна × оставшиеся дни. Ставка из скользящего окна
         # прошлого (WINDOW_DAYS дн) → нет взрыва factor в начале месяца, сходится к факту в конце.
         win = _agg(acc, w1, w2)
+        win_det = _agg_detail(acc, w1, w2)
         rate = {k: win[k] / WINDOW_DAYS for k in win}
         fc = {k: mtd[k] + rate[k] * remaining_a for k in
               ("own_price", "sales", "returns", "returns_pay", "to_pay", "delivery", "storage",
@@ -347,17 +432,26 @@ def current_report():
         cogs_ratio = cogs / mtd["sales"] if mtd["sales"] else 0
         fc_cogs = fc["sales"] * cogs_ratio
         forecast = _derive(fc, fc_orders, fc_retc, fc_cogs)
+        # подстроки прогнозируются той же ставкой, что и родитель: MTD + окно/дн × остаток дней.
+        # Сумма подстрок сходится с прогнозом родителя, т.к. это линейная операция над слагаемыми.
+        for ln in DETAIL_LINES:
+            mtd_l, win_l = det.get(ln, {}), win_det.get(ln, {})
+            for c in set(mtd_l) | set(win_l):
+                forecast[det_key(ln, c)] = mtd_l.get(c, 0.0) + win_l.get(c, 0.0) / WINDOW_DAYS * remaining_a
 
         cells = {}
-        for key in KIND:
+        det_keys = sorted(k for k in (set(actual) | set(forecast)) if k.startswith("d:"))
+        for key in list(KIND) + det_keys:
             cv, fv = actual.get(key), forecast.get(key)
             # столбец «тек.» (неполный месяц): подсвечиваем ТОЛЬКО относительные статьи
             # (доли расходов/маржа/чек); абсолютные MTD заведомо ниже полного месяца.
-            cur_cls = _band(acc, key, cv, actual["own_price"]) if KIND[key] in ("expense", "margin", "check") else ""
+            cur_cls = _band(acc, key, cv, actual["own_price"]) if _kind(key) in ("expense", "margin", "check") else ""
             cells[key] = {
                 "cur": {"txt": _fmt(key, cv), "cls": cur_cls},
                 "fc": {"txt": _fmt(key, fv), "cls": _band(acc, key, fv, forecast["own_price"])},
             }
+        for key in det_keys:            # подпись новой подстроки — для JS-дорисовки строки
+            cells[key]["label"] = det_label(det_parse(key)[1])
         out[acc] = cells
 
     return {

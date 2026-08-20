@@ -15,6 +15,7 @@ import tempfile
 import pathlib
 
 from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, SIDEBAR, MPTABS, TAIL_JS
+from reports import wb_mp_report as R
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 HIST_PATH = BASE_DIR / "reports" / "data" / "mp_wb_hist.json"
@@ -75,9 +76,12 @@ def bands(comp, good_up):
     return out
 
 
-def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False, sect_pct=None, k=""):
+def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False, sect_pct=None, k="",
+        expand="", detof=""):
     """kind: inflow|expense|margin|count_up|count_dn|check. k — line_key для JS-дозагрузки живых
-    столбцов (тек./прогноз) из /api/wb/mp-current."""
+    столбцов (тек./прогноз) из /api/wb/mp-current.
+    expand — строка-РОДИТЕЛЬ детализации (подстроки раскрываются по клику);
+    detof — строка САМА есть подстрока родителя detof (скрыта, пока родителя не раскрыли)."""
     N = _C["N"]
     shares = [(vals[i] / oborot[i] * 100 if (vals[i] is not None and oborot[i]) else None) for i in range(N)]
     if kind == "expense":
@@ -111,13 +115,37 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
         rp = f"{(tot / tob * 100 if tob else 0):.1f}%" if sect_pct is None else sect_pct
     sp = spark(comp, good_up)
     trclass = "sub" if sub else ("subtot" if subtot else "")
-    lblcls = "lbl ind" if sub else "lbl"
+    if detof:
+        trclass = f"sub det d-{detof}"
+    lblcls = "lbl ind" if (sub or detof) else "lbl"
     tg = f' <span class="tag {tag}">{tag}</span>' if tag else ""
+    if expand:
+        label = f'<span class="detbtn">▸</span>{label}'
+        trclass = (trclass + " hasdet").strip()
     live = ('<td class="num live" data-c="cur">·</td>'
             '<td class="num live fc" data-c="fc">·</td>')
     dk = f' data-k="{k}"' if k else ""
+    if expand:
+        dk += f' data-det="{expand}"'
+    if detof:
+        dk += f' data-det-of="{detof}"'
     return (f'<tr class="{trclass}"{dk}><td class="{lblcls}">{label}{tg}</td>' + "".join(tds) +
             live + f'<td class="num pctcol">{rp}</td><td class="spk">{sp}</td></tr>')
+
+
+def det_rows(a, ln, ob, kind="expense"):
+    """Подстроки расходной строки ln — по конкретному типу удержания ВБ, крупные сверху.
+    Источник — snapshot ["detail"]; старый снапшот без разреза → пусто, строка остаётся обычной."""
+    N = _C["N"]
+    codes = ((a.get("detail") or {}).get(ln) or {})
+    out = []
+    for code, arr in sorted(codes.items(), key=lambda kv: -abs(sum(kv[1]))):
+        vals = list(arr[:N]) + [0] * max(0, N - len(arr))
+        if not any(vals):
+            continue
+        out.append(row(R.det_label(code), vals, kind, ob, sub=True,
+                       k=R.det_key(ln, code), detof=ln))
+    return out
 
 
 def sect(t):
@@ -221,14 +249,19 @@ def build(acc):
     H.append(row("в т.ч. сторно к перечислению (уже вычтено выше)", retp, "expense", ob,
                  tag="справка", sub=True, k="returns_pay"))
     H.append(sect("Услуги и удержания"))
-    H.append(row("Логистика", L["delivery"], "expense", ob, showpc=True, k="delivery"))
+    H.append(row("Логистика", L["delivery"], "expense", ob, showpc=True, k="delivery", expand="delivery"))
+    H += det_rows(a, "delivery", ob)
     H.append(row("Хранение", L["storage"], "expense", ob, k="storage"))
     H.append(row("Приёмка", L["acceptance"], "expense", ob, k="acceptance"))
     H.append(row("Продвижение WB (реклама)", L["ads"], "expense", ob, showpc=True, k="ads"))
-    H.append(row("Баллы и лояльность", L["points"], "expense", ob, k="points"))
-    H.append(row("Штрафы", L["penalty"], "expense", ob, k="penalty"))
-    H.append(row("Прочие удержания (отзывы, утилизация)", L["other"], "expense", ob, k="other"))
-    H.append(row("Компенсации ВБ (выплаты нам)", comp, "inflow", ob, k="compensation"))
+    H.append(row("Баллы и лояльность", L["points"], "expense", ob, k="points", expand="points"))
+    H += det_rows(a, "points", ob)
+    H.append(row("Штрафы", L["penalty"], "expense", ob, k="penalty", expand="penalty"))
+    H += det_rows(a, "penalty", ob)
+    H.append(row("Прочие удержания (отзывы, утилизация)", L["other"], "expense", ob, k="other", expand="other"))
+    H += det_rows(a, "other", ob)
+    H.append(row("Компенсации ВБ (выплаты нам)", comp, "inflow", ob, k="compensation", expand="compensation"))
+    H += det_rows(a, "compensation", ob, kind="inflow")
     H.append(row("Итого удержания ВБ (без возвратов)", wb_exp, "expense", ob, tag="расчёт",
                  showpc=True, subtot=True, k="wb_exp"))
     H.append(row("Итого к перечислению", itog, "inflow", ob, tag="расчёт", showpc=True,
@@ -278,6 +311,17 @@ FOOT = ('Все строки воспроизводят <b>Финансовый 
         'Яндекс — на соседних вкладках.')
 
 JS = """<script>
+(function(){                       // раскрытие детализации расходной строки по клику
+  var host=document.getElementById('mpr'); if(!host) return;
+  host.addEventListener('click', function(e){
+    var tr=e.target.closest('tr.hasdet'); if(!tr||!e.target.closest('td.lbl')) return;
+    var ln=tr.getAttribute('data-det'), open=!tr.classList.contains('open');
+    tr.classList.toggle('open', open);
+    tr.parentNode.querySelectorAll('tr[data-det-of="'+ln+'"]').forEach(function(x){
+      x.classList.toggle('open', open);
+    });
+  });
+})();
 (function(){
   fetch('/api/wb/mp-current').then(function(r){return r.json();}).then(function(d){
     if(!d||!d.month) return;
@@ -285,6 +329,26 @@ JS = """<script>
     document.querySelectorAll('#mpr section.org table').forEach(function(t,ti){
       var jh=t.querySelector('thead th.live'); if(jh) jh.textContent=mo.label;
       var cells=(d.accounts||{})[accs[ti]]||{};
+      // тип удержания, которого не было ни в одном закрытом месяце (появился в текущем) —
+      // дорисовываем строку, иначе сумма подстрок в «тек./прогноз» не сошлась бы с родителем
+      Object.keys(cells).forEach(function(key){
+        if(key.indexOf('d:')!==0) return;
+        if(t.querySelector('tr[data-k="'+key+'"]')) return;
+        var ln=key.split(':')[1];
+        var par=t.querySelector('tr[data-det="'+ln+'"]'); if(!par) return;
+        var sibs=t.querySelectorAll('tr[data-det-of="'+ln+'"]');
+        var anchor=sibs.length?sibs[sibs.length-1]:par;
+        var tr=par.cloneNode(true);
+        tr.className='sub det d-'+ln+(par.classList.contains('open')?' open':'');
+        tr.setAttribute('data-k',key); tr.setAttribute('data-det-of',ln); tr.removeAttribute('data-det');
+        tr.querySelectorAll('td').forEach(function(td,ci){
+          if(ci===0){ td.className='lbl ind'; td.textContent=cells[key].label||key; }
+          else if(td.classList.contains('live')){ td.className='num live'+(td.getAttribute('data-c')==='fc'?' fc':''); td.textContent='·'; }
+          else if(td.classList.contains('spk')){ td.innerHTML=''; }
+          else { td.className='num muted'; td.textContent='—'; }
+        });
+        anchor.parentNode.insertBefore(tr, anchor.nextSibling);
+      });
       t.querySelectorAll('tr[data-k]').forEach(function(tr){
         var c=cells[tr.getAttribute('data-k')]||{};
         ['cur','fc'].forEach(function(cc){
