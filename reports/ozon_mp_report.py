@@ -61,6 +61,36 @@ _RESID_INFLOW = ("compensation", "other")
 MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
              "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
+# Строки удержаний, которые раскрываются подстроками «из чего сложилось» (просьба Сергея 20.08).
+# Внутри каждой — конкретные коды Ozon: услуга внутри операции (ключ = имя услуги) либо тип
+# операции целиком (ключ = "OP:"+operation_type). Σ подстрок = родительская строка ТОЖДЕСТВЕННО:
+# и строка, и её детализация считаются одним проходом по raw_ozon_transaction (_balance_range).
+DETAIL_LINES = ("delivery", "partners", "promo", "penalty")
+_OP = "OP:"                       # префикс кода-операции, чтобы не столкнуться с именем услуги
+
+
+def det_key(line, code):
+    """Ключ ячейки подстроки для JS/снапшота: d:<строка>:<код>."""
+    return f"d:{line}:{code}"
+
+
+def det_parse(key):
+    """d:<строка>:<код> → (строка, код); не подстрока → (None, None)."""
+    if not key.startswith("d:"):
+        return None, None
+    _, line, code = key.split(":", 2)
+    return line, code
+
+
+def det_label(code):
+    """Человекочитаемое имя кода — из реестра (то же, что в ЛК). Незнакомый код в реестре
+    невозможен: всё, чего в нём нет, уходит в «Неклассифицировано», а её мы не детализируем."""
+    if code.startswith(_OP):
+        hit = RESID_OPS.get(code[len(_OP):])
+    else:
+        hit = SERVICES.get(code)
+    return hit[1] if hit else code
+
 # kind по ключу строки — определяет формат и направление подсветки
 KIND = {
     "sales": "inflow", "rev": "inflow", "bon": "inflow", "par": "inflow",
@@ -104,7 +134,8 @@ def _balance_range(account, d1, d2):
              AND (payload->>'operation_date')::date<%s""",
         (account, d1, d2))
     L = defaultdict(float)
-    sub = 0.0
+    D = defaultdict(float)          # (строка, код) → величина; детализация родительских строк
+    sub, sub_codes = 0.0, defaultdict(float)
     for r in rows:
         p = r["payload"]
         acc = float(p.get("accruals_for_sale") or 0)
@@ -118,19 +149,25 @@ def _balance_range(account, d1, d2):
         ss = 0.0
         for s in (p.get("services") or []):
             pr = float(s.get("price") or 0); ss += pr
-            L[_svc_line(s.get("name", ""))] += -pr
+            nm = s.get("name", ""); ln = _svc_line(nm)
+            L[ln] += -pr
+            D[(ln, nm)] += -pr
         res = am - acc - cm - ss
         ot = p.get("operation_type", "")
         if abs(res) > 0.005:            # копеечный остаток округления — не повод для строки
-            L[_resid_line(ot)] += -res
+            ln = _resid_line(ot)
+            L[ln] += -res
+            D[(ln, _OP + ot)] += -res
         if ot.startswith("OperationSubscription"):
             sub += -res
+            sub_codes[_OP + ot] += -res
     # Знак — часть данных: `abs()` здесь стирал направление и месяц, где удержания перевесили
     # начисления, уходил в отчёт приходом (ноя-2025 27 057 ₽, дек-2025 278 584 ₽ по acc1).
     # Величины приводим к смыслу своей строки; отрицательная величина = движение в другую сторону,
     # и рендер покажет её со знаком «+» (расход, который оказался приходом).
+    det = {ln: {c: v for (l2, c), v in D.items() if l2 == ln} for ln in DETAIL_LINES}
     return ({k: (-L.get(k, 0.0) if k in _RESID_INFLOW else L.get(k, 0.0)) for k in _BAL_KEYS},
-            abs(sub))
+            abs(sub), det, dict(sub_codes))
 
 
 def _month_bounds(y, m):
@@ -140,7 +177,7 @@ def _month_bounds(y, m):
 
 
 def _accumulate(account, y, m):
-    """(mags, sub) за календарный месяц — обёртка над _balance_range."""
+    """(mags, sub, det, sub_codes) за календарный месяц — обёртка над _balance_range."""
     d1, d2 = _month_bounds(y, m)
     return _balance_range(account, d1, d2)
 
@@ -151,30 +188,40 @@ def balance(account, y, m):
     return _accumulate(account, y, m)[0]
 
 
+def balance_detail(account, y, m):
+    """{строка: {код: величина}} — разложение детализируемых строк за месяц (тот же проход,
+    что и balance(); Σ по строке равна значению строки в balance() до копейки)."""
+    return _accumulate(account, y, m)[2]
+
+
 def _sub_range(account, d1, d2):
-    """Фикс-абонплата подписки за [d1, d2): −Σ amount по OperationSubscription* (у них
-    нет accruals/комиссии/услуг → residual = amount)."""
-    r = db.query(
-        """SELECT coalesce(sum((payload->>'amount')::float), 0) s
+    """Фикс-абонплата подписки за [d1, d2) ПО КОДАМ: {"OP:OperationSubscription…": величина}
+    (у них нет accruals/комиссии/услуг → residual = amount). Итог = сумма значений."""
+    rows = db.query(
+        """SELECT payload->>'operation_type' ot,
+                  coalesce(sum((payload->>'amount')::float), 0) s
              FROM raw_ozon_transaction WHERE account=%s
              AND payload->>'operation_type' LIKE 'OperationSubscription%%'
              AND (payload->>'operation_date')::date>=%s
-             AND (payload->>'operation_date')::date<%s""",
+             AND (payload->>'operation_date')::date<%s
+             GROUP BY 1""",
         (account, d1, d2))
-    return abs(float(r[0]["s"]))
+    return {_OP + r["ot"]: -float(r["s"]) for r in rows}
 
 
 def _expected_monthly_sub(account, y, m):
-    """Ожидаемая фикс-подписка за месяц = медиана помесячных сумм OperationSubscription*
-    за 3 полных месяца до (y,m). Устойчива к разовым доплатам (напр. июнь ЦК: PremiumPlus +
-    PremiumPro = 49 980, тогда как обычный месяц = 24 990)."""
+    """Ожидаемая фикс-подписка за месяц: (итог, {код: величина}) — медианный ПО ИТОГУ месяц
+    из 3 полных месяцев до (y,m). Медиана устойчива к разовым доплатам (напр. июнь ЦК:
+    PremiumPlus + PremiumPro = 49 980, тогда как обычный месяц = 24 990). Разбивка по кодам
+    берётся из того же медианного месяца, поэтому Σ по кодам = итогу тождественно."""
     vals = []
     yy, mm = y, m
     for _ in range(3):
         yy, mm = (yy - 1, 12) if mm == 1 else (yy, mm - 1)
         d1, d2 = _month_bounds(yy, mm)
-        vals.append(_sub_range(account, d1, d2))
-    vals.sort()
+        c = _sub_range(account, d1, d2)
+        vals.append((sum(c.values()), c))
+    vals.sort(key=lambda x: x[0])
     return vals[len(vals) // 2]
 
 
@@ -285,10 +332,17 @@ def _money(v, neg=False):
     return ("−" if v < 0 else "") + s
 
 
+def _kind(key):
+    """kind строки. Подстрока детализации (d:<строка>:<код>) наследует kind родителя —
+    это тот же расход, просто в разрезе конкретной услуги Ozon."""
+    line, _ = det_parse(key)
+    return KIND[line] if line else KIND[key]
+
+
 def _fmt(key, v):
     if v is None:
         return "—"
-    k = KIND[key]
+    k = _kind(key)
     if k == "margin":
         return f"{v:.1f}%"
     if k in ("count_up", "count_dn"):
@@ -297,11 +351,11 @@ def _fmt(key, v):
 
 
 def _basis(key, v, oborot):
-    return (v / oborot * 100 if oborot else 0) if KIND[key] == "expense" else v
+    return (v / oborot * 100 if oborot else 0) if _kind(key) == "expense" else v
 
 
 def _good_up(key):
-    return KIND[key] not in ("expense", "count_dn")
+    return _kind(key) not in ("expense", "count_dn")
 
 
 def _hist_series(acc, key):
@@ -312,7 +366,10 @@ def _hist_series(acc, key):
     keys = H.get("period_keys", [])
     prov = set(H.get("provisional", []))
     idx = [i for i in range(n) if i >= len(keys) or keys[i] not in prov]
-    if key in _BAL_KEYS:
+    line, code = det_parse(key)
+    if line:
+        vals = ((a.get("detail") or {}).get(line) or {}).get(code) or [0] * n
+    elif key in _BAL_KEYS:
         vals = L.get(key) or [0] * n
     elif key == "itog":
         vals = [sum((L.get(x) or [0] * n)[i] for x in EXP_SVC) for i in range(n)]
@@ -395,7 +452,7 @@ def current_report():
         # месяца для прогноза незначим (в начале августа окно ещё захватывает июль).
         w1 = (anchor - dt.timedelta(days=WINDOW_DAYS - 1)).isoformat()
         w2 = (anchor + dt.timedelta(days=1)).isoformat()
-        mags, sub = _accumulate(acc, y, m)              # факт с начала месяца (MTD)
+        mags, sub, det, _sc = _accumulate(acc, y, m)     # факт с начала месяца (MTD)
         orders, retc = op_counts(acc, y, m)
         cogs = _cogs(acc, y, m)
         actual = _derive(mags, orders, retc, cogs)
@@ -404,9 +461,12 @@ def current_report():
         # factor в начале месяца, метод сходится к факту в конце. Пачечную фикс-подписку
         # (`sub` внутри promo) не размазываем: уже списана в этом месяце → берём факт, иначе
         # ждём один платёж (как в прошлом месяце). %-подписка идёт в общем потоке promo.
-        win, win_sub = _balance_range(acc, w1, w2)
+        win, win_sub, win_det, win_sc = _balance_range(acc, w1, w2)
         rate = {k: win[k] / WINDOW_DAYS for k in win}
-        sub_exp = sub if sub > 0 else _expected_monthly_sub(acc, y, m)
+        # подписка не размазывается ставкой ни в родителе, ни в подстроках: уже списана в этом
+        # месяце → берём факт; ещё не списана → ждём один платёж (медианный месяц из 3 прошлых).
+        sub_exp, sub_exp_codes = ((sub, dict(_sc)) if sub > 0
+                                  else _expected_monthly_sub(acc, y, m))
         fc_mags = {}
         for k in mags:
             if k == "promo":
@@ -414,6 +474,17 @@ def current_report():
                 fc_mags[k] = (mags[k] - sub) + rate_ex * remaining_a + sub_exp
             else:
                 fc_mags[k] = mags[k] + rate[k] * remaining_a
+        # Подстроки прогнозируются ТЕМ ЖЕ правилом, что и их родитель, поэтому Σ подстрок
+        # тождественно равна прогнозу родительской строки (проверяется тестом _check_detail).
+        fc_det = {}
+        for ln in DETAIL_LINES:
+            mtd_l, win_l = det.get(ln, {}), win_det.get(ln, {})
+            codes = set(mtd_l) | set(win_l) | (set(sub_exp_codes) if ln == "promo" else set())
+            for c in codes:
+                if ln == "promo" and c.startswith(_OP + "OperationSubscription"):
+                    fc_det[(ln, c)] = mtd_l.get(c, 0.0) if sub > 0 else sub_exp_codes.get(c, 0.0)
+                else:
+                    fc_det[(ln, c)] = mtd_l.get(c, 0.0) + win_l.get(c, 0.0) / WINDOW_DAYS * remaining_a
         win_o, win_r = op_counts_range(acc, w1, w2)
         fc_orders = orders + win_o / WINDOW_DAYS * remaining_a
         fc_retc = retc + win_r / WINDOW_DAYS * remaining_a
@@ -422,18 +493,26 @@ def current_report():
         cogs_ratio = cogs / mags["sales"] if mags["sales"] else 0
         fc_cogs = fc_mags["sales"] * cogs_ratio
         forecast = _derive(fc_mags, fc_orders, fc_retc, fc_cogs)
+        for ln in DETAIL_LINES:                          # подстроки — рядом с обычными строками
+            for c, v in det.get(ln, {}).items():
+                actual[det_key(ln, c)] = v
+        for (ln, c), v in fc_det.items():
+            forecast[det_key(ln, c)] = v
 
         cells = {}
-        for key in KIND:
+        det_keys = sorted(k for k in (set(actual) | set(forecast)) if k.startswith("d:"))
+        for key in list(KIND) + det_keys:
             jv, fv = actual.get(key), forecast.get(key)
             # столбец «тек.» — неполный месяц: подсвечиваем ТОЛЬКО относительные статьи
             # (доли расходов, маржа, средний чек), т.к. абсолютные суммы MTD заведомо ниже
             # среднего полного месяца → подсветка была бы ложной. Прогноз (полный месяц) — весь.
-            jul_cls = _band(acc, key, jv, actual["sales"]) if KIND[key] in ("expense", "margin", "check") else ""
+            jul_cls = _band(acc, key, jv, actual["sales"]) if _kind(key) in ("expense", "margin", "check") else ""
             cells[key] = {
                 "jul": {"txt": _fmt(key, jv), "cls": jul_cls},
                 "fc": {"txt": _fmt(key, fv), "cls": _band(acc, key, fv, forecast["sales"])},
             }
+        for key in det_keys:                         # подписи новых услуг — для JS-дорисовки
+            cells[key]["label"] = det_label(det_parse(key)[1])
         out[acc] = cells
 
     return {
