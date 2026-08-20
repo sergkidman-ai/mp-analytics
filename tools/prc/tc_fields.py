@@ -428,7 +428,9 @@ def main():
 
     outs = []
     for field, tag in (("Цвет", "color"), ("Чип", "chip")):
-        rows = [r for r in conflicts if r["поле"] == field]
+        # Сортировка по внешнему коду: человек разбирает список кодами подряд, родня рядом.
+        rows = sorted((r for r in conflicts if r["поле"] == field),
+                      key=lambda r: ((r["внешний код"] or "").zfill(4), r["код"] or ""))
         base = BASE_DIR / "docs" / "reports" / f"prc_tc_fields_{tag}_conflicts_{day}{part}"
         write_conflicts(rows, base.with_suffix(".csv"))
         write_xlsx(rows, base.with_suffix(".xlsx"), f"конфликты {field}")
