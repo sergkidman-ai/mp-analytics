@@ -28,7 +28,14 @@ hist на свежие цифры, (4) выводит список расхож�
 Идемпотентно. Запуск из run_daily (шаг) и cron `2 0 1 * *` (граница месяца) + понедельничный
 реконсайл. CLI:
     python -m reports.wb_mp_freeze [advance | reconcile [weeks] [--no-apply] [--no-pull] |
-                                    freeze YYYY-MM | bootstrap YYYY-MM YYYY-MM | status]
+                                    freeze YYYY-MM | bootstrap YYYY-MM YYYY-MM |
+                                    detail [YYYY-MM …] | status]
+
+ДЕТАЛИЗАЦИЯ расходных строк (Логистика / Баллы / Штрафы / Прочие удержания / Компенсации)
+лежит в снапшоте рядом со строками: accounts[acc]["detail"][строка][ключ] = ряд по месяцам.
+Считается тем же _SRC, что и сами строки (reports/wb_mp_report), поэтому сумма подстрок
+тождественно равна родителю. `detail` добирает разрез за уже замороженные месяцы, не трогая
+их суммы; для новых месяцев он пишется автоматически внутри freeze/advance/reconcile.
 """
 import sys
 import json
@@ -135,7 +142,33 @@ def _slot(hist, key):
             a["lines"][k].append(0)
         for k in _DERIVED:
             a[k].append(0)
+        for codes in (a.get("detail") or {}).values():   # параллельные ряды подстрок
+            for arr in codes.values():
+                arr.append(0)
     return i
+
+
+def _det_arr(a, ln, code, n):
+    """Ряд подстроки (line, code) длиной n — создаётся/добивается нулями по месту."""
+    d = a.setdefault("detail", {}).setdefault(ln, {})
+    arr = d.get(code)
+    if arr is None:
+        arr = d[code] = [0] * n
+    while len(arr) < n:
+        arr.append(0)
+    return arr
+
+
+def _put_detail(hist, a, i, detail):
+    """Значения подстрок месяца i. Ключи, которых в этом месяце не было, явно занулить —
+    иначе прошлое значение осталось бы висеть в чужом месяце при пересборке."""
+    if not detail:
+        return
+    n = len(hist["period_keys"])
+    for ln, codes in detail.items():
+        known = a.setdefault("detail", {}).setdefault(ln, {})
+        for code in set(known) | set(codes):
+            _det_arr(a, ln, code, n)[i] = codes.get(code, 0)
 
 
 def _record(y, m):
@@ -146,7 +179,10 @@ def _record(y, m):
         orders, retc = R.op_counts(acc, y, m)
         cogs = R._cogs(acc, y, m)
         d = R._derive(mags, orders, retc, cogs)
-        out[acc] = {"lines": {k: round(mags[k]) for k in _BAL_KEYS},
+        det = R.balance_detail(acc, y, m)
+        out[acc] = {"detail": {ln: {c: round(v) for c, v in codes.items() if round(v)}
+                               for ln, codes in det.items()},
+                    "lines": {k: round(mags[k]) for k in _BAL_KEYS},
                     "commission": round(d["commission"]), "cogs": round(cogs),
                     "net": round(d["net"]), "margin": round(d["margin"], 1),
                     "orders": round(orders), "returns_cnt": round(retc)}
@@ -160,6 +196,7 @@ def _put(hist, i, per_acc):
             a["lines"][k][i] = rec["lines"][k]
         for k in _DERIVED:
             a[k][i] = rec[k]
+        _put_detail(hist, a, i, rec.get("detail"))
 
 
 def _freeze(hist, y, m):
@@ -332,6 +369,38 @@ def freeze_month(y, m):
         return key
 
 
+def refresh_detail(keys=None):
+    """Пересчитать ТОЛЬКО разрез подстрок за уже замороженные месяцы (keys=None — все).
+
+    Суммы строк Баланса не трогает: детализация — производная того же _SRC, что и сами строки,
+    поэтому её можно добрать задним числом, не переписывая сверенные с ЛК месяца.
+    → [(period_key, сколько ключей записано)]."""
+    with _lock():
+        hist = _load()
+        todo = list(keys or hist["period_keys"])
+        out = []
+        for key in todo:
+            if key not in hist["period_keys"]:
+                continue
+            i = hist["period_keys"].index(key)
+            y, m = int(key[:4]), int(key[5:7])
+            cnt = 0
+            for acc in ACCOUNTS:
+                det = {ln: {c: round(v) for c, v in codes.items() if round(v)}
+                       for ln, codes in R.balance_detail(acc, y, m).items()}
+                _put_detail(hist, hist["accounts"][acc], i, det)
+                cnt += sum(len(c) for c in det.values())
+            out.append((key, cnt))
+        for acc in ACCOUNTS:                    # ключи, обнулившиеся после правки norm(), не копим
+            d = hist["accounts"][acc].get("detail") or {}
+            for ln in list(d):
+                d[ln] = {c: arr for c, arr in d[ln].items() if any(arr)}
+        _backup()
+        _save_atomic(hist)
+        P.render(hist)
+        return out
+
+
 def _status():
     hist = _load()
     cur = datetime.datetime.now(MSK)
@@ -355,6 +424,9 @@ if __name__ == "__main__":
         print("frozen:", freeze_month(y, m))
     elif cmd == "bootstrap" and len(args) >= 3:
         print("bootstrapped:", bootstrap(args[1], args[2]))
+    elif cmd == "detail":
+        ks = [a for a in args[1:] if not a.startswith("-")] or None
+        print("detail:", refresh_detail(ks))
     elif cmd == "status":
         _status()
     else:
