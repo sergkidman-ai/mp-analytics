@@ -176,6 +176,39 @@ def by_week(weeks=8):
     return out
 
 
+EDITABLE = ("event_date", "date_to", "platform", "account", "title",
+            "details", "expect", "review_at")
+
+
+def update(event_id, **fields):
+    """Правка события. -> обновлённая запись или None, если такой записи нет.
+
+    Править разрешаем ТОЛЬКО наши решения (`kind='own'`): события площадок собраны из их
+    новостей и переписываются сборщиком при `--reclassify`, ручная правка там потерялась бы
+    молча. Записи об остатках — тоже автоматика. Ошиблись в них — удалить и перезабрать.
+    """
+    bad = set(fields) - set(EDITABLE)
+    if bad:
+        raise ValueError(f"эти поля не правим: {', '.join(sorted(bad))}")
+    if "platform" in fields and fields["platform"] and fields["platform"] not in PLATFORMS:
+        raise ValueError(f"platform должен быть одним из {PLATFORMS}")
+    if "title" in fields:
+        if not fields["title"] or not str(fields["title"]).strip():
+            raise ValueError("у события должен быть заголовок")
+        fields["title"] = str(fields["title"]).strip()[:200]
+    cur = db.query("SELECT kind FROM biz_events WHERE id = %s", (event_id,))
+    if not cur:
+        return None
+    if cur[0]["kind"] != "own":
+        raise ValueError("править можно только наши решения — событие площадки правке не подлежит")
+    if not fields:
+        return db.query("SELECT * FROM biz_events WHERE id = %s", (event_id,))[0]
+    sets = ", ".join(f"{k} = %s" for k in fields)
+    rows = db.query(f"UPDATE biz_events SET {sets} WHERE id = %s RETURNING *",
+                    tuple(fields.values()) + (event_id,))
+    return rows[0] if rows else None
+
+
 def delete(event_id):
     return db.query("DELETE FROM biz_events WHERE id = %s RETURNING id", (event_id,))
 

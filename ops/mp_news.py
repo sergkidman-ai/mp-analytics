@@ -45,6 +45,7 @@ import requests
 from core import db
 from collectors.ozon import _headers as ozon_headers
 from ops import biz_diary
+from ops import news_digest as digest
 
 BASE = "https://api-seller.ozon.ru"
 ACCOUNTS = ("oz_acc1", "oz_acc2")
@@ -444,7 +445,7 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
         where.append("matched = %s")
         params.append(only_rule)
     rows = db.query(f"""SELECT platform, account, message_id, created_at::date AS d,
-                               title, body, matched
+                               title, body, matched, digest
                         FROM mp_notices WHERE {' AND '.join(where)}
                         ORDER BY created_at""", tuple(params))
     added = 0
@@ -457,8 +458,12 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
         eid = biz_diary.add(
             event_date=r["d"], kind="mp", platform=r["platform"],
             account=r["account"] if r["platform"] == "ozon" else None,
-            title=r["title"], details=(r["body"] or "")[:1500],
-            expect=f"Правило: {r['matched']}" if r["matched"] else None,
+            title=r["title"],
+            # Если выжимка уже посчитана — в дневник идёт она: человеку нужен денежный смысл
+            # новости, а не три экрана текста площадки. Сырьё остаётся в mp_notices.
+            details=(digest.render(r["digest"]) if r["digest"] else (r["body"] or "")[:1500]),
+            expect=((r["digest"] or {}).get("action")
+                    or (f"Правило: {r['matched']}" if r["matched"] else None)),
             source=SOURCE_OF.get(r["platform"], r["platform"]),
             author=AUTHOR_OF.get(r["platform"], r["platform"]),
             dedup_key=f"{r['platform']}:{r['account']}:{r['message_id']}")
@@ -536,6 +541,8 @@ def main(argv=None):
     ap.add_argument("--platform", choices=PLATFORMS, help="только одна площадка")
     ap.add_argument("--diary-rule", metavar="ПРАВИЛО",
                     help="в дневник только по этому правилу (разовый добор истории)")
+    ap.add_argument("--digest", action="store_true",
+                    help="считать выжимку по денежным новостям (ПЛАТНЫЕ запросы к модели)")
     ap.add_argument("--diary-only", action="store_true",
                     help="не ходить в API: поднять в дневник то, что уже лежит в сырье")
     args = ap.parse_args(argv)
@@ -568,6 +575,11 @@ def main(argv=None):
             by[r["importance"]] = by.get(r["importance"], 0) + 1
         print(f"{name}: новых уведомлений {len(got)} | {by or '—'}")
         fresh += got
+
+    # Выжимку считаем ДО дневника: тогда событие сразу заводится с разбором, а не с сырым
+    # текстом, который потом пришлось бы переписывать.
+    if args.digest and not args.dry:
+        digest.run(days=args.diary_days, dry=False)
 
     added = to_diary(dry=args.dry, since_days=args.diary_days,
                      platform=args.platform, only_rule=args.diary_rule)

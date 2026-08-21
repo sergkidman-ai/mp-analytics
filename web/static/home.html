@@ -63,7 +63,14 @@
   .evtabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
   .ev{display:flex;gap:12px;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 14px;margin-bottom:6px}
   .ev .d{color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ev .t{color:var(--txt);text-decoration:none;border-bottom:1px dashed var(--line)}
+  .ev .evdet{display:none;white-space:pre-wrap;margin-top:6px;padding:8px 10px;
+             background:var(--bg);border:1px solid var(--line);border-radius:8px;
+             font-size:13px;color:var(--mut);max-width:820px}
+  .ev .e{margin-left:auto;color:var(--mut);text-decoration:none;opacity:.5}
+  .ev .e:hover{opacity:1;color:var(--acc)}
   .ev .x{margin-left:auto;color:var(--mut);text-decoration:none;opacity:.5}
+  .ev .e+.x{margin-left:8px}
   .ev .x:hover{opacity:1;color:var(--neg)}
   #ev-form input,#ev-form select{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
   #ev-form button{background:var(--acc);color:#04121f;border:0;border-radius:8px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer}
@@ -131,7 +138,8 @@
       <option value="wb_acc2">WB acc2</option></select>
     <input id="ev-title" placeholder="что сделали" required style="flex:1;min-width:240px">
     <input id="ev-expect" placeholder="чего ждём от этого" style="flex:1;min-width:200px">
-    <button type="submit">Записать</button>
+    <button type="submit" id="ev-submit">Записать</button>
+    <a href="#" id="ev-cancel" class="muted" style="display:none">отмена</a>
   </form>
   <div id="diary"></div>
   <h2>По площадкам <span class="muted" style="font-weight:400;font-size:12px">→ нажми карточку, чтобы провалиться в детали</span></h2>
@@ -142,6 +150,8 @@
 </main>
 <script>
 const $=s=>document.querySelector(s);
+// Текст новости площадки приходит из письма/API — в разметку его пускать нельзя.
+const esc=t=>String(t??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
 const pct=v=>v==null?'—':v+'%';
 const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
@@ -209,24 +219,41 @@ const EV_PLAT={ozon:'Ozon',wb:'ВБ',yandex:'Маркет'};
 const EV_ACC={oz_acc1:'Цифровой',oz_acc2:'Дисквэр',wb_acc1:'WB acc1',wb_acc2:'WB acc2'};
 let evWeeks={};
 let evKind='';
+let evRows={};      // id -> событие, чтобы форма правки заполнялась без второго запроса
+let evEditId=null;  // null = запись нового, иначе правим это событие
 
 async function loadDiary(){
   const d=await api('/api/diary?limit=12'+(evKind?'&kind='+evKind:''));
   const rows=d.events||[];
+  evRows={};rows.forEach(e=>evRows[e.id]=e);
   $('#diary').innerHTML=rows.map(e=>{
     const dt=e.event_date.slice(8,10)+'.'+e.event_date.slice(5,7);
     const who=[EV_PLAT[e.platform],EV_ACC[e.account]].filter(Boolean).join(' · ');
     // Ожидание показываем рядом с событием: через месяц «зачем мы это делали» уже не вспомнить.
-    const exp=e.expect?` <span class="muted">— ждём: ${e.expect}</span>`:'';
+    // У наших решений в expect лежит ожидание, у новостей площадок — рекомендация.
+    const exp=e.expect?` <span class="muted">— ${e.kind==='mp'?'что делать':'ждём'}: ${e.expect}</span>`:'';
+    // Править даём только наши решения: события площадок сборщик перепишет из новостей.
+    const edit=e.kind==='own'?`<a href="#" class="e" data-id="${e.id}" title="изменить">✎</a>`:'';
+    // Разбор новости прячем под заголовок: в ленте нужен смысл одной строкой,
+    // подробности («на сколько», «с какого числа») — по клику.
+    const det=e.details?`<div class="evdet" id="evd${e.id}">${esc(e.details)}</div>`:'';
+    const ttl=e.details?`<a href="#" class="t" data-det="${e.id}">${e.title}</a>`:e.title;
     return `<div class="ev"><span class="d">${dt}</span><span>${EV_MARK[e.kind]||'·'}</span>
-      <span>${e.title}${who?` <span class="muted">(${who})</span>`:''}${exp}</span>
-      <a href="#" class="x" data-id="${e.id}" title="удалить">✕</a></div>`;
+      <span>${ttl}${who?` <span class="muted">(${who})</span>`:''}${exp}${det}</span>
+      ${edit}<a href="#" class="x" data-id="${e.id}" title="удалить">✕</a></div>`;
   }).join('')||'<p class="muted">событий пока нет — запиши первое, и недельные цифры будут читаться вместе с ним.</p>';
   $('#diary').querySelectorAll('.x').forEach(a=>a.onclick=async ev=>{
     ev.preventDefault();
     if(!confirm('Удалить запись из дневника?'))return;
     await fetch('/api/diary/'+a.dataset.id,{method:'DELETE'});
     await loadDiary();await loadWeekly();
+  });
+  $('#diary').querySelectorAll('.t').forEach(a=>a.onclick=ev=>{
+    ev.preventDefault();
+    const d=$('#evd'+a.dataset.det);d.style.display=d.style.display==='block'?'none':'block';
+  });
+  $('#diary').querySelectorAll('.e').forEach(a=>a.onclick=ev=>{
+    ev.preventDefault();evEdit(evRows[a.dataset.id]);
   });
   const w=await api('/api/diary/weeks?weeks=10');
   evWeeks=w.weeks||{};
@@ -238,9 +265,30 @@ document.querySelectorAll('.evtabs a').forEach(a=>a.onclick=async e=>{
   a.classList.add('cur');evKind=a.dataset.kind;await loadDiary();
 });
 
+function evReset(){
+  evEditId=null;
+  ['ev-title','ev-expect'].forEach(id=>$('#'+id).value='');
+  $('#ev-plat').value='';$('#ev-acc').value='';
+  $('#ev-submit').textContent='Записать';$('#ev-cancel').style.display='none';
+}
+
+function evEdit(e){
+  if(!e)return;
+  evEditId=e.id;
+  $('#ev-date').value=e.event_date;$('#ev-plat').value=e.platform||'';
+  $('#ev-acc').value=e.account||'';$('#ev-title').value=e.title;
+  $('#ev-expect').value=e.expect||'';
+  $('#ev-submit').textContent='Сохранить';$('#ev-cancel').style.display='inline';
+  $('#ev-form').style.display='flex';
+  $('#ev-title').focus();
+}
+
+$('#ev-cancel').onclick=e=>{e.preventDefault();evReset();$('#ev-form').style.display='none';};
+
 $('#ev-toggle').onclick=e=>{
   e.preventDefault();
   const f=$('#ev-form');
+  if(f.style.display==='flex'&&evEditId)evReset();   // «Добавить» из режима правки = новая запись
   f.style.display=f.style.display==='none'?'flex':'none';
   if(f.style.display==='flex'&&!$('#ev-date').value)
     $('#ev-date').value=new Date().toISOString().slice(0,10);
@@ -250,11 +298,13 @@ $('#ev-form').onsubmit=async e=>{
   e.preventDefault();
   const body={event_date:$('#ev-date').value,platform:$('#ev-plat').value||null,
     account:$('#ev-acc').value||null,title:$('#ev-title').value,
-    expect:$('#ev-expect').value||null,kind:'own'};
-  const r=await fetch('/api/diary',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body)});
+    expect:$('#ev-expect').value||null};
+  if(!evEditId)body.kind='own';
+  const r=await fetch('/api/diary'+(evEditId?'/'+evEditId:''),
+    {method:evEditId?'PUT':'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify(body)});
   if(!r.ok){alert('не записалось: '+(await r.text()).slice(0,200));return;}
-  $('#ev-title').value='';$('#ev-expect').value='';
+  evReset();
   $('#ev-form').style.display='none';
   await loadDiary();await loadWeekly();
 };
