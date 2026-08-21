@@ -438,25 +438,33 @@ def collect_yandex(dry=False, days=90, folder=YA_FOLDER):
 # склада живёт рядом с новостью и подставляется в событие дневника.
 # Чего тут НЕТ: складов, по которым данных нет. Молчание — это «неизвестно», а не «цело».
 WH_STATUS = (
-    (r"Электростал", "lost"),
-    (r"Котовск", "lost"),
-    (r"Новосемейкино", "lost"),
-    (r"Чехов|Новосёлк|Новоселк", "lost"),
-    (r"Алексин", "lost"),
-    (r"Владимир|Воршин", "lost"),
-    (r"Северн\w*\s+Домодедово", "lost"),   # обычное Домодедово — не отсюда, статуса нет
-    (r"Шушар", "hit"),
-    (r"Коледино", "hit"),
-    (r"Краснодар", "hit"),
-    (r"Невинномысск", "hit"),
+    (r"Электростал", "lost", "Электросталь"),
+    (r"Котовск", "lost", "Котовск"),
+    (r"Новосемейкино", "lost", "Новосемейкино"),
+    (r"Чехов|Новосёлк|Новоселк", "lost", "Чехов / Новосёлки"),
+    (r"Алексин", "lost", "Алексин"),
+    (r"Владимир|Воршин", "lost", "Владимир: Воршинское"),
+    (r"Северн\w*\s+Домодедово", "lost", "Северное Домодедово"),  # просто Домодедово — не отсюда
+    (r"Шушар", "hit", "Шушары"),
+    (r"Коледино", "hit", "Коледино"),
+    (r"Краснодар", "hit", "Краснодар"),
+    (r"Невинномысск", "hit", "Невинномысск"),
 )
-WH_NOTE = {
-    "lost": ("⚠️ Склад уничтожен полностью — весь наш товар, лежавший там на хранении, утрачен.",
-             "Считать остаток на этом складе утраченным: списать в учёте и заявить компенсацию ВБ."),
-    "hit": ("⚠️ Склад серьёзно повреждён — высокая вероятность, что весь наш товар утрачен.",
-            "Запросить у ВБ судьбу остатка на складе и готовить списание с претензией."),
+WH_ICON = {"lost": "🔥", "hit": "💥"}
+WH_PHRASE = {
+    "lost": "уничтожен полностью — весь наш товар, лежавший там на хранении, утрачен",
+    "hit": "серьёзно повреждён — высокая вероятность, что весь наш товар утрачен",
 }
-
+WH_ACTION = {
+    "lost": "Считать остаток на этом складе утраченным на дату удара: списать в учёте "
+            "и заявить компенсацию ВБ.",
+    "hit": "Запросить у ВБ судьбу остатка на складе на дату удара и готовить списание "
+           "с претензией.",
+}
+# Значок ставим ОДИН раз на склад — в день удара. Дальше по тому же складу идёт хвост новостей
+# («не принимает товары», «возобновили работу»), и повтор значка сбивал бы дату, на которую
+# считать остатки. Решение Натальи 21.08.2026.
+WH_MARKS = "".join(WH_ICON.values()) + "⚠️"
 
 # В теле новости ВБ перечисляет и ЦЕЛЫЕ склады — куда перенаправить поставки («можно
 # отгрузить на склад „Чехов 2“»). Слепой поиск по телу метил такие склады как пострадавшие:
@@ -466,44 +474,56 @@ WH_INCIDENT = re.compile(r"нештатн|произошл|пострадал|п
 WH_REDIRECT = re.compile(r"отгруз|перенаправ|перенес|примут|вместо|запланированн", re.I)
 
 
-def wh_damage(title, body=""):
-    """Статус склада ВБ по названию в новости: 'lost' | 'hit' | None (данных нет)."""
+def wh_hits(title, body=""):
+    """Какие пострадавшие склады названы в новости -> [(имя, 'lost'|'hit'), ...]."""
     parts = [title or ""]
     for sent in re.split(r"(?<=[.!?])\s+|\n+", (body or "")[:1500]):
         if WH_INCIDENT.search(sent) and not WH_REDIRECT.search(sent):
             parts.append(sent)
     text = "\n".join(parts)
-    found = None
-    for pat, st in WH_STATUS:
-        if re.search(pat, text, re.I):
-            if st == "lost":
-                return "lost"      # уничтоженный склад перебивает повреждённый
-            found = "hit"
-    return found
+    return [(name, st) for pat, st, name in WH_STATUS if re.search(pat, text, re.I)]
+
+
+def _wh_clean(details):
+    """Снять прежние пометки об ударе: правила уточняются, старая метка уходить обязана."""
+    keep = [ln for ln in (details or "").splitlines() if not ln[:2].strip().startswith(tuple(WH_MARKS))]
+    return "\n".join(keep).strip()
 
 
 def annotate_damage():
-    """Проставить статус склада в уже заведённых событиях ВБ. Идемпотентно."""
-    rows = db.query("""SELECT b.id, b.title, b.details, b.expect, n.body, n.digest
-                       FROM biz_events b JOIN mp_notices n ON n.event_id = b.id
-                       WHERE b.platform = 'wb' AND b.kind = 'mp'""")
+    """Значок удара — ОДИН раз на склад, в день его первой новости. Идемпотентно."""
+    rows = db.query("""SELECT b.id, b.event_date, b.title, b.details, b.expect,
+                              n.body, n.digest
+                       FROM biz_events b LEFT JOIN mp_notices n ON n.event_id = b.id
+                       WHERE b.platform = 'wb' AND b.kind = 'mp'
+                       ORDER BY b.event_date, b.id""")
+    first = {}                                   # склад -> (id события, статус)
+    for r in rows:
+        for name, st in wh_hits(r["title"] or "", r["body"] or ""):
+            first.setdefault(name, (r["id"], st))
+    own = {}                                     # id события -> [(склад, статус), ...]
+    for name, (eid, st) in first.items():
+        own.setdefault(eid, []).append((name, st))
+
     upd = 0
     for r in rows:
-        st = wh_damage(r["title"] or "", r["body"] or "")
-        note, action = WH_NOTE[st] if st else ("", None)
-        # Сначала снимаем прежнюю пометку: правила уточняются, и ошибочный статус обязан
-        # уходить сам, а не оставаться в дневнике навсегда.
-        details = r["details"] or ""
-        for n, _ in WH_NOTE.values():
-            details = details.replace(n, "").strip()
-        details = (f"{note}\n\n{details}".strip() if note else details)
+        hits = sorted(own.get(r["id"], []))
+        note = "\n".join(f"{WH_ICON[st]} «{name}» {WH_PHRASE[st]}. Остатки считать "
+                          f"на {r['event_date'].strftime('%d.%m.%Y')}."
+                          for name, st in hits)
+        mark = (WH_ICON["lost"] if any(st == "lost" for _, st in hits)
+                else WH_ICON["hit"] if hits else None)
+        action = (WH_ACTION["lost"] if any(st == "lost" for _, st in hits)
+                  else WH_ACTION["hit"] if hits else None)
+        details = _wh_clean(r["details"])
+        details = f"{note}\n\n{details}".strip() if note else details
         expect = action or (r["digest"] or {}).get("action")
-        if details == (r["details"] or "") and expect == r["expect"]:
+        if details == (r["details"] or "") and expect == r["expect"] and mark == r.get("mark"):
             continue
-        db.execute("UPDATE biz_events SET details = %s, expect = %s WHERE id = %s",
-                   (details, expect, r["id"]))
+        db.execute("UPDATE biz_events SET details=%s, expect=%s, mark=%s WHERE id=%s",
+                   (details, expect, mark, r["id"]))
         upd += 1
-    print(f"склады ВБ: статус проставлен в {upd} событиях из {len(rows)}")
+    print(f"склады ВБ: значок удара стоит у {len(own)} событий из {len(rows)}; обновлено {upd}")
 
 
 def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
@@ -535,23 +555,19 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
             continue
         # У WB и Маркета новости общие для площадки — аккаунт в дневнике не проставляем, иначе
         # событие сядет на график одного аккаунта, а касается оно обоих.
-        # Судьба товара на складе — не из новости, а из нашего знания (WH_STATUS): площадка
-        # пишет только про остановку работы. Без этой строки событие читается как штатная пауза.
-        wh = wh_damage(r["title"] or "", r["body"] or "") if r["platform"] == "wb" else None
         eid = biz_diary.add(
             event_date=r["d"], kind="mp", platform=r["platform"],
             account=r["account"] if r["platform"] == "ozon" else None,
             title=r["title"],
             # Если выжимка уже посчитана — в дневник идёт она: человеку нужен денежный смысл
             # новости, а не три экрана текста площадки. Сырьё остаётся в mp_notices.
-            details=((WH_NOTE[wh][0] + "\n\n" if wh else "")
-                     + (digest.render(r["digest"]) if r["digest"]
-                        else (r["body"] or "")[:1500] + (f"\n\nПравило: {r['matched']}"
-                                                        if r["matched"] else ""))),
+            details=(digest.render(r["digest"]) if r["digest"]
+                     else (r["body"] or "")[:1500] + (f"\n\nПравило: {r['matched']}"
+                                                     if r["matched"] else "")),
             # В `expect` у события площадки лежит рекомендация «что делать» — она есть только
             # там, где посчитана выжимка. Название правила туда не кладём: на главной оно
             # читалось бы как «что делать: склад/ЧП».
-            expect=(WH_NOTE[wh][1] if wh else (r["digest"] or {}).get("action")),
+            expect=(r["digest"] or {}).get("action"),
             source=SOURCE_OF.get(r["platform"], r["platform"]),
             author=AUTHOR_OF.get(r["platform"], r["platform"]),
             dedup_key=f"{r['platform']}:{r['account']}:{r['message_id']}")
@@ -678,6 +694,10 @@ def main(argv=None):
     added = to_diary(dry=args.dry, since_days=args.diary_days,
                      platform=args.platform, only_rule=args.diary_rule)
     print(f"в дневник: {added}" + (" (сухой прогон)" if args.dry else ""))
+    if not args.dry:
+        # Значок удара считается по ВСЕЙ ленте разом: «первый раз на склад» видно только
+        # в общей хронологии, событие в одиночку про это не знает.
+        annotate_damage()
 
     alerts = [r for r in fresh if r["importance"] == "alert"]
     if alerts and not args.quiet and not args.dry:

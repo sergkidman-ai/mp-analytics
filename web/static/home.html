@@ -63,6 +63,8 @@
   .evtabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
   .ev{display:flex;gap:12px;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 14px;margin-bottom:6px}
   .ev .d{color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ev .pl{display:inline-block;font-size:12px;color:var(--mut);background:var(--bg);
+          border:1px solid var(--line);border-radius:6px;padding:1px 7px;white-space:nowrap}
   .ev .t{color:var(--txt);text-decoration:none;border-bottom:1px dashed var(--line)}
   .ev .evdet{display:none;white-space:pre-wrap;margin-top:6px;padding:8px 10px;
              background:var(--bg);border:1px solid var(--line);border-radius:8px;
@@ -216,6 +218,9 @@ async function loadSignals(){
 
 const EV_MARK={own:'🔧',mp:'🏪',supply:'📦'};
 const EV_PLAT={ozon:'Ozon',wb:'ВБ',yandex:'Маркет'};
+// Площадку показываем значком-плашкой: по тексту новости («СЦ „Чехов" не принимает товары»)
+// понять, чей это маркетплейс, невозможно.
+const EV_ICON={ozon:'🔵',wb:'🟣',yandex:'🟡'};
 const EV_ACC={oz_acc1:'Цифровой',oz_acc2:'Дисквэр',wb_acc1:'WB acc1',wb_acc2:'WB acc2'};
 let evWeeks={};
 let evKind='';
@@ -232,7 +237,10 @@ async function loadDiary(){
   evRows={};rows.forEach(e=>evRows[e.id]=e);
   $('#diary').innerHTML=rows.map(e=>{
     const dt=e.event_date.slice(8,10)+'.'+e.event_date.slice(5,7);
-    const who=[EV_PLAT[e.platform],EV_ACC[e.account]].filter(Boolean).join(' · ');
+    const who=EV_ACC[e.account]||'';
+    const chip=e.platform?`<span class="pl">${EV_ICON[e.platform]||''} ${EV_PLAT[e.platform]||e.platform}</span> `:'';
+    // mark — значок удара по складу: стоит один раз, в день атаки (см. ops/mp_news.py).
+    const mk=e.mark?e.mark+' ':'';
     // Ожидание показываем рядом с событием: через месяц «зачем мы это делали» уже не вспомнить.
     // У наших решений в expect лежит ожидание, у новостей площадок — рекомендация.
     const exp=e.expect?` <span class="muted">— ${e.kind==='mp'?'что делать':'ждём'}: ${e.expect}</span>`:'';
@@ -243,7 +251,7 @@ async function loadDiary(){
     const det=e.details?`<div class="evdet" id="evd${e.id}">${esc(e.details)}</div>`:'';
     const ttl=e.details?`<a href="#" class="t" data-det="${e.id}">${e.title}</a>`:e.title;
     return `<div class="ev"><span class="d">${dt}</span><span>${EV_MARK[e.kind]||'·'}</span>
-      <span>${ttl}${who?` <span class="muted">(${who})</span>`:''}${exp}${det}</span>
+      <span>${chip}${mk}${ttl}${who?` <span class="muted">(${who})</span>`:''}${exp}${det}</span>
       ${edit}<a href="#" class="x" data-id="${e.id}" title="удалить">✕</a></div>`;
   }).join('')||'<p class="muted">событий пока нет — запиши первое, и недельные цифры будут читаться вместе с ним.</p>';
   // Хвост ленты: без этой кнопки старые события (пожары на складах ВБ с 18.07) не видны вовсе.
