@@ -58,6 +58,33 @@ def create(ev: NewEvent):
     return {"id": new_id, "ok": True}
 
 
+class EditEvent(BaseModel):
+    """Правка события: приходят только изменённые поля, остальные остаются как были."""
+    event_date: date | None = None
+    platform: str | None = None
+    account: str | None = None
+    title: str | None = None
+    details: str | None = None
+    expect: str | None = None
+    date_to: date | None = None
+    review_at: date | None = None
+
+
+@router.put("/{event_id}")
+def edit(event_id: int, ev: EditEvent):
+    # exclude_unset: не присланное поле не трогаем, а присланный null — это осознанная
+    # очистка (снять площадку, убрать ожидание), и она должна доехать до базы.
+    fields = ev.dict(exclude_unset=True)
+    try:
+        row = biz_diary.update(event_id, **fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if row is None:
+        raise HTTPException(status_code=404, detail="нет такой записи")
+    return {"ok": True, "event": {k: (v.isoformat() if isinstance(v, date) else v)
+                                  for k, v in row.items() if k != "created_at"}}
+
+
 @router.post("/parse")
 def parse(payload: dict):
     """Свободная строка -> черновик события (для бота и для формы «вставил и проверил»)."""
