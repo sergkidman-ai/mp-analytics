@@ -68,6 +68,7 @@ PLATFORMS = ("ozon", "wb", "yandex")
 # Подпапку «Маркет. Не важное» не трогаем: она для того и заведена.
 YA_FOLDER = "Яндекс.Маркет"
 YA_ACCOUNT = "ya_mail"
+YA_BODY_MAX = 12000  # письмо о тарифах на 8 тыс. знаков: главное часто в конце
 
 SOURCE_OF = {"ozon": "ozon_chat", "wb": "wb_news", "yandex": "ya_mail"}
 AUTHOR_OF = {"ozon": "Ozon", "wb": "WB", "yandex": "Маркет"}
@@ -409,7 +410,7 @@ def collect_yandex(dry=False, days=90, folder=YA_FOLDER):
             imp, rule = classify(title, body)
             row = {"account": YA_ACCOUNT, "message_id": mid, "chat_id": folder,
                    "chat_type": sender, "created_at": when, "title": title,
-                   "body": body[:4000], "importance": imp, "matched": rule}
+                   "body": body[:YA_BODY_MAX], "importance": imp, "matched": rule}
             fresh.append(row)
             if not dry:
                 db.execute("""
@@ -417,7 +418,7 @@ def collect_yandex(dry=False, days=90, folder=YA_FOLDER):
                                             created_at, title, body, importance, matched)
                     VALUES ('yandex',%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (platform, account, message_id) DO NOTHING
-                """, (YA_ACCOUNT, mid, folder, sender, when, title, body[:4000], imp, rule))
+                """, (YA_ACCOUNT, mid, folder, sender, when, title, body[:YA_BODY_MAX], imp, rule))
     finally:
         try:
             box.logout()
