@@ -547,6 +547,9 @@ function row(r){
             title="платный веб-запрос по моделям строки">🌐 сеть</button>` : ""}
        ${r.decision === "new" && !r.ms_code ? `<button class="toms" style="margin-left:8px"
             title="завести карточку (или несколько) в МойСкладе">➕ В МС</button>` : ""}
+       ${r.decision === "matched" && r.ms_code ? `<button class="twin" style="margin-left:8px"
+            title="завести карточку ЭТОГО поставщика под кодом ${esc(r.ms_code)} — без неё прайс не даст остатка"
+            >➕ карточка поставщика</button>` : ""}
        <button class="undo" style="margin-left:8px">вернуть</button>
        <div class="pick" style="margin-top:6px">
          <span class="muted">связь</span>
@@ -736,7 +739,19 @@ let TW = {id: null, msg: null};
 
 async function twOpen(id, msg){
   TW = {id, msg};
-  const d = await (await fetch(`/api/novelties/twin-form?id=${id}`)).json();
+  // Сервер может ответить 500 (или чем угодно не-JSON). Раньше `.json()` бросал исключение
+  // прямо здесь — модалка не открывалась вовсе, и причина оставалась только в логе uvicorn.
+  const res = await fetch(`/api/novelties/twin-form?id=${id}`);
+  const d = res.ok ? await res.json().catch(() => null) : null;
+  if (!d){
+    $("#twfields").innerHTML = "";
+    $("#twwarn").textContent = "";
+    $("#twhead").textContent = "карточку завести нечем";
+    $("#twlog").textContent = `сервер ответил ${res.status} — смотреть журнал mp-dashboard`;
+    $("#twdry").disabled = $("#twgo").disabled = true;
+    $("#twmodal").hidden = false;
+    return;
+  }
   // Ответ показываем В МОДАЛКЕ, а не в строке таблицы: после записи решения таблица
   // перерисовалась, и ссылка на ячейку сообщения ведёт уже в выброшенный узел.
   $("#twfields").innerHTML = "";
@@ -813,6 +828,10 @@ function wire(){
     if (toms) toms.onclick = () => toMs(id, msg, extOf());
     const black = tr.querySelector(".black");
     if (black) black.onclick = () => toBlacklist([id], msg);
+    // Сопоставили, а карточка поставщика не завелась (диалог упал, человек закрыл, передумал) —
+    // строка уже не «не разобрана», и завести её было НЕЧЕМ: кнопки в разобранной строке не было.
+    const twin = tr.querySelector(".twin");
+    if (twin) twin.onclick = () => twOpen(id, msg);
     const undo = tr.querySelector(".undo");
     if (undo) undo.onclick = () => decide([id], "pending", "", msg);
     const savelink = tr.querySelector(".savelink");

@@ -3079,7 +3079,14 @@ def _twin_draft(novelty_id):
     if not row["ms_code"]:
         return row, None, [], "у строки нет кода нашего товара — сначала «Это он»"
     # Решение может быть уже закрыто (`exists`) — тогда карточку заводить не из чего.
-    records, notes = ms_import.build(row["supplier_key"], (row["decision"],), ids=[novelty_id])
+    # Сборка черновика падает на незнакомом бренде (нет правила аббревиатуры кода) и на кривом
+    # прайсе. Голое исключение здесь = HTTP 500, `fetch().json()` в браузере ломается ДО
+    # открытия модалки, а решение «сопоставлено» уже записано — человек видит только то, что
+    # строка молча уехала в «Сопоставлено». Поэтому причину возвращаем текстом.
+    try:
+        records, notes = ms_import.build(row["supplier_key"], (row["decision"],), ids=[novelty_id])
+    except (KeyError, ValueError) as exc:
+        return row, None, [], f"черновик карточки не собрался: {exc}"
     if not records:
         why = "; ".join(n[2][0] for n in notes) if notes else \
             f"строка со статусом «{row['decision']}» карточку не заводит"
