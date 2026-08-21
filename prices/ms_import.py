@@ -382,28 +382,6 @@ COLOR_MARKS = {
 }
 
 
-def _wb_fit(price_name):
-    """Сравнение вариантов «Название WB» с формулой: тип + модель + «для» + бренд принтера
-    + цвет + XL ресурс + чип. Цвет, XL и чип сверяем с названием из прайса — берём тот
-    вариант родни, который формуле соответствует, а не просто самый длинный. Предлог «для»
-    уже проставлен (см. `wb_name`), здесь остаётся отсеять аббревиатуру поставщика,
-    заехавшую в модель («Картридж SP TN-221C»).
-    """
-    low = (price_name or "").lower()
-    color = next((ru for ru, marks in COLOR_MARKS.items() if any(m in low for m in marks)), None)
-    xl = bool(re.search(r"\bxl\b|увеличен", low))
-    chip = "чип" in low
-
-    def score(value):
-        v = value.lower().replace("ё", "е")
-        return (1 if color and color in v else 0,
-                1 if xl and "xl" in v else 0,
-                1 if chip and "чип" in v else 0,
-                0 if re.match(r"^\S+\s+(SP|CS|GG|NV|PL|GP|T2|HB)\s", value) else 1,
-                len(value))
-    return score
-
-
 def _pages(text):
     """Ресурс из названия. Меньше сотни страниц картриджей не бывает — такое отсеиваем."""
     out = {int(re.sub(r"\s+", "", raw)) for raw in PAGES_RE.findall(text or "")}
@@ -444,7 +422,12 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
             cards, "path",
             keep=lambda p: p.startswith(GROUP_PREFIX) and not p.startswith(GROUP_SUPPLIER))
         code128, bc_all = _pick(cards, "code128")
-        wb, wb_all = _pick(cards, "wb", tie=_wb_fit(row["name"]))
+        # «Название WB» — ТОЛЬКО по формуле из каталога ТК (правило 41; подтверждено
+        # Сергеем 21.08.2026). На родню по этому полю не смотрим вовсе: там ручные
+        # значения старого образца, и наследование их же и размножало. Замечание
+        # выводим единственное — когда формула НЕ дала названия: пустое поле на
+        # карточке недопустимо, его закрывает человек.
+        wb, wb_flag = wb_compose(ext, row["name"])
 
         # Вес у родни расходится — берём САМУЮ СВЕЖУЮ карточку внешнего кода (решение
         # Сергея 08.08): её заводили последней, по последним данным.
@@ -473,15 +456,8 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
             flags.append(f"штрихкод у родни разный: {' / '.join(bc_all)} → взял {code128}")
         if not code128:
             flags.append("у родни нет Code128 — заполнить вручную")
-        if len(wb_all) > 1:
-            flags.append(f"«Название WB» у родни разное: {' / '.join(wb_all)} → взял «{wb}»")
         if not wb:
-            # У родни поля нет — собираем по формуле из каталога ТК, а не оставляем пустым:
-            # с пустым «Название WB» карточка уезжает на WB безымянной (решение Сергея 14.08).
-            wb, wb_flag = wb_compose(ext, row["name"])
-            flags.append(f"«Название WB» у родни нет — собрано по формуле из каталога ТК: «{wb}»"
-                         if wb else wb_flag)
-        flags += sorted({c["wb_note"] for c in cards if c.get("wb_note")})
+            flags.append(wb_flag)
         if len(weight_all) > 1 and max(weight_all) > min(weight_all) * 1.2:
             flags.append(f"вес у родни расходится: {weight_all}, в файле {weight} — {source}")
         if row["price_rub"] is None:
