@@ -237,38 +237,28 @@ XL_RE = re.compile(r"\bxl\b|увеличен", re.IGNORECASE)
 
 
 def wb_compose(external_code, price_name):
-    """«Название WB» по формуле, когда у родни его нет. Возвращает (название, замечание).
+    """«Название WB» по формуле — единственный источник поля (правило 41).
 
-    Формула (шаблон Сергея): **тип + модель + «для» + бренд принтера + цвет + чип + XL ресурс**.
-    Признаки берём из каталога ТК (`prc_tc_model`) — это первоисточник по ТОВАРУ, а не разбор
-    чужих названий: поле в МС заполняли руками и с ошибками (предлог «для» стоит у 7% значений,
-    аббревиатура поставщика заезжает в модель, чип пишут через раз), и повторять их нельзя.
-    XL — из названия прайса: это признак ПОСТАВКИ, в каталоге ТК его нет.
+    Формула на проект ОДНА и живёт в `tools/prc/wb_fill.py:compose()`; здесь только сырьё
+    каталога ТК и признак XL из названия прайса (в каталоге ТК признак ПОСТАВКИ отсутствует).
+    Своей копии формулы у конвейера больше нет (21.08.2026): копия отставала — в ней не было
+    замены «Комплект …» → «Набор …», не бралось доп. название, бренд считался иначе, и у
+    наборов в хвост лез перечень цветов. Две реализации одного правила расходятся молча.
 
     Каталог кода не знает или молчит о типе/модели/бренде — ничего не сочиняем, отдаём пусто
     с замечанием: поле заполнит человек.
     """
-    rows = query("""SELECT title, color, chip, brand, consumable_type
-                      FROM prc_tc_model WHERE external_code = %s AND gone_at IS NULL""",
+    from tools.prc.wb_fill import compose      # импорт здесь: wb_fill тянет ATTRS из этого модуля
+    rows = query("SELECT raw FROM prc_tc_model WHERE external_code = %s AND gone_at IS NULL",
                  (external_code,))
     if not rows:
         return "", f"каталога ТК по коду {external_code} нет — «Название WB» заполнить вручную"
-    tc = rows[0]
-    kind = (tc["consumable_type"] or "").strip()
-    model = (tc["title"] or "").strip()
-    brand = next((b for b in (tc["brand"] or []) if b), None)
-    missing = [name for name, value in (("тип", kind), ("модель", model), ("бренд", brand))
-               if not value]
-    if missing:
-        return "", (f"в каталоге ТК по коду {external_code} нет {', '.join(missing)} — "
-                    f"«Название WB» заполнить вручную")
-    parts = [kind, model, "для", brand]
-    parts += [w for w in (TC_COLOR_WORD.get((tc["color"] or "").upper()),
-                          TC_CHIP_WORD.get(tc["chip"])) if w]
-    if XL_RE.search(price_name or ""):
-        parts.append("XL ресурс")
-    return " ".join(parts), None
-
+    name, why = compose(rows[0]["raw"])
+    if not name:
+        return "", f"каталог ТК по коду {external_code}: {why} — «Название WB» заполнить вручную"
+    if XL_RE.search(price_name or "") and "XL" not in name.upper():
+        name += " XL ресурс"                   # XL — признак поставки, он только в прайсе
+    return name, None
 
 UUID_EPOCH = datetime(1582, 10, 15)
 
