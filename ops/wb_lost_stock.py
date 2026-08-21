@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 # поток: ev — оценка товара, утраченного на пострадавших складах ВБ.
-# Считает остаток по снимку wb_stocks на дату удара (или ближайший доступный) и его себестоимость.
-# Себест/шт — из витрины mkt_sku_economics (cogs_u + cogs_source: shipment / live / live_stale),
-# она же несёт согласованную иерархию фолбэков; резерв — products.cost_seb по external_code.
-# Наивный джойн external_code -> cost_seb основным источником НЕ делаем (CLAUDE.md п.5).
+# Остаток берём из НАШИХ снимков wb_stocks на дату удара (или ближайший до неё).
+#
+# Себест/шт — ЦЕНА ПРИЁМКИ МС, ближайшая к дате удара и НЕ ПОЗЖЕ неё (метод Натальи 21.08).
+# Почему не FIFO отгрузок: FIFO отвечает «по чём списали при ПРОДАЖЕ», а этот товар не продан —
+# он лежал на складе МП, номера отгрузки, которой он туда попал (отмена/невыкуп), у нас нет,
+# даты поступления на склад ВБ — тоже. Значит берём последнюю цену закупки до даты удара.
+# Источник — ms_supply_pos (ops/ms_supply_prices.py).
+# Витрина mkt_sku_economics считается ВТОРЫМ методом, только для сверки: у неё половина SKU
+# оценена сегодняшним прайсом поставщика (cogs_source='live'), а не нашей закупкой.
 import sys, datetime as dt
 from collections import Counter
 from core import db
+from reports.margin_control import _mapping   # read-only: общий мост nm_id -> код МС
 
 # склад в wb_stocks -> (имя из новостей, дата удара, статус)
 TARGETS = [
@@ -16,26 +22,71 @@ TARGETS = [
     ("Самара (Новосемейкино)", "Новосемейкино",        "2026-08-02", "lost"),
     ("Тула",                   "Алексин (склад ВБ «Тула»)", "2026-08-04", "lost"),
 ]
-# уничтожены, но нашего товара там нет ни в одном снимке
 ABSENT = [("Чехов / Новосёлки", "2026-08-16"), ("Северное Домодедово", "2026-08-16")]
 
 
-def cost_map():
-    """nm_id -> (себест/шт, источник)."""
-    m = {}
-    for r in db.query("""SELECT DISTINCT ON (nm_id) nm_id, cogs_u, cogs_source
-                         FROM mkt_sku_economics WHERE cogs_u > 0 ORDER BY nm_id, built_at DESC"""):
-        m[str(r["nm_id"])] = (float(r["cogs_u"]), r["cogs_source"])
-    for r in db.query("""SELECT DISTINCT ON (c.nm_id) c.nm_id, p.cost_seb, p.buy_price
-                         FROM wb_cards c JOIN products p ON p.external_code = c.vendor_code
-                         WHERE COALESCE(p.cost_seb, p.buy_price) > 0"""):
-        m.setdefault(str(r["nm_id"]), (float(r["cost_seb"] or r["buy_price"]), "ms_card"))
-    return m
+def nm_composition():
+    """nm_id -> [(код карточки МС, штук на единицу WB), ...].
+
+    Половина карточек WB — НАБОРЫ («Картриджи DS TN-514» = 4 картриджа CMYK), и мост
+    `_mapping` отдаёт только один компонент (самый частый) — по нему набор оценивается
+    вчетверо дешевле. Поэтому состав берём из ФАКТИЧЕСКИХ отгрузок МС: отправление WB
+    (`assembly_id`) → документ отгрузки → его позиции; берём самый частый состав.
+    Карточки без отгрузок — фолбэк на общий мост, один товар, 1 шт."""
+    from collections import Counter, defaultdict
+    pos = defaultdict(list)
+    for r in db.query("""SELECT ps.demand_id, p.external_code ec, ps.qty
+                         FROM ms_demand_pos ps JOIN ms_product p ON p.ms_id = ps.ms_id
+                         WHERE p.external_code IS NOT NULL"""):
+        pos[r["demand_id"]].append((r["ec"], float(r["qty"])))
+    variants = defaultdict(Counter)
+    for acc in ("wb_acc1", "wb_acc2"):
+        for r in db.query("""SELECT DISTINCT w.payload->>'nm_id' nm, d.demand_id
+                             FROM raw_wb_report w
+                             JOIN ms_demand_cogs d ON d.demand_name = w.payload->>'assembly_id'
+                             WHERE w.account=%s AND w.payload->>'nm_id' ~ '^[0-9]+$'""", (acc,)):
+            if r["demand_id"] in pos:
+                variants[int(r["nm"])][tuple(sorted(pos[r["demand_id"]]))] += 1
+    comp = {nm: list(c.most_common(1)[0][0]) for nm, c in variants.items()}
+    codes = {r["external_code"] for r in db.query(
+        "SELECT DISTINCT external_code FROM ms_product WHERE external_code IS NOT NULL")}
+    for acc in ("wb_acc1", "wb_acc2"):
+        for nm, (ec, _src) in _mapping(acc, codes).items():
+            comp.setdefault(int(nm), [(ec, 1.0)])
+    return comp
+
+
+def supply_cost(hit, comp):
+    """nm_id -> (себест единицы WB, дата приёмки, число компонентов).
+    Цена компонента — последняя приёмка МС НЕ ПОЗЖЕ даты удара. Под карточкой несколько
+    товаров-поставщиков (`3804at`, `3804wb` при коде `3804`) — берём последнюю приёмку любого.
+    Набор, у которого хоть один компонент без приёмки, в сумму НЕ идёт: цифра для претензии
+    должна быть целой."""
+    last = {}
+    for r in db.query("""SELECT DISTINCT ON (p.external_code)
+                                p.external_code ec, s.price_rub, s.moment
+                         FROM ms_supply_pos s JOIN ms_product p ON p.ms_id = s.ms_id
+                         WHERE s.moment < %s::date + 1 AND s.price_rub > 0
+                         ORDER BY p.external_code, s.moment DESC""", (hit,)):
+        last[r["ec"]] = (float(r["price_rub"]), r["moment"].date())
+    out = {}
+    for nm, parts in comp.items():
+        if not parts or any(ec not in last for ec, _q in parts):
+            continue
+        out[nm] = (sum(last[ec][0] * q for ec, q in parts),
+                   max(last[ec][1] for ec, _q in parts), len(parts))
+    return out
+
+def vitrina_cost():
+    """Сверочный метод: nm_id -> (себест/шт, источник) из витрины mkt_sku_economics."""
+    return {int(r["nm_id"]): (float(r["cogs_u"]), r["cogs_source"]) for r in db.query(
+        """SELECT DISTINCT ON (nm_id) nm_id, cogs_u, cogs_source
+           FROM mkt_sku_economics WHERE cogs_u > 0 ORDER BY nm_id, built_at DESC""")}
 
 
 def bad_days():
     """Дни с обрезанным снимком: строк заметно меньше, чем у соседних дней (окно +-3).
-    Объём выгрузки ВБ менялся скачками (смена эндпоинта 20.07), поэтому сравнение только локальное."""
+    Объём выгрузки ВБ менялся скачками (смена эндпоинта 20.07) — сравнение только локальное."""
     rows = db.query("SELECT captured_at::date d, count(*) n FROM wb_stocks GROUP BY 1 ORDER BY 1")
     bad = set()
     for i, r in enumerate(rows):
@@ -45,91 +96,114 @@ def bad_days():
     return bad
 
 
-def snapshot_date(wh, hit):
+def snapshot_date(wh, hit, bad):
     """Дата снимка: сам день удара, иначе ближайший ДО него, иначе ближайший после."""
     for order, sign in (("DESC", "<="), ("ASC", ">")):
-        r = db.query(f"""SELECT captured_at::date d FROM wb_stocks
-                         WHERE warehouse=%s AND captured_at::date {sign} %s::date
-                         ORDER BY captured_at {order} LIMIT 1""", (wh, hit))
-        if r:
-            return r[0]["d"], ("день удара" if str(r[0]["d"]) == hit else
-                               ("ближайший до" if sign == "<=" else "ближайший после"))
+        for r in db.query(f"""SELECT captured_at::date d FROM wb_stocks
+                              WHERE warehouse=%s AND captured_at::date {sign} %s::date
+                              ORDER BY captured_at {order} LIMIT 10""", (wh, hit)):
+            if r["d"] not in bad:
+                return r["d"], ("день удара" if str(r["d"]) == hit else
+                                ("ближайший до" if sign == "<=" else "ближайший после"))
     return None, None
 
 
+def rub(x):
+    return f"{x:,.0f}".replace(",", " ")
+
+
 def main():
-    global BAD
-    BAD = bad_days()
-    costs = cost_map()
+    bad, comp, vit = bad_days(), nm_composition(), vitrina_cost()
     out, chat = [], []
     out.append("# Товар на уничтоженных складах ВБ — оценка утраты\n")
-    out.append(f"Считано {dt.date.today():%d.%m.%Y}. Источник остатка — снимки `wb_stocks` (наши, ежедневные).")
-    out.append("Себест/шт — `mkt_sku_economics.cogs_u` (источник в колонке: shipment — по документу отгрузки, live — живая закупка, live_stale — устаревшая живая, ms_card — карточка МС).\n")
-    total_q = total_s = total_nc = 0
+    out.append(f"Считано {dt.date.today():%d.%m.%Y}. Остаток — снимки `wb_stocks` (наши, ежедневные).\n")
+    out.append("**Себест/шт — цена приёмки МойСклада, ближайшая к дате удара и не позже неё.**")
+    out.append("FIFO отгрузок тут не годится: товар не продан, номер отгрузки, которой он попал")
+    out.append("на склад ВБ (отмена/невыкуп), неизвестен, дата поступления на склад — тоже.")
+    out.append("В скобках у каждой строки — дата приёмки, по которой взята цена.\n")
+    tq = ts = tnc = tv = 0
     for wh, label, hit, st in TARGETS:
-        d, how = snapshot_date(wh, hit)
-        while d in BAD:
-            d, how = snapshot_date(wh, str(d - dt.timedelta(days=1)))
+        d, how = snapshot_date(wh, hit, bad)
         if not d:
             out.append(f"## {label}\nСнимков нет.\n"); continue
+        sup = supply_cost(hit, comp)
         rows = db.query("""SELECT account, nm_id, vendor_code, sum(quantity) q
                            FROM wb_stocks WHERE warehouse=%s AND captured_at::date=%s
                            GROUP BY 1,2,3 HAVING sum(quantity)>0 ORDER BY 4 DESC""", (wh, d))
         q = sum(int(r["q"]) for r in rows)
-        priced = [(r, costs[str(r["nm_id"])][0]) for r in rows if str(r["nm_id"]) in costs]
-        s = sum(int(r["q"]) * c for r, c in priced)
+        priced = [(r, sup[int(r["nm_id"])]) for r in rows if int(r["nm_id"]) in sup]
+        s = sum(int(r["q"]) * c[0] for r, c in priced)
         nc = q - sum(int(r["q"]) for r, _ in priced)
-        total_q += q; total_s += s; total_nc += nc
+        # сверка: та же корзина по витрине mkt_sku_economics
+        v = sum(int(r["q"]) * vit[int(r["nm_id"])][0] for r in rows if int(r["nm_id"]) in vit)
+        tq += q; ts += s; tnc += nc; tv += v
         lag = (dt.date.fromisoformat(hit) - d).days
         out.append(f"## {label} — удар {dt.date.fromisoformat(hit):%d.%m.%Y}")
         out.append(f"Снимок {d:%d.%m.%Y} ({how}" + (f", разрыв {abs(lag)} дн." if lag else "") + ")")
-        out.append(f"Штук {q}, SKU {len(rows)}, себест **{s:,.0f} ₽**".replace(",", " ") +
-                   (f", без себеста {nc} шт" if nc else ""))
-        src = Counter(costs[str(r["nm_id"])][1] for r, _ in priced)
-        out.append("Источник себеста: " + ", ".join(f"{k} {v}" for k, v in src.most_common()))
-        out.append("\n| Аккаунт | nmID | Артикул | Шт | Себест/шт | Сумма | Источник |\n|---|---|---|---|---|---|---|")
-        for r, c in sorted(priced, key=lambda x: -int(x[0]["q"]) * x[1]):
-            out.append(f"| {r['account']} | {r['nm_id']} | {r['vendor_code']} | {int(r['q'])} | {c:,.0f} | {int(r['q'])*c:,.0f} | {costs[str(r['nm_id'])][1]} |".replace(",", " "))
-        for r in rows:
-            if str(r["nm_id"]) not in costs:
-                out.append(f"| {r['account']} | {r['nm_id']} | {r['vendor_code']} | {int(r['q'])} | — | — | нет |")
-        out.append("")
-        # контроль: снимок после удара и «замер ли» остаток (склад не отгружает — косвенный признак утраты)
-        after = db.query("""SELECT captured_at::date d, sum(quantity) q FROM wb_stocks
-                            WHERE warehouse=%s AND captured_at::date > %s::date
-                            GROUP BY 1 ORDER BY 1""", (wh, hit))
-        after = [a for a in after if a["d"] not in BAD]
+        out.append(f"Штук {q}, SKU {len(rows)}, по цене приёмки **{rub(s)} ₽**"
+                   + (f", без приёмки в базе {nc} шт" if nc else ""))
+        out.append(f"Для сверки, по витрине `mkt_sku_economics`: {rub(v)} ₽")
+        after = [a for a in db.query("""SELECT captured_at::date d, sum(quantity) q FROM wb_stocks
+                                        WHERE warehouse=%s AND captured_at::date > %s::date
+                                        GROUP BY 1 ORDER BY 1""", (wh, hit)) if a["d"] not in bad]
         if after:
             vals = [int(a["q"]) for a in after]
             move = sum(abs(vals[i] - vals[i-1]) for i in range(1, len(vals)))
             out.append(f"\nКонтроль по снимкам после удара: {after[0]['d']:%d.%m} — {vals[0]} шт, "
-                       f"последний снимок {after[-1]['d']:%d.%m} — {vals[-1]} шт; "
-                       f"суммарное движение за {len(after)} дн. {move} шт "
-                       + ("(остаток фактически заморожен — склад не отгружает)." if move <= 2 else "(остаток шевелится)."))
+                       f"последний снимок {after[-1]['d']:%d.%m} — {vals[-1]} шт; движение за "
+                       f"{len(after)} дн. {move} шт "
+                       + ("(остаток фактически заморожен — склад не отгружает)." if move <= 2
+                          else "(остаток шевелится)."))
             gone = db.query("SELECT max(captured_at)::date d FROM wb_stocks WHERE warehouse=%s", (wh,))[0]["d"]
             last = db.query("SELECT max(captured_at)::date d FROM wb_stocks")[0]["d"]
             if gone < last:
-                out.append(f"С {gone:%d.%m.%Y} склад из отчёта ВБ пропал — в свежих снимках его нет (последний снимок базы {last:%d.%m.%Y}).")
-        chat.append(f"{label:<28} {d:%d.%m}  шт {q:>4}  себест {s:>9,.0f} ₽".replace(",", " ") + (f"  (без цены {nc})" if nc else ""))
+                out.append(f"С {gone:%d.%m.%Y} склад из отчёта ВБ пропал — в свежих снимках его нет "
+                           f"(последний снимок базы {last:%d.%m.%Y}).")
+        out.append("\n| Аккаунт | nmID | Артикул | Шт | В карточке | Цена приёмки | Дата приёмки | Сумма | Витрина, ₽/шт |")
+        out.append("|---|---|---|---|---|---|---|---|---|")
+        for r, c in sorted(priced, key=lambda x: -int(x[0]["q"]) * x[1][0]):
+            vv = vit.get(int(r["nm_id"]))
+            out.append(f"| {r['account']} | {r['nm_id']} | {r['vendor_code']} | {int(r['q'])} | "
+                       f"{c[2]} шт | {rub(c[0])} | {c[1]:%d.%m.%Y} | {rub(int(r['q'])*c[0])} | "
+                       + (f"{rub(vv[0])} ({vv[1]}) |" if vv else "— |"))
+        for r in rows:
+            if int(r["nm_id"]) not in sup:
+                vv = vit.get(int(r["nm_id"]))
+                out.append(f"| {r['account']} | {r['nm_id']} | {r['vendor_code']} | {int(r['q'])} | "
+                           f"{len(comp.get(int(r['nm_id']),[]))} шт | — | приёмки нет | — | " + (f"{rub(vv[0])} ({vv[1]}) |" if vv else "— |"))
+        out.append("")
+        chat.append(f"{label:<28} {d:%d.%m}  шт {q:>4}  приёмка {rub(s):>9} ₽   витрина {rub(v):>9} ₽"
+                    + (f"  (без приёмки {nc})" if nc else ""))
     out.append("## Оговорки\n")
-    out.append("- **Разрыв снимков 16–22.07.2026** — ВБ отключил старый эндпоинт остатков 20.07, коллектор переехал")
-    out.append("  на `warehouse_remains`. По ударам 18.07 (Электросталь, Котовск) снимка на сам день нет,")
+    out.append("- **Цена приёмки — приближение, а не партия.** Мы не знаем, из какой поставки")
+    out.append("  физически лежала каждая штука на складе ВБ, поэтому берём последнюю закупочную")
+    out.append("  цену до дня удара. Для претензии это защитимая и проверяемая по документам МС цифра.")
+    out.append("- **Карточка-набор считается по составу.** Половина карточек — комплекты CMYK;\n"
+               "  состав берём из фактических отгрузок МС (отправление WB → документ отгрузки →\n"
+               "  его позиции, самый частый состав), цена = сумма приёмок компонентов. Набор,\n"
+               "  у которого хоть один компонент без приёмки, в сумму не включён.")
+    out.append("- **Разрыв снимков 16–22.07.2026** — ВБ отключил старый эндпоинт остатков 20.07,")
+    out.append("  коллектор переехал на `warehouse_remains`. По ударам 18.07 снимка на сам день нет,")
     out.append("  взят последний до удара — 15.07.")
-    out.append("- **«Алексин» в наших остатках не значится.** Новость ВБ 04.08 названа «Тула», адрес инцидента в теле —")
-    out.append("  Алексин. Считаем по складу ВБ «Тула»; если это разные объекты, строку надо снять.")
-    out.append("- Снимок — остаток на нашем аккаунте по данным ВБ, а не акт о наличии. Заявляя претензию, опираться")
-    out.append("  на «Отчёт по остаткам» ВБ на дату удара; наш снимок — независимая сверка.")
-    out.append("- Себест — закупочная, без логистики до склада и без упущенной выручки.\n")
+    out.append("- **«Алексин» в наших остатках не значится.** Новость ВБ 04.08 названа «Тула», адрес")
+    out.append("  инцидента в теле — Алексин. Считаем по складу ВБ «Тула»; если это разные объекты,")
+    out.append("  строку надо снять.")
+    out.append("- Снимок — остаток по данным ВБ на нашем аккаунте, а не акт о наличии. Претензию")
+    out.append("  подавать по «Отчёту по остаткам» ВБ; наш снимок — независимая сверка.")
+    out.append("- Себест — закупочная без логистики до склада и без упущенной выручки.\n")
     out.append("## Склады без нашего товара в снимках\n")
     for label, hit in ABSENT:
-        out.append(f"- **{label}** (удар {dt.date.fromisoformat(hit):%d.%m.%Y}) — в `wb_stocks` такого склада нет ни в одном снимке: нашего товара там не было.")
-    out.append(f"\n## Итого\n\nШтук {total_q}, себест **{total_s:,.0f} ₽**".replace(",", " ") +
-               (f", без себеста {total_nc} шт." if total_nc else "."))
+        out.append(f"- **{label}** (удар {dt.date.fromisoformat(hit):%d.%m.%Y}) — такого склада нет "
+                   "в `wb_stocks` ни в одном снимке: нашего товара там не было.")
+    out.append(f"\n## Итого\n\nШтук {tq}, по цене приёмки **{rub(ts)} ₽**"
+               + (f", без приёмки в базе {tnc} шт." if tnc else ".")
+               + f" Для сверки, по витрине — {rub(tv)} ₽.")
     path = "docs/reports/wb_lost_warehouses_2026-08-21.md"
     open(path, "w").write("\n".join(out) + "\n")
     print("\n".join(chat))
-    print(f"ИТОГО                        шт {total_q:>4}  себест {total_s:>9,.0f} ₽".replace(",", " "), f"| без цены {total_nc} шт")
+    print(f"{'ИТОГО':<28}       шт {tq:>4}  приёмка {rub(ts):>9} ₽   витрина {rub(tv):>9} ₽ | без приёмки {tnc} шт")
     print("файл:", path)
+
 
 if __name__ == "__main__":
     main()
