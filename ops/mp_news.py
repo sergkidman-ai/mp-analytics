@@ -1,5 +1,5 @@
 # поток: ev — новости площадок: важное из официальных каналов в дневник и в бот
-"""Приёмник новостей маркетплейсов. Первый канал — уведомления Ozon в чатах ЛК.
+"""Приёмник новостей маркетплейсов: Ozon (чаты ЛК) и WB (лента новостей).
 
 Зачем именно чаты: у Ozon нет API новостей, сайт закрыт антиботом, а почта до нас доносит
 не всё. Зато в ЛК есть официальный вещатель `NotificationUser` (`o3_notification_user_sc`) —
@@ -15,14 +15,22 @@
 пускаем только то, что прошло правила. Список правил менять безопасно: переклассификация
 идёт по сырью, без похода в API (`--reclassify`).
 
-Запуск: ./venv/bin/python -m ops.mp_news              оба аккаунта, новое -> дневник + бот
+У WB, в отличие от Ozon, новостное API есть: `communications/v2/news`. Отдаёт до 100 записей
+за запрос, листается сдвигом `from`. Токен нужен только `wb_acc1` — новости общие для площадки,
+а у токена Дисквэра нет нужной категории (404, см. память wb-token-scopes). Лента WB и есть
+тот самый «заранее»: и тарифы, и пожары на складах приходят в неё раньше, чем доедут до цифр.
+
+Запуск: ./venv/bin/python -m ops.mp_news              обе площадки, новое -> дневник + бот
         ./venv/bin/python -m ops.mp_news --dry        показать, ничего не писать
         ./venv/bin/python -m ops.mp_news --reclassify пересчитать важность по сырью
+        ./venv/bin/python -m ops.mp_news --platform wb --days 90 --diary-days 90 --diary-rule склад/ЧП
+                                                      разовый добор истории по одному правилу
 """
 import argparse
 import os
 import re
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, "/opt/mp-analytics")
@@ -44,6 +52,14 @@ ACC_NAME = {"oz_acc1": "Цифровой", "oz_acc2": "Дисквэр"}
 SKIP_CHATS = {"BUYER_SELLER", "SELLER_SUPPORT"}
 NOTIFIER = "NotificationUser"
 
+# WB: новости общие для площадки, поэтому один токен и один «аккаунт» в сырье.
+WB_NEWS = "https://common-api.wildberries.ru/api/communications/v2/news"
+WB_ACCOUNT = "wb_acc1"
+# common-api WB держит жёсткий лимит на ленту новостей — листаем неспешно.
+WB_PAGE_PAUSE = 8      # пауза между страницами, с
+WB_RETRY_PAUSE = 30    # база ожидания после 429, с
+PLATFORMS = ("ozon", "wb")
+
 NOTIFY_IDS = [x.strip() for x in os.getenv("TG_PRC_NOTIFY_ID", "1031321444").split(",") if x.strip()]
 TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
 
@@ -59,7 +75,12 @@ ALERT = [
     (r"(подписк|premium|премиум)[\s\S]{0,80}(цен|тариф|услови|стоимост|продл|отключ|повыш|сохраня|подорожа)|(цен|тариф|услови|стоимост|продл|отключ|повыш)[\s\S]{0,80}(подписк|premium|премиум)", "подписки"),
     (r"подключил[иа]\s+(вам|для|часть|некотор)|подключили\s+доупаковк", "автоподключение услуги"),
     (r"эквайринг|стоимость\s+услуг|повышени[ея]\s+цен|индексаци", "цены на услуги"),
-    (r"пожар|затоплен|склад\s+(закрыт|приостанов)|приостанов\w*\s+(приём|работ)", "склад/ЧП"),
+    # WB о пожарах пишет казённо: «Работа склада «Котовск» временно приостановлена»,
+    # «на складе произошла нештатная ситуация». Слова «пожар» в заголовке чаще нет —
+    # ловим по остановке приёмки и по эвакуации, иначе июльские пожары уходят в info.
+    (r"пожар|возгоран|задымлен|затоплен|нештатн\w*\s+ситуац|эвакуац|"
+     r"(склад\w*|\bсц\b|\bск\b|сортировочн\w+\s+центр)\W[^.]{0,80}(приостанов|закрыт|не принима)|"
+     r"приостанов\w*\s+(приём|работ)", "склад/ЧП"),
     (r"скрыли\s+.*товар|заблокирова|нарушени\w*\s+в\s+договоре", "блокировки"),
 ]
 # WATCH — важно знать, но деньги не трогает прямо сейчас: изменения API, правила, лимиты.
@@ -195,56 +216,155 @@ def collect(account, dry=False, days=90):
     return fresh
 
 
-def to_diary(dry=False, since_days=14):
+def _strip_html(text):
+    """Тело новости WB приходит размеченным — для правил и дневника нужен чистый текст."""
+    text = re.sub(r"<br\s*/?>|</p>|</div>|</li>", "\n", text or "", flags=re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = (text.replace("&nbsp;", " ").replace("&mdash;", "—").replace("&laquo;", "«")
+                .replace("&raquo;", "»").replace("&amp;", "&").replace("&quot;", '"'))
+    return re.sub(r"[ \t]+", " ", text).strip()
+
+
+def _wb_page(token, cursor, tries=4):
+    """Одна страница ленты WB. 429 у common-api — норма, а не сбой: ждём и повторяем."""
+    for attempt in range(tries):
+        r = requests.get(WB_NEWS, params={"from": cursor},
+                         headers={"Authorization": token}, timeout=60)
+        if r.status_code == 429:
+            if attempt == tries - 1:
+                r.raise_for_status()
+            time.sleep(WB_RETRY_PAUSE * (attempt + 1))
+            continue
+        r.raise_for_status()
+        return (r.json() or {}).get("data") or []
+    return []
+
+
+def wb_news(since):
+    """Лента новостей WB с даты `since`. -> список записей (id/date/header/content/types).
+
+    Листаем сдвигом `from`: за раз WB отдаёт максимум 100 и молча обрезает хвост. Признак
+    конца — страница, не принёсшая НИ ОДНОГО нового id: на дату-границу опираться нельзя,
+    последняя новость приезжает дважды.
+    """
+    token = os.getenv("WB_TOKEN_ACC1", "").strip()
+    if not token:
+        raise RuntimeError("нет WB_TOKEN_ACC1")
+    seen, out, cursor = set(), [], since
+    for page in range(50):                                 # предохранитель от вечного цикла
+        if page:
+            time.sleep(WB_PAGE_PAUSE)
+        items = _wb_page(token, cursor)
+        new = [x for x in items if x.get("id") not in seen]
+        if not new:
+            return out
+        seen.update(x["id"] for x in new)
+        out += new
+        if len(items) < 100:
+            return out
+        cursor = max(x["date"] for x in items)[:10]
+    return out
+
+
+def collect_wb(dry=False, days=90):
+    """Новости WB -> mp_notices. -> список свежих строк (тех, что раньше не видели)."""
+    have = {r["message_id"] for r in db.query(
+        "SELECT message_id FROM mp_notices WHERE platform='wb'")}
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+    fresh = []
+    for n in wb_news(since):
+        mid = str(n.get("id"))
+        if mid in have:
+            continue
+        title = (n.get("header") or "").strip()[:200]
+        body = _strip_html(n.get("content"))
+        imp, rule = classify(title, body)
+        try:
+            when = datetime.fromisoformat(n["date"])
+        except (KeyError, ValueError):
+            continue
+        # types приходит списком словарей [{"id":79,"name":"Товары"}] — кладём в chat_type
+        # человеческие названия рубрик: по ним потом видно, какого рода была новость.
+        types = ", ".join(t.get("name", "") for t in (n.get("types") or []))[:100]
+        row = {"account": WB_ACCOUNT, "message_id": mid, "chat_id": None,
+               "chat_type": types, "created_at": when, "title": title,
+               "body": body[:4000], "importance": imp, "matched": rule}
+        fresh.append(row)
+        if not dry:
+            db.execute("""
+                INSERT INTO mp_notices (platform, account, message_id, chat_id, chat_type,
+                                        created_at, title, body, importance, matched)
+                VALUES ('wb',%s,%s,NULL,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (platform, account, message_id) DO NOTHING
+            """, (WB_ACCOUNT, mid, types, when, title, body[:4000], imp, rule))
+    return fresh
+
+
+def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
     """Только ALERT из сырья -> дневник (kind='mp'). Идемпотентно по dedup_key.
+
+    `only_rule` — добрать историю по ОДНОМУ правилу, не поднимая всё остальное: пожары на
+    складах за июль нужны в дневнике задним числом, а июльские тарифы уже неактуальны.
 
     Watch в дневник НЕ пускаем сознательно: за 90 дней его набирается столько же, сколько
     тревог, и наши собственные решения — ради которых дневник и заводился — утонут в
     «обновили методы Seller API». Watch лежит в `mp_notices` и поднимается запросом.
     """
-    rows = db.query("""SELECT account, message_id, created_at::date AS d, title, body, matched
-                       FROM mp_notices
-                       WHERE platform='ozon' AND importance = 'alert'
-                         AND event_id IS NULL
-                         AND created_at >= current_date - %s::int
-                       ORDER BY created_at""", (since_days,))
+    where, params = ["importance = 'alert'", "event_id IS NULL",
+                     "created_at >= current_date - %s::int"], [since_days]
+    if platform:
+        where.append("platform = %s")
+        params.append(platform)
+    if only_rule:
+        where.append("matched = %s")
+        params.append(only_rule)
+    rows = db.query(f"""SELECT platform, account, message_id, created_at::date AS d,
+                               title, body, matched
+                        FROM mp_notices WHERE {' AND '.join(where)}
+                        ORDER BY created_at""", tuple(params))
     added = 0
     for r in rows:
         if dry:
             added += 1
             continue
+        # У WB новости общие для площадки — аккаунт в дневнике не проставляем, иначе
+        # событие сядет на график одного аккаунта, а касается оно обоих.
         eid = biz_diary.add(
-            event_date=r["d"], kind="mp", platform="ozon", account=r["account"],
+            event_date=r["d"], kind="mp", platform=r["platform"],
+            account=r["account"] if r["platform"] == "ozon" else None,
             title=r["title"], details=(r["body"] or "")[:1500],
             expect=f"Правило: {r['matched']}" if r["matched"] else None,
-            source="ozon_chat", author="Ozon",
-            dedup_key=f"ozon:{r['account']}:{r['message_id']}")
-        db.execute("UPDATE mp_notices SET event_id = %s WHERE platform='ozon' "
-                   "AND account=%s AND message_id=%s", (eid, r["account"], r["message_id"]))
+            source="ozon_chat" if r["platform"] == "ozon" else "wb_news",
+            author="Ozon" if r["platform"] == "ozon" else "WB",
+            dedup_key=f"{r['platform']}:{r['account']}:{r['message_id']}")
+        db.execute("UPDATE mp_notices SET event_id = %s WHERE platform=%s "
+                   "AND account=%s AND message_id=%s",
+                   (eid, r["platform"], r["account"], r["message_id"]))
         added += 1
     return added
 
 
 def reclassify():
     """Пересчёт важности по сырью — после правки правил, без похода в API."""
-    rows = db.query("SELECT account, message_id, title, body FROM mp_notices WHERE platform='ozon'")
+    rows = db.query("SELECT platform, account, message_id, title, body FROM mp_notices")
     changed = 0
     for r in rows:
         imp, rule = classify(r["title"] or "", r["body"] or "")
         n = db.query("""UPDATE mp_notices SET importance=%s, matched=%s
-                        WHERE platform='ozon' AND account=%s AND message_id=%s
+                        WHERE platform=%s AND account=%s AND message_id=%s
                           AND (importance <> %s OR matched IS DISTINCT FROM %s)
                         RETURNING message_id""",
-                     (imp, rule, r["account"], r["message_id"], imp, rule))
+                     (imp, rule, r["platform"], r["account"], r["message_id"], imp, rule))
         changed += len(n)
     # Правила поменялись — значит, часть уже заведённых событий больше не важна.
     # Оставить их в дневнике нельзя: он потеряет доверие, а вычищать руками никто не станет.
-    stale = db.query("""SELECT account, message_id, event_id FROM mp_notices
-                        WHERE platform='ozon' AND event_id IS NOT NULL AND importance <> 'alert'""")
+    stale = db.query("""SELECT platform, account, message_id, event_id FROM mp_notices
+                        WHERE event_id IS NOT NULL AND importance <> 'alert'""")
     for r in stale:
         biz_diary.delete(r["event_id"])
-        db.execute("UPDATE mp_notices SET event_id = NULL WHERE platform='ozon' "
-                   "AND account=%s AND message_id=%s", (r["account"], r["message_id"]))
+        db.execute("UPDATE mp_notices SET event_id = NULL WHERE platform=%s "
+                   "AND account=%s AND message_id=%s",
+                   (r["platform"], r["account"], r["message_id"]))
     print(f"переклассифицировано: {changed} из {len(rows)}; "
           f"снято с дневника: {len(stale)}")
 
@@ -266,10 +386,12 @@ def tg(text):
 
 def message(alerts):
     """Одно сообщение за прогон. Деньги вперёд, подробности — в Пульте."""
-    lines = ["🏪 Ozon — важные изменения", ""]
+    lines = ["🏪 Важные изменения площадок", ""]
     tail = len(alerts) - 12
     for a in alerts[:12]:
-        lines.append(f"• [{ACC_NAME.get(a['account'], a['account'])}] {a['title']}")
+        # У WB новость общая для площадки, у Ozon — своя на каждый аккаунт.
+        who = "WB" if a.get("platform") == "wb" else ACC_NAME.get(a["account"], a["account"])
+        lines.append(f"• [{who}] {a['title']}")
         if a["matched"]:
             lines.append(f"  ↳ {a['matched']}")
     if tail > 0:
@@ -286,6 +408,11 @@ def main(argv=None):
     ap.add_argument("--diary-days", type=int, default=14,
                     help="за сколько дней тревоги заводить в дневник (сырьё копится глубже)")
     ap.add_argument("--reclassify", action="store_true", help="пересчитать важность по сырью")
+    ap.add_argument("--platform", choices=PLATFORMS, help="только одна площадка")
+    ap.add_argument("--diary-rule", metavar="ПРАВИЛО",
+                    help="в дневник только по этому правилу (разовый добор истории)")
+    ap.add_argument("--diary-only", action="store_true",
+                    help="не ходить в API: поднять в дневник то, что уже лежит в сырье")
     args = ap.parse_args(argv)
 
     if args.reclassify:
@@ -293,19 +420,29 @@ def main(argv=None):
         return 0
 
     fresh = []
-    for acc in ACCOUNTS:
+    sources = []
+    if args.diary_only:
+        sources = []
+    elif args.platform in (None, "ozon"):
+        sources += [(acc, "ozon", lambda a=acc: collect(a, dry=args.dry, days=args.days))
+                    for acc in ACCOUNTS]
+    if not args.diary_only and args.platform in (None, "wb"):
+        sources.append(("WB", "wb", lambda: collect_wb(dry=args.dry, days=args.days)))
+    for name, plat, fetch in sources:
         try:
-            got = collect(acc, dry=args.dry, days=args.days)
-        except Exception as exc:                       # один аккаунт не должен ронять второй
-            print(f"{acc}: СБОЙ {type(exc).__name__}: {exc}")
+            got = fetch()
+        except Exception as exc:                    # один источник не должен ронять остальные
+            print(f"{name}: СБОЙ {type(exc).__name__}: {exc}")
             continue
         by = {}
         for r in got:
+            r["platform"] = plat
             by[r["importance"]] = by.get(r["importance"], 0) + 1
-        print(f"{acc}: новых уведомлений {len(got)} | {by or '—'}")
+        print(f"{name}: новых уведомлений {len(got)} | {by or '—'}")
         fresh += got
 
-    added = to_diary(dry=args.dry, since_days=args.diary_days)
+    added = to_diary(dry=args.dry, since_days=args.diary_days,
+                     platform=args.platform, only_rule=args.diary_rule)
     print(f"в дневник: {added}" + (" (сухой прогон)" if args.dry else ""))
 
     alerts = [r for r in fresh if r["importance"] == "alert"]
