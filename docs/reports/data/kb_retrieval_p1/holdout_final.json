@@ -1,0 +1,462 @@
+{
+ "meta": {
+  "set": "/opt/mp-knowledge/evals/retrieval_p1_holdout.tsv",
+  "T_high": 18.0,
+  "T_low": 4.6
+ },
+ "metrics": {
+  "n_total": 15,
+  "n_kb": 13,
+  "n_nokb": 2,
+  "recall1": 0.23076923076923078,
+  "recall3": 0.46153846153846156,
+  "mrr": 0.3679487179487179,
+  "precision1": 0.23076923076923078,
+  "buckets": {
+   "HIGH": 0,
+   "GREY": 13,
+   "LOW": 2
+  },
+  "high_precision": null,
+  "high_nokb": 0,
+  "confident_wrong": [],
+  "nokb_false_injection": [
+   "H12",
+   "H15"
+  ],
+  "nokb_fp_rate": 1.0,
+  "score1_dist": {
+   "min": 4.08,
+   "p25": 6.71,
+   "med": 7.98,
+   "p75": 10.85,
+   "max": 15.96
+  },
+  "score1_hit_med": 12.02,
+  "score1_miss_med": 7.9,
+  "nokb_s1": [
+   6.1,
+   7.98
+  ],
+  "ratio_dist": {
+   "min": 1.0,
+   "med": 1.33,
+   "max": 2.51
+  },
+  "inj": {
+   "max": 1145,
+   "med": 781,
+   "sum": 12576,
+   "mean": 838.4
+  }
+ },
+ "items": [
+  {
+   "id": "H01",
+   "kind": "know",
+   "dom": "fin",
+   "q": "Проверь заказы 57519170496 - в МС появилась себестоимость, откуда она берется на дату отгрузки?",
+   "exp": [
+    "analytics-cogs",
+    "wb-data-model"
+   ],
+   "top": [
+    "unit-economics-cost-source",
+    "analytics-cogs",
+    "thecartridge-live-cost"
+   ],
+   "s1": 11.33,
+   "s2": 9.77,
+   "ratio": 1.16,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": true,
+   "rr": 0.5,
+   "inj_tokens": 1043,
+   "inj_cards": [
+    "unit-economics-cost-source",
+    "analytics-cogs",
+    "thecartridge-live-cost"
+   ]
+  },
+  {
+   "id": "H02",
+   "kind": "know",
+   "dom": "fin",
+   "q": "450*0,42-45=144 прибыль - почему пишет маржа -20%?",
+   "exp": [
+    "target-margin",
+    "thecartridge-live-cost"
+   ],
+   "top": [
+    "margin-by-sku-overstates-ozon",
+    "thecartridge-live-cost",
+    "wb-price-model-spp"
+   ],
+   "s1": 9.09,
+   "s2": 4.94,
+   "ratio": 1.84,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": true,
+   "rr": 0.5,
+   "inj_tokens": 737,
+   "inj_cards": [
+    "margin-by-sku-overstates-ozon",
+    "thecartridge-live-cost",
+    "wb-price-model-spp"
+   ]
+  },
+  {
+   "id": "H03",
+   "kind": "collision",
+   "dom": "fin",
+   "q": "Давай еще на график где маржа и себестоимость добавим Расходы ВБ (вот эти Итого которые и для Озона тоже)",
+   "exp": [
+    "wb-reports-tab"
+   ],
+   "top": [
+    "analytics-cogs",
+    "thecartridge-live-cost",
+    "ozon-economics"
+   ],
+   "s1": 8.22,
+   "s2": 7.99,
+   "ratio": 1.03,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": false,
+   "rr": 0.2,
+   "inj_tokens": 950,
+   "inj_cards": [
+    "analytics-cogs",
+    "thecartridge-live-cost",
+    "ozon-economics"
+   ]
+  },
+  {
+   "id": "H04",
+   "kind": "know",
+   "dom": "fin",
+   "q": "при обработке следующего отчета Озон мы будем списывать себестоимость в том числе по заказам ФБО, значит по этим возвратам что?",
+   "exp": [
+    "wb-returns-cogs-storno"
+   ],
+   "top": [
+    "ozon-finance-balance-reconstruct",
+    "unit-economics-cost-source",
+    "project-mp-wb-unit-per-order"
+   ],
+   "s1": 11.06,
+   "s2": 8.67,
+   "ratio": 1.28,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": false,
+   "rr": 0.25,
+   "inj_tokens": 1101,
+   "inj_cards": [
+    "ozon-finance-balance-reconstruct",
+    "unit-economics-cost-source",
+    "project-mp-wb-unit-per-order"
+   ]
+  },
+  {
+   "id": "H05",
+   "kind": "collision",
+   "dom": "fin",
+   "q": "Посмотри раздел Отчеты МП Озон Дисквэр за июль, Другие услуги и штрафы - откуда состав строк?",
+   "exp": [
+    "ozon-finance-balance-reconstruct",
+    "ozon-lines-registry"
+   ],
+   "top": [
+    "ozon-finance-balance-reconstruct",
+    "ozon-lines-registry",
+    "ozon-economics"
+   ],
+   "s1": 15.96,
+   "s2": 10.54,
+   "ratio": 1.51,
+   "route": "GREY",
+   "hit1": true,
+   "hit3": true,
+   "rr": 1.0,
+   "inj_tokens": 1091,
+   "inj_cards": [
+    "ozon-finance-balance-reconstruct",
+    "ozon-lines-registry",
+    "ozon-economics"
+   ]
+  },
+  {
+   "id": "H06",
+   "kind": "know",
+   "dom": "mkt",
+   "q": "проверь точно продвижение? ты писал прошлый раз статистика протухла",
+   "exp": [
+    "ozon-perf-report-patience",
+    "ozon-performance-ads"
+   ],
+   "top": [
+    "wb-ads-endpoint",
+    "wb-token-scopes",
+    "ozon-finance-balance-reconstruct"
+   ],
+   "s1": 7.58,
+   "s2": 5.68,
+   "ratio": 1.34,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": false,
+   "rr": 0.0,
+   "inj_tokens": 595,
+   "inj_cards": [
+    "wb-ads-endpoint",
+    "wb-token-scopes",
+    "ozon-finance-balance-reconstruct"
+   ]
+  },
+  {
+   "id": "H07",
+   "kind": "know",
+   "dom": "mkt",
+   "q": "мы ведь сделали инструмент чтобы можно было через дэшборд менять ставку, нет?",
+   "exp": [
+    "marketing-service"
+   ],
+   "top": [
+    "ms-trash-purge-tool",
+    "ozon-weekly-bid-policy",
+    "wb-ads-endpoint"
+   ],
+   "s1": 7.51,
+   "s2": 5.8,
+   "ratio": 1.29,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": false,
+   "rr": 0.0,
+   "inj_tokens": 431,
+   "inj_cards": [
+    "ms-trash-purge-tool",
+    "ozon-weekly-bid-policy",
+    "wb-ads-endpoint"
+   ]
+  },
+  {
+   "id": "H08",
+   "kind": "know",
+   "dom": "mkt",
+   "q": "Вопрос стоит что это за запросы? ВБ очень любит раздавать мусор и высокочастотку",
+   "exp": [
+    "wb-jam"
+   ],
+   "top": [
+    "ozon-search-queries-collector",
+    "feedback",
+    "feedback-answer-engine-deepseek"
+   ],
+   "s1": 4.53,
+   "s2": 4.51,
+   "ratio": 1.0,
+   "route": "LOW",
+   "hit1": false,
+   "hit3": false,
+   "rr": 0.0,
+   "inj_tokens": 781,
+   "inj_cards": [
+    "ozon-search-queries-collector",
+    "feedback",
+    "feedback-answer-engine-deepseek"
+   ]
+  },
+  {
+   "id": "H09",
+   "kind": "ambig",
+   "dom": "mkt",
+   "q": "Я так понимаю, что мы сейчас убираем рекламные расходы с ядра по позициям которые и так в топе?",
+   "exp": [
+    "ozon-stars-program-verdict",
+    "ozon-weekly-bid-policy"
+   ],
+   "top": [
+    "wb-ads-endpoint",
+    "wb-jam",
+    "ozon-weekly-bid-policy"
+   ],
+   "s1": 6.71,
+   "s2": 5.06,
+   "ratio": 1.33,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": true,
+   "rr": 0.3333333333333333,
+   "inj_tokens": 1000,
+   "inj_cards": [
+    "wb-ads-endpoint",
+    "wb-jam",
+    "ozon-weekly-bid-policy"
+   ]
+  },
+  {
+   "id": "H10",
+   "kind": "action",
+   "dom": "gab",
+   "q": "и на базе имеющегося литража по профилайну проверь разбухание по оставшимся моделям",
+   "exp": [
+    "gab-no-estimated-dims",
+    "supplier-dims-quality"
+   ],
+   "top": [
+    "supplier-dims-quality",
+    "gab-no-estimated-dims",
+    "incomplete-month-sku-trap"
+   ],
+   "s1": 6.72,
+   "s2": 4.13,
+   "ratio": 1.63,
+   "route": "GREY",
+   "hit1": true,
+   "hit3": true,
+   "rr": 1.0,
+   "inj_tokens": 605,
+   "inj_cards": [
+    "supplier-dims-quality",
+    "gab-no-estimated-dims",
+    "incomplete-month-sku-trap"
+   ]
+  },
+  {
+   "id": "H11",
+   "kind": "action",
+   "dom": "ms",
+   "q": "в ТК карточки поправили, проверь и перенеси эти 11 в МС в нужную категорию",
+   "exp": [
+    "feedback-ms-card-required-fields"
+   ],
+   "top": [
+    "wb-funnel-endpoint",
+    "wb-token-scopes",
+    "unit-economics-cost-source"
+   ],
+   "s1": 4.08,
+   "s2": 3.27,
+   "ratio": 1.25,
+   "route": "LOW",
+   "hit1": false,
+   "hit3": false,
+   "rr": 0.0,
+   "inj_tokens": 580,
+   "inj_cards": [
+    "wb-funnel-endpoint",
+    "wb-token-scopes",
+    "unit-economics-cost-source"
+   ]
+  },
+  {
+   "id": "H12",
+   "kind": "nokb",
+   "dom": "infra",
+   "q": "если дублей по артикулу больше нет, то работа окончена, можно закрывать сессию",
+   "exp": [],
+   "top": [
+    "shared-checkout-branch-drift",
+    "gab-parent-child-article-dims",
+    "workstreams"
+   ],
+   "s1": 7.98,
+   "s2": 5.81,
+   "ratio": 1.37,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": false,
+   "rr": 0.0,
+   "inj_tokens": 781,
+   "inj_cards": [
+    "shared-checkout-branch-drift",
+    "gab-parent-child-article-dims",
+    "workstreams"
+   ]
+  },
+  {
+   "id": "H13",
+   "kind": "know",
+   "dom": "ms",
+   "q": "Прайсы поставщиков мы менять не можем - это источник данных об остатках и ценах, как в МС стыкуется код поставщика?",
+   "exp": [
+    "ms-supplier-code-vs-external-code"
+   ],
+   "top": [
+    "project-mp-biz-diary",
+    "moysklad-products",
+    "wb-stocks-api-migration"
+   ],
+   "s1": 10.85,
+   "s2": 9.4,
+   "ratio": 1.15,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": false,
+   "rr": 0.0,
+   "inj_tokens": 1145,
+   "inj_cards": [
+    "project-mp-biz-diary",
+    "moysklad-products",
+    "wb-stocks-api-migration"
+   ]
+  },
+  {
+   "id": "H14",
+   "kind": "know",
+   "dom": "infra",
+   "q": "Хорошо, создаю новый токен для ВБ Дисквер - какие скоупы в него включить?",
+   "exp": [
+    "wb-token-scopes"
+   ],
+   "top": [
+    "wb-token-scopes",
+    "feedback",
+    "wb-stocks-api-migration"
+   ],
+   "s1": 12.02,
+   "s2": 4.8,
+   "ratio": 2.51,
+   "route": "GREY",
+   "hit1": true,
+   "hit3": true,
+   "rr": 1.0,
+   "inj_tokens": 1035,
+   "inj_cards": [
+    "wb-token-scopes",
+    "feedback",
+    "wb-stocks-api-migration"
+   ]
+  },
+  {
+   "id": "H15",
+   "kind": "nokb",
+   "dom": "other",
+   "q": "стоп а где работа по озону мы делали?",
+   "exp": [],
+   "top": [
+    "workstreams",
+    "main-clean-merge",
+    "shared-checkout-branch-drift"
+   ],
+   "s1": 6.1,
+   "s2": 4.37,
+   "ratio": 1.4,
+   "route": "GREY",
+   "hit1": false,
+   "hit3": false,
+   "rr": 0.0,
+   "inj_tokens": 701,
+   "inj_cards": [
+    "workstreams",
+    "main-clean-merge",
+    "shared-checkout-branch-drift"
+   ]
+  }
+ ]
+}

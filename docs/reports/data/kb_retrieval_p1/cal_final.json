@@ -1,0 +1,814 @@
+[
+ {
+  "id": "C01",
+  "kind": "know",
+  "dom": "fin",
+  "q": "маржа наша чем отличается от маржи лайв?",
+  "exp": [
+   "thecartridge-live-cost"
+  ],
+  "top3": [
+   "wb-reports-tab",
+   "wb-price-model-spp",
+   "ms-supplier-code-vs-external-code"
+  ],
+  "s1": 5.93,
+  "s2": 4.95,
+  "ratio": 1.2,
+  "hit1": false,
+  "hit3": false,
+  "inj_hit": false,
+  "rr": 0.0,
+  "tok": 989,
+  "inj": [
+   "wb-reports-tab",
+   "wb-price-model-spp",
+   "ms-supplier-code-vs-external-code"
+  ]
+ },
+ {
+  "id": "C02",
+  "kind": "know",
+  "dom": "fin",
+  "q": "Подскажи какие данные по себестоимости Маркета статичны, а какие обновляются?",
+  "exp": [
+   "cogs-manual-month-close"
+  ],
+  "top3": [
+   "cogs-manual-month-close",
+   "worktree-docs-sync",
+   "analytics-cogs"
+  ],
+  "s1": 4.99,
+  "s2": 2.47,
+  "ratio": 2.02,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 452,
+  "inj": [
+   "cogs-manual-month-close",
+   "worktree-docs-sync",
+   "analytics-cogs"
+  ]
+ },
+ {
+  "id": "C03",
+  "kind": "know",
+  "dom": "fin",
+  "q": "Заказ 54029735361 стоит импутация, но себестоимость 0 - почему?",
+  "exp": [
+   "analytics-cogs",
+   "cogs-two-sources-only",
+   "sku-economics-fallbacks"
+  ],
+  "top3": [
+   "unit-economics-cost-source",
+   "analytics-cogs",
+   "thecartridge-live-cost"
+  ],
+  "s1": 6.93,
+  "s2": 5.49,
+  "ratio": 1.26,
+  "hit1": false,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 0.5,
+  "tok": 1043,
+  "inj": [
+   "unit-economics-cost-source",
+   "analytics-cogs",
+   "thecartridge-live-cost"
+  ]
+ },
+ {
+  "id": "C04",
+  "kind": "know",
+  "dom": "mkt",
+  "q": "проверь есть ли метод убрать номенклатуру из кампании",
+  "exp": [
+   "ozon-performance-ads"
+  ],
+  "top3": [
+   "wb-ads-endpoint",
+   "ozon-performance-ads",
+   "dims-fix-list"
+  ],
+  "s1": 6.79,
+  "s2": 5.96,
+  "ratio": 1.14,
+  "hit1": false,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 0.5,
+  "tok": 851,
+  "inj": [
+   "wb-ads-endpoint",
+   "ozon-performance-ads",
+   "dims-fix-list"
+  ]
+ },
+ {
+  "id": "C05",
+  "kind": "collision",
+  "dom": "fin",
+  "q": "А с Озоном и ВБ правильная логика по Баллам и СПП, которую я описал? сходится с отчетами?",
+  "exp": [
+   "ozon-sales-split-realization",
+   "wb-price-model-spp",
+   "wb-price-stack",
+   "wb-spp-economics"
+  ],
+  "top3": [
+   "wb-price-model-spp",
+   "wb-spp-economics",
+   "ozon-sales-split-realization"
+  ],
+  "s1": 7.8,
+  "s2": 7.4,
+  "ratio": 1.05,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 1058,
+  "inj": [
+   "wb-price-model-spp",
+   "wb-spp-economics",
+   "ozon-sales-split-realization"
+  ]
+ },
+ {
+  "id": "C06",
+  "kind": "know",
+  "dom": "fin",
+  "q": "на чем мы остановились по Отчету Маркета в меню Отчеты МП?",
+  "exp": [
+   "yandex-closure-detalization"
+  ],
+  "top3": [
+   "dashboard-nav-subtabs",
+   "cogs-manual-month-close",
+   "ms-byoperation-qty"
+  ],
+  "s1": 7.9,
+  "s2": 4.99,
+  "ratio": 1.58,
+  "hit1": false,
+  "hit3": false,
+  "inj_hit": false,
+  "rr": 0.0,
+  "tok": 1035,
+  "inj": [
+   "dashboard-nav-subtabs",
+   "cogs-manual-month-close",
+   "ms-byoperation-qty"
+  ]
+ },
+ {
+  "id": "C07",
+  "kind": "know",
+  "dom": "mkt",
+  "q": "проверь когда последний раз снимались позиции Джем и как изменилась наша позиция по сравнению с неделей назад?",
+  "exp": [
+   "wb-jam"
+  ],
+  "top3": [
+   "wb-jam",
+   "weekday-comparability",
+   "ozon-visibility-collapse-2026-08"
+  ],
+  "s1": 13.51,
+  "s2": 8.49,
+  "ratio": 1.59,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 973,
+  "inj": [
+   "wb-jam",
+   "weekday-comparability",
+   "ozon-visibility-collapse-2026-08"
+  ]
+ },
+ {
+  "id": "C08",
+  "kind": "know",
+  "dom": "mkt",
+  "q": "за пользование Джем мы платим 2.5% от оборота и это очень много. Стоит ли он того?",
+  "exp": [
+   "wb-jam"
+  ],
+  "top3": [
+   "ozon-stars-program-verdict",
+   "wb-reports-tab",
+   "wb-jam"
+  ],
+  "s1": 8.98,
+  "s2": 6.27,
+  "ratio": 1.43,
+  "hit1": false,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 0.3333333333333333,
+  "tok": 588,
+  "inj": [
+   "ozon-stars-program-verdict",
+   "wb-reports-tab",
+   "wb-jam"
+  ]
+ },
+ {
+  "id": "C09",
+  "kind": "know",
+  "dom": "mkt",
+  "q": "У нас был план увеличивать ставку через день на 10%, было ли второе повышение?",
+  "exp": [
+   "ozon-weekly-bid-policy"
+  ],
+  "top3": [
+   "ozon-weekly-bid-policy",
+   "ozon-performance-ads",
+   "sber-bank-api"
+  ],
+  "s1": 5.22,
+  "s2": 3.72,
+  "ratio": 1.4,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 907,
+  "inj": [
+   "ozon-weekly-bid-policy",
+   "ozon-performance-ads",
+   "sber-bank-api"
+  ]
+ },
+ {
+  "id": "C10",
+  "kind": "know",
+  "dom": "mkt",
+  "q": "показы и позиция в поиске за какой период чтобы понимать? тут данные только рекламы или есть органика тоже?",
+  "exp": [
+   "ozon-search-queries-collector",
+   "ozon-visibility-collapse-2026-08"
+  ],
+  "top3": [
+   "ozon-visibility-collapse-2026-08",
+   "wb-ads-endpoint",
+   "wb-data-model"
+  ],
+  "s1": 8.58,
+  "s2": 8.0,
+  "ratio": 1.07,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 1007,
+  "inj": [
+   "ozon-visibility-collapse-2026-08",
+   "wb-ads-endpoint",
+   "wb-data-model"
+  ]
+ },
+ {
+  "id": "C11",
+  "kind": "know",
+  "dom": "mkt",
+  "q": "Каким образом сделать 88% каталога видимым?",
+  "exp": [
+   "ozon-visibility-collapse-2026-08"
+  ],
+  "top3": [
+   "dims-fix-list",
+   "supplier-dims-quality",
+   "shared-checkout-branch-drift"
+  ],
+  "s1": 3.96,
+  "s2": 2.38,
+  "ratio": 1.67,
+  "hit1": false,
+  "hit3": false,
+  "inj_hit": false,
+  "rr": 0.0,
+  "tok": 625,
+  "inj": [
+   "dims-fix-list",
+   "supplier-dims-quality",
+   "shared-checkout-branch-drift"
+  ]
+ },
+ {
+  "id": "C12",
+  "kind": "ambig",
+  "dom": "mkt",
+  "q": "ради интереса глянь все таки еще для сравнения май и апрель. А в общем, 1-2 недели это не показатель?",
+  "exp": [
+   "weekday-comparability"
+  ],
+  "top3": [
+   "weekday-comparability",
+   "gab-worktree-and-switch-rule",
+   "analytics-cogs"
+  ],
+  "s1": 8.41,
+  "s2": 6.31,
+  "ratio": 1.33,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 717,
+  "inj": [
+   "weekday-comparability",
+   "gab-worktree-and-switch-rule",
+   "analytics-cogs"
+  ]
+ },
+ {
+  "id": "C13",
+  "kind": "know",
+  "dom": "gab",
+  "q": "на базе литража от профилайна мы сможем сгенерировать под них ДВШ?",
+  "exp": [
+   "gab-no-estimated-dims",
+   "supplier-dims-quality"
+  ],
+  "top3": [
+   "supplier-dims-quality",
+   "gab-no-estimated-dims",
+   "wb-logistics-dims"
+  ],
+  "s1": 6.72,
+  "s2": 4.13,
+  "ratio": 1.63,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 824,
+  "inj": [
+   "supplier-dims-quality",
+   "gab-no-estimated-dims",
+   "wb-logistics-dims"
+  ]
+ },
+ {
+  "id": "C14",
+  "kind": "know",
+  "dom": "gab",
+  "q": "при пересчете габаритов сколько будет экономия, выведи цифру",
+  "exp": [
+   "wb-box-tariff",
+   "wb-logistics-dims"
+  ],
+  "top3": [
+   "supplier-dims-quality",
+   "dims-fix-list",
+   "wb-box-tariff"
+  ],
+  "s1": 7.55,
+  "s2": 7.27,
+  "ratio": 1.04,
+  "hit1": false,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 0.3333333333333333,
+  "tok": 917,
+  "inj": [
+   "supplier-dims-quality",
+   "dims-fix-list",
+   "wb-box-tariff"
+  ]
+ },
+ {
+  "id": "C15",
+  "kind": "know",
+  "dom": "gab",
+  "q": "у двух поставщиков короб отличается в разы, один похож на мастер-картон - что берем?",
+  "exp": [
+   "dims-crosscheck-suppliers",
+   "gab-master-carton-contamination"
+  ],
+  "top3": [
+   "gab-master-carton-contamination",
+   "dims-crosscheck-suppliers",
+   "wb-competitor-dims-default-box"
+  ],
+  "s1": 16.33,
+  "s2": 8.07,
+  "ratio": 2.02,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 665,
+  "inj": [
+   "gab-master-carton-contamination",
+   "dims-crosscheck-suppliers",
+   "wb-competitor-dims-default-box"
+  ]
+ },
+ {
+  "id": "C16",
+  "kind": "know",
+  "dom": "rev",
+  "q": "проверь какую модель дипсик ты используешь? это DeepSeek V4 Pro?",
+  "exp": [
+   "answer-engine",
+   "feedback-answer-engine-deepseek"
+  ],
+  "top3": [
+   "feedback-answer-engine-deepseek",
+   "feedback-delivery-health-alerts",
+   "answer-engine"
+  ],
+  "s1": 12.46,
+  "s2": 8.21,
+  "ratio": 1.52,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 866,
+  "inj": [
+   "feedback-answer-engine-deepseek",
+   "feedback-delivery-health-alerts",
+   "answer-engine"
+  ]
+ },
+ {
+  "id": "C17",
+  "kind": "ambig",
+  "dom": "rev",
+  "q": "отчет сделай сколько было сделано за последние 2 дня отзывов и ответов на вопросы",
+  "exp": [
+   "feedback"
+  ],
+  "top3": [
+   "answer-engine",
+   "feedback-delivery-health-alerts",
+   "feedback"
+  ],
+  "s1": 12.67,
+  "s2": 11.71,
+  "ratio": 1.08,
+  "hit1": false,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 0.3333333333333333,
+  "tok": 1065,
+  "inj": [
+   "answer-engine",
+   "feedback-delivery-health-alerts",
+   "feedback"
+  ]
+ },
+ {
+  "id": "C18",
+  "kind": "know",
+  "dom": "inv",
+  "q": "Проверь привязка входящих платежей к приемкам поставщика из загруженной выписки",
+  "exp": [
+   "payment-supply-linking"
+  ],
+  "top3": [
+   "payment-supply-linking",
+   "ms-payments-two-orgs",
+   "alfa-bank-api"
+  ],
+  "s1": 24.79,
+  "s2": 12.85,
+  "ratio": 1.93,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 1041,
+  "inj": [
+   "payment-supply-linking",
+   "ms-payments-two-orgs",
+   "alfa-bank-api"
+  ]
+ },
+ {
+  "id": "C19",
+  "kind": "know",
+  "dom": "inv",
+  "q": "Вернемся к выписке от Альфабанк. Прошла боевая выписка утром?",
+  "exp": [
+   "alfa-bank-api"
+  ],
+  "top3": [
+   "sber-bank-api",
+   "alfa-bank-api",
+   "ms-payments-two-orgs"
+  ],
+  "s1": 8.54,
+  "s2": 7.13,
+  "ratio": 1.2,
+  "hit1": false,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 0.5,
+  "tok": 816,
+  "inj": [
+   "sber-bank-api",
+   "alfa-bank-api",
+   "ms-payments-two-orgs"
+  ]
+ },
+ {
+  "id": "C20",
+  "kind": "know",
+  "dom": "inv",
+  "q": "надо делать отправщик Сбера?",
+  "exp": [
+   "sber-bank-api"
+  ],
+  "top3": [
+   "sber-bank-api",
+   "supplier-dims-quality",
+   "ms-payments-two-orgs"
+  ],
+  "s1": 7.29,
+  "s2": 3.12,
+  "ratio": 2.34,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 794,
+  "inj": [
+   "sber-bank-api",
+   "ms-payments-two-orgs"
+  ]
+ },
+ {
+  "id": "C21",
+  "kind": "nokb",
+  "dom": "ms",
+  "q": "напомни про товары в МС с одинаковыми артикулами, вроде ты говорил их 73?",
+  "exp": [],
+  "top3": [
+   "weekday-comparability",
+   "dashboard-nav-subtabs",
+   "rapid-supplier"
+  ],
+  "s1": 4.25,
+  "s2": 2.35,
+  "ratio": 1.81,
+  "hit1": false,
+  "hit3": false,
+  "inj_hit": false,
+  "rr": 0.0,
+  "tok": 501,
+  "inj": [
+   "weekday-comparability",
+   "dashboard-nav-subtabs",
+   "rapid-supplier"
+  ]
+ },
+ {
+  "id": "C22",
+  "kind": "collision",
+  "dom": "ms",
+  "q": "Напомни у нас есть справочник внешних кодов и Связей с другими внешними кодами?",
+  "exp": [
+   "ms-supplier-code-vs-external-code"
+  ],
+  "top3": [
+   "ms-supplier-code-vs-external-code",
+   "thecartridge-live-cost",
+   "moysklad-products"
+  ],
+  "s1": 6.38,
+  "s2": 5.58,
+  "ratio": 1.14,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 585,
+  "inj": [
+   "ms-supplier-code-vs-external-code",
+   "thecartridge-live-cost",
+   "moysklad-products"
+  ]
+ },
+ {
+  "id": "C23",
+  "kind": "know",
+  "dom": "platform",
+  "q": "КОгда она обновится по текущим остаткам на складах ВБ?",
+  "exp": [
+   "wb-stocks-api-migration"
+  ],
+  "top3": [
+   "wb-stocks-api-migration",
+   "ms-ozon-stock-join-key",
+   "ozon-fbo-removal-recon"
+  ],
+  "s1": 6.21,
+  "s2": 5.39,
+  "ratio": 1.15,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 1046,
+  "inj": [
+   "wb-stocks-api-migration",
+   "ms-ozon-stock-join-key",
+   "ozon-fbo-removal-recon"
+  ]
+ },
+ {
+  "id": "C24",
+  "kind": "know",
+  "dom": "infra",
+  "q": "Для других сессий я могу кидать файлы в ТГ бот?",
+  "exp": [
+   "telegram-channels"
+  ],
+  "top3": [
+   "telegram-channels",
+   "sessions-map",
+   "ozon-fbo-removal-recon"
+  ],
+  "s1": 6.26,
+  "s2": 5.81,
+  "ratio": 1.08,
+  "hit1": true,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 1.0,
+  "tok": 638,
+  "inj": [
+   "telegram-channels",
+   "sessions-map",
+   "ozon-fbo-removal-recon"
+  ]
+ },
+ {
+  "id": "C25",
+  "kind": "ambig",
+  "dom": "infra",
+  "q": "ты можешь отправить это в сессию fin?",
+  "exp": [
+   "sessions-map"
+  ],
+  "top3": [
+   "worktree-docs-sync",
+   "sessions-map",
+   "workstreams"
+  ],
+  "s1": 5.12,
+  "s2": 5.05,
+  "ratio": 1.01,
+  "hit1": false,
+  "hit3": true,
+  "inj_hit": true,
+  "rr": 0.5,
+  "tok": 1096,
+  "inj": [
+   "worktree-docs-sync",
+   "sessions-map",
+   "workstreams"
+  ]
+ },
+ {
+  "id": "C26",
+  "kind": "know",
+  "dom": "infra",
+  "q": "Из сессий mp-night и claude и кодекс все перенесено в fin, проверь работает ли кодекс тут",
+  "exp": [
+   "codex-openai-region-block"
+  ],
+  "top3": [
+   "sessions-map",
+   "night-mode",
+   "gab-worktree-and-switch-rule"
+  ],
+  "s1": 16.61,
+  "s2": 9.07,
+  "ratio": 1.83,
+  "hit1": false,
+  "hit3": false,
+  "inj_hit": false,
+  "rr": 0.0,
+  "tok": 1209,
+  "inj": [
+   "sessions-map",
+   "night-mode",
+   "gab-worktree-and-switch-rule"
+  ]
+ },
+ {
+  "id": "C27",
+  "kind": "action",
+  "dom": "infra",
+  "q": "Да, коммить и запушь и можно тестировать в боевую?",
+  "exp": [
+   "github-repo",
+   "main-clean-merge"
+  ],
+  "top3": [
+   "ms-payments-two-orgs",
+   "sber-bank-api",
+   "alfa-bank-api"
+  ],
+  "s1": 3.59,
+  "s2": 3.54,
+  "ratio": 1.01,
+  "hit1": false,
+  "hit3": false,
+  "inj_hit": false,
+  "rr": 0.0,
+  "tok": 667,
+  "inj": [
+   "ms-payments-two-orgs",
+   "sber-bank-api",
+   "alfa-bank-api"
+  ]
+ },
+ {
+  "id": "C28",
+  "kind": "nokb",
+  "dom": "infra",
+  "q": "Напомни последние задачи что было начато и не закончено?",
+  "exp": [],
+  "top3": [
+   "wb-returns-cogs-storno",
+   "ozon-fbo-removal-recon",
+   "codex-openai-region-block"
+  ],
+  "s1": 3.22,
+  "s2": 3.11,
+  "ratio": 1.03,
+  "hit1": false,
+  "hit3": false,
+  "inj_hit": false,
+  "rr": 0.0,
+  "tok": 600,
+  "inj": [
+   "wb-returns-cogs-storno",
+   "ozon-fbo-removal-recon",
+   "codex-openai-region-block"
+  ]
+ },
+ {
+  "id": "C29",
+  "kind": "nokb",
+  "dom": "other",
+  "q": "Следующая группа - там что?",
+  "exp": [],
+  "top3": [
+   "ozon-finance-balance-reconstruct",
+   "feedback-ms-card-required-fields",
+   "ozon-economics"
+  ],
+  "s1": 2.06,
+  "s2": 2.01,
+  "ratio": 1.03,
+  "hit1": false,
+  "hit3": false,
+  "inj_hit": false,
+  "rr": 0.0,
+  "tok": 776,
+  "inj": [
+   "ozon-finance-balance-reconstruct",
+   "feedback-ms-card-required-fields",
+   "ozon-economics"
+  ]
+ },
+ {
+  "id": "C30",
+  "kind": "nokb",
+  "dom": "other",
+  "q": "Что делать с этой ошибкой?",
+  "exp": [],
+  "top3": [
+   "supplier-dims-quality",
+   "ozon-perf-report-patience",
+   "rev-service-rev-equals-head"
+  ],
+  "s1": 3.12,
+  "s2": 2.49,
+  "ratio": 1.25,
+  "hit1": false,
+  "hit3": false,
+  "inj_hit": false,
+  "rr": 0.0,
+  "tok": 868,
+  "inj": [
+   "supplier-dims-quality",
+   "ozon-perf-report-patience",
+   "rev-service-rev-equals-head"
+  ]
+ }
+]
