@@ -57,6 +57,12 @@
   .plat .ar{font-size:13px;color:var(--mut)}
   .note{color:var(--mut);font-size:12px;margin:14px 0 0}
   .tips{display:flex;flex-direction:column;gap:9px}
+  .ev{display:flex;gap:12px;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 14px;margin-bottom:6px}
+  .ev .d{color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ev .x{margin-left:auto;color:var(--mut);text-decoration:none;opacity:.5}
+  .ev .x:hover{opacity:1;color:var(--neg)}
+  #ev-form input,#ev-form select{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+  #ev-form button{background:var(--acc);color:#04121f;border:0;border-radius:8px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer}
   .tip{border-left:4px solid var(--line);padding:11px 15px;background:var(--card);border-radius:0 10px 10px 0}
   .tip.high{border-color:var(--neg)}.tip.warn{border-color:var(--warn)}.tip.info{border-color:var(--acc)}.tip.good{border-color:var(--pos)}
   .tip .tt{font-weight:600}.tip .tx{color:var(--mut);font-size:13px;margin-top:3px}
@@ -104,6 +110,20 @@
   <div class="big" id="big"></div>
   <h2>📈 Динамика по неделям <span class="muted" style="font-weight:400;font-size:12px">(весь бизнес, ВБ+Ozon)</span></h2>
   <table id="weekly"><thead><tr><th>Неделя (Пн–Вс)</th><th>Выручка</th><th>Чистая прибыль</th><th>Реклама</th><th>Маржа %</th></tr></thead><tbody></tbody></table>
+  <h2 style="margin-top:26px">🗓 Что мы меняли <span class="muted" style="font-weight:400;font-size:12px">(дневник событий — цифры выше читать вместе с ним)</span>
+    <a href="#" id="ev-toggle" style="float:right;font-size:13px;font-weight:400">+ записать событие</a></h2>
+  <form id="ev-form" style="display:none;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+    <input id="ev-date" type="date" required>
+    <select id="ev-plat"><option value="">все площадки</option><option value="ozon">Ozon</option>
+      <option value="wb">Wildberries</option><option value="yandex">Маркет</option></select>
+    <select id="ev-acc"><option value="">все аккаунты</option><option value="oz_acc1">Цифровой</option>
+      <option value="oz_acc2">Дисквэр</option><option value="wb_acc1">WB acc1</option>
+      <option value="wb_acc2">WB acc2</option></select>
+    <input id="ev-title" placeholder="что сделали" required style="flex:1;min-width:240px">
+    <input id="ev-expect" placeholder="чего ждём от этого" style="flex:1;min-width:200px">
+    <button type="submit">Записать</button>
+  </form>
+  <div id="diary"></div>
   <h2>По площадкам <span class="muted" style="font-weight:400;font-size:12px">→ нажми карточку, чтобы провалиться в детали</span></h2>
   <div class="accs" id="plats"></div>
   <h2 style="margin-top:26px">🚦 Рекомендации — что делать <span class="muted" style="font-weight:400;font-size:12px">(авто-сигналы по данным; цель — 5 млн чистой после ФОТ)</span></h2>
@@ -174,6 +194,54 @@ async function loadSignals(){
   $('#signals').innerHTML=(sig.tips||[]).map(t=>`<div class="tip ${t.sev}"><div class="tt">${t.title}</div><div class="tx">${t.text}</div></div>`).join('');
 }
 
+const EV_MARK={own:'🔧',mp:'🏪',supply:'📦'};
+const EV_PLAT={ozon:'Ozon',wb:'ВБ',yandex:'Маркет'};
+const EV_ACC={oz_acc1:'Цифровой',oz_acc2:'Дисквэр',wb_acc1:'WB acc1',wb_acc2:'WB acc2'};
+let evWeeks={};
+
+async function loadDiary(){
+  const d=await api('/api/diary?limit=12');
+  const rows=d.events||[];
+  $('#diary').innerHTML=rows.map(e=>{
+    const dt=e.event_date.slice(8,10)+'.'+e.event_date.slice(5,7);
+    const who=[EV_PLAT[e.platform],EV_ACC[e.account]].filter(Boolean).join(' · ');
+    // Ожидание показываем рядом с событием: через месяц «зачем мы это делали» уже не вспомнить.
+    const exp=e.expect?` <span class="muted">— ждём: ${e.expect}</span>`:'';
+    return `<div class="ev"><span class="d">${dt}</span><span>${EV_MARK[e.kind]||'·'}</span>
+      <span>${e.title}${who?` <span class="muted">(${who})</span>`:''}${exp}</span>
+      <a href="#" class="x" data-id="${e.id}" title="удалить">✕</a></div>`;
+  }).join('')||'<p class="muted">событий пока нет — запиши первое, и недельные цифры будут читаться вместе с ним.</p>';
+  $('#diary').querySelectorAll('.x').forEach(a=>a.onclick=async ev=>{
+    ev.preventDefault();
+    if(!confirm('Удалить запись из дневника?'))return;
+    await fetch('/api/diary/'+a.dataset.id,{method:'DELETE'});
+    await loadDiary();await loadWeekly();
+  });
+  const w=await api('/api/diary/weeks?weeks=10');
+  evWeeks=w.weeks||{};
+}
+
+$('#ev-toggle').onclick=e=>{
+  e.preventDefault();
+  const f=$('#ev-form');
+  f.style.display=f.style.display==='none'?'flex':'none';
+  if(f.style.display==='flex'&&!$('#ev-date').value)
+    $('#ev-date').value=new Date().toISOString().slice(0,10);
+};
+
+$('#ev-form').onsubmit=async e=>{
+  e.preventDefault();
+  const body={event_date:$('#ev-date').value,platform:$('#ev-plat').value||null,
+    account:$('#ev-acc').value||null,title:$('#ev-title').value,
+    expect:$('#ev-expect').value||null,kind:'own'};
+  const r=await fetch('/api/diary',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)});
+  if(!r.ok){alert('не записалось: '+(await r.text()).slice(0,200));return;}
+  $('#ev-title').value='';$('#ev-expect').value='';
+  $('#ev-form').style.display='none';
+  await loadDiary();await loadWeekly();
+};
+
 async function loadWeekly(){
   const d=await api(`/api/weekly_business?period=${period}`);
   const rows=d.rows||[];
@@ -181,14 +249,16 @@ async function loadWeekly(){
   const mc=v=>v==null?'':(v<0?'neg':(v<18?'warn':'pos'));
   $('#weekly tbody').innerHTML=rows.map(r=>{
     const d0=new Date(r.wk),d1=new Date(r.wk);d1.setDate(d1.getDate()+6);
-    return `<tr><td>${f(d0)}–${f(d1)}</td><td>${rub(r.rev)}</td>
+    const evs=evWeeks[String(r.wk).slice(0,10)]||[];
+    const pin=evs.length?` <span title="${evs.map(x=>x.title.replace(/"/g,'')).join(' · ')}">📌</span>`:'';
+    return `<tr><td>${f(d0)}–${f(d1)}${pin}</td><td>${rub(r.rev)}</td>
       <td class="${r.net<0?'neg':'pos'}">${rub(r.net)}</td>
       <td class="neg">${r.ad>0?('−'+rub(r.ad)):'—'}</td>
       <td class="${mc(r.margin)}"><b>${pct(r.margin)}</b></td></tr>`;
   }).join('')||'<tr><td colspan="5" class="muted">нет недельных данных</td></tr>';
 }
 
-(async()=>{await initPeriods();await load();})();
+(async()=>{await initPeriods();await loadDiary();await load();})();
 </script>
 </body>
 </html>
