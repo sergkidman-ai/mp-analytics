@@ -27,6 +27,8 @@
                                                       разовый добор истории по одному правилу
 """
 import argparse
+import email
+import email.utils
 import os
 import re
 import sys
@@ -58,7 +60,16 @@ WB_ACCOUNT = "wb_acc1"
 # common-api WB держит жёсткий лимит на ленту новостей — листаем неспешно.
 WB_PAGE_PAUSE = 8      # пауза между страницами, с
 WB_RETRY_PAUSE = 30    # база ожидания после 429, с
-PLATFORMS = ("ozon", "wb")
+PLATFORMS = ("ozon", "wb", "yandex")
+
+# Маркет новостного API не даёт, зато шлёт письма. Наталья отключила лишние уведомления
+# в ЛК и настроила пересылку нужных на рабочий ящик — читаем ту папку, куда они падают.
+# Подпапку «Маркет. Не важное» не трогаем: она для того и заведена.
+YA_FOLDER = "Яндекс.Маркет"
+YA_ACCOUNT = "ya_mail"
+
+SOURCE_OF = {"ozon": "ozon_chat", "wb": "wb_news", "yandex": "ya_mail"}
+AUTHOR_OF = {"ozon": "Ozon", "wb": "WB", "yandex": "Маркет"}
 
 NOTIFY_IDS = [x.strip() for x in os.getenv("TG_PRC_NOTIFY_ID", "1031321444").split(",") if x.strip()]
 TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
@@ -217,12 +228,21 @@ def collect(account, dry=False, days=90):
 
 
 def _strip_html(text):
-    """Тело новости WB приходит размеченным — для правил и дневника нужен чистый текст."""
-    text = re.sub(r"<br\s*/?>|</p>|</div>|</li>", "\n", text or "", flags=re.I)
+    """Разметка -> чистый текст. Нужен и для новостей WB, и для писем Маркета.
+
+    У письма Маркета две особенности: <style> с версткой (его текст попал бы в тело новости)
+    и «невидимая набивка» — сотни символов U+2800 (пустой шрифт Брайля), которыми в рассылках
+    растягивают preheader. И то и другое надо снимать до правил, иначе тело новости — мусор.
+    """
+    text = re.sub(r"<(style|script)[^>]*>.*?</\1>", " ", text or "", flags=re.I | re.S)
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
+    text = re.sub(r"<br\s*/?>|</p>|</div>|</li>|</tr>", "\n", text, flags=re.I)
     text = re.sub(r"<[^>]+>", " ", text)
     text = (text.replace("&nbsp;", " ").replace("&mdash;", "—").replace("&laquo;", "«")
                 .replace("&raquo;", "»").replace("&amp;", "&").replace("&quot;", '"'))
-    return re.sub(r"[ \t]+", " ", text).strip()
+    text = re.sub(r"[\u2800\u200b\u00a0\ufeff]+", " ", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
 def _wb_page(token, cursor, tries=4):
@@ -300,6 +320,111 @@ def collect_wb(dry=False, days=90):
     return fresh
 
 
+MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+# Заголовок пересылки Яндекс-почты: «20.08.2026, 13:17, Новости Маркета (seller@market.yandex.ru):»
+FWD_HEAD = re.compile(r"(\d{2})\.(\d{2})\.(\d{4}),\s*(\d{2}):(\d{2})"
+                      r"(?:,\s*([^(<\n]{0,60}?)\s*[(<]([\w.\-]+@[\w.\-]+)[)>])?")
+MSK = timezone(timedelta(hours=3))
+
+
+def _mail_text(msg):
+    """Тело письма -> чистый текст. text/plain, если есть; иначе html без разметки."""
+    parts = msg.walk() if msg.is_multipart() else [msg]
+    plain, html = "", ""
+    for part in parts:
+        if part.get_content_maintype() != "text" or part.get("Content-Disposition", "").startswith("attach"):
+            continue
+        try:
+            body = part.get_payload(decode=True).decode(
+                part.get_content_charset() or "utf-8", "replace")
+        except Exception:
+            continue
+        if part.get_content_subtype() == "plain":
+            plain += body
+        else:
+            html += body
+    return _strip_html(plain if plain.strip() else html)
+
+
+def _fwd_trim(text):
+    """Хвост шапки пересылки и подвал рассылки убрать — в теле должна остаться новость.
+
+    После заголовка «дата, отправитель» у пересылки идут служебные строки «Кому/Тема/Копия»
+    и голые адреса в скобках, а в конце письма — «отписаться» и реквизиты. Ни то ни другое
+    в дневнике не нужно.
+    """
+    lines = text.split("\n")
+    while lines:
+        head = lines[0].strip()
+        if head and not re.match(r"^[\W_]*$|^(кому|тема|копия|to|cc|subject)\b|"
+                                 r"^[\W_]*[\w.\-]+@[\w.\-]+[\W_]*$", head, flags=re.I):
+            break
+        lines.pop(0)
+    body = "\n".join(lines)
+    cut = re.search(r"отписаться|чтобы (?:больше )?не получать|"
+                    r"вы получили это письмо|настроить уведомлени", body, flags=re.I)
+    return (body[:cut.start()] if cut else body).strip()
+
+
+def collect_yandex(dry=False, days=90, folder=YA_FOLDER):
+    """Письма Маркета из почтовой папки -> mp_notices. -> список свежих строк.
+
+    Наталья пересылает нужные письма в папку «Яндекс.Маркет» (мусорные уведомления в ЛК
+    отключены). Письмо — пересылка, поэтому дата ПИСЬМА (когда переслали) для дневника
+    не годится: берём дату ОРИГИНАЛА из шапки «Пересылаемое сообщение», и только если её
+    нет — дату письма. Ящик открываем readonly: флаг «прочитано» — дело человека, не наше.
+    """
+    from prices.mailbox import connect, imap_utf7, _hdr
+
+    have = {r["message_id"] for r in db.query(
+        "SELECT message_id FROM mp_notices WHERE platform='yandex'")}
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    crit = f"{since.day:02d}-{MONTHS_EN[since.month - 1]}-{since.year}"
+    fresh = []
+    box = connect()
+    try:
+        box.select(imap_utf7(folder), readonly=True)
+        uids = (box.uid("search", None, "SINCE", crit)[1][0] or b"").split()
+        for uid in uids:
+            raw = box.uid("fetch", uid, "(RFC822)")[1][0][1]
+            msg = email.message_from_bytes(raw)
+            mid = (msg.get("Message-ID") or "").strip("<> ") or f"uid:{uid.decode()}"
+            if mid in have:
+                continue
+            title = re.sub(r"^\s*(?:fwd|fw|re)\s*:\s*", "", _hdr(msg.get("Subject")),
+                           flags=re.I).strip()[:200]
+            text = _mail_text(msg)
+            m = FWD_HEAD.search(text[:600])
+            if m:
+                when = datetime(int(m[3]), int(m[2]), int(m[1]),
+                                int(m[4]), int(m[5]), tzinfo=MSK)
+                sender = (m[7] or m[6] or "").strip()[:100]
+                text = text[m.end():]          # шапку пересылки в тело новости не тащим
+            else:
+                when = email.utils.parsedate_to_datetime(msg.get("Date"))
+                sender = _hdr(msg.get("From"))[:100]
+            body = _fwd_trim(text)
+            imp, rule = classify(title, body)
+            row = {"account": YA_ACCOUNT, "message_id": mid, "chat_id": folder,
+                   "chat_type": sender, "created_at": when, "title": title,
+                   "body": body[:4000], "importance": imp, "matched": rule}
+            fresh.append(row)
+            if not dry:
+                db.execute("""
+                    INSERT INTO mp_notices (platform, account, message_id, chat_id, chat_type,
+                                            created_at, title, body, importance, matched)
+                    VALUES ('yandex',%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (platform, account, message_id) DO NOTHING
+                """, (YA_ACCOUNT, mid, folder, sender, when, title, body[:4000], imp, rule))
+    finally:
+        try:
+            box.logout()
+        except Exception:
+            pass
+    return fresh
+
+
 def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
     """Только ALERT из сырья -> дневник (kind='mp'). Идемпотентно по dedup_key.
 
@@ -327,15 +452,15 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
         if dry:
             added += 1
             continue
-        # У WB новости общие для площадки — аккаунт в дневнике не проставляем, иначе
+        # У WB и Маркета новости общие для площадки — аккаунт в дневнике не проставляем, иначе
         # событие сядет на график одного аккаунта, а касается оно обоих.
         eid = biz_diary.add(
             event_date=r["d"], kind="mp", platform=r["platform"],
             account=r["account"] if r["platform"] == "ozon" else None,
             title=r["title"], details=(r["body"] or "")[:1500],
             expect=f"Правило: {r['matched']}" if r["matched"] else None,
-            source="ozon_chat" if r["platform"] == "ozon" else "wb_news",
-            author="Ozon" if r["platform"] == "ozon" else "WB",
+            source=SOURCE_OF.get(r["platform"], r["platform"]),
+            author=AUTHOR_OF.get(r["platform"], r["platform"]),
             dedup_key=f"{r['platform']}:{r['account']}:{r['message_id']}")
         db.execute("UPDATE mp_notices SET event_id = %s WHERE platform=%s "
                    "AND account=%s AND message_id=%s",
@@ -428,6 +553,9 @@ def main(argv=None):
                     for acc in ACCOUNTS]
     if not args.diary_only and args.platform in (None, "wb"):
         sources.append(("WB", "wb", lambda: collect_wb(dry=args.dry, days=args.days)))
+    if not args.diary_only and args.platform in (None, "yandex"):
+        sources.append(("Маркет (почта)", "yandex",
+                        lambda: collect_yandex(dry=args.dry, days=args.days)))
     for name, plat, fetch in sources:
         try:
             got = fetch()
