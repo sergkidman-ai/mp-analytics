@@ -26,6 +26,10 @@ import collectors.bank_file_import as bank_file_import  # noqa: E402  выпис
 app = FastAPI(title="Пульт бизнеса")
 STATIC = BASE_DIR / "web" / "static"
 
+from web.diary_api import router as diary_router  # noqa: E402  дневник событий (поток ev)
+
+app.include_router(diary_router)
+
 
 @app.get("/", response_class=HTMLResponse)
 def home():
