@@ -427,6 +427,80 @@ def collect_yandex(dry=False, days=90, folder=YA_FOLDER):
     return fresh
 
 
+# --- Ущерб складам ВБ (атаки с 18.07.2026) -------------------------------------------------
+# Со слов Натальи 21.08.2026. Площадка о судьбе ТОВАРА не пишет вовсе — новость сообщает лишь
+# «работа склада приостановлена», а для нас это списание остатка и претензия. Поэтому статус
+# склада живёт рядом с новостью и подставляется в событие дневника.
+# Чего тут НЕТ: складов, по которым данных нет. Молчание — это «неизвестно», а не «цело».
+WH_STATUS = (
+    (r"Электростал", "lost"),
+    (r"Котовск", "lost"),
+    (r"Новосемейкино", "lost"),
+    (r"Чехов|Новосёлк|Новоселк", "lost"),
+    (r"Алексин", "lost"),
+    (r"Владимир|Воршин", "lost"),
+    (r"Северн\w*\s+Домодедово", "lost"),   # обычное Домодедово — не отсюда, статуса нет
+    (r"Шушар", "hit"),
+    (r"Коледино", "hit"),
+    (r"Краснодар", "hit"),
+    (r"Невинномысск", "hit"),
+)
+WH_NOTE = {
+    "lost": ("⚠️ Склад уничтожен полностью — весь наш товар, лежавший там на хранении, утрачен.",
+             "Считать остаток на этом складе утраченным: списать в учёте и заявить компенсацию ВБ."),
+    "hit": ("⚠️ Склад серьёзно повреждён — высокая вероятность, что весь наш товар утрачен.",
+            "Запросить у ВБ судьбу остатка на складе и готовить списание с претензией."),
+}
+
+
+# В теле новости ВБ перечисляет и ЦЕЛЫЕ склады — куда перенаправить поставки («можно
+# отгрузить на склад „Чехов 2“»). Слепой поиск по телу метил такие склады как пострадавшие:
+# «Рязань» получала статус от «Владимир: Воршинское» из строки перенаправления. Поэтому
+# смотрим заголовок и только те предложения тела, где описан САМ инцидент.
+WH_INCIDENT = re.compile(r"нештатн|произошл|пострадал|поврежд|приостановлен", re.I)
+WH_REDIRECT = re.compile(r"отгруз|перенаправ|перенес|примут|вместо|запланированн", re.I)
+
+
+def wh_damage(title, body=""):
+    """Статус склада ВБ по названию в новости: 'lost' | 'hit' | None (данных нет)."""
+    parts = [title or ""]
+    for sent in re.split(r"(?<=[.!?])\s+|\n+", (body or "")[:1500]):
+        if WH_INCIDENT.search(sent) and not WH_REDIRECT.search(sent):
+            parts.append(sent)
+    text = "\n".join(parts)
+    found = None
+    for pat, st in WH_STATUS:
+        if re.search(pat, text, re.I):
+            if st == "lost":
+                return "lost"      # уничтоженный склад перебивает повреждённый
+            found = "hit"
+    return found
+
+
+def annotate_damage():
+    """Проставить статус склада в уже заведённых событиях ВБ. Идемпотентно."""
+    rows = db.query("""SELECT b.id, b.title, b.details, b.expect, n.body, n.digest
+                       FROM biz_events b JOIN mp_notices n ON n.event_id = b.id
+                       WHERE b.platform = 'wb' AND b.kind = 'mp'""")
+    upd = 0
+    for r in rows:
+        st = wh_damage(r["title"] or "", r["body"] or "")
+        note, action = WH_NOTE[st] if st else ("", None)
+        # Сначала снимаем прежнюю пометку: правила уточняются, и ошибочный статус обязан
+        # уходить сам, а не оставаться в дневнике навсегда.
+        details = r["details"] or ""
+        for n, _ in WH_NOTE.values():
+            details = details.replace(n, "").strip()
+        details = (f"{note}\n\n{details}".strip() if note else details)
+        expect = action or (r["digest"] or {}).get("action")
+        if details == (r["details"] or "") and expect == r["expect"]:
+            continue
+        db.execute("UPDATE biz_events SET details = %s, expect = %s WHERE id = %s",
+                   (details, expect, r["id"]))
+        upd += 1
+    print(f"склады ВБ: статус проставлен в {upd} событиях из {len(rows)}")
+
+
 def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
     """Только ALERT из сырья -> дневник (kind='mp'). Идемпотентно по dedup_key.
 
@@ -456,19 +530,23 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
             continue
         # У WB и Маркета новости общие для площадки — аккаунт в дневнике не проставляем, иначе
         # событие сядет на график одного аккаунта, а касается оно обоих.
+        # Судьба товара на складе — не из новости, а из нашего знания (WH_STATUS): площадка
+        # пишет только про остановку работы. Без этой строки событие читается как штатная пауза.
+        wh = wh_damage(r["title"] or "", r["body"] or "") if r["platform"] == "wb" else None
         eid = biz_diary.add(
             event_date=r["d"], kind="mp", platform=r["platform"],
             account=r["account"] if r["platform"] == "ozon" else None,
             title=r["title"],
             # Если выжимка уже посчитана — в дневник идёт она: человеку нужен денежный смысл
             # новости, а не три экрана текста площадки. Сырьё остаётся в mp_notices.
-            details=(digest.render(r["digest"]) if r["digest"]
-                     else (r["body"] or "")[:1500] + (f"\n\nПравило: {r['matched']}"
-                                                     if r["matched"] else "")),
+            details=((WH_NOTE[wh][0] + "\n\n" if wh else "")
+                     + (digest.render(r["digest"]) if r["digest"]
+                        else (r["body"] or "")[:1500] + (f"\n\nПравило: {r['matched']}"
+                                                        if r["matched"] else ""))),
             # В `expect` у события площадки лежит рекомендация «что делать» — она есть только
             # там, где посчитана выжимка. Название правила туда не кладём: на главной оно
             # читалось бы как «что делать: склад/ЧП».
-            expect=(r["digest"] or {}).get("action"),
+            expect=(WH_NOTE[wh][1] if wh else (r["digest"] or {}).get("action")),
             source=SOURCE_OF.get(r["platform"], r["platform"]),
             author=AUTHOR_OF.get(r["platform"], r["platform"]),
             dedup_key=f"{r['platform']}:{r['account']}:{r['message_id']}")
@@ -543,6 +621,8 @@ def main(argv=None):
     ap.add_argument("--diary-days", type=int, default=14,
                     help="за сколько дней тревоги заводить в дневник (сырьё копится глубже)")
     ap.add_argument("--reclassify", action="store_true", help="пересчитать важность по сырью")
+    ap.add_argument("--wh-damage", action="store_true",
+                    help="проставить статус складов ВБ (уничтожен/повреждён) в событиях дневника")
     ap.add_argument("--platform", choices=PLATFORMS, help="только одна площадка")
     ap.add_argument("--diary-rule", metavar="ПРАВИЛО",
                     help="в дневник только по этому правилу (разовый добор истории)")
@@ -554,6 +634,10 @@ def main(argv=None):
 
     if args.reclassify:
         reclassify()
+        return 0
+
+    if args.wh_damage:
+        annotate_damage()
         return 0
 
     fresh = []
