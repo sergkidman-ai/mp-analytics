@@ -1,0 +1,162 @@
+﻿внешний код;модель ТК;доп. название;серия;цвет;ресурс;чип в ТК сейчас;поставить в ТК;согласны поставщиков;как пишут поставщики;остаток на Удаленном;наши карточки МС
+0016;CLI-426GY;4560B001;CLI-426 DS;GY;1480;не указан;с чипом;2;IC-CCLI-426GY Картридж T2 для Canon PIXMA MG6140 | Картридж струйный Cactus CS-CLI426GY CLI-426GY с;36.0;0016cs, 0016ep, 0016t2
+0184;CLI-426BK;4556B001;CLI-426 DS;BK;500;не указан;с чипом;3;CLI426BK Картридж EasyPrint IC-CLI426BK для Cano | IC-CCLI-426BK Картридж T2 для Canon PIXMA iP4840 | Картридж струйный Cactus CS-CLI426BK CLI-426BK ч;152.0;0184cs, 0184ep, 0184t2
+0185;CLI-426C;4557B001;CLI-426 DS;C;520;не указан;с чипом;2;IC-CCLI-426C Картридж T2 для Canon PIXMA iP4840/ | Картридж струйный Cactus CS-CLI426C CLI-426C гол;102.0;0185cs, 0185ep, 0185t2
+0186;CLI-426M;4558B001;CLI-426 DS;M;500;не указан;с чипом;2;CLI426M Картридж EasyPrint IC-CLI426M для Canon  | Картридж струйный Cactus CS-CLI426M CLI-426M пур;115.0;0186cs, 0186ep, 0186t2
+0187;CLI-426Y;4559B001;CLI-426 DS;Y;515;не указан;с чипом;2;CLI426Y Картридж EasyPrint IC-CLI426Y для Canon  | Картридж струйный Cactus CS-CLI426Y CLI-426Y жел;129.0;0187cs, 0187ep, 0187t2
+0207;CE390X;90X;;BK;24000;не указан;с чипом;2;90X/64X Картридж EasyPrint LH-CE390X/CC364X для  | TC-H90X/64X Картридж T2 для HP LaserJet Enterpri;128.0;0207ep, 0207t2
+0209;CE311A;126A;CE310A-CE313A DS;C;1000;не указан;с чипом;2;311A/351A/729C Картридж EasyPrint LH-CE311A/CF35 | TC-H311 Картридж T2 для HP Color LaserJet Pro CP;84.0;0209ep, 0209t2
+0210;CE312A;126A;CE310A-CE313A DS;Y;1000;не указан;с чипом;3;$$$_СРОЧНО TC-C729Y Картридж T2 для Canon i-SENS | 312A/352A/729Y Картридж EasyPrint LH-CE312A/CF35 | TC-H312 Картридж T2 для HP Color LaserJet Pro CP;160.0;0210ep, 0210t2
+0211;CE313A;126A;CE310A-CE313A DS;M;1000;не указан;с чипом;2;313A/353A/729M Картридж EasyPrint LH-CE313A/CF35 | TC-H313 Картридж T2 для HP Color LaserJet Pro CP;144.0;0211ep, 0211t2
+0236;TK-1130;;;BK;3000;не указан;с чипом;2;TC-K1130 Тонер-картридж T2 для Kyocera FS-1030MF | Тонер-картридж EasyPrint LK-1130 для Kyocera FS-;93.0;0236ep, 0236t2
+0237;TK-1140;;;BK;7200;не указан;с чипом;2;Тонер-картридж EasyPrint LK-1140 для Kyocera FS- | Тонер-картридж EasyPrint LK-1140XL для Kyocera F;192.0;0237ep, 0237t2
+0254;108R00909;;;BK;2500;не указан;с чипом;2;3140 Картридж EasyPrint LX-3140 для Xerox Phaser | TC-X3140 Картридж T2 для Xerox Phaser 3140/3155/;128.0;0254ep, 0254t2
+0274;MLT-D101S;;;BK;1500;не указан;с чипом;2;MLT-D101S Картридж EasyPrint LS-101S для Samsung | TC-S101S Картридж T2 для Samsung ML-2160/2165/21;200.0;0274ep, 0274t2
+0276;MLT-D105L;;;BK;2000;не указан;с чипом;2;MLT-D105L Картридж EasyPrint LS-105L для Samsung | TC-S105L Картридж T2 для Samsung ML-1910/1915/25;200.0;0276ep, 0276t2
+0279;MLT-D205L;;;BK;5000;не указан;с чипом;2;MLT-D205L Картридж EasyPrint LS-205L для Samsung | TC-S205L Картридж T2 для Samsung ML-3310D/3710D/;135.0;0279ep, 0279t2
+0280;MLT-D104S;;;BK;1500;не указан;с чипом;2;MLT-D104S Картридж EasyPrint LS-104S для Samsung | TC-S1660 Картридж T2 для Samsung ML-1660/1665/16;200.0;0280ep, 0280t2
+0291;T0481;C13T04814010;T0481-T0486 DS;BK;450;не указан;с чипом;2;IC-ET0481 Картридж T2 для Epson Stylus Photo R20 | Картридж струйный Cactus CS-EPT0481 T0481 черный;101.0;0291cs, 0291ep, 0291t2
+0292;T0482;C13T048240;T0481-T0486 DS;C;430;не указан;с чипом;3;IC-ET0482 Картридж T2 для Epson Stylus Photo R20 | T0482 Картридж EasyPrint IE-T0482 для Epson Styl | Картридж струйный Cactus CS-EPT0482 T0482 голубо;123.0;0292cs, 0292ep, 0292t2
+0293;T0483;C13T048340;T0481-T0486 DS;M;430;не указан;с чипом;2;IC-ET0483 Картридж T2 для Epson Stylus Photo R20 | T0483 Картридж EasyPrint IE-T0483 для Epson Styl;129.0;0293cs, 0293ep, 0293t2
+0294;T0484;C13T048440;T0481-T0486 DS;Y;430;не указан;с чипом;2;IC-ET0484 Картридж T2 для Epson Stylus Photo R20 | T0484 Картридж EasyPrint IE-T0484 для Epson Styl;122.0;0294cs, 0294ep, 0294t2
+0295;T0485;C13T048540;T0481-T0486 DS;LC;430;не указан;с чипом;2;IC-ET0485 Картридж T2 для Epson Stylus Photo R20 | Картридж струйный Cactus CS-EPT0485 светло-голуб;104.0;0295cs, 0295ep, 0295t2
+0296;T0486;C13T048640;T0481-T0486 DS;LM;430;не указан;с чипом;2;IC-ET0486 Картридж T2 для Epson Stylus Photo R20 | T0486 Картридж EasyPrint IE-T0486 для Epson Styl;109.0;0296cs, 0296ep, 0296t2
+0297;T0801;C13T08014011;T0801-T0806 DS;BK;330;не указан;с чипом;2;T0801 Картридж EasyPrint IE-T0801 для Epson Styl | Картридж струйный Cactus CS-EPT0801 T0801 черный;9.0;0297cs, 0297ep, 0297t2
+0298;T0802;C13T08024011;T0801-T0806 DS;C;935;не указан;с чипом;3;IC-ET0802 Картридж T2 для Epson Stylus Photo P50 | T0802 Картридж EasyPrint IE-T0802 для Epson Styl | Картридж струйный Cactus CS-EPT0802 T0802 голубо;76.0;0298cs, 0298ep, 0298t2
+0299;T0803;C13T08034011;T0801-T0806 DS;M;460;не указан;с чипом;2;IC-ET0803 Картридж T2 для Epson Stylus Photo P50 | T0803 Картридж EasyPrint IE-T0803 для Epson Styl;42.0;0299cs, 0299ep, 0299t2
+0300;T0804;c13t08044011;T0801-T0806 DS;Y;520;не указан;с чипом;2;IC-ET0804 Картридж T2 для Epson Stylus Photo P50 | T0804 Картридж EasyPrint IE-T0804 для Epson Styl;25.0;0300cs, 0300ep, 0300t2
+0301;T0805;C13T08054011;T0801-T0806 DS;LC;350;не указан;с чипом;3;IC-ET0805 Картридж T2 для Epson Stylus Photo P50 | Картридж EasyPrint IE-T0805 для Epson Stylus Pho | Картридж струйный Cactus CS-EPT0805 T0805 светло;59.0;0301cs, 0301ep, 0301t2
+0302;T0806;C13T08064011;T0801-T0806 DS;LM;685;не указан;с чипом;2;IC-ET0806 Картридж T2 для Epson Stylus Photo P50 | T0806 Картридж EasyPrint IE-T0806 для Epson Styl;50.0;0302cs, 0302ep, 0302t2
+0330;178XL;CB323H;CN684H-CB323H-CB324H-CB325H DS;C;750;не указан;с чипом;2;IC-H323 Картридж T2 №178XL для HP Deskjet 3070A/ | Картридж струйный Cactus CS-CB323N(CS-CB323) №17;73.0;0330cs, 0330ep, 0330t2
+0331;178XL;CB324H;CN684H-CB323H-CB324H-CB325H DS;M;750;не указан;с чипом;3;IC-H324 Картридж T2 №178XL для HP Deskjet 3070A/ | Картридж EasyPrint IH-324 №178XL для HP Deskjet  | Картридж струйный Cactus CS-CB324N(CS-CB324) №17;77.0;0331cs, 0331ep, 0331t2
+0349;CE402A;507A;CE400A-CE403A DS;Y;6000;не указан;с чипом;2;402 Картридж EasyPrint LH-402 для HP Enterprise  | TC-H402 Картридж T2 для HP LJ Enterprise 500 M55;30.0;0349ep, 0349t2
+0424;C6625A (17);C6625A;С6615A-C6625A DS;;430;не указан;с чипом;2;IC-H6625 Картридж T2 №17 для HP Deskjet 816c/825 | Картридж струйный Cactus CS-C6625A №17 многоцвет;16.0;0424cs, 0424t2
+0497;T0551;C13T05514010;T0551-T0554 DS;BK;290;не указан;с чипом;2;IC-ET0551 Картридж T2 для Epson Stylus Photo R24 | Картридж струйный Cactus CS-EPT0551 T0551 черный;53.0;0497cs, 0497t2
+0498;T0552;C13T05524010;T0551-T0554 DS;C;290;не указан;с чипом;2;IC-ET0552 Картридж T2 для Epson Stylus Photo R24 | Картридж струйный Cactus CS-EPT0552 T0552 голубо;75.0;0498cs, 0498t2
+0499;T0553;C13T05534010;T0551-T0554 DS;M;290;не указан;с чипом;2;IC-ET0553 Картридж T2 для Epson Stylus Photo R24 | Картридж струйный Cactus CS-EPT0553 T0553 пурпур;38.0;0499cs, 0499t2
+0500;T0554;C13T05544010;T0551-T0554 DS;Y;290;не указан;с чипом;2;IC-ET0554 Картридж T2 для Epson Stylus Photo R24 | Картридж струйный Cactus CS-EPT0554 T0554 желтый;63.0;0500cs, 0500t2
+0561;TK-475;;;BK;15000;не указан;с чипом;2;TC-K475 Тонер-картридж T2 для Kyocera FS-6025MFP | Тонер-картридж EasyPrint LK-475 для Kyocera FS-6;54.0;0561ep, 0561t2
+0595;LC-1100BK;;LC-1100 DS;BK;300;не указан;с чипом;2;Картридж струйный Cactus CS-LC1100BK черный (16м | Картридж струйный Cactus CS-LC980BK черный (16мл;79.0;0595cs
+0596;LC-1100C;;LC-1100 DS;C;260;не указан;с чипом;2;Картридж струйный Cactus CS-LC1100C голубой (16м | Картридж струйный Cactus CS-LC980C голубой (16мл;56.0;0596cs
+0597;LC-1100M;;LC-1100 DS;M;260;не указан;с чипом;2;Картридж струйный Cactus CS-LC1100M пурпурный (1 | Картридж струйный Cactus CS-LC980M пурпурный (16;53.0;0597cs
+0735;106R01531;;;BK;11000;не указан;с чипом;2;3550 Картридж EasyPrint LX-3550 для Xerox WorkCe | TC-X3550 Картридж T2 для Xerox WorkCentre 3550 (;78.0;0735ep, 0735t2
+0736;MLT-D209L;;;BK;5000;не указан;с чипом;2;MLT-D209L Картридж EasyPrint LS-209L для Samsung | TC-S209L Картридж T2 для Samsung ML-2855ND/SCX-4;95.0;0736ep, 0736t2
+0744;CE255X;55X;;BK;12500;не указан;с чипом;2;55X/724H Картридж EasyPrint LH-55X для HP LJ Ent | TC-H55X Картридж T2 для HP LaserJet Enterprise P;125.0;0744ep, 0744t2
+0745;CE255A;55A;;BK;6000;не указан;с чипом;2;55A/724 Картридж EasyPrint LH-55A для HP LJ Ente | TC-H55A Картридж T2 для HP LaserJet Enterprise P;103.0;0745ep, 0745t2
+0777;CE740A;307A;CE740A-CE743A DS;BK;7000;не указан;с чипом;2;740A Картридж EasyPrint LH-740 для HP CLJ CP5225 | TC-H740 Картридж T2 для HP CLJ Professional CP52;139.0;0777ep, 0777t2
+0778;CE741A;307A;CE740A-CE743A DS;C;7300;не указан;с чипом;2;741A Картридж EasyPrint LH-741 для HP CLJ CP5225 | TC-H741 Картридж T2 для HP CLJ Professional CP52;65.0;0778ep, 0778t2
+0779;CE742A;307A;CE740A-CE743A DS;Y;7300;не указан;с чипом;2;742A Картридж EasyPrint LH-742 для HP CLJ CP5225 | TC-H742 Картридж T2 для HP CLJ Professional CP52;98.0;0779ep, 0779t2
+0780;CE743A;307A;CE740A-CE743A DS;M;7300;не указан;с чипом;2;743A Картридж EasyPrint LH-743 для HP CLJ CP5225 | TC-H743 Картридж T2 для HP CLJ Professional CP52;94.0;0780ep, 0780t2
+0781;TK-1110;;;BK;2500;не указан;с чипом;2;TC-K1110 Тонер-картридж T2 для Kyocera FS-1040/1 | Тонер-картридж EasyPrint LK-1110 для Kyocera FS-;106.0;0781ep, 0781t2
+0792;CLT-K406S;;CLT-406S DS;BK;1500;не указан;с чипом;2;CLT-406Bk Картридж EasyPrint LS-K406 для Samsung | TC-S406B Картридж T2 для Samsung CLP-365/CLX-330;185.0;0792ep, 0792t2
+0793;CLT-C406S;;CLT-406S DS;C;1000;не указан;с чипом;2;CLT-406C Картридж EasyPrint LS-C406 для Samsung  | TC-S406C Картридж T2 для Samsung CLP-365/CLX-330;132.0;0793ep, 0793t2
+0794;CLT-M406S;;CLT-406S DS;M;1000;не указан;с чипом;2;CLT-406M Картридж EasyPrint LS-M406 для Samsung  | TC-S406M Картридж T2 для Samsung CLP-365/CLX-330;118.0;0794ep, 0794t2
+0795;CLT-Y406S;;CLT-406S DS;Y;1000;не указан;с чипом;2;CLT-406Y Картридж EasyPrint LS-Y406 для Samsung  | TC-S406Y Картридж T2 для Samsung CLP-365/CLX-330;120.0;0795ep, 0795t2
+0796;177XL;C8719HE;C8719HE-C8771HE-C8775HE DS;BK;800;не указан;с чипом;2;IC-H8719 Картридж T2 №177XL для HP Photosmart 32 | Картридж струйный Cactus CS-C8719 №177XL черный ;52.0;0796cs, 0796t2
+0797;177C;C8771HE;№177 DS;C;350;не указан;с чипом;2;IC-H8771 Картридж T2 №177 для HP Photosmart 3213 | Картридж струйный Cactus CS-C8771 №177 голубой (;54.0;0797cs, 0797t2
+0798;177M;C8772HE;№177 DS;M;350;не указан;с чипом;2;IC-H8772 Картридж T2 №177 для HP Photosmart 3213 | Картридж струйный Cactus CS-C8772 №177 пурпурный;50.0;0798cs, 0798t2
+0801;177LM;C8775HE;№177 DS;LM;350;не указан;с чипом;2;IC-H8775 Картридж T2 №177 для HP Photosmart 3213 | Картридж струйный Cactus CS-C8775 №177 светло-пу;67.0;0801cs, 0801t2
+0818;CLI-451BK;6523B001;CLI-451 DS;BK;344;не указан;с чипом;3;CLI451BK XL Картридж EasyPrint IC-CLI451BK XL дл | IC-CCLI-451BK XL Картридж T2 для Canon PIXMA iP7 | Картридж струйный Cactus CS-CLI451BK черный (12м;362.0;0818cs, 0818ep, 0818t2
+0820;CLI-451M;6525B001;CLI-451 DS;M;660;не указан;с чипом;2;IC-CCLI-451M XL Картридж T2 для Canon PIXMA iP72 | Картридж струйный Cactus CS-CLI451M пурпурный (1;452.0;0820cs, 0820ep, 0820t2
+0822;CLI-451GY;6527B001;CLI-451 DS;GY;;не указан;с чипом;2;IC-CCLI-451GY XL Картридж T2 для Canon PIXMA iP8 | Картридж струйный Cactus CS-CLI451GY серый (12мл;145.0;0822cs, 0822t2
+0823;PGI-450PGBK;6499B001;CLI-451 DS;BK;500;не указан;с чипом;3;IC-CPGI-450BK XL Картридж T2 для Canon PIXMA iP7 | PGI-450BK XL Картридж EasyPrint IC-PGI450BK XL д | Картридж струйный Cactus CS-PGI450 PGI-450 черны;610.0;0823cs, 0823ep, 0823t2
+0825;CF283A;83A;;BK;1500;не указан;с чипом;2;283A Картридж EasyPrint LH-83A для HP LJ Pro M12 | TC-H83A Картридж T2 для HP LaserJet Pro M125nw/1;200.0;0825ep, 0825t2
+0826;MLT-D117S;;;BK;3000;не указан;с чипом;2;MLT-D117S Картридж EasyPrint LS-117S для Samsung | TC-S117S Картридж T2 для Samsung SCX-4650N/4655F;117.0;0826ep, 0826t2
+0866;TK-4105;;;BK;15000;не указан;с чипом;2;TC-K4105 Тонер-картридж T2 для Kyocera TASKalfa  | Картридж лазерный Cactus CS-TK4105 TK-4105 черны;179.0;0866cs, 0866ep, 0866t2
+0876;CF281A;81A;;BK;10500;не указан;с чипом;2;TC-H81A Картридж T2 для HP LJ Enterprise M604n/M | Картридж EasyPrint LH-81A для HP LaserJet Enterp;117.0;0876ep, 0876t2
+0877;CF281X;81X;;BK;25000;не указан;с чипом;2;81X Картридж EasyPrint LH-81X для HP M605/M606/M | TC-H81X Картридж T2 для HP LJ Enterprise M605n/M;125.0;0877ep, 0877t2
+0918;T1292;C13T12924011;T1291-T1294 DS;C;300;не указан;с чипом;2;IC-ET1292 Картридж T2 для Epson Stylus SX230/SX4 | Картридж струйный Cactus CS-EPT1292 T1292 голубо;63.0;0918cs, 0918ep, 0918t2
+0919;T1293;C13T12934011;T1291-T1294 DS;M;400;не указан;с чипом;2;IC-ET1293 Картридж T2 для Epson Stylus SX420W/SX | Картридж струйный Cactus CS-EPT1293 T1293 пурпур;49.0;0919cs, 0919t2
+0920;T1294;C13T12944011;T1291-T1294 DS;Y;400;не указан;с чипом;2;IC-ET1294 Картридж T2 для Epson Stylus SX230/SX4 | Картридж струйный Cactus CS-EPT1294 T1294 желтый;14.0;0920cs, 0920ep, 0920t2
+1043;MLT-D203L;;;BK;5000;не указан;с чипом;3;Картридж Samsung MLT-D203L New Chip SL-M3320/337 | Картридж для Samsung MLT-D203L SL-M3820/3870/402 | Тонер-картридж Smart Graphics MLTD203L для Samsu;611.0;1043at, 1043oem, 1043sf, 1043sg, 1043sp, 1043wb
+1044;MLT-D203E;;;BK;10000;не указан;с чипом;2;Картридж Samsung MLT-D203E New Chip SL-M3820/387;107.0;1044oem, 1044sf, 1044sg, 1044sp, 1044wb
+1095;106R01604;;106R01601-106R01604 DS;BK;3000;не указан;с чипом;2;6500B Тонер-картридж EasyPrint LX-6500B для Xero | TC-X6500B Тонер-картридж T2 для Xerox Phaser 650;52.0;1095ep, 1095t2
+1097;106R01602;;106R01601-106R01604 DS;M;2500;не указан;с чипом;2;6500M Тонер-картридж EasyPrint LX-6500M для Xero | TC-X6500M Тонер-картридж T2 для Xerox Phaser 650;83.0;1097ep, 1097t2
+1098;106R01603;;106R01601-106R01604 DS;Y;2500;не указан;с чипом;2;6500Y Тонер-картридж EasyPrint LX-6500Y для Xero | TC-X6500Y Тонер-картридж T2 для Xerox Phaser 650;57.0;1098ep, 1098t2
+1106;106R02310;;;BK;5000;не указан;с чипом;2;3315 Картридж EasyPrint LX-3315 для Xerox WorkCe | TC-X3315 Картридж T2 для Xerox WorkCentre 3315DN;51.0;1106ep, 1106t2
+1144;106R02778;;;BK;3000;не указан;с чипом;5;Картридж 106R02778 New chip (для аппаратов, выпу | Картридж Xerox 106R02778 NEW CHIP Phaser3052/326 | Картридж Xerox 106R02778 New Chip Phaser3052/326;2635.0;1144at, 1144gp, 1144oem, 1144sf, 1144sg, 1144wb
+1163;CF400X;201X;CF400X DS;BK;2800;не указан;с чипом;2;CF400X/CF540X Картридж EasyPrint LH-CF540X/CF400 | TC-HCF400X Картридж T2 для HP CLJ Pro M252n/M252;53.0;1163ep, 1163t2
+1164;CF401X;201X;CF400X DS;C;2300;не указан;с чипом;2;CF401X/CF541X Картридж EasyPrint LH-CF541X/CF401 | TC-HCF401X Картридж T2 для HP CLJ Pro M252n/M252;56.0;1164ep, 1164t2
+1165;CF402X;201X;CF400X DS;Y;2300;не указан;с чипом;2;CF402X/CF542X Картридж EasyPrint LH-CF542X/CF402 | TC-HCF402X Картридж T2 для HP CLJ Pro M252n/M252;54.0;1165ep, 1165t2
+1166;CF403X;201X;CF400X DS;M;2300;не указан;с чипом;2;CF403X/CF543X Картридж EasyPrint LH-CF543X/CF403 | TC-HCF403X Картридж T2 для HP CLJ Pro M252n/M252;61.0;1166ep, 1166t2
+1168;737;9435B004;;BK;2400;не указан;с чипом;2;737 Картридж EasyPrint LC-737 U для Canon i-SENS | TC-C737 Картридж T2 для Canon i-SENSYS MF211/212;119.0;1168ep, 1168t2
+1193;CF287X;87X;;BK;18000;не указан;с чипом;2;87X Картридж EasyPrint LH-87X для HP LaserJet Pr | TC-H87X Картридж T2 для HP LJ Pro M501n/Enterpri;87.0;1193ep, 1193t2
+1219;LC525XLC;;LC525XLC DS;C;1300;не указан;с чипом;2;IC-B525XL-C Картридж T2 для Brother DCP-J100/J10 | Картридж струйный Cactus CS-LC525XLC голубой (14;70.0;1219cs, 1219t2
+1220;LC525XLM;;LC525XLC DS;M;1300;не указан;с чипом;2;IC-B525XL-M Картридж T2 для Brother DCP-J100/J10 | Картридж струйный Cactus CS-LC525XLM пурпурный (;46.0;1220cs, 1220t2
+1221;LC525XLY;LC-535XL;LC525XLC DS;Y;1300;не указан;с чипом;2;IC-B525XL-Y Картридж T2 для Brother DCP-J100/J10 | Картридж струйный Cactus CS-LC525XLY желтый (14.;42.0;1221cs, 1221t2
+1234;LC985C;;LC985 DS;C;260;не указан;с чипом;2;IC-B985C Картридж T2 для Brother DCP-J125/J315W/ | Картридж струйный Cactus CS-LC985C голубой (15мл;38.0;1234cs, 1234t2
+1235;LC985M;;LC985 DS;M;260;не указан;с чипом;2;IC-B985M Картридж T2 для Brother DCP-J125/J315W/ | Картридж струйный Cactus CS-LC985M пурпурный (15;59.0;1235cs, 1235t2
+1253;PGI-425PGBK;4532B001;CLI-426 DS;BK;344;не указан;с чипом;3;IC-CPGI-425BK Картридж T2 для Canon PIXMA iP4840 | Картридж струйный Cactus CS-PGI425BK PGI-425BK ч | СРОЧНО PGI425BK Картридж EasyPrint IC-PGI425BK д;339.0;1253cs, 1253ep, 1253t2
+1276;CF283X;83X;;BK;2500;не указан;с чипом;3;283X Картридж EasyPrint LH-83X U для HP LJ Pro M | TC-H83X Картридж T2 для HP LJ Pro M201dw/202dw/2 | Картридж лазерный G&G GG-CF283X UNIVERSAL черный;210.0;1276cs, 1276ep, 1276t2
+1278;MLT-D111L;;;BK;1800;не указан;с чипом;5;Картридж для Samsung MLT-D111L SL-M2020/M2020W/M | Тонер Картридж MLT-D111L new chip SP | Тонер-картридж Smart Graphics MLT-D111L для Sams;2959.0;1278at, 1278oem, 1278sf, 1278sg, 1278sp, 1278wb
+1279;CF410A;410A;CF410A DS;BK;2300;не указан;с чипом;2;CF410A Картридж EasyPrint LH-CF410A для HP Color | TC-HCF410A Картридж T2 для HP CLJ Pro M377/M452/;63.0;1279ep, 1279t2
+1281;CF412A;410A;CF410A DS;Y;2300;не указан;с чипом;2;CF412A Картридж EasyPrint LH-CF412A для HP Color | TC-HCF412A Картридж T2 для HP CLJ Pro M377/M452/;49.0;1281ep, 1281t2
+1282;CF413A;410A;CF410A DS;M;2300;не указан;с чипом;2;CF413A Картридж EasyPrint LH-CF413A для HP Color | TC-HCF413A Картридж T2 для HP CLJ Pro M377/M452/;35.0;1282ep, 1282t2
+1327;CLT-C404S;;CLT-404S DS;C;1000;не указан;с чипом;2;CLT-404C Картридж EasyPrint LS-C404 для Samsung  | TC-S404C Картридж T2 для Samsung Xpress SL-C430/;119.0;1327ep, 1327t2
+1328;CLT-K404S;;CLT-404S DS;BK;1500;не указан;с чипом;2;CLT-404Bk Картридж EasyPrint LS-K404 для Samsung | TC-S404B Картридж T2 для Samsung Xpress SL-C430/;200.0;1328ep, 1328t2
+1329;CLT-M404S;;CLT-404S DS;M;1000;не указан;с чипом;2;CLT-404M Картридж EasyPrint LS-M404 для Samsung  | TC-S404M Картридж T2 для Samsung Xpress SL-C430/;141.0;1329ep, 1329t2
+1330;CLT-Y404S;;CLT-404S DS;Y;1000;не указан;с чипом;2;CLT-404Y Картридж EasyPrint LS-Y404 для Samsung  | TC-S404Y Картридж T2 для Samsung Xpress SL-C430/;108.0;1330ep, 1330t2
+1366;106R02763;;106R02763-106R02760 DS;BK;2000;не указан;с чипом;2;6020B Тонер-картридж EasyPrint LX-6020B для Xero | TC-X6020B Тонер-картридж T2 для Xerox Phaser 602;21.0;1366ep, 1366t2
+1367;106R02773;;;BK;1500;не указан;с чипом;5;Картридж Sakura 106R02773 для XEROX Phaser3020WC | Картридж Xerox 106R02773 NEW CHIP Phaser3020/WC3 | Картридж для Xerox 106R02773 Phaser3020/WC3025 1;4167.0;1367at, 1367oem, 1367sf, 1367sg, 1367sk, 1367t2, 1367wb
+1372;106R03623;;;BK;15000;не указан;с чипом;2;3330 Тонер-картридж EasyPrint LX-3330 для Xerox  | TC-X3330 Картридж T2 для Xerox Phaser 3330/WorkC;106.0;1372ep, 1372t2
+1446;CLI-471XLBK;0346c001;CLI-471XL DS;BK;810;не указан;с чипом;3;CLI471BK XL Картридж EasyPrint IC-CLI471BK XL дл | IC-CCLI-471BK XL Картридж T2 для Canon PIXMA MG5 | Картридж струйный Cactus CS-CLI471XLBK CLI-471XL;264.0;1446cs, 1446ep, 1446t2
+1447;CLI-471XLC;0347C001;CLI-471XL DS;C;715;не указан;с чипом;3;CLI471C XL Картридж EasyPrint IC-CLI471C XL для  | IC-CCLI-471C XL Картридж T2 для Canon PIXMA MG57 | Картридж струйный Cactus CS-CLI471XLC CLI-471XL ;366.0;1447cs, 1447ep, 1447t2
+1448;CLI-471XLGY;0350c001;CLI-471XL DS;GY;423;не указан;с чипом;2;IC-CCLI-471GY XL Картридж T2 для Canon PIXMA MG7 | Картридж струйный Cactus CS-CLI471XLGY CLI-471XL;128.0;1448cs, 1448t2
+1449;CLI-471XLM;;CLI-471XL DS;M;645;не указан;с чипом;3;CLI471M XL Картридж EasyPrint IC-CLI471M XL для  | IC-CCLI-471M XL Картридж T2 для Canon PIXMA MG57 | Картридж струйный Cactus CS-CLI471XLM CLI-471XL ;405.0;1449cs, 1449ep, 1449t2
+1450;CLI-471XLY;0349C001;CLI-471XL DS;Y;715;не указан;с чипом;3;CLI471Y XL Картридж EasyPrint IC-CLI471Y XL для  | IC-CCLI-471Y XL Картридж T2 для Canon PIXMA MG57 | Картридж струйный Cactus CS-CLI471XLY CLI-471XL ;380.0;1450cs, 1450ep, 1450t2
+1458;PGI-470XLBk;0321C001;CLI-471XL DS;BK;;не указан;с чипом;2;IC-CPGI-470BK XL Картридж T2 для Canon PIXMA MG5 | Картридж струйный Cactus CS-PGI470XLBK PGI-470XL;464.0;1458cs, 1458ep, 1458t2
+1565;70;C9449A;C9451A-C9390A DS;BK;;не указан;с чипом;2;IC-H9449 Картридж T2 № 70 для HP Designjet Z2100 | Картридж струйный Cactus CS-C9449A №70 черный пи;53.0;1565cs, 1565t2
+1567;70;C9452A;C9451A-C9390A DS;C;;не указан;с чипом;2;IC-H9452 Картридж T2 № 70 для HP Designjet Z2100 | Картридж струйный Cactus CS-C9452A №70 голуб.пиг;61.0;1567cs, 1567t2
+1666;CF230X;30X;;BK;3500;не указан;с чипом;3;30X Картридж EasyPrint LH-30X для HP LJ Pro M203 | Картридж для HP CF230X/Canon 051H LJP M203/M227 ;1382.0;1666at, 1666ep, 1666oem, 1666sf, 1666wb
+2136;TK-5240C;;TK-5240 DS;C;3000;не указан;с чипом;2;TC-K5240C Тонер-картридж T2 для Kyocera ECOSYS Р | Тонер-картридж EasyPrint LK-5240C для Kyocera EC;170.0;2136ep, 2136t2
+2137;TK-5240M;;TK-5240 DS;M;3000;не указан;с чипом;2;TC-K5240M Тонер-картридж T2 для Kyocera ECOSYS Р | Тонер-картридж EasyPrint LK-5240M для Kyocera EC;156.0;2137ep, 2137t2
+2138;TK-5240Y;;TK-5240 DS;Y;3000;не указан;с чипом;2;TC-K5240Y Тонер-картридж T2 для Kyocera ECOSYS Р | Тонер-картридж EasyPrint LK-5240Y для Kyocera EC;143.0;2138ep, 2138t2
+2173;TK-5230C;;TK-5230 DS;C;2600;не указан;с чипом;2;TC-K5230C Тонер-картридж T2 для Kyocera ECOSYS M | Тонер-картридж EasyPrint LK-5230C для Kyocera EC;110.0;2173ep, 2173t2
+2174;TK-5230M;;TK-5230 DS;M;2600;не указан;с чипом;2;TC-K5230M Тонер-картридж T2 для Kyocera ECOSYS M | Тонер-картридж EasyPrint LK-5230M для Kyocera EC;122.0;2174ep, 2174t2
+2362;CF412X;410X;CF410X-CF413X DS;Y;5000;не указан;с чипом;2;CF412X Картридж EasyPrint LH-CF412X для HP Color | TC-HCF412X Картридж T2 для HP CLJ Pro M377/M452/;34.0;2362ep, 2362t2
+2400;TK-5270BK;;TK-5270 DS;BK;8000;не указан;с чипом;2;Картридж лазерный G&G GG-TK5270BK TK5270BK черны | Тонер-картридж EasyPrint LK-5270K для Kyocera EC;13.0;2400cs, 2400ep
+2401;TK-5270C;;TK-5270 DS;C;6000;не указан;с чипом;2;Картридж лазерный G&G GG-TK5270C TK5270C голубой | Тонер-картридж EasyPrint LK-5270C для Kyocera EC;32.0;2401cs, 2401ep
+2402;TK-5270M;;TK-5270 DS;M;6000;не указан;с чипом;2;Картридж лазерный G&G GG-TK5270M TK5270M пурпурн | Тонер-картридж EasyPrint LK-5270M для Kyocera EC;47.0;2402cs, 2402ep
+2403;TK-5270Y;;TK-5270 DS;Y;6000;не указан;с чипом;2;Картридж лазерный G&G GG-TK5270Y TK5270Y желтый  | Тонер-картридж EasyPrint LK-5270Y для Kyocera EC;31.0;2403cs, 2403ep
+2650;SPC250Bk;407543;SPC250 DS;BK;2000;не указан;с чипом;2;Картридж EasyPrint LR-SPC250BK для Ricoh SP C250 | Картридж лазерный Cactus CS-SP250EBK 407543 черн;123.0;2650cs, 2650ep
+2651;SPC250C;407544;SPC250 DS;C;1600;не указан;с чипом;2;Картридж EasyPrint LR-SPC250C для Ricoh SP C250D | Картридж лазерный Cactus CS-SP250EC 407544 голуб;148.0;2651cs, 2651ep
+2652;SPC250M;407545;SPC250 DS;M;1600;не указан;с чипом;2;$_СРОЧНО Картридж EasyPrint LR-SPC250M для Ricoh | Картридж лазерный Cactus CS-SP250EM 407545 пурпу;100.0;2652cs, 2652ep
+2653;SPC250Y;407546;SPC250 DS;Y;1600;не указан;с чипом;2;Картридж EasyPrint LR-SPC250Y для Ricoh SP C250D | Картридж лазерный Cactus CS-SP250EY 407546 желты;129.0;2653cs, 2653ep
+2969;051H;2169C002;;BK;4100;не указан;с чипом;2;051H Картридж EasyPrint LC-051H для Canon i-SENS | TC-C051H Картридж T2 для Canon i-SENSYS LBP162dw;175.0;2969ep, 2969t2
+3032;TK-3060;;;BK;14500;не указан;с чипом;5;TC-K3060 Картридж T2 для Kyocera ECOSYS M3145idn | Картридж TK-3060 для Kyocera с чипом | Тонер-картридж EasyPrint LK-3060 для Kyocera ECO;161.0;3032el, 3032ep, 3032sp, 3032t2
+3047;CLI-481XXLBK;1993C001;CLI-481XXL DS;BK;;не указан;с чипом;2;IC-CCLI-481BK XXL Картридж T2 для Canon PIXMA TS | Картридж струйный Cactus CS-CLI481XXLBK CLI-481X;190.0;3047cs, 3047t2
+3049;CLI-481XXLM;1991C001;CLI-481XXL DS;M;760;не указан;с чипом;2;IC-CCLI-481M XXL Картридж T2 для Canon PIXMA TS6 | Картридж струйный Cactus CS-CLI481XXLM CLI-481XL;199.0;3049cs, 3049t2
+3050;CLI-481XXLPB;1994C001;CLI-481XXL DS;C;;не указан;с чипом;2;IC-CCLI-481PB XXL Картридж T2 для Canon PIXMA TS | Картридж струйный Cactus CS-CLI481XXLPB CLI-481X;69.0;3050cs, 3050t2
+3051;CLI-481XXLY;1992C001;CLI-481XXL DS;Y;824;не указан;с чипом;2;IC-CCLI-481Y XXL Картридж T2 для Canon PIXMA TS6 | Картридж струйный Cactus CS-CLI481XXLY CLI-481XL;231.0;3051cs, 3051t2
+3065;T9451 BK;C13T945140;T9451-T9454 DS;BK;5000;не указан;с чипом;2;IC-ET9451 Картридж T2 для Epson WorkForce Pro C5 | Картридж струйный Cactus CS-EPT9451 T9451 черный;146.0;3065cs, 3065t2
+3192;054HBK;3028C002;054H (3028C002-3025C002) DS;BK;3100;не указан;с чипом;2;054H/045H BK Картридж EasyPrint LC-054H/045H BK  | TC-C054H BK Картридж T2 для Canon i-SENSYS LBP62;109.0;3192ep, 3192t2
+3195;054H Y;3025C002;054H (3028C002-3025C002) DS;Y;2300;не указан;с чипом;2;054H/045H Y Картридж EasyPrint LC-054H/045H Y дл | TC-C054H Y Картридж T2 для Canon i-SENSYS LBP621;89.0;3195ep, 3195t2
+3560;PFI-120MBK;2884C001;PFI-120 DS;BKM;;не указан;с чипом;2;IC-CPFI-120MBK Картридж T2 для Canon imagePROGRA | Картридж струйный Cactus CS-PFI120MBK PFI-120 MB;423.0;3560cs, 3560t2
+3561;PFI-120C;2886C001;PFI-120 DS;C;;не указан;с чипом;2;IC-CPFI-120C Картридж T2 для Canon imagePROGRAF  | Картридж струйный Cactus CS-PFI120C PFI-120 C го;166.0;3561cs, 3561t2
+3562;PFI-120M;2887C002;PFI-120 DS;M;;не указан;с чипом;2;IC-CPFI-120M Картридж T2 для Canon imagePROGRAF  | Картридж струйный Cactus CS-PFI120M PFI-120 M пу;208.0;3562cs, 3562t2
+3563;PFI-120Y;2888C001;PFI-120 DS;Y;;не указан;с чипом;2;IC-CPFI-120Y Картридж T2 для Canon imagePROGRAF  | Картридж струйный Cactus CS-PFI120Y PFI-120 Y же;157.0;3563cs, 3563t2
+3676;PFI-710Bk;2354C001;PFI-710 DS;BK;700;не указан;с чипом;2;IC-CPFI-710BK Картридж T2 для Canon imagePROGRAF | Картридж струйный Cactus CS-PFI710BK PFI-710 BK ;20.0;3676cs, 3676t2
+3680;PFI-710MBk;2353C001;PFI-710 DS;BKM;;не указан;с чипом;2;IC-CPFI-710MBK Картридж T2 для Canon imagePROGRA | Картридж струйный Cactus CS-PFI710MBK PFI-710 MB;37.0;3680cs, 3680t2
+3791;T04A1 BK;C13T04A140;T04A1-T04A4 (C13T04A140-C13T04A440) DS;BK;11500;не указан;с чипом;2;IC-ET04A140 Картридж T2 для Epson WorkForce Pro  | Картридж струйный Cactus CS-EPT04A140 T04A1 черн;24.0;3791cs, 3791t2
+3884;T05A4 M;C13T05A400;T05A1-T05A4 (C13T05A100-C13T05A400) DS;Y;15000;не указан;с чипом;2;IC-ET05A400 Картридж T2 для Epson WorkForce Pro  | Картридж струйный Cactus CS-EPT05A400 T05A4 желт;35.0;3884cs, 3884t2
+3891;LC-3239XLBK;;LC-3239XL DS;BK;6000;не указан;с чипом;2;IC-B3239XL-BK Картридж T2 для Brother HL-J6000DW | Картридж струйный Cactus CS-LC3239XLBK черный пи;124.0;3891cs, 3891t2
+3892;LC-3239XLC;;LC-3239XL DS;C;5000;не указан;с чипом;2;IC-B3239XL-C Картридж T2 для Brother HL-J6000DW/ | Картридж струйный Cactus CS-LC3239XLC голубой (5;118.0;3892cs, 3892t2
+3893;LC-3239XLM;;LC-3239XL DS;M;5000;не указан;с чипом;2;IC-B3239XL-M Картридж T2 для Brother HL-J6000DW/ | Картридж струйный Cactus CS-LC3239XLM пурпурный ;119.0;3893cs, 3893t2
+3894;LC-3239XLY;;LC-3239XL DS;Y;5000;не указан;с чипом;2;IC-B3239XL-Y Картридж T2 для Brother HL-J6000DW/ | Картридж струйный Cactus CS-LC3239XLY желтый (52;107.0;3894cs, 3894t2
+4050;PFI-320C;2891C001;PFI-320 DS;C;;не указан;с чипом;2;IC-CPFI-320C Картридж T2 для Canon imagePROGRAF  | Картридж струйный Cactus CS-PFI320C PFI-320 C го;124.0;4050cs, 4050t2
+4051;PFI-320M;2892C001;PFI-320 DS;M;;не указан;с чипом;2;IC-CPFI-320M Картридж T2 для Canon imagePROGRAF  | Картридж струйный Cactus CS-PFI320M PFI-320 M пу;135.0;4051cs, 4051t2
+4052;PFI-320Y;2893C001;PFI-320 DS;Y;;не указан;с чипом;2;IC-CPFI-320Y Картридж T2 для Canon imagePROGRAF  | Картридж струйный Cactus CS-PFI320Y PFI-320 Y же;126.0;4052cs, 4052t2
+4053;PFI-320Bk;2890C001;PFI-320 DS;BK;;не указан;с чипом;2;IC-CPFI-320BK Картридж T2 для Canon imagePROGRAF | Картридж струйный Cactus CS-PFI320BK PFI-320 BK ;174.0;4053cs, 4053t2
+4054;PFI-320MBk;2889C001;PFI-320 DS;BKM;;не указан;с чипом;2;IC-CPFI-320MBK Картридж T2 для Canon imagePROGRA | Картридж струйный Cactus CS-PFI320MBK PFI-320 MB;144.0;4054cs, 4054t2
+4159;TL-5120H;;;BK;6000;не указан;с чипом;3;TL-5120H Картридж EasyPrint LPM-TL-5120H для Pan | Картридж лазерный Cactus CS-TL-5120H TL-5120H че | Картридж лазерный Cactus CS-TL-5120HP TL-5120HP ;552.0;4159cs, 4159ep
+4334;TL-5120X;;;BK;15000;не указан;с чипом;2;TL-5120X Картридж EasyPrint LPM-TL-5120X для Pan | Картридж лазерный Cactus CS-TL-5120X TL-5120X че;600.0;4334bt, 4334cs, 4334ep
+4481;CTL-1100XK;;CTL-1100X;BK;3000;не указан;с чипом;2;CTL-1100XBK Картридж EasyPrint LPM-CTL-1100XBK д | TC-PM1100XBK Картридж T2 для Pantum CP1100/CM110;162.0;4481ep, 4481t2
+4482;CTL-1100XC;;CTL-1100X;C;2300;не указан;с чипом;2;CTL-1100XC Картридж EasyPrint LPM-CTL-1100XC для | СРОЧНО TC-PM1100XC Картридж T2 для Pantum CP1100;200.0;4482ep, 4482t2
+4483;CTL-1100XM;;CTL-1100X;M;2300;не указан;с чипом;2;CTL-1100XM Картридж EasyPrint LPM-CTL-1100XM для | TC-PM1100XM Картридж T2 для Pantum CP1100/CM1100;200.0;4483ep, 4483t2
+4484;CTL-1100XY;;CTL-1100X;Y;2300;не указан;с чипом;2;CTL-1100XY Картридж EasyPrint LPM-CTL-1100XY для | СРОЧНО TC-PM1100XY Картридж T2 для Pantum CP1100;200.0;4484ep, 4484t2
+4802;PC-211EV XL;;;BK;6000;не указан;с чипом;2;Картридж лазерный Cactus CS-PC-211EV-MPS PC-211E | Тонер-картридж Pantum P2200/M6500 PC-211EV XL (6;550.0;48027q, 4802at, 4802cs
+5313;C7115A;15A;;BK;2500;не указан;с чипом;2;15A/13A/24A/EP-25 Картридж EasyPrint LH-15A U дл | TC-H15AU Картридж T2 для HP LJ 1000/1150/1200/13;64.0;5313ep, 5313t2
+5446;TK-3430;;TK-3430;BK;25000;не указан;с чипом;3;TC-K3430 Тонер-картридж T2 для yocera ECOSYS PA5 | Картридж лазерный Cactus CS-TK3430 TK-3430 черны | Тонер-картридж EasyPrint LK-3430 для Kyocera ECO;385.0;5446cs, 5446ep, 5446t2
+5793;TN-3610XL;;TN-3600;BK;25000;не указан;с чипом;3;Картридж SP TN-3610XL для Brother черный (с чипо | Тонер-картридж 7Q TN3610XL для Brother HL-L6410,;97.0;57937q, 5793ep, 5793sp, 5793t2
+6382;DL-R5220;;;BK;30000;не указан;с чипом;2;DL-R5220 Драм-картридж EasyPrint DPM-DL-R5220 дл | СРОЧНО DC-PMR5220 Фотобарабан T2 для Pantum BP52;200.0;6382ep, 6382t2
+6949;TL-C2318H;;;BK;1600;не указан;с чипом;2;TC-PMC2318H Картридж T2 для Pantum BP1800/BP1800 | TL-C2318H Картридж EasyPrint LPM-TL-C2318H для P;125.0;6949ep, 6949t2
