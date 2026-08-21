@@ -57,7 +57,7 @@ DOMAINS = {
     # web/app.py и home.html НЕ забираем в домен: это общая витрина, дневник живёт в своём
     # роутере (web/diary_api.py) и подключается к app.py одной строкой.
     "ev": [
-        r"^ops/(biz_diary|stock_watch)\.py$",
+        r"^ops/(biz_diary|stock_watch|mp_news)\.py$",
         r"^web/diary_api\.py$",
         r"^migrations/5\d\d_.*\.sql$",
         r"^docs/BRIEF_EV\.md$",
