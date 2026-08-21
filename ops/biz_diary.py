@@ -155,7 +155,7 @@ def recent(limit=20, kind=None, platform=None, days=None):
     params.append(limit)
     return db.query(f"""
         SELECT id, event_date::text, date_to::text, kind, platform, account,
-               title, details, expect, review_at::text, author, source
+               title, details, expect, review_at::text, author, source, mark
         FROM biz_events WHERE {' AND '.join(where)}
         ORDER BY event_date DESC, id DESC LIMIT %s
     """, tuple(params))
