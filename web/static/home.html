@@ -221,10 +221,14 @@ let evWeeks={};
 let evKind='';
 let evRows={};      // id -> событие, чтобы форма правки заполнялась без второго запроса
 let evEditId=null;  // null = запись нового, иначе правим это событие
+let evLimit=12;     // лента показывает свежее; хвост разворачивается по «показать ещё»
 
 async function loadDiary(){
-  const d=await api('/api/diary?limit=12'+(evKind?'&kind='+evKind:''));
-  const rows=d.events||[];
+  // Просим на одну запись больше лимита: так видно, есть ли хвост, без отдельного счётчика.
+  const d=await api('/api/diary?limit='+(evLimit+1)+(evKind?'&kind='+evKind:''));
+  const all=d.events||[];
+  const more=all.length>evLimit;
+  const rows=all.slice(0,evLimit);
   evRows={};rows.forEach(e=>evRows[e.id]=e);
   $('#diary').innerHTML=rows.map(e=>{
     const dt=e.event_date.slice(8,10)+'.'+e.event_date.slice(5,7);
@@ -242,6 +246,11 @@ async function loadDiary(){
       <span>${ttl}${who?` <span class="muted">(${who})</span>`:''}${exp}${det}</span>
       ${edit}<a href="#" class="x" data-id="${e.id}" title="удалить">✕</a></div>`;
   }).join('')||'<p class="muted">событий пока нет — запиши первое, и недельные цифры будут читаться вместе с ним.</p>';
+  // Хвост ленты: без этой кнопки старые события (пожары на складах ВБ с 18.07) не видны вовсе.
+  if(more)$('#diary').insertAdjacentHTML('beforeend',
+    '<div class="ev"><span class="d"></span><span></span><span><a href="#" id="evmore">показать ещё</a></span></div>');
+  const mb=$('#evmore');
+  if(mb)mb.onclick=async ev=>{ev.preventDefault();evLimit+=30;await loadDiary();};
   $('#diary').querySelectorAll('.x').forEach(a=>a.onclick=async ev=>{
     ev.preventDefault();
     if(!confirm('Удалить запись из дневника?'))return;
@@ -262,7 +271,7 @@ async function loadDiary(){
 document.querySelectorAll('.evtabs a').forEach(a=>a.onclick=async e=>{
   e.preventDefault();
   document.querySelectorAll('.evtabs a').forEach(x=>x.classList.remove('cur'));
-  a.classList.add('cur');evKind=a.dataset.kind;await loadDiary();
+  a.classList.add('cur');evKind=a.dataset.kind;evLimit=12;await loadDiary();
 });
 
 function evReset(){
