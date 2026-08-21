@@ -461,9 +461,13 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
             title=r["title"],
             # Если выжимка уже посчитана — в дневник идёт она: человеку нужен денежный смысл
             # новости, а не три экрана текста площадки. Сырьё остаётся в mp_notices.
-            details=(digest.render(r["digest"]) if r["digest"] else (r["body"] or "")[:1500]),
-            expect=((r["digest"] or {}).get("action")
-                    or (f"Правило: {r['matched']}" if r["matched"] else None)),
+            details=(digest.render(r["digest"]) if r["digest"]
+                     else (r["body"] or "")[:1500] + (f"\n\nПравило: {r['matched']}"
+                                                     if r["matched"] else "")),
+            # В `expect` у события площадки лежит рекомендация «что делать» — она есть только
+            # там, где посчитана выжимка. Название правила туда не кладём: на главной оно
+            # читалось бы как «что делать: склад/ЧП».
+            expect=(r["digest"] or {}).get("action"),
             source=SOURCE_OF.get(r["platform"], r["platform"]),
             author=AUTHOR_OF.get(r["platform"], r["platform"]),
             dedup_key=f"{r['platform']}:{r['account']}:{r['message_id']}")
