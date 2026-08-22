@@ -26,6 +26,7 @@ tmux attach -t <имя>    # подключиться (напр. tmux attach -t 
 | **inv** — приёмка УПД→заказ поставщику, чистка МС | `inv` | `/opt/mp-analytics/invoice_bot` (сессия из `/root`) | `invoice_bot/{invoice_to_po,mail_poller,tg_bot,upd_to_supply,ms,supplier_groups,workcal,proc_log}.py` | ✅ живая (`invoice`) | `docs/HANDOFF.md#invoice` |
 | **ret** — ВОЗВРАТЫ ТОВАРА: что физически забрать с ПВЗ, ТГ-бот сводки | `ret` | `.claude/worktrees/ret` (ветка `ret/returns-bot`) | `returns_bot/*` (источники Ozon/Яндекс/WB, сводка, ТГ-бот), `mp_returns`/`mp_return_items` (мигр. 300, серия **3xx**) | 🟡 заводится 2026-08-02 | `docs/BRIEF_RET.md` |
 | **prc** — ПРАЙСЫ ПОСТАВЩИКОВ: почта → Оприходование в МС → список новинок | `prc` | `.claude/worktrees/prc-colortek` (ветка `prc/colortek-loader`) | `prices/*` (профили, разбор, курс ЦБ, загрузчик), `core/ms_api.py`, `prc_price_load`/`prc_price_row` (мигр. 400, серия **4xx**) | 🟡 заводится 2026-08-05 | `docs/BRIEF_PRC.md` |
+| **card** — ЗДОРОВЬЕ КАРТОЧЕК на площадках: статусы модерации, «Ошибки»/«На доработку», дотолкивание упавших апдейтов ТК | `card` | `.claude/worktrees/card-ozon-health` (ветка `card/ozon-health`) | детектор статусов + лестница повторов, серия миграций **6xx** | 🟡 заводится 2026-08-22 | `docs/BRIEF_CARD.md` |
 
 ⚠️ **`ret` ≠ `rev`.** `ret` — возвраты **товара** (физика: забрать коробку с ПВЗ).
 `rev` — **отзывы** и вопросы покупателей. Имена похожи, территории не пересекаются.
