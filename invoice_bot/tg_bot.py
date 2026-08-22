@@ -26,6 +26,7 @@ import upd_to_supply as upd_pipe       # УПД  → «Приёмка»
 import gtd_text                        # реестр ГТД текстом → графа 11 в готовой приёмке
 import proc_log
 import reports.ozon_removal_candidates as ozrem   # /vyvoz — кандидаты на вывоз со склада Ozon
+import reports.ya_removal_candidates as yarem     # тот же вывоз, склад Яндекс.Маркета (FBY)
 
 # Роутинг по имени файла: «УПД»/«upd»/«…передаточный документ»/имя ЭДО-титула или .xml/.zip
 # → приёмка, иначе → заказ по счёту. «передаточн» уникально для УПД (в счетах не встречается).
@@ -132,6 +133,20 @@ def ozon_removal_report():
     return ozrem.format_report(d)
 
 
+def ya_removal_report():
+    """Кандидаты на вывоз со склада Яндекс.Маркета (FBY) — по последнему снимку остатков."""
+    try:
+        return yarem.format_report()
+    except Exception as e:
+        log("ya_removal error: " + traceback.format_exc())
+        return f"📦 Вывоз со склада Яндекс.Маркета (FBY)\n❌ Ошибка сборки: {type(e).__name__}: {e}"
+
+
+def removal_report_all():
+    """Общий список на вывоз: Ozon FBO + Яндекс.Маркет FBY одним текстом."""
+    return ozon_removal_report() + "\n\n" + ya_removal_report()
+
+
 def handle(msg):
     chat_id = msg["chat"]["id"]
     from_id = str(msg.get("from", {}).get("id", ""))
@@ -179,9 +194,9 @@ def handle(msg):
         return
 
     if text0 in ("/vyvoz", "/вывоз", "/ozon", "/озон"):
-        send(chat_id, "⏳ Собираю кандидатов на вывоз со склада Ozon…", mid)
+        send(chat_id, "⏳ Собираю кандидатов на вывоз со складов Ozon и Яндекс.Маркета…", mid)
         try:
-            rep = ozon_removal_report()
+            rep = removal_report_all()
         except Exception as e:
             log("ozon_removal error: " + traceback.format_exc())
             send(chat_id, f"❌ Ошибка сборки: {type(e).__name__}: {e}", mid)
