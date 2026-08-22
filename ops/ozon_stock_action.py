@@ -471,7 +471,7 @@ def _dt(s):
 
 
 def watch(account, notify=False):
-    """Реестр акций: сообщаем о новой белой акции и напоминаем за сутки до старта."""
+    """Реестр акций: в бот — только напоминание за сутки до старта распродажи стока."""
     seen = {r["action_id"]: r for r in db.query(
         "select * from oz_action_seen where account = %s", (account,))}
     msgs, recs = [], []
@@ -485,9 +485,7 @@ def watch(account, notify=False):
         new_n = bool(old and old["notified_new"])
         start_n = bool(old and old["notified_start"])
         if wl and not old:
-            msgs.append(f"🆕 *Новая распродажа стока*: {title}\n"
-                        f"старт {ds:%d.%m %H:%M}" if ds else f"🆕 Новая распродажа стока: {title}")
-            new_n = True
+            new_n = True          # в бот идёт ТОЛЬКО предупреждение о старте (решение Сергея 22.08)
         if wl and ds and not start_n and dt.timedelta(0) <= (ds - now) <= dt.timedelta(days=1):
             msgs.append(f"⏰ *Завтра старт*: {title}\n"
                         f"начало {ds:%d.%m %H:%M}" + (f", заморозка цен {fz:%d.%m %H:%M}" if fz else ""))
