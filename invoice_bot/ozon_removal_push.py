@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ozon_removal_push.py — еженедельная авторассылка кандидатов на вывоз со складов МП.
-
-Ozon FBO + Яндекс.Маркет FBY (блок Маркета добавлен 22.08.2026, поток ev).
+"""ozon_removal_push.py — еженедельная авторассылка кандидатов на вывоз со склада Ozon FBO.
 
 Пересобирает список (DB-only, по данным свежего run_daily) и шлёт всем из TG_ALLOWED_IDS.
 Запуск из cron (еженедельно). Переиспользует send_long/ozon_removal_report/ALLOWED из tg_bot.
@@ -17,8 +15,8 @@ def main():
     if not tg_bot.ALLOWED:
         print("нет TG_ALLOWED_IDS — некому слать", flush=True)
         return
-    rep = tg_bot.removal_report_all()
-    header = "🗓️ Еженедельный список на вывоз со складов Ozon и Яндекс.Маркета\n\n"
+    rep = tg_bot.ozon_removal_report()
+    header = "🗓️ Еженедельный список на вывоз со склада Ozon\n\n"
     for uid in tg_bot.ALLOWED:
         try:
             tg_bot.send_long(int(uid), header + rep)
