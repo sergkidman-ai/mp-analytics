@@ -27,8 +27,10 @@ app = FastAPI(title="Пульт бизнеса")
 STATIC = BASE_DIR / "web" / "static"
 
 from web.diary_api import router as diary_router  # noqa: E402  дневник событий (поток ev)
+from web.warehouse_loss_api import router as wh_loss_router  # noqa: E402  пострадавшие склады (ev)
 
 app.include_router(diary_router)
+app.include_router(wh_loss_router)
 
 
 @app.get("/", response_class=HTMLResponse)

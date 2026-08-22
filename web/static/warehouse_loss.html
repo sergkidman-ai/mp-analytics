@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Склад · Пострадавшие склады ВБ</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  main{flex:1;min-width:0;padding:22px;max-width:1100px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  h2{font-size:15px;margin:22px 0 12px}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:6px 0 4px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .bi .l{color:var(--mut);font-size:12px}
+  .bi .v{font-size:25px;font-weight:700;margin-top:4px}
+  .bi .v small{font-size:14px;font-weight:600;color:var(--mut)}
+  .bi .d{font-size:13px;margin-top:5px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
+  td.name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .d0{color:var(--neg);font-weight:700}.d1{color:var(--warn)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .sub{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:820px){.sub{grid-template-columns:1fr}}
+  .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  .whtabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
+  .whtabs a:hover{color:var(--txt);background:var(--card)}
+  .whtabs a.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+  .wl{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden}
+  .wl>summary{cursor:pointer;padding:13px 16px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;list-style:none}
+  .wl>summary::-webkit-details-marker{display:none}
+  .wl>summary:hover{background:var(--bg)}
+  .wl .nm{font-weight:700;font-size:14px}
+  .wl .sum{margin-left:auto;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+  .wl table{border:none;border-radius:0;border-top:1px solid var(--line)}
+  .grp{margin:26px 0 6px;display:flex;align-items:baseline;gap:10px}
+  .grp h2{margin:0}
+  .grp .t{margin-left:auto;font-size:15px;font-weight:700}
+  .chip{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:20px;padding:2px 9px}
+  .set{color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse" class="cur">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main>
+  <nav class="whtabs">
+    <a href="/warehouse">🏭 Остатки складов</a>
+    <a href="/reports/wb-clearance">🏷️ Распродажа остатков ВБ</a>
+    <a href="/warehouse/novelties">✨ Новинки</a>
+    <a href="/warehouse/loss" class="cur">🔥 Пострадавшие склады ВБ</a>
+  </nav>
+  <p class="note" style="margin-top:0">Наш товар на складах ВБ, по которым были удары, — на дату
+  удара. Остаток берём из наших ежедневных снимков остатков, себестоимость — <b>по цене приёмки
+  МойСклада, ближайшей к дате удара и не позже неё</b>. Карточка-набор считается по составу:
+  цена = сумма приёмок компонентов. Цифра для претензии — колонка «по приёмке»; колонка
+  «витрина» показана для сверки вторым методом.</p>
+  <div class="big" id="big"></div>
+  <div id="groups"></div>
+  <p class="note" id="foot"></p>
+</main>
+<script>
+const rub = v => (v == null ? '—' : Math.round(v).toLocaleString('ru-RU') + ' ₽');
+const dmy = s => s ? s.split('-').reverse().slice(0, 2).join('.') : '—';
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function itemRows(w) {
+  return w.items.map(i => `<tr>
+    <td class="name">${esc(i.vendor_code || i.nm_id)}</td>
+    <td>${esc(i.account.replace('wb_', ''))}</td>
+    <td>${i.qty}</td>
+    <td>${i.components ? i.components + (i.components > 1 ? ' шт' : '') : '—'}</td>
+    <td>${i.unit_cost == null ? '<span class="muted">приёмки нет</span>' : rub(i.unit_cost)}</td>
+    <td class="muted">${dmy(i.supply_date)}</td>
+    <td>${i.cost_total == null ? '—' : rub(i.cost_total)}</td>
+    <td class="muted">${i.vitrina_u == null ? '—' : rub(i.vitrina_u) + (i.vitrina_src ? ' · ' + esc(i.vitrina_src) : '')}</td>
+  </tr>`).join('');
+}
+
+function whCard(w) {
+  const gap = w.snap_how && w.snap_how !== 'день удара'
+    ? `<span class="chip">снимок ${dmy(w.snap_date)} · ${esc(w.snap_how)}</span>`
+    : `<span class="chip">снимок в день удара</span>`;
+  const nop = w.no_price_qty
+    ? `<span class="chip warn">без цены приёмки ${w.no_price_qty} шт</span>` : '';
+  return `<details class="wl">
+    <summary>
+      <span class="nm">${esc(w.label)}</span>
+      <span class="muted">удар ${dmy(w.hit_date)}</span>
+      ${gap}${nop}
+      <span class="muted">${w.qty} шт</span>
+      <span class="sum">${rub(w.cost)}</span>
+    </summary>
+    <table>
+      <thead><tr><th>Артикул</th><th>Акк.</th><th>Шт</th><th>В карточке</th>
+        <th>Цена приёмки</th><th>Дата приёмки</th><th>Сумма</th><th>Витрина, ₽/шт</th></tr></thead>
+      <tbody>${itemRows(w)}</tbody>
+    </table>
+  </details>`;
+}
+
+(async () => {
+  const d = await (await fetch('/api/warehouse/loss')).json();
+  if (!d.groups.length) {
+    document.getElementById('groups').innerHTML =
+      '<p class="note">Витрина пуста — не считалcя <code>ops/wb_lost_stock.py</code>.</p>';
+    return;
+  }
+  const lost = d.groups.find(g => g.status === 'lost') || {qty: 0, cost: 0};
+  const dmg = d.groups.find(g => g.status === 'damaged') || {qty: 0, cost: 0};
+  document.getElementById('big').innerHTML = `
+    <div class="bi"><div class="l">🔥 Уничтожено</div><div class="v neg">${rub(lost.cost)}</div>
+      <div class="d muted">${lost.qty} шт на ${lost.warehouses ? lost.warehouses.length : 0} складах</div></div>
+    <div class="bi"><div class="l">💥 Под риском (повреждённые склады)</div><div class="v warn">${rub(dmg.cost)}</div>
+      <div class="d muted">${dmg.qty} шт на ${dmg.warehouses ? dmg.warehouses.length : 0} складах</div></div>
+    <div class="bi"><div class="l">Всего под претензию</div><div class="v">${rub(d.total.cost)}</div>
+      <div class="d muted">${d.total.qty} шт · сверка вторым методом ${rub(d.total.vitrina)}</div></div>`;
+  document.getElementById('groups').innerHTML = d.groups.map(g => `
+    <div class="grp"><h2>${g.icon} ${esc(g.title)}</h2>
+      <span class="muted">${g.qty} шт</span><span class="t">${rub(g.cost)}</span></div>
+    <p class="note" style="margin:0 0 6px">${esc(g.note)}</p>
+    ${g.warehouses.map(whCard).join('')}`).join('');
+  document.getElementById('foot').textContent =
+    'Посчитано ' + (d.built_at || '').slice(0, 16).replace('T', ' ') +
+    '. Пересчёт — ops/wb_lost_stock.py, подробный разбор — docs/reports/wb_lost_warehouses_2026-08-21.md. ' +
+    'Снимок остатков — данные ВБ по нашему аккаунту, а не акт о наличии: претензию подавать по «Отчёту по остаткам» ВБ.';
+})();
+</script>
+</body>
+</html>
