@@ -50,7 +50,7 @@ CRED_ENV = {"oz_acc1": ("OZON_CLIENT_ID_ACC1", "OZON_API_KEY_ACC1"),
 ACCOUNTS = ["oz_acc1", "oz_acc2"]
 
 # --- политика (решения Сергея 22.08.2026) -----------------------------------
-WHITELIST = ("распродажа стока",    # тип акции опознаём ТОЛЬКО по названию: action_type
+WHITELIST = ("распродажа стока",    # (региональные включены обратно 22.08 по варианту 1)    # тип акции опознаём ТОЛЬКО по названию: action_type
               "акция для склад")    # бесполезен — под STOCK_DISCOUNT сидят все именные акции.
                                     # «акция для склад» ловит региональное семейство («География»
                                     # в ЛК): «Акция для складов. <регион>» + «для склада в <город>»
@@ -60,6 +60,10 @@ STEP_DAYS = 7                       # шаг раз в неделю
 FLAT_EPS = 0.05                     # ход меньше 5% потолка → лестницу не строим, стоим на потолке
 KEEP_FALLBACK = {"oz_acc1": 0.421, "oz_acc2": 0.459}   # доля, что остаётся после удержаний Ozon
 SERGEY_CHAT_ID = 1031321444         # только явный chat_id, см. память telegram-channels
+UNDERCUT = ("распродажа стока",)    # где встаём на 1 ₽ ниже цены товара в ЧУЖИХ акциях.
+                                    # Только распродажа стока: там цель — слить лежачий товар.
+                                    # На региональных подрезка била бы по ходовому ассортименту
+                                    # (решение Сергея 22.08: вариант 1 — без подрезки).
 RET_STATUS = ("unredeemed", "return_stock", "return_ozon", "return_defect")
 
 
@@ -86,8 +90,12 @@ def _req(account, method, path, body=None, tries=4):
 
 
 def is_whitelisted(title):
+    return _has(title, WHITELIST)
+
+
+def _has(title, words):
     t = (title or "").lower().replace("ё", "е")
-    return any(w.replace("ё", "е") in t for w in WHITELIST)
+    return any(w.replace("ё", "е") in t for w in words)
 
 
 # --- данные аккаунта --------------------------------------------------------
@@ -303,7 +311,7 @@ def other_action_min(account, skip_action_id):
 
 
 # --- основной расчёт --------------------------------------------------------
-def _decide(row, keep, state, others, today):
+def _decide(row, keep, state, others, today, undercut=True):
     """Считает пол, ступень и целевую цену. Заполняет row: floor/rung/price/why/skip."""
     off, cap = row["offer_id"], row["cap"]
     v = row.get("cogs")
@@ -311,10 +319,18 @@ def _decide(row, keep, state, others, today):
         row["skip"] = "себестоимость не найдена"
         return row
     floor = (v + GOAL_NET) / keep
-    om = others.get(off)
-    if om and om - 1 < cap:                     # в другой акции дешевле — встаём под неё
-        cap, row["capped_by_other"] = om - 1, om
+    if undercut:
+        om = others.get(off)
+        if om and om - 1 < cap:                 # в чужой акции дешевле — встаём под неё
+            cap, row["capped_by_other"] = om - 1, om
     st = state.get(off) or {}
+    if st.get("cap_price") is not None:         # потолок лестницы зафиксирован при заведении
+        cap = min(cap, float(st["cap_price"]))
+    elif row["inside"] and (row.get("now_price") or 0) > 0:
+        # товар завели руками — лестница стартует от ЕГО цены, а не от потолка акции:
+        # цену не дёргаем, просто берём под управление. Ниже пола не оставляем.
+        cap = max(floor, min(cap, float(row["now_price"])))
+    row["cap"] = round(cap, 2)
     rung = int(st.get("rung") or 0)
     last = st.get("last_step_on")
     if last and (today - last).days >= STEP_DAYS and rung < STEPS:
@@ -336,6 +352,9 @@ def plan_account(account):
         return [], keep, keep_src, []
     stock = ozon_stock(account)
     today = dt.date.today()
+    # Чужие цены одинаковы для всех наших акций (свои из подрезки исключены) — читаем один раз:
+    # иначе каждая белая акция заново вычитывает участников всех остальных (тысячи позиций).
+    others = other_action_min(account, None)
     plans = []
     for a in acts:
         aid, title = a["id"], a.get("title")
@@ -345,7 +364,6 @@ def plan_account(account):
         offs = [pid2.get(x["id"], (None,))[0] for x in cands + inside]
         cogs = cogs_map(offs)
         state = ladder_state(account, [o for o in offs if o])
-        others = other_action_min(account, aid)
 
         for src, items in (("add", cands), ("inside", inside)):
             for c in items:
@@ -363,10 +381,15 @@ def plan_account(account):
                     continue
                 row["cogs"], row["cogs_src"] = cogs.get(off, (None, "НЕТ"))
                 need = max(row["min_stock"], 1)
+                if row["inside"] and row["stock"] == 0:
+                    # на складе Ozon пусто: снимаем, иначе заказы по акционной цене
+                    # мигрируют на наш склад FBS (решение Сергея 22.08)
+                    row["skip"], row["mode"] = "на складе Ozon не осталось", "remove"
+                    continue
                 if row["stock"] < need and not row["inside"]:
                     row["skip"] = f"остаток {row['stock']} < нужно {need}"
                     continue
-                _decide(row, keep, state, others, today)
+                _decide(row, keep, state, others, today, undercut=_has(title, UNDERCUT))
                 if row.get("skip"):
                     # цена ниже нашего порога: нового не заводим, заведённого снимаем
                     row["mode"] = "remove" if row["inside"] and "пол" in row["skip"] else None
@@ -520,8 +543,8 @@ def report(account, plans, keep, keep_src, done, dry):
     for p in plans:
         m[p["mode"] or "мимо"] = m.get(p["mode"] or "мимо", 0) + 1
     ru = {"add": "завести", "update": "сдвинуть ступень", "keep": "оставить как есть",
-          "remove": "снять (цена ниже порога)", "мимо": "не подходят"}
-    lines = [f"*{account}* · распродажа стока · {'расчёт' if dry else 'исполнение'}",
+          "remove": "снять", "мимо": "не подходят"}   # снимаем по нулю на складе ИЛИ по цене
+    lines = [f"*{account}* · акции по белому списку · {'расчёт' if dry else 'исполнение'}",
              f"нам остаётся {keep*100:.1f}% выручки ({keep_src}), цель +{GOAL_NET:.0f} ₽ с единицы"]
     for k in ("add", "update", "keep", "remove", "мимо"):
         if m.get(k):
@@ -539,7 +562,8 @@ def report(account, plans, keep, keep_src, done, dry):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Ozon: автоучастие в акциях «Распродажа стока»")
+    ap = argparse.ArgumentParser(
+        description="Ozon: автоучастие в акциях белого списка (распродажа стока + региональные)")
     ap.add_argument("cmd", choices=["plan", "apply", "watch"])
     ap.add_argument("--account", choices=ACCOUNTS, help="по умолчанию оба")
     ap.add_argument("--notify", action="store_true", help="слать в бот")
