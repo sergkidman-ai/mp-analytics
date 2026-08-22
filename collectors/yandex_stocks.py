@@ -1,18 +1,20 @@
 # поток: ev
-"""yandex_stocks.py — остатки на складах Яндекс.Маркета (FBY).
+"""yandex_stocks.py — снимок остатков на складах Яндекс.Маркета по ВСЕМ активным магазинам.
 
-Зачем: с 01.09.2026 Маркет вводит фиксированный льготный срок хранения (наши категории — 120
-дней с даты поступления поставки, КГТ — 30), после него хранение платное. Залежавшийся товар
-нужно вывозить так же, как с Ozon FBO, — для этого нужен ежедневный снимок остатков.
+Правка 22.08.2026 (Наталья): собираем не только FBY. У нас 7 FBS-магазинов, у каждого свой склад,
+и остатки живут именно там; FBY-магазин пустой и с выключенным в ЛК доступом к API.
+Список магазинов берём из `GET /campaigns` — новый магазин подхватится сам.
 
-Источник: POST /campaigns/{campaignId}/offers/stocks (withTurnover=true).
-FBY-магазин кабинета — «Цифровой квадрат», campaignId 21589415; в списке FBS-кампаний его нет.
+Остаток по FBS — это НАШ склад, который мы передаём Маркету, а не хранение у Маркета.
+Что реально лежит у Маркета (невыкупы и возвраты) — в потоке `ret` (mp_returns), см.
+reports/ya_removal_candidates.py.
 
-ВАЖНО: у этой кампании в ЛК выключен доступ к API (ответ 403 API_DISABLED). Пока владелец
-кабинета его не включит, сбор возвращает 0 строк и печатает причину — это не поломка коллектора.
+Пишет в ya_mp_stock (миграции 507 + 508), один снимок на день.
 """
+import datetime
 import os
 import sys
+import time
 
 import requests
 
@@ -21,71 +23,81 @@ from core import db  # noqa: E402
 
 API = "https://api.partner.market.yandex.ru"
 ACCOUNT = "ya_acc1"
-FBY_CAMPAIGN = int(os.getenv("YANDEX_CAMPAIGN_FBY_ACC1", "21589415"))
+PAGE = 200
 STOCK_TYPES = {"AVAILABLE": "available", "FREEZE": "frozen", "DEFECT": "defect", "EXPIRED": "expired"}
-
-
-class ApiDisabled(RuntimeError):
-    """Доступ к API магазина выключен в личном кабинете Маркета."""
 
 
 def _headers():
     key = os.getenv("YANDEX_API_KEY_ACC1")
     if not key:
-        raise RuntimeError("YANDEX_API_KEY_ACC1 не задан в окружении")
+        raise RuntimeError("нет YANDEX_API_KEY_ACC1 в .env")
     return {"Api-Key": key, "Content-Type": "application/json"}
 
 
-def fetch(campaign_id=FBY_CAMPAIGN):
-    """Все остатки FBY одной кампании: [{warehouse_id, warehouse, offer_id, ...}]."""
+def campaigns():
+    """[(id, placementType, name)] — все магазины кабинета."""
+    r = requests.get(f"{API}/campaigns", headers=_headers(),
+                     params={"page": 1, "pageSize": 50}, timeout=60)
+    r.raise_for_status()
+    return [(c["id"], c.get("placementType"), c.get("domain") or str(c["id"]))
+            for c in r.json().get("campaigns", [])]
+
+
+def fetch(campaign_id):
+    """Остатки одного магазина. None — если у магазина выключен доступ к API."""
     head, out, token = _headers(), [], None
     while True:
-        params = {"limit": 200}
+        params = {"limit": PAGE}
         if token:
             params["page_token"] = token
-        r = requests.post(f"{API}/campaigns/{campaign_id}/offers/stocks",
-                          headers=head, params=params, json={"withTurnover": True}, timeout=60)
+        r = requests.post(f"{API}/campaigns/{campaign_id}/offers/stocks", headers=head,
+                          params=params, json={"withTurnover": True}, timeout=60)
         if r.status_code == 403 and "API_DISABLED" in r.text:
-            raise ApiDisabled(f"кампания {campaign_id}: доступ к API выключен в ЛК Маркета")
+            return None
         r.raise_for_status()
-        res = r.json().get("result", {})
-        for wh in res.get("warehouses", []):
-            for off in wh.get("offers", []):
-                st = {s.get("type"): s.get("count", 0) for s in off.get("stocks", [])}
-                turn = off.get("turnoverSummary") or {}
-                row = {"account": ACCOUNT, "campaign_id": campaign_id,
-                       "warehouse_id": wh.get("warehouseId"), "warehouse": wh.get("name"),
-                       "offer_id": off.get("offerId"), "updated_at": off.get("updatedAt"),
-                       "turnover_days": turn.get("turnoverDays"), "turnover": turn.get("turnover")}
-                row.update({col: int(st.get(t, 0) or 0) for t, col in STOCK_TYPES.items()})
-                out.append(row)
+        res = r.json().get("result") or {}
+        out += res.get("warehouses") or []
         token = (res.get("paging") or {}).get("nextPageToken")
         if not token:
-            break
-    return out
+            return out
+        time.sleep(0.3)
 
 
 def main():
-    try:
-        rows = fetch()
-    except ApiDisabled as e:
-        print(f"остатки FBY не собраны — {e}.\n"
-              f"Включить: ЛК Маркета → Настройки → Доступ к API → магазин «Цифровой квадрат» (FBY).",
-              flush=True)
-        return 0
-    if not rows:
-        print("остатков FBY нет (склад пуст)", flush=True)
-        return 0
-    day = db.query("SELECT current_date d")[0]["d"]
-    for r in rows:
-        r["captured_at"] = day
-    db.upsert("ya_fby_stock", rows,
-              ["account", "campaign_id", "warehouse_id", "offer_id", "captured_at"])
+    day = datetime.date.today()
+    rows, skipped, seen = [], [], 0
+    for cid, placement, name in campaigns():
+        whs = fetch(cid)
+        if whs is None:
+            skipped.append(f"{name} ({placement})")
+            continue
+        for w in whs:
+            for o in w.get("offers", []):
+                seen += 1
+                cnt = {v: 0 for v in STOCK_TYPES.values()}
+                for s in o.get("stocks", []):
+                    k = STOCK_TYPES.get(s.get("type"))
+                    if k:
+                        cnt[k] += s.get("count") or 0
+                if not any(cnt.values()):
+                    continue          # нули не храним: 135 тыс. строк на снимок против 20 тыс.
+                turn = o.get("turnoverSummary") or {}
+                rows.append({
+                    "account": ACCOUNT, "campaign_id": cid, "campaign_name": name,
+                    "placement": placement, "warehouse_id": w.get("warehouseId"),
+                    "warehouse": w.get("name"), "offer_id": o.get("offerId"),
+                    "turnover_days": turn.get("turnoverDays"), "turnover": turn.get("turnover"),
+                    "updated_at": o.get("updatedAt"), "captured_at": day, **cnt})
+    if rows:
+        db.upsert("ya_mp_stock", rows,
+                  ["account", "campaign_id", "warehouse_id", "offer_id", "captured_at"])
     qty = sum(r["available"] + r["frozen"] for r in rows)
-    print(f"FBY {day}: {len(rows)} позиций, {qty} шт, складов {len({r['warehouse_id'] for r in rows})}",
-          flush=True)
-    return len(rows)
+    print(f"{day}: магазинов с данными {len({r['campaign_id'] for r in rows})}, "
+          f"позиций с остатком {len(rows)} (из {seen} в каталоге), штук {qty}")
+    if skipped:
+        print("пропущены (в ЛК Маркета выключен доступ к API): " + ", ".join(skipped))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

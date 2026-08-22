@@ -1,18 +1,19 @@
 # поток: ev
-"""ya_removal_candidates.py — кандидаты на вывоз со склада Яндекс.Маркета (FBY).
+"""ya_removal_candidates.py — блок Яндекс.Маркета в еженедельном списке «что забрать со складов МП».
 
-Повод (новость Маркета, действует с 01.09.2026): у каждого товара фиксированный срок льготного
-хранения от даты поступления поставки на склад, оборачиваемость на стоимость больше не влияет.
-Бесплатно: КГТ 30 дней, одежда/обувь 365, ВСЁ ОСТАЛЬНОЕ (наши картриджи) — 120 дней.
-Дальше платно: КГТ 0,25 ₽ за литр в день, остальное 2,5 ₽ за литр в день; предварительный
-расчёт Маркета учитывает скидку 90 %.
+Переписан 22.08.2026 после проверки фактов (правка Натальи):
 
-Логика та же, что у Ozon FBO (reports/ozon_removal_candidates.py): предлагаем вывезти то, что
-не продаётся и вот-вот начнёт стоить денег. Отличие в гейте: у Маркета порог задаёт не наш
-норматив застоя, а его же льготный срок — предупреждаем за LEAD_DAYS до конца льготы.
+* На Маркете НАШ товар на складе Маркета не лежит: FBY-магазин пустой (и API у него выключен),
+  а по семи FBS-магазинам склад наш собственный — вывозить оттуда нечего.
+* У Маркета оседает только то, что вернулось: невыкупы и отмены. Их Маркет почти всегда сразу
+  везёт нам на ПВЗ — за всю историю услуга «Хранение невыкупов и возвратов» стоила 630 ₽
+  (15 ₽ за штуку, в августе 2026 — ноль).
+* Значит предмет еженедельного напоминания по Маркету — не «вывоз со склада», а «забрать
+  возврат с ПВЗ, пока не просрочен» плюс сторож на случай, если хранение вдруг начнёт капать.
 
-Источник данных — снимок ya_fby_stock (collectors/yandex_stocks.py). Пока в ЛК Маркета выключен
-доступ к API FBY-магазина, снимков нет и отчёт честно говорит об этом, а не молчит.
+Возвраты собирает поток `ret` (returns_bot → mp_returns); отсюда читаем их только на чтение.
+Остатки складов — ya_mp_stock (collectors/yandex_stocks.py): если на FBY когда-нибудь появится
+товар, он попадёт в блок вывоза по правилам льготного хранения Маркета.
 """
 import os
 import sys
@@ -20,78 +21,88 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import db  # noqa: E402
 
-FREE_DAYS = 120         # льготное хранение для наших категорий, дней (с 01.09.2026)
+FREE_DAYS = 120         # льгота хранения FBY для наших категорий (тариф Маркета с 01.09.2026)
 LEAD_DAYS = 30          # за сколько дней до конца льготы поднимать позицию
-STALE_DAYS = 60         # застой без продаж, при котором вывозим независимо от льготы
 RATE_RUB_L_DAY = 2.5    # ₽ за литр в день после льготы (до скидки 90 %)
-DISCOUNT = 0.9          # анонсированная скидка на хранение
 TARIFF_FROM = "2026-09-01"
+STORAGE_SERVICES = ("Хранение невыкупов и возвратов", "storage_of_returns")
 
 
-def _volume_l(offer_id):
-    """Объём короба в литрах из наших габаритов; None, если размера нет."""
-    r = db.query("""SELECT length_mm, width_mm, height_mm FROM ms_product
-                    WHERE external_code=%s AND length_mm IS NOT NULL LIMIT 1""", (offer_id,))
-    if not r or not all((r[0]["length_mm"], r[0]["width_mm"], r[0]["height_mm"])):
-        return None
-    return round(r[0]["length_mm"] * r[0]["width_mm"] * r[0]["height_mm"] / 1_000_000, 2)
+def pickup_pending():
+    """Возвраты Маркета, которые физически ждут нас (не закрыты)."""
+    return db.query("""
+        SELECT return_id, campaign, status_name, stage, pvz_name, pvz_address,
+               created_at::date AS created, deadline_at::date AS deadline,
+               (CURRENT_DATE - created_at::date) AS age
+        FROM mp_returns
+        WHERE platform='yandex' AND stage NOT IN ('closed')
+          AND created_at >= CURRENT_DATE - INTERVAL '120 days'
+        ORDER BY deadline_at NULLS LAST, created_at""")
 
 
-def build():
-    """Кандидаты по последнему снимку FBY: [{offer_id, qty, days, reason, storage_rub_month}]."""
-    day = db.query("SELECT max(captured_at) d FROM ya_fby_stock")
+def storage_charges(months=3):
+    """Плата за хранение невыкупов и возвратов по месяцам — сторож «начало капать»."""
+    return db.query("""
+        SELECT ym, count(*) AS n, round(sum(cost)::numeric, 2) AS rub
+        FROM raw_yandex_services WHERE service = ANY(%s)
+        GROUP BY ym ORDER BY ym DESC LIMIT %s""", (list(STORAGE_SERVICES), months))
+
+
+def fby_stuck():
+    """Товар на складе Маркета (FBY), у которого кончается льготное хранение."""
+    day = db.query("SELECT max(captured_at) d FROM ya_mp_stock WHERE placement='FBY'")
     day = day[0]["d"] if day else None
     if not day:
         return None, []
-    rows = db.query("""SELECT offer_id, warehouse, warehouse_id, available, frozen,
-                              turnover_days, turnover, updated_at
-                       FROM ya_fby_stock WHERE captured_at=%s AND available+frozen > 0
-                       ORDER BY offer_id""", (day,))
-    out = []
-    for r in rows:
-        qty = (r["available"] or 0) + (r["frozen"] or 0)
-        days = r["turnover_days"]
-        reasons = []
-        if days is not None and days >= FREE_DAYS - LEAD_DAYS:
-            reasons.append(f"льгота кончается: лежит {days}д из {FREE_DAYS}")
-        if days is not None and days >= STALE_DAYS and not reasons:
-            reasons.append(f"застой {days}д")
-        if not reasons:
-            continue
-        vol = _volume_l(r["offer_id"])
-        cost = None
-        if vol:
-            cost = round(vol * qty * RATE_RUB_L_DAY * (1 - DISCOUNT) * 30, 2)
-        out.append({"offer_id": r["offer_id"], "warehouse": r["warehouse"] or r["warehouse_id"],
-                    "qty": qty, "days": days, "reason": "; ".join(reasons),
-                    "volume_l": vol, "storage_rub_month": cost})
-    return day, out
+    rows = db.query("""SELECT offer_id, warehouse, available+frozen AS qty, turnover_days
+                       FROM ya_mp_stock
+                       WHERE captured_at=%s AND placement='FBY' AND available+frozen > 0
+                         AND turnover_days >= %s
+                       ORDER BY turnover_days DESC""", (day, FREE_DAYS - LEAD_DAYS))
+    return day, rows
 
 
 def format_report():
     """Текстовый блок для еженедельной рассылки (вторник)."""
-    day, rows = build()
-    head = "📦 Вывоз со склада Яндекс.Маркета (FBY)"
-    if day is None:
-        return (f"{head}\n"
-                f"⚠️ Данных нет: в ЛК Маркета выключен доступ к API магазина «Цифровой квадрат» (FBY).\n"
-                f"Включить: Настройки → Доступ к API. После этого остатки поедут сами.\n"
-                f"Зачем срочно: с {TARIFF_FROM} хранение платное после {FREE_DAYS} дней "
-                f"({RATE_RUB_L_DAY} ₽/л/день до скидки {int(DISCOUNT*100)} %).")
-    if not rows:
-        return f"🟢 {head} — на {day} кандидатов нет."
-    total = sum(r["qty"] for r in rows)
-    known = [r["storage_rub_month"] for r in rows if r["storage_rub_month"] is not None]
-    out = [f"{head} — на {day}",
-           f"К вывозу {len(rows)} поз., {total} шт."
-           + (f" Хранение ≈ {round(sum(known))} ₽/мес после льготы." if known else ""),
-           "Оформить: ЛК Маркета → Товары → Остатки → «Вывезти со склада».", ""]
-    for r in rows:
-        cost = f" · ≈{r['storage_rub_month']} ₽/мес" if r["storage_rub_month"] is not None else ""
-        out.append(f"  • {r['offer_id']} ×{r['qty']} — {r['reason']}{cost}")
-    out.append("")
-    out.append(f"Правила: льгота {FREE_DAYS}д с поставки (предупреждаем за {LEAD_DAYS}д) · "
-               f"застой ≥{STALE_DAYS}д · тариф с {TARIFF_FROM}.")
+    out = ["📦 Яндекс.Маркет — что у него лежит нашего"]
+
+    pend = pickup_pending()
+    ready = [r for r in pend if r["stage"] == "pickup"]
+    stuck = [r for r in pend if r["stage"] == "attention"]
+    transit = [r for r in pend if r["stage"] not in ("pickup", "attention")]
+    if ready:
+        out.append(f"🚚 Забрать с ПВЗ: {len(ready)} шт.")
+        for r in ready:
+            dl = f", до {r['deadline']}" if r["deadline"] else ""
+            out.append(f"  • возврат {r['return_id']} · {r['campaign']} · {r['status_name']}"
+                       f" · {r['pvz_name'] or 'ПВЗ не указан'}{dl}")
+    if stuck:
+        out.append(f"⚠️ Разобраться: {len(stuck)} шт.")
+        for r in stuck:
+            out.append(f"  • возврат {r['return_id']} · {r['campaign']} · {r['status_name']}"
+                       f" · с {r['created']}")
+    if transit:
+        out.append(f"⏳ В пути к нам: {len(transit)} шт. (забирать пока нечего)")
+    if not pend:
+        out.append("🟢 Возвратов на руках у Маркета нет.")
+
+    stor = storage_charges()
+    if stor and stor[0]["rub"]:
+        out.append(f"💸 Хранение невыкупов — последнее начисление {stor[0]['ym']}: "
+                   f"{stor[0]['rub']} ₽ ({stor[0]['n']} шт.). Обычно ноль; растёт — значит "
+                   f"возвраты залипают у Маркета.")
+
+    day, fby = fby_stuck()
+    if fby:
+        out.append(f"🏬 Склад Маркета (FBY), снимок {day} — льгота {FREE_DAYS} дн. кончается:")
+        for r in fby:
+            out.append(f"  • {r['offer_id']} ×{r['qty']} — лежит {r['turnover_days']} дн. "
+                       f"({r['warehouse']})")
+        out.append(f"  Оформить: ЛК Маркета → Товары → Остатки → «Вывезти со склада». "
+                   f"С {TARIFF_FROM} после льготы {RATE_RUB_L_DAY} ₽/л/день (скидка 90 %).")
+    elif day is None:
+        out.append("🏬 Склад Маркета (FBY): нашего товара там нет — вывозить нечего.")
+
     return "\n".join(out)
 
 
