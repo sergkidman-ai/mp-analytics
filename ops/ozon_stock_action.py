@@ -414,6 +414,11 @@ def apply_plan(account, plans, dry=True, allow_remove=False):
                 if n:
                     print(f"  [dry] {title}: {m} {n} шт", flush=True)
             continue
+        # товар уже стоит по нужной цене — на площадку не ходим, но ступень помним,
+        # иначе недельный отсчёт у него не начнётся и лестница не тронется
+        for p in part:
+            if p["mode"] == "keep":
+                _remember(account, aid, p, today)
         if put:
             res = _req(account, "POST", "/v1/actions/products/activate",
                        {"action_id": aid,
