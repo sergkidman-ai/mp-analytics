@@ -182,7 +182,6 @@
     Сухой прогон: `docs/reports/ozon_e7b_restore_dryrun_2026-08-20.md`, применение —
     `venv/bin/python tools/ozon_e7b_restore.py --apply` (событие `E7B_RESTORE_AFTER_E4_FILTER_BUG`,
     ни в одну когорту E5–E8 эти SKU не входят).
-<<<<<<< HEAD
 23. **21.08 — P1-HALO: ореол снятого хвоста, ВЕРДИКТА НЕТ (`INSUFFICIENT_POST_PERIOD`).**
     Вопрос: давали ли 8 407 снятых 09.08 SKU дешёвый широкий трафик, косвенно поднимавший
     продажи **других** товаров. Прямая атрибуция заказов хвоста на него не отвечает, а
@@ -292,6 +291,7 @@
       capability gap системы (автоматический оценщик результатов), а не рекламный эксперимент;
       деньгами напрямую не оценивается. Старт: `venv/bin/python tools/ozon_hypo.py status`,
       затем `trace --for H-009`.
+
 
 27. **Акции «Распродажа стока» — робот готов, ветка `mkt/ozon-stock-action`** (коммиты `4c5054c`+).
     `ops/ozon_stock_action.py` (`plan` / `apply` / `watch`), миграция `509_oz_stock_action.sql`
