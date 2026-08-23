@@ -213,7 +213,7 @@ def update(event_id, **fields):
     return rows[0] if rows else None
 
 
-def resolve(event_id, result, mark="✅"):
+def resolve(event_id, result, outcome=None, mark="✅"):
     """Задача из записки выполнена — в дневнике вместо задачи стоит РЕЗУЛЬТАТ.
 
     Правило Сергея 23.08.2026. Записка человека часто приходит как «событие + поручение»
@@ -226,11 +226,18 @@ def resolve(event_id, result, mark="✅"):
     Заменяем, а не дописываем: две версии текста (задача + ответ) читаются дольше, чем ответ,
     и заставляют человека решать, актуальна ли ещё первая. Исходная записка не теряется —
     она лежит файлом в dropbox и ключом `dedup_key`.
+
+    `outcome` — ИТОГ одной строкой, он ложится в `expect` и виден прямо в ленте. Это главное:
+    подробный ответ спрятан под заголовок и открывается по клику, а поле «что делать» рисуется
+    рядом с событием. Оставить там прежний текст поручения — значит оставить на главной висящую
+    задачу, даже когда она выполнена (случай 23.08: результат по Оренбургу был записан, а в
+    ленте всё ещё висело «проверить лист снятых с продажи»). `None` — поле очищается.
     """
     if not result or not str(result).strip():
         raise ValueError("результат не может быть пустым — иначе задача просто исчезнет")
-    rows = db.query("UPDATE biz_events SET details = %s, mark = %s WHERE id = %s RETURNING *",
-                    (str(result).strip(), mark, event_id))
+    rows = db.query("""UPDATE biz_events SET details = %s, expect = %s, mark = %s
+                        WHERE id = %s RETURNING *""",
+                    (str(result).strip(), (outcome or "").strip() or None, mark, event_id))
     return rows[0] if rows else None
 
 
@@ -293,13 +300,14 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=20)
     ap.add_argument("--resolve", type=int, metavar="ID", help="закрыть задачу события результатом")
     ap.add_argument("--result", metavar="ТЕКСТ", help="текст результата для --resolve")
+    ap.add_argument("--outcome", metavar="ТЕКСТ", help="итог одной строкой — видно в ленте")
     args = ap.parse_args(argv)
 
     if args.resolve:
         if not args.result:
             print("нужен --result: чем закончилась задача")
             return 1
-        row = resolve(args.resolve, args.result)
+        row = resolve(args.resolve, args.result, outcome=args.outcome)
         print(f"#{args.resolve}: результат записан" if row else f"#{args.resolve} не найдено")
         return 0
 
