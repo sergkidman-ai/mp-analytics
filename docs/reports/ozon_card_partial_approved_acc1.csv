@@ -1,0 +1,610 @@
+offer_id,product_id,name,status_name,moderate,validation,status_failed,selling,hard_errors,all_errors,codes
+2958,457220528,"Картриджи 006R01270-006R01273 для принтеров Xerox и WorkCentre WC-7132, WC 7232, WC7242",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+31771,4824888758,Фотобарабан для Lexmark MS710,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+7008,4411731392,"Фотобарабан + картридж DR-1072+TN-1072 для принтеров Avision AM33, AM33Q, AP33, AP33Q черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2994,457220520,"Картриджи 701 для принтеров Canon i-SENSYS LBP5200, LBP-MF8180",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3103,457220707,"Картриджи 106R03877-3880 для принтеров Xerox VersaLink C500, C505",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+33506,4834690425,Картридж для P3200DN,Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2976,457220503,Картриджи C950X2 для принтеров Lexmark Optra C950de,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3491,457221275,"Чернила T6731-T6736 для принтеров Epson L-1800, L-800, L 805, L810, L850 набор cmyk lclm",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+24885,4821081951,Фотобарабан для Samsung Xpress M2820DW,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2875,455889177,Картриджи №91 для принтеров HP и Designjet Z6100 набор cmyk lclm,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4917,601155918,"Картриджи C734A1KG - C734A1YG для принтеров Lexmark и LaserPrinter C734, LP-C736, LP X734, LPX736, LP X738",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5692,2644574205,"Заправочный комплект CL-38/CL-41/CL-51/CL-511/CL-513 для принтеров Ricoh Aficio MP2352, FAX-JX200, FAX JX500",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_out_of_range
+10325,330000988,"Картридж для Panasonic KX-MB1500, KX-MB1501, KX MB1507, KXMB1510",Продается,approved,success,,1,0,1,double_without_merger_offer
+6469,2837112738,"Картридж 78C50K0-78C50Y0 для принтеров Lexmark CS421, CX421, CX522, LP CS521, LP CS622",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1738X10,5695859702,"Комплект картриджей C5222KH (10 шт.) на 40000 страниц для принтеров Lexmark C522, C524, C530, C532",Готов к продаже,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3399,457221101,"Картриджи TN-210 для принтеров Konica Minolta и Bizhub C250, Bizhub C252",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4553,4136774253,"Чернила T101 /001 для принтеров Epson L4150, L4160, L4260, L4266, L6160, L6170, L6260, L6270",Готов к продаже,approved,success,,1,0,2,warning_attribute_values_empty warning_attribute_values_out_of_range
+1397,453347388,"Картридж TN-320M для принтеров Brother и HL-4150CDN, HL 4570 cdw, MFC-9460CDN, MFC956 пурпурный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6649,2803651654,"Фотобарабан + картридж DR-311K DU+TN-216 для принтеров Konica Minolta Bizhub 280, Bizhub C220",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24522,4821081108,Картридж для Lexmark 720 X720,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+46642,4848622891,Картридж для Brady BMP 51,Готов к продаже,approved,success,,1,0,1,erased_attribute_value
+045124,4772967558,Картридж для Canon Bubble Jet i990,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2698,455888784,"Картридж T6061-T6069 для принтеров Epson и Stylus Pro 4800, Stylus Pro 4880 набор cmyk lclm",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24884,4821081728,Фотобарабан для Samsung Xpress M 2675,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2573,455888423,"Картриджи T0331-T0336 для принтеров Epson и Stylus 950, Stylus 960 набор cmyk lclm",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+01244,4759268870,Лента для принтера для Panasonic KX-FP218,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+38553,4837714453,Чернила для Epson EcoTank M-200,Продается,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2285,455887926,"Картриджи CLP-600A для принтеров Samsung и CLP-600, CLP 600N",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+02373,329697825,Картридж для Kyocera EcoSys M2035DN,Продается,approved,success,,1,0,1,double_without_merger_offer
+2713,455888796,"Картриджи GC-31 для принтеров Ricoh и Aficio 3300, 3350, 5550N, 7700, GXe2600",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1031,452138754,"Картриджи 43487733-43487736 для принтеров OKI и C8600, C8800",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2611,455888418,"Чернила T664 для принтеров Epson L100, L110, L130, L1300, L200, L210, L220, L222 L300 L3050 L310 L312 L350 L355 L362 L364 L382 L386 L455 L456 L486 L550 L555 L565 L566 L605 L655",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+08161,4793382431,Картридж для Samsung SL-M2620D,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+5138,4136774755,Фотобарабаны 43913805 - 43913808 для принтеров OKI C710,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0009,451742630,"Картриджи TN-320 для принтеров Brother HL-4150CDN, HL 4570 cdw, MFC-9460CDN, MFC956",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5273,694984705,"Картриджи №981X для принтеров HP PageWide Color 556, PW Color MFP 586 dn",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3506,457221261,"Картриджи PFI-1700 для принтеров Canon iPF PRO 2000, iPF PRO 4000",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3955,457221978,Картриджи 44059228-44059225 для принтеров OKI Data MC860,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5128,607711969,"Картридж 44968301 для принтеров OKI и C331, C531, Data C301, Data C321, MC332, MC342, MC562 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0035,330058270,Картридж SCX-4200 для принтеров Samsung SCX-4200 черный,Продается,approved,success,,1,0,2,pics_http_error some_image_failed
+01243,4759268855,Лента для принтера для Panasonic KX-FP215,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045114,4772966043,Картридж для Canon Bubble Jet S820d,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+00779,4759259318,Комплект картриджей для Canon Pixma i990,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+02799,4759344521,Картридж для Samsung ML-3310ND,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+5646,1216305681,"Чернила Canon Dye KCMY для принтеров Canon Pixma G1400, PixmaG1410",Готов к продаже,approved,success,,1,0,2,warning_attribute_values_empty warning_attribute_values_out_of_range
+6644,2803290963,"Фотобарабан + картридж 12A8302 DU+34016HE для принтеров Lexmark E230, E232, E240, E330, E340, OptraE234, Optra E330 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045112,4772965906,Картридж для Canon Bubble Jet S800,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1398,453347437,"Картридж TN-320Y для принтеров Brother и HL-4150CDN, HL 4570 cdw, MFC-9460CDN, MFC956 желтый",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+46641,4848622944,Картридж для Brady BMP 41,Готов к продаже,approved,success,,1,0,1,erased_attribute_value
+1127,452138944,Картриджи 106R01514-106R01511 для принтеров Xerox и Phaser 6700,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2257,455887809,"Картриджи T019-T020 для принтеров Epson и Stylus Color 880, Stylus 880i",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+085111,329357946,"Картридж для Brother MFC-L2720DWR, MFC-L2740DWR, DCP-L2500DR, DCP L2520DWR, HL-L2300DR, HLL2340DWR, HL L2360DNR, HL-L2365DWR, HL L2380 MFCL2700DWR",Продается,approved,success,,1,0,1,double_without_merger_offer
+5025,604360642,"Картридж T7541-T7544 для принтеров Epson и WorkForce Pro WF-8090, WF-8590",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5334X2,5622740198,"Комплект картриджей FX-9 (2 шт.) на 4000 страниц для принтеров Canon Fax L95, FAX-L100, FAX L75, MF4018, MF4100, ImageCLASS 4680, L120",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2496,455888331,Картридж S051100 для принтеров Epson EPL N7000 черный,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+59591,4867697854,Фотобарабан для Brother HL-L2400DW,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+5122,607711644,"Картриджи 44059169-44059172 для принтеров OKI и Data MC851, Data MC861",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2620,455888530,"Картриджи 17G0050-17G0060 для принтеров Lexmark и Color JetPrinter Z12, Z22, Z32, CompaqIJ600",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2506,455888395,Картриджи S050088-S050091 для принтеров Epson AcuLaser C4000,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+01241,4759268753,Лента для принтера для Panasonic KX-FP205,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4983,603221267,Картриджи PGI-72 для принтеров Canon Pixma PRO-10,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+04518,4772969207,Картридж для Canon Bubble Jet F900,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5334X6,5622740557,"Комплект картриджей FX-9 (6 шт.) на 12000 страниц для принтеров Canon Fax L95, FAX-L100, FAX L75, MF4018, MF4100, ImageCLASS 4680, L120",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+3165,457220699,Картриджи 106R01456-106R01459 для принтеров Xerox Phaser 6128,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2623,455888601,"Картриджи 10N0217-10N0227 для принтеров Lexmark и Color JetPrinter Z13, JetPrinter Z23, Z34, CompaqIJ650, i3, X1130, X1150, X1270 X2250 X72 X74 X75 Z513 Z515 Z601 Z602 Z611 Z612 Z640 Z645",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+7158,5643266557,Тонер KX-FAT411A KX-FAT400A KX-FAT410A KX-FAT421A KX-FAT430A KX-FAT431A для Panasonic черный,Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail
+13055,4803812728,Картридж для Lexmark Optra E342TN,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2904,455889197,Картриджи SP-C811 для принтеров Ricoh и Aficio T SPC811 DNHE,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2241,455887791,"Картриджи TN-130 для принтеров Brother и DCP-9040CN, DCP 9045CN, HL-4040 cn, HL4050CDN, HL-4070, MFC-9440CN, MFC9450",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0073,451742943,Картриджи №822A для принтеров HP и Color LaserJet 9500,Готов к продаже,approved,success,,1,0,2,cover_unprocessed warning_attribute_values_empty
+01248,4759269204,Лента для принтера для Panasonic KX-FC255,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24822,4821081210,Картридж для Samsung ML-5050,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+53347,4848630400,Картридж для Canon i-SENSYS MF4150,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+3421,457221128,Картриджи CE400X-CE403X для принтеров HP и Color LaserJet M551,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0095,451743394,Картриджи T066-T067 для принтеров Epson и Stylus C48,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2248,455887806,"Картриджи EP-87 для принтеров Canon и i-SENSYS LBP5200, ImageClass MF8180C, LBP 2410",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0355,451767913,Картриджи Q2681A-Q2683A для принтеров HP Color LaserJet 3700,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6394,2509013796,"Картриджи TNP-48 для принтеров Konica Minolta Bizhub C3350, Bizhub C3850",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5262,3549624146,Картриджи 106R01316 - 106R01319 для принтеров Xerox WorkCentre 6400,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3736,457221575,"Картриджи T5801-T5809 для принтеров Epson Stylus Pro 3800, Stylus Pro 3880 набор cmyk lclm",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+21091,4807071645,Картридж для Sharp AR-5420,Продается,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+54951,4848640640,Картридж для HP LaserJet Tank 1502w,Продается,approved,success,,1,0,2,pics_http_error some_image_failed
+00772,4759258814,Комплект картриджей для Canon Pixma S820d,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+59695,4867698177,Картридж для Brother DCP-L2627DW,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+32657,4834690174,Картридж для P5005,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+0046,451742923,"Картридж 106R01204 для принтеров Xerox и Phaser 6110, Phaser 6110MFP желтый",Продается,approved,success,,1,0,2,pics_http_error some_image_failed
+6677,2811855304,"Фотобарабан + картридж 113R00672 DU+006R01046 для принтеров Xerox BookMark 40, BookMark 55, CopyCentre 232, CopyCentre 238, DocuCentre 535, DocuCentre 545, WC245, WC 255 WC265 WC-275 WC 5030 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+248812,4821081864,Фотобарабан для Samsung Xpress M 2885,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+6486,2546771974,Картриджи 106R01214-106R01217 для принтеров Xerox Phaser 6360,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2561,455888431,"Картриджи T015-T016 для принтеров Epson и Stylus Photo 2000, Stylus Photo 2000P",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+01432,4759281023,Картридж для Epson Stylus C43UX,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0096,451743396,"Картриджи T0441-T0444 для принтеров Epson и Stylus C64, Stylus C66",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6994,4401284634,"Фотобарабаны 76C0PK0-76C0PV0 для принтеров Lexmark CS921de, CS923de, CX921de, CX922de",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3126,457220749,Картриджи 106R00672-106R00675 для принтеров Xerox Phaser 6250,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4937,601155993,Картриджи X792X1KG - X792X1YG для принтеров Lexmark и LaserPrinter X792,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3139,457220763,"Картриджи T1701-T1704 для принтеров Epson Expression Home XP-103, XP 203, XP207, XP-303, XP306, XP 313, XP 33, XP403 XP413 XP 423",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2666,455888631,"Картриджи MX-27GT для принтеров Sharp и MX-2300N, MX 2700N, MX3500N, MX-4500N, MX4501N",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0283X6,5688460583,"Комплект картриджей PG-50BK (6 шт.) на 4800 страниц для принтеров Canon FAX-JX200, FAX JX210P, MP170, MP450, MX310, Pixma iP2200, PixmaMP150",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+1389X2,5692240401,Комплект картриджей S050435 (2 шт.) на 16000 страниц для принтеров Epson AcuLaser M2000,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+59697,4867698147,Картридж для Brother DCP-L2627DWXL,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+24332,4821080660,Картридж для Canon C-330,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+5071,606569484,"Картриджи TN-616 для принтеров Konica Minolta и Bizhub PRESS C6000, PRESS C7000",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4405,457713140,"Картриджи 2044C001 - 2048C001 для принтеров Canon Pixma TR8540, Pixma TS6140",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+57733,1273348830,"Картридж для Canon i-SENSYS MF461dw, MF463dw",Продается,approved,success,,1,0,1,double_without_merger_offer
+00775,4759259070,Комплект картриджей для Canon Pixma i950d,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+02281,4759332722,Картридж для Epson EPL 6200,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+01242,4759268854,Лента для принтера для Panasonic KX-FP207,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3800,457221699,"Картриджи T04B1-T04B4 для принтеров Epson WorkForce Pro C8190, WF Pro C8690",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+55331,4848645688,Картридж для Canon iPF PRO-300,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2539,455888399,Картриджи 1710550 для принтеров Konica Minolta и Magicolor 3300,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6462,2508817987,Картриджи TN-214 для принтеров Konica Minolta Bizhub C200,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3613,457221391,"Картриджи 10-12 для принтеров HP и Business InkJet 1000, InkJet 1100, DJ-100, DJ110, DJ 500, DJ 70, DJ 800, DJ 815",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0083,451743266,"Картриджи T026-T027 для принтеров Epson и Stylus c50, Stylus Photo 810",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6981,4323458364,Фотобарабан + картридж PCM348+THM348 для принтеров Катюша М348 черный,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5859,3706323725,"Фотобарабаны D320R105KK-D320IU90KY для принтеров Sindoh D330e, D332e",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+32655,3570242109,Картридж для P2050,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+02345,4759334205,Картридж для Panasonic KX-MB2051,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+4417,457713209,"Чернила GI-43 для принтеров Canon Pixma G540, Pixma G640",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+13993,4803816856,Картридж для Brother MFC-9460CDN,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6482,2531980643,"Картриджи C-EXV17 для принтеров Canon iR-C4080i, iR C4580i, iR C5180i, iRC5185i",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+04517,4772968746,Картридж для Canon Bubble Jet F930,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6255,2396050915,"Чернила I-E100 для принтеров Epson EcoTank L3100, EcoTankL3101, L4150, L4160, L6160, L6170",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_out_of_range
+6466,2513959575,"Картриджи TN-314 для принтеров Konica Minolta Bizhub C353, Bizhub C353P",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24887,4821082003,Фотобарабан для Samsung Xpress M 2825ND,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+5107,607710445,"Картриджи 43459336-43459375 для принтеров OKI и Data C3500, DataC3520, MC350, MC360",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6267,2201601437,"Фотобарабаны 106R01417-106R01420 для принтеров Xerox Phaser 6510, WC 6515",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3250,457221047,"Картриджи T5431-T5438 для принтеров Epson и Stylus Pro 4400, Stylus Pro 4800 набор cmyk lclm",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6633,2797482461,"Фотобарабан + картридж W1104A+W1103A для принтеров HP Neverstop Laser 1000a, 1200a черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6540,2572049723,Картриджи S050146-S050149 для принтеров Epson AcuLaser C4100,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1011,452138780,"Картриджи 43324401-43324404 для принтеров OKI и C5800, C5900",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6980,4323330269,"Фотобарабан + картридж 3770C002 (C-EXV58)+3763C002-3766C002 для принтеров Canon iR Advance DX C5840i, iR Advance DX C5850i черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2681,455888787,"Картриджи BCI-1411 для принтеров Canon и iPF W7200, iPF W8200",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+33502,4834690161,Картридж для P3100DN,Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+59593,4867697916,Фотобарабан для Brother MFC-L2960DW,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3005,457220518,Картриджи 20K1400-1403 для принтеров Lexmark и LaserPrinter C510,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+13059,4803813268,Картридж для Lexmark Optra 234,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+0283X2,5688460763,"Комплект картриджей PG-50BK (2 шт.) на 1600 страниц для принтеров Canon FAX-JX200, FAX JX210P, MP170, MP450, MX310, Pixma iP2200, PixmaMP150",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+57571,1274981101,"Картридж для Kyocera TASKalfa MZ3200, MZ3200i",Продается,approved,success,,1,0,1,double_without_merger_offer
+130517,4803813094,Картридж для Lexmark Optra 342,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+1032X6,5690761326,"Комплект картриджей KX-FAT410A (6 шт.) на 15000 страниц для принтеров Panasonic KX-MB1500, KX MB1501, KXMB1507, KX-MB1510, KXMB1520, KX MB1530",Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+0178,451744227,"Картриджи CLT-508L для принтеров Samsung и CLP-615, CLP 620ND, CLX-6220FX, CLX6250FX",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6724,2819331804,"Фотобарабан + картридж OD-1600+T-1640 для принтеров Toshiba e-Studio 163, e Studio 165, eStudio 166, e-Studio 167, eStudio 205, e Studio 206 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+31775,4824888858,Фотобарабан для Lexmark MS817,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2261,455887848,"Картриджи TK-510 для принтеров Kyocera и FS-5025N, FS-C5020N",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0058,1832517135,"Картриджи PGI-9 для принтеров Canon Pixma iX7000, Pro9000 Mark II, Pixma PRO9500",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1389X6,5692245882,Комплект картриджей S050435 (6 шт.) на 48000 страниц для принтеров Epson AcuLaser M2000,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2524,451742033,"Картридж TN-310 для принтеров Konica Minolta Bizhub 350, BizHub 351, CF-2203",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0066,451742907,"Картриджи T1631-T1634 для принтеров Epson и WF-2630, WF 2650, WF2660, WF-2010W, WF2510WF, WF 2520NF",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2704,455888815,"Картриджи T6122-T6128 для принтеров Epson и Stylus Pro 7450, Stylus Pro 9450",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+32654,4834690138,Картридж для P2010,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+5476,1037808876,"Картридж DS BCI-6EY, желтый",Готов к продаже,approved,success,,1,0,2,warning_attribute_values_empty warning_attribute_values_out_of_range
+3904,457221957,Картриджи 106R02605-106R02608 для принтеров Xerox и Phaser 7100,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3046,457220585,Картриджи PFI-1000 для принтеров Canon и iPF -PRO-1000,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2476,455888209,"Картриджи 106R01144-106R01147 для принтеров Xerox и Phaser 6300, Phaser 6350",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6477,2529520836,"Картриджи T596 для принтеров Epson Stylus Pro 7700, Stylus Pro 7890",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+33508,4834690303,Картридж для P3205DN,Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+4449,457713198,"Картриджи 27XL для принтеров Epson и WorkForce 3640DTWF, WF 7110DTW, WF 7610DWF",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2456,455888286,Картриджи 15W0900-15W0903 для принтеров Lexmark 720 X720,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6393,2440786996,Картриджи GB-001BK-GB-001W для принтеров G&G GG-HH1001B,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4677,753258690,Картриджи C13T02Q100 - C13T02Q400 для принтеров Epson WorkForce Enterprise C20600D4TW,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3417,457221107,"Картриджи CE250X-CE253X для принтеров HP и Color LaserJet CM3530, LJ CP3525",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0759,329499911,Картридж CLI-521GY Canon серый с чипом совместимый,Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+231911,4820881685,Картридж для Lexmark LaserPrinter MS517,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+5202,607713026,"Картриджи T-FC28E для принтеров Toshiba и e-Studio 2330c, e Studio 2820c, eStudio 3520c, e-Studio 4520c",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4537,457713316,"Картриджи №981 для принтеров HP PageWide Color 556, PW Color MFP 586 dn",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6680,2812155021,"Фотобарабан + картридж DR-3000 DU+TN-3030 для принтеров Brother DCP-8040, DCP 8045, HL-5130, HL5140, HL-5150, HL5170, MFC-8220, MFC 8440 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+326511,4834690198,Картридж для M6005,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2243,455887748,"Картриджи C4191A-C4194A для принтеров HP и LaserJet 4500, LJ 4550",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045127,4772967956,Картридж для Canon Bubble Jet i9900,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+596915,4867698293,Картридж для Brother MFC-L2860DWE,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+5097,606569532,"Фотобарабаны IUP-23 для принтеров Konica Minolta Bizhub C3100P, C3110",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24336,4821080826,Картридж для Canon NP-6030,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2544,455888310,"Картриджи A0DK152-A0DK452 для принтеров Konica Minolta Magicolor 4650, Magicolor 4690",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+23873,4820884520,Картридж для Brother MFC-7220,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+7086,5487988223,"Картридж T31 для принтеров Deli M3100, P3100 черный",Продается,approved,success,,1,0,1,double_without_merger_offer
+5268,694984728,"Картриджи №981A для принтеров HP PageWide Color 556, PW Color MFP 586 dn",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+007710,4759259526,Комплект картриджей для Canon Pixma i9950,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0279X2,5688420510,"Комплект картриджей MLT-D205L (2 шт.) на 10000 страниц для принтеров Samsung ML-3300, ML 3310, ML3312, ML 3710, ML3712, SCX-4833, SCX 4835",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+5481,2297648482,"Картриджи 106R03508 - 106R03511 для принтеров Xerox VersaLink C400, VersaLink C405",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5417,1021202042,"Чернила GI-41 для принтеров Canon Pixma G1420, Pixma G2420",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+3164,457220802,Картриджи 106R01082-106R01085 для принтеров Xerox Phaser 6300,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4432,457713108,"Чернила E-106 для принтеров Epson EcoTank 7700, EcoTank 7750, L7160, L7180",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_out_of_range
+46721,4848622899,Картридж для P3300,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+46725,4848623036,Картридж для M7100,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+023411,4759334416,Картридж для Panasonic KX-MB2062,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+24823,4821081277,Картридж для Samsung ML-5100,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2387,455888047,"Картридж TN-2050 для принтеров Brother и DCP-7010, DCP 7025, MFC-7220, MFC7420 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+46724,4848623007,Картридж для M6800,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+01249,4759269324,Лента для принтера для Panasonic KX-FC258,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3741,3182459258,"Чернила GT51-GT52 для принтеров HP DeskJet GT5810, DeskJetGT5820, Ink Tank 115, Ink Tank 315, SmartTank 500",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+2383,455888048,Картриджи TN-318 для принтеров Konica Minolta и Bizhub C20,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5143,607712815,Комплект фотобарабанов DS 45395701 - 45395704 OKI,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0816X2,5690498686,"Комплект картриджей MLT-D115L (2 шт.) на 6000 страниц для принтеров Samsung SL-M2620D, SL M2670, SLM2820DW, SLM2830DW, SL M2870FD, SL SL-M2880FW",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+4927,601155973,Картриджи C925H2KG - C925H2YG для принтеров Lexmark и LaserPrinter C925,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045116,4772966429,Картридж для Canon BubbleJet S900,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2519,455888363,Картриджи TNP-18 для принтеров Konica Minolta и Magicolor-4750,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6931,3770686996,"Фотобарабаны 46438001-46438004 для принтеров OKI Data C823, Data C833",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6463,2508967203,"Картриджи TN-613 для принтеров Konica Minolta Bizhub C452, Bizhub C552",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6656,2808053966,Фотобарабан + картридж 108R00650 DU+106R01080 для принтеров Xerox Phaser 7400 черный,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045130,4772969689,Картридж для Canon Pixma iP6000,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5028,604360703,Совместимые чернила T6736 (C13T67364A) светло-пурпурный,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_out_of_range
+2718,455888817,"Картриджи C-EXV26 для принтеров Canon и ImageRunner C1021, iRC1028",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1305X6,5691349686,"Комплект картриджей 24016SE (6 шт.) на 15000 страниц для принтеров Lexmark 330, 332TN, E230, Optra 232, Optra232N",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+7128,5588339829,"Заправочный комплект CF540A-CF543A /CF400A-CF403A /CF410A-CF413A /CE310A-CE313A для принтеров HP LJ-M254dw, M452dn, M452nw, M477fdn, M477fdw",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+0069,451743199,"Картриджи 80 для принтеров HP и DesignJet 1000, DJ 1050C, DJ-1055CM",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6634,2797536432,"Фотобарабан + картридж 50F0Z00+50F5H00 для принтеров Lexmark LaserPrinter MS317, MS310, MS410, MS410d, MS510, MS510dn, MS610, MS610de MX310de MX317 MX410 MX410de MX510 MX510de MX611 MX611de черный",Готов к продаже,approved,success,,1,0,2,double_without_merger_offer warning_attribute_values_empty
+231913,4820881672,Картридж для Lexmark LaserPrinter MS617,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+0175,451743961,"Картриджи 80D2951-18CX033E для принтеров Lexmark и P4350, P6250, P6350, P915, X3330, X3350, X5250, X5270 X5470 X7170 X7350 X8350 Z815 Z816 черный",Готов к продаже,approved,success,,1,0,2,double_without_merger_offer warning_attribute_values_empty
+2471,455888261,Картриджи 106R01392-106R01395 для принтеров Xerox и Phaser 6280,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2311,455887957,Картриджи T1571-T1579 для принтеров Epson и Stylus Photo-R3000 набор cmyk lclm,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+596911,4867698322,Картридж для Brother MFC-L2827DW,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+5331,2306423941,"Картриджи TK-5315 для принтеров Kyocera TASKalfa 408, TASKalfa 508",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+21095,4807068445,Картридж для Sharp M201,Продается,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+5474,2142352316,"Картридж BCI-6EM для принтеров Canon BJ-F850, BJ F860, BJF870, BJ-F870PD, BJF890, BJC-8200, BJC i560, BJ F890PD BJ i860 BJ i865 BJ I900d пурпурный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+13991,4803816758,Картридж для Brother HL-4150CDN,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5453,2305750646,"Картриджи CLT-806S для принтеров Samsung Xpress ser SL-X7400GX, SL X7500GX, SLX7600GX",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+02833,4759347446,Картридж для Canon MP450,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+04514,4772968785,Картридж для Canon BJ-F870,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0124,451743408,Термопленка DS KX-FA52A Panasonic двойная упаковка совместимая,Готов к продаже,approved,success,,1,0,2,warning_attribute_values_empty warning_attribute_values_out_of_range
+5006,604360655,"Картриджи T8781-T8784 для принтеров Epson и WorkForce Pro R5190, WF Pro R5690",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24331,4821080505,Картридж для Canon Bubble Jet C250,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+6291,2280269474,"Чернила универсальные пигментные Epson 100 мл для принтеров Epson EcoTank L3100, EcoTankL3101, L4150, L4160, L6160, L6170 набор cmyk lclm",Готов к продаже,approved,success,,1,0,2,warning_attribute_values_empty warning_attribute_values_out_of_range
+4409,457713161,"Картриджи PG-510+CL-511 для принтеров Canon Pixma IP2700, PixmaIP2702",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3447,451742166,"Картриджи W2070A-W2073A для принтеров HP Color Laser 150a, HP Color Laser 150nw",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045125,4772968269,Картридж для Canon BubbleJet S9000,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6991,4399942341,"Фотобарабан + картридж DU-MP2014+MP-2014H для принтеров Ricoh Aficio IM 2701, IM-2702 черный",Готов к продаже,approved,success,,1,0,1,double_without_merger_offer
+08167,4793382347,Картридж для Samsung SL-M2870FW,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+13994,4803816934,Картридж для Brother MFC-956,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0234X2,5688620751,"Комплект картриджей KX-FAT411A (2 шт.) на 4000 страниц для принтеров Panasonic KX-MB1900, KX MB2000, KXMB2001, KX-MB2010, KX MB2020",Продается,approved,success,,1,0,3,attribute_hierarchy_fail double_without_merger_offer
+596913,4867698426,Картридж для Brother MFC-L2835DW,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+24337,4821080751,Картридж для Canon NP-6031,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+32652,4834690122,Картридж для P1050,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+01245,4759268906,Лента для принтера для Panasonic KX-FC225,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+59693,4867697959,Картридж для Brother HL-L2447DW,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3759,457221641,"Чернила GI-490 для принтеров Canon Pixma G1400, PixmaG1410",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+00774,4759259047,Комплект картриджей для Canon Pixma S9000,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+32651,4834690119,Картридж для P1000,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+1204,452139088,"Картриджи C9700A-C9703A для принтеров HP и Color LaserJet 1500, LJ 2500n",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0059,451740828,"Картриджи C711 для принтеров Canon i-SENSYS LBP5300, LBP5360, MF8450, MF9130, MF9170",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+66281,4867707458,Фотобарабан + картридж для HP LaserJet Pro M130,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6288,2278136631,"Картриджи 006R04360-006R04363 для принтеров Xerox C310, C310DNI",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+46723,4848622949,Картридж для M6700,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+6996,4407987749,"Фотобарабан + картридж W1580D+W1580X для принтеров HP LaserJet Tank 1020w, LJ Tank 2506W черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0816X6,5690498830,"Комплект картриджей MLT-D115L (6 шт.) на 18000 страниц для принтеров Samsung SL-M2620D, SL M2670, SLM2820DW, SLM2830DW, SL M2870FD, SL SL-M2880FW",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+04512,4772967017,Картридж для Canon BJ-F850,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4118,457222204,"Картриджи №81 для принтеров HP и Designjet 5000, DJ 5500 набор cmyk lclm",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4853,4136774174,Картриджи MPC407 для принтеров Ricoh Aficio MPC407,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+248810,4821081700,Фотобарабан для Samsung Xpress M 2875FW,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3854,457221922,"Чернила №101 для принтеров Epson L 4160, L-4167, L 6170, L 6190, L-14150, L4150, L-6160",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+6475,4020839715,"Картриджи 45536505-45536508 для принтеров OKI OkiData-C931, C941, es9541",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+22131,4808425171,Картридж для Epson LQ350,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+248813,4821082131,Фотобарабан для Samsung Xpress M 3015,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+46726,4848623112,Картридж для M7200,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+1032X2,5690761103,"Комплект картриджей KX-FAT410A (2 шт.) на 5000 страниц для принтеров Panasonic KX-MB1500, KX MB1501, KXMB1507, KX-MB1510, KXMB1520, KX MB1530",Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+045111,4772965909,Картридж для Canon BJ-F870PD,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2271,455887955,"Картриджи 16198000-16197900 для принтеров OKI и C9000, C9100, C9200, C9300, C9400, C9500, Phaser 2135, Phaser 7300B",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+32653,4834690071,Картридж для P2000,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3380,457221077,Картриджи 106R01080-1150-1152 для принтеров Xerox и Phaser 7400,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+17385,4804750658,Картридж для Lexmark C534,Продается,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+0143,451743819,"Картридж T038 для принтеров Epson и Stylus C41, StylusC41SX черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+02341,4759334017,Картридж для Panasonic KX-MB2000,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+32656,4834690221,Картридж для P5000,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+4477,457713248,"Чернила GI-40 для принтеров Canon Pixma G5040, Pixma G6040",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+46643,4848623063,Картридж для Brady BMP 53-PC-Linked,Готов к продаже,approved,success,,1,0,1,erased_attribute_value
+1738X6,5695861397,"Комплект картриджей C5222KH (6 шт.) на 24000 страниц для принтеров Lexmark C522, C524, C530, C532",Готов к продаже,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+34543,4834690947,Картридж для HP LJ Pro Color M283 fdn,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+23197,4808557725,Картридж для Lexmark MX617de,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+6636,2797676748,"Фотобарабан + картридж E260X22G DU+E360X11E для принтеров Lexmark LaserPrinter E260, LP E360, LP E460, LP-E462, LP X264, LP X363, LPX364 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3131,457220780,Картриджи 106R01477-106R01480 для принтеров Xerox Phaser 6140,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0170,451743775,"Картриджи Q6460A-Q6463A для принтеров HP и Color LaserJet 4730, LJ-4730x",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6461,3648923361,"Чернила 115 для принтеров Epson EcoTank L8160, EcoTank L8180",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+5197,607713007,"Картриджи T-FC25EK - T-FC25EY для принтеров Toshiba и e-Studio 2040C, e Studio 2540C, eStudio 3040C",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0234X10,5688637227,"Комплект картриджей KX-FAT411A (10 шт.) на 20000 страниц для принтеров Panasonic KX-MB1900, KX MB2000, KXMB2001, KX-MB2010, KX MB2020",Готов к продаже,approved,success,,1,0,3,attribute_hierarchy_fail double_without_merger_offer
+6835,3800076389,Картриджи P300T6KK-W-P300T6KY-W для принтеров Sindoh C300,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4121,457222332,"Картриджи №831 для принтеров HP Latex 310, Latex 315 набор cmyk lclm",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+7004,4410762572,"Фотобарабаны W9054MC-W9055MC для принтеров HP Color LaserJet E87640, LJ-E87650, LJE87660",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5533,1184179179,Картриджи PFI-300 для принтеров Canon и iPF PRO-300,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2481,455888192,Картриджи 016194400-016194700 для принтеров Xerox и Phaser 7700,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045117,4772966144,Картридж для Canon Bubble Jet I900d,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4687,694888836,"Картриджи C13T804100 - C13T804900 для принтеров Epson и SureColor P6000, SureColor P7000",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045129,4772969336,Картридж для Canon Pixma iP8500,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045119,4772967022,Картридж для Canon Bubble Jet i960,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0625,452135990,"Картридж 113R00619 для принтеров Xerox и DocumentCentre 423, DocuCentre 428, WCP423, WCP 428 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+13672,329865391,"Картридж для Xerox WorkCentre 3025, Phaser 3020BI",Продается,approved,success,,1,0,1,double_without_merger_offer
+23191,4808424475,Картридж для Lexmark MX317dn,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+0451,451768019,"Картридж BCI-6BK для принтеров Canon и BJ-F850, BJ F860, BJF870, BJ-F870PD, BJF890, BJ F9000, BJC-8200 черный",Готов к продаже,approved,success,,1,0,2,cover_unprocessed warning_attribute_values_empty
+5117,607710548,"Картриджи 45396201 - 45396204 для принтеров OKI и Data MC770, MC780",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6727,2819700886,Фотобарабан + картридж 108R01151 DU+106R02605 для принтеров Xerox Phaser 7100 черный,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24335,4821080720,Картридж для Canon NP-6022,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+53343,4848630474,Картридж для Canon FAX-L75,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+21093,4807097892,Картридж для Sharp AR-208,Продается,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+24821,4821081208,Картридж для Samsung ML-5000,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+02471,451767705,Картридж для Brother HL-2035R,Продается,approved,success,,1,0,1,double_without_merger_offer
+2534,455888372,"Картриджи 4576211-4576511 для принтеров Konica Minolta и Magicolor 2300, Magicolor 2350",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+22231,4808423016,Картридж для Samsung MultiXpress K3300NR,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+60763,4867699038,Картридж для HP LaserJet Tank 1602,Продается,approved,success,,1,0,2,pics_http_error some_image_failed
+4922,601155889,"Картриджи C746H1KG - C746A3YG для принтеров Lexmark и C740, LP-C746, LPC748",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5160,1184600591,"Картриджи 5100 для принтеров Ricoh и PRO C5100, PRO C5110",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+7127,5588331368,"Тонер CF542A /CF402A /CF412A /CE312A для принтеров HP LJ-M254dw, M452dn, M452nw, M477fdn, M477fdw желтый",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+7011,4411741484,"Фотобарабан + картридж 45103719-45103722 +45536505-45536508 для принтеров OKI OkiData-C931, C941, es9541, Pro9431, Pro9542",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6551,2605502004,"Картриджи T007-T008 для принтеров Epson Stylus Photo 790, Stylus Photo 870",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0104,329440897,"Картридж CC530A для принтеров HP Color LaserJet CM2320fx, LJ CP2020, LJ-CP2025 черный",Продается,approved,success,,1,0,1,cover_unprocessed
+01434,4759281248,Картридж для Epson Stylus C45,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3705,457221516,"Картриджи EP-85 для принтеров Canon ImageClass C2500, LBP-2510, LBP 5500",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+130511,4803812958,Картридж для Lexmark Optra 240N,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+24886,4821081910,Фотобарабан для Samsung Xpress M 2825DW,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+6488,2547907719,"Фотобарабаны 43449013-43449016 для принтеров OKI C8600, C8800",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6302,2305473920,"Картриджи T5631-T5639 для принтеров Epson Stylus Pro 7800, Stylus Pro 9800 набор cmyk lclmgr",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3726,457221598,Картриджи T1590-T1599 для принтеров Epson Stylus Photo R2000,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+33507,4834690416,Картридж для P3205D,Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+045113,4772966140,Картридж для Canon Bubble Jet S820,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+13803,329143142,"Картридж для HP LaserJet Ultra M106w, LJ Ultra M134a, LJ Ultra M134fn",Продается,approved,success,,1,0,1,double_without_merger_offer
+5339,451742829,"Картридж Q7553A для принтеров HP LaserJet P2015D, LJ M2727nf, LJ P2010, LJ-P2014",Продается,approved,success,,1,0,2,pics_http_error some_image_failed
+23193,4808425033,Картридж для Lexmark MX417de,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+0279X6,5688420473,"Комплект картриджей MLT-D205L (6 шт.) на 30000 страниц для принтеров Samsung ML-3300, ML 3310, ML3312, ML 3710, ML3712, SCX-4833, SCX 4835",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+1738X2,5695861303,"Комплект картриджей C5222KH (2 шт.) на 8000 страниц для принтеров Lexmark C522, C524, C530, C532",Продается,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+00773,4759258886,Комплект картриджей для Canon Pixma S900,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+55442,1184148577,"Картридж для Brother MFC-L9570CDW (DR-421CL), DCP-L8410CDW, HL-L8260CDW, HL L8360CDW, HLL9310, MFC-L8690CDW",Продается,approved,success,,1,0,1,double_without_merger_offer
+045128,4772968258,Картридж для Canon Bubble Jet i9950,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0077,451743261,"Картриджи BCI-5/ BCI-6 для принтеров Canon и Pixma i9100, Pixma i950 набор cmyk lclm",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+32658,4834690117,Картридж для P6000,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+02797,4759344286,Картридж для Samsung SCX-4835,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+53341,4848630571,Картридж для Canon FAX-L100,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+3836,457221841,Картриджи SJIC30P для принтеров Epson и ColorWorks C7500G,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6653,2807186053,"Фотобарабан + картридж DK-8350+TK-8345 для принтеров Kyocera TASKalfa 2552, TASKalfa2553",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3831,457221711,Картриджи SJIC26P для принтеров Epson и ColorWorks C7500,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4781,694891079,"Картриджи EXV48 для принтеров Canon и ImageRunner C1325if, iR C1335",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24334,4821080546,Картридж для Canon NP-6025,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+5285,694985924,"Картриджи T7412-T741X для принтеров Epson SureColor F6000, SureColorF6070",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+53345,4848630747,Картридж для Canon i-SENSYS MF4120,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2151,453348851,"Картриджи CLP-660B для принтеров Samsung CLP-610ND, CLP 660N, CLX-6200FX, CLX6210FX",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6386,2405630035,Картриджи T04 для принтеров Canon iR C475i,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+30011,4824873525,Картридж для Lexmark LaserPrinter C510,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+5334X10,5622740221,"Комплект картриджей FX-9 (10 шт.) на 20000 страниц для принтеров Canon Fax L95, FAX-L100, FAX L75, MF4018, MF4100, ImageCLASS 4680, L120",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+04513,4772968285,Картридж для Canon BJ-F860,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0094,451743570,"Картриджи T013-T014 для принтеров Epson и Stylus Color 480, Stylus 580",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+62981,4867701920,Комплект фотобарабанов для Brother HL-L3230,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+04511,4772965547,Картридж для Canon BJC-8200,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3963,457221964,"Картриджи 106R03866-106R03869 для принтеров Xerox VersaLink C500dn, C500n",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+21623,4808541161,Картридж для Konica Minolta Bizhub C35,Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+1305X2,5691349690,"Комплект картриджей 24016SE (2 шт.) на 5000 страниц для принтеров Lexmark 330, 332TN, E230, Optra 232, Optra232N",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+5662,1279506671,Заправочный комплект CL-511/ CL-513 для принтеров Ricoh Aficio MP2352,Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+2596,455888407,"Картриджи T0751-T0754 для принтеров Epson и Stylus C59, Stylus CX2900",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0145,451743818,"Картриджи T038-T039 для принтеров Epson и Stylus C41, StylusC41SX",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6723,2819215746,"Фотобарабан + картридж 049DU+047X для принтеров Canon i-SENSYS LBP-112w, LBP 113w, MF113, MF-113w, MF112 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+00777,4759259265,Комплект картриджей для Canon Pixma i950,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6628,2796827522,"Фотобарабан + картридж CF219A+CF217XL для принтеров HP LaserJet Pro M101, LJ Pro M102a черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+13243,330002034,"Картридж для Ricoh Aficio SP111SU, SP111",Продается,approved,success,,1,0,1,double_without_merger_offer
+2964,457220529,Картриджи TK-5205 для принтеров Kyocera и TASKalfa 356ci,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1426,453347482,"Картридж 43979302 для принтеров OKI и B 430, B B440, B430d, B430dn, MB 460, MB470, MB480 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0234X6,5688619357,"Комплект картриджей KX-FAT411A (6 шт.) на 12000 страниц для принтеров Panasonic KX-MB1900, KX MB2000, KXMB2001, KX-MB2010, KX MB2020",Готов к продаже,approved,success,,1,0,3,attribute_hierarchy_fail double_without_merger_offer
+53349,4848630816,Картридж для Canon i-SENSYS MF4690,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+19923,4804760889,Картридж для Konica Minolta 1212,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+5764,1273412781,"Чернила 108/ 008 для принтеров Epson EcoTank L18050, EcoTank L8050, L6490 набор cmyk lclm",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+21621,4808440726,Картридж для Konica Minolta C35,Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+6748,3648923069,"Чернила №305 для принтеров HP DeskJet 2710, DeskJet 2721",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_out_of_range
+0283X10,5688460487,"Комплект картриджей PG-50BK (10 шт.) на 8000 страниц для принтеров Canon FAX-JX200, FAX JX210P, MP170, MP450, MX310, Pixma iP2200, PixmaMP150",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+6550,2578483582,"Картриджи T007-T009 для принтеров Epson Stylus Photo 1270, Stylus Photo 1290",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2263,455887824,Картриджи TK-550 для принтеров Kyocera FS-C5100DN,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2501,455888335,Картриджи S050210-S050213 для принтеров Epson AcuLaser C3000,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3167,457220729,"Картриджи 106R02232-106R02235 для принтеров Xerox Phaser 6600, WC 6605",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+00776,4759259073,Комплект картриджей для Canon Pixma i9100,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+239330,1401215232,"Картридж для фотопринтера Canon SELPHY CP1500 (KP-108in / RP-108) CP1000, CP1300",Продается,approved,success,,1,0,1,double_without_merger_offer
+22223,4808422643,Картридж для Star SP242,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+6568,3648923174,Картриджи CTL-2100H,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+01431,4759280779,Картридж для Epson Stylus C41SX,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+04519,4772968986,Картридж для Canon BJ-F890,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2601,455888467,Картриджи T0761-T0764 для принтеров Epson и Stylus C58,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+7125,5588272954,"Тонер CF541A / CF401A / CF411A / CE311A для принтеров HP LJ-M254dw, M452dn, M452nw, M477fdn, M477fdw голубой",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+4541,865303755,"Картриджи 123 для принтеров HP DeskJet 1110, DeskJet 2130, OfficeJet 3830, OfficeJet3832",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+248814,4821082034,Фотобарабан для Samsung Xpress M 3065,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+1032X10,5690761321,"Комплект картриджей KX-FAT410A (10 шт.) на 25000 страниц для принтеров Panasonic KX-MB1500, KX MB1501, KXMB1507, KX-MB1510, KXMB1520, KX MB1530",Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+5228,654436197,"Чернила 112 для принтеров Epson EcoTank L-11160, L 15150, L15160, L-15180, M-15183, L-6550, L6570, L 6580 L6490 M-15140",Продается,approved,success,,1,0,1,warning_attribute_values_out_of_range
+17383,4804758445,Картридж для Lexmark C530,Продается,approved,success,,1,0,4,attribute_hierarchy_fail double_without_merger_offer warning_attribute_values_out_of_range
+33505,4834690231,Картридж для P3200D,Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2284,455887902,"Картриджи CLP-500 для принтеров Samsung CLP-500, CLP 500N",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3187,457220850,"Чернила T6731-T6734 для принтеров Epson L-1800, L-800, L 805, L810, L850",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_out_of_range
+2818,455889046,"Картриджи T676XL для принтеров Epson WorkForce Pro WP-4010, WP 4020, WP4023, WP-4090, WP4520, WP 4530",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4762,519318774,"Картриджи TK-8705 для принтеров Kyocera и TASKalfa 6550, TASKalfa6551",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1058,452138798,"Картриджи CLT-506S для принтеров Samsung и CLP-680, CLP 680ND, CLX-6260",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+04516,4772968659,Картридж для Canon BJ-F9000,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5178,694984147,"Фотобарабаны CLT-R607 для принтеров Samsung и CLX-9250, CLX 9252",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4318,457712819,"Картриджи W9060MC-W9063MC для принтеров HP и Color LaserJet E55040, LJ E57540",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6976,4261777507,"Картриджи 72K5XK0-72K5XC0-72K5XM0-72K5XY0 для принтеров Lexmark CS820de, CS820dte, CX820de, CX820dtfe",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24883,4821081698,Фотобарабан для Samsung Xpress M 2626,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+38551,4837714248,Чернила для Epson M-100,Продается,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+7001,4409143278,"Фотобарабан + картридж 013R00677+006R01693-006R01696 для принтеров Xerox DocuCentre SC2020, DocuCentre-SC2020",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0075,451743323,"Картриджи BCI-3 для принтеров Canon и BJC-i560, BJ i865, IP3000, IP4000, IP5000, Pixma MP750, PixmaMP760",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0023,451742664,"Картриджи 018C1520E для принтеров Lexmark X2500, X2530, X2550, X5070, X5075, X5490, X5495 Z1300 Z1310 Z1320 Z845",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6476,2527687019,"Картриджи PFI-306 для принтеров Canon iPF-8300, iPF8310",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4127,457222206,"Картридж T653 для принтеров Epson и Stylus PRO 4900, Stylus PRO 4910 светло-серый",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+53141,4848630443,Заправочный комплект для M5000,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+5659,1401239471,"Чернила универсальные HP KCMY 100 мл. для принтеров HP DeskJet GT5820, Ink Tank 115, Ink Tank 315, SmartTank 500",Готов к продаже,approved,success,,1,0,2,warning_attribute_values_empty warning_attribute_values_out_of_range
+13671,329865355,"Картридж для Xerox Phaser 3020, WC-3025",Продается,approved,success,,1,0,1,double_without_merger_offer
+5803,1378700372,"Картриджи 45536413-45536416 для принтеров OKI OkiData-C911, C931, C941, es9541",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+59699,4867698114,Картридж для Brother DCP-L2665DW,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+33504,4834690414,Картридж для P3105DN,Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+38555,4837714540,Чернила для Epson L-605,Продается,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+46722,4848623093,Картридж для P3010,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+5020,604360713,Картриджи T3240-T3249 для принтеров Epson и SureColor P400,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+32659,4834690039,Картридж для P6005,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+22132,4808421577,Картридж для Epson VP80K,Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+045110,4772965661,Картридж для Canon Bubble Jet F890PD,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4788,1184546582,"Картриджи №981 для принтеров HP PageWide Color 556, PW Color MFP 586 dn",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0017,451742764,"Картриджи 18C0034-18C0035 для принтеров Lexmark P4350, P6250, P915, X3330, X3350, X5250, X5270 X7170 X8350 Z812 Z815 Z818 Z845",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3000,457220530,"Картриджи S050033-36 для принтеров Epson и AcuLaser AL-AL-C2000, AL-C1000",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2288,455887947,Фотобарабаны 108R00650-108R00647 DU для принтеров Xerox и Phaser 7400,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3376,457221157,"Картриджи 113R00689-113R00692 для принтеров Xerox и Phaser 6115, Phaser 6120",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+02795,4759343872,Картридж для Samsung ML-3310,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+7126,5588292427,"Тонер CF543A /CF403A /CF413A /CE313A для принтеров HP LJ-M254dw, M452dn, M452nw, M477fdn, M477fdw пурпурный",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+1396,453347424,"Картридж TN-320C для принтеров Brother и HL-4150CDN, HL 4570 cdw, MFC-9460CDN, MFC956 голубой",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1006,452138756,"Картриджи 43381905-43381908 для принтеров OKI и C510dn, C530dn",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2586,455888432,"Картриджи T0561-T0564 для принтеров Epson и Stylus Photo R250, Stylus Photo RX430",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6690,2813052465,"Фотобарабан + картридж DR-2305+TN-2375 для принтеров Brother DCP L2540DW, HL-L2300, HLL2320, HLL2340, HL L2360, HL-L2365DWR, MFC L2700D, MFCL2740DW черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+01433,4759281347,Картридж для Epson Stylus C43SX,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+248811,4821082017,Фотобарабан для Samsung Xpress SL-M2880,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3217,457220873,"Фотобарабаны C-EXV49 DU для принтеров Canon ImageRunner C3025, iR Advance C3320",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+59691,4867697935,Картридж для Brother HL-L2400DWE,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+1436,453347576,"Картриджи LC-225XL-LC227XL для принтеров Brother и DCP-J4120DW, MFC-J4420DW, MFC J4620DW",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6668,2809352130,"Фотобарабан + картридж 42918108 DU+42918916 для принтеров OKI C 9655, C9600, C9650, C9800, C9850 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+00778,4759259175,Комплект картриджей для Canon Pixma i965,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2512,455888376,Картриджи TK-880 для принтеров Kyocera FS-C8500DN,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+130515,4803813141,Картридж для Lexmark 332TN,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+24889,4821081819,Фотобарабан для Samsung Xpress M 2875FD,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+7000,4409136934,Фотобарабан + картридж DK-201A+TK-201A для принтеров Bulat M2033dnwa черный,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+22133,4808433105,Картридж для Epson LX350,Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+0279X10,5688420449,"Комплект картриджей MLT-D205L (10 шт.) на 50000 страниц для принтеров Samsung ML-3300, ML 3310, ML3312, ML 3710, ML3712, SCX-4833, SCX 4835",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+38557,4837714542,Чернила для Epson L-1455,Продается,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+31773,4824888923,Фотобарабан для Lexmark MX717,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+24882,4821081939,Фотобарабан для Samsung Xpress SL-M2625D,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+38981,329143182,Картридж для HP OfficeJet 8013,Продается,approved,success,,1,0,1,double_without_merger_offer
+13057,4803812945,Картридж для Lexmark Optra 232N,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+04515,4772968632,Картридж для Canon Bubble Jet F895pd,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2276,455887939,"Картриджи 106R01076-106R01073 для принтеров Xerox Phaser 6300, Phaser 6350",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+05872,452136006,"Картридж для Brother DCP-115C (LC-900BK), DCP-110C, DCP 116C, FAX-1835C, FAX 1840C, MFC-210C, MFC215C",Продается,approved,success,,1,0,1,double_without_merger_offer
+6779,3648923027,"Картриджи W9020MC-W9023MC для принтеров HP Color LaserJet E74245, CLJ E75245",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6454,3800076658,"Чернила GI-46 для принтеров Canon MAXIFY GX5040, GX6040, GX7040",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_out_of_range
+22221,4808431949,Картридж для Star SP212FC,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+1443,453347499,Картриджи PFI-703 для принтеров Canon и iPF iPF810,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+23199,4808434071,Картридж для Lexmark LaserPrinter MS417,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+0228,451767653,Картридж S050166 для принтеров Epson EPL 6200 черный,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045120,4772967079,Картридж для Canon Bubble Jet i860,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24888,4821082025,Фотобарабан для Samsung Xpress M 2870,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+045115,4772966443,Картридж для Canon BubbleJet S830d,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5654,1216305431,"Чернила универсальные Epson KCMYLcLm 100 мл. для принтеров Epson EcoTank L3100, EcoTankL3101, L4150, L4160, L6160, L6170 набор cmyk lclm",Готов к продаже,approved,success,,1,0,2,warning_attribute_values_empty warning_attribute_values_out_of_range
+24333,4821080749,Картридж для Canon NP-6330,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+4123,457222256,Картриджи PFI-206 для принтеров Canon и iPF iPF6300,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+31651,4824888759,Комплект картриджей для Xerox Phaser 6128,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+02347,4759334374,Картридж для Panasonic KX-MB2001,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+1067,452138883,"Картриджи CLT-508S для принтеров Samsung CLP-620, CLP 620ND, CLX-6220, CLX 6250",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+01246,4759269141,Лента для принтера для Panasonic KX-FC226,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0176,451744087,"Картриджи 18C0034E-18C0035E для принтеров Lexmark и Z1410, Z1420, Z810, Z812, Z845, P4350, P6250, P6350 P915 X2500 X2530 Z1410 Z1420 Z810 Z812 Z845 P4350 P6250 P6350 P915 X2500",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+08163,4793382333,Картридж для Samsung SL-M2820DW,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+24521,4821081022,Картридж для Lexmark C720,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+22262,455887797,"Картридж для Lexmark MS312dn, MS312, MS415, MS415dn",Продается,approved,success,,1,0,1,double_without_merger_offer
+2802,455889001,"Картриджи MLT-607S для принтеров Samsung и SCX-8030, SCX 8040",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4947,601156055,Комплект фотобарабанов DS C925X72G - C925X75G Lexmark,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045126,4772967885,Картридж для Canon Bubble Jet i9100,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+1252,452139136,Картриджи T0341-T0348 для принтеров Epson и Stylus Photo 2100 набор cmyk lclm,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4960,603221625,"Картриджи T01 для принтеров Canon и ImagePress C60, ImagePressC600",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6527,2562430830,"Картриджи C5222H-C5242H для принтеров Lexmark C522, C524, C530, C532",Готов к продаже,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+1389X10,5692245661,Комплект картриджей S050435 (10 шт.) на 80000 страниц для принтеров Epson AcuLaser M2000,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+1399,453347400,"Картридж TN-320BK для принтеров Brother и HL-4150CDN, HL 4570 cdw, MFC-9460CDN, MFC956 черный",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+33503,4834690328,Картридж для P3105D,Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+33501,4834690276,Картридж для P3100D,Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+34541,4834690979,Картридж для HP LJ Pro Color M255 dw,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+5333,4149467520,"Картриджи MPC4500E для принтеров Ricoh Aficio MPC3500, MPC4500",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4548,4136774300,"Чернила T003 для принтеров Epson EcoTank L1110, L5296",Готов к продаже,approved,success,,1,0,2,warning_attribute_values_empty warning_attribute_values_out_of_range
+2444,455888128,Картридж C930H для принтеров Lexmark и C935,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3603,457221421,"Картриджи LC-1220 для принтеров Brother и DCP-J525, DCP J725, MFC-J430, MFC-J625",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+4499,457713298,"Картриджи T7901-T7904 для принтеров Epson WorkForce Pro WF-4630, WF 4640, WF5110, WF-5190, WF5620, WF 5690",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2269,455887937,Картриджи 106R01391-106R01388 для принтеров Xerox и Phaser 6280,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6936,3768671633,"Фотобарабаны 46857505-46857508 для принтеров OKI Data C824, Data C834",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+2850,455889114,"Картриджи PFI-706 для принтеров Konica Minolta и Bizhub C35P, iPF 8300s, iPF8400",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0100,451743432,"Картриджи 56-57-58 для принтеров HP и DeskJet 3620, DeskJet 3645, Digital Copier 410, OfficeJet4105, OfficeJet 4110, PhotoSmart 100, PhotoSmart 130, PSC-1100 PSC1110",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+6641,2801962582,Фотобарабан + картридж MLT-R106 DU+MLT-D106L для принтеров Samsung ML-2245 черный,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+23195,4808602483,Картридж для Lexmark MX517de,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+00771,4759258804,Комплект картриджей для Canon Pixma S800,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045118,4772966723,Картридж для Canon Bubble Jet i950,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+19921,4804757453,Картридж для Konica Minolta 1015,Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+045123,4772967526,Картридж для Canon Bubble Jet i965,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+01247,4759268946,Лента для принтера для Panasonic KX-FC228,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+3689,457221504,"Картриджи 652XL для принтеров HP и DeskJet 3636, DeskJet 3855, DJ 1115, DJ 2135, DJ2136, DJ 3635, DJ 3775",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0076,451742910,"Картриджи BCI-6 для принтеров Canon BJC-i560, BJ i865, IP4000, IP5000, Pixma MP750, PixmaMP760",Готов к продаже,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_empty warning_attribute_values_out_of_range
+2251,455887759,"Картриджи S050229-S050226 для принтеров Epson и AcuLaser 2600N, C2600N",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+24881,4821081734,Фотобарабан для Samsung Xpress SL-M2620,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+7124,5588065394,"Тонер CF540A / CF400A / CF410A / CE310A для принтеров HP LJ-M254dw, M452dn, M452nw, M477fdn, M477fdw черный",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+4125,457222171,"Картриджи PFI-701 для принтеров Canon и iPF TM-200, iPF TM 205",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+045122,4772967586,Картридж для Canon Bubble Jet i905d,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+60761,4867698957,Картридж для HP LaserJet Tank 1502,Продается,approved,success,,1,0,2,pics_http_error some_image_failed
+3529,457221216,Картриджи 53601-53604 для принтеров Primera Bravo 4100,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+7007,4411315394,"Фотобарабан + картридж 46857505-46857508+47095705-47095708 для принтеров OKI Data C824, Data C834",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+5168,4136774706,"Картридж CLT-606S для принтеров Samsung CLX-9250, CLX 9252",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0085,451743201,"Картриджи T040-T041 для принтеров Epson и Stylus C62, Stylus CX3200",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+46727,4848623333,Картридж для M7300,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+10323,4793387153,Картридж для Panasonic KX-MB1536,Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+2144,453348869,Картридж C792X2KG-C792X1YG для принтеров Lexmark,Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0816X10,5690498779,"Комплект картриджей MLT-D115L (10 шт.) на 30000 страниц для принтеров Samsung SL-M2620D, SL M2670, SLM2820DW, SLM2830DW, SL M2870FD, SL SL-M2880FW",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+1305X10,5691350157,"Комплект картриджей 24016SE (10 шт.) на 25000 страниц для принтеров Lexmark 330, 332TN, E230, Optra 232, Optra232N",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+6995,4401550226,"Фотобарабан + картридж 76C0PK0-76C0PV0+76C0HK0-76C0HY0 для принтеров Lexmark CS921de, CS923de, CX921de, CX922de",Готов к продаже,approved,success,,1,0,1,warning_attribute_values_empty
+0235X6,5735931817,"Комплект фотобарабанов KX-FAD412A DU (6 шт.) на 60000 страниц для принтеров Panasonic KX-MB1900, KX MB2000, KXMB2001, KX-MB2010, KX MB2020",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2109X10,5702239428,"Комплект картриджей AR-208T (10 шт.) на 80000 страниц для принтеров Sharp AR-203E, AR 208, AR5420, M200, M201",Продается,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+4672X6,5728620319,"Комплект картриджей TL-420 (6 шт.) на 9000 страниц для принтеров M6700, M6800, M7100, M7200, M7300, P3010, P3300",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2433X10,5705336199,"Комплект картриджей NPG-7 (10 шт.) на 100000 страниц для принтеров Canon Bubble Jet C250, C-330, NP-6022, NP 6025, NP6030, NP-6031, NP6330",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+5969X6,5741904798,"Комплект картриджей TN-2510XL (6 шт.) на 18000 страниц для принтеров Brother DCP-L2620DWR, DCP L2627DW, HL-L2400DWE, HL-L2445DW, HL L2447DW, HLL2865DW, MFC-L2800DW, MFC-L2827DW",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3454X6,5713286086,"Комплект картриджей W2210A (6 шт.) на 8100 страниц для принтеров HP LJ Pro Color M255 dw, LJ Pro Color M282",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2162X2,5702853647,"Комплект картриджей TNP-22B (2 шт.) на 12000 страниц для принтеров Konica Minolta Bizhub C35, BizhubC35P",Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+2319X6,5704724130,"Комплект картриджей 51B5000 (6 шт.) на 15000 страниц для принтеров Lexmark LaserPrinter MS317dn, LP MS417, LP MS517",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2213X10,5703475373,"Комплект картриджей LX-350 (10 шт.) на 40000000 знаков для принтеров Epson ERC19, LQ350, LX350, VP80K",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3177X10,5711405596,"Комплект фотобарабанов №520Z (10 шт.) на 1000000 страниц для принтеров Lexmark MS710, MS711, MS810, MS811, MX710, MX711, MX810, MX811",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+5969X2,5741904756,"Комплект картриджей TN-2510XL (2 шт.) на 6000 страниц для принтеров Brother DCP-L2620DWR, DCP L2627DW, HL-L2400DWE, HL-L2445DW, HL L2447DW, HLL2865DW, MFC-L2800DW, MFC-L2827DW",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2213X6,5703475608,"Комплект картриджей LX-350 (6 шт.) на 24000000 знаков для принтеров Epson ERC19, LQ350, LX350, VP80K",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+7124X10,5752975256,"Комплект тонера CF540A / CF400A / CF410A / CE310A (10 шт.) на 500мл. для принтеров HP LJ-M254dw, M452dn, M452nw, M477fdn, M477fdw",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2433X6,5705336061,"Комплект картриджей NPG-7 (6 шт.) на 60000 страниц для принтеров Canon Bubble Jet C250, C-330, NP-6022, NP 6025, NP6030, NP-6031, NP6330",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3350X2,5712558886,"Комплект картриджей PC-310H (2 шт.) на 12000 страниц для принтеров P3100D, P3105D, P3200D, P3205D",Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+0235X10,5735932940,"Комплект фотобарабанов KX-FAD412A DU (10 шт.) на 100000 страниц для принтеров Panasonic KX-MB1900, KX MB2000, KXMB2001, KX-MB2010, KX MB2020",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+4665X2,5728481847,"Комплект картриджей MC-500595WT (2 шт.) на 16 метров для принтеров Brady BMP 41, BMP 51",Продается,approved,success,,1,0,1,erased_attribute_value
+3259X6,5787515608,"Комплект тонера PX-110 (6 шт.) на 390мл. для принтеров M6000, M6005, P1000, P1050, P2000, P2010, P5000, P5005",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2162X10,5702853086,"Комплект картриджей TNP-22B (10 шт.) на 60000 страниц для принтеров Konica Minolta Bizhub C35, BizhubC35P",Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+2482X6,5705679998,"Комплект картриджей ML-5000D5 (6 шт.) на 15000 страниц для принтеров Samsung ML 5050, ML5100",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2805X6,5708474479,"Комплект фотобарабанов MLT-R704 DU (6 шт.) на 600000 страниц для принтеров Samsung MultiXpress K3250NR, K3300NR",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+6364X10,5745696402,"Комплект тонер-картриджей PC-110 (10 шт.) на 15000 страниц для принтеров P1000, P2000, P2050, P5000",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2482X2,5705679929,"Комплект картриджей ML-5000D5 (2 шт.) на 5000 страниц для принтеров Samsung ML 5050, ML5100",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2213X2,5703474822,"Комплект картриджей LX-350 (2 шт.) на 8000000 знаков для принтеров Epson ERC19, LQ350, LX350, VP80K",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+6364X2,5745696287,"Комплект тонер-картриджей PC-110 (2 шт.) на 3000 страниц для принтеров P1000, P2000, P2050, P5000",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+5959X6,5741869404,"Комплект фотобарабанов DR-2510 (6 шт.) на 90000 страниц для принтеров Brother DCP-L2620DWR, DCP L2627DW, HL-L2400DW, HL L2445DW, HLL2447DW, HL-L2865DW, MFC-L2800DW, MFCL2827DW",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+6364X6,5745696499,"Комплект тонер-картриджей PC-110 (6 шт.) на 9000 страниц для принтеров P1000, P2000, P2050, P5000",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2451X10,5705464597,"Комплект фотобарабанов 50F0Z00 (10 шт.) на 600000 страниц для принтеров Lexmark LaserPrinter MS317, MS310, MS410, MS415, MS510, MS511, MS610, MS617 MX317 MX410 MX417 MX510 MX511 MX611 MX617",Готов к продаже,approved,success,,1,0,3,attribute_hierarchy_fail double_without_merger_offer
+3177X6,5711405408,"Комплект фотобарабанов №520Z (6 шт.) на 600000 страниц для принтеров Lexmark MS710, MS711, MS810, MS811, MX710, MX711, MX810, MX811",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+3265X2,5712521900,"Комплект картриджей PC-110H (2 шт.) на 4600 страниц для принтеров M6000, M6005, P1000, P1050, P2000, P2010, P5000, P5005",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+4672X2,5728604679,"Комплект картриджей TL-420 (2 шт.) на 3000 страниц для принтеров M6700, M6800, M7100, M7200, M7300, P3010, P3300",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2488X6,5705773702,"Комплект фотобарабанов MLT-R116 DU (6 шт.) на 54000 страниц для принтеров Samsung Xpress M 2626, Xpress M 2675, M 2825DW, M2875FD, M2820DW, SL-M2620, SLM2625, SL-M2880",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2488X10,5705774840,"Комплект фотобарабанов MLT-R116 DU (10 шт.) на 90000 страниц для принтеров Samsung Xpress M 2626, Xpress M 2675, M 2825DW, M2875FD, M2820DW, SL-M2620, SLM2625, SL-M2880",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3259X2,5787515566,"Комплект тонера PX-110 (2 шт.) на 130мл. для принтеров M6000, M6005, P1000, P1050, P2000, P2010, P5000, P5005",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3454X10,5713284498,"Комплект картриджей W2210A (10 шт.) на 13500 страниц для принтеров HP LJ Pro Color M255 dw, LJ Pro Color M282",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3177X2,5711405576,"Комплект фотобарабанов №520Z (2 шт.) на 200000 страниц для принтеров Lexmark MS710, MS711, MS810, MS811, MX710, MX711, MX810, MX811",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+4666X2,5728524536,"Комплект картриджей MC1-1000595WT (2 шт.) на 16 метров для принтеров Brady BMP 41, BMP 51",Готов к продаже,approved,success,,1,0,1,erased_attribute_value
+3350X10,5712559577,"Комплект картриджей PC-310H (10 шт.) на 60000 страниц для принтеров P3100D, P3105D, P3200D, P3205D",Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+6842X10,5749334448,"Комплект картриджей KX-FAT411A (10 шт.) на 50000 страниц для принтеров Panasonic KX-MB1900, KX MB2000, KXMB2001, KX-MB2010, KX MB2020",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3001X2,5709936737,Комплект картриджей 20K1403BK (2 шт.) на 20000 страниц для принтеров Lexmark LaserPrinter C510,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3459X6,5713302759,"Комплект картриджей W2210X (6 шт.) на 18900 страниц для принтеров HP LJ Pro Color M255 dw, LJ Pro Color M282",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2433X2,5705336214,"Комплект картриджей NPG-7 (2 шт.) на 20000 страниц для принтеров Canon Bubble Jet C250, C-330, NP-6022, NP 6025, NP6030, NP-6031, NP6330",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3350X6,5712559088,"Комплект картриджей PC-310H (6 шт.) на 36000 страниц для принтеров P3100D, P3105D, P3200D, P3205D",Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+6842X2,5749333844,"Комплект картриджей KX-FAT411A (2 шт.) на 10000 страниц для принтеров Panasonic KX-MB1900, KX MB2000, KXMB2001, KX-MB2010, KX MB2020",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3425X2,5713129454,"Комплект картриджей MLT-D205S (2 шт.) на 4000 страниц для принтеров Samsung ML-3300, ML 3310, ML3312, ML-3710, ML3712, SCX-4833, SCX 4835",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+1992X6,5700813361,"Комплект картриджей 1015 (6 шт.) на 36000 страниц для принтеров Konica Minolta 1120, 1212, 1216, MB-2212, MB2215, MB-2223",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+4665X10,5728483230,"Комплект картриджей MC-500595WT (10 шт.) на 80 метров для принтеров Brady BMP 41, BMP 51",Продается,approved,success,,1,0,1,erased_attribute_value
+4672X10,5728604665,"Комплект картриджей TL-420 (10 шт.) на 15000 страниц для принтеров M6700, M6800, M7100, M7200, M7300, P3010, P3300",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2452X2,5705472674,Комплект картриджей 15W0903 (2 шт.) на 24000 страниц для принтеров Lexmark 720 X720,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+4665X6,5728482825,"Комплект картриджей MC-500595WT (6 шт.) на 48 метров для принтеров Brady BMP 41, BMP 51",Продается,approved,success,,1,0,1,erased_attribute_value
+3855X10,5717276753,"Комплект чернил №774BK (10 шт.) на 60000 страниц для принтеров Epson EcoTank M-200, L 655, L-1455, L-605, M 105, M 205, M-100",Продается,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3178X2,5711461195,"Комплект фотобарабанов №520ZA DU (2 шт.) на 200000 страниц для принтеров Lexmark MS710, MS711, MS810, MS811, MX710, MX711, MX810, MX811",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3265X6,5712518713,"Комплект картриджей PC-110H (6 шт.) на 13800 страниц для принтеров M6000, M6005, P1000, P1050, P2000, P2010, P5000, P5005",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+4279X2,5721566682,"Комплект картриджей W2210A (2 шт.) на 2700 страниц для принтеров HP LJ Pro Color M255 dw, LJ Pro Color M282",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+3459X10,5713303442,"Комплект картриджей W2210X (10 шт.) на 31500 страниц для принтеров HP LJ Pro Color M255 dw, LJ Pro Color M282",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2618X2,5787491121,"Комплект картриджей 17G0050 (2 шт.) на 800 страниц для принтеров Lexmark Color JetPrinter Z12, Z22, Z32, CompaqIJ600, P3120, P3150, P705, P706 PM 200 PM 215 Z703 Z705 Z715",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2223X6,5703489165,"Комплект картриджей MLT-D704S (6 шт.) на 150000 страниц для принтеров Samsung MultiXpress K3250NR, K3300NR",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+0235X2,5735931739,"Комплект фотобарабанов KX-FAD412A DU (2 шт.) на 20000 страниц для принтеров Panasonic KX-MB1900, KX MB2000, KXMB2001, KX-MB2010, KX MB2020",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+5959X2,5741869316,"Комплект фотобарабанов DR-2510 (2 шт.) на 30000 страниц для принтеров Brother DCP-L2620DWR, DCP L2627DW, HL-L2400DW, HL L2445DW, HLL2447DW, HL-L2865DW, MFC-L2800DW, MFCL2827DW",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+7124X6,5752974465,"Комплект тонера CF540A / CF400A / CF410A / CE310A (6 шт.) на 300мл. для принтеров HP LJ-M254dw, M452dn, M452nw, M477fdn, M477fdw",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3855X2,5717277075,"Комплект чернил №774BK (2 шт.) на 12000 страниц для принтеров Epson EcoTank M-200, L 655, L-1455, L-605, M 105, M 205, M-100",Продается,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+4279X10,5721566750,"Комплект картриджей W2210A (10 шт.) на 13500 страниц для принтеров HP LJ Pro Color M255 dw, LJ Pro Color M282",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2109X6,5702261919,"Комплект картриджей AR-208T (6 шт.) на 48000 страниц для принтеров Sharp AR-203E, AR 208, AR5420, M200, M201",Продается,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2229X10,5703607532,Комплект картриджей S050436 (10 шт.) на 35000 страниц для принтеров Epson AcuLaser M2000,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3260X6,5787515934,"Комплект тонера TN-310 (6 шт.) на 18000 страниц для принтеров P3100D, P3105D, P3200D, P3205D",Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2451X6,5705464532,"Комплект фотобарабанов 50F0Z00 (6 шт.) на 360000 страниц для принтеров Lexmark LaserPrinter MS317, MS310, MS410, MS415, MS510, MS511, MS610, MS617 MX317 MX410 MX417 MX510 MX511 MX611 MX617",Продается,approved,success,,1,0,3,attribute_hierarchy_fail double_without_merger_offer
+5959X10,5741869469,"Комплект фотобарабанов DR-2510 (10 шт.) на 150000 страниц для принтеров Brother DCP-L2620DWR, DCP L2627DW, HL-L2400DW, HL L2445DW, HLL2447DW, HL-L2865DW, MFC-L2800DW, MFCL2827DW",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3855X6,5717275767,"Комплект чернил №774BK (6 шт.) на 36000 страниц для принтеров Epson EcoTank M-200, L 655, L-1455, L-605, M 105, M 205, M-100",Продается,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+4664X6,5728459943,"Комплект картриджей MC-1500595WT (6 шт.) на 48 метров для принтеров Brady BMP 41, BMP 51",Готов к продаже,approved,success,,1,0,1,erased_attribute_value
+3459X2,5713302998,"Комплект картриджей W2210X (2 шт.) на 6300 страниц для принтеров HP LJ Pro Color M255 dw, LJ Pro Color M282",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+3259X10,5787515810,"Комплект тонера PX-110 (10 шт.) на 650мл. для принтеров M6000, M6005, P1000, P1050, P2000, P2010, P5000, P5005",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2319X2,5704733284,"Комплект картриджей 51B5000 (2 шт.) на 5000 страниц для принтеров Lexmark LaserPrinter MS317dn, LP MS417, LP MS517",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+6808X2,5748809447,"Комплект картриджей W1490X (2 шт.) на 19000 страниц для принтеров HP LaserJet Pro 4002, LJ Pro 4102 MFP",Продается,approved,success,,1,0,3,double_without_merger_offer pics_http_error some_image_failed
+2618X10,5787491693,"Комплект картриджей 17G0050 (10 шт.) на 4000 страниц для принтеров Lexmark Color JetPrinter Z12, Z22, Z32, CompaqIJ600, P3120, P3150, P705, P706 PM 200 PM 215 Z703 Z705 Z715",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3260X10,5787515990,"Комплект тонера TN-310 (10 шт.) на 30000 страниц для принтеров P3100D, P3105D, P3200D, P3205D",Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+3425X6,5713129473,"Комплект картриджей MLT-D205S (6 шт.) на 12000 страниц для принтеров Samsung ML-3300, ML 3310, ML3312, ML-3710, ML3712, SCX-4833, SCX 4835",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2451X2,5705464482,"Комплект фотобарабанов 50F0Z00 (2 шт.) на 120000 страниц для принтеров Lexmark LaserPrinter MS317, MS310, MS410, MS415, MS510, MS511, MS610, MS617 MX317 MX410 MX417 MX510 MX511 MX611 MX617",Продается,approved,success,,1,0,3,attribute_hierarchy_fail double_without_merger_offer
+6842X6,5749333653,"Комплект картриджей KX-FAT411A (6 шт.) на 30000 страниц для принтеров Panasonic KX-MB1900, KX MB2000, KXMB2001, KX-MB2010, KX MB2020",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+1992X10,5700813635,"Комплект картриджей 1015 (10 шт.) на 60000 страниц для принтеров Konica Minolta 1120, 1212, 1216, MB-2212, MB2215, MB-2223",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+4666X6,5728524603,"Комплект картриджей MC1-1000595WT (6 шт.) на 48 метров для принтеров Brady BMP 41, BMP 51",Готов к продаже,approved,success,,1,0,1,erased_attribute_value
+2223X10,5703489192,"Комплект картриджей MLT-D704S (10 шт.) на 250000 страниц для принтеров Samsung MultiXpress K3250NR, K3300NR",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2805X10,5708474434,"Комплект фотобарабанов MLT-R704 DU (10 шт.) на 1000000 страниц для принтеров Samsung MultiXpress K3250NR, K3300NR",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3425X10,5713129621,"Комплект картриджей MLT-D205S (10 шт.) на 20000 страниц для принтеров Samsung ML-3300, ML 3310, ML3312, ML-3710, ML3712, SCX-4833, SCX 4835",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+5969X10,5741904506,"Комплект картриджей TN-2510XL (10 шт.) на 30000 страниц для принтеров Brother DCP-L2620DWR, DCP L2627DW, HL-L2400DWE, HL-L2445DW, HL L2447DW, HLL2865DW, MFC-L2800DW, MFC-L2827DW",Продается,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2488X2,5705774674,"Комплект фотобарабанов MLT-R116 DU (2 шт.) на 18000 страниц для принтеров Samsung Xpress M 2626, Xpress M 2675, M 2825DW, M2875FD, M2820DW, SL-M2620, SLM2625, SL-M2880",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+4664X10,5728459823,"Комплект картриджей MC-1500595WT (10 шт.) на 80 метров для принтеров Brady BMP 41, BMP 51",Готов к продаже,approved,success,,1,0,1,erased_attribute_value
+3260X2,5787515862,"Комплект тонера TN-310 (2 шт.) на 6000 страниц для принтеров P3100D, P3105D, P3200D, P3205D",Готов к продаже,approved,success,,1,0,4,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2452X6,5705472535,Комплект картриджей 15W0903 (6 шт.) на 72000 страниц для принтеров Lexmark 720 X720,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2229X2,5703607606,Комплект картриджей S050436 (2 шт.) на 7000 страниц для принтеров Epson AcuLaser M2000,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+4279X6,5721566740,"Комплект картриджей W2210A (6 шт.) на 8100 страниц для принтеров HP LJ Pro Color M255 dw, LJ Pro Color M282",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2452X10,5705472543,Комплект картриджей 15W0903 (10 шт.) на 120000 страниц для принтеров Lexmark 720 X720,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2162X6,5702853090,"Комплект картриджей TNP-22B (6 шт.) на 36000 страниц для принтеров Konica Minolta Bizhub C35, BizhubC35P",Продается,approved,success,,1,0,4,attribute_hierarchy_fail
+2482X10,5705680041,"Комплект картриджей ML-5000D5 (10 шт.) на 25000 страниц для принтеров Samsung ML 5050, ML5100",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2223X2,5703488828,"Комплект картриджей MLT-D704S (2 шт.) на 50000 страниц для принтеров Samsung MultiXpress K3250NR, K3300NR",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+4666X10,5728524334,"Комплект картриджей MC1-1000595WT (10 шт.) на 80 метров для принтеров Brady BMP 41, BMP 51",Готов к продаже,approved,success,,1,0,1,erased_attribute_value
+3178X10,5711461227,"Комплект фотобарабанов №520ZA DU (10 шт.) на 1000000 страниц для принтеров Lexmark MS710, MS711, MS810, MS811, MX710, MX711, MX810, MX811",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3001X6,5709936294,Комплект картриджей 20K1403BK (6 шт.) на 60000 страниц для принтеров Lexmark LaserPrinter C510,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2319X10,5704724278,"Комплект картриджей 51B5000 (10 шт.) на 25000 страниц для принтеров Lexmark LaserPrinter MS317dn, LP MS417, LP MS517",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+3454X2,5713283096,"Комплект картриджей W2210A (2 шт.) на 2700 страниц для принтеров HP LJ Pro Color M255 dw, LJ Pro Color M282",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2618X6,5787491430,"Комплект картриджей 17G0050 (6 шт.) на 2400 страниц для принтеров Lexmark Color JetPrinter Z12, Z22, Z32, CompaqIJ600, P3120, P3150, P705, P706 PM 200 PM 215 Z703 Z705 Z715",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3178X6,5711461326,"Комплект фотобарабанов №520ZA DU (6 шт.) на 600000 страниц для принтеров Lexmark MS710, MS711, MS810, MS811, MX710, MX711, MX810, MX811",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+3001X10,5709936153,Комплект картриджей 20K1403BK (10 шт.) на 100000 страниц для принтеров Lexmark LaserPrinter C510,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+7124X2,5752974576,"Комплект тонера CF540A / CF400A / CF410A / CE310A (2 шт.) на 100мл. для принтеров HP LJ-M254dw, M452dn, M452nw, M477fdn, M477fdw",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+1992X2,5700813403,"Комплект картриджей 1015 (2 шт.) на 12000 страниц для принтеров Konica Minolta 1120, 1212, 1216, MB-2212, MB2215, MB-2223",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+2109X2,5702226153,"Комплект картриджей AR-208T (2 шт.) на 16000 страниц для принтеров Sharp AR-203E, AR 208, AR5420, M200, M201",Продается,approved,success,,1,0,3,attribute_hierarchy_fail warning_attribute_values_out_of_range
+2229X6,5703608164,Комплект картриджей S050436 (6 шт.) на 21000 страниц для принтеров Epson AcuLaser M2000,Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail
+2805X2,5708474466,"Комплект фотобарабанов MLT-R704 DU (2 шт.) на 200000 страниц для принтеров Samsung MultiXpress K3250NR, K3300NR",Продается,approved,success,,1,0,2,attribute_hierarchy_fail
+3265X10,5712521941,"Комплект картриджей PC-110H (10 шт.) на 23000 страниц для принтеров M6000, M6005, P1000, P1050, P2000, P2010, P5000, P5005",Готов к продаже,approved,success,,1,0,2,attribute_hierarchy_fail warning_attribute_values_out_of_range
+4664X2,5728459682,"Комплект картриджей MC-1500595WT (2 шт.) на 16 метров для принтеров Brady BMP 41, BMP 51",Готов к продаже,approved,success,,1,0,1,erased_attribute_value

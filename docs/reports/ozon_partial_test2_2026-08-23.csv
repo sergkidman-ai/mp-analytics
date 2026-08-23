@@ -1,0 +1,11 @@
+группа,offer_id,task,было,стало,снялось,добавилось,статус_после,модерация_после
+dupes,239330,imported,double_without_merger_offer,,double_without_merger_offer,,Продается,approved
+dupes,6991,imported,double_without_merger_offer,,double_without_merger_offer,,Готов к продаже,approved
+dupes,10325,imported,double_without_merger_offer,,double_without_merger_offer,,Продается,approved
+dupes,13671,imported,double_without_merger_offer,,double_without_merger_offer,,Продается,approved
+dupes,22262,imported,double_without_merger_offer,,double_without_merger_offer,,Продается,approved
+erased,46643,imported,erased_attribute_value,,erased_attribute_value,,Готов к продаже,approved
+erased,46641,imported,erased_attribute_value,,erased_attribute_value,,Готов к продаже,approved
+erased,46642,imported,erased_attribute_value,,erased_attribute_value,,Готов к продаже,approved
+erased,4665X2,imported,erased_attribute_value,,erased_attribute_value,,Продается,approved
+erased,4666X6,imported,erased_attribute_value,,erased_attribute_value,,Готов к продаже,approved

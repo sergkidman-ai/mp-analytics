@@ -10,9 +10,18 @@
   C — контентный ERROR модерации (бренд в хештегах, чужой бренд в описании, спецсимволы).
       Повтор бесполезен, правится только на стороне ТК. Автомат такие не трогает,
       они уходят в отчёт для программиста.
-  O — прочее (только warning-и и т. п.) — копим статистику, не трогаем.
+  W — «На доработку» (PARTIAL_APPROVED): ERROR-ошибок нет, карточка торгует, но висит
+      замечание из БЕЛОГО СПИСКА HEAL_WARN — значение в карточке ЕСТЬ, а площадка держит
+      устаревший вердикт. Снимается тем же повтором. Список закрыт ОПЫТОМ 23.08.2026
+      (tools/ozon_card_partial_push_test.py, 15 карточек acc1), а не догадкой:
+        attribute_hierarchy_fail 3/3, pics_http_error + some_image_failed 5/5 — лечатся;
+        warning_attribute_values_empty 0/5, warning_attribute_values_out_of_range 0/2 —
+        НЕ лечатся: значения нет вовсе, повтор его не создаст, это работа ТК.
+      Граница проходит по КОДУ замечания, а не по группе замечаний.
+  O — прочее (warning-и вне белого списка и т. п.) — копим статистику, не трогаем.
 
-Источник: POST /v3/product/list с filter.visibility=STATE_FAILED → POST /v3/product/info/list.
+Источник: POST /v3/product/list с filter.visibility=STATE_FAILED (классы A/C) и
+PARTIAL_APPROVED (класс W) → POST /v3/product/info/list.
 Фильтры BANNED и IMAGE_ABSENT непригодны — возвращают ВЕСЬ каталог (проверено 22.08.2026).
 
 Идемпотентность: upsert по (platform, account, offer_id). Строка не удаляется после лечения —
@@ -34,14 +43,28 @@ ACCOUNTS = ["oz_acc1", "oz_acc2"]
 PLATFORM = "ozon"
 PAGE = 1000
 SELLING_NAMES = ("Продается", "Готов к продаже")
+VISIBILITIES = ("STATE_FAILED", "PARTIAL_APPROVED")
+
+# Коды замечаний «На доработку», ДОКАЗАННО снимаемые повторной отправкой того же значения.
+# Пополнять только по факту опыта: отправили → замечание исчезло → карточка ушла из списка
+# «На доработку» → продажа цела. Проверка по перечитке карточки И по счётчику площадки.
+# cover_unprocessed в опыт не попал (все 5 картиночных подопытных оказались
+# pics_http_error + some_image_failed) — в список НЕ включён, хотя семейство то же.
+HEAL_WARN = {
+    "attribute_hierarchy_fail",     # «Совместимые модели принтеров» не бьётся со справочником
+    "pics_http_error",              # картинка не скачалась
+    "some_image_failed",            # часть картинок не обработалась
+    "double_without_merger_offer",  # дубль без объединения в «похожие товары»
+    "erased_attribute_value",       # значение атрибута стёрто площадкой
+}
 
 
-def _failed_ids(H):
-    """Все product_id, которые площадка считает проблемными."""
+def _ids(H, visibility):
+    """Все product_id в заданной витрине проблем."""
     out, last = [], ""
     while True:
         r = requests.post(PRODUCT_LIST_URL, headers=H,
-                          json={"filter": {"visibility": "STATE_FAILED"},
+                          json={"filter": {"visibility": visibility},
                                 "last_id": last, "limit": PAGE}, timeout=120)
         r.raise_for_status()
         res = r.json()["result"]
@@ -53,9 +76,11 @@ def _failed_ids(H):
 
 
 def _classify(item):
-    """(класс, коды ERROR, тексты ERROR). Класс C бьёт класс A: контент важнее флага."""
+    """(класс, коды, тексты). Порядок жёсткий: C бьёт A, A бьёт W — контент важнее флага,
+    сломанная карточка важнее замечания на торгующей."""
     st = item.get("statuses") or {}
-    hard = [e for e in (item.get("errors") or []) if e.get("level") == "ERROR_LEVEL_ERROR"]
+    errs = item.get("errors") or []
+    hard = [e for e in errs if e.get("level") == "ERROR_LEVEL_ERROR"]
     if hard:
         codes = " ".join(sorted({e.get("code", "") for e in hard if e.get("code")}))
         texts = " | ".join(sorted({(e.get("texts") or {}).get("description")
@@ -64,12 +89,25 @@ def _classify(item):
         return "C", codes, texts[:2000]
     if st.get("status_failed") == "imported":
         return "A", "", ""
+    heal = [e for e in errs if e.get("code") in HEAL_WARN]
+    if heal:
+        # В err_codes кладём ТОЛЬКО лечимые коды: по ним дожиматель и проверяет успех.
+        codes = " ".join(sorted({e.get("code") for e in heal}))
+        texts = " | ".join(sorted({(e.get("texts") or {}).get("attribute_name")
+                                   or (e.get("texts") or {}).get("description") or ""
+                                   for e in heal})).strip(" |")
+        return "W", codes, texts[:2000]
     return "O", "", ""
 
 
 def scan(account):
     H = _headers(account)
-    pids = _failed_ids(H)
+    pids, known = [], set()
+    for vis in VISIBILITIES:                 # карточка может числиться в обеих витринах
+        for p in _ids(H, vis):
+            if p not in known:
+                known.add(p)
+                pids.append(p)
     rows, seen = [], set()
     for i in range(0, len(pids), PAGE):
         r = requests.post(PRODUCT_INFO_URL, headers=H,
@@ -131,12 +169,14 @@ def main(argv):
             by[r["err_class"]] = by.get(r["err_class"], 0) + 1
         sell_a = sum(1 for r in rows if r["err_class"] == "A" and r["is_selling"])
         print(f"{acc}: проблемных {len(rows)} | A {by.get('A', 0)} (торгуют {sell_a}) | "
-              f"C {by.get('C', 0)} | O {by.get('O', 0)} | закрыто с прошлого раза {closed}")
-    old = query(
-        "SELECT count(*) AS n FROM card_status WHERE is_open AND err_class = 'A' "
-        "AND first_seen < now() - interval '7 days'")[0]["n"]
-    if old:
-        print(f"ВНИМАНИЕ: {old} карточек класса A висят в ошибке дольше недели — дожим не работает")
+              f"W {by.get('W', 0)} | C {by.get('C', 0)} | O {by.get('O', 0)} | "
+              f"закрыто с прошлого раза {closed}")
+    for r in query(
+            "SELECT err_class, count(*) AS n FROM card_status WHERE is_open "
+            "AND err_class IN ('A', 'W') AND first_seen < now() - interval '7 days' "
+            "GROUP BY err_class ORDER BY err_class"):
+        print(f"ВНИМАНИЕ: {r['n']} карточек класса {r['err_class']} висят дольше недели — "
+              f"дожим не работает")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,22 @@
-"""tools/ozon_card_push.py — поток: card. Дожиматель карточек Ozon класса A.
+"""tools/ozon_card_push.py — поток: card. Дожиматель карточек Ozon: классы A и W.
 
-Что делает: берёт карточки, которые площадка держит в «Ошибке» с пустым списком ошибок
-(«Не обновлён»), и отправляет обратно ОДИН атрибут с ЕГО ЖЕ ТЕКУЩИМ значением. Контент
-не меняется ни на байт — меняется только факт «пришёл свежий апдейт», и карточка проходит
-путь Не обновлён → Обновляется → Готов к продаже за ~2 минуты. Проверено 22.08.2026 на
-150 карточках acc1: вылечено 149, повторная модерация не запускалась ни разу, declined 0.
+Что делает: отправляет карточке обратно ОДИН атрибут с ЕГО ЖЕ ТЕКУЩИМ значением. Контент
+не меняется ни на байт — меняется только факт «пришёл свежий апдейт», и площадка пересматривает
+свой устаревший вердикт. Один и тот же приём лечит две разные болезни:
+
+  A — «Ошибка / Не обновлён» (status_failed=imported, ошибок в API нет). Путь Не обновлён →
+      Обновляется → Готов к продаже за ~2 минуты. Проверено 22–23.08.2026: 408 карточек
+      двух аккаунтов, не вылечилась одна, повторная модерация не запускалась ни разу.
+  W — «На доработку» (PARTIAL_APPROVED) с замечанием из белого списка HEAL_WARN: значение
+      в карточке ЕСТЬ, а площадка держит устаревшее замечание. Опыт 23.08.2026, 25 карточек acc1
+      в двух прогонах: attribute_hierarchy_fail 3/3, картиночные 5/5, double_without_merger_offer
+      5/5, erased_attribute_value 5/5 — снялись, все 18 ушли из списка «На доработку», продажу
+      не потеряла ни одна. Замечания «значения нет вовсе» (warning_attribute_values_empty,
+      …_out_of_range) повтором НЕ лечатся 0/7 и в белый список не входят — это работа ТК.
+
+Успех у классов проверяется РАЗНЫМ признаком: у A — очистившийся status_failed, у W — исчезнувший
+код замечания. Общего признака нет: у карточки класса W status_failed пуст с самого начала,
+и наивная проверка засчитала бы вылеченными все подряд.
 
 ПОЧЕМУ ЭТО НЕ «ПРАВКА КАРТОЧКИ»: контент карточки принадлежит ТК. Мы отправляем ровно то,
 что уже лежит в карточке — иначе первый же пуш ТК затрёт нашу правку, а мы получим войну
@@ -14,7 +26,8 @@
 пропусков). Так задумано, правило CLAUDE.md: запись на площадки — по прямой команде.
 
   ./venv/bin/python tools/ozon_card_push.py                    # сухой прогон, ничего не шлёт
-  ./venv/bin/python tools/ozon_card_push.py --apply            # реальная отправка
+  ./venv/bin/python tools/ozon_card_push.py --apply            # реальная отправка (A и W)
+  ./venv/bin/python tools/ozon_card_push.py --classes A --apply   # только «Ошибка»
   ./venv/bin/python tools/ozon_card_push.py --tk-report        # выгрузка класса C для ТК
 
 Предохранители (все включены всегда):
@@ -39,6 +52,7 @@ import requests
 sys.path.insert(0, "/opt/mp-analytics")
 from core.db import query, execute                     # noqa: E402
 from collectors.ozon import _headers, PRODUCT_INFO_URL  # noqa: E402
+from collectors.ozon_card_status import HEAL_WARN       # noqa: E402
 
 ATTR_URL = "https://api-seller.ozon.ru/v4/product/info/attributes"
 UPD_URL = "https://api-seller.ozon.ru/v1/product/attributes/update"
@@ -59,19 +73,21 @@ SETTLE = 480            # сколько ждать перед перечитк�
 SELLING = ("Продается", "Готов к продаже")
 
 
-def _pool(account, limit):
-    """Кандидаты из БД: класс A, открытые, попытки не исчерпаны, backoff выдержан.
+def _pool(account, limit, classes):
+    """Кандидаты из БД: открытые, попытки не исчерпаны, backoff выдержан.
 
-    Порядок — сначала неторгующие и самые давние: если что-то пойдёт не так, первыми
-    под удар попадают карточки, которые и так не приносят денег.
+    Порядок: сначала класс A (карточка сломана и часто не торгует), потом W (карточка торгует,
+    страдает только видимость); внутри класса — сначала неторгующие и самые давние. Если что-то
+    пойдёт не так, первыми под удар попадают карточки, которые и так не приносят денег.
     """
     return query(
-        "SELECT offer_id, product_id, attempts, is_selling FROM card_status "
-        "WHERE platform = %s AND account = %s AND is_open AND err_class = 'A' "
+        "SELECT offer_id, product_id, attempts, is_selling, err_class, err_codes "
+        "FROM card_status "
+        "WHERE platform = %s AND account = %s AND is_open AND err_class = ANY(%s) "
         "  AND NOT needs_human AND attempts < %s "
         "  AND (last_attempt_at IS NULL OR last_attempt_at < now() - make_interval(hours => %s)) "
-        "ORDER BY is_selling, first_seen LIMIT %s",
-        (PLATFORM, account, MAX_ATTEMPTS, BACKOFF_H, limit))
+        "ORDER BY err_class, is_selling, first_seen LIMIT %s",
+        (PLATFORM, account, list(classes), MAX_ATTEMPTS, BACKOFF_H, limit))
 
 
 def _live_states(H, product_ids):
@@ -83,8 +99,9 @@ def _live_states(H, product_ids):
         r.raise_for_status()
         for it in r.json().get("items", []):
             st = it.get("statuses") or {}
-            st["_hard_errors"] = [e for e in (it.get("errors") or [])
-                                  if e.get("level") == "ERROR_LEVEL_ERROR"]
+            errs = it.get("errors") or []
+            st["_hard_errors"] = [e for e in errs if e.get("level") == "ERROR_LEVEL_ERROR"]
+            st["_codes"] = {e.get("code") for e in errs if e.get("code")}
             out[it.get("offer_id")] = st
     return out
 
@@ -152,30 +169,55 @@ def _mark_healed(account, offer_id):
             (PLATFORM, account, offer_id))
 
 
-def run(account, limit, apply_):
+def _mark_warn_cleared(account, offer_id):
+    """Замечание снято. Строку НЕ закрываем: на карточке могут висеть другие замечания,
+    которые повтором не лечатся. Класс меняем на O — из пула она уходит сразу, а закроет
+    её детектор, когда площадка уберёт карточку из «На доработку»."""
+    execute("UPDATE card_status SET err_class = 'O', err_codes = '', healed_at = now(), "
+            "needs_human = false WHERE platform = %s AND account = %s AND offer_id = %s",
+            (PLATFORM, account, offer_id))
+
+
+def run(account, limit, apply_, classes=("A", "W")):
     H = _headers(account)
-    pool = _pool(account, limit)
+    pool = _pool(account, limit, classes)
     if not pool:
         print(f"{account}: дожимать нечего")
         return
     live = _live_states(H, [int(c["product_id"]) for c in pool if c["product_id"]])
 
-    todo, skip = [], {}
+    todo, skip, meta = [], {}, {}
     for c in pool:
         st = live.get(c["offer_id"])
+        cls = c["err_class"]
+        # что именно должно исчезнуть, чтобы засчитать успех
+        want = set((c["err_codes"] or "").split()) & HEAL_WARN if cls == "W" else set()
         if st is None:
             skip["исчезла из выдачи"] = skip.get("исчезла из выдачи", 0) + 1
-        elif st.get("_hard_errors"):
+            continue
+        if st.get("_hard_errors"):
             skip["стала контентной (класс C)"] = skip.get("стала контентной (класс C)", 0) + 1
-        elif st.get("status_failed") != "imported":
+            continue
+        if cls == "A" and st.get("status_failed") != "imported":
             skip["уже здорова"] = skip.get("уже здорова", 0) + 1
             _mark_healed(account, c["offer_id"])
-        elif _too_fresh(st):
-            skip[f"свежий апдейт ТК (<{FRESH_H} ч)"] = skip.get(f"свежий апдейт ТК (<{FRESH_H} ч)", 0) + 1
-        else:
-            todo.append(c)
+            continue
+        if cls == "W" and not (want & st["_codes"]):
+            skip["замечание уже снято"] = skip.get("замечание уже снято", 0) + 1
+            _mark_warn_cleared(account, c["offer_id"])
+            continue
+        if _too_fresh(st):
+            k = f"свежий апдейт ТК (<{FRESH_H} ч)"
+            skip[k] = skip.get(k, 0) + 1
+            continue
+        meta[c["offer_id"]] = (cls, want)
+        todo.append(c)
 
-    print(f"{account}: кандидатов {len(pool)} | к отправке {len(todo)} | "
+    by_cls = {}
+    for c in todo:
+        by_cls[c["err_class"]] = by_cls.get(c["err_class"], 0) + 1
+    print(f"{account}: кандидатов {len(pool)} | к отправке {len(todo)} "
+          f"({' '.join(f'{k}:{v}' for k, v in sorted(by_cls.items())) or '—'}) | "
           f"торгующих среди них {sum(1 for c in todo if c['is_selling'])}")
     for k, v in skip.items():
         print(f"  пропуск — {k}: {v}")
@@ -191,7 +233,7 @@ def run(account, limit, apply_):
         rec = {"platform": PLATFORM, "account": account, "offer_id": c["offer_id"],
                "product_id": c["product_id"], "rung": 1, "attr_id": attr_id,
                "http_code": http, "task_id": tid, "task_status": None,
-               "healed": None, "note": note}
+               "healed": None, "note": " ".join(x for x in (f"class:{c['err_class']}", note) if x)}
         if tid:
             rec["task_status"] = _task_status(H, tid, tries=2, wait=5)
         _log(rec)
@@ -205,7 +247,7 @@ def run(account, limit, apply_):
         if n == GATE_N and len(todo) > GATE_N:
             print(f"ворота: проверяю первые {GATE_N} перед остальными {len(todo) - GATE_N}")
             time.sleep(SETTLE)
-            ok, bad = _verify(H, account, sent)
+            ok, bad = _verify(H, account, sent, meta)
             if bad:
                 stopped = f"ворота закрыты: {bad}"
                 break
@@ -219,13 +261,17 @@ def run(account, limit, apply_):
         return
 
     time.sleep(SETTLE)
-    ok, bad = _verify(H, account, sent)
+    ok, bad = _verify(H, account, sent, meta)
     print(f"{account}: отправлено {len(sent)} | вылечено {ok} | "
-          f"осталось в ошибке {len(sent) - ok}" + (f" | ТРЕВОГА: {bad}" if bad else ""))
+          f"осталось {len(sent) - ok}" + (f" | ТРЕВОГА: {bad}" if bad else ""))
 
 
-def _verify(H, account, sent):
-    """Перечитка: закрываем вылеченные, ловим declined и уход из продажи."""
+def _verify(H, account, sent, meta):
+    """Перечитка: закрываем вылеченные, ловим declined и уход из продажи.
+
+    Признак успеха разный: A — очистился status_failed; W — исчез код замечания.
+    Для W проверять status_failed нельзя: он пуст с самого начала, и «вылечены» оказались бы все.
+    """
     ids = [int(s["product_id"]) for s in sent if s.get("task_id") and s["product_id"]]
     if not ids:
         return 0, None
@@ -235,16 +281,19 @@ def _verify(H, account, sent):
         st = live.get(s["offer_id"])
         if st is None:
             continue
-        healed = not st.get("status_failed")
+        cls, want = meta.get(s["offer_id"], ("A", set()))
+        healed = (not (want & st["_codes"])) if cls == "W" else (not st.get("status_failed"))
         if healed:
             ok += 1
-            _mark_healed(account, s["offer_id"])
+            (_mark_warn_cleared if cls == "W" else _mark_healed)(account, s["offer_id"])
         execute("UPDATE card_push_log SET healed = %s WHERE id = ("
                 "SELECT max(id) FROM card_push_log WHERE platform = %s AND account = %s "
                 "AND offer_id = %s)", (healed, PLATFORM, account, s["offer_id"]))
         if st.get("moderate_status") == "declined":
             alarm.append(f"{s['offer_id']} declined")
-        elif st.get("status_name") not in SELLING and st.get("status_name") != "Не продается":
+        elif st.get("status_name") not in SELLING and (
+                cls == "W" or st.get("status_name") != "Не продается"):
+            # у W карточка торговала до нашей отправки — любой уход из продажи это ЧП
             alarm.append(f"{s['offer_id']} → {st.get('status_name')}")
     return ok, "; ".join(alarm[:5]) if alarm else None
 
@@ -271,9 +320,12 @@ def tk_report(path):
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser(description="Дожим карточек Ozon класса A («Не обновлён»)")
+    p = argparse.ArgumentParser(
+        description="Дожим карточек Ozon: A («Не обновлён») и W («На доработку»)")
     p.add_argument("--account", default="oz_acc1")
     p.add_argument("--limit", type=int, default=200)
+    p.add_argument("--classes", default="A,W",
+                   help="какие классы дожимать: A, W или A,W (по умолчанию оба)")
     p.add_argument("--apply", action="store_true",
                    help="реально отправить на площадку (без флага — сухой прогон)")
     p.add_argument("--tk-report", metavar="PATH", nargs="?",
@@ -283,4 +335,8 @@ if __name__ == "__main__":
     if a.tk_report:
         tk_report(a.tk_report)
     else:
-        run(a.account, a.limit, a.apply)
+        cls = tuple(x.strip().upper() for x in a.classes.split(",") if x.strip())
+        bad = [c for c in cls if c not in ("A", "W")]
+        if bad:
+            sys.exit(f"дожимать можно только классы A и W, а не {bad}")
+        run(a.account, a.limit, a.apply, cls)

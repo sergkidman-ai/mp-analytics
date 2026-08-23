@@ -1,0 +1,16 @@
+группа,offer_id,task,было,стало,снялось,добавилось,статус_после,модерация_после
+models,6748,imported,warning_attribute_values_out_of_range,warning_attribute_values_out_of_range,,,Готов к продаже,approved
+models,24883,imported,attribute_hierarchy_fail,,attribute_hierarchy_fail,,Готов к продаже,approved
+models,0759,imported,warning_attribute_values_out_of_range,warning_attribute_values_out_of_range,,,Продается,approved
+models,24331,imported,attribute_hierarchy_fail,,attribute_hierarchy_fail,,Готов к продаже,approved
+models,24336,imported,attribute_hierarchy_fail,,attribute_hierarchy_fail,,Готов к продаже,approved
+marking,04511,imported,warning_attribute_values_empty,warning_attribute_values_empty,,,Готов к продаже,approved
+marking,4541,imported,warning_attribute_values_empty,warning_attribute_values_empty,,,Готов к продаже,approved
+marking,045112,imported,warning_attribute_values_empty,warning_attribute_values_empty,,,Готов к продаже,approved
+marking,2241,imported,warning_attribute_values_empty,warning_attribute_values_empty,,,Готов к продаже,approved
+marking,6288,imported,warning_attribute_values_empty,warning_attribute_values_empty,,,Готов к продаже,approved
+pics,0035,imported,pics_http_error some_image_failed,,pics_http_error some_image_failed,,Продается,approved
+pics,60763,imported,pics_http_error some_image_failed,,pics_http_error some_image_failed,,Продается,approved
+pics,0046,imported,pics_http_error some_image_failed,,pics_http_error some_image_failed,,Продается,approved
+pics,54951,imported,pics_http_error some_image_failed,,pics_http_error some_image_failed,,Продается,approved
+pics,5339,imported,pics_http_error some_image_failed,,pics_http_error some_image_failed,,Продается,approved
