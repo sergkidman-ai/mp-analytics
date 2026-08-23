@@ -1,7 +1,6 @@
 platform,account,id,code,pack,price_new,price_old,cogs,cost_src,retention_pct,net,floor,verdict,reason
-ya,ya_acc1,0477X2,0477,2,809.0,10000.0,254.0,ТК,66.4,18.05,80.9,СТОП,PRICE_CHANGE
+ya,ya_acc1,0477X2,0477,2,827.0,10000.0,254.0,ТК,66.4,24.1,82.7,СТОП,PRICE_CHANGE
 ya,ya_acc1,0477X6,0477,6,2300.0,10000.0,762.0,ТК,66.4,11.44,230.0,СТОП,PRICE_CHANGE
-ya,ya_acc1,2343,2343,1,964.0,11396.0,113.0,ТК,66.4,211.17,96.4,ОК,LOW_PRICE
 ya,ya_acc1,23542del,,1,3723.0,20000.0,,,66.4,,,НЕТ СЕБЕСТА,LOW_PRICE
 ya,ya_acc1,5439X10,5439,10,12835.0,42024.0,9120.0,ТК,66.4,-4803.88,1283.5,СТОП,PRICE_CHANGE
 ya,ya_acc1,5439X2,5439,2,2869.0,9394.0,1824.0,ТК,66.4,-859.22,286.9,СТОП,PRICE_CHANGE
