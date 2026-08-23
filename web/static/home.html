@@ -239,7 +239,8 @@ async function loadDiary(){
     const dt=e.event_date.slice(8,10)+'.'+e.event_date.slice(5,7);
     const who=EV_ACC[e.account]||'';
     const chip=e.platform?`<span class="pl">${EV_ICON[e.platform]||''} ${EV_PLAT[e.platform]||e.platform}</span> `:'';
-    // mark — значок удара по складу: стоит один раз, в день атаки (см. ops/mp_news.py).
+    // mark — значок события: 💥 удар по складу (ops/mp_news.py, один раз в день атаки),
+    // 📥 записка из бота не разобрана, ✅ поручение из записки выполнено (текст = результат).
     const mk=e.mark?e.mark+' ':'';
     // Ожидание показываем рядом с событием: через месяц «зачем мы это делали» уже не вспомнить.
     // У наших решений в expect лежит ожидание, у новостей площадок — рекомендация.
