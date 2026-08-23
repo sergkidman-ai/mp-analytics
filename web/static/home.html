@@ -245,7 +245,7 @@ async function loadDiary(){
     // У наших решений в expect лежит ожидание, у новостей площадок — рекомендация.
     const exp=e.expect?` <span class="muted">— ${e.kind==='mp'?'что делать':'ждём'}: ${e.expect}</span>`:'';
     // Править даём только наши решения: события площадок сборщик перепишет из новостей.
-    const edit=e.kind==='own'?`<a href="#" class="e" data-id="${e.id}" title="изменить">✎</a>`:'';
+    const edit=(e.kind==='own'||e.source==='dropbox')?`<a href="#" class="e" data-id="${e.id}" title="изменить">✎</a>`:'';
     // Разбор новости прячем под заголовок: в ленте нужен смысл одной строкой,
     // подробности («на сколько», «с какого числа») — по клику.
     const det=e.details?`<div class="evdet" id="evd${e.id}">${esc(e.details)}</div>`:'';

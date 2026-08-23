@@ -86,17 +86,29 @@ def read_current(cur):
 
     LEFT JOIN, а не INNER: товар может пропасть из снимка совсем (сняли с продажи у поставщика),
     и это тоже новость — иначе подписка молча перестала бы наблюдаться.
+
+    Агрегат, а не строка: у одного кода в ms_product бывает НЕСКОЛЬКО ms_id (у 5439sp–5442sp
+    их два — карточки «Солюшнс принт МСК» и «Солюшнс принт»). Без группировки подписка давала
+    столько строк, сколько карточек, и та из них, где на складе пусто, приходила как NULL →
+    ложное «нет данных». Сумма по ms_id отвечает ровно на вопрос подписки: сколько этого кода
+    лежит на складе. Пустая сумма остаётся NULL — состояние nodata сохраняется.
+
+    supplier в подписке — фильтр: «следить за товаром ИМЕННО этого поставщика» (миграция 509).
+    NULL = любой поставщик под этим кодом.
     """
     cur.execute("""
         SELECT w.id, w.ms_code, w.store, w.threshold, w.last_state, w.chat_id, w.note,
-               p.name, s.stock, s.supplier, s.in_transit
+               max(p.name), sum(s.stock), string_agg(DISTINCT s.supplier, ', '),
+               sum(s.in_transit)
           FROM stock_watch w
           LEFT JOIN ms_product p ON p.code = w.ms_code
           LEFT JOIN supplier_stock s
                  ON s.ms_id = p.ms_id
                 AND s.store = w.store
                 AND s.captured_at = (SELECT max(captured_at) FROM supplier_stock)
+                AND (w.supplier IS NULL OR s.supplier = w.supplier)
          WHERE w.active
+         GROUP BY w.id, w.ms_code, w.store, w.threshold, w.last_state, w.chat_id, w.note
          ORDER BY w.ms_code
     """)
     return cur.fetchall()
@@ -185,7 +197,8 @@ def seed():
     cur = conn.cursor()
     for code, thr, note in SEED:
         cur.execute("""INSERT INTO stock_watch (ms_code, threshold, note)
-                       VALUES (%s, %s, %s) ON CONFLICT (ms_code, store) DO NOTHING""",
+                       VALUES (%s, %s, %s)
+                       ON CONFLICT (ms_code, store, coalesce(supplier, '')) DO NOTHING""",
                     (code, thr, note))
     conn.commit()
     cur.execute("SELECT count(*) FROM stock_watch WHERE active")
@@ -193,15 +206,44 @@ def seed():
     conn.close()
 
 
+def add_watch(code, store, threshold, supplier=None, note=None):
+    """Завести подписку. Порог 0 = сообщить, когда ЗАКОНЧИТСЯ (классификация: 0 всегда zero).
+
+    Стартовое состояние берём по факту сегодняшнего снимка, а не 'ok' по умолчанию: иначе
+    подписка на уже закончившийся товар промолчала бы (состояние zero совпало бы с 'ok'→zero
+    только на следующей смене, а её может не быть месяцами).
+    """
+    conn = db()
+    cur = conn.cursor()
+    cur.execute("""INSERT INTO stock_watch (ms_code, store, threshold, supplier, note)
+                   VALUES (%s, %s, %s, %s, %s)
+                   ON CONFLICT (ms_code, store, coalesce(supplier, '')) DO UPDATE
+                      SET threshold = EXCLUDED.threshold, note = EXCLUDED.note, active = true
+                   RETURNING id""", (code, store, threshold, supplier, note))
+    wid = cur.fetchone()[0]
+    conn.commit()
+    rows = [r for r in read_current(cur) if r[0] == wid]
+    stock = rows[0][8] if rows else None
+    state = classify(stock, threshold)
+    cur.execute("UPDATE stock_watch SET last_state=%s, last_stock=%s WHERE id=%s",
+                (state, stock, wid))
+    conn.commit()
+    conn.close()
+    print(f"подписка #{wid}: {code} · склад «{store}» · порог {threshold:g}"
+          + (f" · {supplier}" if supplier else "")
+          + f" — сейчас {stock if stock is not None else '—'} шт ({state})")
+
+
 def show():
     conn = db()
     cur = conn.cursor()
-    cur.execute("""SELECT ms_code, store, threshold, last_state, last_stock, active, note
-                     FROM stock_watch ORDER BY ms_code""")
-    print(f"{'код':9s}{'склад':18s}{'порог':>6s}{'сост.':>9s}{'ост.':>7s}  примечание")
-    for c, s, t, st, ls, a, n in cur.fetchall():
+    cur.execute("""SELECT ms_code, store, threshold, last_state, last_stock, active, note, supplier
+                     FROM stock_watch ORDER BY ms_code, store""")
+    print(f"{'код':9s}{'склад':13s}{'порог':>6s}{'сост.':>9s}{'ост.':>6s}  поставщик / примечание")
+    for c, s, t, st, ls, a, n, sup in cur.fetchall():
         flag = "" if a else "  (выключена)"
-        print(f"{c:9s}{s:18s}{t:6g}{st:>9s}{(str(ls) if ls is not None else '—'):>7s}  {n or ''}{flag}")
+        tail = " · ".join(x for x in (sup, n) if x)
+        print(f"{c:9s}{s:13s}{t:6g}{st:>9s}{(str(ls) if ls is not None else '—'):>6s}  {tail}{flag}")
     conn.close()
 
 
@@ -210,8 +252,16 @@ if __name__ == "__main__":
     ap.add_argument("--seed", action="store_true", help="завести 4 кода из записки 21.08")
     ap.add_argument("--list", action="store_true", help="показать подписки")
     ap.add_argument("--dry", action="store_true", help="прогон без отправки и без записи")
+    ap.add_argument("--add", metavar="КОД", help="завести подписку на ms_product.code")
+    ap.add_argument("--store", default="Удаленный склад", help="склад из supplier_stock")
+    ap.add_argument("--threshold", type=float, default=5,
+                    help="порог в штуках; 0 = сообщить, когда закончится")
+    ap.add_argument("--supplier", help="следить за товаром именно этого поставщика")
+    ap.add_argument("--note", help="примечание к подписке")
     a = ap.parse_args()
-    if a.seed:
+    if a.add:
+        add_watch(a.add, a.store, a.threshold, a.supplier, a.note)
+    elif a.seed:
         seed()
     elif a.list:
         show()

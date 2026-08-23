@@ -115,7 +115,7 @@ def parse_free(text, today=None):
 
 def add(event_date, title, kind="own", platform=None, account=None, details=None,
         expect=None, date_to=None, review_at=None, author=None, source="web",
-        scope_kind="all", scope_ref=None, dedup_key=None):
+        scope_kind="all", scope_ref=None, dedup_key=None, mark=None):
     """Запись в дневник. -> id или None, если событие с таким dedup_key уже есть."""
     if kind not in KINDS:
         raise ValueError(f"kind должен быть одним из {KINDS}, а не {kind!r}")
@@ -130,13 +130,13 @@ def add(event_date, title, kind="own", platform=None, account=None, details=None
     rows = db.query("""
         INSERT INTO biz_events (event_date, date_to, kind, platform, account,
                                 scope_kind, scope_ref, title, details, expect,
-                                review_at, author, source, dedup_key)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                review_at, author, source, dedup_key, mark)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ON CONFLICT (dedup_key) DO NOTHING
         RETURNING id
     """, (event_date or date.today(), date_to, kind, platform, account, scope_kind,
           scope_ref, str(title).strip()[:200], details, expect, review_at, author,
-          source, dedup_key))
+          source, dedup_key, mark))
     return rows[0]["id"] if rows else None
 
 
@@ -183,9 +183,12 @@ EDITABLE = ("event_date", "date_to", "platform", "account", "title",
 def update(event_id, **fields):
     """Правка события. -> обновлённая запись или None, если такой записи нет.
 
-    Править разрешаем ТОЛЬКО наши решения (`kind='own'`): события площадок собраны из их
-    новостей и переписываются сборщиком при `--reclassify`, ручная правка там потерялась бы
-    молча. Записи об остатках — тоже автоматика. Ошиблись в них — удалить и перезабрать.
+    Править разрешаем наши решения (`kind='own'`) и записки из бота (`source='dropbox'`).
+    Запрет касается только того, что переписывает автоматика: события площадок собраны из их
+    новостей и пересчитываются `--reclassify`, записи об остатках пишет сторож — ручная правка
+    там потерялась бы молча. Записку из бота не пересчитывает никто (её dedup_key — имя файла),
+    а править её надо чаще всего: человек пишет на бегу и потом уточняет (случай 23.08 —
+    «Чапаевск» оказался «Самара РФЦ»).
     """
     bad = set(fields) - set(EDITABLE)
     if bad:
@@ -196,11 +199,12 @@ def update(event_id, **fields):
         if not fields["title"] or not str(fields["title"]).strip():
             raise ValueError("у события должен быть заголовок")
         fields["title"] = str(fields["title"]).strip()[:200]
-    cur = db.query("SELECT kind FROM biz_events WHERE id = %s", (event_id,))
+    cur = db.query("SELECT kind, source FROM biz_events WHERE id = %s", (event_id,))
     if not cur:
         return None
-    if cur[0]["kind"] != "own":
-        raise ValueError("править можно только наши решения — событие площадки правке не подлежит")
+    if cur[0]["kind"] != "own" and cur[0]["source"] != "dropbox":
+        raise ValueError("править можно наши решения и записки из бота — "
+                         "событие площадки и запись сторожа правке не подлежат")
     if not fields:
         return db.query("SELECT * FROM biz_events WHERE id = %s", (event_id,))[0]
     sets = ", ".join(f"{k} = %s" for k in fields)
