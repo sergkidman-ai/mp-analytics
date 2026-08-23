@@ -310,6 +310,27 @@ def ya_code(offer_id):
     return m.group(1), int(m.group(2) or 1)
 
 
+def ya_verdict_prices(offer):
+    """Цены из params вердикта — для записей, у которых верхнеуровневых цен нет вовсе.
+
+    У вердикта LOW_PRICE Маркет не кладёт ни `currentPrice`, ни `lastValidPrice`: цена лежит
+    только внутри `verdicts[].params` (CURRENT_PRICE, MIN_PRICE). Без разбора params такая
+    карточка получала цену 0 и вердикт «НЕТ ЦЕНЫ» — то есть навсегда оставалась в карантине
+    (случай 2343, 23.08.2026). Берём ПОСЛЕДНИЙ вердикт: он свежее прочих.
+    """
+    cur = old = 0.0
+    for v in (offer.get("verdicts") or []):
+        pr = {p.get("name"): p.get("value") for p in (v.get("params") or [])}
+        for name, key in (("CURRENT_PRICE", "cur"), ("LAST_VALID_PRICE", "old"), ("MIN_PRICE", "old")):
+            if pr.get(name):
+                val = float(pr[name])
+                if key == "cur":
+                    cur = val
+                elif not old or name == "LAST_VALID_PRICE":
+                    old = val
+    return {"cur": cur, "old": old}
+
+
 # ─── экономика и вердикт ────────────────────────────────────────────────────────────────
 def verdict(price, cogs, ret):
     """(вердикт, прибыль ₽, пол ₽) для карантинной цены."""
@@ -531,10 +552,11 @@ def build():
 
     for o in ya_quarantine():
         code, pack = ya_code(o.get("offerId"))
+        vp = ya_verdict_prices(o)
         raw.append(dict(platform="ya", account="ya_acc1", id=o.get("offerId"), code=code or "",
                         pack=pack,
-                        price=float((o.get("currentPrice") or {}).get("value") or 0),
-                        old=float((o.get("lastValidPrice") or {}).get("value") or 0),
+                        price=float((o.get("currentPrice") or {}).get("value") or 0) or vp["cur"],
+                        old=float((o.get("lastValidPrice") or {}).get("value") or 0) or vp["old"],
                         reason=",".join(sorted({x.get("type") for x in (o.get("verdicts") or [])}))))
 
     tc = tc_cost({r["code"] for r in raw if r["code"]})               # один заход на все коды
