@@ -22,7 +22,7 @@ import subprocess
 # Манифест: домен → список regex путей (от корня репо). Первое совпадение = владелец.
 # Не перечисленное здесь — «общее» (core/db.py, CLAUDE.md, web/, docs/, разовые скрипты): НЕ флагуем.
 # Миграции делятся по БЛОКУ номера: 0xx = fin, 1xx = mkt, 2xx = inv, 3xx = ret, 4xx = prc,
-# 5xx = ev
+# 5xx = ev, 6xx = card
 # (резерв против коллизий).
 DOMAINS = {
     "fin": [
@@ -69,6 +69,14 @@ DOMAINS = {
         r"^core/ms_api\.py$",
         r"^migrations/4\d\d_.*\.sql$",
         r"^docs/BRIEF_PRC\.md$",
+    ],
+    # card = ЗДОРОВЬЕ КАРТОЧЕК на площадках: статусы модерации, «Ошибки»/«На доработку»,
+    # дожим упавших апдейтов ТК. Контент карточек не наш — его пишет ТК.
+    "card": [
+        r"^collectors/ozon_card_status\.py$",
+        r"^tools/(ozon_card_|card_)",
+        r"^migrations/6\d\d_.*\.sql$",
+        r"^docs/BRIEF_CARD\.md$",
     ],
 }
 
