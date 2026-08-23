@@ -526,6 +526,113 @@ def annotate_damage():
     print(f"склады ВБ: значок удара стоит у {len(own)} событий из {len(rows)}; обновлено {upd}")
 
 
+# Паузу склада ВБ закрывает следующая же новость: «СЦ «Воронеж СГТ» временно не принимает» в
+# 20:17 и «СЦ «Воронеж СГТ» возобновил работу» в 04:23. Это штатная остановка по воздушной
+# тревоге — людей вывели, товару ничего не сделалось, наших поставок туда нет. Правило Сергея
+# 23.08.2026: в ленте остаётся только то, что реально бьёт по бизнесу, а не всякая остановка.
+REOPEN_RE = re.compile(r"возобнов|снова\s+принима|снова\s+работа|снова\s+открыт", re.I)
+# Маркеры настоящего ЧП. Если склад горел или по нему прилетело — событие остаётся в ленте
+# даже после открытия: там наш товар мог сгореть, и это деньги (случай «Котовск», июль).
+DAMAGE_RE = re.compile(r"пожар|возгоран|бпла|беспилотн|дрон|атак|повреж|утрач|сгорел|обрушен|"
+                       r"чрезвычайн|\bмчс\b|подтоплен|затоплен", re.I)
+PAUSE_WINDOW_H = 72
+
+
+def _places(text):
+    """Склады из заголовка — они у ВБ всегда в «ёлочках»: «Воронеж СГТ», «Коледино»."""
+    return {p.strip().lower() for p in re.findall(r"«([^»]+)»", text or "")}
+
+
+def _wh_base(name):
+    """«Тула КГТ+» → «тула»: у ВБ один физический куст носит десяток имён-приставок."""
+    s = (name or "").lower().replace("\xa0", " ")
+    s = re.split(r"[:(]", s)[0]
+    s = re.sub(r"\b(сгт|кгт\+?|кгт|фбс|fbs|—?\s*питание|склад|сц|ск)\b", " ", s)
+    return re.sub(r"[^а-яёa-z0-9 ]+", " ", s).strip()
+
+
+def our_warehouses():
+    """Склады ВБ, где ЛЕЖИТ наш товар — по последнему снимку `wb_stocks`.
+
+    Зачем: «СЦ «Воронеж СГТ» не принимает товары» — новость для тех, у кого там товар.
+    У нас в Воронеже нет ни штуки, значит и события нет. Список берём из данных, а не руками:
+    товар переезжает по складам, а зашитый перечень протухает молча.
+    """
+    rows = db.query("""SELECT DISTINCT warehouse FROM wb_stocks
+                        WHERE captured_at = (SELECT max(captured_at) FROM wb_stocks)
+                          AND quantity > 0""")
+    return {b for b in (_wh_base(r["warehouse"]) for r in rows) if b}
+
+
+def close_pauses(dry=False, window_hours=PAUSE_WINDOW_H):
+    """Пауза склада, закрытая следующей новостью, — не событие дневника.
+
+    Ищем пары «склад приостановлен» → «склад возобновил работу» по одному и тому же складу
+    в окне 72 ч и решаем судьбу события:
+      • был удар или в тексте ЧП (пожар, БПЛА, повреждения) — событие ОСТАВЛЯЕМ и дописываем,
+        что склад открылся: висящий без развязки инцидент читается как незакрытая проблема;
+      • ничего не горело — новость гасим до `watch`, событие из дневника убираем совсем.
+
+    Считаем ДО `to_diary`: если пауза и открытие приехали одним прогоном (у ВБ обычная
+    картина — остановка вечером, открытие ночью), событие не заводится вовсе.
+    """
+    pauses = db.query("""SELECT platform, account, message_id, created_at, title, body, event_id
+                           FROM mp_notices
+                          WHERE matched = 'склад/ЧП' AND importance = 'alert'
+                          ORDER BY created_at""")
+    reopens = db.query("""SELECT platform, created_at, title FROM mp_notices
+                           WHERE title ~* 'возобнов|снова принима|снова работа'
+                           ORDER BY created_at""")
+    ours = our_warehouses()
+    dropped = closed = alien = 0
+    for p in pauses:
+        names = _places(p["title"])
+        if not names:
+            continue
+        ev = db.query("SELECT id, mark, details FROM biz_events WHERE id = %s",
+                      (p["event_id"],)) if p["event_id"] else []
+        damage = bool(DAMAGE_RE.search((p["title"] or "") + " " + (p["body"] or "")[:1500]))
+        hit = bool(ev and ev[0]["mark"])          # значок удара уже стоит — это наш убыток
+        # Чужой склад: нашего товара там нет и поставок туда мы не возим. Не новость —
+        # даже если склад стоит третий день (правило Сергея 23.08.2026).
+        if p["platform"] == "wb" and not damage and not hit \
+                and not any(_wh_base(n) and _wh_base(n) in ours for n in names):
+            alien += 1
+            if not dry:
+                _drop_pause(p, ev, "склад не наш (товара там нет)")
+            continue
+        end = p["created_at"] + timedelta(hours=window_hours)
+        back = next((r for r in reopens
+                     if r["platform"] == p["platform"]
+                     and p["created_at"] < r["created_at"] <= end
+                     and names & _places(r["title"])), None)
+        if not back:
+            continue
+        if damage or hit:
+            line = f"✅ Закрыто {back['created_at']:%d.%m %H:%M}: {back['title']}"
+            if ev and line[:12] not in (ev[0]["details"] or ""):
+                closed += 1
+                if not dry:
+                    db.execute("UPDATE biz_events SET details = %s WHERE id = %s",
+                               ((ev[0]["details"] or "").rstrip() + "\n\n" + line, ev[0]["id"]))
+            continue
+        dropped += 1
+        if not dry:
+            _drop_pause(p, ev, "штатная пауза склада (открыт снова)")
+    print(f"паузы складов: погашено {dropped} (открылись), {alien} (склад не наш), "
+          f"закрыто пометкой {closed}" + (" (сухой прогон)" if dry else ""))
+    return dropped + alien, closed
+
+
+def _drop_pause(p, ev, why):
+    """Новость гасим до watch (сырьё остаётся), событие из дневника убираем."""
+    db.execute("""UPDATE mp_notices SET importance = 'watch', matched = %s, event_id = NULL
+                   WHERE platform=%s AND account=%s AND message_id=%s""",
+               (why, p["platform"], p["account"], p["message_id"]))
+    if ev:
+        biz_diary.delete(ev[0]["id"])
+
+
 def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
     """Только ALERT из сырья -> дневник (kind='mp'). Идемпотентно по dedup_key.
 
@@ -642,6 +749,8 @@ def main(argv=None):
     ap.add_argument("--diary-days", type=int, default=14,
                     help="за сколько дней тревоги заводить в дневник (сырьё копится глубже)")
     ap.add_argument("--reclassify", action="store_true", help="пересчитать важность по сырью")
+    ap.add_argument("--close-pauses", action="store_true",
+                    help="погасить паузы складов, закрытые следующей новостью")
     ap.add_argument("--wh-damage", action="store_true",
                     help="проставить статус складов ВБ (уничтожен/повреждён) в событиях дневника")
     ap.add_argument("--platform", choices=PLATFORMS, help="только одна площадка")
@@ -655,6 +764,10 @@ def main(argv=None):
 
     if args.reclassify:
         reclassify()
+        return 0
+
+    if args.close_pauses:
+        close_pauses(dry=args.dry)
         return 0
 
     if args.wh_damage:
@@ -690,6 +803,10 @@ def main(argv=None):
     # текстом, который потом пришлось бы переписывать.
     if args.digest and not args.dry:
         digest.run(days=args.diary_days, dry=False)
+
+    # Сначала гасим паузы, закрытые следующей новостью, потом заводим события: иначе в ленту
+    # успевает попасть остановка склада, которую тот же прогон уже видит закрытой.
+    close_pauses(dry=args.dry)
 
     added = to_diary(dry=args.dry, since_days=args.diary_days,
                      platform=args.platform, only_rule=args.diary_rule)

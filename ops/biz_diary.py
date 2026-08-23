@@ -213,6 +213,27 @@ def update(event_id, **fields):
     return rows[0] if rows else None
 
 
+def resolve(event_id, result, mark="✅"):
+    """Задача из записки выполнена — в дневнике вместо задачи стоит РЕЗУЛЬТАТ.
+
+    Правило Сергея 23.08.2026. Записка человека часто приходит как «событие + поручение»
+    («по Оренбургу удар БПЛА — посмотри, что у нас там»). Если оставить в ленте текст
+    поручения, на главной висит задача, по которой не видно, сделана она или нет, — и через
+    неделю никто уже не помнит. Поэтому: поручение выполняем сразу, а текст события заменяем
+    на ответ («нашего товара на складе нет»). Значок 📥 («из бота, не разобрано») меняется
+    на ✅ — видно, что вопрос закрыт, и лента остаётся лентой событий, а не списком дел.
+
+    Заменяем, а не дописываем: две версии текста (задача + ответ) читаются дольше, чем ответ,
+    и заставляют человека решать, актуальна ли ещё первая. Исходная записка не теряется —
+    она лежит файлом в dropbox и ключом `dedup_key`.
+    """
+    if not result or not str(result).strip():
+        raise ValueError("результат не может быть пустым — иначе задача просто исчезнет")
+    rows = db.query("UPDATE biz_events SET details = %s, mark = %s WHERE id = %s RETURNING *",
+                    (str(result).strip(), mark, event_id))
+    return rows[0] if rows else None
+
+
 def delete(event_id):
     return db.query("DELETE FROM biz_events WHERE id = %s RETURNING id", (event_id,))
 
@@ -270,7 +291,17 @@ def main(argv=None):
     ap.add_argument("--list", action="store_true", help="показать последние записи")
     ap.add_argument("--seed", action="store_true", help="завести события из записки Натальи")
     ap.add_argument("--limit", type=int, default=20)
+    ap.add_argument("--resolve", type=int, metavar="ID", help="закрыть задачу события результатом")
+    ap.add_argument("--result", metavar="ТЕКСТ", help="текст результата для --resolve")
     args = ap.parse_args(argv)
+
+    if args.resolve:
+        if not args.result:
+            print("нужен --result: чем закончилась задача")
+            return 1
+        row = resolve(args.resolve, args.result)
+        print(f"#{args.resolve}: результат записан" if row else f"#{args.resolve} не найдено")
+        return 0
 
     if args.seed:
         seed()
