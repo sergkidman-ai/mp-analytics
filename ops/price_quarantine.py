@@ -6,9 +6,8 @@
 в карантин цен (WB — цена со скидкой втрое ниже прежней, Маркет — вердикты PRICE_CHANGE /
 LOW_PRICE, Ozon — свыше ~50 %). Пока товар в карантине, он не продаётся по новой цене.
 
-Скрипт читает карантин по API, подставляет себестоимость ТЕКУЩЕГО остатка из МойСклада и
-считает, остаётся ли после удержаний площадки прибыль выше пола. Без `--apply` на площадки
-ничего не пишет.
+Скрипт читает карантин по API, подставляет себестоимость и считает, остаётся ли после
+удержаний площадки прибыль выше пола. Без `--apply` на площадки ничего не пишет.
 
 Выпуск (`--apply`) по вердикту ОК:
   * Маркет — штатный метод price-quarantine/confirm (пачками до 200 offerId);
@@ -20,8 +19,13 @@ LOW_PRICE, Ozon — свыше ~50 %). Пока товар в карантине
 
 Правила (решения Сергея 23.08.2026):
   * удержания площадки — ОДНИМ числом из витрин «Отчёты МП» за последний закрытый месяц;
-  * себест — из остатка: Звездный → Цифровой, Дисквер → Дисквэр, Удаленный склад → общий;
-  * остатка нет нигде → товар остаётся в карантине (цена из ТК по нему и не считалась);
+  * себест — ЖИВАЯ ЗАКУПКА ТК (`/api/catalog/best`), потому что именно от неё платформа
+    считает цену продажи: сверять её цену с другой базой — сравнивать разные величины
+    (решение Сергея 23.08.2026, случай кода 3060: у ТК 113 ₽, средневзвешенная по остатку
+    МС 1978 ₽ — семь поставщиков от 105 до 2844 ₽, цена ТК посчитана от дешёвой строки);
+  * нет цены у ТК → фолбэк на остаток МойСклада: Звездный → Цифровой, Дисквер → Дисквэр,
+    Удаленный склад → общий;
+  * нет ни цены ТК, ни остатка → товар остаётся в карантине;
   * пол прибыли = 10 % от цены продажи. Абсолютные 300 ₽ отменены Сергеем 23.08.2026: они
     связывали только дешёвый товар (10 % от 3000 ₽ и есть 300 ₽), и такие карточки навсегда
     оставались бы в карантине — товар за 460 ₽ при удержаниях 55 % трёхсот рублей не даст.
@@ -48,6 +52,8 @@ from collectors.wb_prices import _token as wb_token               # noqa: E402
 
 WB_API = "https://discounts-prices-api.wildberries.ru"
 YA_API = "https://api.partner.market.yandex.ru"
+TC_API = "https://thecartridge.ru/api/catalog/best"
+TC_BATCH = 100                    # жёсткий потолок платформы: 101 код → HTTP 422
 STORE_OF_ACC = {"acc1": "Звездный", "acc2": "Дисквер"}
 COMMON_STORE = "Удаленный склад"
 FLOOR_PCT = 0.10                  # пол прибыли = 10 % цены продажи (абсолютный пол отменён)
@@ -120,7 +126,7 @@ def cost_map():
 
 
 def cost_for(code, acc, cm):
-    """Себест единицы по правилу «свой склад → общий склад поставщика»."""
+    """Фолбэк-себест из остатка МС: «свой склад → общий склад поставщика»."""
     stores = cm.get(code)
     if not stores:
         return None, None
@@ -130,6 +136,68 @@ def cost_for(code, acc, cm):
     if COMMON_STORE in stores:
         return stores[COMMON_STORE], COMMON_STORE
     return None, None
+
+
+def _tc_ask(codes):
+    """{external_code: закупка ТК} — та самая база, от которой платформа считает цену продажи.
+
+    Батч 100 (жёстко). Неизвестный платформе код валит ВЕСЬ батч 422 с перечнем позиций
+    `external_codes.<индекс>` — такие выкидываем и переспрашиваем остаток.
+    `buy_price <= 0` = цены нет (ноля в прайсе не существует, это сбой выдачи).
+    """
+    key = os.getenv("CARTRIDGE_API_KEY")
+    out = {}
+    if not key or not codes:
+        return out
+    todo = [list(codes)[i:i + TC_BATCH] for i in range(0, len(codes), TC_BATCH)]
+    while todo:
+        batch = todo.pop()
+        for _ in range(3):
+            r = requests.post(TC_API, headers={"Api-Key": key},
+                              json={"external_codes": batch}, timeout=60)
+            if r.status_code == 422:
+                bad = {int(m.group(1)) for m in
+                       (re.match(r"external_codes\.(\d+)$", k) for k in (r.json().get("errors") or {}))
+                       if m}
+                batch = [c for i, c in enumerate(batch) if i not in bad]
+                if not batch:
+                    break
+                continue
+            if r.status_code == 429:
+                time.sleep(8)
+                continue
+            r.raise_for_status()
+            for code, v in (r.json() or {}).items():
+                p = (v or {}).get("buy_price")
+                if p is not None and float(p) > 0:
+                    out[code] = float(p)
+            break
+    return out
+
+
+def tc_cost(codes):
+    """(точные цены ТК по коду, приблизительные по 4-значному префиксу кода товара).
+
+    Артикул площадки часто = «<4 цифры кода товара><вариант>» (15301, 153010): такого кода
+    платформа не знает, но знает базовый 1530 — тот же префиксный мост, что в margin_control.
+    Цена варианта цвета может отличаться от базовой, поэтому источник помечается отдельно.
+    """
+    exact = _tc_ask(codes)
+    left = {c for c in codes if c not in exact and re.match(r"^\d{4}", c)}
+    approx = _tc_ask({c[:4] for c in left})
+    return exact, approx
+
+
+def cogs_unit(code, acc, cm, tc):
+    """Себест единицы: закупка ТК → её же по префиксу кода → остаток МойСклада."""
+    exact, approx = tc
+    if not code:
+        return None, None
+    if code in exact:
+        return exact[code], "ТК"
+    if code[:4] in approx:
+        return approx[code[:4]], "ТК≈"
+    return cost_for(code, acc, cm)
 
 
 # ─── карантин по площадкам ──────────────────────────────────────────────────────────────
@@ -181,7 +249,7 @@ def verdict(price, cogs, ret):
     if not price:
         return "НЕТ ЦЕНЫ", None, None      # площадка держит карточку без цены — считать нечего
     if cogs is None:
-        return "НЕТ ОСТАТКА", None, None
+        return "НЕТ СЕБЕСТА", None, None   # ни закупки у ТК, ни остатка в МС
     net = price * (1 - ret) - cogs
     floor = price * FLOOR_PCT
     return ("ОК" if net >= floor else "СТОП"), net, floor
@@ -348,7 +416,15 @@ def targets_save(t):
 
 
 def apply_ok(rows):
-    """Выпустить из карантина всё, что прошло проверку по марже."""
+    """Выпустить из карантина всё, что прошло проверку по марже.
+
+    Себест «ТК≈» (по префиксу кода товара, а не по самому артикулу) автоматом не выпускаем:
+    у варианта цвета своя закупка, занижение себеста здесь = выпуск убыточной цены.
+    """
+    skipped = [r for r in rows if r["verdict"] == "ОК" and r["cost_src"] == "ТК≈"]
+    rows = [r for r in rows if r["cost_src"] != "ТК≈"]
+    if skipped:
+        print(f"приблизительный себест (ТК≈) — не выпускаю без решения: {len(skipped)} поз.")
     log = []
     ya = [r["id"] for r in rows if r["platform"] == "ya" and r["verdict"] == "ОК"]
     if ya:
@@ -384,39 +460,38 @@ def build():
     ret, month = retention()
     cm = cost_map()
     wb_vc = {r["nm_id"]: r["vendor_code"] for r in db.query("SELECT nm_id, vendor_code FROM wb_price")}
-    rows = []
+    raw = []
 
     for acc in ("wb_acc1", "wb_acc2"):
         for g in wb_quarantine(acc):
-            price = float(g["newPrice"]) * (1 - float(g.get("newDiscount") or 0) / 100)
-            old = float(g["oldPrice"]) * (1 - float(g.get("oldDiscount") or 0) / 100)
-            code = wb_vc.get(g["nmID"])
-            cogs, store = cost_for(code, acc, cm) if code else (None, None)
-            v, net, floor = verdict(price, cogs, ret[acc])
-            rows.append(dict(platform="wb", account=acc, id=g["nmID"], code=code or "",
-                             pack=1, price_new=round(price, 2), price_old=round(old, 2),
-                             cogs=round(cogs, 2) if cogs else None, store=store or "",
-                             retention_pct=round(ret[acc] * 100, 1),
-                             net=round(net, 2) if net is not None else None,
-                             floor=round(floor, 2) if floor is not None else None,
-                             verdict=v, reason=""))
+            raw.append(dict(platform="wb", account=acc, id=g["nmID"], code=wb_vc.get(g["nmID"]) or "",
+                            pack=1,
+                            price=float(g["newPrice"]) * (1 - float(g.get("newDiscount") or 0) / 100),
+                            old=float(g["oldPrice"]) * (1 - float(g.get("oldDiscount") or 0) / 100),
+                            reason=""))
 
     for o in ya_quarantine():
-        acc = "ya_acc1"
-        price = float((o.get("currentPrice") or {}).get("value") or 0)
-        old = float((o.get("lastValidPrice") or {}).get("value") or 0)
         code, pack = ya_code(o.get("offerId"))
-        unit, store = cost_for(code, acc, cm) if code else (None, None)
-        cogs = unit * pack if unit is not None else None
-        v, net, floor = verdict(price, cogs, ret[acc])
-        rows.append(dict(platform="ya", account=acc, id=o.get("offerId"), code=code or "",
-                         pack=pack, price_new=round(price, 2), price_old=round(old, 2),
-                         cogs=round(cogs, 2) if cogs else None, store=store or "",
-                         retention_pct=round(ret[acc] * 100, 1),
+        raw.append(dict(platform="ya", account="ya_acc1", id=o.get("offerId"), code=code or "",
+                        pack=pack,
+                        price=float((o.get("currentPrice") or {}).get("value") or 0),
+                        old=float((o.get("lastValidPrice") or {}).get("value") or 0),
+                        reason=",".join(sorted({x.get("type") for x in (o.get("verdicts") or [])}))))
+
+    tc = tc_cost({r["code"] for r in raw if r["code"]})               # один заход на все коды
+
+    rows = []
+    for r in raw:
+        unit, src = cogs_unit(r["code"], r["account"], cm, tc)
+        cogs = unit * r["pack"] if unit is not None else None
+        v, net, floor = verdict(r["price"], cogs, ret[r["account"]])
+        rows.append(dict(platform=r["platform"], account=r["account"], id=r["id"], code=r["code"],
+                         pack=r["pack"], price_new=round(r["price"], 2), price_old=round(r["old"], 2),
+                         cogs=round(cogs, 2) if cogs else None, cost_src=src or "",
+                         retention_pct=round(ret[r["account"]] * 100, 1),
                          net=round(net, 2) if net is not None else None,
                          floor=round(floor, 2) if floor is not None else None,
-                         verdict=v,
-                         reason=",".join(sorted({x.get("type") for x in (o.get("verdicts") or [])}))))
+                         verdict=v, reason=r["reason"]))
     return rows, month
 
 
@@ -436,11 +511,11 @@ def main():
         w.writerows(rows)
 
     print(f"Карантин цен на {day} (удержания — по месяцу «{month}»)")
-    print(f"{'площадка':10} {'всего':>6} {'ОК':>5} {'СТОП':>6} {'нет остатка':>12}")
+    print(f"{'площадка':10} {'всего':>6} {'ОК':>5} {'СТОП':>6} {'нет себеста':>12}")
     for acc in sorted({r["account"] for r in rows}):
         s = [r for r in rows if r["account"] == acc]
         c = lambda v: sum(1 for r in s if r["verdict"] == v)          # noqa: E731
-        print(f"{acc:10} {len(s):6} {c('ОК'):5} {c('СТОП'):6} {c('НЕТ ОСТАТКА') + c('НЕТ ЦЕНЫ'):12}")
+        print(f"{acc:10} {len(s):6} {c('ОК'):5} {c('СТОП'):6} {c('НЕТ СЕБЕСТА') + c('НЕТ ЦЕНЫ'):12}")
     stop = [r for r in rows if r["verdict"] == "СТОП"]
     if stop:
         loss = sum(r["floor"] - r["net"] for r in stop)
