@@ -427,20 +427,27 @@ def _log(account, aid, title, p, ok, note):
                 p["stock"], p.get("rung"), ok, note))
 
 
-def apply_plan(account, plans, dry=True, allow_remove=False):
+def apply_plan(account, plans, dry=True, allow_remove=False, only_remove=False):
     """add/update — через activate (тот же метод переустанавливает цену), remove — deactivate.
 
     Снятие с акции трогает то, что человек уже завёл руками, поэтому требует allow_remove.
+
+    only_remove — «подметание»: ходим на площадку ТОЛЬКО снимать. Нужно из-за того, что в
+    региональные акции («Акция для складов. <регион>») Ozon добавляет товары САМ, на своё
+    усмотрение, и делает это ночью: наши снятия к утру отыграны обратно, наши заводы выкинуты
+    (подтверждено 23.08.2026 — те же 26 позиций acc1 сняты два дня подряд). Отключить
+    автодобавление нельзя, единственный наш рычаг — снятие. Поэтому состав правим часто и
+    дёшево (только снятие, цены не трогаем), а полный прогон с лестницей — раз в сутки.
     """
     done = {"add": 0, "update": 0, "remove": 0}
     today = dt.date.today()
     for aid in sorted({p["action_id"] for p in plans}):
         part = [p for p in plans if p["action_id"] == aid]
         title = part[0]["action_title"]
-        put = [p for p in part if p["mode"] in ("add", "update")]
+        put = [] if only_remove else [p for p in part if p["mode"] in ("add", "update")]
         rm = [p for p in part if p["mode"] == "remove"] if allow_remove else []
         if dry:
-            for m in ("add", "update", "remove"):
+            for m in (("remove",) if only_remove else ("add", "update", "remove")):
                 n = sum(1 for p in part if p["mode"] == m)
                 if n:
                     print(f"  [dry] {title}: {m} {n} шт", flush=True)
@@ -570,6 +577,8 @@ def main():
     ap.add_argument("--csv", help="файл с построчным расчётом")
     ap.add_argument("--allow-remove", action="store_true",
                     help="разрешить снятие с акции того, что уже заведено (цена ниже порога)")
+    ap.add_argument("--only-remove", action="store_true",
+                    help="подметание: только снимать (Ozon сам добавляет товары в региональные акции)")
     a = ap.parse_args()
     accs = [a.account] if a.account else ACCOUNTS
     rows = ["account;action;offer_id;название;потолок;пол;себест;источник;остаток;мин;цена;ступень;решение"]
@@ -582,7 +591,8 @@ def main():
         if not acts:
             print("  белых акций нет", flush=True)
             continue
-        done = apply_plan(acc, plans, dry=(a.cmd == "plan"), allow_remove=a.allow_remove)
+        done = apply_plan(acc, plans, dry=(a.cmd == "plan"),
+                          allow_remove=a.allow_remove or a.only_remove, only_remove=a.only_remove)
         for p in plans:
             rows.append(";".join(str(x) for x in [
                 acc, p["action_title"], p.get("offer_id"), p.get("name"), f"{p['cap']:.0f}",
