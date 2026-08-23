@@ -35,7 +35,11 @@ app.include_router(wh_loss_router)
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return (STATIC / "home.html").read_text(encoding="utf-8")
+    # Без no-cache браузер держит главную из своего кэша и после деплоя показывает старую
+    # вёрстку (23.08.2026: правки в ленте событий не были видны, пока не нажали Ctrl+F5).
+    # Страница собирается за миллисекунды и данные всё равно тянет запросами — кэшировать нечего.
+    return HTMLResponse((STATIC / "home.html").read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-cache, must-revalidate"})
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
