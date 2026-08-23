@@ -25,6 +25,8 @@ LOW_PRICE, Ozon — свыше ~50 %). Пока товар в карантине
     МС 1978 ₽ — семь поставщиков от 105 до 2844 ₽, цена ТК посчитана от дешёвой строки);
   * производные карточки («15301», «153010» и прочие 1530***) — тот же товар, что базовый
     4-значный код: себест берём равным себесту 1530 (решение Сергея 23.08.2026);
+  * карточка-набор (3241 = 3237+3238+3239+3240) — себест равен СУММЕ живых закупок ТК
+    по каждому компоненту из справочника наборов; неполный состав не считаем вовсе;
   * нет цены у ТК → фолбэк на остаток МойСклада: Звездный → Цифровой, Дисквер → Дисквэр,
     Удаленный склад → общий;
   * нет ни цены ТК, ни остатка → товар остаётся в карантине;
@@ -56,6 +58,7 @@ WB_API = "https://discounts-prices-api.wildberries.ru"
 YA_API = "https://api.partner.market.yandex.ru"
 TC_API = "https://thecartridge.ru/api/catalog/best"
 TC_BATCH = 100                    # жёсткий потолок платформы: 101 код → HTTP 422
+MIX_API = "https://thecartridge.ru/api/catalog/mix_data"   # состав набора
 STORE_OF_ACC = {"acc1": "Звездный", "acc2": "Дисквер"}
 COMMON_STORE = "Удаленный склад"
 FLOOR_PCT = 0.10                  # пол прибыли = 10 % цены продажи (абсолютный пол отменён)
@@ -177,30 +180,86 @@ def _tc_ask(codes):
     return out
 
 
+def code_variants(code):
+    """Код как на площадке и он же без ведущих нулей — какой из них знает ТК, зависит от карточки."""
+    v = [code]
+    bare = code.lstrip("0")
+    if bare and bare != code:
+        v.append(bare)
+    return v
+
+
+def set_components(codes):
+    """{код набора: [внешние коды компонентов]} — справочник состава наборов.
+
+    Сначала кэш коллектора (таблица `set_cost`, её ведёт collectors/set_cost.py), затем добор
+    живым `mix_data` по кодам, которых в кэше нет: карточка-набор могла появиться позже
+    ночного прогона. Простой артикул платформа отдаёт как {"error": "not_mix"}.
+    """
+    keys = set(codes) | {c[:4] for c in codes if re.match(r"^\d{4}", c)}
+    out = {r["external_code"]: [str(x) for x in (r["components"] or [])]
+           for r in db.query("SELECT external_code, components FROM set_cost "
+                             "WHERE components IS NOT NULL AND external_code = ANY(%s)",
+                             (list(keys),))}
+    key = os.getenv("CARTRIDGE_API_KEY")
+    for c in sorted(keys - set(out)) if key else []:
+        try:
+            r = requests.post(MIX_API, headers={"Api-Key": key},
+                              json={"external_code": c}, timeout=30)
+            d = r.json() if r.status_code == 200 else None
+        except Exception:
+            d = None
+        if isinstance(d, list) and d:
+            out[c] = [str(x) for x in d]
+    return {k: v for k, v in out.items() if v}
+
+
 def tc_cost(codes):
-    """(цены ТК по самому коду, цены ТК по базовому 4-значному коду).
+    """(цены ТК по самому коду, по базовому 4-значному коду, по составу набора).
 
     Артикул площадки часто = «<4 цифры базового кода><вариант>» (15301, 153010): платформа
     такого кода не знает, знает базовый 1530. Производные карточки — тот же товар, себест
     у них равен себесту базового кода (решение Сергея 23.08.2026); тот же префиксный мост,
     что в margin_control. В отчёте помечается «ТК-база», чтобы было видно происхождение.
+
+    Набор — одна карточка площадки из нескольких товаров (3241 = 3237+3238+3239+3240):
+    своей закупки у ТК на такой код нет, себест собирается ПО КОМПОНЕНТАМ, по живой закупке
+    каждого (задача Сергея 23.08.2026). Неполный состав (хоть у одного компонента цены нет)
+    не берём вовсе — сумма вышла бы заниженной, а заниженный себест выпускает товар в минус.
     """
+    codes = {v for c in codes for v in code_variants(c)}
     exact = _tc_ask(codes)
     left = {c for c in codes if c not in exact and re.match(r"^\d{4}", c)}
     approx = _tc_ask({c[:4] for c in left})
-    return exact, approx
+    comps = set_components({c for c in left if c[:4] not in approx})
+    parts = _tc_ask({x for v in comps.values() for x in v})
+    sets = {k: sum(parts[x] for x in v) for k, v in comps.items() if all(x in parts for x in v)}
+    return exact, approx, sets
 
 
 def cogs_unit(code, acc, cm, tc):
-    """Себест единицы: закупка ТК → закупка базового кода → остаток МойСклада."""
-    exact, base = tc
+    """Себест единицы: закупка ТК → закупка базового кода → сумма состава набора → остаток МС.
+
+    Каждый шаг пробуется на обоих написаниях кода (с ведущим нулём и без).
+    """
+    exact, base, sets = tc
     if not code:
         return None, None
-    if code in exact:
-        return exact[code], "ТК"
-    if code[:4] in base:
-        return base[code[:4]], "ТК-база"
-    return cost_for(code, acc, cm)
+    for c in code_variants(code):
+        if c in exact:
+            return exact[c], "ТК"
+    for c in code_variants(code):
+        if c[:4] in base:
+            return base[c[:4]], "ТК-база"
+        if c in sets:
+            return sets[c], "ТК-набор"
+        if c[:4] in sets:
+            return sets[c[:4]], "ТК-набор"
+    for c in code_variants(code):
+        unit, src = cost_for(c, acc, cm)
+        if unit is not None:
+            return unit, src
+    return None, None
 
 
 # ─── карантин по площадкам ──────────────────────────────────────────────────────────────
@@ -239,11 +298,16 @@ YA_OFFER = re.compile(r"^(\d+)(?:X(\d+))?$")
 
 
 def ya_code(offer_id):
-    """offerId Маркета → (внешний код МС, штук в комплекте). '0123X2' → ('123', 2)."""
+    """offerId Маркета → (внешний код МС, штук в комплекте). '0123X2' → ('0123', 2).
+
+    Ведущий ноль ЗНАЧАЩИЙ: внешний код в МС и у ТК — ровно «0123», кода «123» они не знают
+    (23.08.2026 срезанный ноль оставил 35 карточек Маркета без себеста). Вариант без нуля
+    остаётся запасным — см. code_variants.
+    """
     m = YA_OFFER.match(offer_id or "")
     if not m:
         return None, 1
-    return str(int(m.group(1))), int(m.group(2) or 1)
+    return m.group(1), int(m.group(2) or 1)
 
 
 # ─── экономика и вердикт ────────────────────────────────────────────────────────────────
