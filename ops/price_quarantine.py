@@ -7,14 +7,24 @@
 LOW_PRICE, Ozon — свыше ~50 %). Пока товар в карантине, он не продаётся по новой цене.
 
 Скрипт читает карантин по API, подставляет себестоимость ТЕКУЩЕГО остатка из МойСклада и
-считает, остаётся ли после удержаний площадки прибыль выше пола. Ничего не пишет на площадки:
-`--apply` только для тех площадок, где выпуск возможен по API (пока Маркет).
+считает, остаётся ли после удержаний площадки прибыль выше пола. Без `--apply` на площадки
+ничего не пишет.
+
+Выпуск (`--apply`) по вердикту ОК:
+  * Маркет — штатный метод price-quarantine/confirm (пачками до 200 offerId);
+  * WB — метода выпуска у API нет: карантин снимается ЛЕСТНИЦЕЙ — цена опускается шагами,
+    каждый из которых меньше порога площадки, до целевой цены ТК. Проверено 23.08.2026 на
+    nmID 209727462: перезалив ТОЙ ЖЕ цены отбивается («New price is several times lower…»),
+    а три шага 12906 → 10970 → 9324 → 8363 прошли и вывели карточку из карантина.
+    Шаг адаптивный: пробуем 25 %, на отказе повторяем 15 % (−15 % проверено практикой).
 
 Правила (решения Сергея 23.08.2026):
   * удержания площадки — ОДНИМ числом из витрин «Отчёты МП» за последний закрытый месяц;
   * себест — из остатка: Звездный → Цифровой, Дисквер → Дисквэр, Удаленный склад → общий;
   * остатка нет нигде → товар остаётся в карантине (цена из ТК по нему и не считалась);
-  * пол прибыли = max(10 % от цены продажи, 300 ₽).
+  * пол прибыли = 10 % от цены продажи. Абсолютные 300 ₽ отменены Сергеем 23.08.2026: они
+    связывали только дешёвый товар (10 % от 3000 ₽ и есть 300 ₽), и такие карточки навсегда
+    оставались бы в карантине — товар за 460 ₽ при удержаниях 55 % трёхсот рублей не даст.
 
 Запуск:  ./venv/bin/python ops/price_quarantine.py [--apply]
 """
@@ -25,6 +35,7 @@ import csv
 import json
 import pathlib
 import datetime
+import time
 import argparse
 import requests
 
@@ -39,7 +50,10 @@ WB_API = "https://discounts-prices-api.wildberries.ru"
 YA_API = "https://api.partner.market.yandex.ru"
 STORE_OF_ACC = {"acc1": "Звездный", "acc2": "Дисквер"}
 COMMON_STORE = "Удаленный склад"
-FLOOR_PCT, FLOOR_ABS = 0.10, 300.0
+FLOOR_PCT = 0.10                  # пол прибыли = 10 % цены продажи (абсолютный пол отменён)
+WB_STEPS = (0.20, 0.15, 0.10)     # шаги лестницы WB: крупный → на отказе мельче (−25 % отбит,
+WB_MAX_STEPS = 15                 #                    −15 % проверен практикой 23.08.2026)
+WB_PACE = 0.8                     # лимит WB — 10 запросов / 6 с на эндпоинт
 HIST = BASE_DIR / "reports" / "data"
 
 
@@ -169,8 +183,201 @@ def verdict(price, cogs, ret):
     if cogs is None:
         return "НЕТ ОСТАТКА", None, None
     net = price * (1 - ret) - cogs
-    floor = max(price * FLOOR_PCT, FLOOR_ABS)
+    floor = price * FLOOR_PCT
     return ("ОК" if net >= floor else "СТОП"), net, floor
+
+
+# ─── выпуск из карантина ────────────────────────────────────────────────────────────────
+def _wb_h(acc):
+    return {"Authorization": wb_token(acc), "Content-Type": "application/json"}
+
+
+def _wb_get(acc, path, params):
+    """GET с пейсингом и отступом на 429 — лимит WB общий на эндпоинт."""
+    for attempt in range(5):
+        time.sleep(WB_PACE)
+        r = requests.get(f"{WB_API}{path}", headers=_wb_h(acc), params=params, timeout=60)
+        if r.status_code != 429:
+            r.raise_for_status()
+            return r.json()
+        time.sleep(2 ** attempt * 3)
+    r.raise_for_status()
+
+
+def wb_current(acc, nm):
+    """Текущая цена карточки на WB: (база, скидка %, цена покупателю) или None."""
+    g = ((_wb_get(acc, "/api/v2/list/goods/filter",
+                  {"filterNmID": nm, "limit": 10}).get("data") or {}).get("listGoods") or [])
+    if not g:
+        return None
+    sz = (g[0].get("sizes") or [{}])[0]
+    return (float(sz.get("price") or 0), float(g[0].get("discount") or 0),
+            float(sz.get("discountedPrice") or 0))
+
+
+def wb_push(acc, nm, price):
+    """Отправить цену и дождаться вердикта задачи. → (ok, текст ошибки)."""
+    r = requests.post(f"{WB_API}/api/v2/upload/task", headers=_wb_h(acc),
+                      json={"data": [{"nmID": int(nm), "price": int(price), "discount": 0}]},
+                      timeout=60)
+    if r.status_code >= 400:
+        return False, f"HTTP {r.status_code} {r.text[:200]}"
+    uid = (r.json().get("data") or {}).get("id")
+    if not uid:
+        return False, f"нет uploadID: {r.text[:200]}"
+    err = "вердикта задачи не дождались"
+    for _ in range(12):                                   # задача обрабатывается асинхронно
+        time.sleep(3)
+        try:
+            d = _wb_get(acc, "/api/v2/history/tasks", {"uploadID": uid}).get("data") or {}
+        except Exception as e:                            # сеть/лимит — просто ещё раз
+            err = str(e)[:120]
+            continue
+        if isinstance(d, list):                           # у WB здесь ОБЪЕКТ, но подстрахуемся
+            d = d[0] if d else {}
+        st = d.get("status")
+        if st in (1, 2):                                  # в очереди / в работе
+            continue
+        if (d.get("successGoodsNumber") or 0) > 0:
+            return True, ""
+        return False, f"status={st} {_wb_task_err(acc, uid)}".strip()
+    return False, err
+
+
+def _wb_task_err(acc, uid):
+    """Текст ошибки по товарам задачи (у WB он лежит отдельным методом)."""
+    try:
+        it = ((_wb_get(acc, "/api/v2/history/goods/task",
+                       {"uploadID": uid, "limit": 10}).get("data") or {}).get("historyGoods") or [])
+        return (it[0].get("errorText") or "") if it else ""
+    except Exception:
+        return ""
+
+
+def wb_release(acc, nm, target, log, state):
+    """Лестница к целевой цене ТК. → (итог, шагов, конечная цена покупателю).
+
+    Направление берём по факту: в карантин сажает и падение, и рост цены. Промежуточные
+    ступени всегда между старой и целевой ценой, поэтому по дороге товар не продаётся
+    дешевле цели (при падении) и не дороже её (при росте).
+
+    Прошла ступень или нет — решает ПЕРЕЧИТКА цены карточки, а не вердикт задачи: вердикт
+    приходит асинхронно и его формат уже один раз подвёл. Размер шага `state` общий на прогон,
+    чтобы отбитый крупный шаг стоил одного отказа на все карточки, а не на каждую.
+    """
+    cur = wb_current(acc, nm)
+    if not cur:
+        return "НЕ НАЙДЕН", 0, None
+    buyer = cur[2] or cur[0]
+    steps = 0
+    while abs(buyer - target) > target * 0.005 and steps < WB_MAX_STEPS:
+        down = buyer > target
+        k = WB_STEPS[state["i"]]
+        nxt = max(target, buyer * (1 - k)) if down else min(target, buyer * (1 + k))
+        if abs(nxt - target) < 1:
+            nxt = int(round(target))                      # финальная ступень — ровно цена ТК
+        else:
+            nxt = int(nxt + 0.999) if down else int(nxt)  # промежуточную округляем в свою пользу
+        if down and nxt >= int(buyer):
+            nxt = int(buyer) - 1                          # цена не двигается — минимальный шаг
+        if not down and nxt <= int(buyer):
+            nxt = int(buyer) + 1
+        ok, err = wb_push(acc, nm, nxt)
+        steps += 1
+        cur = wb_current(acc, nm)
+        new_buyer = (cur[2] or cur[0]) if cur else buyer
+        if abs(new_buyer - nxt) > 1 and ok:               # задача принята, цена ещё не доехала
+            time.sleep(4)
+            cur = wb_current(acc, nm)
+            new_buyer = (cur[2] or cur[0]) if cur else buyer
+        if abs(new_buyer - nxt) <= 1:                     # ступень встала на карточку
+            log.append(dict(platform="wb", account=acc, id=nm, action=f"шаг {nxt}",
+                            result="применён", detail=f"{buyer:.0f} → {new_buyer:.0f}"))
+            buyer = new_buyer
+            continue
+        if state["i"] + 1 < len(WB_STEPS):                # шаг отбит — дальше идём мельче
+            log.append(dict(platform="wb", account=acc, id=nm, action=f"шаг {nxt}",
+                            result=f"отказ, шаг −{WB_STEPS[state['i']]:.0%} → −{WB_STEPS[state['i'] + 1]:.0%}",
+                            detail=(err or "цена на карточке не изменилась")[:160]))
+            state["i"] += 1
+            continue
+        return f"ОТКАЗ: {(err or 'цена не изменилась')[:120]}", steps, buyer
+    done = abs(buyer - target) <= target * 0.005
+    return ("ВЫПУЩЕН" if done else "НЕ ДОШЁЛ"), steps, buyer
+
+
+def ya_confirm(offer_ids):
+    """Штатный выпуск Маркета: подтвердить карантинные цены пачками до 200 offerId."""
+    key, biz = os.getenv("YANDEX_API_KEY_ACC1"), os.getenv("YANDEX_BUSINESS_ID_ACC1")
+    H = {"Api-Key": key, "Content-Type": "application/json"}
+    done, errs = 0, []
+    for i in range(0, len(offer_ids), 200):
+        chunk = offer_ids[i:i + 200]
+        r = requests.post(f"{YA_API}/businesses/{biz}/price-quarantine/confirm", headers=H,
+                          json={"offerIds": chunk}, timeout=60)
+        if r.status_code >= 400:
+            errs.append(f"HTTP {r.status_code} {r.text[:200]}")
+            continue
+        done += len(chunk)
+        time.sleep(1)
+    return done, errs
+
+
+TARGETS = BASE_DIR / "docs" / "reports" / "quarantine_targets.csv"
+TG_COLS = ["account", "id", "target", "status", "updated"]
+
+
+def targets_load():
+    """Журнал целей WB: недоигранная лестница обязана пережить перезапуск.
+
+    Как только первая ступень применилась, карточка ИСЧЕЗАЕТ из списка карантина WB, хотя
+    стоит ещё не по цене ТК. Без журнала цель теряется и товар остаётся на промежуточной
+    ступени навсегда (наступили на это 23.08.2026).
+    """
+    if not TARGETS.exists():
+        return {}
+    with TARGETS.open(encoding="utf-8") as f:
+        return {(r["account"], r["id"]): r for r in csv.DictReader(f)}
+
+
+def targets_save(t):
+    with TARGETS.open("w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=TG_COLS)
+        w.writeheader()
+        w.writerows(t.values())
+
+
+def apply_ok(rows):
+    """Выпустить из карантина всё, что прошло проверку по марже."""
+    log = []
+    ya = [r["id"] for r in rows if r["platform"] == "ya" and r["verdict"] == "ОК"]
+    if ya:
+        done, errs = ya_confirm(ya)
+        log.append(dict(platform="ya", account="ya_acc1", id="", action=f"confirm {len(ya)} шт",
+                        result=f"подтверждено {done}", detail="; ".join(errs)[:160]))
+        print(f"Маркет: подтверждено {done} из {len(ya)}" + (f", ошибок {len(errs)}" if errs else ""))
+
+    day = datetime.date.today().isoformat()
+    tg = targets_load()
+    for r in rows:                                        # новые «ОК» — в журнал целей
+        if r["platform"] == "wb" and r["verdict"] == "ОК":
+            k = (r["account"], str(r["id"]))
+            if tg.get(k, {}).get("status") != "ВЫПУЩЕН":
+                tg[k] = dict(account=r["account"], id=str(r["id"]),
+                             target=f"{r['price_new']:.0f}", status="в работе", updated=day)
+    work = [v for v in tg.values() if v["status"] != "ВЫПУЩЕН"]
+
+    res, state = {}, {"i": 0}                             # размер шага общий на весь прогон
+    for v in work:
+        st, steps, fin = wb_release(v["account"], v["id"], float(v["target"]), log, state)
+        res[st] = res.get(st, 0) + 1
+        v["status"], v["updated"] = ("ВЫПУЩЕН" if st == "ВЫПУЩЕН" else st[:40]), day
+        log.append(dict(platform="wb", account=v["account"], id=v["id"], action="итог",
+                        result=st, detail=f"цель {v['target']}, шагов {steps}, стало {fin}"))
+    if work:
+        targets_save(tg)
+        print("WB лестница: " + ", ".join(f"{k} {v}" for k, v in sorted(res.items())))
+    return log
 
 
 def build():
@@ -215,7 +422,8 @@ def build():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--apply", action="store_true", help="выпустить из карантина «ОК» (пока только Маркет)")
+    ap.add_argument("--apply", action="store_true",
+                    help="выпустить из карантина всё с вердиктом ОК (Маркет — confirm, WB — лестница)")
     a = ap.parse_args()
 
     rows, month = build()
@@ -240,7 +448,14 @@ def main():
     print(f"файл: {out.relative_to(BASE_DIR)}")
 
     if a.apply:
-        print("--apply: выпуск пока не подключён (см. отчёт разведки), запусти без флага")
+        log = apply_ok(rows)
+        if log:
+            lf = BASE_DIR / "docs" / "reports" / f"quarantine_apply_{day}.csv"
+            with lf.open("w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, fieldnames=["platform", "account", "id", "action", "result", "detail"])
+                w.writeheader()
+                w.writerows(log)
+            print(f"журнал выпуска: {lf.relative_to(BASE_DIR)}")
 
 
 if __name__ == "__main__":
