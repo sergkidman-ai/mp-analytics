@@ -62,6 +62,8 @@ MIX_API = "https://thecartridge.ru/api/catalog/mix_data"   # состав наб
 STORE_OF_ACC = {"acc1": "Звездный", "acc2": "Дисквер"}
 COMMON_STORE = "Удаленный склад"
 FLOOR_PCT = 0.10                  # пол прибыли = 10 % цены продажи (абсолютный пол отменён)
+YA_BANDS = (1000, 3000, 10000, 25000)   # границы диапазонов цены заказа Маркета, ₽
+YA_BAND_MIN_N = 30                # тоньше — своей ставке диапазона не верим
 WB_STEPS = (0.20, 0.15, 0.10)     # шаги лестницы WB: крупный → на отказе мельче (−25 % отбит,
 WB_MAX_STEPS = 15                 #                    −15 % проверен практикой 23.08.2026)
 WB_PACE = 0.8                     # лимит WB — 10 запросов / 6 с на эндпоинт
@@ -109,6 +111,93 @@ def retention():
         L = a["lines"]
         out[acc] = sum(L[k][i] for k in exp) / (L["revenue"][i] + L["netting"][i])
     return out, month
+
+
+def ya_retention_bands():
+    """Удержания Маркета ставкой СВОЕГО диапазона цены: [доля на диапазон] по YA_BANDS.
+
+    Одно число по всему обороту («Итого удержания») для дорогого SKU врёт: комиссия
+    процентная, а логистика и эквайринг почти фиксированы на заказ, поэтому удержания
+    РЕГРЕССИВНЫ — <1к съедают ~60 %, >10к ~32 %. Прикладывать ставку заказа к цене карточки
+    законно: 95 % заказов Маркета — одна позиция, 87 % — ровно одна единица (замер 24.08.2026).
+
+    Выручка — `raw_yandex_closure` (только закрытые месяцы), сборы — `raw_yandex_services`;
+    сцепка по order_id с отрезанным хвостом «.0» — в services номер сохранён дробным числом,
+    в лоб сцепляются 88 заказов из 2055, с отрезанным хвостом — все 2055.
+
+    Тонкому диапазону (n < YA_BAND_MIN_N) своей ставке не верим: берём БОЛЬШУЮ из своей
+    и ближайшей плотной — ошибаться безопаснее в сторону завышенных удержаний.
+    """
+    d = json.loads((HIST / "mp_yandex_hist.json").read_text())
+    keys = d.get("period_keys") or []
+    last_key = keys[_last_closed(d)] if keys else "9999-12"
+    rows = db.query("""
+        WITH z AS (SELECT order_id AS o, SUM(amount) AS rev
+                     FROM raw_yandex_closure
+                    WHERE category = 'revenue' AND ym <= %s
+                    GROUP BY 1),
+             s AS (SELECT split_part(order_id, '.', 1) AS o, SUM(COALESCE(cost, 0)) AS fee
+                     FROM raw_yandex_services
+                    GROUP BY 1)
+        SELECT z.rev AS rev, s.fee AS fee
+          FROM z JOIN s ON s.o = z.o
+         WHERE z.rev > 0""", (last_key,))
+
+    agg = [[0, 0.0, 0.0] for _ in range(len(YA_BANDS) + 1)]
+    for r in rows:
+        rev, fee = float(r["rev"]), float(r["fee"])
+        b = agg[ya_band(rev)]
+        b[0] += 1
+        b[1] += rev
+        b[2] += fee
+
+    out, dense = [], None
+    for n, rev, fee in agg:
+        rate = fee / rev if rev > 0 else None
+        if rate is None:
+            out.append(dense)                     # данных нет вовсе — ставка плотного соседа
+        elif n >= YA_BAND_MIN_N:
+            dense = rate
+            out.append(rate)
+        else:
+            out.append(rate if dense is None else max(rate, dense))
+    return out
+
+
+def ya_band(value):
+    """Номер диапазона YA_BANDS, в который попадает цена."""
+    return next((k for k, hi in enumerate(YA_BANDS) if value < hi), len(YA_BANDS))
+
+
+def ya_rate(bands, flat, price):
+    """Ставка удержаний для цены карточки: своя по диапазону, иначе — плоская по обороту."""
+    if not bands:
+        return flat
+    r = bands[ya_band(price)]
+    return flat if r is None else r
+
+
+def ya_archived(offer_ids):
+    """offerId, которые Маркет держит в АРХИВЕ.
+
+    Архивную карточку ЛК в карантине не показывает, а API её всё равно отдаёт: `23542del`
+    висел в нашем отчёте «без себеста» вечно, а глазами в интерфейсе его нет (24.08.2026).
+    У живого оффера флага в ответе просто НЕТ — истина только `archived is True`.
+    """
+    if not offer_ids:
+        return set()
+    key, biz = os.getenv("YANDEX_API_KEY_ACC1"), os.getenv("YANDEX_BUSINESS_ID_ACC1")
+    H = {"Api-Key": key, "Content-Type": "application/json"}
+    ids, out = list(offer_ids), set()
+    for i in range(0, len(ids), 200):
+        r = requests.post(f"{YA_API}/businesses/{biz}/offer-mappings", headers=H,
+                          json={"offerIds": ids[i:i + 200]}, params={"limit": 200}, timeout=60)
+        r.raise_for_status()
+        for m in ((r.json().get("result") or {}).get("offerMappings") or []):
+            o = m.get("offer") or {}
+            if o.get("archived") is True:
+                out.add(o.get("offerId"))
+    return out
 
 
 # ─── себестоимость текущего остатка ─────────────────────────────────────────────────────
@@ -538,6 +627,7 @@ def apply_ok(rows):
 
 def build():
     ret, month = retention()
+    ya_bands = ya_retention_bands()
     cm = cost_map()
     wb_vc = {r["nm_id"]: r["vendor_code"] for r in db.query("SELECT nm_id, vendor_code FROM wb_price")}
     raw = []
@@ -550,7 +640,13 @@ def build():
                             old=float(g["oldPrice"]) * (1 - float(g.get("oldDiscount") or 0) / 100),
                             reason=""))
 
-    for o in ya_quarantine():
+    ya_offers = ya_quarantine()
+    arch = ya_archived([o.get("offerId") for o in ya_offers if o.get("offerId")])
+    if arch:
+        print(f"Маркет: архивных офферов пропущено {len(arch)} ({', '.join(sorted(arch))})")
+    for o in ya_offers:
+        if o.get("offerId") in arch:
+            continue
         code, pack = ya_code(o.get("offerId"))
         vp = ya_verdict_prices(o)
         raw.append(dict(platform="ya", account="ya_acc1", id=o.get("offerId"), code=code or "",
@@ -565,11 +661,13 @@ def build():
     for r in raw:
         unit, src = cogs_unit(r["code"], r["account"], cm, tc)
         cogs = unit * r["pack"] if unit is not None else None
-        v, net, floor = verdict(r["price"], cogs, ret[r["account"]])
+        rate = (ya_rate(ya_bands, ret[r["account"]], r["price"]) if r["platform"] == "ya"
+                else ret[r["account"]])
+        v, net, floor = verdict(r["price"], cogs, rate)
         rows.append(dict(platform=r["platform"], account=r["account"], id=r["id"], code=r["code"],
                          pack=r["pack"], price_new=round(r["price"], 2), price_old=round(r["old"], 2),
                          cogs=round(cogs, 2) if cogs else None, cost_src=src or "",
-                         retention_pct=round(ret[r["account"]] * 100, 1),
+                         retention_pct=round(rate * 100, 1),
                          net=round(net, 2) if net is not None else None,
                          floor=round(floor, 2) if floor is not None else None,
                          verdict=v, reason=r["reason"]))
