@@ -73,7 +73,7 @@ SETTLE = 480            # сколько ждать перед перечитк�
 SELLING = ("Продается", "Готов к продаже")
 
 
-def _pool(account, limit, classes):
+def _pool(account, limit, classes, offers=None):
     """Кандидаты из БД: открытые, попытки не исчерпаны, backoff выдержан.
 
     Порядок: сначала класс A (карточка сломана и часто не торгует), потом W (карточка торгует,
@@ -84,10 +84,11 @@ def _pool(account, limit, classes):
         "SELECT offer_id, product_id, attempts, is_selling, err_class, err_codes "
         "FROM card_status "
         "WHERE platform = %s AND account = %s AND is_open AND err_class = ANY(%s) "
+        "  AND (%s IS NULL OR offer_id = ANY(%s)) "
         "  AND NOT needs_human AND attempts < %s "
         "  AND (last_attempt_at IS NULL OR last_attempt_at < now() - make_interval(hours => %s)) "
         "ORDER BY err_class, is_selling, first_seen LIMIT %s",
-        (PLATFORM, account, list(classes), MAX_ATTEMPTS, BACKOFF_H, limit))
+        (PLATFORM, account, list(classes), offers, offers, MAX_ATTEMPTS, BACKOFF_H, limit))
 
 
 def _live_states(H, product_ids):
@@ -178,9 +179,10 @@ def _mark_warn_cleared(account, offer_id):
             (PLATFORM, account, offer_id))
 
 
-def run(account, limit, apply_, classes=("A", "W")):
+def run(account, limit, apply_, classes=("A", "W"), offers=None):
     H = _headers(account)
-    pool = _pool(account, limit, classes)
+    probe_c = set(classes) == {"C"}   # разовая проба: повторная модерация контентных
+    pool = _pool(account, limit, classes, offers)
     if not pool:
         print(f"{account}: дожимать нечего")
         return
@@ -195,7 +197,7 @@ def run(account, limit, apply_, classes=("A", "W")):
         if st is None:
             skip["исчезла из выдачи"] = skip.get("исчезла из выдачи", 0) + 1
             continue
-        if st.get("_hard_errors"):
+        if st.get("_hard_errors") and not probe_c:
             skip["стала контентной (класс C)"] = skip.get("стала контентной (класс C)", 0) + 1
             continue
         if cls == "A" and st.get("status_failed") != "imported":
@@ -244,7 +246,7 @@ def run(account, limit, apply_, classes=("A", "W")):
         sent.append(rec)
         time.sleep(PAUSE)
 
-        if n == GATE_N and len(todo) > GATE_N:
+        if n == GATE_N and len(todo) > GATE_N and not probe_c:
             print(f"ворота: проверяю первые {GATE_N} перед остальными {len(todo) - GATE_N}")
             time.sleep(SETTLE)
             ok, bad = _verify(H, account, sent, meta)
@@ -261,6 +263,10 @@ def run(account, limit, apply_, classes=("A", "W")):
         return
 
     time.sleep(SETTLE)
+    if probe_c:
+        print(f"{account}: отправлено {len(sent)} | класс C — вердикт модерации асинхронный, "
+              f"итог покажет детектор следующим утром; строки card_status не закрываю")
+        return
     ok, bad = _verify(H, account, sent, meta)
     print(f"{account}: отправлено {len(sent)} | вылечено {ok} | "
           f"осталось {len(sent) - ok}" + (f" | ТРЕВОГА: {bad}" if bad else ""))
@@ -326,6 +332,8 @@ if __name__ == "__main__":
     p.add_argument("--limit", type=int, default=200)
     p.add_argument("--classes", default="A,W",
                    help="какие классы дожимать: A, W или A,W (по умолчанию оба)")
+    p.add_argument("--offers", metavar="PATH",
+                   help="файл со списком offer_id (по одному в строке) — точечный прогон")
     p.add_argument("--apply", action="store_true",
                    help="реально отправить на площадку (без флага — сухой прогон)")
     p.add_argument("--tk-report", metavar="PATH", nargs="?",
@@ -336,7 +344,15 @@ if __name__ == "__main__":
         tk_report(a.tk_report)
     else:
         cls = tuple(x.strip().upper() for x in a.classes.split(",") if x.strip())
-        bad = [c for c in cls if c not in ("A", "W")]
+        bad = [c for c in cls if c not in ("A", "W", "C")]
         if bad:
-            sys.exit(f"дожимать можно только классы A и W, а не {bad}")
-        run(a.account, a.limit, a.apply, cls)
+            sys.exit(f"дожимать можно только классы A, W и C, а не {bad}")
+        # Класс C автоматом НЕ дожимается: повтор лечит флаг, а не контент. Разовая проба
+        # повторной модерации разрешена только точечным списком и только отдельным классом.
+        if "C" in cls and (len(cls) > 1 or not a.offers):
+            sys.exit("класс C — только разовой пробой: --classes C вместе с --offers <файл>")
+        offers = None
+        if a.offers:
+            offers = [x.strip() for x in open(a.offers, encoding="utf-8") if x.strip()]
+            print(f"точечный список: {len(offers)} offer_id из {a.offers}")
+        run(a.account, a.limit, a.apply, cls, offers)
