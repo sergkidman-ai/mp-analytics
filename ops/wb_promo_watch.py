@@ -24,6 +24,7 @@
 """
 import argparse
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -44,6 +45,9 @@ TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
 
 ACCOUNTS = {"wb_acc1": "WB_TOKEN_PRICES_ACC1", "wb_acc2": "WB_TOKEN_PRICES_ACC2"}
 ACC_NAME = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр"}
+
+# «(автоматические скидки)» в конце названия — шум: в шапке уже сказано, что акция автоматическая.
+AUTO_SUFFIX = re.compile(r"\s*\((?:автоматическ|автоматическая акция)[^)]*\)\s*$", re.I)
 
 
 def db():
@@ -157,13 +161,15 @@ def run(lead=1, dry=False, show_all=False):
         conn.close()
         return
 
+    # Одна строка на акцию, без разбивки по аккаунтам: календарь acc1 и acc2 совпадает,
+    # а у одной и той же акции бывают разные id — для читателя это была бы пустая копия.
+    uniq = {}
+    for pid, (name, start, end, _accs) in fresh.items():
+        uniq.setdefault((AUTO_SUFFIX.sub("", name).strip(), start, end), None)
     body = [f"📣 Завтра ({target:%d.%m}) стартует автоакция WB", ""]
-    for pid, (name, start, end, accs) in sorted(fresh.items(), key=lambda x: x[1][1]):
+    for name, start, end in sorted(uniq, key=lambda k: (k[1], k[0])):
         body.append(f"• {name}")
-        body.append(f"    {start:%d.%m} → {end:%d.%m} · id {pid} · "
-                    + ", ".join(ACC_NAME.get(a, a) for a in accs))
-    body += ["", "Цены режет сама площадка. Если товары выводим — сделать это СЕГОДНЯ,",
-             "в ЛК: Цены и скидки → Календарь акций."]
+        body.append(f"    {start:%d.%m} → {end:%d.%m}")
     text = "\n".join(body)
 
     if dry:
