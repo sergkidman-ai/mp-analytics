@@ -200,7 +200,8 @@
 
   <div id="viewNew">
   <p class="note" style="margin-top:0">Строки прайса, которых нет в МойСкладе по артикулу. Сверка ищет тот же товар
-  в нашем каталоге по четырём признакам: модель, цвет, ресурс печати (расхождение до 25% — норма) и чип. Выберите верный
+  в нашем каталоге по четырём признакам: модель картриджа (заголовок модели в ТК, а не принтер), цвет,
+  ресурс печати (расхождение до 25% — норма) и чип. Выберите верный
   вариант или впишите код руками; если такой модели у нас нет вовсе — <b>NEW</b>. Решение принимается <b>по модели
   картриджа</b>: одна строка флакона тонера — это несколько карточек, по одной на модель, и заводим только те, которым
   флакон даёт <b>полную заправку</b>. «Спросить сеть» отвечает по каждой модели: рынок РФ, спрос, доза заправки и полный
@@ -444,7 +445,7 @@ function optionLabel(c){
 // (молчание каталога — не совпадение и не отказ, в счёт N/6 оно не идёт).
 const MARK = {true: ["✓", "pos"], false: ["✗", "neg"], null: ["—", "muted"]};
 // Мягкие противоречия — те, из-за которых вариант остаётся в списке (см. conflicts в catalog.py).
-const hasConflict = c => c && (c.brand_ok === false || c.resource_ok === false);
+const hasConflict = c => c && (c.model_ok === false || c.brand_ok === false || c.resource_ok === false);
 const BAD = ["model_ok", "kind_ok", "brand_ok", "color_ok", "resource_ok", "chip_ok"];
 
 function cmpGrid(r, c){
@@ -452,9 +453,12 @@ function cmpGrid(r, c){
   // Признак с пометкой ТК взят из НАШЕГО каталога в TheCartridge (карточка товара), а не
   // вычитан из названия карточки МС, которое заводили руками с прайса поставщика.
   const from = new Set(String(c.feat_src || "").split(",").filter(Boolean));
-  const model = c.model_ok === false ? "нет общего кода" : (c.shared_code || "—");
+  // Модель картриджа: у карточки это заголовок её модели в каталоге ТК, у строки прайса —
+  // код, которым в каталоге названа хоть одна модель. Не сошлись — какие именно, написано
+  // в вердикте («модель картриджа (TK3400 против TK3430)»), сюда обе не влезут.
+  const model = c.model_ok === false ? "модель другая" : (c.shared_code || "—");
   const lines = [
-    ["модель", "", c.shared_code || "—", model, c.model_ok],
+    ["модель картриджа", "", c.shared_code || "—", model, c.model_ok],
     ["тип", "", KINDS[r.kind] || r.kind, KINDS[c.kind] || c.kind, c.kind_ok],
     ["бренд", "brand", r.brand, c.brand, c.brand_ok],
     ["ресурс/объём", "resource", num(r.measure), num(c.measure), c.resource_ok],
@@ -1107,7 +1111,7 @@ function ucand(c){
   // один внешний код = один товар, карточек под ним столько, сколько поставщиков. Цифра
   // нужна как мера уверенности: код, под которым уже пять карточек, — точно наш товар.
   const flag = (v, name) => v === true ? "" : v === false ? `<b>≠${name}</b>` : `?${name}`;
-  const marks = [flag(c.model_ok, "модель"), flag(c.kind_ok, "тип"), flag(c.brand_ok, "бренд"),
+  const marks = [flag(c.model_ok, "модель картриджа"), flag(c.kind_ok, "тип"), flag(c.brand_ok, "бренд"),
                  flag(c.color_ok, "цвет"), flag(c.resource_ok, "ресурс"), flag(c.chip_ok, "чип")]
     .filter(Boolean).join(" ");
   return `<div class="cand" data-code="${esc(c.external_code || "")}">

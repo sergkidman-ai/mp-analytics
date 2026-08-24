@@ -38,7 +38,7 @@ from uuid import UUID
 from pathlib import Path
 
 from core.db import execute, query
-from .catalog import RESOURCE_TOLERANCE, close
+from .catalog import RESOURCE_TOLERANCE, close, model_conflict, model_dict
 from .features import BRANDS, BRAND_RE       # noqa: F401 — BRANDS в модуле ждут по имени
 from .features import resource as name_resource
 from .profiles import get_profile
@@ -402,6 +402,7 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
         (sorted({(r["ms_code"] or "")[:4] for r in rows}),))}
     known = {r["article"].strip().upper() for r in query(
         "SELECT article FROM ms_product WHERE article IS NOT NULL AND NOT archived")}
+    tk_models, tk_titles = model_dict()
 
     records, notes = [], []
     for row in rows:
@@ -470,6 +471,13 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
         if close(new_pages, ref) is False:
             flags.append(f"ресурс в названии поставщика {new_pages} против {ref} {ref_src} "
                          f"(допуск {RESOURCE_TOLERANCE:.0%}) — по решению Сергея это норма, оставляем")
+        # Модель КАРТРИДЖА из названия поставщика против модели внешнего кода в каталоге ТК.
+        # Точнее сверки по принтерам: один принтер берёт десяток разных расходников, а
+        # заголовок модели в ТК — это сам товар. Расхождение — почти всегда не та родня.
+        model_diff = model_conflict(row["name"], ext, tk_models, tk_titles)
+        if model_diff:
+            flags.append(f"модель в названии поставщика {model_diff[0]} против {model_diff[1]} "
+                         f"у кода {ext} в ТК — проверить, тот ли код")
 
         sup_id, sup_name = supplier_of(row["article"], profile, row["name"], path)
         records.append({

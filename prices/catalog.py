@@ -10,7 +10,8 @@
 разбираем название на признаки и сравниваем признаки.
 
 Признаков шесть, и результат сверки по каждому сохраняется отдельно:
-  модель  — общий код в названии/артикуле (C-EXV65, TK-8335, ...);
+  модель  — модель КАРТРИДЖА (C-EXV65, TK-3430): код из ЗАГОЛОВКА модели каталога ТК,
+            а не любой код названия; коды принтеров в признак не идут (см. `model_ok`);
   тип     — картридж / флакон тонера / чернила / драм: разный товар на один принтер;
   бренд   — бренд ПРИНТЕРА, множествами (картридж бывает и к HP, и к Canon); ловит
             случайное совпадение кода модели («bizhub C250i» и «Canon iR C250i»);
@@ -114,6 +115,7 @@ def load_catalog(tc_all=None):
          where not archived and name is not null
     """)
     tc_all = load_tc() if tc_all is None else tc_all
+    titles = title_dict(tc_all)
     out = []
     for row in rows:
         item = dict(row)
@@ -122,6 +124,7 @@ def load_catalog(tc_all=None):
         item.update(F.parse(item["name"], item["article"]))
         item["tc"] = None
         item["feat_src"] = enrich(item, tc_all.get(item["external_code"]))
+        item["model_codes"] = model_codes(item["codes"], titles, item.get("tc_title_codes"))
         out.append(item)
     return out
 
@@ -243,11 +246,116 @@ def chip_ok(want, got):
     return want == got
 
 
-def model_ok(want, got):
-    """Коды модели пересекаются. Пустой набор с любой стороны — молчание."""
+def title_dict(tc_all):
+    """Словарь МОДЕЛЕЙ КАРТРИДЖА: все коды из заголовков моделей каталога ТК.
+
+    Заголовок модели в ТК («TK-3430», «C-EXV47») — это и есть модель самого расходника;
+    ровно её `tools/prc/tc_fields.py` пишет в поле «Модель» карточки МС. Всё остальное,
+    что удаётся вычитать из названия, — коды принтеров, коды поставщика и OEM-номера.
+    Словарём отличаем первое от второго: код, которым в каталоге НАЗВАНА хоть одна модель,
+    считаем моделью картриджа, прочие — нет.
+    """
+    out = set()
+    for tc in tc_all.values():
+        out |= tc["title_codes"]
+    return out
+
+
+def model_codes(codes, titles, own=None):
+    """Модель картриджа среди всех кодов названия.
+
+    У карточки, привязанной к каталогу ТК, модель известна точно — берём заголовочные коды
+    её собственного внешнего кода (`own`) и в названии не копаемся: название заводили руками
+    с прайса, а первоисточник один. Для всех прочих (строка прайса, карточка без кода ТК)
+    остаётся словарь заголовков.
+    """
+    return set(own) if own else set(codes) & titles
+
+
+def model_dict():
+    """Словарь моделей картриджа прямо из БД: ({внешний код -> его модель}, все модели).
+
+    Отдельно от `load_tc`, потому что зовут это из диалогов заведения карточки, где весь
+    каталог с признаками не нужен: там один вопрос — та ли модель у кода, под которым
+    заводим карточку.
+    """
+    by_ec = defaultdict(set)
+    for r in query("""select c.code, c.external_code
+                        from prc_tc_code c
+                        join prc_tc_model m on m.external_code = c.external_code
+                       where m.gone_at is null and c.source = 'title'"""):
+        by_ec[r["external_code"]].add(r["code"])
+    return by_ec, set().union(*by_ec.values()) if by_ec else set()
+
+
+def model_conflict(name, ext, by_ec, titles):
+    """Модель картриджа из названия поставщика против модели внешнего кода в ТК.
+
+    -> («что в названии», «что у кода») или None, если спорить не о чем: поставщик модель
+    не назвал (в названии одни принтеры), кода нет в каталоге ТК, либо модели совпали.
+    Поставщик, назвавший СВОЙ код вместо модели, молчанием и остаётся — своих кодов в
+    словаре заголовков нет.
+    """
+    got = by_ec.get(str(ext or "").strip()) or set()
+    want = model_codes(F.codes(name), titles)
+    if want and got and not same_model(want, got):
+        return "/".join(sorted(want)), "/".join(sorted(got))
+    return None
+
+
+COLOR_TAILS = ("BK", "MK", "LC", "LM", "LK", "PK", "GY", "C", "M", "Y", "K")
+
+
+def bare_models(codes):
+    """Модели плюс их варианты без хвостовой буквы цвета: 040C -> 040, 920XLC -> 920XL/920X.
+
+    Каталог ТК называет модель то с цветом, то без («040» на всю серию против «040C» у
+    голубого), и без этого сглаживания карточка с точно тем же названием, что строка прайса,
+    получала конфликт модели. Цветовой хвост читается неоднозначно («LC» — light cyan или
+    «L» и cyan), поэтому оставляем ВСЕ прочтения, а не первое подошедшее. Цвет от этого не
+    теряется: он проверяется отдельным жёстким признаком `color_ok`, здесь сравниваем
+    семейство модели.
+    """
+    out = set(codes)
+    for code in codes:
+        for tail in COLOR_TAILS:
+            base = code[: -len(tail)]
+            if code.endswith(tail) and len(base) >= 3 and any(ch.isdigit() for ch in base):
+                out.add(base)
+    return out
+
+
+def same_model(want, got):
+    """Модели пересекаются — как есть либо после снятия цветового хвоста."""
+    return bool(want & got) or bool(bare_models(want) & bare_models(got))
+
+
+def codes_ok(want, got):
+    """Любые коды названий пересекаются. Пустой набор с любой стороны — молчание."""
     if not want or not got:
         return None
     return bool(want & got)
+
+
+def model_ok(row, item):
+    """Модель КАРТРИДЖА совпала.
+
+    Раньше признак сравнивал все коды названий скопом, а там вперемешку код расходника
+    (TK-3430) и коды принтеров, к которым он подходит (iR C250, ECOSYS PA5500x). Совпадения
+    по принтеру хватало, чтобы «модель» горела зелёным у другого товара: строка прайса
+    TK-3400 закрылась карточкой TK-3430 (новинка 7774, «совпал артикул поставщика»), и
+    увидеть это в сетке сверки было негде.
+
+    Теперь сравниваем модель с моделью: у карточки — заголовок её модели в каталоге ТК,
+    у строки прайса — те коды названия, которыми в каталоге вообще названа хоть одна модель.
+    Обе стороны модель назвали — сравниваем только её. Молчит хоть одна (в названии
+    поставщика один принтер, карточка вне каталога ТК) — падаем на прежнее сравнение всех
+    кодов, иначе признак онемел бы у трети строк.
+    """
+    want, got = row.get("model_codes"), item.get("model_codes")
+    if want and got:
+        return same_model(want, got)
+    return codes_ok(row["codes"], item["codes"])
 
 
 def kind_ok(want, got):
@@ -277,13 +385,16 @@ def compare(row, item):
     пустыми, и две строки TN-321 закрылись сами на карточку Brother вместо Konica Minolta —
     расходились и бренд, и ресурс в 16 раз, но увидеть это было негде.
     """
-    flags = {"model_ok": model_ok(row["codes"], item["codes"]),
+    flags = {"model_ok": model_ok(row, item),
              "kind_ok": kind_ok(row["kind"], item["kind"]),
              "brand_ok": brand_ok(row["brand"], item["brand"]),
              "color_ok": color_ok(row["color"], item["color"]),
              "resource_ok": close(measure(row), measure(item)),
              "chip_ok": chip_ok(row["chip"], item["chip"])}
     flags["score"] = sum(1 for value in flags.values() if value)
+    # После счёта: это не признак, а расшифровка для человека — какая модель против какой
+    # (в счёт 6/6 идут только сами флаги, и любое непустое значение испортило бы сумму).
+    flags["model_pair"] = (row.get("model_codes") or set(), item.get("model_codes") or set())
     return flags
 
 
@@ -364,12 +475,17 @@ def titled(item, shared):
 def conflicts(hit):
     """Сколько мягких признаков противоречит. Первый ключ сортировки: такой вариант — в хвост.
 
-    Мягкие — бренд и ресурс: оба пишутся руками с обеих сторон и обе стороны врут. Случай
+    Мягкие — модель картриджа, бренд и ресурс. Модель здесь, а не в жёстком отсеве (цвет и
+    чип), потому что заголовок каталога ТК бывает не единственным именем товара: поставщик
+    зовёт ту же модель своим кодом, и выбрасывать такой вариант из списка нельзя — но и
+    предвыбранным он стоять не должен.
+
+    Бренд и ресурс: оба пишутся руками с обеих сторон и обе стороны врут. Случай
     W9015MC (14.08.2026): у поставщика в прайсе «39.6K», в каталоге ТК 396 000 — опечатка
     поставщика в десять раз, а верная карточка (код 5947) из-за неё вообще не показывалась.
     Молчание признака (None) конфликтом не считается.
     """
-    return sum(1 for key in ("brand_ok", "resource_ok") if hit.get(key) is False)
+    return sum(1 for key in ("model_ok", "brand_ok", "resource_ok") if hit.get(key) is False)
 
 
 def tc_confirmed(item, flags):
@@ -418,6 +534,7 @@ def tc_only(row, tc_index, tc_all):
                 "article": "", "num": None, "kind": None, "codes": tc["codes"], "tc": tc,
                 "color": tc["color"], "resource": tc["resource"], "chip": tc["chip"],
                 "brand": set(tc["brand"]), "tc_title_codes": tc["title_codes"],
+                "model_codes": set(tc["title_codes"]),
                 "feat_src": tuple(key for key in TC_FEATURES if tc[key])}
         flags = compare(row, item)
         if False in (flags["color_ok"], flags["chip_ok"]):
@@ -460,9 +577,11 @@ def save(rows, supplier_key, hits_by_article):
     Решение обратимо — строка видна во вкладке под фильтром «уже в МС», кнопка «вернуть
     в работу» на месте: на случай, если артикул случайно совпал с чужой карточкой.
 
-    Предохранитель: при совпавшем артикуле, но конфликте по БРЕНДУ принтера или РЕСУРСУ
-    строка не закрывается — остаётся человеку. Такое расхождение означает, что название
-    одной из двух карточек заполнено неверно, и молча принимать её нельзя. Статус `exists`
+    Предохранитель: при совпавшем артикуле, но конфликте по МОДЕЛИ картриджа, БРЕНДУ
+    принтера или РЕСУРСУ строка не закрывается — остаётся человеку. Такое расхождение
+    означает, что название одной из двух карточек заполнено неверно (а по модели — что за
+    одинаковым артикулом стоят разные товары: TK-3400 против TK-3430), и молча принимать
+    её нельзя. Статус `exists`
     ставится ТОЛЬКО автоматом (человек ставит matched/new/partial/skip), поэтому обратный
     ход однозначен: уже закрытая строка с конфликтом возвращается в работу.
     """
@@ -506,7 +625,8 @@ def save(rows, supplier_key, hits_by_article):
             # `reason='foreign'`). Закрывать строку такой карточкой нельзя: товар в
             # оприходование не попадёт, а работа будет считаться сделанной. Наоборот —
             # возвращаем в работу, если её закрыл прошлый прогон до этого правила.
-            if row.get("reason") == "foreign" or False in (hit["brand_ok"], hit["resource_ok"]):
+            if (row.get("reason") == "foreign"
+                    or False in (hit["model_ok"], hit["brand_ok"], hit["resource_ok"])):
                 execute("""
                     UPDATE prc_novelty
                        SET decision = 'pending', ms_id = null, ms_code = null, ms_name = null,
@@ -523,8 +643,22 @@ def save(rows, supplier_key, hits_by_article):
     return auto
 
 
-FEATURE_NAMES = {"model_ok": "модель", "kind_ok": "тип", "brand_ok": "бренд",
+FEATURE_NAMES = {"model_ok": "модель картриджа", "kind_ok": "тип", "brand_ok": "бренд",
                  "color_ok": "цвет", "resource_ok": "ресурс/объём", "chip_ok": "чип"}
+
+
+def _bad_text(hit, key, name):
+    """Название непрошедшего признака; у модели дописываем, что с чем не сошлось.
+
+    Одного слова «модель» человеку мало: сама пара («TK3400 против TK3430») и есть ответ
+    на вопрос, почему вариант неверен, и её видно прямо в списке, без открытия сетки.
+    """
+    if key != "model_ok":
+        return name
+    want, got = hit.get("model_pair") or ((), ())
+    if want and got:
+        return f"{name} ({'/'.join(sorted(want))} против {'/'.join(sorted(got))})"
+    return name
 
 
 def verdict(hit):
@@ -534,7 +668,8 @@ def verdict(hit):
     сигнал человеку, что за одинаковым артикулом стоят разные товары.
     """
     item = hit.get("item") or {}
-    bad = [name for key, name in FEATURE_NAMES.items() if hit.get(key) is False]
+    bad = [_bad_text(hit, key, name) for key, name in FEATURE_NAMES.items()
+           if hit.get(key) is False]
     silent = [name for key, name in FEATURE_NAMES.items() if hit.get(key) is None]
     notes = [f"НЕ СОВПАЛО: {', '.join(bad)}"] if bad else []
     if hit.get("tc_only"):
@@ -563,6 +698,7 @@ def analyze(rows, default_chip="chip", article_re=None):
     а сообщение «товар у нас заведён, коробки поставщика ещё не было; заводи под этим кодом».
     """
     tc_all = load_tc()
+    titles = title_dict(tc_all)
     catalog = load_catalog(tc_all)
     by_id = {item["ms_id"]: item for item in catalog}
     index = build_index(catalog)
@@ -572,6 +708,7 @@ def analyze(rows, default_chip="chip", article_re=None):
     for row in rows:
         row["kind"] = kind(row["name"])
         row.update(F.parse(row["name"], row["article"]))
+        row["model_codes"] = model_codes(row["codes"], titles)
         if row["chip"] is None:
             row["chip"] = default_chip
         seen, shown = set(), []
@@ -669,14 +806,24 @@ def rematch(supplier_key=None, include_decided=False):
     ждать нового письма, чтобы человек увидел исправленные подсказки, незачем.
 
     `include_decided` берёт и разобранные строки тоже.
+
+    Поставщик без профиля (Булат, ВТТ, Рамис, Блоссом — их прайсы к нам не приходят, строки
+    заводит внешний загрузчик) пересобирается на общих правилах: чип по умолчанию не
+    подставляем (у поставщика не спросишь — пусть признак молчит), артикул из названия не
+    вынимаем. Раньше такой ключ ронял весь прогон целиком (`KeyError: нет профиля 'bulat'`),
+    и подсказки не обновлялись НИ У КОГО, включая поставщиков с профилем.
     """
     from .profiles import get_profile
     stats = {}
     rows = all_rows(supplier_key) if include_decided else pending_rows(supplier_key)
     for key in sorted({r["supplier_key"] for r in rows}):
-        profile = get_profile(key)
+        try:
+            profile = get_profile(key)
+            default_chip, article_re = profile.default_chip, profile.article_re
+        except KeyError:
+            default_chip, article_re = None, None
         mine = [r for r in rows if r["supplier_key"] == key]
-        found, auto = sync(mine, key, profile.default_chip, profile.article_re)
+        found, auto = sync(mine, key, default_chip, article_re)
         stats[key] = (found, auto, len(mine))
     return stats
 

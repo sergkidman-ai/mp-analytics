@@ -127,6 +127,7 @@ def suggest(rows):
     строка, вторые той же болезнью больны и проблему не закрывают.
     """
     tc_all = catalog.load_tc()
+    titles = catalog.title_dict(tc_all)
     cat = catalog.load_catalog(tc_all)
     by_id = {item["ms_id"]: item for item in cat}
     index = catalog.build_index(cat)
@@ -143,6 +144,7 @@ def suggest(rows):
         row = {"name": src["name"], "article": src["article"] or "", "price": None}
         row["kind"] = catalog.kind(row["name"])
         row.update(F.parse(row["name"], row["article"]))
+        row["model_codes"] = catalog.model_codes(row["codes"], titles)
         if row["chip"] is None:
             row["chip"] = chips.get(src["supplier_key"], "chip")
         hits = (catalog.by_article(row, art_index, arts.get(src["supplier_key"]))

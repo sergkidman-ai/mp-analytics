@@ -2899,7 +2899,7 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     # Эталон берём по коду ТК ДО того, как его отберёт занятость/длина: код может смениться,
     # а модель, с которой человек сопоставил строку, — нет. Родня здесь не эталон: у нового
     # товара её либо нет вовсе, либо это чужие комплектации под тем же кодом.
-    from prices.catalog import RESOURCE_TOLERANCE, close
+    from prices.catalog import RESOURCE_TOLERANCE, close, model_conflict, model_dict
     tk_ext = str(ext or "").strip() or (row["ms_code"] or "")[:4]
     tk_pages = db.query("""SELECT resource FROM prc_tc_model
                             WHERE gone_at IS NULL AND resource IS NOT NULL AND external_code = %s""",
@@ -2908,6 +2908,13 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     if tk_pages and close(pages, tk_pages[0]["resource"]) is False:
         warn.append(f"ресурс в названии поставщика {pages} против {tk_pages[0]['resource']} в ТК "
                     f"(допуск {RESOURCE_TOLERANCE:.0%}) — проверить, та ли модель")
+    # И сама модель картриджа: ресурс у соседних моделей часто одинаков, а заголовок модели
+    # в ТК — это ровно тот товар, под код которого заводим карточку.
+    if tk_ext:
+        model_diff = model_conflict(row["name"], tk_ext, *model_dict())
+        if model_diff:
+            warn.append(f"модель в названии поставщика {model_diff[0]} против {model_diff[1]} "
+                        f"у кода {tk_ext} в ТК — проверить, тот ли код")
     folders = _ms_folders()
     folder = _folder_guess(row["brand"], folders)
     if not folder:
