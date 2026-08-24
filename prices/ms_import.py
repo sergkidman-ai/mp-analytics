@@ -23,8 +23,9 @@
   • НДС 22 (34645 карточек против 20 у 2069), единица «шт», гарантия 365 — как в инструкции.
 
 Источник веса — прайс поставщика (`supplier_dims`, реальные замеры производителя), и только
-если его там нет — вес родни по внешнему коду. Ресурс, отличный от родни, — это норма
-(решение Сергея 08.08): пишем в замечания как справку, из файла строку не убираем.
+если его там нет — вес родни по внешнему коду. Ресурс сверяем с каталогом ТК (описание
+модели), родня — лишь запасной эталон; расхождение больше 25% — это норма (решение Сергея
+08.08): пишем в замечания как справку, из файла строку не убираем.
 
 Импорт в МС делает человек: МС → Товары → Импорт → импорт из excel, «Искать = по Артикулу».
 Отсюда ничего в МС не пишется.
@@ -37,7 +38,9 @@ from uuid import UUID
 from pathlib import Path
 
 from core.db import execute, query
+from .catalog import RESOURCE_TOLERANCE, close
 from .features import BRANDS, BRAND_RE       # noqa: F401 — BRANDS в модуле ждут по имени
+from .features import resource as name_resource
 from .profiles import get_profile
 
 # Порядок колонок — как в файле загрузки от 30.07 («МС шаблон для новинок»).
@@ -121,10 +124,10 @@ DIMS_SUPPLIER = {
 # Бренды принтеров (BRANDS/BRAND_RE) живут в `features` — там же, где ими сравнивают
 # строку прайса с нашей карточкой. Здесь по ним ставится «для» в «Название WB».
 
-# Ресурс в названии: «(9000стр.)», «9200 стр.», «23600 копий», «69K». Цифры не должны быть
-# продолжением кода модели («006R01828» — это не 1828 страниц), поэтому слева граница.
-PAGES_RE = re.compile(r"(?<![0-9A-Za-zА-Яа-я])(\d[\d ]{1,8}?)\s*(?:стр|копий)", re.IGNORECASE)
-PAGES_K_RE = re.compile(r"(?<![0-9A-Za-zА-Яа-я])(\d{1,3})\s*[kK]\b")
+# Ресурс в названии разбирает ОБЩИЙ `features.resource` — тот же, которым сверяются строка
+# прайса и карточка в `catalog`. Своя пара регулярок жила здесь до 24.08.2026 и врала на
+# дробных тысячах: «2.6K» она читала как «6K» (граница слева не считала точку частью числа)
+# и давала ложное «ресурс отличается от родни: 6000 против 2600» на W1360X.
 
 # Папки-исключения при выборе группы. Карточка живёт в папке БРЕНДА ПРИНТЕРА
 # («Картриджи/Картриджи Kyocera Mita»), а не бренда поставщика: папки G&G и BULAT
@@ -372,13 +375,6 @@ COLOR_MARKS = {
 }
 
 
-def _pages(text):
-    """Ресурс из названия. Меньше сотни страниц картриджей не бывает — такое отсеиваем."""
-    out = {int(re.sub(r"\s+", "", raw)) for raw in PAGES_RE.findall(text or "")}
-    out |= {int(raw) * 1000 for raw in PAGES_K_RE.findall(text or "")}
-    return {v for v in out if 100 <= v <= 2_000_000}
-
-
 def build(supplier_key, decisions=("matched",), limit=None, ids=None):
     """Строки файла импорта + замечания по каждой строке.
 
@@ -397,6 +393,13 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
     if limit:
         rows = rows[:limit]
     kin = family({(r["ms_code"] or "")[:4] for r in rows})
+    # Эталон ресурса — каталог ТК: это описание МОДЕЛИ товара. Названия карточек родни
+    # писали руками с прайсов РАЗНЫХ поставщиков, там разнобой и чужие комплектации
+    # (под 6865 живёт архивная карточка Cactus на 20 000 стр. от другой модели вовсе).
+    tk_pages = {r["external_code"]: r["resource"] for r in query(
+        """SELECT external_code, resource FROM prc_tc_model
+            WHERE gone_at IS NULL AND resource IS NOT NULL AND external_code = ANY(%s)""",
+        (sorted({(r["ms_code"] or "")[:4] for r in rows}),))}
     known = {r["article"].strip().upper() for r in query(
         "SELECT article FROM ms_product WHERE article IS NOT NULL AND NOT archived")}
 
@@ -456,10 +459,17 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
             flags.append("артикул уже есть в МС — импорт по артикулу ПЕРЕПИШЕТ ту карточку")
         if row["link"]:
             flags.append(f"связь {row['link']} проставлена вручную — записал в «Связь»")
-        new_pages, kin_pages = _pages(row["name"]), set().union(*(_pages(c["name"]) for c in cards))
-        if new_pages and kin_pages and not (new_pages & kin_pages):
-            flags.append(f"ресурс отличается от родни: {sorted(new_pages)} против {sorted(kin_pages)} "
-                         f"— по решению Сергея это норма, оставляем")
+        # Сверяем ресурс из названия ПОСТАВЩИКА с эталоном (ТК, иначе родня) и допуском 25%
+        # — тем же, что у сверки строки прайса с карточкой (`catalog.close`): поставщики
+        # округляют («2.6K» = 2600 = 2500) и меряют по разным методикам.
+        new_pages = name_resource(row["name"])
+        ref, ref_src = tk_pages.get(ext), "в ТК"
+        if not ref:
+            kin_pages = sorted(p for p in (name_resource(c["name"]) for c in cards) if p)
+            ref, ref_src = (kin_pages[-1] if kin_pages else None), "у родни"
+        if close(new_pages, ref) is False:
+            flags.append(f"ресурс в названии поставщика {new_pages} против {ref} {ref_src} "
+                         f"(допуск {RESOURCE_TOLERANCE:.0%}) — по решению Сергея это норма, оставляем")
 
         sup_id, sup_name = supplier_of(row["article"], profile, row["name"], path)
         records.append({
