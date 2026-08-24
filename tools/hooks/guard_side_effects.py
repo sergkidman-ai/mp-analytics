@@ -697,6 +697,82 @@ def write_log(tool, verdict, raw):
         pass                              # журнал не имеет права ломать работу
 
 
+# ───────────────────── карточка подтверждения (Approval UX v1) ─────────────────────
+# Владелец не обязан разбирать сырой Bash/SQL. Перед ожидаемым ASK показываем шесть строк:
+# намерение · объём · эффект · обратимость · рекомендация · read-only preview.
+# Лестница: DENY → ASK+PREVIEW → AUTO+NOTIFY → AUTO+AUDIT. Вердикты хук НЕ смягчает —
+# карточка только объясняет уже принятое решение.
+
+_INTENT = {
+    "db_destructive": "изменить данные в боевой базе",
+    "mp_write":       "отправить изменения на маркетплейс",
+    "bank":           "операция с банком/платежами",
+    "git_dangerous":  "операция с git, меняющая общую историю",
+    "fs_destructive": "удалить/перезаписать файлы",
+    "service":        "перезапустить сервис",
+    "secret_read":    "прочитать секреты",
+    "net_write":      "отправить данные наружу",
+}
+
+_REVERSIBLE = {
+    "db_destructive": "нет (строки не вернуть без бэкапа)",
+    "mp_write":       "частично (обратная выгрузка возможна, но карточки уже уедут в модерацию)",
+    "bank":           "нет",
+    "git_dangerous":  "частично (`git reflog`)",
+    "fs_destructive": "нет",
+    "service":        "да (запустить обратно)",
+    "secret_read":    "нет (секрет попадёт в контекст)",
+    "net_write":      "нет (данные уже ушли)",
+}
+
+_TABLE_RE = re.compile(r"\b(?:DELETE\s+FROM|UPDATE|ALTER\s+TABLE|INSERT\s+INTO)\s+([\w.\"]+)", re.I)
+_WHERE_RE = re.compile(r"\bWHERE\b(.+?)(?:;|RETURNING\b|$)", re.I | re.S)
+
+
+def preview_line(cls, command):
+    """Read-only предпросмотр объёма. Ничего не выполняет: возвращает готовый SELECT count(*),
+    который считает ровно те строки, что затронет операция."""
+    if cls != "db_destructive" or not command:
+        return None
+    tbl = _TABLE_RE.search(command)
+    if not tbl:
+        return None
+    where = _WHERE_RE.search(command)
+    if not where:
+        return f"SELECT count(*) FROM {tbl.group(1)};  -- ВСЯ таблица, WHERE нет"
+    cond = " ".join(where.group(1).split()).rstrip('"\'`\\ ')
+    if len(cond) > 200:
+        cond = cond[:200] + " …"
+    return f"SELECT count(*) FROM {tbl.group(1)} WHERE {cond};"
+
+
+def scope_line(command):
+    """Объём числом, без выполнения: сколько SQL-инструкций и есть ли признаки массовости."""
+    if not command:
+        return "1 операция"
+    stmts = [s for s in re.split(r";\s*", command) if s.strip()]
+    bits = [f"инструкций в команде: {len(stmts)}"]
+    if is_mass(command.lower()):
+        bits.append("признаки массовой операции")
+    return ", ".join(bits)
+
+
+def brief(verdict, command):
+    """Шесть строк перед подтверждением. Рекомендация всегда NO: ASK означает, что
+    детерминированных оснований разрешить у хука нет — решает человек."""
+    lines = [
+        f"намерение:    {_INTENT.get(verdict.cls, verdict.cls)}",
+        f"объём:        {scope_line(command)}",
+        f"эффект:       {verdict.reason}",
+        f"обратимость:  {_REVERSIBLE.get(verdict.cls, 'неизвестна — считать необратимой')}",
+        "рекомендация: NO — подтверждать только если сами инициировали это действие",
+    ]
+    pv = preview_line(verdict.cls, command)
+    if pv:
+        lines.append(f"preview:      {pv}")
+    return "\n".join(lines)
+
+
 def emit(decision, reason):
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
@@ -723,7 +799,7 @@ def main():
             sys.exit(0)
         prefix = f"[guard:{verdict.cls}] "
         if verdict.tier == ASK:
-            emit("ask", prefix + verdict.reason)
+            emit("ask", prefix + verdict.reason + "\n" + brief(verdict, raw))
             sys.exit(0)
         emit("deny", prefix + verdict.reason)
         sys.exit(2)

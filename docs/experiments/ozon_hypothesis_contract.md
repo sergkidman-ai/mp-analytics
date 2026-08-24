@@ -170,3 +170,46 @@ E3, отсутствие причинных заявлений о H-001, отс�
 отсутствие WB в периметре, реакция генератора на данные (fixture, без production-БД),
 происхождение гипотез (`LLM_SUGGESTED_WITHOUT_DATA` не доходит до `READY`), волновой режим
 и программный запрет `BLOCKED_BY_POWER`.
+
+## 9. Оценка результата (H-009, с 22.08.2026)
+
+Оценщик — `tools/ozon_eval_core.py`, запуск — `ozon_hypo.py evaluate-ready`. Контракт оценки
+каждого эксперимента пишется ДО вмешательства в `docs/experiments/ozon_evaluator_contracts.json`
+и обязан задавать: единицу анализа, источник когорты, основной показатель, базис, окно
+измерения, минимальную мощность, разрешённые причинные утверждения, сторожа, известные
+загрязнения, критерий KEEP/ROLLBACK/INCONCLUSIVE и требуемые источники данных.
+
+**Типы оценки** (сценарий не прошивается под гипотезу): `TREATMENT_CONTROL_DID`, `ITT`,
+`PER_PROTOCOL`, `BEFORE_AFTER_NO_CAUSAL`, `INTERRUPTED_TIME_SERIES`, `GUARDRAIL_ONLY`,
+`CAPABILITY_GAP`, `VOID_NEVER_APPLIED`, `POWER_BLOCKED`.
+
+**Вердикты:** `CONTINUE_MEASURING`, `INCONCLUSIVE`, `NO_CAUSAL_CLAIM`, `CONTAMINATED`,
+`EFFECT_CONFIRMED_POSITIVE`, `EFFECT_CONFIRMED_NEGATIVE`, `VOID`, `BLOCKED_BY_POWER`,
+`CAPABILITY_PRESENT`, `CAPABILITY_ABSENT`.
+**Рекомендации:** `KEEP`, `ROLLBACK`, `CONTINUE_MEASURING`, `INCONCLUSIVE`, `CONTAMINATED`,
+`NO_CAUSAL_CLAIM`. Словарь кодов причин — `ozon_eval_core.ПРИЧИНЫ` (21 код).
+
+**Разделение сущностей — жёсткое.** `measurement` (что произошло), `verdict` (доказан ли
+эффект), `recommendation` (что предлагается), `decision` (что разрешил человек), `execution`
+(что принял API) — разные поля. Поля `decision` и `execution` в теневом режиме всегда `null`:
+записать KEEP или ROLLBACK как исполненные нельзя, это только рекомендация.
+
+**Зрелость данных.** Календарная дата сверки сама по себе не значит ничего: сутки D закрыты,
+только когда загрузчик отработал после полуночи D+1 UTC по КАЖДОМУ требуемому источнику
+(`ads`, `posting`, `price`, `stock`, `transaction`, `search`, `bids`). Незрелые данные →
+`CONTINUE_MEASURING` + `DATA_NOT_MATURE`, бизнес-вердикт не выносится. Нули незрелого дня
+читаются как обвал — на этом 21.08.2026 старый `g6` выдал ложный RED (гейт добавлен).
+
+**Память оценок — только дозапись**, `docs/experiments/ozon_evaluations.jsonl`. Идентичность
+записи = `(hypothesis_id, experiment_id, contract_version, cohort_hash, data_as_of, отпечаток
+зрелости, evaluator_version)`. Повтор на тех же данных дубля не создаёт; дозагрузка данных
+или правка контракта создаёт НОВУЮ запись со ссылкой `supersedes_evaluation_id`. Историю не
+переписываем: неполнота старых данных фиксируется кодом причины (`BASELINE_UNAVAILABLE`),
+а не обходится.
+
+**Автономно разрешено** ровно пять действий: чтение данных, проверка зрелости, расчёт,
+дозапись оценки, отметка `MEASURING → EVALUATED` в памяти теневого режима. Переход в `KEEP`
+или `ROLLBACK`, изменение ставок, кампаний, товаров, цен, бюджетов, cron/systemd и любые
+внешние записи — запрещены.
+
+Тесты — `venv/bin/python -m unittest tests.test_ozon_eval` (29 проверок без обращения к БД).

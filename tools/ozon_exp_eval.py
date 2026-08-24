@@ -484,6 +484,14 @@ def cmd_g6(day=None):
     acc = e8['аккаунт']
     day = dt.date.fromisoformat(day) if day else dt.date.today() - dt.timedelta(days=1)
     d = day.isoformat()
+    # Незрелый день даёт нули по всей витрине, а нули читаются как обвал показов ядра и
+    # выдают ложный RED. Календарная дата сама по себе не значит, что данные приехали.
+    край = db.query("SELECT max(stat_date)::text x FROM mkt_ozon_ads_sku_daily "
+                    "WHERE account=%s", (acc,))[0]['x']
+    if not край or dt.date.fromisoformat(край) < day:
+        print(f'G6 за {d}: витрина рекламы доехала только до {край or "—"}. '
+              f'День не зрелый — вердикт не выносится (DATA_NOT_MATURE).')
+        return None
     b0, b1 = e8['baseline'].split('..')
     A, B = _skus(cohort(e8, 'treatment')), _skus(cohort(e8, 'control'))
     e5 = exp_by_id('E5')

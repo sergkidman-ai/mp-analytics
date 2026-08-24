@@ -73,6 +73,11 @@ main{flex:1;min-width:0;padding:22px 26px 60px;max-width:1200px}
 #mpr td.num.dn::after{content:"▼";position:absolute;right:7px;top:7px;font-size:9px}
 #mpr td.num.g.up::after,#mpr td.num.g.dn::after{color:var(--pos)}
 #mpr td.num.a.up::after,#mpr td.num.a.dn::after{color:var(--warn)}
+#mpr tr.det{display:none}
+#mpr tr.det.open{display:table-row}
+#mpr tr.hasdet td.lbl{cursor:pointer;user-select:none}
+#mpr .detbtn{display:inline-block;width:14px;color:var(--acc);transition:transform .12s}
+#mpr tr.hasdet.open .detbtn{transform:rotate(90deg)}
 #mpr tr.subtot td{border-top:2px solid var(--acc);font-weight:700}
 #mpr tr.subtot td.lbl{color:var(--txt)}
 #mpr .pc{display:block;font-size:10px;color:var(--mut);font-weight:600;margin-top:1px}

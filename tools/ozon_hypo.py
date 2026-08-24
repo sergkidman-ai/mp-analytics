@@ -1753,6 +1753,56 @@ def cmd_evaluate(a):
     return r
 
 
+ИТОГОВЫЕ_ВЕРДИКТЫ = ('EFFECT_CONFIRMED_POSITIVE', 'EFFECT_CONFIRMED_NEGATIVE',
+                     'INCONCLUSIVE', 'NO_CAUSAL_CLAIM', 'CONTAMINATED')
+
+
+def cmd_evaluate_ready(a):
+    """H-009: сверить всё, чему пришёл срок, и записать вывод. Ничего не применять.
+
+    Автоматически разрешено ровно пять вещей: прочитать данные, проверить зрелость,
+    посчитать, дописать оценку в append-only журнал, отметить в памяти, что измерение
+    состоялось. KEEP и ROLLBACK остаются рекомендацией и требуют отдельного «да».
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import ozon_eval_core as E
+
+    сегодня = a.today or E.TODAY
+    данные = E.ЖивыеДанные(ACC)
+    итог = E.прогон(данные, today=сегодня, только=(a.only.split(',') if a.only else None),
+                    писать=not a.dry_run)
+
+    print(f'evaluate-ready · {сегодня} · режим {E.РЕЖИМ} · оценщик {E.EVALUATOR_VERSION}'
+          + (' · ПРОГОН БЕЗ ЗАПИСИ' if a.dry_run else ''))
+    print(f'{"эксп":<16}{"вердикт":<28}{"рекоменд.":<20}{"причин":<7}{"данные":<12}запись')
+    for x in итог:
+        r = x['запись']
+        print(f'{r["experiment_id"]:<16}{r["verdict"]:<28}{r["recommendation"]:<20}'
+              f'{len(r["reason_codes"]):<7}{str(r["data_as_of"] or "—"):<12}{x["статус_записи"]}')
+
+    # память теневого режима: фиксируем ТОЛЬКО факт состоявшегося измерения
+    if not a.dry_run:
+        r = читать_реестр()
+        сдвинуто = []
+        for x in итог:
+            зап = x['запись']
+            if x['статус_записи'] != 'добавлено' or зап['verdict'] not in ИТОГОВЫЕ_ВЕРДИКТЫ:
+                continue
+            for h in r['гипотезы']:
+                if h['hypothesis_id'] != зап['hypothesis_id'] or h['status'] != 'MEASURING':
+                    continue
+                перевести(h, 'EVALUATED',
+                          f'оценка {зап["evaluation_id"]}: {зап["verdict"]} '
+                          f'(рекомендация {зап["recommendation"]}, не исполнена)')
+                сдвинуто.append(h['hypothesis_id'])
+        if сдвинуто:
+            писать_реестр(r)
+        print(f'\nпамять: MEASURING→EVALUATED — {", ".join(сдвинуто) if сдвинуто else "нет"}')
+    print(f'журнал оценок: {E.ОЦЕНКИ}')
+    print('KEEP/ROLLBACK здесь — рекомендация. Решение и исполнение не записаны.')
+    return итог
+
+
 # ============================== карта цикла ===========================================
 # Честная оценка того, что уже было. Столбец «разрыв» — не пожелание, а то, что
 # приходилось делать руками в каждой сессии заново.
@@ -2147,6 +2197,11 @@ def main():
     ev.add_argument('--decide'); ev.add_argument('--as', dest='as_',
                                                  choices=('APPROVED', 'REJECTED', 'DEFERRED'))
     ev.add_argument('--reason', default='')
+    er = sp.add_parser('evaluate-ready')
+    er.add_argument('--only', help='список id экспериментов через запятую')
+    er.add_argument('--today', help='дата сверки (по умолчанию TODAY модуля)')
+    er.add_argument('--dry-run', dest='dry_run', action='store_true',
+                    help='посчитать и показать, ничего не записывая')
     a = ap.parse_args()
     if a.cmd == 'seed':
         print(f'посеяно новых: {посеять()}')
@@ -2154,7 +2209,8 @@ def main():
     {'observe': cmd_observe, 'propose': cmd_propose, 'validate': cmd_validate,
      'prioritize': cmd_prioritize, 'plan': cmd_plan, 'status': cmd_status,
      'evaluate': cmd_evaluate, 'report': cmd_report, 'table': cmd_table,
-     'trace': cmd_trace, 'waves': cmd_waves}[a.cmd](a)
+     'trace': cmd_trace, 'waves': cmd_waves,
+     'evaluate-ready': cmd_evaluate_ready}[a.cmd](a)
 
 
 if __name__ == '__main__':
