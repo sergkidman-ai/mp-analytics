@@ -1,0 +1,675 @@
+account,offer_id,status_descr,is_selling,level,code,attribute_name
+oz_acc1,1252,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0076,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0104,,True,WARNING,cover_unprocessed,
+oz_acc1,00773,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045127,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045119,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045116,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0073,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0073,Нет на складе,True,WARNING,cover_unprocessed,
+oz_acc1,00774,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0355,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0059,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01434,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0145,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0069,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,04512,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01242,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01248,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,00776,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,04519,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,13994,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0075,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0175,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1031,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01247,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,04511,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01244,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045115,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,04516,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0625,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1399,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01245,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045120,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01246,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045110,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0009,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0228,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,04518,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1006,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0170,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045114,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1426,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0083,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0451,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0451,Нет на складе,True,WARNING,cover_unprocessed,
+oz_acc1,0096,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045118,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0077,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,13993,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,04515,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,04517,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0058,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0759,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,045125,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01433,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1058,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1067,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1436,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0094,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045122,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0124,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,0124,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045124,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1397,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045130,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045129,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,007710,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045112,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,00772,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0143,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045117,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,04514,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,00771,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,00778,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045123,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045126,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0100,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0023,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0095,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01431,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,02281,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01241,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,04513,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,00779,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1204,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0176,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1398,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1011,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045111,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,13991,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,00775,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045113,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0085,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1127,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0017,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0066,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01243,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1396,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01249,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,01432,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,00777,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,045128,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,0178,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2802,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3103,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2444,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3417,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2144,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3506,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3800,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,23873,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3726,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2561,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3046,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3904,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2573,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4123,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3741,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,3164,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2718,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3836,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2681,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2875,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2850,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3126,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2257,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3165,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3854,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,2261,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3250,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3529,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2544,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4127,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2586,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3139,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2311,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3689,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4125,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3603,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4118,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2476,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2271,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4121,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2471,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3167,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3705,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2288,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3955,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3421,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3217,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3000,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3005,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2248,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2704,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3759,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,2623,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2713,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,31651,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2456,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3376,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2601,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2284,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3131,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3963,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2506,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2904,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2496,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2501,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2285,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2620,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2994,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3613,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2818,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3736,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2251,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3380,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3399,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3447,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2269,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2964,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2539,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2276,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2512,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2263,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3187,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,2596,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2383,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3491,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,2698,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2611,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,2481,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,1443,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2519,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2976,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2534,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2666,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2241,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2151,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,3831,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2958,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2243,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2524,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,2387,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6463,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6633,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5071,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4548,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4548,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,6568,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5202,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6288,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5028,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,4405,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5128,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5117,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5417,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,5122,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6540,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5654,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5654,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,6668,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4687,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5764,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,6466,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6653,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,62981,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5025,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4762,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6394,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6469,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4937,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6486,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5481,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,66281,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6291,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,6291,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4541,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6551,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6477,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4922,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4917,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6482,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5331,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4409,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5020,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4449,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4788,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6454,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,4983,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6634,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5662,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,6550,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5803,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4960,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5285,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6649,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5143,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6476,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6628,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5138,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6644,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5273,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5659,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5659,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,6267,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6488,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6302,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5197,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5168,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6255,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,5859,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4477,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,4417,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,6386,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5160,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5006,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4432,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,6475,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5268,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5178,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6636,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6641,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4853,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6461,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,5453,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4781,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4537,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5228,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,5533,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5262,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5107,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5333,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5474,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5646,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,5646,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4947,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4553,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4553,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,55331,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5476,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5476,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,4927,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6393,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4499,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6462,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4677,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6656,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,5692,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,5097,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,4318,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6980,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,7007,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6727,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6779,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6976,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6996,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6835,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,7004,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,7000,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6994,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,7011,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,7069,,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6931,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6723,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6981,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,7001,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,7067,,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6995,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,7008,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6680,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6690,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6936,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,7066,,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6748,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc1,7068,,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6677,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc1,6724,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1687W4606LTO,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0100L1TSOXDV,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0085ICE0HVPK,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1686J51V11YX,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2476ZSK9NGFT,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2258TQYU1WIO,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2257RHCNXYJF,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1823PWBC5MC4,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1443PKBR1DOZ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1669D42NHSJ2,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1706RAW5W5A9,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2269KLMI7M7K,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1011A50X364F,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2243MIJVNKQ4,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1817US631TU7,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0083D9NYC7L6,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2261OU1R148C,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1753Q7YO64N6,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2009K7OOM3Y1,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2285WYOVGN25,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1911NFBD505J,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2288NMO54KTG,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0066A3K07Z4M,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2144BCC4RXUO,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1863FZIP1RAC,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1708S8MWGL4U,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1688LU5T64R8,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0094T0R2I0AI,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2471RUQS8XNM,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2151GU3PA44M,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1740MSXB293K,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2276F5VHXJS2,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2248ZA81DLNO,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2456FHFO4F4P,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1397ABV10D0S,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1993SXJCXWJ9,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0355N8E6B95C,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1631K635ZYBH,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1398EQHG8NRV,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1913EWISRJ6K,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1655Y5XQI0T7,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2013LHMVCWIZ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1396O4T47UNN,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1689YWN8DU9R,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0178EH3OQDOG,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1399DHJVP6SR,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0095P1M35QKD,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1204C4PV5CPD,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0143DV8HNSW6,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1921VXAD7A35,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0075ZX360XE4,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0023U3D7ECAT,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0170G4NL25VR,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0176FVEZJDUX,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0175YL7CXFNP,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2014AUNSSX3N,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1707WQIZIGE1,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,045129P6SXN3,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1887U6K1EW6M,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0124ONJUV8H8,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0096IB18EP57,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2383SOT8FGV5,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1747EJR790N3,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0059Q5G65A2Z,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0017QHXCEIZE,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1651LONIH8KY,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1816FB0ORZ90,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2311YGOR2OQX,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1960OD7YGGKS,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2271MJSZF6XT,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2387Q4FTDT18,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2444KG38C4KW,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1830KZ9R0IDP,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1920DQGQ74FR,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2284F9TWCY1Z,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0073Y1TI366V,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0077BT6QU2GW,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1006HHBMO94J,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2241HDRDL0JK,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1031C7W85VHJ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0228HNHDQ6BY,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2011K1F3UR4X,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1723E28NPV1T,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2015PTQ2AQLT,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0009IQETQTS1,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2027BT80O4MT,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0069PHSMBPL0,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0451FA434470,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1252D1B02DFK,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0076XKA26NII,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,23871NRFIGJZ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0058B422HQ8R,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1436XZZQ01VN,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2251Q1EQB472,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1127TZ1F7W9Y,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,0145EMBVFT50,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1067Y41BBVVH,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,1709M976X9VG,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,17182Q1QA74Y,,True,WARNING,SKU_VWC_IS_NOT_EDITABLE,
+oz_acc2,1058UW501CYE,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3506E0DQI8LK,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4405W2A1PV81,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2573UIMKQTSH,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2704IAEMI6QB,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2601EQV5XUV4,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2850KK66PUAQ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3399WC7SE5TC,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3217ESEY0VGS,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2620KS7GPQ2M,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4687H5V6IKKJ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2539ZUCEM8FH,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3904LON5SEN6,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4125MVQ62Q3G,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4318CAGMK968,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4541QG7KEJF3,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3164UEOPK7QT,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4121HMQETA8U,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3421HUKEJOQX,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3603DKXVV0GR,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3759TC7T1P2C,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,3131TD9D5L90,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2818A1CFX923,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3126ZBUM5G31,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2976LOE0KKO5,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3955DU3SFTLN,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4408M8026JK5,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2506IXKSK61U,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3689SYH44HFD,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3376U8Y7SYW9,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2623V3VUN5F9,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3705VVSVBBOX,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2534WDRUKOV7,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3736IGLEYIS9,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2558SLHEZO4H,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2666BLA0IP99,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2964QDXF5IEU,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4123VOIE4NO9,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3491FJEU8PS5,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,3380NY66OKD0,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2512R959PSV3,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4499FYI8RJ33,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2606MH0WRM3N,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2586IQF8V2XP,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4150DUXB2DNJ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3613JHM18G7O,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4537D167RUIL,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2596NVON5Y10,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2994V3KVNDJE,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3836HLK7M25O,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3741OBC9Q7G2,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,4477DZ3D8GY6,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,2904CX4YC14A,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2481Q5KWN9G4,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4399TBDN10XM,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3167QPP8YTE6,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4449KR7V7VJS,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3165LOZL9JRS,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3529CGK0PINA,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4692X5BV7567,Нет на складе,True,WARNING,SKU_VWC_IS_NOT_EDITABLE,
+oz_acc2,4548SWMPA1B5,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,4548SWMPA1B5,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3831FA4TJ6J4,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3800PCZK8JVA,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2718KMMOM6WD,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2713BEZUR20J,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2875NAC3RCN3,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4677ZW5YVEJ0,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3417XD46SJKA,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4433LV8JNPQU,,True,WARNING,SKU_VWC_IS_NOT_EDITABLE,
+oz_acc2,4553YSUAKHZA,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4553YSUAKHZA,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,3139BH62IF4K,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2802OAIFY1CQ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2519ZD34CGA9,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2681T3S7040C,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3854QQD7C3IF,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,4417CNMK2VOS,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,4118FAE4VWFR,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4147LPJQN98A,,True,WARNING,SKU_VWC_IS_NOT_EDITABLE,
+oz_acc2,31651SM1GCWC,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2674BXJ1RB1X,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2698EFMKH5NO,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3726TTUSWAQZ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4383PHXT87XR,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3187AIXJA0VA,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,2524FZNCFOSH,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3250PHXVKHLZ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3963OET0K8HA,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3119HELAWL7W,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2958R9HEMILK,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4432CRBQNQNR,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,2611TCMAFWLS,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,3103XTX8Z8E3,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3447V3AXD18A,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3005O06GL4DJ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4127VT83TO8B,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3849ELQXD5V6,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,2544D848GU9D,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2501ICKFAUGR,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3000VO9LTM99,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,3046RYNPUN07,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,2561ZKM3US5D,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4762SUNHJPDG,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5786VBB2LF3U,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6302TSO9FN2L,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5285BYP98W1N,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5453UVKBGW0J,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4911CFL2MKAS,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6469VDWSKDZD,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5774LBI0MCYS,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5417TNX10ML6,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5470LHXGE3QY,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6463ATX0H5K4,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5243S2O54ZIU,Нет на складе,True,WARNING,SKU_VWC_IS_NOT_EDITABLE,
+oz_acc2,4781JX91GG0H,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6475QN0E72LH,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5659DR3HRNIZ,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5659DR3HRNIZ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6255P8IQU4GI,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5975GHGS53O0,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5117ROI4GJ4G,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5476NCEEQP9S,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5981RWNWURP8,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5333PC9CNY7Q,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4960V107FG3G,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5993LDLCE7JQ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5029G33STUVO,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,4983A1U1SJG2,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5138LGWRHW3A,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5890WAN01637,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6454AL1ZE8I7,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5097V334Y3A8,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5168T46DYKFB,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5694B06BFLP0,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5694B06BFLP0,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5651H2XJI6A2,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5651H2XJI6A2,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5474FA2OH8HT,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5991NADJQS9D,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5646VKG38LR7,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5646VKG38LR7,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6016P4ZW1E9Q,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5982I1DNVO8Q,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5998T9LDIEVA,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4853UJI2AYAI,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5331CW0EVYID,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6462ZOSUGKB3,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6394S6DN77MP,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5202DBBTJC1A,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6012Y3XPGIUY,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5803RMLLJN54,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5995MNE40Z2E,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6018N1X1HHQI,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5996ZY3BGAUU,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5986QAMSCDXP,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5481G2TKYHLN,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5025AI91X0ZQ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5393WZ62UVAO,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5976NA1F6QOC,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6004ZX8B1BHD,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6006S2IJ1CVW,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5988KKMIJ4FA,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5787F6LODI6S,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,55331JBVFSV2,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5979VYR192G2,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5990C8E1A05V,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6476E0KPL6W9,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5859AQB61E3U,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6461R2LC52BY,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,6386LKX1ZL8S,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5983XOUJ13UX,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6466ZCKSC43A,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5992SYVF38ZO,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5262HRL8BCIW,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5533K1J6LHOU,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5654RZV2UVUG,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5654RZV2UVUG,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,62981FLDKCBQ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6393U4VRAFH2,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5006FSKUJA3C,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4922XBOZCL46,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6288W4PETFWX,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4947QZYLB02W,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6482QOBOT48U,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5268N58OUD4Y,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6434RLW4TQ8Q,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5228SQUTYKZX,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,5917LV3K4ZE5,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6291G26AO79W,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6291G26AO79W,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,4927WA8MWJ9U,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5020H5FC4CMF,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5160XA5ECJ9Y,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5973NNJ61XGF,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4937RITMG2QV,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5178OVUMBVM3,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6477J8YCN7CQ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6484IE2J270M,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,4788ZYH0O7UI,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5273EQ6WMBED,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6019P5JT6GCU,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5122JN4800YI,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5107NRM0X1YF,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5143PTU02GSB,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5980SASKHMI7,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5197XVF6SZRS,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,5985NTGBPT6F,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6267ZLQ1I4UA,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6723SGGR7TRG,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6971D06LLQQP,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6486OV53QFVE,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6908DJPRWRHF,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6680B8O3WVH3,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6634BD0JXERW,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6835CQBWGBNK,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6907LPGNRZCT,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6551O4O70IA9,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6748B3Q7R12O,Нет на складе,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,6653AAAM4LCN,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6633B0KUJRNL,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6628QT7MCEZM,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,66281QXDK5RX,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6568OFU89MYZ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6550JY64XI0E,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6718XDXXBWWY,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6644TPWKZ01U,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6529TXSWKWYK,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6734G9IE4FDZ,,True,WARNING,warning_attribute_values_out_of_range,ТН ВЭД коды ЕАЭС
+oz_acc2,6540E3DLOE7B,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6729YA1M2048,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6779SXPLVYGT,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6668QTIPBK01,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6636CUTU1PUQ,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6740L4VFNWQX,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6650QMJ34JHU,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6936YY64XHLS,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки
+oz_acc2,6488QQR4WKTB,Нет на складе,True,WARNING,warning_attribute_values_empty,Нужен код маркировки

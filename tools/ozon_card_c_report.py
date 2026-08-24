@@ -14,6 +14,7 @@
 """
 import sys
 import re
+import datetime as _dt
 import csv
 import time
 from collections import Counter, defaultdict
@@ -27,7 +28,7 @@ from collectors.ozon import _headers, PRODUCT_INFO_URL   # noqa: E402
 PLATFORM = "ozon"
 PAGE = 100
 CSV_PATH = "docs/reports/ozon_card_content_errors.csv"
-MD_PATH = "docs/reports/21_ozon_card_class_c_2026-08-23.md"
+MD_PATH = f"docs/reports/21_ozon_card_class_c_{_dt.date.today():%Y-%m-%d}.md"
 
 # Что делать — формулировка задания для ТК. Сначала по ТЕКСТУ отбивки: под одним кодом
 # DESCRIPTION_DECLINE площадка держит четыре разные претензии, и правки у них разные.
@@ -161,13 +162,13 @@ def main():
     def _key(r):
         return (r["code"], r["attribute_name"], r["description"])
 
-    by = defaultdict(lambda: {"cards": set(), "acc": Counter(), "selling": set(),
+    by = defaultdict(lambda: {"cards": set(), "acc": defaultdict(set), "selling": set(),
                               "not_created": set(), "brands": Counter(), "examples": []})
     for r in rows:
         b = by[_key(r)]
         key = (r["account"], r["offer_id"])
         b["cards"].add(key)
-        b["acc"][r["account"]] += 1
+        b["acc"][r["account"]].add(r["offer_id"])   # карточки, а не строки ошибок
         if r["is_selling"]:
             b["selling"].add(key)
         if (r["status_descr"] or "") == "Не создан":
@@ -185,7 +186,7 @@ def main():
 
     out = ["# Класс C — контентные ошибки карточек Ozon: задание для ТК",
            "",
-           f"Срез 2026-08-23. Карточек в классе C: **{total_cards}** (строк ошибок {len(rows)}; "
+           f"Срез {_dt.date.today():%Y-%m-%d}. Карточек в классе C: **{total_cards}** (строк ошибок {len(rows)}; "
            "на карточке бывает несколько отбивок). Полная таблица — "
            f"`{CSV_PATH}`, там же поле, текст площадки и что менять по каждой карточке.",
            "",
@@ -211,8 +212,8 @@ def main():
                 f"- **Код площадки:** `{code}`",
                 f"- **Поле:** {attr or '—'}",
                 f"- **Текст отбивки:** {descr or '—'}",
-                f"- **Аккаунты:** acc1 {b['acc'].get('oz_acc1', 0)}, "
-                f"acc2 {b['acc'].get('oz_acc2', 0)}; "
+                f"- **Аккаунты:** acc1 {len(b['acc'].get('oz_acc1', ()))}, "
+                f"acc2 {len(b['acc'].get('oz_acc2', ()))}; "
                 f"«Не создан» {len(b['not_created'])}, торгуют {len(b['selling'])}",
                 f"- **Что менять:** {fix_for(code, descr)}"]
         if b["brands"]:
