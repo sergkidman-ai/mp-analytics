@@ -235,11 +235,14 @@ def draft_review(r, name, prod):
         # жалоба/критика в тексте — независимо от звёзд — не подставляем позитивный шаблон, на модерацию
         draft, _ = _neg_draft(r, name, prod)
         return "negative", draft, "review", 0.5
-    # 4★ без явных претензий — нейтральная благодарность, тоже на модерацию (не auto)
+    # 4★: с текстом — нейтральная благодарность на модерацию; БЕЗ текста — шаблоном сразу
+    # (решение Сергея 24.08.2026). Пустая 4★ на маршруте review была тупиком: карточку оператору
+    # не создать (_enqueue_moderation требует текст), авто-отправка берёт только route='auto' —
+    # такие отзывы висели вечно (WB 31, Яндекс 1 на момент правки).
     if rating == 4:
         cat = "neutral4"
         draft = (NEUTRAL4_WB.format(name=name or "Здравствуйте") if r["platform"] == "wb" else NEUTRAL4_OZ)
-        return cat, draft, "review", 0.6
+        return cat, draft, ("auto" if empty else "review"), (0.9 if empty else 0.6)
     cat = "empty5" if empty else "positive"
     if r["platform"] == "wb":
         draft = _pick(POS_WB, r["ext_id"]).format(name=name or "Здравствуйте", product=prod)
