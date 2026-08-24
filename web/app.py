@@ -2317,7 +2317,8 @@ def novelties_api(supplier: str = "", status: str = "", no_stock: bool = False):
     rows = db.query(f"""
         SELECT n.id, n.supplier_key, n.article, n.name, n.kind, n.color, n.measure, n.chip,
                n.brand, n.price_rub, n.decision, n.ms_code, n.ms_name, n.link,
-               n.decided_at::text, n.last_seen::text, s.qty, s.stock_raw
+               n.decided_at::text, n.last_seen::text, n.confirmed_at IS NOT NULL AS confirmed,
+               s.qty, s.stock_raw
           FROM prc_novelty n
           {NOVELTY_STOCK}
          WHERE {' AND '.join(where)}
@@ -2413,7 +2414,7 @@ def novelties_revive(payload: NoveltyRevive):
 
 class NoveltyDecision(BaseModel):
     ids: list[int]
-    decision: str                                # matched | new | partial | skip | pending
+    decision: str                          # matched | exists | new | partial | skip | pending
     ms_code: str = ""
     link: str = ""                               # «Связь»: номера ДРУГИХ наших товаров
 
@@ -2461,10 +2462,10 @@ def _novelty_link(raw):
 @app.post("/api/novelties/decide")
 def novelties_decide(payload: NoveltyDecision):
     """Записать решение по строкам. Для matched код обязателен и должен быть в каталоге."""
-    if payload.decision not in ("matched", "new", "partial", "skip", "pending"):
+    if payload.decision not in ("matched", "exists", "new", "partial", "skip", "pending"):
         return {"ok": False, "error": "неизвестное решение"}
     code, item = payload.ms_code.strip(), None
-    if payload.decision == "matched":
+    if payload.decision in ("matched", "exists"):
         if not code:
             return {"ok": False, "error": "нужен код товара"}
         item = _find_goods(code)
@@ -2482,10 +2483,14 @@ def novelties_decide(payload: NoveltyDecision):
     link, error = _novelty_link(payload.link)
     if error:
         return {"ok": False, "error": f"связь: {error}"}
+    # Решение `exists` руками = «я проверил, карточка та». Пометка нужна предохранителю
+    # в prices/catalog.save(): без неё следующий прайс снова вернёт строку в «Неразобранное».
+    confirmed = {"exists": "now()", "pending": "null"}.get(payload.decision, "confirmed_at")
     for novelty_id in payload.ids:
-        db.execute("""UPDATE prc_novelty
+        db.execute(f"""UPDATE prc_novelty
                          SET decision = %s, ms_code = %s, ms_id = %s, ms_name = %s,
-                             link = coalesce(%s, link), decided_at = now()
+                             link = coalesce(%s, link), decided_at = now(),
+                             confirmed_at = {confirmed}
                        WHERE id = %s""",
                    (payload.decision,
                     item["code"] if item else None,

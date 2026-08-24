@@ -534,6 +534,7 @@ function row(r){
       <input class="code" placeholder="код" value="">
       <input class="link" placeholder="связь: 4310;6827" value="${esc(r.link || "")}">
       <button class="save pri">Это он</button>
+      <button class="mkexists" title="карточка этого поставщика в МС уже есть — закрыть строку без заведения">Уже в МС</button>
       <button class="mknew new">NEW</button>
       <button class="mkpartial" title="в прайсе не все цвета серии — ждём остальные">Неполный набор</button>
       <button class="toms" title="завести карточку (или несколько) в МойСкладе">➕ В МС</button>
@@ -544,7 +545,7 @@ function row(r){
         r.candidates.length > 1 ? ` · ещё вариантов: ${r.candidates.length - 1}` : ""}</div>` : ""}
     <div class="cmpbox">${cmpGrid(r, best)}</div>`
     : `<span class="tag ${r.decision}">${r.decision === "matched" ? "сопоставлено"
-        : r.decision === "exists" ? "уже в МС (артикул совпал)"
+        : r.decision === "exists" ? (r.confirmed ? "уже в МС (проверено)" : "уже в МС (артикул совпал)")
         : r.decision === "new" ? "новая модель"
         : r.decision === "partial" ? "неполный набор — ждём цвета" : "не берём"}</span>
        ${r.ms_code ? ` <b>${esc(r.ms_code)}</b> <span class="muted">${esc(r.ms_name || "")}</span>` : ""}
@@ -823,6 +824,10 @@ function wire(){
     // приносит их с собой, и код перестаёт находиться в каталоге.
     const chosen = () => (code.value.trim() || (sel ? sel.value : "")).trim();
     if (save) save.onclick = () => matchIt(id, chosen(), msg, link.value);
+    // «Уже в МС» — не то же, что «Это он»: карточка поставщика существует, заводить нечего,
+    // и строка должна остаться закрытой при следующих прайсах (пометка confirmed_at на сервере).
+    const mkexists = tr.querySelector(".mkexists");
+    if (mkexists) mkexists.onclick = () => decide([id], "exists", chosen(), msg, link.value);
     const mknew = tr.querySelector(".mknew");
     if (mknew) mknew.onclick = () => decide([id], "new", "", msg, link.value);
     const mkpartial = tr.querySelector(".mkpartial");

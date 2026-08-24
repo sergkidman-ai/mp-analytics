@@ -627,11 +627,14 @@ def save(rows, supplier_key, hits_by_article):
             # возвращаем в работу, если её закрыл прошлый прогон до этого правила.
             if (row.get("reason") == "foreign"
                     or False in (hit["model_ok"], hit["brand_ok"], hit["resource_ok"])):
+                # `confirmed_at` — человек уже посмотрел строку глазами и сказал «карточка та».
+                # Такую не трогаем: иначе каждый следующий прайс возвращает её в «Неразобранное»,
+                # и одна и та же работа делается заново без единого нового факта.
                 execute("""
                     UPDATE prc_novelty
                        SET decision = 'pending', ms_id = null, ms_code = null, ms_name = null,
                            decided_at = null
-                     WHERE id = %s AND decision = 'exists'
+                     WHERE id = %s AND decision = 'exists' AND confirmed_at IS NULL
                 """, (novelty_id,))
                 continue
             auto += execute("""
