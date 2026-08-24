@@ -2894,6 +2894,20 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     wb, wb_note = ms_import.wb_name(row["name"])
     if wb_note:
         warn.append(wb_note)
+    # Ресурс из названия поставщика против ресурса МОДЕЛИ в каталоге ТК — та же сверка и тот же
+    # допуск, что в черновике карточки поставщика (`ms_import.build`): один вопрос — один ответ.
+    # Эталон берём по коду ТК ДО того, как его отберёт занятость/длина: код может смениться,
+    # а модель, с которой человек сопоставил строку, — нет. Родня здесь не эталон: у нового
+    # товара её либо нет вовсе, либо это чужие комплектации под тем же кодом.
+    from prices.catalog import RESOURCE_TOLERANCE, close
+    tk_ext = str(ext or "").strip() or (row["ms_code"] or "")[:4]
+    tk_pages = db.query("""SELECT resource FROM prc_tc_model
+                            WHERE gone_at IS NULL AND resource IS NOT NULL AND external_code = %s""",
+                        (tk_ext,)) if tk_ext else []
+    pages = ms_import.name_resource(row["name"])
+    if tk_pages and close(pages, tk_pages[0]["resource"]) is False:
+        warn.append(f"ресурс в названии поставщика {pages} против {tk_pages[0]['resource']} в ТК "
+                    f"(допуск {RESOURCE_TOLERANCE:.0%}) — проверить, та ли модель")
     folders = _ms_folders()
     folder = _folder_guess(row["brand"], folders)
     if not folder:
