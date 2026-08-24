@@ -26,6 +26,7 @@ from core import db                                       # noqa: E402
 from reports.card_facts import CardFacts                  # noqa: E402
 from reports.feedback_corpus import intent, load_corpus   # noqa: E402
 from reports import neg_templates                         # noqa: E402
+from reports import card_rating                           # noqa: E402
 
 FULL = BASE_DIR / "docs" / "feedback_run.html"
 ART = BASE_DIR / "docs" / "feedback_run_artifact.html"
@@ -237,7 +238,14 @@ def draft_review(r, name, prod):
         # шаблоном сразу (решение Сергея 24.08.2026). До правки такие отзывы висели вечно: карточку
         # оператору не создать (_enqueue_moderation требует текст), а авто-отправка берёт только 'auto'.
         draft, _ = _neg_draft(r, name, prod)
-        return "negative", draft, ("auto" if empty else "review"), (0.9 if empty else 0.5)
+        if empty:
+            return "negative", draft, "auto", 0.9
+        # РЕЙТИНГ КАРТОЧКИ решает, нужен ли человек (правило Сергея 24.08.2026): карточку под убой
+        # не спасают ответом — её закрывают и заводят новую, поэтому уходит сухой хендофф в чат.
+        v = card_rating.verdict(r["platform"], r.get("item_id"))
+        if not v["alive"]:
+            return "negative", card_rating.DEAD_TEXT, "auto", 0.85
+        return "negative", draft, "review", 0.5
     # 4★: с текстом — нейтральная благодарность на модерацию; БЕЗ текста — шаблоном сразу
     # (решение Сергея 24.08.2026). Пустая 4★ на маршруте review была тупиком: карточку оператору
     # не создать (_enqueue_moderation требует текст), авто-отправка берёт только route='auto' —

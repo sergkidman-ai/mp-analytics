@@ -30,6 +30,7 @@ from reports.feedback_drafts import _norm                                       
 from reports.card_facts import CardFacts                                         # noqa: E402
 from reports.feedback_corpus import load_corpus, intent                         # noqa: E402
 from reports.feedback_draft_run import draft_review, _first_name, _short, DEFECT_RX  # noqa: E402
+from reports import card_rating
 from reports import neg_templates                                                    # noqa: E402
 from reports.feedback_web import web_compat                                      # noqa: E402
 from reports.llm_client import create_with_retry as _create, LlmUnavailable      # noqa: E402,F401
@@ -908,6 +909,8 @@ def _answer(client, r, cf, corpus):
         _note = (f"шаблон негатива: {neg_templates.LABELS[_nt]}" if _nt else
                  "шаблон негатива: общий (тип не определён)" if _c == "negative" else
                  "шаблон отзыва (ротация вариантов)")
+        if _c == "negative":                               # видно, по какому рейтингу принято решение
+            _note += "; " + card_rating.note(card_rating.verdict(r["platform"], r.get("item_id")))
         cc, ground = "", {"llm": False, "note": _note, "source": "шаблон", "template": True}
         cat = "review-empty"
     # КАТАЛОГ-ПОСЛЕ-ВЕБА + страховка от ложного «нет»: ответ отрицает наличие ИЛИ (после веба) уводит
