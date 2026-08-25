@@ -12,7 +12,8 @@ collectors.feedback_send.post_answer (единый choke point: FEEDBACK_LIVE_SE
 применяются автоматически; дневной лимит канала FEEDBACK_BACKLOG_DAILY_CAP — ТОЛЬКО для бэклога,
 apply_cap=True; свежие отзывы и всё, что одобрил оператор в Telegram, лимитом не режутся).
 Перед раздачей слотов run() снимает с очереди неотвечаемые по правилам площадки (пустые Ozon-отзывы,
-см. mark_no_text) — иначе порция канала сгорала бы на заведомо отбойных вызовах API.
+см. mark_no_text) и неотправляемые из-за закрытого API площадки (ответы на отзывы Ozon,
+см. mark_no_api) — иначе порция канала сгорала бы на заведомо отбойных вызовах API.
 
 Запуск:  ./venv/bin/python collectors/feedback_autosend.py
 """
@@ -45,6 +46,35 @@ _NO_TEXT_SQL = """platform='ozon' AND kind='review'
     AND coalesce(body,'')='' AND coalesce(pros,'')='' AND coalesce(cons,'')=''"""
 
 
+# Отзывы Ozon: без подписки Premium Plus /v1/review/comment/create отдаёт 403 на КАЖДЫЙ ответ.
+# Подписки не будет ни у одного юрлица (решение Сергея 24.08.2026) — значит канал закрыт целиком,
+# и такие строки надо снимать с очереди, а не копить в «застрявших». Пути ответа два: появится
+# работа через личный кабинет — снимаем флаг, вернётся подписка — снимаем флаг.
+_NO_API_SQL = "platform='ozon' AND kind='review'"
+
+
+def mark_no_api():
+    """Пометить неотправляемые по закрытому API (ответы на отзывы Ozon). Возвращает число новых пометок.
+
+    Как и mark_no_text, чинит уже сгоревшие: строки с posted_ok=false по этой причине переводим
+    в skipped_no_api и обнуляем posted_at/posted_ok, чтобы они не висели в суточной сводке как
+    ошибки отправки. Стоп-кран по ним снимается отдельно (DELETE из feedback_send_attempts) —
+    иначе строка ⛔ «Застряло» осталась бы навсегда."""
+    healed = db.execute(f"""UPDATE raw_feedback SET posted_at=NULL, posted_ok=NULL, skipped_no_api=true
+                            WHERE {_NO_API_SQL} AND posted_ok=false""")
+    # NOT skipped_no_text — у строки должна быть ОДНА причина парковки: пустой отзыв Озон не примет
+    # и с подпиской, это ограничение правил площадки, а не закрытого канала.
+    fresh = db.execute(f"""UPDATE raw_feedback SET skipped_no_api=true
+                           WHERE {_NO_API_SQL} AND NOT skipped_no_api AND NOT skipped_no_text
+                             AND posted_at IS NULL AND draft_route='auto'""")
+    if healed or fresh:
+        _log(f"неотправляемых (Ozon-отзывы, API закрыт): помечено {fresh}, снято с ошибок отправки {healed}")
+        db.execute("""DELETE FROM feedback_send_attempts a USING raw_feedback f
+                      WHERE a.platform=f.platform AND a.account=f.account AND a.kind=f.kind
+                        AND a.ext_id=f.ext_id AND f.skipped_no_api""")
+    return fresh
+
+
 def mark_no_text():
     """Пометить неотвечаемые (пустые Ozon-отзывы) до раздачи слотов. Возвращает число новых пометок.
 
@@ -68,6 +98,7 @@ def _candidates():
         draft_text,created_at FROM raw_feedback
         WHERE draft_route='auto' AND is_answered=false AND posted_at IS NULL
         AND draft_text IS NOT NULL AND NOT skipped_old AND NOT skipped_no_text
+        AND NOT skipped_no_api
         ORDER BY created_at DESC""")
     buckets = defaultdict(list)
     for r in rows:
@@ -78,6 +109,7 @@ def _candidates():
 
 def run():
     mark_no_text()                                # слоты цикла — только на отвечаемые отзывы
+    mark_no_api()                                 # и только на те, куда вообще есть путь ответа
     buckets = _candidates()
     total_sent, total_fail, capped = 0, 0, 0
     if not buckets:
