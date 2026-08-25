@@ -9,6 +9,12 @@
 # ниже СВОЕГО потолка (маржа − 25 %), шаг +10 %, потолок ставки 25 ₽, и не более --max-up 150
 # позиций за прогон (отбор по запасу ₽/нед до потолка ДРР) — чтобы сбой снимка не превратился
 # в разгон всего каталога. Раз в неделю, не чаще.
+# ЗАМОРОЗКА ПОДЪЁМА до замера 01.09.2026 (поставлена 25.08.2026). Автоподъём зелёных отключён
+# флагом --only floor,down на ОБОИХ аккаунтах: 24.08 крон поднял 67 зелёных acc1, и Сергей велел
+# вернуть (откат author='roy-rollback', 12.83 → 11.66 ₽). Причина — на неделе 25–31.08 идёт замер
+# посадки ширины против контроля, подъём ставок в это окно смешивает эффекты. Понижения
+# (🟤 бордовые / ⚫ вывод в пол) оставлены: они экономят и на замер ширины не влияют.
+# СНЯТЬ ПОСЛЕ 01.09.2026: вернуть «--blackout --max-up 150» вместо «--only floor,down --blackout».
 set -u
 cd /opt/mp-analytics || exit 1
 PY=./venv/bin/python
@@ -25,7 +31,7 @@ LOG=/opt/mp-analytics/wb_roy_weekly.log
   $PY -m ops.wb_roy_profile --account wb_acc2 --end "$END" || echo "!! профиль acc2 не построился"
   CSV="docs/reports/mkt_roy_profile_${END}.csv"
   if [ -s "$CSV" ]; then
-    $PY -m ops.wb_roy_apply "$CSV" --blackout --max-up 150 --apply --notify
+    $PY -m ops.wb_roy_apply "$CSV" --only floor,down --blackout --apply --notify
   else
     echo "!! нет $CSV — ставки acc1 не трогаем"
   fi
@@ -33,7 +39,7 @@ LOG=/opt/mp-analytics/wb_roy_weekly.log
   # Удаление ⚫ из кампаний остаётся ручным — в API ВБ нет метода снять номенклатуру.
   CSV2="docs/reports/mkt_roy_profile_${END}_wb_acc2.csv"
   if [ -s "$CSV2" ]; then
-    $PY -m ops.wb_roy_apply "$CSV2" --account wb_acc2 --blackout --max-up 150 --apply --notify
+    $PY -m ops.wb_roy_apply "$CSV2" --account wb_acc2 --only floor,down --blackout --apply --notify
   else
     echo "!! нет $CSV2 — ставки acc2 не трогаем"
   fi
