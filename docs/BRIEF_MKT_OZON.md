@@ -294,7 +294,7 @@
 
 
 26. **H-009 закрыт — контур сам сверяет эксперименты (22.08.2026).** Ветка `main`, общий
-    чекаут, **не закоммичено** (ждёт «ок»). Одна команда:
+    чекаут, **влито 25.08 коммитом `0cfda1b`**. Одна команда:
     `venv/bin/python tools/ozon_hypo.py evaluate-ready [--dry-run] [--only E5,E6]`.
     * Закрыты восемь ручных операций: поймать дату сверки → проверить зрелость каждого
       источника → прочитать контракт, написанный до вмешательства → сверить состав когорты
@@ -323,6 +323,14 @@
       `docs/experiments/ozon_hypothesis_contract.md`.
     * **Следующий шаг:** 26.08 — первая настоящая сверка (E6), 27.08 — первый разбор H-001.
       Ставки, цены, кампании, товары, cron/systemd и внешние API не менялись.
+    * **25.08 — разъезд коммита починен.** Изменённые файлы H-009 (`ozon_hypo.py`,
+      `ozon_exp_eval.py`, контракт, этот бриф) уехали в `main` чужим коммитом `87830fa`
+      («card: бриф», 24.08, `commit -a` подмёл территорию mkt), а пять новых файлов
+      остались вне git. `ozon_hypo.py:1768` импортировал отсутствующий в репозитории
+      `ozon_eval_core` → на чистом клоне `evaluate-ready` падал ImportError. Досланы
+      `tools/ozon_eval_core.py`, `tests/test_ozon_eval.py`, `ozon_evaluator_contracts.json`,
+      `ozon_evaluations.jsonl`, `docs/reports/ozon_h009_2026-08-22.md` (`0cfda1b`).
+      Проверено импортом из чистого дерева `HEAD`; `tests.test_ozon_eval` — 29 OK.
 
 27. **Акции «Распродажа стока» — робот готов, ветка `mkt/ozon-stock-action`** (коммиты `4c5054c`+).
     `ops/ozon_stock_action.py` (`plan` / `apply` / `watch`), миграция `509_oz_stock_action.sql`
