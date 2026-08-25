@@ -6,19 +6,42 @@ import openpyxl
 from core import ms_api
 from prices.ms_import import family, wb_name, wb_compose, query, next_external_codes
 from prices import features as F
-from prices.catalog import compare, FEATURE_NAMES
+from prices.catalog import (compare, FEATURE_NAMES, load_tc, title_dict,
+                            model_codes, same_model)
 from prices.novelty import kind
 from prices.article_key import art_key, clash as art_clash, describe
 
 SIGNS = ("model_ok", "kind_ok", "brand_ok", "color_ok", "resource_ok", "chip_ok")
 
 
-def signs_of(name, article, wb):
+TC_ALL = load_tc()
+TITLES = title_dict(TC_ALL)
+
+
+def own_model(ec):
+    """Модель ТК внешнего кода: заголовочные коды, а у чисто цифровых моделей — сам заголовок.
+
+    У Canon модели `071`, `071H`, `057` целиком цифровые, `features.codes()` кодов из них
+    не даёт и `title_codes` пуст. Без фолбэка на сам заголовок обе стороны молчат, признак
+    падает на сравнение всех кодов скопом — и коды ПРИНТЕРОВ идут за модель расходника.
+    """
+    tc = TC_ALL.get(str(ec or "").strip())
+    if not tc:
+        return None
+    return tc["title_codes"] or ([tc["title"].upper()] if tc.get("title") else None)
+
+
+def signs_of(name, article, wb, ec=None):
     """Признаки для сравнения. Название МС + «Название WB»: чип пишут только во втором."""
     text = f"{name} | {wb or ''}"
     item = {"name": text, "article": str(article or "")}
     item["kind"] = kind(text)
     item.update(F.parse(text, item["article"]))
+    # Модель картриджа — как в `prices/catalog.py:127` (правка 24.08, коммит 10eb021):
+    # у карточки с кодом ТК модель известна точно, прочим остаётся словарь заголовков.
+    # Без этой строки `catalog.model_ok` уходил в фолбэк `codes_ok` — сравнение ВСЕХ кодов
+    # названия, где принтеры (LBP-223/MF443) считались моделью наравне с расходником (057).
+    item["model_codes"] = model_codes(item["codes"], TITLES, own_model(ec))
     return item
 
 SRC = sys.argv[1]
@@ -189,12 +212,22 @@ for r in rows:
             problems.append(f"{tag}: «Связь» {other} — такого внешнего кода в МС нет")
 
     # шесть признаков (правило 30) — наша строка против КАЖДОЙ карточки родни
-    mine = signs_of(r["Наименование"], art, r.get("Доп. поле: Название WB"))
+    mine = signs_of(r["Наименование"], art, r.get("Доп. поле: Название WB"), r["Внешний код"])
+    # Тот ли внешний код выбрал человек: модель ИЗ НАЗВАНИЯ строки против модели ТК этого
+    # кода. Родня отвечать на это не может — она сидит под тем же кодом, то есть по
+    # построению несёт ту же модель. Молчит любая сторона — молчим и мы.
+    tk_model = set(own_model(r["Внешний код"]) or ())
+    name_model = model_codes(mine["codes"], TITLES)
+    if tk_model and name_model and not same_model(name_model, tk_model):
+        problems.append(f"{tag}: внешний код {r['Внешний код']} — модель ТК "
+                        f"{', '.join(sorted(tk_model))}, а в названии "
+                        f"{', '.join(sorted(name_model))}; проверить код")
     tally = {s: {True: 0, False: 0, None: 0} for s in SIGNS}
     clash = []
     for c in live_ec:
         wb = {a["name"]: a.get("value") for a in c.get("attributes", [])}.get("Название WB")
-        flags = compare(mine, signs_of(c.get("name") or "", c.get("article"), wb))
+        flags = compare(mine, signs_of(c.get("name") or "", c.get("article"), wb,
+                                       c.get("externalCode")))
         for s in SIGNS:
             tally[s][flags[s]] += 1
         bad = [FEATURE_NAMES[s] for s in SIGNS if flags[s] is False]
