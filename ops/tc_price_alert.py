@@ -13,7 +13,12 @@
 Идемпотентность: journal `mkt_tc_resurfaced` (миграция 113) — один ряд на карточку, повторно
 о той же карточке не сообщаем, даже если цена потом пропадёт и появится снова.
 
-    ./venv/bin/python -m ops.tc_price_alert --dry     # напечатать, не отправлять
+Аккаунты: сигнал считается ОТДЕЛЬНО по каждому — журнал и мост nm→код у них свои.
+До 25.08.2026 скрипт был жёстко прибит к `wb_acc1`, и «сумрака» у acc2 не существовало вовсе
+(200 строк журнала — все acc1). Крон обязан звать оба аккаунта.
+
+    ./venv/bin/python -m ops.tc_price_alert --dry                     # acc1, не отправлять
+    ./venv/bin/python -m ops.tc_price_alert --account wb_acc2
 """
 import argparse
 import os
@@ -26,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import db                                    # noqa: E402
 from reports.margin_control import _mapping            # noqa: E402  — общий мост nm → код TheCartridge
 
-ACCOUNT = "wb_acc1"
+ACCOUNTS = ("wb_acc1", "wb_acc2")
 SERGEY_CHAT_ID = 1031321444        # только явный chat_id, см. память про телеграм-каналы
 TOP_N = 15                         # сколько позиций показывать в сообщении построчно
 
@@ -82,10 +87,10 @@ def _find(account):
     return out, day
 
 
-def build(rows, day):
+def build(rows, day, account):
     if not rows:
         return None
-    L = [f"*Вышли из сумрака* ({day}): {len(rows)} SKU",
+    L = [f"*Вышли из сумрака* · {account} ({day}): {len(rows)} SKU",
          "У TheCartridge впервые появилась закупка — позиция стала считаемой."]
     withm = [r for r in rows if r["margin_own"] is not None]
     if withm:
@@ -128,13 +133,15 @@ def send(text):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry", action="store_true", help="напечатать и НЕ отмечать в журнале")
+    ap.add_argument("--account", choices=ACCOUNTS, help="по умолчанию оба")
     a = ap.parse_args()
-    rows, day = _find(ACCOUNT)
-    msg = build(rows, day)
-    if not msg:
-        print(f"из сумрака никто не вышел (снимок {day})", flush=True)
-        sys.exit(0)
-    print(msg, flush=True)
-    if not a.dry:
-        send(msg)
-        mark(ACCOUNT, rows, day)     # отмечаем после отправки — сбой связи не съест алерт
+    for account in ([a.account] if a.account else ACCOUNTS):
+        rows, day = _find(account)
+        msg = build(rows, day, account)
+        if not msg:
+            print(f"{account}: из сумрака никто не вышел (снимок {day})", flush=True)
+            continue
+        print(msg, flush=True)
+        if not a.dry:
+            send(msg)
+            mark(account, rows, day)  # отмечаем после отправки — сбой связи не съест алерт
