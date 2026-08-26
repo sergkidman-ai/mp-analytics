@@ -269,13 +269,11 @@ def _tc_ask(codes):
     return out
 
 
-def code_variants(code):
-    """Код как на площадке и он же без ведущих нулей — какой из них знает ТК, зависит от карточки."""
-    v = [code]
-    bare = code.lstrip("0")
-    if bare and bare != code:
-        v.append(bare)
-    return v
+# Ведущий ноль — ЧАСТЬ кода, а не оформление: начинается с нуля у нас — начинается с нуля
+# и в МС, и у ТК (правило Сергея 26.08.2026). Обрезать его нельзя ни у родителей, ни у
+# производных. Обрезка стоила дважды: 23.08 срезанный ноль оставил 35 карточек Маркета
+# без себеста, а 26.08 обнаружилось, что она подменяла себест 736 карточкам — «04247»
+# искался как «4247», а это ЧУЖАЯ карточка (15 374 ₽ вместо базы «0424» = 318 ₽).
 
 
 def set_components(codes):
@@ -316,7 +314,7 @@ def tc_cost(codes):
     каждого (задача Сергея 23.08.2026). Неполный состав (хоть у одного компонента цены нет)
     не берём вовсе — сумма вышла бы заниженной, а заниженный себест выпускает товар в минус.
     """
-    codes = {v for c in codes for v in code_variants(c)}
+    codes = set(codes)
     exact = _tc_ask(codes)
     left = {c for c in codes if c not in exact and re.match(r"^\d{4}", c)}
     approx = _tc_ask({c[:4] for c in left})
@@ -329,26 +327,21 @@ def tc_cost(codes):
 def cogs_unit(code, acc, cm, tc):
     """Себест единицы: закупка ТК → закупка базового кода → сумма состава набора → остаток МС.
 
-    Каждый шаг пробуется на обоих написаниях кода (с ведущим нулём и без).
+    Код берётся ровно как на карточке — ведущий ноль значащий, см. комментарий выше.
+    Базовый код производной — её первые четыре знака: «04247» → «0424».
     """
     exact, base, sets = tc
     if not code:
         return None, None
-    for c in code_variants(code):
-        if c in exact:
-            return exact[c], "ТК"
-    for c in code_variants(code):
-        if c[:4] in base:
-            return base[c[:4]], "ТК-база"
-        if c in sets:
-            return sets[c], "ТК-набор"
-        if c[:4] in sets:
-            return sets[c[:4]], "ТК-набор"
-    for c in code_variants(code):
-        unit, src = cost_for(c, acc, cm)
-        if unit is not None:
-            return unit, src
-    return None, None
+    if code in exact:
+        return exact[code], "ТК"
+    if code[:4] in base:
+        return base[code[:4]], "ТК-база"
+    if code in sets:
+        return sets[code], "ТК-набор"
+    if code[:4] in sets:
+        return sets[code[:4]], "ТК-набор"
+    return cost_for(code, acc, cm)
 
 
 # ─── карантин по площадкам ──────────────────────────────────────────────────────────────
@@ -390,8 +383,8 @@ def ya_code(offer_id):
     """offerId Маркета → (внешний код МС, штук в комплекте). '0123X2' → ('0123', 2).
 
     Ведущий ноль ЗНАЧАЩИЙ: внешний код в МС и у ТК — ровно «0123», кода «123» они не знают
-    (23.08.2026 срезанный ноль оставил 35 карточек Маркета без себеста). Вариант без нуля
-    остаётся запасным — см. code_variants.
+    (23.08.2026 срезанный ноль оставил 35 карточек Маркета без себеста). Варианта без нуля
+    не существует — см. комментарий перед cogs_unit.
     """
     m = YA_OFFER.match(offer_id or "")
     if not m:
