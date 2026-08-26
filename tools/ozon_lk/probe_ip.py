@@ -36,6 +36,18 @@ def _opener(proxy):
     return urllib.request.build_opener(*handlers)
 
 
+def _pw_proxy(proxy):
+    """Playwright ждёт логин и пароль отдельными полями, а покупные прокси дают их прямо в адресе."""
+    m = re.match(r"^(\w+)://(?:([^:@/]+):([^@/]*)@)?(.+)$", proxy)
+    if not m:
+        return {"server": proxy}
+    scheme, user, pwd, host = m.groups()
+    out = {"server": f"{scheme}://{host}"}
+    if user:
+        out["username"], out["password"] = user, pwd or ""
+    return out
+
+
 def _get(opener, url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     with opener.open(req, timeout=timeout) as r:
@@ -73,7 +85,7 @@ def check_browser(proxy):
         from playwright.sync_api import sync_playwright
     except ImportError:
         return None, "playwright не установлен — шаг пропущен"
-    opts = {"proxy": {"server": proxy}} if proxy else {}
+    opts = {"proxy": _pw_proxy(proxy)} if proxy else {}
     with sync_playwright() as pw:
         br = pw.chromium.launch(headless=False, args=["--disable-blink-features=AutomationControlled"], **opts)
         page = br.new_page(locale="ru-RU", timezone_id="Europe/Moscow",
@@ -108,6 +120,10 @@ if __name__ == "__main__":
                 break
         if not a.proxy:
             sys.exit(f"в {a.proxy_file} нет HTTPS_PROXY/HTTP_PROXY/ALL_PROXY")
+
+    if a.proxy and a.proxy.startswith("socks"):
+        # urllib socks5 не умеет; у мобильных прокси всегда есть и HTTP-порт — берите его.
+        print("ВНИМАНИЕ: для этой проверки нужен HTTP(S)-порт прокси, socks5 не поддержан.")
 
     op = _opener(a.proxy)
     print("канал:  ", "через прокси" if a.proxy else "прямой")
