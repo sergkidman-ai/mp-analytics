@@ -2875,7 +2875,7 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     следующим свободным: иначе на один товар в каталоге появится второй код.
     """
     from prices import ms_import
-    from prices.profiles import get_profile
+    from prices.profiles import get_identity
     found = db.query("""SELECT id, supplier_key, article, name, brand, price_rub, link,
                                decision, ms_code
                           FROM prc_novelty WHERE id = %s""", (id,))
@@ -2884,7 +2884,7 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     row = found[0]
     n = max(1, min(int(n or 1), MS_CARDS_MAX))
     try:
-        profile = get_profile(row["supplier_key"])
+        profile = get_identity(row["supplier_key"])
         abbr = ms_import.suffix(row["article"], row["supplier_key"], row["name"])
     except (KeyError, ValueError) as exc:
         return {"ok": False, "error": f"поставщик {row['supplier_key']}: {exc}"}
@@ -2994,7 +2994,7 @@ def novelties_ms_create(payload: MsCreate):
     отсекает проверка.
     """
     from prices import ms_import
-    from prices.profiles import get_profile
+    from prices.profiles import get_identity
     found = db.query("SELECT id, supplier_key, article, name FROM prc_novelty WHERE id = %s",
                      (payload.id,))
     if not found:
@@ -3005,7 +3005,7 @@ def novelties_ms_create(payload: MsCreate):
         return {"ok": False, "error": f"карточек должно быть от 1 до {MS_CARDS_MAX}"}
     if not 0 <= payload.main_index < len(cards):
         return {"ok": False, "error": "не указана главная карточка"}
-    profile = get_profile(row["supplier_key"])
+    profile = get_identity(row["supplier_key"])
     folders = _ms_folders()
 
     errors, seen = [], set()
@@ -3151,12 +3151,12 @@ def novelties_twin_create(payload: TwinCreate):
     блокирует. Повтор кнопки безопасен: своя карточка уже есть → строка уйдёт в пропуски.
     """
     from prices import ms_import
-    from prices.profiles import get_profile
+    from prices.profiles import get_identity
     from prices.supplier_group import own_ids
     row, rec, flags, error = _twin_draft(payload.id)
     if error:
         return {"ok": False, "error": error}
-    profile = get_profile(row["supplier_key"])
+    profile = get_identity(row["supplier_key"])
     lines = []
     try:
         created, skipped = ms_import.create_in_ms([rec], profile.supplier_ids[0],

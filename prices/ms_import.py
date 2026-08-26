@@ -76,8 +76,17 @@ CODE_SUFFIX = {
     "sakura": [(r"", "sk")],
     "colortek": [(r"", "ct")],
 }
+# Бренд, который читается ТОЛЬКО из наименования, а не из артикула. У Булата под одним
+# ключом три бренда: Grafit (`gf`, решение Сергея 26.08.2026), БУЛАТ s-Line (`sl`, 1170 живых
+# карточек в МС) и остальной БУЛАТ (`bt`, 308). Артикул бренда не несёт: из 93 строк письма
+# 88 кончаются на `-GRFT`, а пять точно таких же Grafit — обычные `CRT-KY-TK5280-C-11K`.
+# Проверяется РАНЬШЕ `CODE_SUFFIX`; значения по умолчанию нет намеренно, как и там.
+NAME_SUFFIX = {
+    "bulat": [(r"grafit|графит", "gf"), (r"s-line", "sl"), (r"булат", "bt")],
+}
 # Контрагент для колонки «Поставщик» — как он назван в МС.
 MS_SUPPLIER = {
+    "bulat": 'ООО "ТОНЕРСТОР"',        # решение Сергея 26.08.2026 — см. profiles.IDENTITY
     "kaktus_msk": 'ООО "КОМПАНИЯ ФЕРРЕТ"',
     "odissey": 'ООО "ОДИССЕЙ"',        # есть ещё карточка 'ООО "ОДИССЕЙ" WB' — см. SUPPLIER_BY_SUFFIX
     "sakura": 'ООО "ПОЗИТИВ"',
@@ -181,6 +190,9 @@ def suffix(article, supplier_key, name=""):
     """
     if supplier_key == "odissey" and is_white_box(name, article):
         return "wb"
+    for pattern, abbr in NAME_SUFFIX.get(supplier_key, []):
+        if re.search(pattern, name or "", re.IGNORECASE):
+            return abbr
     for pattern, abbr in CODE_SUFFIX.get(supplier_key, []):
         if not pattern or re.search(pattern, article or "", re.IGNORECASE):
             return abbr
