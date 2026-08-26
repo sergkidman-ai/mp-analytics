@@ -2335,7 +2335,8 @@ def novelties_api(supplier: str = "", status: str = "", no_stock: bool = False):
         SELECT c.novelty_id, c.rank, c.ms_id, c.ms_code, c.ms_name, c.color, c.measure, c.chip,
                c.shared_code, c.verdict, c.brand, c.kind, c.model_ok, c.kind_ok, c.brand_ok,
                c.color_ok, c.resource_ok, c.chip_ok, c.score, c.source, c.external_code,
-               c.feat_src, t.title AS tc_title, coalesce(p.cards, 0) AS cards
+               c.feat_src, t.title AS tc_title, coalesce(p.cards, 0) AS cards,
+               t.consumable_type, t.raw->'ink_colors' AS ink_colors
           FROM prc_novelty_candidate c
           LEFT JOIN prc_tc_model t ON t.external_code = c.external_code AND t.gone_at IS NULL
           LEFT JOIN (SELECT external_code, count(*) cards FROM ms_product
@@ -2351,8 +2352,14 @@ def novelties_api(supplier: str = "", status: str = "", no_stock: bool = False):
     """)
     by_novelty = {}
     for c in cands:
+        # Многоцветный набор помечаем прямо в подсказке: модель у набора и у одиночного
+        # цвета совпадает, а цвет у набора в ТК не заполнен — в сетке сверки вставал первый
+        # цвет из названия карточки МС, и набор выглядел обычным чёрным картриджем.
+        marks = catalog.set_info(c["consumable_type"],
+                                 f"{c['tc_title'] or ''} {c['ms_name'] or ''}",
+                                 c["ink_colors"])
         by_novelty.setdefault(c["novelty_id"], []).append(
-            dict(c, **_novelty_view(c), price_rub=None))
+            dict(c, **marks, **_novelty_view(c), price_rub=None))
     models = _novelty_models(rows)
     out = []
     for r in rows:

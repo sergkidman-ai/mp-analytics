@@ -85,6 +85,50 @@ def load_tc():
     return tc
 
 
+SET_RE = re.compile(r"набор|комплект", re.IGNORECASE)
+CMYK_RE = re.compile(r"cmyk", re.IGNORECASE)
+CMYK_COLORS = ("Голубой", "Пурпурный", "Жёлтый", "Чёрный")
+
+
+def set_colors(name, ink_colors):
+    """Из чего набор. Список цветов ТК, а где ТК молчит — цвета, вычитанные из названия."""
+    colors = [str(c).strip() for c in (ink_colors or []) if str(c or "").strip()]
+    if len(colors) == 1 and CMYK_RE.search(colors[0]):
+        return list(CMYK_COLORS)      # ТК пишет четырёхцветный набор одной строкой «Набор CMYK»
+    if colors:
+        return colors
+    rest, found = name or "", []
+    for code, pat in F.COLOR_RE:      # порядок словаря важен: составные цвета идут первыми,
+        rest, hits = pat.subn(" ", rest)   # и найденное вырезаем, иначе «чёрный матовый»
+        if hits:                           # даст ещё и «чёрный» — два цвета на пустом месте
+            found.append(F.COLOR_NAMES[code])
+    return found
+
+
+def set_info(consumable_type, name, ink_colors=None):
+    """Многоцветный ли это набор и из чего. -> {"is_set", "colors_count", "set_colors"}.
+
+    Замечание Сергея 26.08.2026. У набора и у одиночного цвета модель совпадает буква
+    в букву («842283 - 842286» против «842283»), а ЦВЕТ у набора в каталоге ТК не заполнен
+    вовсе: в сетке сверки вставал первый цвет, вычитанный из названия карточки МС, и набор
+    выглядел обычным чёрным картриджем. Привязать к нему одиночную позицию прайса после
+    этого — одно движение, поэтому набор должен быть виден ещё в списке подсказок.
+
+    Метим ТОЛЬКО многоцветный: подменить цвет можно там, где цветов больше одного.
+    Одноцветные комплекты («Заправочный комплект … Чёрный», «фотобарабан + картридж»)
+    сравнение по цвету проходят честно, и метка на них была бы шумом.
+
+    Слово ищем и в типе первоисточника (`consumable_type` ТК), и в названии — карточки МС
+    в каталоге ТК может не быть вовсе. Состав цветов — `set_colors`; `colors_count` самого
+    ТК не берём, он врёт (у «Комплект картриджей» с четырьмя цветами стоит и 2, и 3).
+    """
+    named = bool(SET_RE.search(consumable_type or "") or SET_RE.search(name or ""))
+    colors = set_colors(name, ink_colors) if named else []
+    is_set = len(colors) > 1
+    return {"is_set": is_set, "colors_count": len(colors) if is_set else 0,
+            "set_colors": ", ".join(colors) if is_set else ""}
+
+
 def load_tc_one(external_code):
     """Одна модель каталога ТК в том же виде, что даёт `load_tc`.
 
@@ -92,7 +136,8 @@ def load_tc_one(external_code):
     один товар, а поднимать ради него весь каталог с признаками — пять тысяч строк на клик.
     """
     rows = query("""
-        select title, color, resource, chip, coalesce(brand, '{}') as brand
+        select title, color, resource, chip, coalesce(brand, '{}') as brand,
+               consumable_type, raw->'ink_colors' as ink_colors
           from prc_tc_model
          where gone_at is null and external_code = %s
     """, (external_code,))
@@ -100,7 +145,8 @@ def load_tc_one(external_code):
         return None
     r = rows[0]
     tc = {"title": r["title"], "color": r["color"], "resource": r["resource"],
-          "chip": r["chip"], "brand": set(r["brand"] or ()), "codes": set(), "title_codes": set()}
+          "chip": r["chip"], "brand": set(r["brand"] or ()), "codes": set(), "title_codes": set(),
+          "type": r["consumable_type"], "ink_colors": r["ink_colors"]}
     for c in query("select code, source from prc_tc_code where external_code = %s",
                    (external_code,)):
         tc["codes"].add(c["code"])
@@ -781,7 +827,12 @@ def probe(row, code):
                       where not archived and external_code = %s""",
                   (item["external_code"],))[0]["n"] if item["external_code"] else 0
     tc = item.get("tc")
-    return {"ms_id": item["ms_id"], "ms_code": item["code"] or None, "ms_name": item["name"],
+    # Имя смотрим и наше, и первоисточника: набор, названный набором хоть где-то, лучше
+    # показать лишний раз, чем пропустить — цена ошибки здесь несимметрична.
+    marks = set_info((tc or {}).get("type"), f"{(tc or {}).get('title') or ''} {item['name']}",
+                     (tc or {}).get("ink_colors"))
+    return {**marks,
+            "ms_id": item["ms_id"], "ms_code": item["code"] or None, "ms_name": item["name"],
             "external_code": item["external_code"] or None,
             "tc_title": tc["title"] if tc else None, "cards": cards,
             "color": item["color"], "measure": measure(item), "chip": item["chip"],

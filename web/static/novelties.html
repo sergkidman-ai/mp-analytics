@@ -431,12 +431,16 @@ function optionLabel(c){
   // списка (опечатка поставщика в цифре прятала верную карточку), но и молча предлагать
   // его нельзя — метка видна прямо в выпадающем списке, до раскрытия сетки.
   const mark = hasConflict(c) ? "⚠" : c.verdict === "совпало по всем признакам" ? "✓✓" : "•";
+  // Многоцветный набор виден ДО раскрытия сетки: модель у набора и у одиночного цвета
+  // совпадает буква в букву, а цвет у набора в каталоге не заполнен — привязать к нему
+  // одиночную позицию прайса иначе слишком легко (замечание Сергея 26.08).
+  const set = c.is_set ? `🎁 НАБОР ×${c.colors_count} ` : "";
   if (isGoods(c)) {
     const cards = c.cards ? `карточек МС: ${c.cards}` : "карточки в МС нет";
-    return `${c.cards ? mark : "➕"} ${c.external_code} — ${c.tc_title} (${cards})`;
+    return `${c.cards ? mark : "➕"} ${set}${c.external_code} — ${c.tc_title} (${cards})`;
   }
   const n = goods(c.ms_code);
-  return `${mark} ${n || c.ms_code || "без кода"}${n ? " (" + c.ms_code + ")" : ""} — ${c.ms_name}`;
+  return `${mark} ${set}${n || c.ms_code}${n ? " (" + c.ms_code + ")" : ""} — ${c.ms_name}`;
 }
 
 // Сетка сверки: шесть признаков, по которым строка прайса сопоставляется с нашей карточкой,
@@ -462,7 +466,9 @@ function cmpGrid(r, c){
     ["тип", "", KINDS[r.kind] || r.kind, KINDS[c.kind] || c.kind, c.kind_ok],
     ["бренд", "brand", r.brand, c.brand, c.brand_ok],
     ["ресурс/объём", "resource", num(r.measure), num(c.measure), c.resource_ok],
-    ["цвет", "color", r.color, c.color, c.color_ok],
+    // У набора в клетке цвета — весь его состав, а признак гасим: сравнивать один цвет
+    // строки прайса с четырьмя цветами набора нечего, «совпало» тут было бы враньём.
+    ["цвет", "color", r.color, c.is_set ? c.set_colors : c.color, c.is_set ? null : c.color_ok],
     ["чип", "chip", r.chip, c.chip, c.chip_ok],
   ];
   const body = lines.map(([key, feat, mine, ours, ok]) => {
@@ -477,7 +483,11 @@ function cmpGrid(r, c){
   // где он высказался (пометка «ТК» у значения), поэтому и колонка называется каталогом.
   const head = isGoods(c) ? `товар ${esc(c.external_code)} · сходится ${c.score}/6`
                           : `сходится ${c.score}/6`;
-  return `<table class="cmp"><tr><th class="score">${head}</th>
+  const warn = c.is_set
+    ? `<div class="miss">🎁 это НАБОР из ${c.colors_count} цветов (${esc(c.set_colors)}) —
+         одиночную позицию прайса к нему не привязывать: модель у набора та же</div>`
+    : "";
+  return warn + `<table class="cmp"><tr><th class="score">${head}</th>
       <th>строка прайса</th><th>${isGoods(c) ? "каталог ТК" : "наша карточка"}</th>
       <th></th></tr>${body}</table>`;
 }
