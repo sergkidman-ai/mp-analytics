@@ -264,6 +264,23 @@ def tc_kinds():
         key=len, reverse=True)
 
 
+CYRILLIC = re.compile(r"[А-Яа-я]")
+
+
+def looks_like_model(text):
+    """Модель — это КОД, а не кусок описания.
+
+    Ограничитель нужен после разбора 26.08: у тонеров Cactus название начинается с бренда
+    расходника и его артикула («Тонер Cactus CS-TKY3-870 черный флакон 870гр. для принтера
+    Kyocera Universal TK-475»), и в «модель» уезжало «Cactus CS-TKY3-870 черный флакон 870гр.» —
+    четыре РАЗНЫХ тонера (TK-475/4105/435/4145) получали одно имя, потому что артикул флакона
+    у них общий. Код короток, содержит цифру и пишется латиницей; описание — нет.
+    """
+    words = text.split()
+    return (1 <= len(words) <= 3 and len(text) <= 24
+            and HAS_DIGIT.search(text) and not CYRILLIC.search(text))
+
+
 def wb_from_price(price_name):
     """Сырьё формулы из НАЗВАНИЯ ПОСТАВЩИКА — когда каталога ТК по коду нет вовсе.
 
@@ -282,24 +299,25 @@ def wb_from_price(price_name):
     if len(brands) != 1:                       # два бренда в имени — какой из них наш, неясно
         return None
     head = name.split(",")[0]
+    # Дефис границей слова НЕ считаем: иначе «Драм-картридж» и «Тонер-картридж» опознаются
+    # как «Картридж», а в модель уезжает огрызок «Драм-». Нет типа в словаре ТК — отказ.
+    edge = "А-Яа-яA-Za-z-"
     kind = next((k for k in tc_kinds()
-                 if re.search(rf"(?<![А-Яа-яA-Za-z]){re.escape(k)}(?![А-Яа-яA-Za-z])",
-                              head, re.IGNORECASE)), "")
+                 if re.search(rf"(?<![{edge}]){re.escape(k)}(?![{edge}])", head, re.IGNORECASE)), "")
     if not kind:
         return None
-    rest = re.sub(rf"(?<![А-Яа-яA-Za-z]){re.escape(kind)}(?![А-Яа-яA-Za-z])", " ", head,
-                  flags=re.IGNORECASE)
+    rest = re.sub(rf"(?<![{edge}]){re.escape(kind)}(?![{edge}])", " ", head, flags=re.IGNORECASE)
     left = re.split(r"(?<![А-Яа-яA-Za-z])для(?![А-Яа-яA-Za-z])", rest, flags=re.IGNORECASE)[0]
     for b in brands:                           # «Картридж Canon 054» -> модель «054»
         left = re.sub(rf"(?<![0-9A-Za-zА-Яа-я]){re.escape(b)}(?![0-9A-Za-zА-Яа-я])", " ", left,
                       flags=re.IGNORECASE)
     model = re.sub(r"\s+", " ", left).strip(" ,;-")
-    if not (model and HAS_DIGIT.search(model)):
+    if not looks_like_model(model):
         # «Тонер-картридж для Xerox DocuColor 240/250, 006R01449, Black, 30K» — модель за
         # запятой: первый кусок с цифрой, который не ресурс и не цвет.
         model = ""
         for seg in [x.strip() for x in name.split(",")[1:]]:
-            if (seg and HAS_DIGIT.search(seg) and " " not in seg
+            if (seg and looks_like_model(seg) and " " not in seg
                     and not RESOURCE_TOKEN.match(seg) and not features.color(seg)):
                 model = seg
                 break
