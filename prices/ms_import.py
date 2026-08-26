@@ -41,7 +41,7 @@ from core.db import execute, query
 from .catalog import RESOURCE_TOLERANCE, close, model_conflict, model_dict
 from .features import BRANDS, BRAND_RE       # noqa: F401 — BRANDS в модуле ждут по имени
 from .features import resource as name_resource
-from .profiles import get_profile
+from .profiles import get_identity, get_profile
 
 # Порядок колонок — как в файле загрузки от 30.07 («МС шаблон для новинок»).
 COLUMNS = [
@@ -484,7 +484,9 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
     `ids` — только эти строки новинок (кнопка «Это он» заводит карточку по одной строке;
     решение к этому моменту уже записано, поэтому фильтр по нему остаётся общим).
     """
-    profile = get_profile(supplier_key)
+    # Личность, а не профиль прайса: из профиля здесь берётся только `key` (аббревиатура кода
+    # и карта габаритов), а кнопки «➕ В МС» / «Это он» работают и у поставщика без прайса.
+    profile = get_identity(supplier_key)
     rows = query(
         """SELECT id, article, name, ms_code, price_rub, link
              FROM prc_novelty
