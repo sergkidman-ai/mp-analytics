@@ -39,6 +39,7 @@ from dotenv import load_dotenv
 load_dotenv("/opt/mp-analytics/.env")
 from core import db
 import collectors.feedback_send as fs
+from reports import publish_gate
 
 TOKEN = (os.getenv("TG_FEEDBACK_BOT_TOKEN") or os.getenv("TG_BOT_TOKEN") or "").strip()
 _DEDICATED = bool(os.getenv("TG_FEEDBACK_BOT_TOKEN"))
@@ -110,7 +111,8 @@ def _pending(limit=5, days=None, kind=None):
     days = WINDOW_DAYS if days is None else days
     return db.query("""SELECT m.id, m.platform, m.account, m.kind, m.ext_id,
         f.product_name, f.body, f.pros, f.cons, f.rating, f.created_at,
-        f.item_id, f.article, f.draft_text, f.draft_route, f.draft_grounding
+        f.item_id, f.article, f.draft_text, f.draft_route, f.draft_grounding,
+        f.draft_confidence
         FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
              AND f.kind=m.kind AND f.ext_id=m.ext_id
@@ -136,7 +138,8 @@ def _mod(mod_id):
 
 def _fr(m):
     """Строка raw_feedback для post_answer (нужен payload/item_id)."""
-    r = db.query("""SELECT platform,account,kind,ext_id,item_id,payload FROM raw_feedback
+    r = db.query("""SELECT platform,account,kind,ext_id,item_id,payload,
+        draft_text,draft_route,draft_confidence,draft_grounding FROM raw_feedback
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (m["platform"], m["account"], m["kind"], m["ext_id"]))
     return r[0] if r else None
@@ -156,8 +159,9 @@ def _set(mod_id, state, **f):
 
 
 def _kb(mod_id, allow_send=True):
-    # Для route=human (домен-фильтр / ошибка парсинга) кнопки ✅ НЕТ — черновик это маркер, не ответ;
-    # оператор отвечает только через ✏️ Править.
+    # Кнопки ✅ НЕТ, когда публиковать черновик запрещено: route=human (домен-фильтр / битый JSON)
+    # или машинный вердикт publish_gate. Черновик тогда — материал, а не ответ: оператор отвечает
+    # только через ✏️ Править, и его текст уходит как override с записью причины.
     top = ([{"text": "✅ Отправить", "callback_data": f"snd:{mod_id}"},
             {"text": "✏️ Править", "callback_data": f"edt:{mod_id}"}]
            if allow_send else
@@ -248,10 +252,15 @@ def _card(row):
     if isinstance(g, dict):
         src = g.get("source") or ("веб" if g.get("web") else "")
         if src or g.get("note"):
-            note = f"\n<i>источник: {e(src or '—')}{'; ' + e((g.get('note') or ''))[:120] if g.get('note') else ''}</i>"
+            note = f"\n<i>источник: {e(src or '—')}{'; ' + e((g.get('note') or '')) if g.get('note') else ''}</i>"
     banner = _mode_banner(row.get("account"))
+    allow_pub, why = publish_gate.verdict(row)
     if row.get("draft_route") == "human":          # домен-фильтр / ошибка парсинга — только вручную
         banner += "⚠️ <b>НА ЧЕЛОВЕКА</b> — авто-ответа нет, ответьте через «✏️ Ответить вручную»\n"
+    elif not allow_pub:
+        # Причины показываем ПОЛНОСТЬЮ: обрезанная причина недоверия ничем не лучше её отсутствия.
+        banner += ("⛔ <b>ПУБЛИКАЦИЯ ЗАПРЕЩЕНА</b> — " + e(publish_gate.reason_line(why, 600))
+                   + "\nЧерновик ниже — материал для ответа, не ответ. Отвечайте через «✏️ Править».\n")
     elif isinstance(g, dict) and g.get("no_card"):  # профильный товар, но карточка пустая
         banner += "🔍 <b>БЕЗ ДАННЫХ КАРТОЧКИ</b> — ответ собран по каталогу/вебу, проверьте внимательнее\n"
     dt = row.get("created_at")
@@ -277,8 +286,9 @@ def flush_deferred(limit=20):
     оператора им не режутся — новые карточки в 'deferred' не попадают. Функция осталась как слив
     остатка (её ещё зовёт цикл, шаг 3b): что было отложено при старой логике, уходит без лимита.
     Пустой 'deferred' = no-op. Возвращает число реально ушедших."""
-    rows = db.query("""SELECT m.id, m.final_text, m.tg_chat_id, m.tg_msg_id,
-        f.platform, f.account, f.kind, f.ext_id, f.item_id, f.payload, f.body
+    rows = db.query("""SELECT m.id, m.final_text, m.tg_chat_id, m.tg_msg_id, m.decided_by,
+        f.platform, f.account, f.kind, f.ext_id, f.item_id, f.payload, f.body,
+        f.draft_text, f.draft_route, f.draft_confidence, f.draft_grounding
         FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
              AND f.kind=m.kind AND f.ext_id=m.ext_id
@@ -286,7 +296,12 @@ def flush_deferred(limit=20):
         ORDER BY m.decided_at LIMIT %s""", (limit,))
     sent = 0
     for r in rows:
-        ok, detail = fs.post_answer(dict(r), r["final_text"])   # без apply_cap — лимит тут не при чём
+        ovr = (f"правка оператора {r.get('decided_by')}"
+               if (r["final_text"] or "").strip() != ((r.get("draft_text") or "").strip()) else None)
+        ok, detail = fs.post_answer(dict(r), r["final_text"], override=ovr)  # без apply_cap
+        if ok and detail.startswith("dry-run"):
+            log(f"deferred → всё ещё dry-run mod={r['id']} {r['platform']} {r['ext_id']}, ждём live")
+            continue                               # состояние не трогаем: досылка повторится
         if ok:
             _set(r["id"], "sent", error=None)
             sent += 1
@@ -307,7 +322,8 @@ def send_batch(limit=5, days=None, kind=None):
     """Разослать ПОРЦИЮ карточек за окно `days` (по кнопке). Возвращает число реально отправленных."""
     sent = 0
     for row in _pending(limit, days, kind):
-        card, kb = _card(row), _kb(row["id"], allow_send=(row.get("draft_route") != "human"))
+        card, kb = _card(row), _kb(row["id"], allow_send=(row.get("draft_route") != "human"
+                                                          and publish_gate.verdict(row)[0]))
         canon = None                              # первый успешный (chat_id,msg_id) — канонический для правок
         for cid in NOTIFY_IDS:
             mid = send(cid, card, reply_markup=kb)
@@ -436,15 +452,30 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
     # apply_cap НЕ передаём: решение оператора дневным лимитом не режется (лимит — только для
     # авто-ответов на старый бэклог отзывов, см. collectors/feedback_send.py). Поэтому ветки
     # 'deferred' здесь больше нет: одобренное уходит в этом же вызове либо честно падает в 'failed'.
-    ok, detail = fs.post_answer(fr, text)
+    # Текст, отличный от черновика, написал человек — машинный вердикт о ЧЕРНОВИКЕ к нему
+    # неприменим, но факт обхода запрета записывается (кем и что именно ушло).
+    override = None
+    if (text or "").strip() != ((fr.get("draft_text") or "").strip()):
+        override = f"правка оператора {from_id}"
+    ok, detail = fs.post_answer(fr, text, override=override)
+    if ok and detail.startswith("dry-run"):
+        # Боевая отправка выключена. Помечать карточку 'sent' нельзя: ответ покупателю НЕ ушёл,
+        # а карточка больше не покажется. Кладём в 'deferred' — досылается flush_deferred()
+        # после включения FEEDBACK_LIVE_SEND (инцидент 25-26.08.2026: так потеряли 9 ответов).
+        _set(mod_id, "deferred", final_text=text, error=detail,
+             decided_at="now()", decided_by=int(from_id))
+        edit_text(ec, em,
+                  f"🧪 (dry-run) ОТЛОЖЕНО — покупателю ещё НЕ ушло, уйдёт после включения "
+                  f"боевой отправки\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
+                  f"<b>Ответ:</b> {html.escape(text[:800])}")
+        return "🧪 (dry-run) отложено"
     if ok:
         _set(mod_id, "sent", final_text=text, error=None,
              decided_at="now()", decided_by=int(from_id))
-        tail = "🧪 (dry-run) ушло бы" if detail.startswith("dry-run") else "✅ Отправлено"
         edit_text(ec, em,
-                  f"{tail}\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
+                  f"✅ Отправлено\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
                   f"<b>Ответ:</b> {html.escape(text[:800])}")
-        return tail
+        return "✅ Отправлено"
     # final_text сохраняем и при провале: иначе правленый оператором текст теряется и досыл после
     # починки причины воспроизвести его уже не может (инцидент 03.08, вопрос ЯМ 28227084).
     _set(mod_id, "failed", final_text=text, error=detail, decided_at="now()", decided_by=int(from_id))

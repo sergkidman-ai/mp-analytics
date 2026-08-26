@@ -33,7 +33,8 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from dotenv import load_dotenv                       # noqa: E402
 load_dotenv(BASE_DIR / ".env")
-from core import db                                  # noqa: E402
+from core import db
+from reports import publish_gate                                  # noqa: E402
 from collectors.wb import _token as _wb_token        # noqa: E402
 from collectors.ozon import _headers as _oz_headers  # noqa: E402
 
@@ -373,11 +374,13 @@ def _html_esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def post_answer(row, text, apply_cap=False):
+def post_answer(row, text, apply_cap=False, override=None):
     """Диспетчер отправки ответа. row — строка raw_feedback (dict с platform/account/kind/ext_id/
     item_id/payload). text — финальный текст (одобренный/исправленный). apply_cap=True ставит
     вызов под дневной лимит канала — его передаёт ТОЛЬКО авто-отправка бэклога отзывов
     (collectors/feedback_autosend.py). Ручные ответы оператора и свежие отзывы идут без лимита.
+    override — причина, по которой машинный запрет неприменим: текст написал человек, и судить
+    сигналами о ЧЕРНОВИКЕ уже нечего. Пустой override = гейт обязателен.
     → (ok: bool, detail: str). В dry-run реально не шлёт и НЕ помечает posted."""
     text = (text or "").strip()
     if not text:
@@ -388,6 +391,17 @@ def post_answer(row, text, apply_cap=False):
     if kind not in ("question", "review"):
         return False, f"kind={kind} вне охвата (вопросы и отзывы)"
     plat, acc, ext = row["platform"], row["account"], row["ext_id"]
+
+    # Машинный запрет публикации (reports/publish_gate.py, работа №1 аудита 25.08.2026).
+    # Проверка ЗДЕСЬ, а не только в боте: мимо кнопки ✅ идут и авто-отправка, и досыл
+    # отложенного, и путь «✏️ Править» — скрыть кнопку недостаточно.
+    if override is None:
+        allowed, why = publish_gate.verdict(row, text)
+        if not allowed:
+            _log(f"HOLD {plat}/{acc} {kind}={ext}: {publish_gate.reason_line(why)}")
+            return False, "hold: " + publish_gate.reason_line(why, 200)
+    else:
+        _log(f"OVERRIDE {plat}/{acc} {kind}={ext}: {str(override)[:120]}")
 
     if not _live():
         _log(f"DRY-RUN {plat}/{acc} {kind}={ext}: ушло бы «{text[:80]}»")
