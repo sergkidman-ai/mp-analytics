@@ -77,9 +77,14 @@ def suffix_by_article(art, ec):
         return None, "в артикуле нет буквенного префикса"
     key = pref.group(0)
     if key not in sfx_cache:
+        # Префикс обязан кончаться на границе буквенного токена — иначе КОРОТКИЙ префикс
+        # ловит чужой бренд и МОЛЧА переписывает верный код человека. У NetProduct артикул
+        # `N-CF350A`, у NV Print — `NV-CF350A`; `^N` топило 29 карточек `np` полутора тысячами
+        # `nv`, и `2245np` превращался в `2245nv`. Та же правка — в `tpl_check.py`.
         rows = query("""SELECT regexp_replace(code, '^' || external_code, '') s, count(*) n
                           FROM ms_product
-                         WHERE NOT archived AND article ~ ('^' || %s)
+                         WHERE NOT archived
+                           AND article ~ ('^' || %s || '($|[^A-Za-zА-Яа-я])')
                            AND external_code <> '' AND code LIKE external_code || '%%'
                          GROUP BY 1 ORDER BY 2 DESC""", (key,))
         sfx_cache[key] = [(x["s"], x["n"]) for x in rows if x["s"]]

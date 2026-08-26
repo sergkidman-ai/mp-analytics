@@ -131,9 +131,14 @@ for r in rows:
     if pref and my_sfx:
         # суффикс режем по ВНЕШНЕМУ коду карточки, а не жадным '^[0-9]+': у кода `35657q`
         # внешний код `3565`, суффикс `7q`, а жадная регулярка съедала и семёрку.
+        # Префикс обязан кончаться на границе буквенного токена, иначе КОРОТКИЙ префикс ловит
+        # чужой бренд: у NetProduct артикул `N-CF350A`, у NV Print — `NV-CF350A`, и `^N`
+        # затапливало 29 карточек `np` полутора тысячами `nv`. Человек выбирал суффикс верно,
+        # а проверка гнала его исправить правильный код на чужой.
         owners = query("""SELECT regexp_replace(code, '^' || external_code, '') s, count(*) n
                             FROM ms_product
-                           WHERE NOT archived AND article ~ ('^' || %s)
+                           WHERE NOT archived
+                             AND article ~ ('^' || %s || '($|[^A-Za-zА-Яа-я])')
                              AND external_code <> '' AND code LIKE external_code || '%%'
                            GROUP BY 1 ORDER BY 2 DESC""", (pref.group(0),))
         top = [(x["s"], x["n"]) for x in owners if x["s"]]
