@@ -2896,9 +2896,6 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
         weight, source = ms_import.weight_from_dims([row["article"]])
     if not weight:
         warn.append("веса нет ни в прайсе поставщика, ни у других поставщиков — заполнить руками")
-    wb, wb_note = ms_import.wb_name(row["name"])
-    if wb_note:
-        warn.append(wb_note)
     # Ресурс из названия поставщика против ресурса МОДЕЛИ в каталоге ТК — та же сверка и тот же
     # допуск, что в черновике карточки поставщика (`ms_import.build`): один вопрос — один ответ.
     # Эталон берём по коду ТК ДО того, как его отберёт занятость/длина: код может смениться,
@@ -2906,6 +2903,17 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     # товара её либо нет вовсе, либо это чужие комплектации под тем же кодом.
     from prices.catalog import RESOURCE_TOLERANCE, close, model_conflict, model_dict
     tk_ext = str(ext or "").strip() or (row["ms_code"] or "")[:4]
+    # «Название WB» — поле ФОРМУЛЫ из каталога ТК (правило 41), а не пересказ названия
+    # поставщика: правило «брать как у родни» отменено 16.08.2026, а диалог писался 11.08
+    # и остался на старом. Кода ТК нет или каталог о нём молчит — поле пустое с замечанием:
+    # имя товара не выдумываем, его пишет человек.
+    if tk_ext:
+        wb, wb_note = ms_import.wb_compose(tk_ext, row["name"])
+    else:
+        wb, wb_note = "", ("строка не сведена с моделью каталога ТК — "
+                           "«Название WB» заполнить вручную")
+    if wb_note:
+        warn.append(wb_note)
     tk_pages = db.query("""SELECT resource FROM prc_tc_model
                             WHERE gone_at IS NULL AND resource IS NOT NULL AND external_code = %s""",
                         (tk_ext,)) if tk_ext else []
