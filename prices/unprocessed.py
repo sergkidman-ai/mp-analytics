@@ -70,6 +70,45 @@ def source(supplier_key, file_path):
     return letter["content"].decode("utf-8", "replace"), f"{letter['date']} → {path.name}"
 
 
+SOURCE_KIND = "unprocessed"
+
+
+def journal_load(supplier_key, source_file, rows):
+    """Снимок письма в `prc_price_load` / `prc_price_row` — иначе у строки нет остатка.
+
+    Вкладка «Новинки» берёт остаток ТОЛЬКО из последней удачной загрузки поставщика
+    (`catalog.NOVELTY_STOCK`), а неразобранную строку без остатка не показывает вовсе
+    (`catalog.IN_STOCK`): заводить карточку не подо что. У поставщика без профиля загрузок
+    нет ни одной, поэтому письмо и есть его загрузка — количество в нём настоящее, из
+    внешнего загрузчика. Снимок даёт и выбытие: позиция, пропавшая из свежего письма,
+    остаток теряет и уходит из работы сама.
+
+    Помечаем `source_kind='unprocessed'` и не даём подменить настоящий прайс: если у
+    поставщика есть загрузки другого рода, письмо-огрызок не смеет стать «последней».
+    """
+    from core.db import query
+    from . import journal
+    kinds = {r["k"] for r in query(
+        "SELECT DISTINCT coalesce(source_kind, '') k FROM prc_price_load"
+        "  WHERE supplier_key = %s AND status = 'ok'", (supplier_key,))}
+    alien = kinds - {SOURCE_KIND}
+    assert not alien, (f"{supplier_key}: есть настоящие загрузки прайса ({sorted(alien)}) — "
+                       "письмо несопоставленного не должно их подменять")
+    moment = dt.datetime.now().astimezone()
+    snap = [{"row": i, "article": r["article"], "name": r["name"] or None,
+             "stock_raw": r["qty"], "qty": r["qty"], "price_raw": r["price"],
+             "ms_name": None, "reason": r["reason"]}
+            for i, r in enumerate(rows, 1)]
+    return journal.save({
+        "supplier_key": supplier_key, "load_date": moment.date(), "moment": moment,
+        "source_file": source_file, "source_kind": SOURCE_KIND, "currency": "RUB",
+        "rate": None, "rate_date": None,
+        "rows_total": len(rows), "rows_loaded": 0, "rows_skipped": len(rows),
+        "docs": 0, "stale_docs": 0, "card_updates": 0,
+        "sum_rub": None, "dry_run": False, "status": "ok", "error": None,
+    }, [], snap)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--supplier", required=True, choices=sorted(SUPPLIERS))
@@ -112,8 +151,10 @@ def main(argv=None):
     if not a.apply:
         print("\n[проба] в БД не писал; повтори с --apply")
         return 0
+    load_id = journal_load(a.supplier, where, rows)
     matched, auto = catalog.sync(left, a.supplier, None, None)
-    print(f"\nзаписано во вкладку «Новинки»: {len(left)}")
+    print(f"\nжурнал загрузки: prc_price_load #{load_id} (остаток строкам берётся отсюда)")
+    print(f"записано во вкладку «Новинки»: {len(left)}")
     print(f"  закрылось само по артикулу (exists): {auto}")
     print(f"  получило кандидатов на выбор:        {matched - auto}")
     print(f"  без вариантов (настоящая новинка):   {len(left) - matched}")
