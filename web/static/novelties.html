@@ -838,6 +838,20 @@ function wire(){
     const probe = tr.querySelector(".probe");
     if (probe) probe.onclick = showProbe;
     if (code) code.onchange = showProbe;      // Enter или уход из поля — сверка сама
+    // «Связь» — номера товаров по ЧЕТЫРЕ знака (ограничитель Сергея 26.08: пятая цифра
+    // уехала в поле по описке). Разделителем принимаем что угодно — «4310, 6827» человек
+    // пишет чаще, чем «4310;6827», — и сразу приводим к тому виду, в каком поле хранится.
+    tr.querySelectorAll(".link").forEach(el => {
+      el.oninput = () => {
+        const fixed = el.value.replace(/[^0-9;]+/g, ";")
+                              .split(";").map(x => x.slice(0, 4)).join(";");
+        if (fixed !== el.value){
+          const end = el.selectionStart >= el.value.length;
+          el.value = fixed;
+          if (end) el.setSelectionRange(fixed.length, fixed.length);
+        }
+      };
+    });
     const link = tr.querySelector(".link");
     const save = tr.querySelector(".save");
     // Приоритет у поля «код»: человек мог вписать номер руками и забыть переключить список

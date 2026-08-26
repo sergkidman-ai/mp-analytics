@@ -2341,6 +2341,12 @@ def novelties_api(supplier: str = "", status: str = "", no_stock: bool = False):
           LEFT JOIN (SELECT external_code, count(*) cards FROM ms_product
                       WHERE NOT archived GROUP BY external_code) p
                  ON p.external_code = c.external_code
+         -- Карточка МС без кода вариантом быть не может: код — это то, чем строка
+         -- закрывается, и «Это он» на такой отвечает «нужен код товара». В списке она
+         -- только занимала место («• без кода — …», 290 подсказок на 167 строк, 26.08.2026).
+         -- Товар каталога ТК без карточки (`source='tc'`) остаётся: его внешний код
+         -- уносит в «➕ В МС» кнопка, и заводить карточку надо именно под ним.
+         WHERE c.ms_code IS NOT NULL OR c.source = 'tc'
          ORDER BY c.novelty_id, c.rank
     """)
     by_novelty = {}
@@ -2432,7 +2438,7 @@ def _find_goods(code):
     Внешний код смотрим тоже: номер товара живёт именно там (у 1179msk/1179spb/1179dsk он
     один — «1179»), и карточка с нестандартным суффиксом иначе не нашлась бы.
     """
-    found = db.query("""SELECT ms_id, code, name FROM ms_product
+    found = db.query("""SELECT ms_id, code, name, external_code FROM ms_product
                          WHERE NOT archived AND (upper(code) = upper(%s)
                             OR code ~* ('^' || %s || '[a-z]*$')
                             OR upper(external_code) = upper(%s))
@@ -2451,10 +2457,19 @@ def _novelty_link(raw):
     parts = [p for p in re.split(r"[^0-9A-Za-zА-Яа-я]+", raw or "") if p]
     out = []
     for part in parts:
+        # Ограничитель Сергея 26.08: номер товара четырёхзначный, пятая цифра — всегда описка.
+        if len(part) > 4:
+            return None, (f"«{part}» — {len(part)} знаков: номер товара четырёхзначный, "
+                          f"код карточки с суффиксом сюда не пишем")
         item = _find_goods(part)
         if not item or not item["code"]:
             return None, f"кода «{part}» нет в каталоге МС"
-        num = (re.match(r"^\d+", item["code"]) or [part])[0].zfill(4)
+        # Номер берём из ВНЕШНЕГО кода, а не из кода карточки: код бывает пятизначным
+        # («07867q» у товара 0786 — суффикс поставщика стоит после лишней цифры), и `^\d+`
+        # уносил в «Связь» номер несуществующего товара (4 строки на 26.08.2026).
+        ext = (item.get("external_code") or "").strip()
+        num = (ext.zfill(4) if re.fullmatch(r"\d{1,4}", ext)
+               else (re.match(r"^\d+", item["code"]) or [part])[0].zfill(4))
         if num not in out:                       # один и тот же товар дважды не пишем
             out.append(num)
     return ";".join(out), None
