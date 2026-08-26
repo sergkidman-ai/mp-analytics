@@ -85,6 +85,30 @@ def load_tc():
     return tc
 
 
+def load_tc_one(external_code):
+    """Одна модель каталога ТК в том же виде, что даёт `load_tc`.
+
+    Отдельно, потому что зовут это из диалога сверки по впечатанному коду: там нужен ровно
+    один товар, а поднимать ради него весь каталог с признаками — пять тысяч строк на клик.
+    """
+    rows = query("""
+        select title, color, resource, chip, coalesce(brand, '{}') as brand
+          from prc_tc_model
+         where gone_at is null and external_code = %s
+    """, (external_code,))
+    if not rows:
+        return None
+    r = rows[0]
+    tc = {"title": r["title"], "color": r["color"], "resource": r["resource"],
+          "chip": r["chip"], "brand": set(r["brand"] or ()), "codes": set(), "title_codes": set()}
+    for c in query("select code, source from prc_tc_code where external_code = %s",
+                   (external_code,)):
+        tc["codes"].add(c["code"])
+        if c["source"] == "title":
+            tc["title_codes"].add(c["code"])
+    return tc
+
+
 def enrich(item, tc):
     """Признаки карточки МС, дополненные первоисточником. -> какие признаки пришли из ТК.
 
@@ -687,6 +711,87 @@ def verdict(hit):
     if src:
         notes.append(f"из каталога ТК: {', '.join(src)}")
     return "; ".join(notes) if notes else "совпало по всем признакам"
+
+
+def probe(row, code):
+    """Сверка строки прайса с товаром, код которого человек ВПЕЧАТАЛ руками.
+
+    -> (вариант в том же виде, что лежит в `prc_novelty_candidate`, ошибка текстом).
+
+    Зачем. Вариантов у строки может не быть вовсе («в каталоге не нашлось»), и тогда код
+    называет человек — по своей памяти или по МойСкладу. Раньше он вводил его вслепую:
+    сетка шести признаков строилась только по подобранным вариантам, а впечатанному коду
+    сверить было нечем, и ошибка в одной цифре закрывала строку чужим товаром молча.
+
+    Ничего нового не считаем: тот же `compare`, тот же порядок источников (карточка МС,
+    договорённая каталогом ТК), тот же `verdict`. Карточки под кодом нет, а модель в ТК
+    есть — сверяем с моделью ТК и говорим об этом: заводить придётся кнопкой «➕ В МС».
+    """
+    code = (code or "").strip()
+    if not code:
+        return None, "код не введён"
+    row = dict(row)
+    row["kind"] = kind(row["name"])
+    stored_chip = row.get("chip")
+    row.update(F.parse(row["name"], row.get("article") or ""))
+    if row["chip"] is None:                # у строки чип уже разобран прогоном, с его умолчанием
+        row["chip"] = stored_chip
+    by_ec, titles = model_dict()
+    row["model_codes"] = model_codes(row["codes"], titles)
+
+    found = query("""
+        select ms_id, coalesce(code, '') as code, name, coalesce(article, '') as article,
+               coalesce(external_code, '') as external_code
+          from ms_product
+         where not archived and name is not null
+           and (upper(code) = upper(%s) or code ~* ('^' || %s || '[a-z]*$')
+                or upper(external_code) = upper(%s))
+         order by code is null, length(code), code
+         limit 1
+    """, (code, code, code))
+    if found:
+        item = dict(found[0])
+        item["num"] = (CODE_NUM_RE.match(item["code"]) or [None])[0]
+        item["kind"] = kind(item["name"])
+        item.update(F.parse(item["name"], item["article"]))
+        item["tc"] = None
+        item["feat_src"] = enrich(item, load_tc_one(item["external_code"]))
+        item["model_codes"] = model_codes(item["codes"], titles, item.get("tc_title_codes"))
+        tc_only_hit = False
+    else:
+        tc = load_tc_one(code)
+        if not tc:
+            return None, (f"кода «{code}» нет ни в каталоге МС, ни в каталоге ТК: "
+                          f"не нашлось ни карточки с кодом {code}*, ни товара с внешним "
+                          f"кодом {code}")
+        item = {"ms_id": None, "code": "", "external_code": code, "name": tc["title"],
+                "article": "", "num": None, "kind": None, "codes": tc["codes"], "tc": tc,
+                "color": tc["color"], "resource": tc["resource"], "chip": tc["chip"],
+                "brand": set(tc["brand"]), "tc_title_codes": tc["title_codes"],
+                "model_codes": set(tc["title_codes"]),
+                "feat_src": tuple(key for key in TC_FEATURES if tc[key])}
+        tc_only_hit = True
+
+    flags = compare(row, item)
+    shared = set(row["codes"]) & set(item["codes"])
+    best = (max(shared & (row["model_codes"] | item["model_codes"]), key=len, default=None)
+            or max(shared, key=len, default=None))
+    hit = dict(flags, item=item, code=best, tc_only=tc_only_hit)
+    cards = query("""select count(*) n from ms_product
+                      where not archived and external_code = %s""",
+                  (item["external_code"],))[0]["n"] if item["external_code"] else 0
+    tc = item.get("tc")
+    return {"ms_id": item["ms_id"], "ms_code": item["code"] or None, "ms_name": item["name"],
+            "external_code": item["external_code"] or None,
+            "tc_title": tc["title"] if tc else None, "cards": cards,
+            "color": item["color"], "measure": measure(item), "chip": item["chip"],
+            "brand": F.brand_text(item["brand"]), "kind": item["kind"],
+            "shared_code": best, "verdict": verdict(hit), "score": flags["score"],
+            "model_ok": flags["model_ok"], "kind_ok": flags["kind_ok"],
+            "brand_ok": flags["brand_ok"], "color_ok": flags["color_ok"],
+            "resource_ok": flags["resource_ok"], "chip_ok": flags["chip_ok"],
+            "source": "tc" if tc_only_hit else "ms",
+            "feat_src": ",".join(item.get("feat_src") or ()) or None}, None
 
 
 def analyze(rows, default_chip="chip", article_re=None):

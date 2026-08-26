@@ -2292,6 +2292,7 @@ def _novelty_models(rows):
 # (`ops.prc_price_watch`). Пока условий было два, сводка обещала всю очередь `pending`
 # и звала разбирать работу, которой на вкладке нет (Сакура 13.08.2026: 411 против 1).
 from prices.catalog import NOVELTY_STOCK, IN_STOCK  # noqa: E402
+from prices import catalog  # noqa: E402
 
 
 @app.get("/api/novelties")
@@ -2457,6 +2458,24 @@ def _novelty_link(raw):
         if num not in out:                       # один и тот же товар дважды не пишем
             out.append(num)
     return ";".join(out), None
+
+
+@app.get("/api/novelties/probe")
+def novelties_probe(id: int, code: str):
+    """Сверка строки с товаром, код которого человек ВПЕЧАТАЛ руками. Ничего не пишет.
+
+    Заказ Сергея 26.08: «когда для товара нет никаких совпадений, я ввожу код вручную —
+    можно по этому коду подгружать данные в таблицу для сравнения». Сетка та же и считается
+    тем же `catalog.compare`, что и у подобранных вариантов, — иначе это была бы вторая,
+    расходящаяся правда о том, тот ли это товар.
+    """
+    rows = db.query("""SELECT name, article, chip FROM prc_novelty WHERE id = %s""", (id,))
+    if not rows:
+        return {"ok": False, "error": f"строки #{id} нет"}
+    cand, error = catalog.probe(dict(rows[0]), code)
+    if error:
+        return {"ok": False, "error": error}
+    return {"ok": True, "candidate": dict(cand, **_novelty_view(cand), price_rub=None)}
 
 
 @app.post("/api/novelties/decide")

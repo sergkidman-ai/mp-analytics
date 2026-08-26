@@ -532,6 +532,7 @@ function row(r){
         ? `<select class="cand">${opts}<option value="">— ввести код вручную —</option></select>`
         : `<span class="miss">в каталоге не нашлось</span>`}
       <input class="code" placeholder="код" value="">
+      <button class="probe" title="подгрузить товар по впечатанному коду в таблицу сверки">сверить</button>
       <input class="link" placeholder="связь: 4310;6827" value="${esc(r.link || "")}">
       <button class="save pri">Это он</button>
       <button class="mkexists" title="карточка этого поставщика в МС уже есть — закрыть строку без заведения">Уже в МС</button>
@@ -816,6 +817,27 @@ function wire(){
         code.focus();
       };
     }
+    // Код, впечатанный руками, подгружаем в ТУ ЖЕ сетку сверки, что и выбранный вариант:
+    // вариантов у строки может не быть вовсе, и тогда человек вводит код по памяти — вслепую,
+    // а ошибка в одной цифре закрывает строку чужим товаром молча. Считает сервер тем же
+    // `catalog.compare`, что и подсказки прогона.
+    const showProbe = async () => {
+      if (!box || !rec) return;
+      const v = code.value.trim();
+      const c = picked();
+      if (!v || (c && v === pickValue(c))) { box.innerHTML = cmpGrid(rec, c); return; }
+      box.innerHTML = `<span class="muted">сверяю ${esc(v)}…</span>`;
+      const d = await (await fetch(`/api/novelties/probe?id=${id}&code=${
+                                     encodeURIComponent(v)}`)).json();
+      if (!d.ok){ box.innerHTML = `<span class="miss">${esc(d.error)}</span>`; return; }
+      const k = d.candidate;
+      box.innerHTML = `<div class="verdict">по коду ${esc(k.ms_code || k.external_code)}${
+          k.external_code && !k.cards ? " · карточки в МС нет, заводить кнопкой «➕ В МС»" : ""
+        } · ${esc(k.verdict)}</div>` + cmpGrid(rec, k);
+    };
+    const probe = tr.querySelector(".probe");
+    if (probe) probe.onclick = showProbe;
+    if (code) code.onchange = showProbe;      // Enter или уход из поля — сверка сама
     const link = tr.querySelector(".link");
     const save = tr.querySelector(".save");
     // Приоритет у поля «код»: человек мог вписать номер руками и забыть переключить список
