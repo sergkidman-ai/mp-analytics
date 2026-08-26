@@ -21,7 +21,9 @@
   O — прочее (warning-и вне белого списка и т. п.) — копим статистику, не трогаем.
 
 Источник: POST /v3/product/list с filter.visibility=STATE_FAILED (классы A/C) и
-PARTIAL_APPROVED (класс W) → POST /v3/product/info/list.
+PARTIAL_APPROVED (класс W) → POST /v3/product/info/list. Карточкам с замечанием
+«Нужен код маркировки» дополнительно снимается значение атрибута 23536 (v4-атрибуты):
+пусто — повтор бесполезен, это работа ТК; заполнено — значение есть, а вердикт устарел.
 Фильтры BANNED и IMAGE_ABSENT непригодны — возвращают ВЕСЬ каталог (проверено 22.08.2026).
 
 Идемпотентность: upsert по (platform, account, offer_id). Строка не удаляется после лечения —
@@ -42,6 +44,13 @@ from collectors.ozon import _headers, PRODUCT_LIST_URL, PRODUCT_INFO_URL   # noq
 ACCOUNTS = ["oz_acc1", "oz_acc2"]
 PLATFORM = "ozon"
 PAGE = 1000
+ATTR_URL = "https://api-seller.ozon.ru/v4/product/info/attributes"
+ATTR_PAGE = 100
+# Атрибут «Нужен код маркировки» в категории картриджей (17028935/95980). Спрашиваем ЕГО
+# ЗНАЧЕНИЕ только у карточек, у которых висит замечание про маркировку: пусто — работа ТК,
+# заполнено — площадка держит устаревший вердикт, то есть случай класса W (26.08.2026).
+MARK_ATTR_ID = 23536
+MARK_ERR_CODE = "warning_attribute_values_empty"
 SELLING_NAMES = ("Продается", "Готов к продаже")
 VISIBILITIES = ("STATE_FAILED", "PARTIAL_APPROVED")
 
@@ -103,6 +112,40 @@ def _classify(item):
     return "O", "", ""
 
 
+def _needs_mark(item):
+    """Висит ли на карточке замечание «Нужен код маркировки» (пустое значение атрибута)."""
+    for e in item.get("errors") or []:
+        if e.get("code") != MARK_ERR_CODE:
+            continue
+        if "маркиров" in ((e.get("texts") or {}).get("attribute_name") or "").lower():
+            return True
+    return False
+
+
+def _mark_values(H, product_ids):
+    """product_id → значение атрибута 23536. Отсутствие атрибута в ответе = пусто («»).
+
+    Отдельный запрос к v4: в /v3/product/info/list значений атрибутов нет вовсе, а знать
+    «пусто или заполнено» надо ровно для этих карточек — по всему каталогу это не гоняем.
+    """
+    out = {}
+    for i in range(0, len(product_ids), ATTR_PAGE):
+        chunk = product_ids[i:i + ATTR_PAGE]
+        r = requests.post(ATTR_URL, headers=H,
+                          json={"filter": {"product_id": [str(p) for p in chunk],
+                                           "visibility": "ALL"},
+                                "limit": ATTR_PAGE, "sort_dir": "ASC"}, timeout=120)
+        r.raise_for_status()
+        for card in r.json().get("result") or []:
+            vals = []
+            for a in card.get("attributes") or []:
+                if a.get("id") == MARK_ATTR_ID:
+                    vals = [str(v.get("value")) for v in (a.get("values") or [])
+                            if v.get("value") not in (None, "")]
+            out[card.get("id")] = " ".join(vals)[:200]
+    return out
+
+
 def scan(account):
     H = _headers(account)
     pids, known = [], set()
@@ -111,7 +154,7 @@ def scan(account):
             if p not in known:
                 known.add(p)
                 pids.append(p)
-    rows, seen = [], set()
+    rows, seen, mark_ids = [], set(), []
     for i in range(0, len(pids), PAGE):
         r = requests.post(PRODUCT_INFO_URL, headers=H,
                           json={"product_id": pids[i:i + PAGE]}, timeout=180)
@@ -134,8 +177,22 @@ def scan(account):
                 "is_selling": st.get("status_name") in SELLING_NAMES,
                 "is_open": True, "healed_at": None,
                 "card_updated_at": st.get("status_updated_at") or None,
+                "mark_attr": None,
                 "last_seen": datetime.now(timezone.utc),
             })
+            if _needs_mark(it):
+                mark_ids.append(it.get("id"))
+
+    if mark_ids:
+        vals = _mark_values(H, mark_ids)
+        want = set(mark_ids)
+        for r in rows:
+            if r["product_id"] in want:
+                # карточка не отдалась на чтение атрибутов — это не «пусто», это неизвестно
+                r["mark_attr"] = vals.get(r["product_id"])
+        empty = sum(1 for r in rows if r["mark_attr"] == "")
+        print(f"{account}: замечание о маркировке у {len(mark_ids)} | атрибут {MARK_ATTR_ID} "
+              f"пуст у {empty} (работа ТК), заполнен у {len(mark_ids) - empty}")
     return rows, seen
 
 
@@ -147,7 +204,7 @@ def save(account, rows, seen):
            update_cols=["product_id", "name", "err_class", "status", "status_failed",
                         "moderate_status", "validation_status", "status_name", "status_descr",
                         "err_codes", "err_texts", "is_selling", "is_open", "healed_at",
-                        "card_updated_at", "last_seen"])
+                        "card_updated_at", "mark_attr", "last_seen"])
     if seen:
         closed = execute(
             "UPDATE card_status SET is_open = false, healed_at = coalesce(healed_at, now()), "
