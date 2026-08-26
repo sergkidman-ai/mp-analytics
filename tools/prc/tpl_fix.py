@@ -189,6 +189,8 @@ for r in range(2, ws.max_row + 1):
     nm, note = wb_compose(ec, name)               # правило 41: только формула, родню не смотрим
     if nm:
         put(r, "Доп. поле: Название WB", nm, ch, "название WB по формуле")
+        if note:                                  # собрано не из каталога ТК — человеку сверить
+            ch.append(f"название WB: {note}")
     else:
         ch.append(f"название WB НЕ заполнено: {note}")
 

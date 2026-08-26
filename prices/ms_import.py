@@ -251,6 +251,69 @@ TC_CHIP_WORD = {"chip": "с чипом", "chip_free": "с чипом", "nochip":
 XL_RE = re.compile(r"\bxl\b|увеличен", re.IGNORECASE)
 
 
+# Ресурс в хвосте названия поставщика («30K», «1.2K») и слова, которые моделью быть не могут.
+RESOURCE_TOKEN = re.compile(r"^\d+([.,]\d+)?\s*[KККk]$")
+HAS_DIGIT = re.compile(r"\d")
+
+
+def tc_kinds():
+    """Словарь типов расходника — из самого каталога ТК, своего списка не заводим."""
+    return sorted({r["k"] for r in query(
+        "SELECT DISTINCT raw->>'consumable_type' k FROM prc_tc_model"
+        "  WHERE gone_at IS NULL AND raw->>'consumable_type' <> ''") if r["k"]},
+        key=len, reverse=True)
+
+
+def wb_from_price(price_name):
+    """Сырьё формулы из НАЗВАНИЯ ПОСТАВЩИКА — когда каталога ТК по коду нет вовсе.
+
+    Не пересказ имени (это отменённое «как у родни») и не выдумка: тип, модель, бренд, цвет
+    и чип берутся ровно там же, где их берут шесть признаков сравнения, и складываются той же
+    единственной формулой `wb_fill.compose`. Товара нет в ТК — но он есть у поставщика, и это
+    честный источник. Чего в названии нет (чипа, цвета) — того и в поле не появится.
+
+    Возвращает словарь формы каталога ТК либо None, если типа/модели/бренда не видно.
+    """
+    from prices import features
+    name = re.sub(r"\s+", " ", price_name or "").strip()
+    if not name:
+        return None
+    brands = features.brand(name)
+    if len(brands) != 1:                       # два бренда в имени — какой из них наш, неясно
+        return None
+    head = name.split(",")[0]
+    kind = next((k for k in tc_kinds()
+                 if re.search(rf"(?<![А-Яа-яA-Za-z]){re.escape(k)}(?![А-Яа-яA-Za-z])",
+                              head, re.IGNORECASE)), "")
+    if not kind:
+        return None
+    rest = re.sub(rf"(?<![А-Яа-яA-Za-z]){re.escape(kind)}(?![А-Яа-яA-Za-z])", " ", head,
+                  flags=re.IGNORECASE)
+    left = re.split(r"(?<![А-Яа-яA-Za-z])для(?![А-Яа-яA-Za-z])", rest, flags=re.IGNORECASE)[0]
+    for b in brands:                           # «Картридж Canon 054» -> модель «054»
+        left = re.sub(rf"(?<![0-9A-Za-zА-Яа-я]){re.escape(b)}(?![0-9A-Za-zА-Яа-я])", " ", left,
+                      flags=re.IGNORECASE)
+    model = re.sub(r"\s+", " ", left).strip(" ,;-")
+    if not (model and HAS_DIGIT.search(model)):
+        # «Тонер-картридж для Xerox DocuColor 240/250, 006R01449, Black, 30K» — модель за
+        # запятой: первый кусок с цифрой, который не ресурс и не цвет.
+        model = ""
+        for seg in [x.strip() for x in name.split(",")[1:]]:
+            if (seg and HAS_DIGIT.search(seg) and " " not in seg
+                    and not RESOURCE_TOKEN.match(seg) and not features.color(seg)):
+                model = seg
+                break
+    if not model:
+        return None
+    color = features.color(name)
+    chip = features.chip(name)
+    return {"consumable_type": kind, "title": model, "additional_title": "",
+            "printer_models": [{"brand": next(iter(brands))}],
+            "ink_colors": [TC_COLOR_WORD[color]] if color in TC_COLOR_WORD else [],
+            "chip": {"chip": "С чипом", "nochip": "Без чипа"}.get(chip, ""),
+            "capacity": ""}
+
+
 def wb_compose(external_code, price_name):
     """«Название WB» по формуле — единственный источник поля (правило 41).
 
@@ -260,20 +323,30 @@ def wb_compose(external_code, price_name):
     замены «Комплект …» → «Набор …», не бралось доп. название, бренд считался иначе, и у
     наборов в хвост лез перечень цветов. Две реализации одного правила расходятся молча.
 
-    Каталог кода не знает или молчит о типе/модели/бренде — ничего не сочиняем, отдаём пусто
-    с замечанием: поле заполнит человек.
+    Каталог кода не знает или молчит о типе/модели/бренде — формула не отменяется, а меняет
+    источник: то же сырьё берётся из названия поставщика (`wb_from_price`), и поле возвращается
+    с замечанием «сверить». Пусто отдаём только если и там типа/модели/бренда не видно.
     """
     from tools.prc.wb_fill import compose      # импорт здесь: wb_fill тянет ATTRS из этого модуля
     rows = query("SELECT raw FROM prc_tc_model WHERE external_code = %s AND gone_at IS NULL",
                  (external_code,))
-    if not rows:
-        return "", f"каталога ТК по коду {external_code} нет — «Название WB» заполнить вручную"
-    name, why = compose(rows[0]["raw"])
+    if rows:
+        name, why = compose(rows[0]["raw"])
+        note = (f"каталог ТК по коду {external_code}: {why}" if not name else None)
+    else:
+        name, note = "", (f"каталога ТК по коду {external_code} нет" if external_code
+                          else "строка не сведена с моделью каталога ТК")
     if not name:
-        return "", f"каталог ТК по коду {external_code}: {why} — «Название WB» заполнить вручную"
+        # Каталог молчит — собираем ту же формулу из названия поставщика (см. `wb_from_price`).
+        raw = wb_from_price(price_name)
+        name, why = compose(raw) if raw else ("", "в названии поставщика не видно типа/модели/бренда")
+        if not name:
+            return "", f"{note}; {why} — «Название WB» заполнить вручную"
+        note = (f"{note} — «Название WB» собрано формулой из названия поставщика, "
+                f"сверить модель и цвет")
     if XL_RE.search(price_name or "") and "XL" not in name.upper():
         name += " XL ресурс"                   # XL — признак поставки, он только в прайсе
-    return name, None
+    return name, note
 
 UUID_EPOCH = datetime(1582, 10, 15)
 
@@ -462,7 +535,7 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
             flags.append(f"штрихкод у родни разный: {' / '.join(bc_all)} → взял {code128}")
         if not code128:
             flags.append("у родни нет Code128 — заполнить вручную")
-        if not wb:
+        if wb_flag:                            # и когда поле заполнено: сказать, откуда взято
             flags.append(wb_flag)
         if len(weight_all) > 1 and max(weight_all) > min(weight_all) * 1.2:
             flags.append(f"вес у родни расходится: {weight_all}, в файле {weight} — {source}")
