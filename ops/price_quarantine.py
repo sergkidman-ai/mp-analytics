@@ -438,15 +438,26 @@ def _wb_h(acc):
 
 
 def _wb_get(acc, path, params):
-    """GET с пейсингом и отступом на 429 — лимит WB общий на эндпоинт."""
+    """GET с пейсингом и отступом на 429/5xx — лимит WB общий на эндпоинт.
+
+    503 у WB прилетает пачками и проходит само. Без повтора одна такая отбивка
+    роняла весь прогон вместе с несохранённым журналом лестницы (26.08.2026).
+    """
+    last = None
     for attempt in range(5):
         time.sleep(WB_PACE)
-        r = requests.get(f"{WB_API}{path}", headers=_wb_h(acc), params=params, timeout=60)
-        if r.status_code != 429:
+        try:
+            r = requests.get(f"{WB_API}{path}", headers=_wb_h(acc), params=params, timeout=60)
+        except requests.RequestException as e:            # сеть моргнула — ещё раз
+            last = e
+            time.sleep(2 ** attempt * 3)
+            continue
+        if r.status_code != 429 and r.status_code < 500:
             r.raise_for_status()
             return r.json()
+        last = requests.HTTPError(f"HTTP {r.status_code} {r.text[:120]}", response=r)
         time.sleep(2 ** attempt * 3)
-    r.raise_for_status()
+    raise last
 
 
 def wb_current(acc, nm):
@@ -462,9 +473,21 @@ def wb_current(acc, nm):
 
 def wb_push(acc, nm, price):
     """Отправить цену и дождаться вердикта задачи. → (ok, текст ошибки)."""
-    r = requests.post(f"{WB_API}/api/v2/upload/task", headers=_wb_h(acc),
-                      json={"data": [{"nmID": int(nm), "price": int(price), "discount": 0}]},
-                      timeout=60)
+    body = {"data": [{"nmID": int(nm), "price": int(price), "discount": 0}]}
+    for attempt in range(4):                              # 5xx — не отказ от цены, а сбой WB;
+        try:                                              # иначе лестница зря мельчит шаг
+            r = requests.post(f"{WB_API}/api/v2/upload/task", headers=_wb_h(acc),
+                              json=body, timeout=60)
+        except requests.RequestException as e:
+            if attempt == 3:
+                return False, f"сеть: {str(e)[:150]}"
+            time.sleep(2 ** attempt * 3)
+            continue
+        if r.status_code < 500:
+            break
+        if attempt == 3:
+            return False, f"HTTP {r.status_code} {r.text[:200]}"
+        time.sleep(2 ** attempt * 3)
     if r.status_code >= 400:
         return False, f"HTTP {r.status_code} {r.text[:200]}"
     uid = (r.json().get("data") or {}).get("id")
@@ -592,9 +615,13 @@ def targets_save(t):
         w.writerows(t.values())
 
 
-def apply_ok(rows):
-    """Выпустить из карантина всё, что прошло проверку по марже."""
-    log = []
+def apply_ok(rows, log=None):
+    """Выпустить из карантина всё, что прошло проверку по марже.
+
+    `log` принимаем снаружи, чтобы при аварии journal всё равно лёг на диск:
+    отправленные цены обязаны иметь запись, даже если прогон не дожил до конца.
+    """
+    log = [] if log is None else log
     ya = [r["id"] for r in rows if r["platform"] == "ya" and r["verdict"] == "ОК"]
     if ya:
         done, errs = ya_confirm(ya)
@@ -614,13 +641,16 @@ def apply_ok(rows):
 
     res, state = {}, {"i": 0}                             # размер шага общий на весь прогон
     for v in work:
-        st, steps, fin = wb_release(v["account"], v["id"], float(v["target"]), log, state)
+        try:
+            st, steps, fin = wb_release(v["account"], v["id"], float(v["target"]), log, state)
+        except Exception as e:                            # одна карточка не роняет прогон
+            st, steps, fin = f"СБОЙ: {str(e)[:60]}", 0, "?"
         res[st] = res.get(st, 0) + 1
         v["status"], v["updated"] = ("ВЫПУЩЕН" if st == "ВЫПУЩЕН" else st[:40]), day
         log.append(dict(platform="wb", account=v["account"], id=v["id"], action="итог",
                         result=st, detail=f"цель {v['target']}, шагов {steps}, стало {fin}"))
+        targets_save(tg)                                  # состояние пишем по ходу, не в конце
     if work:
-        targets_save(tg)
         print("WB лестница: " + ", ".join(f"{k} {v}" for k, v in sorted(res.items())))
     return log
 
@@ -702,14 +732,18 @@ def main():
     print(f"файл: {out.relative_to(BASE_DIR)}")
 
     if a.apply:
-        log = apply_ok(rows)
-        if log:
-            lf = BASE_DIR / "docs" / "reports" / f"quarantine_apply_{day}.csv"
-            with lf.open("w", newline="", encoding="utf-8") as f:
-                w = csv.DictWriter(f, fieldnames=["platform", "account", "id", "action", "result", "detail"])
-                w.writeheader()
-                w.writerows(log)
-            print(f"журнал выпуска: {lf.relative_to(BASE_DIR)}")
+        log = []
+        try:
+            apply_ok(rows, log)
+        finally:
+            if log:
+                lf = BASE_DIR / "docs" / "reports" / f"quarantine_apply_{day}.csv"
+                with lf.open("w", newline="", encoding="utf-8") as f:
+                    w = csv.DictWriter(f, fieldnames=["platform", "account", "id",
+                                                      "action", "result", "detail"])
+                    w.writeheader()
+                    w.writerows(log)
+                print(f"журнал выпуска: {lf.relative_to(BASE_DIR)}")
 
 
 if __name__ == "__main__":
