@@ -27,6 +27,8 @@ SITES = ["https://www.ozon.ru/", "https://seller.ozon.ru/"]
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/151.0.0.0 Safari/537.36")
 BLOCK_MARKS = ("__rr=", "fab_chlg", "не робот", "нет соединения")
+# Наш ключ идёт первым: в .env адрес мобильного порта лежит как OZON_PROXY_URL.
+PROXY_KEYS = ("OZON_PROXY_URL", "HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")
 
 
 def _opener(proxy):
@@ -107,7 +109,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Пускает ли Ozon этот канал")
     ap.add_argument("--proxy", default=os.getenv("OZON_PROBE_PROXY"),
                     help="socks5://хост:порт или http://хост:порт (можно через OZON_PROBE_PROXY)")
-    ap.add_argument("--proxy-file", help="файл вида KEY=value, взять HTTPS_PROXY оттуда; "
+    ap.add_argument("--proxy-file", help="файл вида KEY=value, взять адрес прокси оттуда "
+                                         "(OZON_PROXY_URL / HTTPS_PROXY / HTTP_PROXY / ALL_PROXY); "
                                          "значение остаётся внутри скрипта и не печатается")
     ap.add_argument("--browser", action="store_true", help="дополнительно проверить настоящим Chromium")
     a = ap.parse_args()
@@ -115,7 +118,7 @@ if __name__ == "__main__":
     if a.proxy_file and not a.proxy:
         for ln in open(a.proxy_file, encoding="utf-8", errors="replace"):
             k, _, v = ln.strip().partition("=")
-            if k.strip().upper() in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY") and v:
+            if k.strip().upper() in PROXY_KEYS and v:
                 a.proxy = v.strip().strip('"').strip("'")
                 break
         if not a.proxy:

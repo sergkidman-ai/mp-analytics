@@ -44,6 +44,23 @@ def _assert_readonly():
             sys.exit(f"recon.py обязан быть read-only, а в нём есть {bad} — прогон остановлен")
 
 
+def _proxy_from(path):
+    """Адрес прокси берём из файла и держим внутри процесса — в отчёт и в лог он не попадает."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    from probe_ip import PROXY_KEYS
+    for ln in open(path, encoding="utf-8", errors="replace"):
+        k, _, v = ln.strip().partition("=")
+        if k.strip().upper() in PROXY_KEYS and v:
+            return v.strip().strip('"').strip("'")
+    sys.exit(f"в {path} нет адреса прокси ({'/'.join(PROXY_KEYS)})")
+
+
+def _pw_proxy(proxy):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    from probe_ip import _pw_proxy as f
+    return f(proxy)
+
+
 def _stamp():
     return dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
 
@@ -76,15 +93,28 @@ def run(args):
               f"профиль: `{profile}` ({'создан сейчас' if fresh else 'существующий'})", ""]
     xhr = []
 
+    launch = dict(
+        user_data_dir=str(profile),
+        headless=False,                     # антибот: только видимый браузер и живой профиль
+        locale="ru-RU",
+        timezone_id="Europe/Moscow",
+        viewport={"width": 1440, "height": 900},
+        args=["--disable-blink-features=AutomationControlled"],
+    )
+    if args.proxy:
+        # Ходить в ЛК и логиниться нужно ЧЕРЕЗ ТОТ ЖЕ адрес, с которого потом пойдут ответы:
+        # войти напрямую, а работать через прокси — верный способ уронить сессию.
+        launch["proxy"] = _pw_proxy(args.proxy)
+        report += ["канал: через прокси (адрес в отчёт не пишем)", ""]
+
     with sync_playwright() as pw:
-        ctx = pw.chromium.launch_persistent_context(
-            user_data_dir=str(profile),
-            headless=False,                 # антибот: только видимый браузер и живой профиль
-            locale="ru-RU",
-            timezone_id="Europe/Moscow",
-            viewport={"width": 1440, "height": 900},
-            args=["--disable-blink-features=AutomationControlled"],
-        )
+        try:
+            ctx = pw.chromium.launch_persistent_context(**launch)
+        except Exception as e:
+            # Чаще всего это недоступный прокси: браузер умирает ещё до первой страницы.
+            sys.exit("браузер не поднялся" + (" — похоже, прокси недоступен: проверьте адрес, "
+                     "порт и что наш IP в белом списке провайдера" if args.proxy else "")
+                     + f"\n  ({type(e).__name__}: {str(e)[:100]})")
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         # Пишем ТОЛЬКО метод, URL и статус. Тела запросов и заголовки не трогаем: там сессия.
         page.on("response", lambda r: xhr.append(
@@ -166,7 +196,11 @@ if __name__ == "__main__":
     ap.add_argument("--review-url", help="ссылка на конкретный отзыв из отчёта")
     ap.add_argument("--profile", default=str(DEFAULT_PROFILE), help="папка постоянного профиля")
     ap.add_argument("--out", default=str(DEFAULT_OUT), help="куда класть отчёт и скриншоты")
+    ap.add_argument("--proxy", help="адрес прокси: схема://логин:пароль@хост:порт")
+    ap.add_argument("--proxy-file", help="взять адрес прокси из файла KEY=value (например .env)")
     a = ap.parse_args()
+    if a.proxy_file and not a.proxy:
+        a.proxy = _proxy_from(a.proxy_file)
     if not a.login and not a.review_url:
         print("Нечего делать: укажите --login (первый запуск) или --review-url.")
         sys.exit(2)
