@@ -89,3 +89,6 @@ tools/*_detail.csv
 # канонический стор знания — отдельный репозиторий /opt/mp-knowledge
 .kb
 bin/mpsess.local
+
+# сырьё писем «Необработанные товары МС» (поток prc) — не в git
+/mail_unprocessed/
