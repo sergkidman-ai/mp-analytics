@@ -75,6 +75,9 @@ CODE_SUFFIX = {
     # позиций последней загрузки Сакуры, `ct` у 1086 из 1091 у Колортека.
     "sakura": [(r"", "sk")],
     "colortek": [(r"", "ct")],
+    # Солюшнс принт: бренд один, аббревиатура одна — `sp` у ВСЕХ 1735 живых карточек с
+    # артикулом `SP…_MSK` и у 1708 из 1716 без хвоста (проверено 27.08.2026).
+    "s_print_msk": [(r"", "sp")],
 }
 # Бренд, который читается ТОЛЬКО из наименования, а не из артикула. У Булата под одним
 # ключом четыре бренда: 7Q (`q`), Grafit (`gf`, решение Сергея 26.08.2026), БУЛАТ s-Line (`sl`, 1170 живых
@@ -97,6 +100,7 @@ MS_SUPPLIER = {
     "odissey": 'ООО "ОДИССЕЙ"',        # есть ещё карточка 'ООО "ОДИССЕЙ" WB' — см. SUPPLIER_BY_SUFFIX
     "sakura": 'ООО "ПОЗИТИВ"',
     "colortek": 'ООО "КОЛОРТЕК РУС"',
+    "s_print_msk": 'ООО "Солюшнс принт" МСК',   # второе юрлицо — без МСК, см. profiles.IDENTITY
 }
 # У поставщика бывает несколько юрлиц, и карточки висят на РАЗНЫХ: у Одиссея на «ООО ОДИССЕЙ WB»
 # — бренд White Box и ВСЯ СТРУЙКА любого бренда (см. `supplier_of`), на «ООО ОДИССЕЙ» — остальная
@@ -134,6 +138,14 @@ def is_inkjet(path):
 # Чей прайс в `supplier_dims` — первоисточник веса для этого поставщика.
 DIMS_SUPPLIER = {
     "kaktus_msk": ("cactus",),
+    "s_print_msk": ("solutionsprint",),
+}
+# Артикул в прайсе записан НЕ так, как в письме несопоставленного: у Солюшнс принта в
+# `supplier_dims` лежит голый номер позиции («358698»), а в письме и на карточке —
+# `SP358698_MSK`. Общий `_core` этого не сводит намеренно: префикс поставщика он режет
+# только с разделителем («CS-…»), иначе съел бы кусок кода модели. Перевод — свой, по ключу.
+DIMS_ARTICLE = {
+    "s_print_msk": lambda a: re.sub(r"^SP|_MSK$", "", str(a or "")),
 }
 
 # Бренды принтеров (BRANDS/BRAND_RE) живут в `features` — там же, где ими сравнивают
@@ -543,7 +555,8 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
 
         # Первоисточник веса — прайс САМОГО поставщика по артикулу из прайса; дальше вес
         # родни в МС; в последнюю очередь — прайсы других поставщиков по кодам родни.
-        weight, source = weight_from_dims([row["article"]], only=DIMS_SUPPLIER.get(profile.key))
+        own = DIMS_ARTICLE.get(profile.key, lambda a: a)(row["article"])
+        weight, source = weight_from_dims([own], only=DIMS_SUPPLIER.get(profile.key))
         if weight and kin_weight and abs(weight - kin_weight) > 0.2 * max(weight, kin_weight):
             flags.append(f"вес поставщика {weight} против {kin_weight} у родни — взял поставщика ({source})")
         if not weight and kin_weight:
