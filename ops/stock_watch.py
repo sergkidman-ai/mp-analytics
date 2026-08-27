@@ -15,8 +15,11 @@
 у него один остаток. Джойн по `external_code` (наша карточка `3804`) дал бы 9–11 строк разных
 поставщиков и отвечал бы на другой вопрос — «товар негде взять вообще».
 
-Данные берём из `supplier_stock` (ежедневные снимки), в API МойСклада не ходим: снимок уже
-собран основным прогоном, и второй поход за теми же числами только тратил бы лимиты.
+Данные берём ЖИВЬЁМ из МойСклада (`report/stock/bystore/current`), а не из снимка
+`supplier_stock`. Снимок собирается основным прогоном дважды в сутки — между ними до 17 часов,
+и уведомление «товар кончился» опаздывало на смену. Второй капкан снимка: сборщик не пишет
+строки с нулём, поэтому ноль в нём неотличим от «товара нет в выгрузке» и приходил как nodata,
+то есть молчанием вместо тревоги. У живой ручки отсутствие строки И ЕСТЬ ноль.
 
     ./venv/bin/python -m ops.stock_watch --seed   # завести 4 кода из записки
     ./venv/bin/python -m ops.stock_watch --dry    # показать, что бы отправил
@@ -26,7 +29,7 @@
 import argparse
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests
 import psycopg2
@@ -35,16 +38,20 @@ from dotenv import load_dotenv
 sys.path.insert(0, "/opt/mp-analytics")
 load_dotenv("/opt/mp-analytics/.env")
 
+from collectors.suppliers import _ms  # noqa: E402  — тот же клиент МС, что у сборщика остатков
+
 # Свой бот потока prc — @ds_prc_bot, как и просили («туда же в бот PRC»).
 # В TG_NOTIFY_ID лежат ДРУГИЕ люди, туда слать нельзя (память telegram-channels).
 NOTIFY_IDS = [x.strip() for x in os.getenv("TG_PRC_NOTIFY_ID", "1031321444").split(",") if x.strip()]
 TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
 
 # Коды из записки Натальи 21.08.2026 — HP 913A PageWide, поставщик ООО «ОДИССЕЙ» WB.
-SEED = [("3801at", 5, "HP 913A чёрный (AT-L0R95AE Bk)"),
-        ("3802at", 5, "HP 913A голубой (AT-F6T77AE C)"),
-        ("3803at", 5, "HP 913A пурпурный (AT-F6T78AE M)"),
-        ("3804at", 5, "HP 913A жёлтый (AT-F6T79AE Y)")]
+# Порог 0, а не 5: в записке «сообщить, когда ЗАКОНЧИТСЯ остаток». Ранние «на исходе»
+# при пороге 5 — другой вопрос и лишний шум (решение Сергея 25.08.2026).
+SEED = [("3801at", 0, "HP 913A чёрный (AT-L0R95AE Bk)"),
+        ("3802at", 0, "HP 913A голубой (AT-F6T77AE C)"),
+        ("3803at", 0, "HP 913A пурпурный (AT-F6T78AE M)"),
+        ("3804at", 0, "HP 913A жёлтый (AT-F6T79AE Y)")]
 
 STATE_WORD = {"zero": "🔴 ЗАКОНЧИЛСЯ", "low": "🟡 на исходе", "ok": "🟢 восстановился",
               "nodata": "⚪️ нет данных"}
@@ -81,37 +88,98 @@ def classify(stock, threshold):
     return "ok"
 
 
-def read_current(cur):
-    """Остаток по каждой активной подписке на ПОСЛЕДНЮЮ дату снимка.
+def ms_ids_for(code, supplier=None):
+    """Карточки МС с этим «Кодом»: [(ms_id, name, supplier)].
 
-    LEFT JOIN, а не INNER: товар может пропасть из снимка совсем (сняли с продажи у поставщика),
-    и это тоже новость — иначе подписка молча перестала бы наблюдаться.
+    Одному коду соответствует НЕСКОЛЬКО карточек (у 5439sp их две — «Солюшнс принт МСК»
+    и «Солюшнс принт»), остатки по ним складываются. Поставщика берём живьём (expand=supplier),
+    а не из снимка: карточка с вечным нулём в снимок не попадает вовсе, и фильтр по поставщику
+    по снимку молча терял бы именно тот случай, ради которого сторож и заведён.
+    """
+    rows = _ms("entity/product", expand="supplier", limit=100,
+               filter=f"code={code}").get("rows", [])
+    out = []
+    for p in rows:
+        sup = (p.get("supplier") or {}).get("name")
+        if supplier and sup != supplier:
+            continue
+        out.append((p["id"], p.get("name"), sup))
+    return out
 
-    Агрегат, а не строка: у одного кода в ms_product бывает НЕСКОЛЬКО ms_id (у 5439sp–5442sp
-    их два — карточки «Солюшнс принт МСК» и «Солюшнс принт»). Без группировки подписка давала
-    столько строк, сколько карточек, и та из них, где на складе пусто, приходила как NULL →
-    ложное «нет данных». Сумма по ms_id отвечает ровно на вопрос подписки: сколько этого кода
-    лежит на складе. Пустая сумма остаётся NULL — состояние nodata сохраняется.
 
-    supplier в подписке — фильтр: «следить за товаром ИМЕННО этого поставщика» (миграция 509).
+def store_ids():
+    return {st["name"]: st["id"] for st in _ms("entity/store", limit=100).get("rows", [])}
+
+
+def live_stock(cur):
+    """Остаток по каждой активной подписке — живым запросом в МойСклад.
+
+    Отсутствие строки в ответе = ноль (ручка отдаёт только ненулевые остатки) — именно это
+    и есть событие подписки. А вот сбой сети/МС нулём считать нельзя: он даёт stock=None
+    (состояние nodata), и такие подписки прогон пропускает молча, не трогая last_state.
+
+    supplier в подписке — фильтр «следить за товаром ИМЕННО этого поставщика» (миграция 509);
     NULL = любой поставщик под этим кодом.
     """
-    cur.execute("""
-        SELECT w.id, w.ms_code, w.store, w.threshold, w.last_state, w.chat_id, w.note,
-               max(p.name), sum(s.stock), string_agg(DISTINCT s.supplier, ', '),
-               sum(s.in_transit)
-          FROM stock_watch w
-          LEFT JOIN ms_product p ON p.code = w.ms_code
-          LEFT JOIN supplier_stock s
-                 ON s.ms_id = p.ms_id
-                AND s.store = w.store
-                AND s.captured_at = (SELECT max(captured_at) FROM supplier_stock)
-                AND (w.supplier IS NULL OR s.supplier = w.supplier)
-         WHERE w.active
-         GROUP BY w.id, w.ms_code, w.store, w.threshold, w.last_state, w.chat_id, w.note
-         ORDER BY w.ms_code
-    """)
-    return cur.fetchall()
+    cur.execute("""SELECT id, ms_code, store, threshold, last_state, chat_id, note, supplier
+                     FROM stock_watch WHERE active ORDER BY ms_code""")
+    watches = cur.fetchall()
+    if not watches:
+        return []
+
+    failed, cards, per_store = set(), {}, {}
+    try:
+        stores = store_ids()
+    except Exception as exc:
+        print(f"МС не ответил (склады): {type(exc).__name__}: {exc}")
+        stores, failed = {}, {w[0] for w in watches}
+
+    for wid, code, store, _thr, _last, _chat, _note, sup in watches:
+        if wid in failed:
+            continue
+        if store not in stores:
+            print(f"склад «{store}» не найден в МС — подписка {code} пропущена")
+            failed.add(wid)
+            continue
+        try:
+            cards[wid] = ms_ids_for(code, sup)
+        except Exception as exc:
+            print(f"МС не ответил ({code}): {type(exc).__name__}: {exc}")
+            failed.add(wid)
+            continue
+        per_store.setdefault(store, set()).update(c[0] for c in cards[wid])
+
+    stock = {}
+    for store, ids in per_store.items():
+        ids = sorted(ids)
+        try:
+            for i in range(0, len(ids), 25):
+                flt = f"storeId={stores[store]};" + ";".join(
+                    f"assortmentId={x}" for x in ids[i:i + 25])
+                for r in _ms("report/stock/bystore/current", filter=flt):
+                    stock[(store, r["assortmentId"])] = r.get("stock") or 0
+        except Exception as exc:
+            print(f"МС не ответил (остатки «{store}»): {type(exc).__name__}: {exc}")
+            failed.update(w[0] for w in watches if w[2] == store)
+
+    # «В пути» живая ручка не отдаёт — берём из последнего снимка. Это справка в тексте
+    # уведомления («осталось 0, в пути 20»), на срабатывание сторожа она не влияет.
+    cur.execute("""SELECT ms_id, store, in_transit FROM supplier_stock
+                    WHERE captured_at = (SELECT max(captured_at) FROM supplier_stock)""")
+    transit = {(st, mid): it for mid, st, it in cur.fetchall()}
+
+    out = []
+    for wid, code, store, thr, last, chat, note, sup in watches:
+        ids = cards.get(wid, [])
+        name = ids[0][1] if ids else None
+        sups = ", ".join(sorted({c[2] for c in ids if c[2]})) or sup
+        if wid in failed:
+            qty, in_transit = None, None
+        else:
+            qty = sum(stock.get((store, i[0]), 0) for i in ids)
+            in_transit = sum(transit.get((store, i[0])) or 0 for i in ids) or None
+        out.append((wid, code, store, thr, last, chat, note, name, qty, sups, in_transit))
+    return out
 
 
 def log_event(cur, row, state, stock, snap_date):
@@ -136,9 +204,9 @@ def log_event(cur, row, state, stock, snap_date):
 def run(dry=False):
     conn = db()
     cur = conn.cursor()
-    cur.execute("SELECT max(captured_at) FROM supplier_stock")
-    snap_date = cur.fetchone()[0]
-    rows = read_current(cur)
+    now = datetime.now(timezone.utc) + timedelta(hours=3)  # МСК — в тексте для человека
+    snap_date = now.date()
+    rows = live_stock(cur)
     if not rows:
         print("подписок нет — заведите: --seed или INSERT в stock_watch")
         return
@@ -148,13 +216,16 @@ def run(dry=False):
         wid, code, store, thr, last_state, _chat, note, name, stock, supplier, in_transit = row
         state = classify(stock, thr)
         mark = "→ СМЕНА" if state != last_state else ""
-        lines.append(f"  {code:8s} {str(stock or '—'):>5s} шт  порог {thr:g}  "
-                     f"{last_state}→{state} {mark}")
-        if state == last_state:
+        lines.append(f"  {code:8s} {str(stock if stock is not None else '—'):>5s} шт  "
+                     f"порог {thr:g}  {last_state}→{state} {mark}")
+        # nodata здесь = МС не ответил (ноль приходит нулём). Молчим и не трогаем last_state:
+        # иначе сбой сети выдавал бы «товар кончился», а потом «восстановился».
+        if state == "nodata" or state == last_state:
             continue
         changed.append((wid, code, store, state, stock, note or name, supplier, in_transit, row))
 
-    print(f"снимок остатков: {snap_date}; подписок: {len(rows)}; смен состояния: {len(changed)}")
+    print(f"живые остатки МС {now:%d.%m %H:%M} МСК; подписок: {len(rows)}; "
+          f"смен состояния: {len(changed)}")
     for ln in lines:
         print(ln)
 
@@ -165,7 +236,7 @@ def run(dry=False):
 
     # Одно сообщение на все смены, а не письмо на каждый код: четыре подряд уведомления
     # про один и тот же набор картриджей читаются как спам и перестают замечаться.
-    body = [f"📦 Остатки поставщика — изменения на {snap_date}", ""]
+    body = [f"📦 Остатки поставщика — изменения на {now:%d.%m %H:%M} МСК", ""]
     for wid, code, store, state, stock, label, supplier, in_transit, _row in changed:
         body.append(f"{STATE_WORD[state]}  {code} — {label or ''}")
         body.append(f"    осталось {stock if stock is not None else '—'} шт"
@@ -222,7 +293,7 @@ def add_watch(code, store, threshold, supplier=None, note=None):
                    RETURNING id""", (code, store, threshold, supplier, note))
     wid = cur.fetchone()[0]
     conn.commit()
-    rows = [r for r in read_current(cur) if r[0] == wid]
+    rows = [r for r in live_stock(cur) if r[0] == wid]
     stock = rows[0][8] if rows else None
     state = classify(stock, threshold)
     cur.execute("UPDATE stock_watch SET last_state=%s, last_stock=%s WHERE id=%s",
@@ -253,8 +324,8 @@ if __name__ == "__main__":
     ap.add_argument("--list", action="store_true", help="показать подписки")
     ap.add_argument("--dry", action="store_true", help="прогон без отправки и без записи")
     ap.add_argument("--add", metavar="КОД", help="завести подписку на ms_product.code")
-    ap.add_argument("--store", default="Удаленный склад", help="склад из supplier_stock")
-    ap.add_argument("--threshold", type=float, default=5,
+    ap.add_argument("--store", default="Удаленный склад", help="имя склада в МойСкладе")
+    ap.add_argument("--threshold", type=float, default=0,
                     help="порог в штуках; 0 = сообщить, когда закончится")
     ap.add_argument("--supplier", help="следить за товаром именно этого поставщика")
     ap.add_argument("--note", help="примечание к подписке")
