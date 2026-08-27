@@ -5,12 +5,18 @@ from dotenv import load_dotenv; load_dotenv("/opt/mp-analytics/.env")
 from core import ms_api
 from core.db import query
 from prices import loader
-from prices.profiles import get_profile, STORE_REMOTE, ORG_DIGITAL, POSITIONS_PER_DOC
+from prices.profiles import get_identity, STORE_REMOTE, ORG_DIGITAL, POSITIONS_PER_DOC
 
-PROC = ["colortek", "odissey", "sakura", "kaktus_msk"]
+# Поставщик без прайса тоже здесь: Солюшнс принт грузит внешний загрузчик, документы он
+# кладёт на тот же «Удаленный склад» и под тем же именем `<ключ>_<дата>_pNN`, а карточки
+# несопоставленным строкам заводим мы — их и добираем (команда Сергея 27.08.2026).
+# Поэтому ниже `get_identity`, а не `get_profile`: `existing_docs` берёт из профиля только
+# `key`, а прайса у такого поставщика нет и профиля ему не завести.
+PROC = ["colortek", "odissey", "sakura", "kaktus_msk", "s_print_msk"]
 SUP2KEY = {'ООО "КОМПАНИЯ ФЕРРЕТ"': "kaktus_msk", 'ООО "ОДИССЕЙ"': "odissey",
            'ООО "ОДИССЕЙ" WB': "odissey", 'ООО "ПОЗИТИВ"': "sakura",
-           'ООО "КОЛОРТЕК РУС"': "colortek"}
+           'ООО "КОЛОРТЕК РУС"': "colortek",
+           'ООО "Солюшнс принт" МСК': "s_print_msk"}
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--day", default=str(dt.date.today()))
@@ -41,8 +47,11 @@ for pid in new:
 # 2. актуальные оприходования каждого профиля + их позиции
 docs_by_key, in_docs = {}, {}
 for key in sorted({c["key"] for c in cards}):
-    docs = loader.existing_docs(get_profile(key))
-    last = max(d["name"].split("_p")[0] for d in docs)          # актуальная дата загрузки
+    docs = loader.existing_docs(get_identity(key))
+    # rsplit, а не split: ключ поставщика сам содержит «_p» (`s_print_msk`), и разрез по
+    # ПЕРВОМУ вхождению давал партию «s» — под неё подходили документы всех дат сразу,
+    # и добор мог уехать в позавчерашний документ.
+    last = max(d["name"].rsplit("_p", 1)[0] for d in docs)      # актуальная дата загрузки
     docs = [d for d in docs if d["name"].startswith(last + "_p")]
     docs.sort(key=lambda d: int(d["name"].rsplit("_p", 1)[1]))
     docs_by_key[key] = docs
@@ -81,7 +90,7 @@ lines = [f"# Добор новых карточек в оприходовани�
          f"к добору: {len(plan)}; пропущено: {len(skip)}", ""]
 for key in sorted(docs_by_key):
     d = docs_by_key[key]
-    lines.append(f"- **{key}**: актуальная партия {d[0]['name'].split('_p')[0]}, документов {len(d)}, "
+    lines.append(f"- **{key}**: актуальная партия {d[0]['name'].rsplit('_p', 1)[0]}, документов {len(d)}, "
                  f"позиций в них {len(in_docs[key])}")
 # раскладка: добираем в последний документ партии до POSITIONS_PER_DOC, остаток — новым p{N+1}
 layout = {}                                     # key -> [(doc | new-name, [позиции])]
@@ -95,7 +104,7 @@ for key in sorted({p["key"] for p in plan}):
     rest, page = group[free:], int(last["name"].rsplit("_p", 1)[1])
     while rest:
         page += 1
-        steps.append(({"name": f"{last['name'].split('_p')[0]}_p{page}", "id": None},
+        steps.append(({"name": f"{last['name'].rsplit('_p', 1)[0]}_p{page}", "id": None},
                       rest[:POSITIONS_PER_DOC]))
         rest = rest[POSITIONS_PER_DOC:]
     layout[key] = [s for s in steps if s[1]]
