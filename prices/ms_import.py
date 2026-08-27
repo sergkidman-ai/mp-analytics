@@ -148,6 +148,33 @@ DIMS_ARTICLE = {
     "s_print_msk": lambda a: re.sub(r"^SP|_MSK$", "", str(a or "")),
 }
 
+
+def sp_msk_article(article):
+    """Артикул Солюшнс принта МСК в НАШЕЙ форме: `SP<номер>_MSK`.
+
+    Требование Сергея 27.08.2026. В прайсе поставщика (и, если однажды придёт, в письме)
+    позиция записана голым номером — «358698». Артикул в МС уникален на весь каталог
+    (правило 43) и служит ключом импорта: голая цифра столкнётся с одной из 5647 живых
+    карточек с числовым артикулом у других поставщиков и ПЕРЕПИШЕТ чужую карточку. Все
+    1735 живых карточек этого юрлица записаны как `SP…_MSK`, к ним и приводим. Хвост
+    `_MSK` — про юрлицо: под ключом `s_print_msk` контрагент всегда московский.
+    """
+    a = str(article or "").strip()
+    if re.fullmatch(r"[0-9][0-9/]*", a):
+        a = "SP" + a
+    if not a.upper().startswith("SP"):
+        return a
+    # Регистр тоже наш: в МС все до одной карточки записаны заглавными `SP…_MSK`, а импорт
+    # ищет карточку по артикулу — разнобой регистра дал бы вторую карточку на тот же товар.
+    a = re.sub(r"(?i)^sp", "SP", a)
+    return re.sub(r"(?i)_msk$", "_MSK", a) if a.upper().endswith("_MSK") else a + "_MSK"
+
+
+# Приведение артикула поставщика к форме, принятой в МС. Кого здесь нет — пишем как в прайсе.
+CARD_ARTICLE = {
+    "s_print_msk": sp_msk_article,
+}
+
 # Бренды принтеров (BRANDS/BRAND_RE) живут в `features` — там же, где ими сравнивают
 # строку прайса с нашей карточкой. Здесь по ним ставится «для» в «Название WB».
 
@@ -529,6 +556,7 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
 
     records, notes = [], []
     for row in rows:
+        row = dict(row, article=CARD_ARTICLE.get(profile.key, lambda a: a)(row["article"]))
         ext = (row["ms_code"] or "")[:4]
         cards = kin.get(ext) or []
         flags = []
