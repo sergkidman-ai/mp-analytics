@@ -431,10 +431,10 @@ function optionLabel(c){
   // списка (опечатка поставщика в цифре прятала верную карточку), но и молча предлагать
   // его нельзя — метка видна прямо в выпадающем списке, до раскрытия сетки.
   const mark = hasConflict(c) ? "⚠" : c.verdict === "совпало по всем признакам" ? "✓✓" : "•";
-  // Многоцветный набор виден ДО раскрытия сетки: модель у набора и у одиночного цвета
-  // совпадает буква в букву, а цвет у набора в каталоге не заполнен — привязать к нему
-  // одиночную позицию прайса иначе слишком легко (замечание Сергея 26.08).
-  const set = c.is_set ? `🎁 НАБОР ×${c.colors_count} ` : "";
+  // Набор виден ДО раскрытия сетки: модель у набора и у одиночного цвета совпадает буква
+  // в букву, а цвет у набора в каталоге не заполнен — привязать к нему одиночную позицию
+  // прайса иначе слишком легко (замечание Сергея 26.08). Что набор — знает справочник ТК.
+  const set = c.is_set ? `🎁 НАБОР ×${c.set_size} ` : "";
   if (isGoods(c)) {
     const cards = c.cards ? `карточек МС: ${c.cards}` : "карточки в МС нет";
     return `${c.cards ? mark : "➕"} ${set}${c.external_code} — ${c.tc_title} (${cards})`;
@@ -463,17 +463,28 @@ function cmpGrid(r, c){
   const model = c.model_ok === false ? "модель другая" : (c.shared_code || "—");
   const lines = [
     ["модель картриджа", "", c.shared_code || "—", model, c.model_ok],
-    ["тип", "", KINDS[r.kind] || r.kind, KINDS[c.kind] || c.kind, c.kind_ok],
+    // Тип варианта — словами каталога ТК, если он про товар высказался: наш `kind` вычитан
+    // из названия карточки МС, а его пишет поставщик («Заправочный комплект Sakura …» падал
+    // в запасной «картридж» и получал ✓ против настоящего картриджа, замечание Натальи 27.08).
+    ["тип", c.tc_type ? "type" : "", KINDS[r.kind] || r.kind,
+     c.tc_type ? c.tc_type.toLowerCase() : (KINDS[c.kind] || c.kind),
+     c.tc_type ? c.kind_view : c.kind_ok],
     ["бренд", "brand", r.brand, c.brand, c.brand_ok],
     ["ресурс/объём", "resource", num(r.measure), num(c.measure), c.resource_ok],
     // У набора в клетке цвета — весь его состав, а признак гасим: сравнивать один цвет
     // строки прайса с четырьмя цветами набора нечего, «совпало» тут было бы враньём.
-    ["цвет", "color", r.color, c.is_set ? c.set_colors : c.color, c.is_set ? null : c.color_ok],
+    ["цвет", "color", r.color, c.is_set ? (c.set_colors || "—") : c.color,
+     c.is_set ? null : c.color_ok],
     ["чип", "chip", r.chip, c.chip, c.chip_ok],
   ];
+  // Состав набора — из справочника ТК (какие внешние коды в него входят): видно, что
+  // это не одна коробка, и с чем именно человек рискует спутать строку прайса.
+  if (c.set_text) lines.push(["состав", "", "—", c.set_text, null]);
   const body = lines.map(([key, feat, mine, ours, ok]) => {
     const [sign, cls] = MARK[ok] ?? MARK.null;
-    const src = feat && from.has(feat)
+    // «тип» из ТК помечаем тем же значком: у него источник тот же, но в feat_src его нет —
+    // это не признак сверки, а показ.
+    const src = (feat === "type" || (feat && from.has(feat)))
       ? ` <span class="tcsrc" title="значение из нашего каталога TheCartridge (первоисточник)">ТК</span>` : "";
     return `<tr class="${ok === false ? "bad" : ""}"><td class="k">${key}</td>
       <td>${esc(mine || "—")}</td><td>${esc(ours || "—")}${src}</td>
@@ -484,8 +495,9 @@ function cmpGrid(r, c){
   const head = isGoods(c) ? `товар ${esc(c.external_code)} · сходится ${c.score}/6`
                           : `сходится ${c.score}/6`;
   const warn = c.is_set
-    ? `<div class="miss">🎁 это НАБОР из ${c.colors_count} цветов (${esc(c.set_colors)}) —
-         одиночную позицию прайса к нему не привязывать: модель у набора та же</div>`
+    ? `<div class="miss">🎁 это НАБОР из ${c.set_size} товаров${
+         c.set_colors ? ` (${esc(c.set_colors)})` : ""
+       } — одиночную позицию прайса к нему не привязывать: модель у набора та же</div>`
     : "";
   return warn + `<table class="cmp"><tr><th class="score">${head}</th>
       <th>строка прайса</th><th>${isGoods(c) ? "каталог ТК" : "наша карточка"}</th>

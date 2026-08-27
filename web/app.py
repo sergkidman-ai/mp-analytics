@@ -2350,14 +2350,16 @@ def novelties_api(supplier: str = "", status: str = "", no_stock: bool = False):
          WHERE c.ms_code IS NOT NULL OR c.source = 'tc'
          ORDER BY c.novelty_id, c.rank
     """)
+    sets = catalog.load_sets()
+    row_kind = {r["id"]: r["kind"] for r in rows}
     by_novelty = {}
     for c in cands:
         # Многоцветный набор помечаем прямо в подсказке: модель у набора и у одиночного
         # цвета совпадает, а цвет у набора в ТК не заполнен — в сетке сверки вставал первый
         # цвет из названия карточки МС, и набор выглядел обычным чёрным картриджем.
-        marks = catalog.set_info(c["consumable_type"],
-                                 f"{c['tc_title'] or ''} {c['ms_name'] or ''}",
-                                 c["ink_colors"])
+        marks = catalog.set_info(c["external_code"], sets, c["consumable_type"],
+                                 f"{c['tc_title'] or ''} {c['ms_name'] or ''}", c["ink_colors"])
+        marks.update(catalog.type_view(c["consumable_type"], c["kind"], row_kind.get(c["novelty_id"])))
         by_novelty.setdefault(c["novelty_id"], []).append(
             dict(c, **marks, **_novelty_view(c), price_rub=None))
     models = _novelty_models(rows)

@@ -88,10 +88,61 @@ def load_tc():
 SET_RE = re.compile(r"набор|комплект", re.IGNORECASE)
 CMYK_RE = re.compile(r"cmyk", re.IGNORECASE)
 CMYK_COLORS = ("Голубой", "Пурпурный", "Жёлтый", "Чёрный")
+# В `set_cost.components` у 62 наборов из 992 лежит не код, а весь объект ТК строкой —
+# так его положил собиратель. Код оттуда достаём, строку целиком в состав не пускаем.
+PART_OBJ_RE = re.compile(r"'external_code':\s*'([^']+)'")
 
 
-def set_colors(name, ink_colors):
-    """Из чего набор. Список цветов ТК, а где ТК молчит — цвета, вычитанные из названия."""
+def load_sets():
+    """Справочник наборов ТК: внешний код -> состав. Первоисточник, а не догадка.
+
+    Что набор, а что нет, знает ТК: `set_cost` — кэш ответов `/api/catalog/mix_data`,
+    где у набора лежит список внешних кодов компонентов, а простой товар отвечает
+    «not_mix» (собирает `collectors/set_cost.py` для себеста наборов). Решение Сергея
+    27.08.2026: считать набором ровно то, что набор в этом справочнике.
+
+    -> {внешний код: {"codes": [...], "colors": "…", "text": "код — название · …"}}
+    """
+    rows = query("select external_code, components from set_cost where n_components > 1")
+    sets = {}
+    for r in rows:
+        codes = []
+        for c in r["components"] or []:
+            c = str(c)
+            if c.startswith("{"):
+                m = PART_OBJ_RE.search(c)
+                c = m.group(1) if m else ""
+            if c:
+                codes.append(c)
+        if len(codes) > 1:
+            sets[r["external_code"]] = codes
+    part = {r["external_code"]: r for r in query(
+        "select external_code, title, color from prc_tc_model"
+        " where external_code = any(%s)", (sorted({c for v in sets.values() for c in v}),))}
+    out = {}
+    for ec, codes in sets.items():
+        colors, text = [], []
+        for c in codes:
+            p = part.get(c) or {}
+            # В каталоге цвет лежит кодом (BK/C/M/Y) — человеку показываем словом.
+            col = F.COLOR_NAMES.get(p.get("color"), p.get("color"))
+            if col and col not in colors:
+                colors.append(col)
+            text.append(f"{c} {p.get('title') or '—'}")
+        out[ec] = {"codes": codes, "colors": ", ".join(colors), "text": " · ".join(text)}
+    return out
+
+
+def guess_set(consumable_type, name, ink_colors=None):
+    """Набор ли это по косвенным признакам — на случай, когда справочника не хватило.
+
+    Справочник наборов резолвится только под карточки, заведённые на ВБ/Озон, поэтому
+    11 из 91 подсказки он не знает (CLI521 + PGI520, KP-108in). Пока пробел не закрыт,
+    оставляем прежнюю догадку: слово «набор/комплект» ПЛЮС больше одного цвета в составе.
+    Одноцветный комплект догадкой не метим — там подменить цвет нечем.
+    """
+    if not (SET_RE.search(consumable_type or "") or SET_RE.search(name or "")):
+        return []
     colors = [str(c).strip() for c in (ink_colors or []) if str(c or "").strip()]
     if len(colors) == 1 and CMYK_RE.search(colors[0]):
         return list(CMYK_COLORS)      # ТК пишет четырёхцветный набор одной строкой «Набор CMYK»
@@ -105,28 +156,52 @@ def set_colors(name, ink_colors):
     return found
 
 
-def set_info(consumable_type, name, ink_colors=None):
-    """Многоцветный ли это набор и из чего. -> {"is_set", "colors_count", "set_colors"}.
+def set_info(external_code, sets, consumable_type=None, name="", ink_colors=None):
+    """Набор ли это и из чего. -> {"is_set", "set_size", "set_colors", "set_text"}.
 
     Замечание Сергея 26.08.2026. У набора и у одиночного цвета модель совпадает буква
     в букву («842283 - 842286» против «842283»), а ЦВЕТ у набора в каталоге ТК не заполнен
     вовсе: в сетке сверки вставал первый цвет, вычитанный из названия карточки МС, и набор
     выглядел обычным чёрным картриджем. Привязать к нему одиночную позицию прайса после
     этого — одно движение, поэтому набор должен быть виден ещё в списке подсказок.
-
-    Метим ТОЛЬКО многоцветный: подменить цвет можно там, где цветов больше одного.
-    Одноцветные комплекты («Заправочный комплект … Чёрный», «фотобарабан + картридж»)
-    сравнение по цвету проходят честно, и метка на них была бы шумом.
-
-    Слово ищем и в типе первоисточника (`consumable_type` ТК), и в названии — карточки МС
-    в каталоге ТК может не быть вовсе. Состав цветов — `set_colors`; `colors_count` самого
-    ТК не берём, он врёт (у «Комплект картриджей» с четырьмя цветами стоит и 2, и 3).
     """
-    named = bool(SET_RE.search(consumable_type or "") or SET_RE.search(name or ""))
-    colors = set_colors(name, ink_colors) if named else []
-    is_set = len(colors) > 1
-    return {"is_set": is_set, "colors_count": len(colors) if is_set else 0,
-            "set_colors": ", ".join(colors) if is_set else ""}
+    s = sets.get((external_code or "").strip())
+    if s:
+        return {"is_set": True, "set_size": len(s["codes"]),
+                "set_colors": s["colors"], "set_text": s["text"]}
+    colors = guess_set(consumable_type, name, ink_colors)
+    if len(colors) > 1:
+        return {"is_set": True, "set_size": len(colors),
+                "set_colors": ", ".join(colors), "set_text": ""}
+    return {"is_set": False, "set_size": 0, "set_colors": "", "set_text": ""}
+
+
+# Тип из каталога ТК на наши пять типов ложится не весь: «Фотобарабан» и «Блок проявки»
+# в наших типах не живут вовсе, и натягивать их на «картридж» нельзя. Переводим только
+# однозначное, остальное показываем словами ТК с погашенным признаком.
+TC_KIND = {"Картридж": "cartridge", "Комплект картриджей": "cartridge",
+           "Тонер": "toner", "Комплект чернил": "ink", "Чернила": "ink",
+           "Заправочный комплект": "toner"}
+
+
+def type_view(consumable_type, kind, row_kind):
+    """Тип варианта словами ТК + признак сходства с типом строки прайса.
+
+    Замечание Натальи 27.08.2026: у 6982 в сетке стоял «картридж», хотя в ТК это
+    «Заправочный комплект». Наш `kind` вычитан из названия карточки МС, а его пишет
+    поставщик: «Заправочный комплект Sakura TN-C2310HC» ни одного словарного слова не
+    содержит, и классификатор отдаёт запасной «картридж» — заправка тонером вставала
+    в один ряд с картриджем и получала ✓ по типу.
+
+    Ничего не переписываем: `kind` — жёсткий фильтр отбора, он остаётся как был, меняется
+    ТОЛЬКО показ. -> {"tc_type": "…", "kind_view": True|False|None} (None — «не сравнивали»).
+    """
+    t = (consumable_type or "").strip()
+    if not t:
+        return {"tc_type": "", "kind_view": None}
+    mapped = TC_KIND.get(t)
+    return {"tc_type": t,
+            "kind_view": None if not (mapped and row_kind) else mapped == row_kind}
 
 
 def load_tc_one(external_code):
@@ -829,8 +904,8 @@ def probe(row, code):
     tc = item.get("tc")
     # Имя смотрим и наше, и первоисточника: набор, названный набором хоть где-то, лучше
     # показать лишний раз, чем пропустить — цена ошибки здесь несимметрична.
-    marks = set_info((tc or {}).get("type"), f"{(tc or {}).get('title') or ''} {item['name']}",
-                     (tc or {}).get("ink_colors"))
+    marks = set_info(item["external_code"], load_sets(), (tc or {}).get("type"),
+                     f"{(tc or {}).get('title') or ''} {item['name']}", (tc or {}).get("ink_colors"))
     return {**marks,
             "ms_id": item["ms_id"], "ms_code": item["code"] or None, "ms_name": item["name"],
             "external_code": item["external_code"] or None,
