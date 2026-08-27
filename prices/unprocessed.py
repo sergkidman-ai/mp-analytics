@@ -30,8 +30,13 @@ FOLDER = "Прайсы Поставщиков|Необработанные то�
 RAW_DIR = Path(__file__).resolve().parent.parent / "mail_unprocessed"
 
 # supplier_key -> (имя файла во вложении, чем добираем наименование)
+# Резолвер нужен только там, где в письме пустая колонка `name`: у Булата внешний загрузчик
+# отдаёт голый артикул, и имя приходится добирать с сайта поставщика. Солюшнс принт МСК шлёт
+# наименование прямо в файле (11/11 строк письма 27.08), поэтому резолвера у него нет —
+# `None` значит «имя берём из письма как есть».
 SUPPLIERS = {
     "bulat": (r"^bulat\.txt$", bulat_site.resolve),
+    "s_print_msk": (r"^s_print_msk\.txt$", None),
 }
 
 
@@ -46,7 +51,7 @@ def read_rows(text):
             price = float((rec.get("price") or "0").replace(",", "."))
         except ValueError:
             price = 0.0
-        out.append({"article": art, "name": "", "price": price,
+        out.append({"article": art, "name": (rec.get("name") or "").strip(), "price": price,
                     "qty": (rec.get("quantity") or "").strip(),
                     # Строки письма — по определению ненайденные: у всех пустой msId.
                     # Причина нужна `blacklist.mark` и `novelty.screen`, они смотрят на неё.
@@ -126,13 +131,15 @@ def main(argv=None):
         return 0
 
     resolver = SUPPLIERS[a.supplier][1]
-    arts = [r["article"] for r in rows]
-    if a.no_site:
-        names = bulat_site.cached(arts)
-    else:
-        names = resolver(arts, progress=lambda i, n: print(f"  … имена {i}/{n}"))
-    for r in rows:
-        r["name"] = names.get(r["article"], "")
+    if resolver is not None:
+        arts = [r["article"] for r in rows if not r["name"]]
+        if a.no_site:
+            names = bulat_site.cached(arts)
+        else:
+            names = resolver(arts, progress=lambda i, n: print(f"  … имена {i}/{n}"))
+        for r in rows:
+            if not r["name"]:
+                r["name"] = names.get(r["article"], "")
     named = [r for r in rows if r["name"]]
     blind = [r for r in rows if not r["name"]]
     print(f"наименование найдено: {len(named)} · не найдено: {len(blind)}")
