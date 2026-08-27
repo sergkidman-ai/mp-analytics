@@ -33,6 +33,7 @@ import contextlib
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, "/opt/mp-analytics")
 from dotenv import load_dotenv
@@ -41,6 +42,7 @@ load_dotenv("/opt/mp-analytics/.env")
 
 import requests
 
+from prices import unprocessed
 from prices.profiles import get_profile
 from prices.mailbox import fetch_latest_price
 
@@ -76,6 +78,25 @@ def tg(text):
         except Exception as exc:                              # сеть/таймаут — не роняем прогон
             out.append(f"{chat}: {type(exc).__name__}: {exc}")
     return "; ".join(out)
+
+
+# Поставщики БЕЗ прайса. Булата (и дальше ВТТ, Рамис, Блоссом) грузит по API внешний
+# загрузчик, а нам письмом приходит только список несопоставленного — его разбирает
+# `prices.unprocessed`, и кончается он вкладкой «Новинки», а не оприходованием в МС.
+# Профиля в `prices/profiles.py` у такого поставщика нет и быть не может (нет ни колонок,
+# ни документов), поэтому собираем сторожу ровно то, чем он пользуется: папка, шаблон
+# вложения, расширение вложения и имя для сводки.
+UNPROCESSED = {"bulat": "Булат"}
+
+
+def profile_of(key):
+    """Профиль поставщика — настоящий или заменитель для писем «необработанные товары МС»."""
+    if key in UNPROCESSED:
+        return SimpleNamespace(key=key, title=UNPROCESSED[key], unprocessed=True,
+                               mail_folder=unprocessed.FOLDER,
+                               file_pattern=unprocessed.SUPPLIERS[key][0],
+                               extensions=(".txt",))
+    return get_profile(key)
 
 
 def state_path(key):
@@ -141,14 +162,23 @@ def done_today(state):
     return dt is not None and dt.astimezone(MSK).date() == datetime.now(MSK).date()
 
 
-def run_load(key, dry):
-    """Прогон загрузки. -> (текст вывода, код). SystemExit — это отказ по правилу, не сбой."""
-    from prices import run as prices_run
-    argv = ["--supplier", key] + ([] if dry else ["--apply"])
+def run_load(profile, dry):
+    """Прогон загрузки. -> (текст вывода, код). SystemExit — это отказ по правилу, не сбой.
+
+    У поставщика без прайса дорога другая — `prices.unprocessed`: в МойСклад не пишется
+    ничего, строки ложатся во вкладку «Новинки». Флаг `--apply` значит там ровно то же
+    самое («писать»), поэтому сухой прогон устроен одинаково.
+    """
+    if getattr(profile, "unprocessed", False):
+        runner = unprocessed.main
+    else:
+        from prices import run as prices_run
+        runner = prices_run.main
+    argv = ["--supplier", profile.key] + ([] if dry else ["--apply"])
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):
-            code = prices_run.main(argv)
+            code = runner(argv)
     except SystemExit as exc:
         return buf.getvalue() + f"\nОТМЕНА: {exc}", 2
     except Exception as exc:
@@ -187,6 +217,16 @@ def troubles(out):
     return found
 
 
+# Итоговые строки разбора несопоставленного — по ним видно, была работа или письмо пустое.
+RAW_KEEP = ("строк в файле:", "наименование найдено:", "идёт в «Новинки»:",
+            "записано во вкладку", "закрылось само", "получило кандидатов", "без вариантов")
+
+
+def raw_lines(out):
+    """Сводка разбора несопоставленного для телеграма: цифры, а не простыня прогона."""
+    return [ln.strip() for ln in out.splitlines() if ln.strip().startswith(RAW_KEEP)]
+
+
 def message(profile, out, code, dry, after):
     """Одна строка: поставщик, чем кончилось, сколько позиций ждёт человека.
 
@@ -197,10 +237,12 @@ def message(profile, out, code, dry, after):
     verdict = {0: "ОК", 2: "ОТМЕНА", 3: "СБОЙ"}.get(code, "ОШИБКА")
     if dry and code == 0:
         verdict = "сухой прогон"
-    head = f"{profile.title} — Оприходование в МС — {verdict}"
+    raw = getattr(profile, "unprocessed", False)
+    what = "Несопоставленное → Новинки" if raw else "Оприходование в МС"
+    title = f"{profile.title} — {what} — {verdict}"
     if after is not None:
-        head += f", новых позиций — {after}"
-    return "\n".join([head] + troubles(out))
+        title += f", новых позиций — {after}"
+    return "\n".join([title] + troubles(out) + (raw_lines(out) if raw else []))
 
 
 def main(argv=None):
@@ -211,20 +253,26 @@ def main(argv=None):
     ap.add_argument("--quiet", action="store_true", help="не слать телеграм")
     args = ap.parse_args(argv)
 
-    profile = get_profile(args.supplier)
+    profile = profile_of(args.supplier)
+    raw = getattr(profile, "unprocessed", False)
     logfile = LOG_DIR / f"prc_price_watch_{profile.key}.log"
 
     # Замок на сутки ставим ДО почты: незачем открывать IMAP-сессию каждые полчаса до вечера,
     # когда сегодняшний прайс уже оприходован.
+    # Замок на сутки — про поставщика, который присылает прайс раз в день. Письмо
+    # несопоставленного приходит НЕСКОЛЬКО раз в день и каждый раз другим составом
+    # (внешний загрузчик разбирает остаток), поэтому замка там нет: работает только
+    # проверка «письмо новее уже обработанного».
     state = read_state(profile.key)
-    if done_today(state) and not args.force:
+    if done_today(state) and not args.force and not raw:
         log(logfile, f"сегодняшний прайс уже загружен ({state.get('filename')}, "
                      f"{state.get('date')}) — до завтра в почту не хожу")
         return 0
 
     fails = LOG_DIR / f"prc_price_watch_{profile.key}_mailfail.txt"
     try:
-        letter = fetch_latest_price(profile.mail_folder, pattern=profile.file_pattern)
+        kw = {"extensions": profile.extensions} if getattr(profile, "extensions", None) else {}
+        letter = fetch_latest_price(profile.mail_folder, pattern=profile.file_pattern, **kw)
     except Exception as exc:
         # Разовый таймаут — молча, в лог. Но если почты нет несколько проверок подряд, прайс
         # мог прийти и остаться незамеченным — об этом человеку надо сказать.
@@ -248,7 +296,7 @@ def main(argv=None):
 
     log(logfile, f"новое письмо: {letter['filename']} / {letter['date']} — запускаю загрузку"
                  + (" (сухой прогон)" if args.dry else ""))
-    out, code = run_load(profile.key, args.dry)
+    out, code = run_load(profile, args.dry)
     after = pending_count(profile.key)
     log(logfile, f"итог {code}\n" + out)
     # Состояние пишем при ЛЮБОМ исходе: отменённую по аномалиям загрузку человек разбирает
