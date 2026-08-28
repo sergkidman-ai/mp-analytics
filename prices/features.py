@@ -108,6 +108,14 @@ CODE_RE = re.compile(r"[A-ZА-Я0-9][A-ZА-Я0-9\-]{2,}", re.I)
 NUM_CODE_RE = re.compile(r"(?<![A-ZА-Я0-9])(\d{6,9})(?![0-9])", re.I)
 COLOR_SUFFIX_RE = re.compile(r"(BK|BLK|MBK|MK|CY|MG|YE|YL|LC|LM|GY|[CMYKB])$", re.I)
 NOISE_CODES = {"MFP", "MPS", "A4", "A3"}
+# Сокращение «одна модель на две»: `TNP50/51` значит и TNP-50, и TNP-51 — поставщик пишет
+# общую буквенную часть один раз, а после слэша оставляет только номер. Без разворота
+# читается лишь первая модель, и универсальный картридж не сходится с карточкой, названной
+# по второй: письмо Булата 28.08 давало `TNP50`, а модель карточки в каталоге ТК — `TNP51`,
+# из-за чего предохранитель «артикул совпал, модель разошлась» держал 4 строки у человека.
+# Хвост-цифры берём только при буквенной голове: `842314/841928` — это два самостоятельных
+# ОЕМ-кода, их разбирает NUM_CODE_RE, а `C3100/C3110` — CODE_RE, там голова полная.
+SHARED_HEAD_RE = re.compile(r"(?<![A-ZА-Я0-9])([A-ZА-Я]{2,})-?(\d+)((?:/\d+[A-ZА-Я]?)+)", re.I)
 
 
 def norm(text):
@@ -188,6 +196,9 @@ def codes(*texts):
             for start in range(len(parts)):
                 _add(out, re.sub(r"[^A-ZА-Я0-9]", "", "".join(parts[start:])))
         out |= set(NUM_CODE_RE.findall(str(text or "")))
+        for head, first, tail in SHARED_HEAD_RE.findall(str(text or "")):
+            for num in re.findall(r"\d+[A-ZА-Я]?", tail, re.I):
+                _add(out, (head + num).upper())
     return out
 
 
