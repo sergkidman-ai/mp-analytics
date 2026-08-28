@@ -1,6 +1,6 @@
 # BRIEF_PRC — поток `prc` (прайсы поставщиков → МойСклад)
 
-Обновлён 19.08.2026. Лимит брифа — 150 строк, поэтому он держит только состояние.
+Обновлён 28.08.2026. Лимит брифа — 150 строк, поэтому он держит только состояние.
 **Правила потока и знания о системе — `docs/PRC_RULES.md` (читать вместе с этим файлом).**
 История этапов до 16.08.2026 — `docs/archive/BRIEF_PRC_история_до_2026-08-16.md`.
 
@@ -24,10 +24,10 @@
 ## Территория потока
 
 `prices/` (`profiles, mailbox, parser, cbr, loader, anomaly, blacklist, mailout, journal, run,
-novelty, features, catalog, ms_import, waiting, research, supplier_group, unlinked, unlink_apply`, юниты
+novelty, features, catalog, ms_import, waiting, research, supplier_group, unlinked, unlink_apply, unprocessed, bulat_site, mail_schedule`, юниты
 `prc-price-watch@.{service,timer}`) · `core/ms_api.py` (общий клиент МС, пишет пока только prc) ·
 `ops/prc_price_watch.py` · `tools/prc/` (`tpl_check, tpl_load, tpl_verify, enter_audit, tc_bench,
-tc_ms_diff, tc_links, wb_fill, cat_fix, unlink_auto, unlink_fill, archive_originals, tc_fields, recard`) · `collectors/thecartridge_catalog.py` · миграции **400–409** ·
+tc_ms_diff, tc_links, wb_fill, cat_fix, unlink_auto, unlink_fill, archive_originals, tc_fields, recard, mail_arrival_backfill`) · `collectors/thecartridge_catalog.py` · миграции **400–413** ·
 UI `web/static/novelties.html` + роуты `/warehouse/novelties`, `/api/novelties*`, `/api/blacklist*`
 и `/api/unlinked*` в `web/app.py` · отчёты `docs/prc/`, `docs/reports/`.
 
@@ -645,6 +645,20 @@ UI `web/static/novelties.html` + роуты `/warehouse/novelties`, `/api/novelt
   и «Sakura 040C» — то же изделие под каноновским именем, а не чужая модель.
 
 ## Следующий шаг
+
+−11. **Сделано 28.08 (сторож молчания прайсов).** Задача Сергея: сказать в @ds_prc_bot, что
+   прайс сегодня не пришёл, хотя по истории должен был. Срок ожидания у каждого поставщика свой
+   и УЧИТСЯ из почты, а не задаётся руками; уведомление — сразу по поставщику, как истёк его
+   личный срок. Разбор и выученное расписание — раздел «Сторож молчания прайсов» выше.
+   Коммиты `9ed3a8c` (механизм) и `45b9166` (флаг `ignored`).
+   Новых таймеров нет, в почту сторож ходить чаще не стал, в МойСклад ничего не пишется.
+   **Открыто:** боевая проверка — увидеть сообщение в боте в первый же день реального молчания.
+
+−10. **Сделано 28.08 (сокращение «одна модель на две» в парсере, коммит `2a1c027`).**
+   4 строки Булата держал предохранитель «артикул совпал, модель разошлась»: в письме
+   универсальная `TNP50/51`, в карточке `TNP50K`. Виноват был наш парсер — порог кода в 3
+   символа не давал прочитать голую `51` после слэша. Разбор и регрессия — раздел про
+   `SHARED_HEAD_RE` ниже; строки связаны решением человека, карточки не переписывались.
 
 −9. **Сделано 26.08 (необработанные товары внешнего загрузчика → «Новинки», первый поставщик — Булат).**
    Задача Сергея: письма из папки «Прайсы Поставщиков|Необработанные товары МС» (577 писем,
