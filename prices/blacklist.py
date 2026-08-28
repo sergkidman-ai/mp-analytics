@@ -19,6 +19,8 @@ import psycopg2.extras
 
 from core.db import get_conn, query
 
+from . import novelty
+
 
 # Бренды, которые не берём совсем: правило на префикс артикула, а не перечень кодов —
 # у бренда в каждом прайсе новые коды, поимённый список за ними не угонится.
@@ -39,6 +41,18 @@ BRAND_RULES = {
     "s_print_msk": [SP_SET],
     "s_print_spb": [SP_SET],
 }
+
+
+# Виды товара, которые не берём ВООБЩЕ — ни у одного поставщика. Правило именно по ВИДУ из
+# названия, а не по артикулу: у чипа артикул — голый код модели картриджа («TK-3110»,
+# «ML-D2850B»), а таблица `prc_blacklist` без поставщика, и такой артикул забраковал бы
+# настоящий картридж с тем же кодом у любого другого прайса. Название же однозначно.
+KIND_RULES = {"chip": "чип — деталь картриджа, чипы не продаём (решение Сергея 28.08.2026)"}
+
+
+def in_kinds(name):
+    """Название попадает под вид, который мы не берём? -> причина или None."""
+    return KIND_RULES.get(novelty.kind(str(name or "")))
 
 
 def norm(article):
@@ -99,13 +113,15 @@ def mark(skipped, black, reasons=("not_found", "ambiguous"), supplier_key=None):
     поставщика, который мы не берём в принципе. Перечнем артикулов такое не закроешь —
     в каждом прайсе у бренда новые коды.
     """
-    if not black and not BRAND_RULES.get(supplier_key):
-        return skipped, 0
+    # Раннего выхода «нечем браковать» здесь нет: правило по виду (`KIND_RULES`) работает
+    # всегда и не зависит ни от загруженного списка артикулов, ни от поставщика.
     hits = 0
     for row in skipped:
         if row.get("reason") not in reasons:
             continue
-        if norm(row.get("article")) in black or in_rules(row.get("article"), supplier_key):
+        if (norm(row.get("article")) in black
+                or in_rules(row.get("article"), supplier_key)
+                or in_kinds(row.get("name"))):
             row["reason"] = "blacklisted"
             hits += 1
     return skipped, hits
