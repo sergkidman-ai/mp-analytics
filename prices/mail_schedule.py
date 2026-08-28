@@ -71,37 +71,42 @@ def bdays(start, end):
 
 
 def arrivals(key):
-    """История приходов: [(дата, время первого письма в минутах)] по возрастанию."""
-    rows = query("""select letter_date, first_at at time zone 'Europe/Moscow' as msk
+    """История приходов: [(дата, время первого письма в минутах, не_учить)] по возрастанию."""
+    rows = query("""select letter_date, first_at at time zone 'Europe/Moscow' as msk, ignored
                       from prc_mail_arrival where supplier_key = %s order by letter_date""",
                  (key,))
-    return [(r["letter_date"], minutes(r["msk"])) for r in rows]
+    return [(r["letter_date"], minutes(r["msk"]), r["ignored"]) for r in rows]
 
 
 def schedule(key, history=None):
-    """Что мы знаем о расписании поставщика. Всегда возвращает dict, даже когда истории нет."""
-    hist = arrivals(key) if history is None else history
-    out = {"key": key, "days": len(hist), "enough": False, "weekdays": set(),
+    """Что мы знаем о расписании поставщика. Всегда возвращает dict, даже когда истории нет.
+
+    Помеченный `ignored` приход считается пришедшим (иначе сторож объявит молчанием день,
+    когда прайс был), но расписанию не учит: разовая задержка не должна становиться нормой.
+    """
+    hist = arrivals(key) if history is None else [(*r, False)[:3] for r in history]
+    learn = [(d, t) for d, t, ign in hist if not ign]
+    out = {"key": key, "days": len(learn), "enough": False, "weekdays": set(),
            "deadline": None, "gap_days": None, "median": None, "latest": None,
            "last_date": hist[-1][0] if hist else None,
            "last_time": hist[-1][1] if hist else None}
-    if not hist:
+    if not learn:
         return out
-    span = (hist[-1][0] - hist[0][0]).days + 1
-    out["enough"] = len(hist) >= MIN_DAYS and span >= MIN_SPAN
-    times = [t for _, t in hist]
+    span = (learn[-1][0] - learn[0][0]).days + 1
+    out["enough"] = len(learn) >= MIN_DAYS and span >= MIN_SPAN
+    times = [t for _, t in learn]
     out["median"], out["latest"] = pct(times, 0.5), max(times)
     out["deadline"] = max(EARLIEST_ALERT,
                           min(pct(times, 0.9) + GRACE_AFTER_P90,
                               out["latest"] + GRACE_AFTER_MAX, LATEST_ALERT))
     seen = {}
-    for day, _ in hist:
+    for day, _ in learn:
         seen[day.weekday()] = seen.get(day.weekday(), 0) + 1
     days = {wd for wd, n in seen.items() if n >= 2 and wd < 5}
     # Присылает почти каждый будний день — считаем, что ждём его всегда: единственный вторник
     # без письма за два месяца не повод вычёркивать вторник из расписания.
     out["weekdays"] = set(range(5)) if len(days) >= FREQUENT_WEEKDAYS else days
-    gaps = [bdays(a, b) for (a, _), (b, _) in zip(hist, hist[1:])]
+    gaps = [bdays(a, b) for (a, _), (b, _) in zip(learn, learn[1:])]
     out["gap_days"] = max(1, pct(gaps, 0.9) or 1)
     return out
 
