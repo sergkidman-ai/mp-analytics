@@ -42,7 +42,8 @@ load_dotenv("/opt/mp-analytics/.env")
 
 import requests
 
-from prices import unprocessed
+from core.db import query, upsert
+from prices import mail_schedule, unprocessed
 from prices.profiles import get_profile
 from prices.mailbox import fetch_latest_price
 
@@ -162,6 +163,64 @@ def done_today(state):
     return dt is not None and dt.astimezone(MSK).date() == datetime.now(MSK).date()
 
 
+def note_arrival(profile, letter):
+    """Дата письма — в историю приходов: по ней сторож учит, когда этого поставщика ждать.
+
+    Письмо сторож и так забирает каждый прогон, отдельного похода в почту здесь нет.
+    За день остаётся ПЕРВОЕ письмо (`DO NOTHING`): у Булата и Солюшнс принта их несколько,
+    а срок ожидания считается по первому.
+    """
+    dt = letter_dt(letter)
+    if dt is None:
+        return
+    dt = dt.astimezone(MSK)
+    upsert("prc_mail_arrival",
+           [{"supplier_key": profile.key, "letter_date": dt.date(), "first_at": dt,
+             "subject": (letter.get("subject") or "")[:300],
+             "filename": (letter.get("filename") or "")[:200]}],
+           ["supplier_key", "letter_date"], update_cols=[])
+
+
+def overdue_text(profile, late):
+    """Сообщение о просрочке. Три строки: кто, когда обычно ждём, сколько уже молчит."""
+    lines = [f"⏰ {profile.title} — прайса сегодня нет.",
+             f"Обычно приходит к {mail_schedule.hhmm(late['median'])} — "
+             f"ждали до {mail_schedule.hhmm(late['deadline'])}.",
+             f"Последний: {late['last_date']:%d.%m} {mail_schedule.hhmm(late['last_time'])} — "
+             f"молчит {late['silent']} раб. дн."]
+    # Молчат ВСЕ разом — это не поставщик, это праздник или наша почта. Иначе в такой день
+    # прилетело бы шесть одинаковых пингов, и каждый увёл бы не туда.
+    if not query("""select 1 from prc_mail_arrival where letter_date = %s limit 1""",
+                 (late["today"],)):
+        lines.append("Сегодня нет писем НИ ОТ КОГО — похоже на праздник или нашу почту.")
+    return "\n".join(lines)
+
+
+def overdue_alert(profile, logfile, quiet=False, check_only=False):
+    """Прайс просрочен -> одно сообщение в сутки. -> текст сообщения или None.
+
+    Замок на сутки — отдельным файлом, как у недоступной почты: состояние загрузки
+    (`write_state`) переписывается только при удачном письме, а тревожить надо ровно тогда,
+    когда письма и нет.
+    """
+    late = mail_schedule.overdue(profile.key)
+    if not late:
+        return None
+    text = overdue_text(profile, late)
+    if check_only:
+        return text
+    lock = LOG_DIR / f"prc_price_watch_{profile.key}_overdue.txt"
+    if lock.exists() and lock.read_text().strip() == str(late["today"]):
+        return None
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text(str(late["today"]))
+    log(logfile, f"ПРОСРОЧКА: молчит {late['silent']} раб. дн., срок "
+                 f"{mail_schedule.hhmm(late['deadline'])}")
+    if not quiet:
+        log(logfile, "телеграм: " + tg(text))
+    return text
+
+
 def run_load(profile, dry):
     """Прогон загрузки. -> (текст вывода, код). SystemExit — это отказ по правилу, не сбой.
 
@@ -240,11 +299,19 @@ def main(argv=None):
     ap.add_argument("--dry", action="store_true", help="прогон без записи в МойСклад")
     ap.add_argument("--force", action="store_true", help="грузить, даже если письмо не новое")
     ap.add_argument("--quiet", action="store_true", help="не слать телеграм")
+    ap.add_argument("--check-overdue", action="store_true",
+                    help="только посчитать просрочку и напечатать — ни почты, ни телеграма")
     args = ap.parse_args(argv)
 
     profile = profile_of(args.supplier)
     raw = getattr(profile, "unprocessed", False)
     logfile = LOG_DIR / f"prc_price_watch_{profile.key}.log"
+
+    if args.check_overdue:
+        # Проверка читает только историю приходов, в почту не ходит — годится и как ручная
+        # сверка, и как способ увидеть текст, ничего не отправив.
+        print(overdue_alert(profile, logfile, check_only=True) or "просрочки нет")
+        return 0
 
     # Замок на сутки ставим ДО почты: незачем открывать IMAP-сессию каждые полчаса до вечера,
     # когда сегодняшний прайс уже оприходован.
@@ -278,6 +345,12 @@ def main(argv=None):
     if not letter:
         log(logfile, f"в папке «{profile.mail_folder}» писем с прайсом нет")
         return 0
+
+    note_arrival(profile, letter)
+    # Просрочку проверяем ДО выхода по «письмо не новое»: у молчащего поставщика последнее
+    # письмо как раз старое, и после того выхода эта ветка была бы недостижима — то есть
+    # сторож молчал бы ровно в том случае, ради которого он и заведён.
+    overdue_alert(profile, logfile, quiet=args.quiet)
 
     if not (args.force or is_new(letter, state)):
         log(logfile, f"письмо не новое ({letter['filename']}, {letter['date']}) — пропуск")
