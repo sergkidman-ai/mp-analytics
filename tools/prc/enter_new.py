@@ -4,7 +4,7 @@ sys.path.insert(0, "/opt/mp-analytics")
 from dotenv import load_dotenv; load_dotenv("/opt/mp-analytics/.env")
 from core import ms_api
 from core.db import query
-from prices import loader
+from prices import blacklist, loader
 from prices.profiles import get_identity, STORE_REMOTE, ORG_DIGITAL, POSITIONS_PER_DOC
 
 # Поставщик без прайса тоже здесь: Солюшнс принт грузит внешний загрузчик, документы он
@@ -67,6 +67,11 @@ for c in cards:
     key = c["key"]
     if c["id"] in in_docs.get(key, ()):
         skip.append({**c, "why": "уже в документе"}); continue
+    # Бракующие правила поставщика действуют и здесь, а не только при разборе письма:
+    # карточка набора Солюшнс принта может быть заведена руками задолго до правила, и
+    # добор обязан её обойти — иначе остаток набора ляжет поверх остатка составляющих.
+    if blacklist.in_rules(c["article"], key):
+        skip.append({**c, "why": "правило поставщика (набор)"}); continue
     row = query("""SELECT r.qty, r.price_src, r.price_rub, l.rate, l.id load_id, l.load_date
                      FROM prc_price_row r JOIN prc_price_load l ON l.id = r.load_id
                     WHERE l.supplier_key = %s AND NOT l.dry_run AND l.status = 'ok'
