@@ -809,8 +809,12 @@ async function twSend(dry){
     + (out.skipped && out.skipped.length ? "\nпропущено: " + out.skipped.join("; ") : "");
   if (!dry){
     if (TW.msg){
-      TW.msg.textContent = out.created ? `карточка ${out.ms_code} заведена` : "карточка не создана";
-      TW.msg.className = out.created ? "msg pos" : "msg neg";
+      // `marked` без `created` — карточка уже была (завели руками или прошлым нажатием):
+      // это тоже успех, строка закрыта, красным пугать не за что.
+      TW.msg.textContent = out.created ? `карточка ${out.ms_code} заведена`
+        : out.marked ? `карточка ${out.ms_code} уже была — строка закрыта`
+        : "карточка не создана";
+      TW.msg.className = (out.created || out.marked) ? "msg pos" : "msg neg";
     }
     setTimeout(() => { $("#twmodal").hidden = true; load(); }, 1200);
   }

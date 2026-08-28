@@ -3214,9 +3214,24 @@ def novelties_twin_create(payload: TwinCreate):
     if payload.dry:
         return {"ok": True, "dry": True, "log": lines, "warn": flags}
     made = ms_import.mark_created([rec], created)
-    return {"ok": True, "dry": False, "log": lines, "created": len(created), "marked": made,
+    ms_code = rec["Код"] if created else None
+    # Карточку могли завести раньше — руками в МС или прошлым нажатием этой же кнопки. Тогда
+    # `create_in_ms` её пропускает, `created` пуст, закрывать строку было нечем, и она висела
+    # в «Сопоставлено» работой, которой нет (случай Сергея 28.08.2026: SF-E16 скопировали в МС
+    # руками, кнопка ответила «карточка не создана» и строка осталась). Закрываем тем же
+    # `mark_existing`, что и пакетный прогон `ms_import`: только карточкой ИЗ ГРУППЫ ЮРЛИЦ
+    # этого поставщика — чужая карточка с тем же артикулом остатка нам не даст.
+    was = 0
+    if not created and any("уже есть" in why for _a, why in skipped):
+        was, _foreign = ms_import.mark_existing([rec], profile, log=lines.append)
+        if was:
+            ms_code = db.query("SELECT ms_code c FROM prc_novelty WHERE id = %s",
+                               (payload.id,))[0]["c"]
+            lines.append(f"  карточка уже была — строку закрыл на {ms_code}")
+    return {"ok": True, "dry": False, "log": lines, "created": len(created),
+            "marked": made + was, "existed": was,
             "skipped": [f"{a}: {why}" for a, why in skipped], "warn": flags,
-            "ms_code": rec["Код"] if created else None}
+            "ms_code": ms_code}
 
 
 @app.get("/api/warehouse")
