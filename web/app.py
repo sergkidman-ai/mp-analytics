@@ -2967,6 +2967,18 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
         if model_diff:
             warn.append(f"модель в названии поставщика {model_diff[0]} против {model_diff[1]} "
                         f"у кода {tk_ext} в ТК — проверить, тот ли код")
+    # Двойник ЭТОГО ЖЕ бренда на том же внешнем коде может уже существовать: строка сопоставлена
+    # с карточкой `2137at` (Аквамарин), а Cet на этот же товар заведён как `2137ce`. Код занят,
+    # значит черновик уедет на СЛЕДУЮЩИЙ свободный внешний код — и в каталоге появится второй
+    # номер на один картридж. Случай Сергея 29.08.2026, строка #10224 `CET8996MR`.
+    twin_ext = (row["ms_code"] or "")[:4]
+    twin = db.query("SELECT code, article FROM ms_product WHERE upper(code) = upper(%s) LIMIT 1",
+                    (f"{twin_ext}{abbr}",)) if twin_ext else []
+    if twin:
+        warn.append(f"карточка этого бренда на код {twin_ext} уже есть — {twin[0]['code']} "
+                    f"({twin[0]['article']}); новая уедет на ДРУГОЙ внешний код, то есть станет "
+                    f"вторым номером каталога на один товар. Скорее всего строку надо закрыть "
+                    f"на существующую карточку, а не заводить новую")
     folders = _ms_folders()
     folder = _folder_guess(row["brand"], folders)
     if not folder:
