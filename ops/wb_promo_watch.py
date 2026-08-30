@@ -103,16 +103,9 @@ def collect():
     return rows, errors
 
 
-def log_event(cur, promo_id, name, start, end, accounts):
-    cur.execute("""
-        INSERT INTO biz_events (event_date, date_to, kind, platform, scope_kind, title, details,
-                                source, dedup_key, author)
-        VALUES (%s, %s, 'mp', 'wb', 'all', %s, %s, 'auto_wb_promo', %s, 'сторож автоакций')
-        ON CONFLICT (dedup_key) DO NOTHING
-    """, (start, end, f"WB автоакция «{name}» — старт",
-          f"Акция {promo_id}, {start:%d.%m}–{end:%d.%m}, аккаунты: "
-          + ", ".join(ACC_NAME.get(a, a) for a in accounts),
-          f"wbpromo:{promo_id}"))
+# Событие в дневник (biz_events) сторож НЕ пишет: решение Сергея 30.08.2026. Автоакции WB
+# идут сплошным потоком, и лента на главной, заведённая ради наших решений и ЧП на складах,
+# забивалась строками «— старт». Канал предупреждения один — телеграм накануне старта.
 
 
 def run(lead=1, dry=False, show_all=False):
@@ -182,10 +175,9 @@ def run(lead=1, dry=False, show_all=False):
     for pid, (name, start, end, accs) in fresh.items():
         cur.execute("UPDATE wb_promo_notice SET notified_at=now() "
                     "WHERE promo_id=%s AND account = ANY(%s)", (pid, accs))
-        log_event(cur, pid, name, start, end, accs)
     conn.commit()
     conn.close()
-    print(f"уведомлено об акциях: {len(fresh)}; события записаны в дневник")
+    print(f"уведомлено об акциях: {len(fresh)}")
 
 
 def main(argv=None):
