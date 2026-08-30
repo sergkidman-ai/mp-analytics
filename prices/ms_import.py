@@ -936,6 +936,30 @@ def mark_existing(records, profile, log=print):
     return done, foreign
 
 
+def sweep_matched(supplier_key, log=print):
+    """Закрыть строки «Сопоставлено», у которых карточка УЖЕ несёт артикул поставщика.
+
+    Случай Сергея 30.08.2026 (4 строки Булата `EAMN0C31000x0`): карточки `4641sl`–`4644sl`
+    с этими самыми артикулами лежали в МС с 20.08, автозакрытие по артикулу не сработало —
+    его держит предохранитель по МОДЕЛИ (в имени карточки два номера, «TNP50K, TNP51K»,
+    и модель строки TNP50 против TNP51 читается как конфликт). Человек сопоставил строку
+    руками, `decision='matched'`, а автозакрытие смотрит только на `pending` — и строка
+    осталась висеть работой, которой нет: заводить нечего, карточка есть.
+
+    Здесь предохранитель не нужен: человек уже подтвердил карточку, а `mark_existing`
+    закрывает только точным совпадением артикула И только карточкой ИЗ ГРУППЫ ЮРЛИЦ этого
+    поставщика. Кнопка «➕ карточка поставщика» делает ровно это же — подметание избавляет
+    от необходимости нажимать её по строке, которой нечего создавать.
+    """
+    rows = query("""SELECT id, article FROM prc_novelty
+                     WHERE supplier_key = %s AND decision = 'matched' AND article <> ''""",
+                 (supplier_key,))
+    if not rows:
+        return 0, []
+    recs = [{"Артикул": r["article"], "Код": None, "_novelty_id": r["id"]} for r in rows]
+    return mark_existing(recs, get_identity(supplier_key), log=log)
+
+
 def write_xlsx(records, path):
     from openpyxl import Workbook
     wb = Workbook()
