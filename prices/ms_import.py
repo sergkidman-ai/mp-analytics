@@ -729,33 +729,53 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
         kin_weight = weighted[0]["weight"] if weighted else None
         weight_all = sorted({c["weight"] for c in weighted})
 
-        # Первоисточник веса — прайс САМОГО поставщика по артикулу из прайса; дальше вес
-        # родни в МС; в последнюю очередь — прайсы других поставщиков по кодам родни.
+        # Порядок источников веса (решение Сергея 31.08.2026): каталог ТК → прайс САМОГО
+        # поставщика → родня в МС → прайсы других поставщиков по кодам родни → карточка Озона.
+        # Каталог ТК впереди потому, что карточку товара генерирует платформа и вес оттуда
+        # уезжает на площадки и в МС: замер 31.08 по 6393 общим кодам — 6191 (96.8 %) совпал
+        # с карточкой Озона до грамма, то есть Озон эту величину ПОЛУЧАЕТ, а не задаёт.
+        # Расхождение с прайсом или роднёй выбора не меняет, но обязано попасть в замечания.
         own = DIMS_ARTICLE.get(profile.key, lambda a: a)(row["article"])
-        weight, source = weight_from_dims([own], only=DIMS_SUPPLIER.get(profile.key))
-        if weight and kin_weight and abs(weight - kin_weight) > 0.2 * max(weight, kin_weight):
-            flags.append(f"вес поставщика {weight} против {kin_weight} у родни — взял поставщика ({source})")
+        sup_weight, sup_source = weight_from_dims([own], only=DIMS_SUPPLIER.get(profile.key))
+        why_no = None if sup_weight else sup_source      # «в прайсах расходится» — не потерять
+        weight = source = None
+
+        if tk_weight.get(ext):
+            weight = round(float(tk_weight[ext]) / 1000, 3)
+            source = f"каталог ТК, код {ext} — карточка товара платформы"
+            for other, whose in ((sup_weight, f"прайс поставщика ({sup_source})"),
+                                 (kin_weight, "родня в МС")):
+                if other and abs(weight - other) > 0.2 * max(weight, other):
+                    flags.append(f"вес ТК {weight} против {other} — {whose}; взял ТК")
+            if not sup_weight and not kin_weight:
+                # Сверить не с чем: ни прайса, ни родни. Молчать нельзя — у ТК в каталоге
+                # встречаются опечатки (код 6882 = 9001 г при 900 г у соседа по серии),
+                # и ловит их только человек, глядя на поле перед созданием карточки.
+                flags.append(f"веса нет ни в прайсах, ни у родни — взял {weight} кг "
+                             f"из каталога ТК, сверить не с чем")
+        if not weight and sup_weight:
+            weight, source = sup_weight, sup_source
+            if kin_weight and abs(weight - kin_weight) > 0.2 * max(weight, kin_weight):
+                flags.append(f"вес поставщика {weight} против {kin_weight} у родни — "
+                             f"взял поставщика ({source})")
         if not weight and kin_weight:
             weight = kin_weight
             source = (f"карточка {weighted[0]['code']}, заведена "
                       f"{weighted[0]['created']:%d.%m.%Y} — самая свежая по внешнему коду")
         if not weight:
             weight, source = weight_from_dims([c["article"] for c in cards])
-        if not weight and tk_weight.get(ext):
-            weight = round(float(tk_weight[ext]) / 1000, 3)
-            source = f"каталог ТК, код {ext} — карточка товара платформы"
-            flags.append(f"веса нет ни в прайсах, ни у родни — взял {weight} кг из каталога ТК")
+            why_no = why_no or (None if weight else source)
         if not weight:
             grams = (oz.get(ext) or {}).get("weight_g")
             if grams:
                 weight = round(float(grams) / 1000, 3)
                 source = (f"карточка Озона {ext} ({oz[ext]['account']}) — ЗАЯВЛЕННЫЙ нами вес, "
                           f"не поставщика: проверить перед созданием")
-                flags.append(f"веса нет ни в прайсах, ни у родни, ни в каталоге ТК — "
+                flags.append(f"веса нет ни в каталоге ТК, ни в прайсах, ни у родни — "
                              f"подставил {weight} кг: {source}")
             else:
-                flags.append(source or "веса нет ни в прайсах поставщиков, ни у родни — "
-                             "заполнить по nix.ru")
+                flags.append(why_no or "веса нет ни в каталоге ТК, ни в прайсах поставщиков, "
+                             "ни у родни — заполнить по nix.ru")
 
         if len(path_all) > 1:
             flags.append(f"группа у родни разная: {' / '.join(path_all)} → взял «{path}»")
