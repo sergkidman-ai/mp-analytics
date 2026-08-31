@@ -2215,6 +2215,21 @@ def novelties_page():
     return (STATIC / "novelties.html").read_text(encoding="utf-8")
 
 
+@app.get("/warehouse/novelties/img/{name}")
+def novelties_img(name: str):
+    """Скриншоты для подтаба «📘 Инструкция» раздела «Новинки» (поток prc).
+
+    Общего mount статики у приложения нет — страницы отдаются поимённо, поэтому картинкам
+    нужен свой узкий роут: только .jpg, только из web/static/img/novelties, имя без путей.
+    """
+    if not re.fullmatch(r"[a-z0-9_]+\.jpg", name):
+        raise HTTPException(404, "нет такой картинки")
+    path = STATIC / "img" / "novelties" / name
+    if not path.exists():
+        raise HTTPException(404, "нет такой картинки")
+    return FileResponse(path, media_type="image/jpeg")
+
+
 # Новинки поставщиков (поток prc): строки прайса, которых нет в МС по артикулу, и найденные
 # сверкой по признакам варианты нашего каталога. Человек подтверждает вариант, вписывает код
 # руками или помечает строку как новую модель.
