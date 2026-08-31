@@ -662,11 +662,16 @@ COLOR_MARKS = {
 }
 
 
-def build(supplier_key, decisions=("matched",), limit=None, ids=None):
+def build(supplier_key, decisions=("matched",), limit=None, ids=None, ms_codes=None):
     """Строки файла импорта + замечания по каждой строке.
 
     `ids` — только эти строки новинок (кнопка «Это он» заводит карточку по одной строке;
     решение к этому моменту уже записано, поэтому фильтр по нему остаётся общим).
+
+    `ms_codes` — {id строки: код карточки}: взять код НЕ из строки, а снаружи. Нужно
+    автозаведению (`prices/auto_card.py`): оно смотрит нерешённые строки, где код лежит у
+    кандидата сверки, а в самой строке его ещё нет — записать его туда значит принять решение
+    за человека раньше, чем черновик собран и проверен. В самой строке ничего не меняется.
     """
     # Личность, а не профиль прайса: из профиля здесь берётся только `key` (аббревиатура кода
     # и карта габаритов), а кнопки «➕ В МС» / «Это он» работают и у поставщика без прайса.
@@ -674,11 +679,16 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
     rows = query(
         """SELECT id, article, name, ms_code, price_rub, link
              FROM prc_novelty
-            WHERE supplier_key = %s AND decision = ANY(%s) AND ms_code IS NOT NULL
+            WHERE supplier_key = %s AND decision = ANY(%s)
+              AND (ms_code IS NOT NULL OR id = ANY(%s::int[]))
               AND (%s::int[] IS NULL OR id = ANY(%s::int[]))
             ORDER BY id""",
-        (profile.key, list(decisions), list(ids) if ids else None,
-         list(ids) if ids else None))
+        (profile.key, list(decisions), sorted(ms_codes) if ms_codes else None,
+         list(ids) if ids else None, list(ids) if ids else None))
+    if ms_codes:
+        rows = [dict(r) for r in rows]
+        for r in rows:
+            r["ms_code"] = ms_codes.get(r["id"], r["ms_code"])
     if limit:
         rows = rows[:limit]
     kin = family({(r["ms_code"] or "")[:4] for r in rows})

@@ -237,6 +237,9 @@
     <label class="chk" title="показать неразобранные строки, которых нет в наличии у поставщика">
       <input type="checkbox" id="nostock"> и без остатка</label>
     <span class="grow"></span>
+    <!-- Кнопкам «➕ В МС» и «➕ карточка поставщика» добор уже не нужен — они кладут позицию
+         сами. Эта кнопка на карточки, заведённые руками ПРЯМО в МойСкладе, мимо вкладки. -->
+    <button id="enter-today" title="положить карточки, заведённые сегодня, в актуальные оприходования поставщиков">📥 Добрать в оприходование</button>
     <span class="muted" id="selinfo">отмечено 0</span>
     <button id="bulk-ask" class="paid" disabled title="платный веб-запрос, сначала покажем смету">🌐 Спросить сеть</button>
     <button id="bulk-new" class="new" disabled>NEW — новая модель</button>
@@ -739,9 +742,14 @@ async function msSend(dry){
     return;
   }
   $("#mslog").textContent = (out.log || []).join("\n")
-    + (out.skipped && out.skipped.length ? "\nпропущено: " + out.skipped.join("; ") : "");
+    + (out.skipped && out.skipped.length ? "\nпропущено: " + out.skipped.join("; ") : "")
+    + (out.entered ? "\nоприходование: " + out.entered : "");
   if (!dry){
-    if (MS.msg){ MS.msg.textContent = `создано карточек: ${out.created}`; MS.msg.className = "msg pos"; }
+    if (MS.msg){
+      MS.msg.textContent = `создано карточек: ${out.created}`
+        + (out.entered ? ` · ${out.entered}` : "");
+      MS.msg.className = "msg pos";
+    }
     setTimeout(() => { $("#msmodal").hidden = true; load(); }, 1200);
   }
 }
@@ -814,12 +822,14 @@ async function twSend(dry){
                           code128: ed["Штрихкод Code128"] || ""})})).json();
   if (!out.ok){ $("#twlog").textContent = out.error; return; }
   $("#twlog").textContent = (out.log || []).join("\n")
-    + (out.skipped && out.skipped.length ? "\nпропущено: " + out.skipped.join("; ") : "");
+    + (out.skipped && out.skipped.length ? "\nпропущено: " + out.skipped.join("; ") : "")
+    + (out.entered ? "\nоприходование: " + out.entered : "");
   if (!dry){
     if (TW.msg){
       // `marked` без `created` — карточка уже была (завели руками или прошлым нажатием):
       // это тоже успех, строка закрыта, красным пугать не за что.
-      TW.msg.textContent = out.created ? `карточка ${out.ms_code} заведена`
+      TW.msg.textContent = out.created
+        ? `карточка ${out.ms_code} заведена` + (out.entered ? ` · ${out.entered}` : "")
         : out.marked ? `карточка ${out.ms_code} уже была — строка закрыта`
         : "карточка не создана";
       TW.msg.className = (out.created || out.marked) ? "msg pos" : "msg neg";
@@ -1034,6 +1044,17 @@ $("#bulk-partial").onclick = () => decide(selected(), "partial", "");
 $("#bulk-skip").onclick = () => decide(selected(), "skip", "");
 $("#bulk-ask").onclick = () => askNet(selected());
 $("#bulk-black").onclick = () => toBlacklist(selected());
+
+$("#enter-today").onclick = async e => {
+  const b = e.target;
+  b.disabled = true; const was = b.textContent; b.textContent = "добираю…";
+  try {
+    const out = await (await fetch("/api/novelties/enter-today", {method: "POST"})).json();
+    alert(out.ok ? `Добрано позиций: ${out.n}; пропущено: ${out.skipped}\n`
+                   + (out.rows || []).join("\n") + `\n\nотчёт: ${out.report}`
+                 : "не вышло: " + out.error);
+  } finally { b.disabled = false; b.textContent = was; }
+};
 
 // --- чёрный список ---------------------------------------------------------------------
 // Отдельный подтаб той же страницы: список и разбор новинок делят стили и фильтр поставщика,

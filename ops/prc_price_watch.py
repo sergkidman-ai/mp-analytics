@@ -279,7 +279,7 @@ def troubles(out):
     return found
 
 
-def message(profile, out, code, dry, after):
+def message(profile, out, code, dry, after, auto=None):
     """Одна строка: поставщик и сколько новинок ждёт человека. -> текст или None (молчать).
 
     Чем кончился прогон, что было в файле, какие документы завелись — есть в логе и на
@@ -293,15 +293,42 @@ def message(profile, out, code, dry, after):
     события»: что прайс не пришёл — скажет сторож просрочки, что прогон сломался — скажет
     вердикт ниже, а сам факт загрузки виден в логе и на дашборде.
     """
-    if code == 0 and after == 0:
+    # Молчим, только если сказать нечего вовсе: хвост автозаведения — тоже работа человеку
+    # (список отданных ему строк) или отчёт о заведённых карточках.
+    if code == 0 and after == 0 and not auto:
         return None
     title = f"{profile.title} — Новинок — {after if after is not None else '?'}"
     if dry:
         title += " (сухой прогон)"
     if code == 0:
-        return title
+        return title + (f"\n{auto}" if auto else "")
     verdict = {2: "ОТМЕНА", 3: "СБОЙ"}.get(code, "ОШИБКА")
-    return "\n".join([f"{title} — {verdict}"] + troubles(out))
+    return "\n".join([f"{title} — {verdict}"] + troubles(out) + ([auto] if auto else []))
+
+
+def auto_cards(profile, dry, code, logfile):
+    """Автозаведение карточек по строкам «все шесть галочек». -> хвост для телеграма или None.
+
+    Боевым ходом идёт ТОЛЬКО у поставщиков из `auto_card.AUTO_APPLY` и только в боевом
+    прогоне прайса; у остальных — сухой отчёт, карточки заводит человек. Сбой автозаведения
+    не роняет прогон прайса: прайс уже оприходован, это отдельная работа поверх него.
+    """
+    if code != 0:
+        return None
+    from prices import auto_card
+    live = not dry and profile.key in auto_card.AUTO_APPLY
+    try:
+        out = auto_card.run(profile.key, dry=not live, log=lambda m: log(logfile, m))
+    except Exception as exc:
+        log(logfile, f"автокарточки: {type(exc).__name__}: {exc}")
+        return f"автокарточки: сбой ({type(exc).__name__}) — смотреть лог"
+    if live:
+        return (f"автокарточки: {out['created']} завёл, {out['added']} в приход, "
+                f"{out['held']} человеку") if out["created"] or out["held"] else None
+    if not out["ready"]:
+        return None
+    return (f"автокарточки: {out['ready']} кандидатов сухим прогоном, "
+            f"отчёт {out['report'].rsplit('/', 1)[-1]}")
 
 
 def main(argv=None):
@@ -376,7 +403,8 @@ def main(argv=None):
     # руками, а сторож не должен долбить его тем же письмом каждые полчаса.
     if not args.dry:
         write_state(profile.key, letter, code)
-    text = message(profile, out, code, args.dry, after)
+    auto = auto_cards(profile, args.dry, code, logfile)
+    text = message(profile, out, code, args.dry, after, auto)
     if not args.quiet and text:
         log(logfile, "телеграм: " + tg(text))
     elif not text:

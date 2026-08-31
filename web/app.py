@@ -2293,6 +2293,7 @@ def _novelty_models(rows):
 # и звала разбирать работу, которой на вкладке нет (Сакура 13.08.2026: 411 против 1).
 from prices.catalog import NOVELTY_STOCK, IN_STOCK  # noqa: E402
 from prices import catalog  # noqa: E402
+from prices import enter_add  # noqa: E402  добор карточки в оприходование
 
 
 @app.get("/api/novelties")
@@ -2502,6 +2503,30 @@ def novelties_probe(id: int, code: str):
     return {"ok": True, "candidate": dict(cand, **_novelty_view(cand), price_rub=None)}
 
 
+def _enter_after_create(created, log):
+    """Свежие карточки — сразу позицией в АКТУАЛЬНОЕ оприходование поставщика.
+
+    Раньше это был отдельный ручной запуск `tools/prc/enter_new.py`, про который человек
+    вспоминал не всегда: карточка есть, а остатка поставщика на ней нет. Теперь один шаг.
+
+    Падение добора не отменяет созданную карточку — она уже в МС; говорим об этом строкой
+    в ответе, чтобы человек положил позицию руками, а не думал, что кнопка не сработала.
+    """
+    if not created:
+        return None
+    try:
+        _lines, plan, skip, where = enter_add.add_cards(
+            enter_add.by_ids([ms_id for ms_id, _c, _a in created], log=log), dry=False, log=log)
+    except Exception as exc:
+        log(f"  добор в оприходование не вышел: {type(exc).__name__}: {exc}")
+        return f"карточка создана, но позиция в приход НЕ легла ({type(exc).__name__}) — руками"
+    told = [f"{p['code']} → {where.get(p['code'])}, {p['qty']:.0f} шт × {p['price']:.2f} ₽"
+            for p in plan] + [f"{s['code']}: {s['why']}" for s in skip]
+    for t in told:
+        log(f"  {t}")
+    return "; ".join(told) or None
+
+
 @app.post("/api/novelties/decide")
 def novelties_decide(payload: NoveltyDecision):
     """Записать решение по строкам. Для matched код обязателен и должен быть в каталоге."""
@@ -2544,6 +2569,23 @@ def novelties_decide(payload: NoveltyDecision):
     return {"ok": True, "n": len(payload.ids), "link": link,
             "ms_code": item["code"] if item else None,
             "ms_name": item["name"] if item else None}
+
+
+@app.post("/api/novelties/enter-today")
+def novelties_enter_today():
+    """Добрать в оприходования ВСЕ карточки наших поставщиков, заведённые сегодня.
+
+    Страховка на карточки, заведённые руками прямо в МойСкладе (мимо вкладки): кнопкам
+    выше добор уже не нужен. Пишет позиции сразу — сухого режима у кнопки нет, потому что
+    сухой прогон живёт отдельной командой `tools/prc/enter_new.py --day`.
+    """
+    day = str(_dt.date.today())
+    try:
+        out, plan, skip = enter_add.report(day=day, dry=False, log=lambda *_: None)
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    return {"ok": True, "n": len(plan), "skipped": len(skip), "report": out,
+            "rows": [f"{p['code']} → {p['qty']:.0f} шт × {p['price']:.2f} ₽" for p in plan[:10]]}
 
 
 @app.post("/api/novelties/link")
@@ -3143,9 +3185,11 @@ def novelties_ms_create(payload: MsCreate):
                    (main.code.strip(), made[main.code.strip()], main.name.strip(),
                     ";".join(c.external_code.strip().zfill(4) for c in cards) or None,
                     payload.id))
+    entered = _enter_after_create(created, lines.append)
     return {"ok": True, "dry": False, "log": lines, "created": len(created),
             "skipped": [f"{a}: {why}" for a, why in skipped],
-            "ms_code": main.code.strip() if made.get(main.code.strip()) else None}
+            "ms_code": main.code.strip() if made.get(main.code.strip()) else None,
+            "entered": entered}
 
 
 # --- «Это он»: карточка ПОСТАВЩИКА под уже существующим внешним кодом --------------------
@@ -3263,10 +3307,11 @@ def novelties_twin_create(payload: TwinCreate):
             ms_code = db.query("SELECT ms_code c FROM prc_novelty WHERE id = %s",
                                (payload.id,))[0]["c"]
             lines.append(f"  карточка уже была — строку закрыл на {ms_code}")
+    entered = _enter_after_create(created, lines.append)
     return {"ok": True, "dry": False, "log": lines, "created": len(created),
             "marked": made + was, "existed": was,
             "skipped": [f"{a}: {why}" for a, why in skipped], "warn": flags,
-            "ms_code": ms_code}
+            "ms_code": ms_code, "entered": entered}
 
 
 @app.get("/api/warehouse")
