@@ -13,8 +13,8 @@ import sys
 import pathlib
 
 import requests
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from pydantic import BaseModel
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -31,6 +31,39 @@ from web.warehouse_loss_api import router as wh_loss_router  # noqa: E402  по�
 
 app.include_router(diary_router)
 app.include_router(wh_loss_router)
+
+
+# ── Ограниченный доступ: сотрудник раздела «Новинки» (поток prc) ───────────────
+# Пароли в Пульте раздаёт nginx basic-auth. У оператора Новинок свой файл
+# .htpasswd-novelties, привязанный только к путям раздела, — остальное он не пройдёт.
+# Здесь вторая линия: nginx проксирует имя вошедшего заголовком X-Pult-User, и
+# приложение само отбивает всё, что к Новинкам не относится. Одной опечатки в конфиге
+# nginx хватило бы, чтобы открыть финансы, поэтому проверка дублируется в коде.
+NOVELTY_ONLY_USERS = {u.strip() for u in
+                      os.getenv("PULT_NOVELTY_USERS", "novelty").split(",") if u.strip()}
+
+# Что оператору можно: страница раздела, картинки инструкции и API четырёх подвкладок.
+NOVELTY_ALLOW_EXACT = {"/warehouse/novelties"}
+NOVELTY_ALLOW_PREFIX = ("/warehouse/novelties/img/", "/api/novelties", "/api/blacklist",
+                        "/api/unlinked")
+# Платное внутри разрешённого префикса: «Спросить сеть» тратит деньги на веб-запросы,
+# решение о трате остаётся за владельцем — оператору закрыто и здесь, и в интерфейсе.
+NOVELTY_DENY_PREFIX = ("/api/novelties/research",)
+
+
+def is_novelty_operator(request: Request) -> bool:
+    """Вошедший — сотрудник с доступом только в «Новинки»? Имя даёт nginx."""
+    return (request.headers.get("X-Pult-User") or "").strip() in NOVELTY_ONLY_USERS
+
+
+@app.middleware("http")
+async def novelty_scope_guard(request: Request, call_next):
+    if is_novelty_operator(request):
+        path = request.url.path.rstrip("/") or "/"
+        allowed = path in NOVELTY_ALLOW_EXACT or path.startswith(NOVELTY_ALLOW_PREFIX)
+        if not allowed or path.startswith(NOVELTY_DENY_PREFIX):
+            return JSONResponse({"detail": "Доступ только к разделу «Новинки»"}, status_code=403)
+    return await call_next(request)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -2211,8 +2244,15 @@ def warehouse_page():
 
 
 @app.get("/warehouse/novelties", response_class=HTMLResponse)
-def novelties_page():
-    return (STATIC / "novelties.html").read_text(encoding="utf-8")
+def novelties_page(request: Request):
+    html = (STATIC / "novelties.html").read_text(encoding="utf-8")
+    if is_novelty_operator(request):
+        # Чужие пункты меню вели бы оператора в 401, а платная разведка ему закрыта:
+        # страница прячет и то, и другое по этому флагу.
+        flag = ('<script>window.PULT_ROLE="novelty";'
+                'document.documentElement.classList.add("role-novelty");</script>\n</head>')
+        html = html.replace("</head>", flag, 1)
+    return html
 
 
 @app.get("/warehouse/novelties/img/{name}")

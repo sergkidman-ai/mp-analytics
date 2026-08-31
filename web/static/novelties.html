@@ -184,6 +184,14 @@
                            border-radius:6px;padding:4px 6px;font:inherit;font-size:12px;width:100%}
   .mslog{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12px;margin:10px 0 0}
   .mswarn{color:var(--warn);font-size:12px;margin:6px 0 0}
+  /* Сотрудник с доступом только в «Новинки» (класс ставит web/app.py по X-Pult-User).
+     Чужие пункты меню вели бы его в 401 от nginx, а «Спросить сеть» — платный запрос,
+     решение о трате остаётся за владельцем. */
+  .role-novelty header .lvlnav,
+  .role-novelty .whtabs:not(.sub),
+  .role-novelty button.paid,
+  .role-novelty .paid-doc{display:none}
+  .role-novelty header .logo{pointer-events:none;cursor:default}
 </style>
 </head>
 <body>
@@ -453,7 +461,7 @@
   <h4>2.5. Работа пачкой</h4>
   <p>Слева у каждой строки галочка. Отметьте несколько строк и примените одно решение сразу:</p>
   <ul>
-    <li><b>🌐 Спросить сеть</b> — платный запрос по отмеченным строкам (с подтверждением).</li>
+    <li class="paid-doc"><b>🌐 Спросить сеть</b> — платный запрос по отмеченным строкам (с подтверждением).</li>
     <li><b>NEW · Неполный набор · Не берём</b> — то же, что кнопки в строке, но для всех отмеченных.</li>
     <li><b>📥 Добрать в оприходование</b> — страховка. Карточку завели руками прямо в МойСкладе, мимо
       этого раздела? Тогда она не попала позицией в сегодняшнее оприходование поставщика — кнопка
