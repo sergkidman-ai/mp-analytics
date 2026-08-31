@@ -52,6 +52,7 @@ from ms import get, MS as MSU          # noqa: E402
 from core import db                    # noqa: E402
 
 LOOKBACK_DAYS = 45   # горизонт заказов, за которым не гоняемся (закрытые старые долги руками)
+STALE_ADVANCE_DAYS = 5   # открытый аванс старше — в логе предупреждение (подписать или снять)
 
 # Платим ТОЛЬКО за «Цифровой квадрат» (решение Сергея 2026-07-27): счета на Дисквэр в этот
 # контур не входят — у Дисквэра счёт в Сбере, интеграция с Альфой его в принципе не видит.
@@ -349,11 +350,27 @@ def process_prepayment_balance(inn, advance_amount, balance_threshold, agent_id=
     if not advance_amount or not balance_threshold:
         print(f"[{inn}] аванс/баланс: не задана сумма аванса или порог — пропуск")
         return 0
-    already_planned = db.query("""SELECT count(*) n FROM payment_draft_queue
-        WHERE org_inn=%s AND inn=%s AND kind='advance' AND status='planned'""",
-        (BUYER_INN, inn))[0]["n"]
-    if already_planned:
-        return 0   # уже есть неотправленный черновик аванса — не плодим второй
+    # Гейт «один открытый аванс на поставщика». Блокируют и НЕотправленные ('planned'), и уже
+    # лежащие в банке ('sent_prod'/'sent_sandbox'): отправленный черновик будет оплачен, когда
+    # владелец его подпишет, и досылать копию того же платежа нельзя (правило Натальи 31.08.2026).
+    # Раньше гейт смотрел только 'planned', и после автоотправки черновик пропадал из виду: деньги
+    # ещё не ушли → баланс по-прежнему ниже порога → назавтра крон клал в банк второй такой же
+    # аванс. Так набежало 5 копий по Позитиву и 3 по Тонероптторгу по 100 000 ₽ каждая.
+    # Терминальные статусы не блокируют: 'paid' — деньги ушли и уже видны в балансе,
+    # 'cancelled' — черновик сняли осознанно, 'error' — до банка не доехал.
+    open_drafts = db.query("""SELECT id, status, amount::float amount,
+               (now()::date - created_at::date) age FROM payment_draft_queue
+        WHERE org_inn=%s AND inn=%s AND kind='advance'
+          AND status IN ('planned', 'sent_sandbox', 'sent_prod')
+        ORDER BY id""", (BUYER_INN, inn))
+    if open_drafts:
+        d = open_drafts[0]
+        stale = ("; ВИСИТ {} дн. — проверить в банке, подписать или снять".format(d["age"])
+                 if d["age"] >= STALE_ADVANCE_DAYS else "")
+        print(f"[{inn}] аванс/баланс: уже есть открытый аванс — черновик #{d['id']} "
+              f"{d['amount']:.0f}₽ ({d['status']}){stale} — второй не создаём"
+              + (f"; всего открытых {len(open_drafts)}" if len(open_drafts) > 1 else ""))
+        return 0
     balance, rows, delta = _advance_balance(inn, agent_id)
     if balance is None:
         return 0
