@@ -151,6 +151,7 @@
   table.tw th{text-align:left;font-weight:400;color:var(--muted);padding:3px 10px 3px 0;
     white-space:nowrap;vertical-align:top}
   table.tw td{padding:3px 0}
+  table.tw td input.twed{width:100%;max-width:260px;font-size:12px;padding:2px 4px}
   .mbox.wide{border-left-color:var(--acc);max-width:880px;width:92vw;max-height:88vh;
              display:flex;flex-direction:column}
   .mbox.wide .body{overflow:auto;margin:0 -22px;padding:0 22px}
@@ -382,7 +383,8 @@
 </div>
 
 <!-- «Это он» — карточка ЭТОГО поставщика под уже существующим внешним кодом. Поля берутся
-     у родни кода, править их здесь нечего: расхождения перечислены отдельной строкой. -->
+     у родни кода; правятся только вес и штрихкод (у родни они бывают пустыми, а карточка без
+     них неполная — правило 11 обязательных полей). Расхождения — отдельной строкой. -->
 <div class="modal" id="twmodal" hidden>
   <div class="mbox">
     <h3>Завести карточку поставщика в МойСкладе</h3>
@@ -795,15 +797,21 @@ async function twOpen(id, msg){
   if (!d.ok){ $("#twhead").textContent = "карточку завести нечем"; return; }
   $("#twhead").textContent = `${d.supplier} · ${d.article} · ${d.name}`;
   $("#twwarn").textContent = (d.warn || []).join(" · ");
-  $("#twfields").innerHTML = d.fields.map(([k, v]) =>
-    `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("");
+  // Вес и штрихкод — поля ввода: у родни они бывают пустыми, а карточка без них неполная.
+  const ed = d.editable || [];
+  $("#twfields").innerHTML = d.fields.map(([k, v]) => ed.includes(k)
+    ? `<tr><th>${esc(k)}</th><td><input class="twed" data-k="${esc(k)}" value="${esc(v)}"></td></tr>`
+    : `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("");
 }
 
 async function twSend(dry){
   $("#twlog").textContent = dry ? "проба…" : "создаём в МойСкладе…";
+  const ed = {};
+  $("#twfields").querySelectorAll("input.twed").forEach(i => { ed[i.dataset.k] = i.value.trim(); });
   const out = await (await fetch("/api/novelties/twin-create", {method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({id: TW.id, dry})})).json();
+    body: JSON.stringify({id: TW.id, dry, weight: ed["Вес"] || "",
+                          code128: ed["Штрихкод Code128"] || ""})})).json();
   if (!out.ok){ $("#twlog").textContent = out.error; return; }
   $("#twlog").textContent = (out.log || []).join("\n")
     + (out.skipped && out.skipped.length ? "\nпропущено: " + out.skipped.join("; ") : "");

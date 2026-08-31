@@ -3158,9 +3158,16 @@ TWIN_FIELDS = ("Код", "Внешний код", "Наименование", "�
                "Доп. поле: Связь")
 
 
+# Поля, которые человек правит прямо в диалоге. Остальные наследуются у родни и правке не
+# подлежат: они описывают ТОВАР, а не поставку, и должны совпадать у всех карточек кода.
+TWIN_EDIT = ("Вес", "Штрихкод Code128")
+
+
 class TwinCreate(BaseModel):
     id: int
     dry: bool = True
+    weight: str = ""
+    code128: str = ""
 
 
 def _twin_draft(novelty_id):
@@ -3197,7 +3204,7 @@ def novelties_twin_form(id: int):
     if error:
         return {"ok": False, "error": error}
     return {"ok": True, "supplier": row["supplier_key"], "article": row["article"],
-            "name": row["name"], "warn": flags,
+            "name": row["name"], "warn": flags, "editable": list(TWIN_EDIT),
             "fields": [[f, str(rec.get(f) or "")] for f in TWIN_FIELDS]}
 
 
@@ -3215,6 +3222,22 @@ def novelties_twin_create(payload: TwinCreate):
     row, rec, flags, error = _twin_draft(payload.id)
     if error:
         return {"ok": False, "error": error}
+    # Правка человека сильнее черновика: вес у родни бывает пустым или нулевым, а карточка
+    # без веса неполная (правило Сергея 18.08.2026 — 11 обязательных полей). Штрихкод сюда же:
+    # если и у родни, и на карточке Озона его нет, вписать его больше негде.
+    weight = (payload.weight or "").strip().replace(",", ".")
+    if weight:
+        try:
+            if float(weight) <= 0:
+                raise ValueError
+        except ValueError:
+            return {"ok": False, "error": f"вес «{payload.weight}» — не положительное число"}
+        rec["Вес"] = float(weight)
+    if (payload.code128 or "").strip():
+        rec["Штрихкод Code128"] = payload.code128.strip()
+    if not payload.dry and not rec.get("Вес"):
+        return {"ok": False, "error": "вес пустой — карточка уйдёт неполной; впишите вес "
+                                      "в поле «Вес» (реальный, с сайта производителя)"}
     profile = get_identity(row["supplier_key"])
     lines = []
     try:

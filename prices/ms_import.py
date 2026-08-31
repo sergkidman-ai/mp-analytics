@@ -6,8 +6,9 @@
 Главное правило: новая карточка — брат-близнец тех, что уже заведены с тем же ВНЕШНИМ КОДОМ.
 Всё, что описывает ТОВАР (группа, вес, штрихкод Code128, «Название WB»), берём у родни;
 всё, что описывает ПОСТАВКУ (наименование, артикул, цена, поставщик), — из прайса.
-Ничего не сочиняем: если у родни поле пустое, строка уходит в отчёт на ручное заполнение,
-а не заполняется догадкой.
+Ничего не сочиняем: если у родни поле пустое, берём НАШУ ЖЕ карточку Озона того же
+внешнего кода (штрихкод и заявленный вес — `ozon_kin`), а нет и там — строка уходит
+на ручное заполнение, а не заполняется догадкой.
 
 Что подтверждено фактом МС (инструкция «Новинки в прайсах поставщиков» местами устарела):
   • Код = внешний код + аббревиатура. У Феррета в базе почти всё под «cs» (Cactus 3049,
@@ -612,6 +613,41 @@ def _pick(cards, field, keep=None, tie=None):
     return chosen, [v for v, _ in counts.most_common()]
 
 
+# Карточка Озона — ЗАПАСНОЙ источник Code128 и веса, когда у родни в МС их нет вовсе.
+# Случай Сергея 31.08.2026: строка ВТТ `HB-W2130X` сопоставлена с кодом 7025, а единственная
+# карточка этого кода (`7025wb`) сама без веса и без штрихкода — наследовать нечего, и кнопка
+# «➕ карточка поставщика» упиралась в два замечания без единого поля для ввода.
+# Это не догадка и не расчёт: `offer_id` карточки Озона — наш же 4-значный внешний код,
+# а штрихкод там наш собственный, той же маски DS+3 буквы+код (`7025` → `DSJUP0007025`).
+# Замер 31.08.2026: 6380 штрихкодов на 6393 четырёхзначных кода, ни одного кода с двумя
+# разными штрихкодами, и 13 штук с ЧУЖИМ кодом в хвосте — вот их брать нельзя, отсюда сверка
+# хвоста ниже. Вес оттуда — наше же заявленное Озону значение, поэтому он идёт с пометкой
+# и остаётся редактируемым в диалоге: подтверждает его человек, а не мы.
+def ozon_kin(exts):
+    """Внешний код → строка карточки Озона (`barcode`, `weight_g`, `account`)."""
+    exts = sorted({e for e in exts if e})
+    if not exts:
+        return {}
+    rows = query("""SELECT offer_id, barcode, weight_g, account FROM ozon_dims
+                     WHERE offer_id = ANY(%s)
+                     ORDER BY offer_id, (coalesce(barcode, '') = ''), account""", (exts,))
+    out = {}
+    for r in rows:                      # первая строка кода: сначала та, где штрихкод есть
+        out.setdefault(r["offer_id"], r)
+    return out
+
+
+def ozon_barcode(oz, ext):
+    """Штрихкод карточки Озона, если он ДЕЙСТВИТЕЛЬНО про этот код. -> (код, почему нет)."""
+    r = oz.get(ext)
+    bc = (r or {}).get("barcode") or ""
+    if not bc:
+        return None, None
+    if not bc.endswith(ext):
+        return None, f"штрихкод карточки Озона {bc} не про код {ext} — не беру, заполнить вручную"
+    return bc, None
+
+
 # Цвет в названии прайса → как он пишется в «Название WB».
 COLOR_MARKS = {
     "черн": ("черн", "black", "чёрн"),
@@ -648,6 +684,7 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
         """SELECT external_code, resource FROM prc_tc_model
             WHERE gone_at IS NULL AND resource IS NOT NULL AND external_code = ANY(%s)""",
         (sorted({(r["ms_code"] or "")[:4] for r in rows}),))}
+    oz = ozon_kin({(r["ms_code"] or "")[:4] for r in rows})
     known = {r["article"].strip().upper() for r in query(
         "SELECT article FROM ms_product WHERE article IS NOT NULL AND NOT archived")}
     tk_models, tk_titles = model_dict()
@@ -692,14 +729,27 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
         if not weight:
             weight, source = weight_from_dims([c["article"] for c in cards])
         if not weight:
-            flags.append(source or "веса нет ни в прайсах поставщиков, ни у родни — заполнить по nix.ru")
+            grams = (oz.get(ext) or {}).get("weight_g")
+            if grams:
+                weight = round(float(grams) / 1000, 3)
+                source = (f"карточка Озона {ext} ({oz[ext]['account']}) — ЗАЯВЛЕННЫЙ нами вес, "
+                          f"не поставщика: проверить перед созданием")
+                flags.append(f"веса нет ни в прайсах, ни у родни — подставил {weight} кг: {source}")
+            else:
+                flags.append(source or "веса нет ни в прайсах поставщиков, ни у родни — "
+                             "заполнить по nix.ru")
 
         if len(path_all) > 1:
             flags.append(f"группа у родни разная: {' / '.join(path_all)} → взял «{path}»")
         if len(bc_all) > 1:
             flags.append(f"штрихкод у родни разный: {' / '.join(bc_all)} → взял {code128}")
         if not code128:
-            flags.append("у родни нет Code128 — заполнить вручную")
+            code128, why = ozon_barcode(oz, ext)
+            if code128:
+                flags.append(f"у родни нет Code128 — взял с карточки Озона "
+                             f"{ext} ({oz[ext]['account']}): {code128}")
+            else:
+                flags.append(why or "у родни нет Code128 — заполнить вручную")
         if wb_flag:                            # и когда поле заполнено: сказать, откуда взято
             flags.append(wb_flag)
         if len(weight_all) > 1 and max(weight_all) > min(weight_all) * 1.2:
