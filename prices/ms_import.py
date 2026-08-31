@@ -709,7 +709,7 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
         cards = kin.get(ext) or []
         flags = []
         if not cards:
-            notes.append((row["id"], row["article"], ["нет живой родни по внешнему коду — проверить код"]))
+            notes.append((row["id"], row["article"], [f"нет живой карточки МС с внешним кодом {ext} — проверить код"]))
             continue
         path, path_all = _pick(
             cards, "path",
@@ -744,20 +744,20 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
             weight = round(float(tk_weight[ext]) / 1000, 3)
             source = f"каталог ТК, код {ext} — карточка товара платформы"
             for other, whose in ((sup_weight, f"прайс поставщика ({sup_source})"),
-                                 (kin_weight, "родня в МС")):
+                                 (kin_weight, f"карточка МС {ext} (внешний код)")):
                 if other and abs(weight - other) > 0.2 * max(weight, other):
                     flags.append(f"вес ТК {weight} против {other} — {whose}; взял ТК")
             if not sup_weight and not kin_weight:
                 # Сверить не с чем: ни прайса, ни родни. Молчать нельзя — у ТК в каталоге
                 # встречаются опечатки (код 6882 = 9001 г при 900 г у соседа по серии),
                 # и ловит их только человек, глядя на поле перед созданием карточки.
-                flags.append(f"веса нет ни в прайсах, ни у родни — взял {weight} кг "
-                             f"из каталога ТК, сверить не с чем")
+                flags.append(f"веса нет ни в прайсах, ни у карточек МС {ext} (внешний код) — "
+                             f"взял {weight} кг из каталога ТК, сверить не с чем")
         if not weight and sup_weight:
             weight, source = sup_weight, sup_source
             if kin_weight and abs(weight - kin_weight) > 0.2 * max(weight, kin_weight):
-                flags.append(f"вес поставщика {weight} против {kin_weight} у родни — "
-                             f"взял поставщика ({source})")
+                flags.append(f"вес поставщика {weight} против {kin_weight} "
+                             f"у карточек МС {ext} (внешний код) — взял поставщика ({source})")
         if not weight and kin_weight:
             weight = kin_weight
             source = (f"карточка {weighted[0]['code']}, заведена "
@@ -771,27 +771,27 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
                 weight = round(float(grams) / 1000, 3)
                 source = (f"карточка Озона {ext} ({oz[ext]['account']}) — ЗАЯВЛЕННЫЙ нами вес, "
                           f"не поставщика: проверить перед созданием")
-                flags.append(f"веса нет ни в каталоге ТК, ни в прайсах, ни у родни — "
-                             f"подставил {weight} кг: {source}")
+                flags.append(f"веса нет ни в каталоге ТК, ни в прайсах, ни у карточек МС "
+                             f"{ext} (внешний код) — подставил {weight} кг: {source}")
             else:
-                flags.append(why_no or "веса нет ни в каталоге ТК, ни в прайсах поставщиков, "
-                             "ни у родни — заполнить по nix.ru")
+                flags.append(why_no or f"веса нет ни в каталоге ТК, ни в прайсах поставщиков, "
+                             f"ни у карточек МС {ext} (внешний код) — заполнить по nix.ru")
 
         if len(path_all) > 1:
-            flags.append(f"группа у родни разная: {' / '.join(path_all)} → взял «{path}»")
+            flags.append(f"группа у карточек МС {ext} (внешний код) разная: {' / '.join(path_all)} → взял «{path}»")
         if len(bc_all) > 1:
-            flags.append(f"штрихкод у родни разный: {' / '.join(bc_all)} → взял {code128}")
+            flags.append(f"штрихкод у карточек МС {ext} (внешний код) разный: {' / '.join(bc_all)} → взял {code128}")
         if not code128:
             code128, why = ozon_barcode(oz, ext)
             if code128:
-                flags.append(f"у родни нет Code128 — взял с карточки Озона "
-                             f"{ext} ({oz[ext]['account']}): {code128}")
+                flags.append(f"у карточек МС {ext} (внешний код) нет Code128 — взял "
+                             f"с карточки Озона ({oz[ext]['account']}): {code128}")
             else:
-                flags.append(why or "у родни нет Code128 — заполнить вручную")
+                flags.append(why or f"у карточек МС {ext} (внешний код) нет Code128 — заполнить вручную")
         if wb_flag:                            # и когда поле заполнено: сказать, откуда взято
             flags.append(wb_flag)
         if len(weight_all) > 1 and max(weight_all) > min(weight_all) * 1.2:
-            flags.append(f"вес у родни расходится: {weight_all}, в файле {weight} — {source}")
+            flags.append(f"вес у карточек МС {ext} (внешний код) расходится: {weight_all}, в файле {weight} — {source}")
         if row["price_rub"] is None:
             flags.append("нет цены в прайсе")
         if row["article"].strip().upper() in known:
@@ -805,7 +805,8 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
         ref, ref_src = tk_pages.get(ext), "в ТК"
         if not ref:
             kin_pages = sorted(p for p in (name_resource(c["name"]) for c in cards) if p)
-            ref, ref_src = (kin_pages[-1] if kin_pages else None), "у родни"
+            ref, ref_src = (kin_pages[-1] if kin_pages else None), \
+                           f"у карточек МС {ext} (внешний код)"
         if close(new_pages, ref) is False:
             flags.append(f"ресурс в названии поставщика {new_pages} против {ref} {ref_src} "
                          f"(допуск {RESOURCE_TOLERANCE:.0%}) — по решению Сергея это норма, оставляем")
