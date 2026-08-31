@@ -612,6 +612,103 @@ def d_obfuscation(command, degraded):
     return None
 
 
+# Интерпретаторы, исполнение которыми = запуск кода (в отличие от чтения файла глазами).
+PY_EXEC_RE = re.compile(r"^(python[\d.]*|pypy\d*|ipython|uv|uvx)$")
+# Прогон тестов: наборы проекта офлайновые, платного вызова в них нет (см. EXEMPT_PREFIXES).
+TEST_RUNNER_RE = re.compile(r"\b(unittest|pytest|nose2)\b")
+_PAID_REG = []
+
+
+def _paid_registry():
+    """Реестр платных возможностей — данные лежат в tools/paid_api_registry.py (один источник)."""
+    if _PAID_REG:
+        return _PAID_REG[0]
+    try:
+        sys.path.insert(0, os.path.join(REPO, "tools"))
+        import paid_api_registry as reg
+    except Exception:
+        return None
+    _PAID_REG.append(reg)
+    return reg
+
+
+def d_paid_api(command):
+    """Внешний ПЛАТНЫЙ расход. Уровень ASK, не DENY: трата бывает законной, но согласие на неё
+    даёт владелец, а не сессия (инвариант CLAUDE.md «Платные ресурсы»). Что распознаём:
+      * запрос к хосту провайдера сетевой командой (curl/wget/…);
+      * запуск точки входа из реестра — путём, `-m модулем` или импортом внутри `python -c`;
+      * передачу ключа провайдера в окружение произвольной команды.
+    Чтение и поиск по тому же коду (grep/cat/git) расходом НЕ являются и проходят молча.
+    Если платная возможность упомянута, а исполнителя разобрать не удалось — fail closed в ASK."""
+    reg = _paid_registry()
+    if reg is None:
+        return None
+    hosts, eps = reg.scan_text(command)
+    env_keys = [k for k in re.findall(r"\b([A-Z][A-Z0-9_]{2,})\s*=", command)
+                if reg.provider_for_env_key(k)]
+    if not hosts and not eps and not env_keys:
+        return None
+
+    segments, _ = split_segments(command)
+    unresolved = False
+    for seg in segments:
+        env, cmd, args, _ = parse(seg)
+        s_hosts, s_eps = reg.scan_text(seg)
+        s_keys = [k for k in env if reg.provider_for_env_key(k)]
+        if not s_hosts and not s_eps and not s_keys:
+            continue
+        if s_keys:                                     # ключ провайдера отдан любой программе
+            prov = reg.provider_for_env_key(s_keys[0])
+            return Verdict(ASK, "paid_api",
+                           f"команде передаётся ключ провайдера {prov} — это заявка на расход "
+                           f"по его счёту.")
+        if not cmd:
+            unresolved = True
+            continue
+        if cmd in NET_CMDS and s_hosts:
+            prov = sorted(s_hosts)[0]
+            return Verdict(ASK, "paid_api",
+                           f"прямой запрос к платному API {prov} ({reg.describe(prov)}).")
+        if PY_EXEC_RE.match(cmd):
+            if TEST_RUNNER_RE.search(seg) and not s_hosts and \
+                    all(reg.is_exempt(a) or not reg.entrypoint_for_token(a) for a in args):
+                continue                               # прогон офлайновых тестов
+            if s_eps:
+                e = sorted(s_eps)[0]
+                return Verdict(ASK, "paid_api",
+                               f"запуск платной точки входа {e.path} — {e.evidence} "
+                               f"({reg.describe(e.provider)}).")
+            if s_hosts:
+                prov = sorted(s_hosts)[0]
+                return Verdict(ASK, "paid_api",
+                               f"код обращается к платному API {prov} ({reg.describe(prov)}).")
+        if cmd in READERS or cmd in SECRET_SAFE_CMDS or cmd in ("echo", "printf", "which", "type"):
+            continue                                   # чтение/поиск по коду — не расход
+        unresolved = True
+
+    if unresolved:
+        what = sorted(e.path for e in eps) or sorted(hosts)
+        return Verdict(ASK, "paid_api",
+                       f"в команде упомянута платная возможность ({', '.join(what)[:120]}), "
+                       f"а исполнителя однозначно определить не удалось — fail closed.")
+    return None
+
+
+def d_territory(command, cwd=REPO):
+    """Владение потоками в РАНТАЙМЕ. Логика владения одна и живёт в tools/territory_guard.py:
+    здесь только перевод его решения в вердикт хука. Чтение чужой территории — свободно,
+    запись/пересборка чужого ресурса — DENY (не ask: витрину чинить дороже, чем не трогать)."""
+    try:
+        sys.path.insert(0, os.path.join(REPO, "tools"))
+        import territory_guard as tg
+        res = tg.runtime_decision(command, cwd=cwd)
+    except Exception:
+        return None                        # баг импорта не должен блокировать работу потоков
+    if res is None or res[0] != "deny":
+        return None
+    return Verdict(DENY, "territory", res[1])
+
+
 # ─────────────────────────── маршрутизация ───────────────────────────
 
 def classify_bash(command, cwd=REPO):
@@ -619,6 +716,8 @@ def classify_bash(command, cwd=REPO):
     # проверки по ВСЕЙ команде: переупорядочивание и переменные не спасают
     verdicts.append(d_secret_exfil(command))
     verdicts.append(d_secret_read_whole(command))
+    verdicts.append(d_territory(command, cwd))
+    verdicts.append(d_paid_api(command))
     segments, _ = split_segments(command)
     degraded_any = False
     for seg in segments:
@@ -712,6 +811,7 @@ _INTENT = {
     "service":        "перезапустить сервис",
     "secret_read":    "прочитать секреты",
     "net_write":      "отправить данные наружу",
+    "paid_api":       "вызвать внешний ПЛАТНЫЙ API (расход по вашему счёту)",
 }
 
 _REVERSIBLE = {
@@ -723,6 +823,7 @@ _REVERSIBLE = {
     "service":        "да (запустить обратно)",
     "secret_read":    "нет (секрет попадёт в контекст)",
     "net_write":      "нет (данные уже ушли)",
+    "paid_api":       "нет (списание провайдера не отменяется)",
 }
 
 _TABLE_RE = re.compile(r"\b(?:DELETE\s+FROM|UPDATE|ALTER\s+TABLE|INSERT\s+INTO)\s+([\w.\"]+)", re.I)
@@ -746,8 +847,33 @@ def preview_line(cls, command):
     return f"SELECT count(*) FROM {tbl.group(1)} WHERE {cond};"
 
 
-def scope_line(command):
+_UNITS_RE = re.compile(r"--(?:limit|expected-count|count|models|batch[-_]?size|n|top)"
+                       r"[= ](\d+)", re.I)
+
+
+def units_line(command):
+    """Сколько единиц обработки заявлено в команде (для платного вызова = сколько запросов).
+    Число берём ТОЛЬКО из самой команды; ничего не домысливаем."""
+    m = _UNITS_RE.search(command or "")
+    if m:
+        return f"единиц в задании: {m.group(1)}"
+    if command and is_mass(command.lower()):
+        return "массовый прогон, число единиц в команде не задано"
+    return "число единиц в команде не задано"
+
+
+def cost_line(cls, command):
+    """Ожидаемая стоимость. Тарифы провайдеров хук не хранит и не угадывает: если посчитать
+    заранее нельзя — так и пишем. Придуманное число хуже отсутствующего."""
+    if cls != "paid_api":
+        return None
+    return "стоимость:    неизвестна заранее — тариф провайдера здесь не хранится"
+
+
+def scope_line(command, cls=None):
     """Объём числом, без выполнения: сколько SQL-инструкций и есть ли признаки массовости."""
+    if cls == "paid_api":
+        return units_line(command)
     if not command:
         return "1 операция"
     stmts = [s for s in re.split(r";\s*", command) if s.strip()]
@@ -762,7 +888,12 @@ def brief(verdict, command):
     детерминированных оснований разрешить у хука нет — решает человек."""
     lines = [
         f"намерение:    {_INTENT.get(verdict.cls, verdict.cls)}",
-        f"объём:        {scope_line(command)}",
+        f"объём:        {scope_line(command, verdict.cls)}",
+    ]
+    cost = cost_line(verdict.cls, command)
+    if cost:
+        lines.append(cost)
+    lines += [
         f"эффект:       {verdict.reason}",
         f"обратимость:  {_REVERSIBLE.get(verdict.cls, 'неизвестна — считать необратимой')}",
         "рекомендация: NO — подтверждать только если сами инициировали это действие",

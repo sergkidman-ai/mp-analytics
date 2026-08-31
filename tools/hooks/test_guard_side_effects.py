@@ -193,12 +193,17 @@ class T06SecretRead(unittest.TestCase):
                 self.assertIn(tier(c), ("allow", "log"), f"ложный блок: {c}")
 
     def test_app_may_use_secret_from_env(self):
-        # ключевое требование: приложению пользоваться секретом НЕ запрещаем
+        # ключевое требование: приложению пользоваться секретом НЕ запрещаем.
+        # Проверяем именно класс secret_*: run_daily.py вдобавок проходит через
+        # территориальный страж, и в чужом/неопределённом домене его блокирует
+        # класс territory — это другое требование (tools/hooks/test_territory_runtime.py).
         for c in ["./venv/bin/python collectors/wb.py",
                   "./venv/bin/python run_daily.py",
                   "./venv/bin/python collectors/ozon_postings.py 2026-08-01"]:
             with self.subTest(cmd=c):
-                self.assertIn(tier(c), ("allow", "log"))
+                v = G.classify_bash(c, REPO)
+                self.assertFalse(v is not None and v.cls.startswith("secret"),
+                                 f"ложный блок по секрету: {c}")
 
 
 # ═══════════ 7. секрет нельзя отправить внешним curl ═══════════
@@ -430,6 +435,106 @@ class T14StatementScope(unittest.TestCase):
         for c in ["ls -la .env", "wc -l .env", "git check-ignore -q -- .env",
                   "test -f .env && echo есть"]:
             self.assertIn(tier(c), ("allow", "log"), c)
+
+
+# ═══════════ платный внешний расход (класс paid_api, B3 gold-set) ═══════════
+# Ни один тест не обращается к платному API: проверяется только классификация строк.
+class T13PaidApi(unittest.TestCase):
+    def test_direct_call_to_provider_asks(self):
+        for c in ["curl -s https://api.deepseek.com/v1/chat/completions -d @batch.json",
+                  "curl -X POST https://api.anthropic.com/v1/messages -d @req.json",
+                  "wget -qO- https://api.openai.com/v1/models"]:
+            self.assertEqual(tier(c), "ask", c)
+
+    def test_registry_entrypoint_by_path_asks(self):
+        for c in ["./venv/bin/python tools/deepseek_candidate_validator.py --input c.csv "
+                  "--expected-count 216",
+                  "./venv/bin/python reports/feedback_web.py --nm 216421567",
+                  "./venv/bin/python feedback_bot/feedback_cycle.py"]:
+            self.assertEqual(tier(c), "ask", c)
+
+    def test_module_form_asks(self):
+        self.assertEqual(tier("./venv/bin/python -m tools.deepseek_candidate_validator "
+                              "--input c.csv"), "ask")
+
+    def test_inline_python_import_asks(self):
+        self.assertEqual(tier('python3 -c "from reports.llm_client import client_for; '
+                              'client_for(\'deepseek-chat\')"'), "ask")
+
+    def test_provider_key_handed_to_any_program_asks(self):
+        self.assertIn(tier("DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY ./venv/bin/python my_batch.py"),
+                      ("ask", "deny"))
+
+    def test_unresolved_executor_fails_closed_to_ask(self):
+        self.assertEqual(tier("xargs -I{} ./venv/bin/python tools/deepseek_extract.py {}"), "ask")
+
+    def test_reading_the_same_code_is_free(self):
+        for c in ["grep -rn 'api.deepseek.com' tools/ | head -5",
+                  "cat tools/deepseek_candidate_validator.py | head -40",
+                  "wc -l reports/llm_client.py",
+                  "git log --oneline -3 -- tools/deepseek_extract.py"]:
+            self.assertIn(tier(c), ("allow", "log"), c)
+
+    def test_free_api_not_caught_by_the_word_api(self):
+        for c in ["curl -s 'https://common-api.wildberries.ru/api/v1/tariffs/box?date=2026-08-24'",
+                  "./venv/bin/python collectors/wb_funnel.py --api --days 7",
+                  "./venv/bin/python run_marketing.py --report"]:
+            self.assertIn(tier(c), ("allow", "log"), c)
+
+    def test_offline_test_run_is_free(self):
+        for c in ["./venv/bin/python -m unittest tests.test_deepseek_candidate_validator",
+                  "python3 -m pytest tests/test_health_classify.py -q"]:
+            self.assertIn(tier(c), ("allow", "log"), c)
+
+    def test_module_that_only_prints_the_command_is_free(self):
+        # tools/gab_hunt_batch.py печатает строку запуска валидатора как подсказку человеку —
+        # расхода нет, в реестре его нет, ASK быть не должно
+        self.assertIn(tier("./venv/bin/python tools/gab_hunt_batch.py --batch b1"),
+                      ("allow", "log"))
+
+    def test_brief_says_cost_unknown_and_never_invents_a_number(self):
+        v = G.classify_bash("./venv/bin/python tools/deepseek_candidate_validator.py "
+                            "--input c.csv --expected-count 216")
+        card = G.brief(v, "./venv/bin/python tools/deepseek_candidate_validator.py "
+                          "--input c.csv --expected-count 216")
+        self.assertIn("стоимость:", card)
+        self.assertIn("неизвестна заранее", card)
+        self.assertIn("единиц в задании: 216", card)
+        self.assertIn("обратимость:", card)
+        self.assertIn("рекомендация:", card)
+
+
+class T14PaidRegistry(unittest.TestCase):
+    """Реестр — единственный источник правды, поэтому он обязан быть живым."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.join(REPO, "tools"))
+        import paid_api_registry as reg
+        self.reg = reg
+
+    def test_every_entrypoint_exists(self):
+        for e in self.reg.ENTRYPOINTS:
+            self.assertTrue(os.path.exists(os.path.join(REPO, e.path)), e.path)
+
+    def test_no_drift_in_repo(self):
+        res = self.reg.audit(REPO)
+        self.assertEqual(res["новые"], {}, "появилась платная точка входа вне реестра")
+        self.assertEqual(res["исчезли"], [], "в реестре путь, которого больше нет")
+
+    def test_token_forms_resolve(self):
+        for t in ["tools/deepseek_extract.py", "./tools/deepseek_extract.py",
+                  "/opt/mp-analytics/tools/deepseek_extract.py",
+                  ".deploy/inv/tools/deepseek_extract.py", "tools.deepseek_extract"]:
+            self.assertIsNotNone(self.reg.entrypoint_for_token(t), t)
+
+    def test_unrelated_tokens_do_not_resolve(self):
+        for t in ["tools/gab_hunt_batch.py", "run_daily.py", "collectors/wb_funnel.py"]:
+            self.assertIsNone(self.reg.entrypoint_for_token(t), t)
+
+    def test_registry_holds_no_secret_values(self):
+        with open(os.path.join(REPO, "tools/paid_api_registry.py"), encoding="utf-8") as fh:
+            src = fh.read()
+        self.assertNotRegex(src, r"sk-[A-Za-z0-9]{8,}")
 
 
 if __name__ == "__main__":
