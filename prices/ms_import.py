@@ -614,6 +614,11 @@ def _pick(cards, field, keep=None, tie=None):
 
 
 # Карточка Озона — ЗАПАСНОЙ источник Code128 и веса, когда у родни в МС их нет вовсе.
+# Штрихкод РОЖДАЕТСЯ в ТК и оттуда уезжает на площадки и в МС, но по API ТК его НЕ отдаёт
+# (проверено 31.08.2026: `cartridge_models` — 31 поле, ни одного про штрихкод, маска
+# `DS…` не встретилась ни разу на 200 моделях; `best` — только `buy_price`; `mix_data` — состав
+# набора). Пока ТК не добавит поле (прецедент есть: `incoming_references` добавили по нашей
+# просьбе 14.08.2026), карточка Озона — ближайшая к первоисточнику копия того же штрихкода.
 # Случай Сергея 31.08.2026: строка ВТТ `HB-W2130X` сопоставлена с кодом 7025, а единственная
 # карточка этого кода (`7025wb`) сама без веса и без штрихкода — наследовать нечего, и кнопка
 # «➕ карточка поставщика» упиралась в два замечания без единого поля для ввода.
@@ -684,6 +689,14 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
         """SELECT external_code, resource FROM prc_tc_model
             WHERE gone_at IS NULL AND resource IS NOT NULL AND external_code = ANY(%s)""",
         (sorted({(r["ms_code"] or "")[:4] for r in rows}),))}
+    # Вес каталога ТК — ПЕРВОИСТОЧНИК: ТК генерирует карточку товара, из неё вес уезжает на
+    # площадки. Проверено 31.08.2026: на 6393 общих кодах вес ТК и вес карточки Озона совпали
+    # до грамма у 6191 (96.8 %) — Озон эту величину получает, а не задаёт. Поэтому ТК идёт
+    # раньше Озона, а Озон остаётся запасным на коды, которых в каталоге ТК нет.
+    tk_weight = {r["external_code"]: r["weight_g"] for r in query(
+        """SELECT external_code, weight_g FROM prc_tc_model
+            WHERE gone_at IS NULL AND weight_g > 0 AND external_code = ANY(%s)""",
+        (sorted({(r["ms_code"] or "")[:4] for r in rows}),))}
     oz = ozon_kin({(r["ms_code"] or "")[:4] for r in rows})
     known = {r["article"].strip().upper() for r in query(
         "SELECT article FROM ms_product WHERE article IS NOT NULL AND NOT archived")}
@@ -728,13 +741,18 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None):
                       f"{weighted[0]['created']:%d.%m.%Y} — самая свежая по внешнему коду")
         if not weight:
             weight, source = weight_from_dims([c["article"] for c in cards])
+        if not weight and tk_weight.get(ext):
+            weight = round(float(tk_weight[ext]) / 1000, 3)
+            source = f"каталог ТК, код {ext} — карточка товара платформы"
+            flags.append(f"веса нет ни в прайсах, ни у родни — взял {weight} кг из каталога ТК")
         if not weight:
             grams = (oz.get(ext) or {}).get("weight_g")
             if grams:
                 weight = round(float(grams) / 1000, 3)
                 source = (f"карточка Озона {ext} ({oz[ext]['account']}) — ЗАЯВЛЕННЫЙ нами вес, "
                           f"не поставщика: проверить перед созданием")
-                flags.append(f"веса нет ни в прайсах, ни у родни — подставил {weight} кг: {source}")
+                flags.append(f"веса нет ни в прайсах, ни у родни, ни в каталоге ТК — "
+                             f"подставил {weight} кг: {source}")
             else:
                 flags.append(source or "веса нет ни в прайсах поставщиков, ни у родни — "
                              "заполнить по nix.ru")
