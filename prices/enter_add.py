@@ -187,6 +187,30 @@ def apply_add(layout, docs_by_key, dry=True, log=print):
     return lines
 
 
+def preview(supplier_key, article):
+    """Что будет с позицией, когда карточку создадут. -> строка для пробы диалога.
+
+    Карточки ещё нет, поэтому смотрим то, что от неё не зависит: актуальную партию поставщика
+    и строку прайса. Проба обязана показать обе половины работы — иначе человек нажимает
+    «Создать» и узнаёт про приход уже постфактум.
+    """
+    if supplier_key not in PROC:
+        return "поставщик не идёт в оприходование"
+    docs = loader.existing_docs(get_identity(supplier_key))
+    if not docs:
+        return "актуального оприходования нет — позицию класть руками"
+    last = max(d["name"].rsplit("_p", 1)[0] for d in docs)
+    r = _price_row(supplier_key, article)
+    if not r:
+        return f"партия {last}: строки {article} в последнем прайсе нет — позиции не будет"
+    qty = float(r["qty"] or 0)
+    price = float(r["price_rub"] if r["price_rub"] is not None
+                  else float(r["price_src"] or 0) * float(r["rate"] or 1))
+    if not qty or not price:
+        return f"партия {last}: {'нет остатка' if not qty else 'нет цены'} — позиции не будет"
+    return f"ляжет в партию {last}: {qty:.0f} шт × {price:.2f} ₽"
+
+
 def add_cards(cards, dry=True, log=print):
     """Разложить и добрать одним вызовом. -> (строки отчёта, к добору, отсев, куда легло).
 

@@ -3171,7 +3171,9 @@ def novelties_ms_create(payload: MsCreate):
     except Exception as exc:                       # МС ответил ошибкой на середине пачки
         return {"ok": False, "error": f"МойСклад: {type(exc).__name__}: {exc}", "log": lines}
     if payload.dry:
-        return {"ok": True, "dry": True, "log": lines, "n": len(records)}
+        return {"ok": True, "dry": True, "log": lines, "n": len(records),
+                "entered": enter_add.preview(
+                    profile.key, records[payload.main_index]["Артикул"] or "")}
 
     main = cards[payload.main_index]
     made = {code: ms_id for ms_id, code, _ in created}
@@ -3291,7 +3293,8 @@ def novelties_twin_create(payload: TwinCreate):
     except Exception as exc:                       # МС ответил ошибкой — показать её человеку
         return {"ok": False, "error": f"МойСклад: {type(exc).__name__}: {exc}", "log": lines}
     if payload.dry:
-        return {"ok": True, "dry": True, "log": lines, "warn": flags}
+        return {"ok": True, "dry": True, "log": lines, "warn": flags,
+                "entered": enter_add.preview(profile.key, rec["Артикул"] or row["article"])}
     made = ms_import.mark_created([rec], created)
     ms_code = rec["Код"] if created else None
     # Карточку могли завести раньше — руками в МС или прошлым нажатием этой же кнопки. Тогда
