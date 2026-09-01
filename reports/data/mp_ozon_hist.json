@@ -6,7 +6,8 @@
   "Апр",
   "Май",
   "Июн",
-  "Июл"
+  "Июл",
+  "Авг"
  ],
  "accounts": {
   "oz_acc1": {
@@ -18,7 +19,8 @@
      10250268,
      10433340,
      10132061,
-     10558895
+     10558895,
+     8844416
     ],
     "returns": [
      206351,
@@ -27,7 +29,8 @@
      246497,
      140424,
      205802,
-     263916
+     263916,
+     88076
     ],
     "commission": [
      3336261,
@@ -36,7 +39,8 @@
      4005568,
      4096376,
      3946266,
-     4172835
+     4172835,
+     3581493
     ],
     "delivery": [
      607268,
@@ -45,7 +49,8 @@
      426729,
      366791,
      348645,
-     303974
+     303974,
+     241510
     ],
     "partners": [
      123915,
@@ -54,7 +59,8 @@
      182892,
      238535,
      346288,
-     320827
+     320827,
+     208863
     ],
     "fbo": [
      13349,
@@ -63,7 +69,8 @@
      8827,
      8645,
      8570,
-     13434
+     13434,
+     3179
     ],
     "promo": [
      456380,
@@ -72,7 +79,8 @@
      686994,
      624781,
      742668,
-     1071077
+     1071077,
+     830817
     ],
     "penalty": [
      71665,
@@ -81,7 +89,8 @@
      68093,
      123711,
      108631,
-     230534
+     230534,
+     103059
     ],
     "compensation": [
      9593,
@@ -90,7 +99,8 @@
      4495,
      13498,
      13996,
-     25591
+     25591,
+     0
     ],
     "other": [
      351730,
@@ -99,7 +109,8 @@
      39552,
      43775,
      52021,
-     30614
+     30614,
+     29965
     ],
     "unclassified": [
      0,
@@ -108,7 +119,8 @@
      0,
      0,
      0,
-     0
+     0,
+     7645
     ]
    },
    "split": [
@@ -146,7 +158,8 @@
      "rev": 5998737,
      "bonus": 4527712,
      "part": 32446
-    }
+    },
+    null
    ],
    "cogs": [
     1950388,
@@ -155,7 +168,8 @@
     2385100,
     2426999,
     2272633,
-    2278242
+    2278242,
+    1878895
    ],
    "net": [
     2161294,
@@ -164,7 +178,8 @@
     2283615,
     2464351,
     2218575,
-    1960261
+    1960261,
+    1930845
    ],
    "margin": [
     25.2,
@@ -173,7 +188,8 @@
     22.3,
     23.6,
     21.9,
-    18.6
+    18.6,
+    21.8
    ],
    "orders": [
     1269,
@@ -182,7 +198,8 @@
     1302,
     1408,
     1334,
-    1156
+    1156,
+    982
    ],
    "returns_cnt": [
     93,
@@ -191,7 +208,8 @@
     71,
     62,
     79,
-    79
+    79,
+    62
    ],
    "detail": {
     "delivery": {
@@ -202,9 +220,11 @@
       16100,
       16100,
       16100,
-      17430
+      17430,
+      12558
      ],
      "MarketplaceServiceItemReturnNotDelivToCustomer": [
+      0,
       0,
       0,
       0,
@@ -220,7 +240,8 @@
       0,
       0,
       40,
-      180
+      180,
+      20
      ],
      "OP:OperationCourierPickUpDelivery": [
       26234,
@@ -229,9 +250,11 @@
       28856,
       28892,
       26778,
-      26266
+      26266,
+      12419
      ],
      "MarketplaceServiceItemReturnAfterDelivToCustomer": [
+      0,
       0,
       0,
       0,
@@ -247,6 +270,7 @@
       1940,
       1100,
       190,
+      0,
       0
      ],
      "MarketplaceServiceItemDropoffPickup": [
@@ -256,7 +280,8 @@
       18280,
       19100,
       21020,
-      18339
+      18339,
+      3238
      ],
      "OP:MarketplaceAgencyFeeAggregator3plRFBS": [
       1415,
@@ -265,7 +290,8 @@
       2580,
       2580,
       3000,
-      2460
+      2460,
+      1980
      ],
      "MarketplaceServiceItemReturnFlowLogistic": [
       20518,
@@ -274,9 +300,11 @@
       10939,
       8676,
       9863,
-      10852
+      10852,
+      10340
      ],
      "MarketplaceServiceItemReturnPartGoodsCustomer": [
+      0,
       0,
       0,
       0,
@@ -292,7 +320,8 @@
       342184,
       282118,
       262604,
-      221422
+      221422,
+      194954
      ],
      "MarketplaceServiceItemDeliveryToHandoverPlaceOzon": [
       0,
@@ -301,7 +330,8 @@
       5850,
       8225,
       9050,
-      7025
+      7025,
+      6000
      ]
     },
     "partners": {
@@ -312,7 +342,8 @@
       5280,
       6320,
       2980,
-      1830
+      1830,
+      447
      ],
      "MarketplaceRedistributionOfAcquiringOperation": [
       50568,
@@ -321,7 +352,8 @@
       75574,
       60053,
       60581,
-      61041
+      61041,
+      51375
      ],
      "MarketplaceServiceItemRedistributionLastMileCourier": [
       16646,
@@ -330,7 +362,8 @@
       9596,
       11459,
       10708,
-      10290
+      10290,
+      8407
      ],
      "MarketplaceServiceItemTemporaryStorageRedistribution": [
       1275,
@@ -339,7 +372,8 @@
       531,
       2241,
       804,
-      303
+      303,
+      402
      ],
      "OP:MarketplaceServiceEasyReturnRfbs": [
       540,
@@ -348,7 +382,8 @@
       0,
       214,
       244,
-      396
+      396,
+      244
      ],
      "MarketplaceServiceItemRedistributionReturnsPVZ": [
       585,
@@ -357,7 +392,8 @@
       630,
       435,
       600,
-      480
+      480,
+      435
      ],
      "OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": [
       48012,
@@ -366,10 +402,12 @@
       91181,
       109404,
       117861,
-      86347
+      86347,
+      77795
      ],
      "MarketplaceServiceItemRedistributionLastMilePVZ": [
       -250,
+      0,
       0,
       0,
       0,
@@ -384,7 +422,8 @@
       100,
       80,
       100,
-      240
+      240,
+      180
      ],
      "ItemAgentServiceStarsMembership": [
       0,
@@ -393,7 +432,8 @@
       0,
       48328,
       152410,
-      159900
+      159900,
+      69579
      ]
     },
     "promo": {
@@ -402,6 +442,7 @@
       35853,
       37039,
       6954,
+      0,
       0,
       0,
       0
@@ -413,7 +454,8 @@
       212137,
       196415,
       172519,
-      169648
+      169648,
+      181833
      ],
      "MarketplaceServiceItemElectronicServicesPremiumCashbackIndividualPoints": [
       11200,
@@ -421,6 +463,7 @@
       15586,
       9358,
       136,
+      0,
       0,
       0
      ],
@@ -431,7 +474,8 @@
       24990,
       24990,
       24990,
-      0
+      0,
+      24990
      ],
      "OP:OperationPromotionWithCostPerOrder": [
       0,
@@ -440,7 +484,8 @@
       406178,
       378939,
       406566,
-      541441
+      541441,
+      352022
      ],
      "OP:OperationMarketplaceAcceleratedProductReviews": [
       0,
@@ -449,7 +494,8 @@
       27377,
       24302,
       87755,
-      73810
+      73810,
+      69845
      ],
      "PremiumMembershipCommission": [
       0,
@@ -458,7 +504,8 @@
       0,
       0,
       25848,
-      261188
+      261188,
+      202128
      ],
      "OP:OperationSubscriptionPremiumPro": [
       0,
@@ -467,7 +514,8 @@
       0,
       0,
       24990,
-      24990
+      24990,
+      0
      ]
     },
     "penalty": {
@@ -475,6 +523,7 @@
       3718,
       588,
       -100,
+      0,
       0,
       0,
       0,
@@ -487,6 +536,7 @@
       0,
       0,
       0,
+      0,
       0
      ],
      "MarketplaceServiceVolumeWeightCharacsProcessing": [
@@ -496,11 +546,13 @@
       2100,
       600,
       1650,
-      0
+      0,
+      900
      ],
      "OP:DefectRateShipmentDelay": [
       20952,
       6858,
+      0,
       0,
       0,
       0,
@@ -514,6 +566,7 @@
       0,
       0,
       0,
+      0,
       0
      ],
      "OP:DefectFineShipmentDelayRated": [
@@ -523,7 +576,8 @@
       62807,
       101778,
       92508,
-      90986
+      90986,
+      40670
      ],
      "OP:DefectFineWrongItem": [
       0,
@@ -532,7 +586,8 @@
       1969,
       0,
       600,
-      1099
+      1099,
+      0
      ],
      "MarketplaceServiceItemDisposalDetailed": [
       0,
@@ -541,7 +596,8 @@
       0,
       437,
       104,
-      25
+      25,
+      75
      ],
      "OP:DefectFineShipmentDelay": [
       0,
@@ -550,7 +606,8 @@
       1475,
       17876,
       15155,
-      4442
+      4442,
+      0
      ],
      "OP:DefectFineCancellation": [
       0,
@@ -559,7 +616,8 @@
       1220,
       5168,
       750,
-      2626
+      2626,
+      0
      ],
      "MarketplaceServiceItemPackageMaterialsProvision": [
       0,
@@ -568,7 +626,8 @@
       50,
       40,
       50,
-      120
+      120,
+      90
      ],
      "OP:DefectFineShipmentDelayRatedCancelled": [
       0,
@@ -577,7 +636,8 @@
       -1528,
       -2188,
       -2186,
-      -1753
+      -1753,
+      -650
      ],
      "OP:OperationMarketplaceServiceEarlyPaymentAccrual": [
       0,
@@ -586,7 +646,8 @@
       0,
       0,
       0,
-      114194
+      114194,
+      61974
      ],
      "OP:OperationMarketplaceFlexiblePaymentSchedule": [
       0,
@@ -595,7 +656,8 @@
       0,
       0,
       0,
-      18795
+      18795,
+      0
      ]
     }
    }
@@ -609,7 +671,8 @@
      3504733,
      3111690,
      2725306,
-     2482622
+     2482622,
+     1524921
     ],
     "returns": [
      11935,
@@ -618,7 +681,8 @@
      43420,
      62685,
      43903,
-     164723
+     164723,
+     51508
     ],
     "commission": [
      355212,
@@ -627,7 +691,8 @@
      1397831,
      1225880,
      1077160,
-     950371
+     950371,
+     603901
     ],
     "delivery": [
      48025,
@@ -636,7 +701,8 @@
      117925,
      94229,
      70343,
-     57401
+     57401,
+     38317
     ],
     "partners": [
      19519,
@@ -645,7 +711,8 @@
      59472,
      100639,
      102639,
-     78628
+     78628,
+     49150
     ],
     "fbo": [
      1021,
@@ -654,7 +721,8 @@
      1971,
      1749,
      1422,
-     1404
+     1404,
+     1132
     ],
     "promo": [
      82988,
@@ -663,7 +731,8 @@
      324634,
      283317,
      231626,
-     200938
+     200938,
+     126985
     ],
     "penalty": [
      18105,
@@ -672,7 +741,8 @@
      39695,
      57374,
      31022,
-     54775
+     54775,
+     21467
     ],
     "compensation": [
      0,
@@ -681,7 +751,8 @@
      1347,
      0,
      10633,
-     8701
+     8701,
+     0
     ],
     "other": [
      1716,
@@ -690,9 +761,11 @@
      2982,
      13987,
      20684,
-     7842
+     7842,
+     6563
     ],
     "unclassified": [
+     0,
      0,
      0,
      0,
@@ -737,7 +810,8 @@
      "rev": 1393143,
      "bonus": 1082471,
      "part": 7008
-    }
+    },
+    null
    ],
    "cogs": [
     219532,
@@ -746,7 +820,8 @@
     736801,
     606301,
     542536,
-    463007
+    463007,
+    312323
    ],
    "net": [
     151292,
@@ -755,7 +830,8 @@
     787313,
     693503,
     655972,
-    527918
+    527918,
+    326701
    ],
    "margin": [
     16.7,
@@ -764,7 +840,8 @@
     22.5,
     22.3,
     24.1,
-    21.3
+    21.3,
+    21.4
    ],
    "orders": [
     159,
@@ -773,7 +850,8 @@
     515,
     495,
     396,
-    311
+    311,
+    233
    ],
    "returns_cnt": [
     20,
@@ -782,11 +860,13 @@
     22,
     38,
     18,
-    27
+    27,
+    17
    ],
    "detail": {
     "delivery": {
      "MarketplaceServiceItemReturnAfterDelivToCustomer": [
+      0,
       0,
       0,
       0,
@@ -802,7 +882,8 @@
       5140,
       4680,
       3600,
-      3310
+      3310,
+      80
      ],
      "OP:MarketplaceAgencyFeeAggregator3plRFBS": [
       135,
@@ -811,9 +892,11 @@
       240,
       820,
       860,
-      620
+      620,
+      460
      ],
      "MarketplaceServiceItemReturnNotDelivToCustomer": [
+      0,
       0,
       0,
       0,
@@ -829,9 +912,11 @@
       4242,
       5114,
       1951,
-      2925
+      2925,
+      2471
      ],
      "MarketplaceServiceItemReturnPartGoodsCustomer": [
+      0,
       0,
       0,
       0,
@@ -847,7 +932,8 @@
       105203,
       80190,
       61482,
-      47971
+      47971,
+      34731
      ],
      "MarketplaceServiceItemDeliveryToHandoverPlaceOzon": [
       0,
@@ -856,7 +942,8 @@
       3100,
       3425,
       2450,
-      2575
+      2575,
+      575
      ]
     },
     "partners": {
@@ -867,7 +954,8 @@
       10280,
       9360,
       7200,
-      4950
+      4950,
+      2170
      ],
      "MarketplaceServiceItemRedistributionLastMileCourier": [
       1661,
@@ -876,7 +964,8 @@
       3567,
       3826,
       3189,
-      2589
+      2589,
+      2136
      ],
      "MarketplaceServiceItemTemporaryStorageRedistribution": [
       1302,
@@ -885,7 +974,8 @@
       45,
       192,
       102,
-      48
+      48,
+      459
      ],
      "MarketplaceRedistributionOfAcquiringOperation": [
       4466,
@@ -894,7 +984,8 @@
       20063,
       14209,
       14052,
-      12570
+      12570,
+      8915
      ],
      "ItemAgentServiceStarsMembership": [
       4536,
@@ -903,7 +994,8 @@
       17770,
       41683,
       41197,
-      37300
+      37300,
+      19495
      ],
      "MarketplaceServiceItemRedistributionReturnsPVZ": [
       345,
@@ -912,7 +1004,8 @@
       135,
       300,
       180,
-      135
+      135,
+      90
      ],
      "OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": [
       4208,
@@ -921,7 +1014,8 @@
       7581,
       30960,
       36689,
-      20824
+      20824,
+      15571
      ],
      "MarketplaceServiceItemPackageRedistribution": [
       0,
@@ -930,7 +1024,8 @@
       30,
       110,
       30,
-      60
+      60,
+      40
      ],
      "OP:MarketplaceServiceEasyReturnRfbs": [
       0,
@@ -939,7 +1034,8 @@
       0,
       0,
       0,
-      152
+      152,
+      274
      ]
     },
     "promo": {
@@ -950,7 +1046,8 @@
       120542,
       125692,
       82234,
-      62610
+      62610,
+      31286
      ],
      "MarketplaceServiceItemElectronicServicesPremiumCashbackIndividualPoints": [
       1344,
@@ -958,6 +1055,7 @@
       2597,
       3476,
       169,
+      0,
       0,
       0
      ],
@@ -968,11 +1066,13 @@
       1610,
       0,
       0,
+      0,
       0
      ],
      "OP:OperationSubscriptionPremium": [
       9990,
       9990,
+      0,
       0,
       0,
       0,
@@ -986,6 +1086,7 @@
       24990,
       24990,
       24990,
+      24990,
       24990
      ],
      "OP:OperationPromotionWithCostPerOrder": [
@@ -995,7 +1096,8 @@
       141953,
       123682,
       106724,
-      97783
+      97783,
+      57899
      ],
      "OP:OperationMarketplaceAcceleratedProductReviews": [
       0,
@@ -1004,13 +1106,15 @@
       32062,
       8784,
       17678,
-      15555
+      15555,
+      12810
      ]
     },
     "penalty": {
      "OP:DefectRateCancellation": [
       5659,
       3710,
+      0,
       0,
       0,
       0,
@@ -1024,6 +1128,7 @@
       0,
       0,
       0,
+      0,
       0
      ],
      "MarketplaceServiceVolumeWeightCharacsProcessing": [
@@ -1033,7 +1138,8 @@
       900,
       1500,
       1350,
-      600
+      600,
+      150
      ],
      "MarketplaceServiceItemDisposalDetailed": [
       300,
@@ -1042,11 +1148,13 @@
       0,
       0,
       150,
-      0
+      0,
+      75
      ],
      "OP:DefectRateShipmentDelay": [
       5612,
       6012,
+      0,
       0,
       0,
       0,
@@ -1060,7 +1168,8 @@
       29824,
       31559,
       23933,
-      20287
+      20287,
+      2271
      ],
      "OP:DefectFineShipmentDelay": [
       0,
@@ -1069,7 +1178,8 @@
       4926,
       19918,
       4116,
-      3005
+      3005,
+      3563
      ],
      "OP:DefectFineCancellation": [
       0,
@@ -1078,7 +1188,8 @@
       4083,
       4419,
       795,
-      188
+      188,
+      0
      ],
      "OP:DefectFineWrongItem": [
       0,
@@ -1087,6 +1198,7 @@
       0,
       0,
       896,
+      0,
       0
      ],
      "MarketplaceServiceItemPackageMaterialsProvision": [
@@ -1096,7 +1208,8 @@
       15,
       55,
       15,
-      30
+      30,
+      20
      ],
      "OP:DefectFineShipmentDelayRatedCancelled": [
       0,
@@ -1105,7 +1218,8 @@
       -53,
       -852,
       -233,
-      -2695
+      -2695,
+      -158
      ],
      "OP:DefectFineIncomplete": [
       0,
@@ -1113,6 +1227,7 @@
       0,
       0,
       776,
+      0,
       0,
       0
      ],
@@ -1123,7 +1238,8 @@
       0,
       0,
       0,
-      23935
+      23935,
+      15546
      ],
      "OP:OperationMarketplaceFlexiblePaymentSchedule": [
       0,
@@ -1132,7 +1248,8 @@
       0,
       0,
       0,
-      8296
+      8296,
+      0
      ],
      "OP:InsuranceServiceSellerItem": [
       0,
@@ -1141,7 +1258,8 @@
       0,
       0,
       0,
-      1129
+      1129,
+      0
      ]
     }
    }
@@ -1154,7 +1272,14 @@
   "2026-04",
   "2026-05",
   "2026-06",
-  "2026-07"
+  "2026-07",
+  "2026-08"
  ],
- "provisional": []
+ "provisional": [
+  "2026-08"
+ ],
+ "reconciled": {
+  "oz_acc1": [],
+  "oz_acc2": []
+ }
 }
