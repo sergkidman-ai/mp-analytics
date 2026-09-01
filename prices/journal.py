@@ -7,7 +7,7 @@
 нельзя ни объяснить остаток задним числом, ни собрать список новинок для шага 2.
 Сухой прогон тоже журналируется — с dry_run=true.
 """
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import psycopg2.extras
 
@@ -35,7 +35,16 @@ ON CONFLICT (load_id, row_no) DO NOTHING
 
 
 def _num(value):
-    return None if value in (None, "") else Decimal(str(value))
+    """Число из ячейки прайса. В файле поставщика попадается мусор — сломанная формула
+    (#REF!, #Н/Д), прочерк, комментарий; сам загрузчик такую строку просто пропускает
+    (price_rub в prices/run.py), и журнал не имеет права падать там, где загрузка прошла.
+    Непонятная ячейка — это None в числовой колонке, сырьё остаётся в price_raw/stock_raw."""
+    if value in (None, ""):
+        return None
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ArithmeticError, TypeError, ValueError):
+        return None
 
 
 def save(head, ready, skipped):

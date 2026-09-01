@@ -25,6 +25,7 @@
 """
 import argparse
 import io
+import traceback
 import json
 import os
 import re
@@ -244,7 +245,18 @@ def run_load(profile, dry):
     except SystemExit as exc:
         return buf.getvalue() + f"\nОТМЕНА: {exc}", 2
     except Exception as exc:
-        return buf.getvalue() + f"\nСБОЙ: {type(exc).__name__}: {exc}", 3
+        # В телеграм уходит одна строка, но по ней сбой не чинится: сентября 2026 падение на
+        # ячейке «#REF!» пришлось разбирать перечиткой письма, потому что стек нигде не осел.
+        # Кладём его в отдельный файл — сообщение остаётся коротким, разбор становится минутным.
+        crash = LOG_DIR / f"prc_price_watch_{profile.key}_crash.log"
+        try:
+            with open(crash, "a", encoding="utf-8") as fh:
+                fh.write(f"\n===== {datetime.now(timezone.utc).isoformat(timespec='seconds')} =====\n")
+                fh.write(traceback.format_exc())
+        except OSError:
+            pass                                   # не смогли записать — сбой важнее протокола
+        return (buf.getvalue() + f"\nСБОЙ: {type(exc).__name__}: {exc}"
+                + f"\nстек: {crash}"), 3
     return buf.getvalue(), code or 0
 
 
