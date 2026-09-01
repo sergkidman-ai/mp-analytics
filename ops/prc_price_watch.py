@@ -53,6 +53,11 @@ LOG_DIR = Path("/opt/mp-analytics/logs")
 # В TG_NOTIFY_ID лежат другие люди, туда прайсовые сводки слать нельзя
 # (память project_mp_telegram_channels).
 NOTIFY_IDS = [x.strip() for x in os.getenv("TG_PRC_NOTIFY_ID", "1031321444").split(",") if x.strip()]
+# Оператор «Новинок» — узкий адресат: ему уходят только те два сигнала, по которым у него есть
+# работа, — «прайс загружен, новинки ждут» и «прайса давно не было». Ни сбоев загрузки, ни
+# недоступной почты, ни сводок других потоков (склад, акции, новости площадок шлют свои
+# скрипты по TG_PRC_NOTIFY_ID — этого списка они не знают). Пусто = адресата нет.
+NOVELTY_IDS = [x.strip() for x in os.getenv("TG_PRC_NOVELTY_ID", "").split(",") if x.strip()]
 TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
 TG_LIMIT = 3900
 # Почта моргает; будить человека первым же таймаутом незачем, а молчать сутки — нельзя.
@@ -66,12 +71,19 @@ def log(path, text):
         fh.write(f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} {text}\n")
 
 
-def tg(text):
-    """Сводка Сергею. Молчать при сбое телеграма нельзя — но и падать из-за него тоже."""
+def tg(text, chats=None):
+    """Сводка Сергею. Молчать при сбое телеграма нельзя — но и падать из-за него тоже.
+
+    `chats` — кому именно; по умолчанию владельцы (NOTIFY_IDS). Оператору «Новинок» пишем
+    тем же вызовом со своим списком, чтобы отправка была одна на все адресатов.
+    """
     if not TG_TOKEN:
         return "нет TG_PRC_BOT_TOKEN"
+    chats = NOTIFY_IDS if chats is None else chats
+    if not chats:
+        return "адресатов нет"
     out = []
-    for chat in NOTIFY_IDS:                # адресатов может быть несколько (список в .env)
+    for chat in chats:                     # адресатов может быть несколько (список в .env)
         try:
             r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
                               data={"chat_id": chat, "text": text[:TG_LIMIT],
@@ -222,6 +234,8 @@ def overdue_alert(profile, logfile, quiet=False, check_only=False):
                  f"{mail_schedule.hhmm(late['deadline'])}")
     if not quiet:
         log(logfile, "телеграм: " + tg(text))
+        if NOVELTY_IDS:                    # «прайса давно нет» — сигнал и оператору тоже
+            log(logfile, "телеграм оператору: " + tg(text, NOVELTY_IDS))
     return text
 
 
@@ -419,6 +433,10 @@ def main(argv=None):
     text = message(profile, out, code, args.dry, after, auto)
     if not args.quiet and text:
         log(logfile, "телеграм: " + tg(text))
+        # Оператору — только удачный прогон: эта строка и есть «прайс загружен, новинок N».
+        # Вердикты ОТМЕНА/СБОЙ разбирает владелец, оператору они работы не дают и пугают зря.
+        if code == 0 and NOVELTY_IDS:
+            log(logfile, "телеграм оператору: " + tg(text, NOVELTY_IDS))
     elif not text:
         log(logfile, "телеграм: молчу — прогон удачный, новинок 0")
     return code
