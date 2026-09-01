@@ -43,6 +43,13 @@ MIN_DAYS = 10
 MIN_SPAN = 14
 FREQUENT_WEEKDAYS = 4                      # присылает в 4+ дня недели -> ждём все будни
 
+# Поставщики, чей прайс мы сейчас не загружаем: их молчание — норма, а не событие, и тревога
+# «давно не было прайса» по ним не уходит. Письма сторож всё равно ловит и историю копит, так
+# что достаточно убрать ключ отсюда — и сигнал вернётся с полным прошлым, без разогрева.
+PAUSED = {
+    "s_print_spb",   # Солюшнс принт СПб — прайс не грузим (Сергей, 01.09.2026)
+}
+
 
 def minutes(dt):
     return dt.hour * 60 + dt.minute
@@ -117,6 +124,8 @@ def overdue(key, now=None, history=None):
     Считаем ровно по трём условиям из шапки модуля. Отдельно возвращаем `silent` — сколько
     рабочих дней молчит поставщик: в сообщении это главное число.
     """
+    if key in PAUSED:                              # прайс не загружаем — молчать не преступление
+        return None
     now = now or datetime.now(MSK)
     info = schedule(key, history)
     if not info["enough"] or now.weekday() not in info["weekdays"]:
@@ -145,6 +154,8 @@ def main():
             print(f"{key:<14} истории нет")
             continue
         mark = "" if s["enough"] else "  (истории мало — молчим)"
+        if key in PAUSED:
+            mark = "  (прайс не загружаем — тревог нет)"
         print(f"{key:<14} {s['days']:>4} {hhmm(s['median']):>7} {hhmm(s['latest']):>9} "
               f"{hhmm(s['deadline']):>6} {s['gap_days']:>6}  "
               f"{' '.join(wd[d] for d in sorted(s['weekdays'])) or '—'}{mark}")
