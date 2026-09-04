@@ -1,8 +1,8 @@
 """collectors/ozon_feedbacks.py — отзывы и вопросы Ozon → raw_feedback (для ответов).
 
-POST /v1/review/list (нужен Premium Plus — есть на oz_acc1) и /v1/question/list. Пагинация
-last_id. У отзыва только sku без имени — имя подтягиваем из ozon_product. is_answered:
-отзыв — есть комментарий продавца; вопрос — answers_count>0.
+Забираем ТОЛЬКО вопросы: POST /v1/question/list, пагинация last_id, is_answered =
+answers_count>0. Отзывы по API закрыты подпиской на обоих юрлицах и не запрашиваются —
+подробности в комментарии внутри collect(); отвечаем на них через браузер в ЛК.
 
 Запуск:  ./venv/bin/python collectors/ozon_feedbacks.py [oz_acc1]
 """
@@ -18,7 +18,6 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db                          # noqa: E402
 from collectors.ozon import _headers         # noqa: E402
 
-REVIEW_URL = "https://api-seller.ozon.ru/v1/review/list"
 QUESTION_URL = "https://api-seller.ozon.ru/v1/question/list"
 
 
@@ -50,27 +49,17 @@ def _names(account):
 
 def main(account="oz_acc1"):
     H = _headers(account)
-    print(f"Ozon отзывы+вопросы {account}", flush=True)
+    print(f"Ozon вопросы {account}", flush=True)
     names = _names(account)
-    recs, un_r, un_q = [], 0, 0
-    n_r = n_q = 0
-    try:
-        for rv in _paginate(REVIEW_URL, H, "reviews", {"limit": 100, "sort_dir": "DESC", "status": "ALL"}):
-            answered = (rv.get("comments_amount") or 0) > 0
-            un_r += 0 if answered else 1
-            n_r += 1
-            recs.append({"platform": "ozon", "account": account, "kind": "review", "ext_id": str(rv["id"]),
-                         "item_id": str(rv.get("sku") or ""), "article": None,
-                         "product_name": names.get(str(rv.get("sku"))), "rating": rv.get("rating"),
-                         "body": rv.get("text") or "", "pros": None, "cons": None,
-                         "created_at": rv.get("published_at"), "is_answered": answered,
-                         "answer_text": None, "status": rv.get("status"), "payload": Json(rv)})
-    except requests.HTTPError as e:
-        # 403 = нет Premium Plus (отзывы недоступны, напр. oz_acc2) — не срываем сбор вопросов
-        if e.response is not None and e.response.status_code == 403:
-            print(f"  отзывы недоступны (нет Premium Plus): {e.response.text[:80]}", flush=True)
-        else:
-            raise
+    recs, un_q = [], 0
+    n_q = 0
+    # Отзывы Ozon по API НЕ ЗАПРАШИВАЕМ ВООБЩЕ. Premium Plus не действует ни на одном юрлице
+    # (oz_acc2 — всегда, oz_acc1 — с 23.08.2026), все /v1/review/* отдают 403
+    # "not available with existing subscription". Решение: подписку не возвращаем, отзывы
+    # читаются и отвечаются через браузер в ЛК (задача «ЛК Ozon» потока rev). Пробы методов —
+    # docs/reports/08_ozon_acc2_reviews_api_2026-07-28.md, парковка непроходимых ответов —
+    # флаг skipped_no_api (миграция 700). Запрос снят, чтобы не долбить 403 каждые полчаса
+    # и не выдавать закрытый канал за поломку сбора.
     for qn in _paginate(QUESTION_URL, H, "questions", {"limit": 100}):
         answered = (qn.get("answers_count") or 0) > 0
         un_q += 0 if answered else 1
@@ -85,7 +74,8 @@ def main(account="oz_acc1"):
             "created_at", "is_answered", "answer_text", "status", "payload"]
     n = db.upsert("raw_feedback", recs,
                   conflict_cols=["platform", "account", "kind", "ext_id"], update_cols=cols)
-    print(f"  отзывов: {n_r} (неотвеченных {un_r}) | вопросов: {n_q} (неотвеченных {un_q}) | записано {n}", flush=True)
+    print(f"  отзывы: канал закрыт подпиской, ответы через ЛК | вопросов: {n_q} "
+          f"(неотвеченных {un_q}) | записано {n}", flush=True)
 
 
 if __name__ == "__main__":
