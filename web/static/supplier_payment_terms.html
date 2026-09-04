@@ -195,6 +195,13 @@ function renderTerms(){
     <th title="Через сколько рабочих дней после счёта плановая дата приёмки в заказе МС (08:00). Срок — свойство ГРУППЫ поставщика: действует и на счета других её юрлиц">Срок доставки</th>
     <th>Активен</th><th></th></tr>`;
   const orgCell=r=>all?`<td class="muted">${esc(orgShort(r.org_inn))}</td>`:'';
+  // Кнопка есть только у предоплаты по счёту: у отсрочки платёж собирается ОДНОЙ пачкой
+  // за день, у авансового баланса сумма считается от остатка аванса — там «отправить
+  // сейчас» ломает сам метод.
+  const prepayBtn=r=>(r.method==='prepayment_per_order'&&r.active!==false)
+    ? `<button class="ebtn" onclick="prepayNow('${esc(r.org_inn||org)}','${esc(r.inn)}',this)"
+        title="спросить МойСклад про новые заказы этого поставщика и сразу отправить по ним платёжки в банк">🧾 заказ → в банк</button>`
+    : '';
   const cols=all?13:12;
   $('#terms tbody').innerHTML=rows.map((r,i)=>editing?`<tr>
     ${orgCell(r)}
@@ -229,7 +236,7 @@ function renderTerms(){
     <td>${vatLabel(r.vat_rate)}</td>
     <td${grpTitle(r)}>${delivLabel(r.delivery_days)}${r.group?` <span class="muted">· гр. ${esc(r.group)}</span>`:''}</td>
     <td style="text-align:center">${r.active!==false?'✓':'<span class="muted">выкл</span>'}</td>
-    <td></td>
+    <td>${prepayBtn(r)}</td>
   </tr>`).join('')||`<tr><td colspan="${cols}" class="muted">поставщиков не задано</td></tr>`;
 
   $('#mode').textContent=editing?'режим правки':(all?'сравнение — правка выключена':'только просмотр');
@@ -357,6 +364,46 @@ function renderQueue(){
   $('#foot').textContent=filtered
     ? `Показано ${items.length} из ${queue.length} черновиков.`
     : `Черновиков в очереди: ${queue.length}.`;
+}
+
+// Предоплата по счёту «сейчас»: тот же вечерний прогон (опрос МС → черновик → банк),
+// но по ОДНОМУ поставщику и по требованию — заказ пришёл днём, а ждать 17:00 нельзя.
+async function prepayNow(orgInn, inn, btn){
+  const r=rows.find(x=>x.inn===inn&&(x.org_inn||org)===orgInn)||{};
+  const ok=confirm(`Проверить МойСклад и оплатить заказы?\n\n`
+    +`${orgShort(orgInn)} → ${r.name||inn}\n\n`
+    +`Найдём новые заказы поставщика, поставим по ним черновики и отправим в банк вместе `
+    +`с теми, что уже стоят в очереди.\n\n`
+    +`Платёжки уйдут НЕПОДПИСАННЫМИ: в банке появятся черновики, `
+    +`подписать их нужно вручную в интернет-банке.`);
+  if(!ok)return;
+  btn.disabled=true;
+  const was=btn.innerHTML;
+  btn.textContent='опрашиваем МС…';
+  try{
+    const res=await fetch('/api/suppliers/payment-terms/prepay-now',
+      {method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({org_inn:orgInn,inn:inn})});
+    const d=await res.json();
+    if(!d.ok){alert('Не отправлено: '+(d.error||'неизвестная ошибка'));return;}
+    const sent=d.sent||[], failed=d.failed||[];
+    if(!sent.length&&!failed.length){
+      alert(`Новых заказов к оплате нет.\n\n${d.log||'МойСклад опрошен, очередь пуста.'}`);
+      return;
+    }
+    alert([
+      sent.length?`Отправлено в банк: ${sent.length}\n`
+        +sent.map(x=>`  #${x.id} · ${rub(x.amount)} · ${x.bank||''} · ${x.status}`).join('\n'):'',
+      failed.length?`НЕ ушло: ${failed.length}\n`
+        +failed.map(x=>`  #${x.id} · ${rub(x.amount)} · ${x.error||''}`).join('\n'):'',
+      sent.length?`\nЧерновики лежат в интернет-банке НЕПОДПИСАННЫМИ.`:''
+    ].filter(Boolean).join('\n'));
+    await loadQueue();
+  }catch(e){
+    alert('Сбой запроса: '+e);
+  }finally{
+    btn.disabled=false;btn.innerHTML=was;
+  }
 }
 
 // Ручная отправка ОДНОГО черновика в банк его юрлица. Юрлицо берём из СТРОКИ (q.org_inn),

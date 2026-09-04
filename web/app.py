@@ -7,6 +7,8 @@ Drill-down: большие цифры → SKU → (позже категории
 Запуск:  ./venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8090
 """
 import base64
+import contextlib
+import io
 import os
 import re
 import sys
@@ -2059,6 +2061,70 @@ def suppliers_payment_terms_queue_send(p: dict):
     return {"ok": bool(res.get("ok")), "id": draft_id, "status": res.get("status"),
             "external_id": res.get("external_id"), "bank": res.get("bank"),
             "error": res.get("error")}
+
+
+@app.post("/api/suppliers/payment-terms/prepay-now")
+def suppliers_prepay_now(p: dict):
+    """Кнопка «заказ → в банк» у поставщика с предоплатой по счёту: спросить МойСклад про его
+    новые заказы, поставить по ним черновики и сразу отправить их в банк своего юрлица.
+
+    Это тот же вечерний прогон (крон 17:00 МСК: `po_payment_watch --methods prepayment_per_order`
+    → `payment_autosend --kinds prepayment_order`), но по ОДНОМУ поставщику и по требованию:
+    заказ приходит днём, а ждать вечера нельзя.
+
+    Платёжка уходит НЕПОДПИСАННОЙ — в банке появляется черновик, подписывает человек в вебе
+    банка. Автоподписания нет и не будет (запрет потока inv).
+
+    Только `prepayment_per_order`. У отсрочки платёж собирается ОДНОЙ пачкой за день (кнопка
+    раздробила бы её на несколько платёжек), у авансового баланса сумма считается от остатка
+    аванса — там «отправить сейчас» ломает логику метода.
+
+    Уже стоявшие в очереди черновики этого поставщика (`planned`) тоже уходят: кнопка обещает
+    «оплатить заказ», а не «оплатить только что найденный заказ»."""
+    org = (p.get("org_inn") or "").strip()
+    inn = (p.get("inn") or "").strip()
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
+    if not inn.isdigit():
+        return {"ok": False, "error": "не передан ИНН поставщика"}
+    if os.getenv("WEB_PAYMENT_SEND") != "1":
+        return {"ok": False, "error": "ручная отправка платёжек из дашборда выключена "
+                                      "(WEB_PAYMENT_SEND=1 в .env)"}
+    t = db.query("""SELECT name, method, active FROM supplier_payment_terms
+                    WHERE org_inn=%s AND inn=%s""", (org, inn))
+    if not t:
+        return {"ok": False, "error": "у этого юрлица нет условий оплаты по этому поставщику"}
+    if not t[0]["active"]:
+        return {"ok": False, "error": f"поставщик {t[0]['name']} выключен в условиях оплаты"}
+    if t[0]["method"] != "prepayment_per_order":
+        return {"ok": False, "error": "кнопка только для предоплаты по счёту; "
+                                      f"у {t[0]['name']} метод «{t[0]['method']}»"}
+    log = ""
+    try:
+        # Ленивый импорт: банковский контур и МойСклад не нужны остальному дашборду.
+        from invoice_bot import po_payment_watch as watch, payment_send
+        watch.set_org(org)                     # BUYER_INN — глобал модуля, гейт по юрлицу
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):  # поллер разговаривает print'ом — отдаём в UI
+            watch.run(only_inn=inn, methods={"prepayment_per_order"})
+        log = buf.getvalue().strip()
+    except Exception as e:                     # noqa: BLE001
+        return {"ok": False, "error": f"опрос МойСклада: {type(e).__name__}: {e}"}
+    drafts = db.query("""SELECT id, amount::float amount FROM payment_draft_queue
+        WHERE org_inn=%s AND inn=%s AND kind='prepayment_order' AND status='planned'
+        ORDER BY id""", (org, inn))
+    sent, failed = [], []
+    for d in drafts:
+        try:
+            res = payment_send.send_draft(d["id"], actor="web")
+        except Exception as e:                 # noqa: BLE001
+            res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        row = {"id": d["id"], "amount": d["amount"], "status": res.get("status"),
+               "external_id": res.get("external_id"), "bank": res.get("bank")}
+        (sent if res.get("ok") else failed).append(
+            row if res.get("ok") else dict(row, error=res.get("error")))
+    return {"ok": True, "name": t[0]["name"], "log": log,
+            "found": len(drafts), "sent": sent, "failed": failed}
 
 
 @app.get("/stale", response_class=HTMLResponse)
