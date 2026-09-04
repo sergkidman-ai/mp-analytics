@@ -2563,16 +2563,25 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
     """
     import datetime
     from collectors.launch_track import SHOWCASES
+    from prices import sup_group
     keys = [k for k, _ in SHOWCASES]
     today = datetime.date.today()
     since = today - datetime.timedelta(days=days) if days else datetime.date(2026, 6, 14)
 
+    # Две таблицы страницы — «свежие» (окно фильтра) и «прошлых месяцев» (заведены больше
+    # недели назад и хотя бы одной витрины до сих пор нет) — рисуются одинаково, поэтому
+    # и собираются одним набором: остаток, продажи и витрины считаются по объединению кодов.
     rows = db.query("""SELECT external_code, ms_created, ms_name, supplier_key, cards, archived
                          FROM prc_launch
                         WHERE ms_created IS NOT NULL AND ms_created >= %s
-                          AND (%s = '' OR supplier_key = %s)
-                        ORDER BY ms_created DESC, external_code""", (since, supplier, supplier))
-    codes = [r["external_code"] for r in rows]
+                        ORDER BY ms_created DESC, external_code""", (since,))
+    old_rows = db.query("""
+        SELECT l.external_code, l.ms_created, l.ms_name, l.supplier_key, l.cards, l.archived
+          FROM prc_launch l JOIN prc_launch_mp p USING (external_code)
+         WHERE l.ms_created IS NOT NULL AND l.ms_created <= %s AND NOT l.archived
+         GROUP BY 1, 2, 3, 4, 5, 6 HAVING count(*) FILTER (WHERE p.state = 'none') > 0
+         ORDER BY l.ms_created DESC, l.external_code""", (today - datetime.timedelta(days=7),))
+    codes = sorted({r["external_code"] for r in rows} | {r["external_code"] for r in old_rows})
     mp = {}
     for m in db.query("""SELECT external_code, showcase, state, card_at, selling_at, seeded, offer, note
                            FROM prc_launch_mp WHERE external_code = ANY(%s)""", (codes or [""],)):
@@ -2614,25 +2623,38 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
         return {"state": m["state"], "note": m["note"] or "", "days": days_,
                 "about": about, "offer": m["offer"]}
 
+    def group(r):
+        """Группа поставщика: разнобой имён (ключ прайса, юрлицо из остатков) — к справочнику."""
+        st = stock.get(r["external_code"]) or {}
+        return sup_group.group_of(r["supplier_key"] or st.get("supplier"))
+
+    def make(r):
+        st, sl = stock.get(r["external_code"]), sold.get(r["external_code"])
+        cells = {k: cell(r, (mp.get(r["external_code"]) or {}).get(k)) for k in keys}
+        return {"ext": r["external_code"], "created": str(r["ms_created"]),
+                "name": r["ms_name"], "supplier": group(r), "cards": r["cards"],
+                "archived": r["archived"], "mp": cells,
+                "days_old": (today - r["ms_created"]).days,
+                "stock": int(st["st"] or 0) if st else 0,
+                "transit": int(st["tr"] or 0) if st else 0,
+                "sold": float(sl["qty"] or 0) if sl else 0,
+                "first_sale": str(sl["first_sale"]) if sl and sl["first_sale"] else None,
+                "sale_days": (sl["first_sale"] - r["ms_created"]).days
+                             if sl and sl["first_sale"] else None}
+
     out, funnel = [], {k: {"none": 0, "card": 0, "selling": 0} for k in keys}
     for r in rows:
-        cells = {k: cell(r, (mp.get(r["external_code"]) or {}).get(k)) for k in keys}
+        row = make(r)
         for k in keys:
-            funnel[k][cells[k]["state"]] += 1
-        if gaps and all(c["state"] == "selling" for c in cells.values()):
+            funnel[k][row["mp"][k]["state"]] += 1
+        if supplier and row["supplier"] != supplier:
             continue
-        st, sl = stock.get(r["external_code"]), sold.get(r["external_code"])
-        out.append({"ext": r["external_code"], "created": str(r["ms_created"]),
-                    "name": r["ms_name"],
-                    "supplier": r["supplier_key"] or (st or {}).get("supplier"),
-                    "cards": r["cards"],
-                    "archived": r["archived"], "mp": cells,
-                    "stock": int(st["st"] or 0) if st else 0,
-                    "transit": int(st["tr"] or 0) if st else 0,
-                    "sold": float(sl["qty"] or 0) if sl else 0,
-                    "first_sale": str(sl["first_sale"]) if sl and sl["first_sale"] else None,
-                    "sale_days": (sl["first_sale"] - r["ms_created"]).days
-                                 if sl and sl["first_sale"] else None})
+        if gaps and all(c["state"] == "selling" for c in row["mp"].values()):
+            continue
+        out.append(row)
+    older = [make(r) for r in old_rows]
+    if supplier:
+        older = [r for r in older if r["supplier"] == supplier]
 
     months = {m["m"]: {"m": m["m"], "models": m["c"], "cards": 0, "any": m["a"], "all": m["b"]}
               for m in db.query("""
@@ -2651,24 +2673,12 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
         months.setdefault(c["m"], {"m": c["m"], "models": 0, "cards": 0, "any": 0, "all": 0})
         months[c["m"]]["cards"] = c["c"]
 
-    # Застрявшие: заведены больше недели назад, а хотя бы одной витрины до сих пор нет.
-    # Список НЕ зависит от фильтра окна — это рабочая очередь, а не срез когорты.
-    stuck = db.query("""
-        SELECT l.external_code, l.ms_created, l.ms_name, l.supplier_key,
-               count(*) FILTER (WHERE p.state = 'none') miss,
-               string_agg(p.showcase, ',' ORDER BY p.showcase) FILTER (WHERE p.state = 'none') where_miss
-          FROM prc_launch l JOIN prc_launch_mp p USING (external_code)
-         WHERE l.ms_created IS NOT NULL AND l.ms_created <= %s AND NOT l.archived
-         GROUP BY 1, 2, 3, 4 HAVING count(*) FILTER (WHERE p.state = 'none') > 0
-         ORDER BY l.ms_created, l.external_code""", (today - datetime.timedelta(days=7),))
-
-    # Кто вообще приносит новинки и как быстро они доезжают. Поставщик известен только у
-    # кодов, заведённых через разбор новинок; остальные идут строкой «не через разбор».
-    sup = db.query("""
-        SELECT coalesce(l.supplier_key, st.supplier, '—') supplier, count(*) models,
-               count(*) FILTER (WHERE s.all_sell) full,
-               count(*) FILTER (WHERE s.any_sell) any,
-               round(avg(s.miss), 1) avg_miss
+    # Кто вообще приносит новинки и как далеко они доезжают — по ГРУППАМ справочника, иначе
+    # один поставщик рассыпается на «kaktus_msk» и «ООО КОМПАНИЯ ФЕРРЕТ». Считаем в питоне:
+    # перевод имени в группу живёт в справочнике, а не в SQL.
+    agg = {}
+    for r in db.query("""
+        SELECT l.supplier_key, st.supplier, s.any_sell, s.all_sell, s.miss
           FROM prc_launch l
           LEFT JOIN (SELECT external_code, bool_or(state = 'selling') any_sell,
                             bool_and(state = 'selling') all_sell,
@@ -2679,8 +2689,16 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
                        FROM supplier_stock
                       WHERE captured_at = (SELECT max(captured_at) FROM supplier_stock)
                       GROUP BY 1) st USING (external_code)
-         WHERE l.ms_created IS NOT NULL
-         GROUP BY 1 ORDER BY 2 DESC""")
+         WHERE l.ms_created IS NOT NULL"""):
+        g = sup_group.group_of(r["supplier_key"] or r["supplier"]) or "—"
+        a = agg.setdefault(g, {"supplier": g, "models": 0, "full": 0, "any": 0, "miss": 0})
+        a["models"] += 1
+        a["full"] += 1 if r["all_sell"] else 0
+        a["any"] += 1 if r["any_sell"] else 0
+        a["miss"] += r["miss"] or 0
+    sup = sorted(agg.values(), key=lambda a: -a["models"])
+    for a in sup:
+        a["avg_miss"] = round(a.pop("miss") / a["models"], 1)
 
     head = db.query("""SELECT count(*) FILTER (WHERE ms_created = %s) today,
                               count(*) FILTER (WHERE ms_created >= %s) d30,
@@ -2696,11 +2714,8 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
             "cohort": len(rows), "shown": len(out), "funnel": funnel,
             "median_days": float(sla["med"]) if sla["med"] is not None else None,
             "median_n": sla["n"], "months": sorted(months.values(), key=lambda x: x["m"]),
-            "stuck": [{"ext": r["external_code"], "created": str(r["ms_created"]),
-                       "name": r["ms_name"], "supplier": r["supplier_key"], "miss": r["miss"],
-                       "days": (today - r["ms_created"]).days,
-                       "where": (r["where_miss"] or "").split(",")} for r in stuck],
-            "suppliers": [dict(r) for r in sup],
+            "older": older[:600], "older_total": len(older),
+            "suppliers": sup,
             "updated": stale.isoformat(timespec="minutes") if stale else None,
             "rows": out[:600]}
 

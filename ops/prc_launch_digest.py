@@ -73,16 +73,16 @@ def build():
         for r in stuck:
             for k in (r["miss"] or "").split(","):
                 per[k] = per.get(k, 0) + 1
-        lines.append(f"\nЗастряло дольше {STUCK_DAYS} дней: {len(stuck)} моделей")
+        lines.append(f"\nНовинки прошлых месяцев (заведены дольше {STUCK_DAYS} дней назад,\nа витрины нет): {len(stuck)} моделей")
         for k, n in sorted(per.items(), key=lambda x: -x[1]):
             lines.append(f"  нет на витрине {TITLES.get(k, k)}: {n}")
         recent = sorted(stuck, key=lambda r: r["ms_created"], reverse=True)[:10]
-        lines.append("\nСамые свежие из застрявших:")
+        lines.append("\nСамые свежие из них:")
         for r in recent:
             where = ", ".join(TITLES.get(k, k) for k in (r["miss"] or "").split(","))
             lines.append(f"  {r['external_code']} ({(today - r['ms_created']).days} дн) — нет: {where}")
     else:
-        lines.append("\nЗастрявших нет — все заведённые модели на витринах.")
+        lines.append("\nНезакрытых новинок прошлых месяцев нет — все на витринах.")
 
     lines.append(f"\nПодробно: {PAGE} → «🚀 Запуск на МП»")
     return "\n".join(lines)
