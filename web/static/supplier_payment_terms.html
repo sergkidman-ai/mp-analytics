@@ -188,7 +188,7 @@ let deleted=[];                       // ИНН, удалённые в теку�
 function renderTerms(){
   const all=!org;                       // режим «Все» — показываем колонку юрлица, правку глушим
   $('#terms thead').innerHTML=`<tr>${all?'<th>Юрлицо</th>':''}
-    <th>ИНН</th><th>Название</th><th>Метод</th><th>Дней отсрочки</th><th>Размер платежа ₽</th>
+    <th>ИНН</th><th>Название</th><th>Метод</th><th title="Сколько дней отсрочки и ОТ ЧЕГО они считаются: от даты заказа поставщику (товар едет после оплаты) или от проведённой приёмки (платим за принятое)">Отсрочка</th><th>Размер платежа ₽</th>
     <th>Сумма аванса ₽</th><th>Порог баланса ₽</th>
     <th title="Сколько наших денег ещё лежит у поставщика: неизрасходованные остатки авансов в МойСкладе. Красным — просадка ниже порога (поллер закажет новый аванс). Кнопка «сверка» — поправка по данным поставщика">Баланс ₽</th>
     <th title="Ставка НДС поставщика — из неё собирается НДС-оговорка в назначении платежа">НДС</th>
@@ -210,7 +210,11 @@ function renderTerms(){
     <td><select onchange="rows[${i}].method=this.value;renderTerms()">
       ${Object.entries(METHODS).map(([k,v])=>`<option value="${k}"${r.method===k?' selected':''}>${v}</option>`).join('')}
     </select></td>
-    <td>${r.method==='deferred'?`<input type="number" value="${r.deferral_days??''}" placeholder="дней" oninput="rows[${i}].deferral_days=+this.value||null">`:'<span class="muted">—</span>'}</td>
+    <td>${r.method==='deferred'?`<input type="number" style="width:64px" value="${r.deferral_days??''}" placeholder="дней" oninput="rows[${i}].deferral_days=+this.value||null">
+      <select onchange="rows[${i}].pay_on_order=this.value==='1'" title="от чего считается отсрочка: от даты заказа поставщику или от проведённой приёмки">
+        <option value="0"${r.pay_on_order?'':' selected'}>от приёмки</option>
+        <option value="1"${r.pay_on_order?' selected':''}>от заказа</option>
+      </select>`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='deferred'?`<input type="number" value="${r.payment_cap??''}" placeholder="вся сумма" oninput="rows[${i}].payment_cap=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.advance_amount??''}" placeholder="₽" oninput="rows[${i}].advance_amount=+this.value||null">`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?`<input type="number" value="${r.balance_threshold??''}" placeholder="₽" oninput="rows[${i}].balance_threshold=+this.value||null">`:'<span class="muted">—</span>'}</td>
@@ -228,7 +232,7 @@ function renderTerms(){
     <td class="muted">${esc(r.inn)}</td>
     <td>${esc(r.name)}</td>
     <td>${METHODS[r.method]||esc(r.method)}</td>
-    <td>${r.method==='deferred'?(r.deferral_days??'—'):'<span class="muted">—</span>'}</td>
+    <td>${r.method==='deferred'?`${r.deferral_days??'—'} <span class="muted" title="${r.pay_on_order?'платим по дате заказа, приёмку не ждём — товар едет после оплаты':'платим за принятый товар: без проведённой приёмки заказ в пачку не идёт'}">· ${r.pay_on_order?'от заказа':'от приёмки'}</span>`:'<span class="muted">—</span>'}</td>
     <td>${r.method==='deferred'?(r.payment_cap==null?'<span class="muted">вся сумма</span>':rub(r.payment_cap)):'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?rub(r.advance_amount):'<span class="muted">—</span>'}</td>
     <td>${r.method==='prepayment_balance'?rub(r.balance_threshold):'<span class="muted">—</span>'}</td>

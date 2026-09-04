@@ -170,8 +170,11 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
                 closed.append(po_id)     # оплатили (в т.ч. вручную) — снимаем из пула
             elif require_receipt and st == "pending" and due_amount <= 0:
                 held.append(po_id)       # приёмку ещё не провели (или отменили) — придержать
-            elif require_receipt and st == "waiting_receipt" and due_amount > 0:
-                released.append((po_id, due_amount))   # приёмку провели — в пул на сумму принятого
+            elif st == "waiting_receipt" and due_amount > 0:
+                # приёмку провели — в пул на сумму принятого. Без гейта приёмки сюда
+                # попадают заказы, застрявшие в ожидании до включения pay_on_order:
+                # иначе они остались бы в 'waiting_receipt' навсегда.
+                released.append((po_id, due_amount))
             elif st == "pending" and abs(was - due_amount) >= 0.01:
                 # ЧАСТИЧНАЯ оплата пришла ПОСЛЕ того, как заказ попал в пул: сумма в пуле
                 # застыла на момент заведения и завышена на уже оплаченное. Пересчитываем по
@@ -254,10 +257,14 @@ def process_prepayment_per_order(inn, agent_id=None):
     return n
 
 
-def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
-    # require_receipt=True: по отсрочке платим только за принятый товар (см. _sync_pending).
-    # Заказы в status='waiting_receipt' в выборку 'pending' ниже не попадают by design.
-    _sync_pending(inn, deferral_days, agent_id, require_receipt=True)
+def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None, pay_on_order=False):
+    # База отсрочки — свойство ДОГОВОРА (миграция 220), не константа кода:
+    #   pay_on_order=False — платим за ПРИНЯТЫЙ товар; заказы без проведённой приёмки
+    #     висят в status='waiting_receipt' и в выборку 'pending' ниже не попадают by design;
+    #   pay_on_order=True  — отсрочка идёт от даты заказа, приёмку не ждём (товар едет
+    #     уже после оплаты), в пачку идёт весь недоплаченный заказ.
+    # Срок оплаты в обоих случаях один: order_date + deferral_days.
+    _sync_pending(inn, deferral_days, agent_id, require_receipt=not pay_on_order)
     pending = db.query("""SELECT po_id, amount FROM po_payment_status
         WHERE org_inn=%s AND inn=%s AND status='pending'
         ORDER BY due_date, order_date""", (BUYER_INN, inn))
@@ -532,7 +539,8 @@ def run(only_inn=None, methods=None, close_only=False):
             if not methods or method in methods:
                 if method == "deferred":
                     process_deferred(inn, t.get("deferral_days") or 0,
-                                     payment_cap=t.get("payment_cap"), agent_id=agent_id)
+                                     payment_cap=t.get("payment_cap"), agent_id=agent_id,
+                                     pay_on_order=bool(t.get("pay_on_order")))
                 elif method == "prepayment_per_order":
                     process_prepayment_per_order(inn, agent_id=agent_id)
                 elif method == "prepayment_balance":
