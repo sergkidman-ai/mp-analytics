@@ -492,6 +492,7 @@ def wb_from_price(price_name):
     if not kind:
         return None
     left = re.split(r"(?<![А-Яа-яA-Za-z])для(?![А-Яа-яA-Za-z])", rest, flags=re.IGNORECASE)[0]
+    left_raw = left                            # до вырезания бренда — для хвостового правила
     for b in brands:                           # «Картридж Canon 054» -> модель «054»
         left = re.sub(rf"(?<![0-9A-Za-zА-Яа-я]){re.escape(b)}(?![0-9A-Za-zА-Яа-я])", " ", left,
                       flags=re.IGNORECASE)
@@ -505,6 +506,26 @@ def wb_from_price(price_name):
                     and not RESOURCE_TOKEN.match(seg) and not features.color(seg)):
                 model = seg
                 break
+    if not model:
+        # Ни цельного остатка, ни модели за запятой. Так пишут «принтер раньше расходника»:
+        # «Драм-картридж Konica Minolta bizhub 3602P/4702P IUP-26 (60k).» — предлога «для»
+        # нет, и в остатке рядом стоят модели ПРИНТЕРА и модель расходника. Берём ПОСЛЕДНИЙ
+        # код в левой части: у всех разобранных поставщиков расходник в такой записи стоит
+        # после принтера. Ресурс, цвет и скобочные пометки за код не считаем, слово бренда
+        # пропускаем целым словом (иначе «HP-10Bk» превратится в огрызок «-10Bk»).
+        # Правило страхующее: срабатывает ТОЛЬКО там, где иначе поле осталось бы пустым,
+        # уже заполненные названия оно изменить не может. Цена — если поставщик пишет
+        # наоборот (расходник, затем принтер), в поле уедет модель принтера; поле в окне
+        # создания редактируемое, человек видит его до записи в МС.
+        brand_words = {w.lower() for b in brands for w in re.split(r"[\s-]+", b) if w}
+        for token in left_raw.split():
+            token = token.strip(" ,;.")
+            if not token or token.lower() in brand_words or re.fullmatch(r"\(.*\)", token):
+                continue
+            if RESOURCE_TOKEN.match(token) or features.color(token):
+                continue
+            if looks_like_model(token):
+                model = token
     if not model:
         return None
     color = features.color(name)
