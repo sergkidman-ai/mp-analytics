@@ -443,6 +443,15 @@ def looks_like_model(text):
             and HAS_DIGIT.search(text) and not CYRILLIC.search(text))
 
 
+# Тип расходника у поставщика ↔ тип каталога ТК. Порядок важен: длинное написание проверяется
+# первым, иначе «Блок фотобарабана в сборе с блоком проявки» обрежется до голого фотобарабана.
+KIND_SYNONYM = [
+    (r"Блок\s+фотобарабана(?:\s+в\s+сборе\s+с\s+блоком\s+проявки)?", "Фотобарабан + картридж"),
+    (r"Драм[-\s]?картридж(?:а|ы|ей)?", "Фотобарабан"),
+    (r"Драм[-\s]?юнит(?:а|ы|ов)?", "Фотобарабан"),
+]
+
+
 def wb_from_price(price_name):
     """Сырьё формулы из НАЗВАНИЯ ПОСТАВЩИКА — когда каталога ТК по коду нет вовсе.
 
@@ -466,9 +475,22 @@ def wb_from_price(price_name):
     edge = "А-Яа-яA-Za-z-"
     kind = next((k for k in tc_kinds()
                  if re.search(rf"(?<![{edge}]){re.escape(k)}(?![{edge}])", head, re.IGNORECASE)), "")
+    if kind:
+        rest = re.sub(rf"(?<![{edge}]){re.escape(kind)}(?![{edge}])", " ", head, flags=re.IGNORECASE)
+    else:
+        # Тип у поставщика назван иначе, чем в ТК. Синонимы — ТОЛЬКО эти три (решение Сергея
+        # 04.09.2026), потому что перевод однозначен: «Драм-картридж»/«Драм-юнит» — это
+        # «Фотобарабан», а «Блок фотобарабана в сборе с блоком проявки» — «Фотобарабан +
+        # картридж». Всё прочее, чего нет в словаре ТК (фотобумага, ленты, лампы Сакуры),
+        # синонимом не считается: там типа в каталоге нет вовсе, и поле заполняет человек.
+        kind, rest = "", head
+        for pattern, tk_kind in KIND_SYNONYM:
+            if re.search(pattern, head, re.IGNORECASE):
+                kind = tk_kind
+                rest = re.sub(pattern, " ", head, flags=re.IGNORECASE)
+                break
     if not kind:
         return None
-    rest = re.sub(rf"(?<![{edge}]){re.escape(kind)}(?![{edge}])", " ", head, flags=re.IGNORECASE)
     left = re.split(r"(?<![А-Яа-яA-Za-z])для(?![А-Яа-яA-Za-z])", rest, flags=re.IGNORECASE)[0]
     for b in brands:                           # «Картридж Canon 054» -> модель «054»
         left = re.sub(rf"(?<![0-9A-Za-zА-Яа-я]){re.escape(b)}(?![0-9A-Za-zА-Яа-я])", " ", left,
