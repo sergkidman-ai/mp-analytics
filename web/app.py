@@ -460,10 +460,14 @@ def opex_save(payload: OpexSave):
 
 @app.get("/api/opex/categories")
 def opex_categories(all: int = 0):
-    """Справочник статей. all=1 — вместе с архивными (для показа старой разметки)."""
+    """Справочник статей. all=1 — вместе с архивными (для показа старой разметки).
+
+    `in_opex=false` — статья РАЗМЕТКИ, но не операционный расход (закупка товара, перевод
+    между своими счетами, миграция 219): платёж перестаёт числиться неразобранным, а в факт
+    опер. расходов не попадает."""
     where = "" if all else "WHERE NOT archived"
-    return {"items": db.query(f"SELECT id, name, sort, archived FROM opex_category "
-                              f"{where} ORDER BY sort, name")}
+    return {"items": db.query(f"SELECT id, name, sort, archived, in_opex FROM opex_category "
+                              f"{where} ORDER BY in_opex DESC, sort, name")}
 
 
 def _opex_spread(months: int) -> tuple[int, bool]:
@@ -569,23 +573,29 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
         SELECT count(*)::int n,
                count(*) FILTER (WHERE a.txn_id IS NOT NULL)::int n_done,
                coalesce(sum(t.amount),0)::float total,
-               coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NOT NULL),0)::float done,
+               -- «В расходах месяца» — только статьи с in_opex: закупка товара и переводы
+               -- между своими счетами размечены, но операционным расходом не являются (219)
+               coalesce(sum(t.amount) FILTER (WHERE c.in_opex),0)::float done,
+               coalesce(sum(t.amount) FILTER (WHERE c.in_opex IS FALSE),0)::float outside,
+               count(*) FILTER (WHERE c.in_opex IS FALSE)::int n_outside,
                coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NULL),0)::float todo
-        FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
+        FROM bank_txn t
+        LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
+        LEFT JOIN opex_category c ON c.id = a.category_id
         WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
           AND t.direction='DEBIT'{bw}""", tuple([month, org] + bp))[0]
     # Разрез месяца по статьям — из него собирается селект фильтра (со счётчиком у каждой
     # статьи). Считается по ВСЕМ расходам месяца, а не по отфильтрованной выдаче: иначе после
     # выбора статьи в списке осталась бы она одна и вернуться было бы некуда.
     by_cat = db.query(f"""
-        SELECT c.id AS category_id, c.name AS category, count(*)::int n,
+        SELECT c.id AS category_id, c.name AS category, c.in_opex, count(*)::int n,
                coalesce(sum(t.amount),0)::float amount
         FROM bank_txn t
         JOIN bank_txn_opex a ON a.txn_id = t.id
         JOIN opex_category c ON c.id = a.category_id
         WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
           AND t.direction='DEBIT'{bw}
-        GROUP BY 1, 2 ORDER BY 4 DESC""", tuple([month, org] + bp))
+        GROUP BY 1, 2, 3 ORDER BY in_opex DESC, 5 DESC""", tuple([month, org] + bp))
     # Список банков месяца — считается БЕЗ фильтра по банку, иначе в селекте оставался бы
     # выбранный банк и вернуться к «всем» было бы некуда.
     by_bank = db.query("""

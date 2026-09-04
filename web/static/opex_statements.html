@@ -159,12 +159,22 @@ function renderBar(){
   $('#f-cat').innerHTML=
      `<option value=""${catFilter===''?' selected':''}>все статьи (${t.n||0})</option>`
     +`<option value="none"${catFilter==='none'?' selected':''}>— без статьи — (${(t.n||0)-(t.n_done||0)})</option>`
-    +bc.map(c=>`<option value="${c.category_id}"${catFilter===String(c.category_id)?' selected':''}>${esc(c.category)} (${c.n})</option>`).join('');
+    +catGroup(bc.filter(c=>c.in_opex!==false),'',c=>c.category_id,c=>`${esc(c.category)} (${c.n})`)
+    +catGroup(bc.filter(c=>c.in_opex===false),'вне опер. расходов',c=>c.category_id,c=>`${esc(c.category)} (${c.n})`);
 }
 function setOrg(v){org=v;localStorage.setItem('opexOrg',v);month='';load();}
+// Нерасходные статьи (in_opex=false: закупка товара, перевод между своими счетами) стоят
+// отдельной группой: платёж ими РАЗМЕЧЕН, но в опер. расходы не идёт — списком вперемешку это
+// не читалось, и статью «Закупка товара» ставили бы как обычный расход.
+function catGroup(list, label, id, text, sel){
+  if(!list.length) return '';
+  const o=list.map(c=>`<option value="${id(c)}"${String(id(c))===String(sel)?' selected':''}>${text(c)}</option>`).join('');
+  return label?`<optgroup label="${label}">${o}</optgroup>`:o;
+}
 function catOptions(sel){
   return `<option value="">— без статьи —</option>`
-    +cats.map(c=>`<option value="${c.id}"${c.id===sel?' selected':''}>${esc(c.name)}</option>`).join('')
+    +catGroup(cats.filter(c=>c.in_opex!==false),'',c=>c.id,c=>esc(c.name),sel)
+    +catGroup(cats.filter(c=>c.in_opex===false),'вне опер. расходов',c=>c.id,c=>esc(c.name),sel)
     +`<option value="new">+ новая статья…</option>`;
 }
 function render(){
@@ -210,8 +220,9 @@ function render(){
   $('#foot').innerHTML=
     (catFilter?`<div class="ti"><span class="lbl">Фильтр · ${esc(cur)}</span><span class="vv">${shown.length} шт · ${rub(shown.reduce((s,i)=>s+i.amount,0))}</span></div>`:'')
    +`<div class="ti"><span class="lbl">Размечено${bn}</span><span class="vv">${t.n_done||0} из ${t.n||0}</span></div>
-    <div class="ti"><span class="lbl">В расходах месяца</span><span class="vv warn">${rub(t.done||0)}</span></div>
-    <div class="ti"><span class="lbl">Без статьи</span><span class="vv">${rub(t.todo||0)}</span></div>`;
+    <div class="ti"><span class="lbl">В расходах месяца</span><span class="vv warn">${rub(t.done||0)}</span></div>`
+   +(t.n_outside?`<div class="ti"><span class="lbl" title="закупка товара и переводы между своими счетами: размечено, но это не операционный расход">Вне опер. расходов</span><span class="vv">${rub(t.outside||0)}</span></div>`:'')
+   +`<div class="ti"><span class="lbl" title="осталось разобрать">Без статьи</span><span class="vv">${rub(t.todo||0)}</span></div>`;
 }
 // ── загрузка выписки файлом (банки без API: Озон Банк) ──────────────────────
 const BANKS={alfa:'Альфа',sber:'Сбер',ozon:'Озон'};
