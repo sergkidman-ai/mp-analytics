@@ -1850,7 +1850,7 @@ def suppliers_payment_terms_list(org: str | None = None):
     rows = db.query(f"""SELECT org_inn, inn, name, method, deferral_days,
         payment_cap::float payment_cap,
         advance_amount::float advance_amount, balance_threshold::float balance_threshold,
-        ms_agent_id, vat_rate, delivery_days, pay_on_order, active
+        ms_agent_id, vat_rate, delivery_days, active
         FROM supplier_payment_terms {where} ORDER BY org_inn, name""", params)
     # Группа поставщика: настройки-свойства поставщика (срок доставки) бот ищет по ГРУППЕ,
     # а не по ИНН из счёта — юрлица меняются. Показываем группу, чтобы было видно,
@@ -1871,7 +1871,6 @@ class SupplierPaymentTerm(BaseModel):
     name: str = ""
     method: str
     deferral_days: int | None = None
-    pay_on_order: bool = False            # отсрочка от даты ЗАКАЗА (иначе — от приёмки)
     payment_cap: float | None = None      # потолок платежа, ₽; None = вся сумма задолженности
     advance_amount: float | None = None
     balance_threshold: float | None = None
@@ -1899,7 +1898,6 @@ def suppliers_payment_terms_save(p: SupplierPaymentTerm):
         "org_inn": org,
         "inn": inn, "name": (p.name or inn).strip(), "method": p.method,
         "deferral_days": p.deferral_days, "payment_cap": p.payment_cap,
-        "pay_on_order": bool(p.pay_on_order),
         "advance_amount": p.advance_amount, "vat_rate": p.vat_rate,
         "balance_threshold": p.balance_threshold, "active": p.active,
         "delivery_days": p.delivery_days or 1,
@@ -2021,7 +2019,19 @@ def suppliers_payment_terms_queue(org: str | None = None):
         LEFT JOIN supplier_payment_terms t USING (org_inn, inn)
         WHERE q.status <> 'sent_sandbox' {where}
         ORDER BY q.created_at DESC LIMIT 100""", params)
-    return {"items": rows}
+    # Заказы, у которых срок оплаты уже наступил, а товар не приехал. Платить по ним нечего
+    # (гейт приёмки), но молчать об этом нельзя: со стороны поставщика это выглядит просрочкой,
+    # и разбираться надо не с платежами, а с поставкой. В очереди их не видно — там черновики,
+    # а такой заказ черновика как раз и НЕ получил.
+    where2 = "AND s.org_inn = %s" if org else ""
+    overdue = db.query(f"""SELECT s.org_inn, s.inn, t.name, s.order_date::text order_date,
+        s.due_date::text due_date, s.amount::float amount,
+        (current_date - s.due_date)::int days_late
+        FROM po_payment_status s
+        LEFT JOIN supplier_payment_terms t USING (org_inn, inn)
+        WHERE s.status = 'waiting_receipt' AND s.due_date <= current_date {where2}
+        ORDER BY s.due_date, s.order_date""", params)
+    return {"items": rows, "no_receipt": overdue}
 
 
 @app.post("/api/suppliers/payment-terms/queue/send")
