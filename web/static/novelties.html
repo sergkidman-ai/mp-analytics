@@ -413,6 +413,26 @@
       <tbody id="lfunrows"><tr><td colspan="5" class="muted">загрузка…</td></tr></tbody>
     </table>
 
+    <h3 style="margin:22px 0 8px">Застряли <span class="muted" id="lstuckn"></span></h3>
+    <p class="note" style="margin-top:0">Заведены больше недели назад, а хотя бы одной витрины
+    до сих пор нет. Это рабочая очередь, окно фильтра на неё не влияет. Клик по коду открывает
+    разбор новинок с этим кодом в поиске.</p>
+    <table>
+      <thead><tr><th style="width:78px">Код</th><th style="width:96px">Заведён</th>
+        <th style="width:70px">Дней</th><th>Название</th><th style="width:26%">Нет на витринах</th></tr></thead>
+      <tbody id="lstuck"><tr><td colspan="5" class="muted">загрузка…</td></tr></tbody>
+    </table>
+
+    <h3 style="margin:22px 0 8px">Поставщики новинок</h3>
+    <p class="note" style="margin-top:0">Кто вообще приносит новые модели и как далеко они
+    доезжают. Поставщик — ключ разбора новинок, а где его нет (модель завели руками в МС или
+    внешним загрузчиком) — контрагент из витрины остатков.</p>
+    <table>
+      <thead><tr><th style="width:34%">Поставщик</th><th>Новых моделей</th><th>Доля</th>
+        <th>Доехало на все пять</th><th>Хоть на одну</th><th>В среднем витрин не хватает</th></tr></thead>
+      <tbody id="lsup"><tr><td colspan="6" class="muted">загрузка…</td></tr></tbody>
+    </table>
+
     <h3 style="margin:22px 0 8px">По месяцам</h3>
     <table>
       <thead><tr><th style="width:120px">Месяц</th><th>Новых моделей</th><th>Новых карточек МС</th>
@@ -423,7 +443,7 @@
     <h3 style="margin:22px 0 8px">Модели <span class="muted" id="lcohort"></span></h3>
     <table>
       <thead><tr id="lhead"><th style="width:78px">Код</th><th style="width:96px">Заведён</th>
-        <th>Название</th></tr></thead>
+        <th>Название</th><th style="width:84px">Остаток</th><th style="width:120px">Продажи</th></tr></thead>
       <tbody id="lrows"><tr><td colspan="8" class="muted">загрузка…</td></tr></tbody>
     </table>
     <p class="note" id="lfoot"></p>
@@ -1634,22 +1654,49 @@ async function loadLaunch(){
       <td>${num(m.any)}</td><td class="${m.all ? "ok" : "muted"}">${num(m.all)}</td></tr>`).join("")
     || `<tr><td colspan="5" class="muted">пока нет месяцев с известными датами</td></tr>`;
 
-  $("#lhead").innerHTML = `<th style="width:78px">Код</th><th style="width:96px">Заведён</th>
-    <th>Название</th>` + d.showcases.map(sc => `<th>${esc(sc.title)}</th>`).join("");
+  const SCT = Object.fromEntries(d.showcases.map(sc => [sc.key, sc.title]));
+  $("#lstuckn").textContent = `— ${num((d.stuck || []).length)} моделей`;
+  $("#lstuck").innerHTML = (d.stuck || []).map(r =>
+    `<tr><td><b class="jump" data-code="${esc(r.ext)}">${esc(r.ext)}</b></td>
+      <td>${esc(r.created)}</td><td class="miss">${num(r.days)}</td>
+      <td>${esc(r.name || "")}<div class="verdict">${esc(r.supplier || "")}</div></td>
+      <td>${r.where.map(k => `<span class="tag skip">${esc(SCT[k] || k)}</span>`).join(" ")}</td></tr>`)
+    .join("") || `<tr><td colspan="5" class="muted">застрявших нет</td></tr>`;
+  $("#lstuck").querySelectorAll(".jump").forEach(b => b.onclick = () => {
+    bview("new"); $("#q").value = b.dataset.code; $("#q").dispatchEvent(new Event("input"));
+  });
 
-  const cols = 3 + d.showcases.length;
+  const stot = (d.suppliers || []).reduce((a, r) => a + r.models, 0) || 1;
+  $("#lsup").innerHTML = (d.suppliers || []).map(r =>
+    `<tr><td>${r.supplier === "—" ? `<span class="muted">не через разбор</span>` : `<b>${esc(r.supplier)}</b>`}</td>
+      <td>${num(r.models)}</td><td class="muted">${Math.round(r.models * 100 / stot)} %</td>
+      <td class="${r.full ? "ok" : "muted"}">${num(r.full)}</td><td>${num(r.any)}</td>
+      <td class="${r.avg_miss > 2 ? "miss" : ""}">${r.avg_miss}</td></tr>`).join("");
+
+  $("#lhead").innerHTML = `<th style="width:78px">Код</th><th style="width:96px">Заведён</th>
+    <th>Название</th><th style="width:84px">Остаток</th><th style="width:120px">Продажи</th>`
+    + d.showcases.map(sc => `<th>${esc(sc.title)}</th>`).join("");
+
+  const cols = 5 + d.showcases.length;
   $("#lrows").innerHTML = (d.rows || []).map(r =>
     `<tr><td><b>${esc(r.ext)}</b>${r.archived ? ` <span class="tag skip">архив</span>` : ""}</td>
       <td>${esc(r.created)}</td>
       <td>${esc(r.name || "")}<div class="verdict">${esc(r.supplier || "")}${
-        r.cards > 1 ? ` · карточек ${num(r.cards)}` : ""}</div></td>`
+        r.cards > 1 ? ` · карточек ${num(r.cards)}` : ""}</div></td>
+      <td class="${r.stock ? "" : "miss"}">${num(r.stock)}${
+        r.transit ? `<div class="verdict">в пути ${num(r.transit)}</div>` : ""}</td>
+      <td>${r.sold ? `${num(r.sold)} шт<div class="verdict">первая ${esc(r.first_sale)}${
+        r.sale_days === null ? "" : `, +${num(r.sale_days)} дн`}</div>`
+        : `<span class="muted">нет</span>`}</td>`
       + d.showcases.map(sc => lcell(r.mp[sc.key])).join("") + `</tr>`).join("")
     || `<tr><td colspan="${cols}" class="muted">в этом окне новых моделей нет</td></tr>`;
 
   $("#lcohort").textContent = `— показано ${num(d.shown)} из ${num(d.cohort)}`;
   $("#lfoot").textContent = "Отсутствие карточки на витрине — повод открыть модель в разборе "
     + "новинок: чаще всего это либо не заведённая карточка, либо не пройденная модерация, "
-    + "либо нулевой остаток. Причину, если витрина её сообщает, видно прямо в клетке.";
+    + "либо нулевой остаток. Причину, если витрина её сообщает, видно прямо в клетке. "
+    + "Продажи — отгрузки МойСклада, единственный факт, общий для всех пяти витрин; "
+    + "выручку по позиции МойСклад не хранит, поэтому здесь штуки.";
   if (!LSUP){
     const sups = [...new Set((d.rows || []).map(r => r.supplier).filter(Boolean))].sort();
     $("#lsupplier").innerHTML = `<option value="">все поставщики</option>`

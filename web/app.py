@@ -2568,6 +2568,29 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
                            FROM prc_launch_mp WHERE external_code = ANY(%s)""", (codes or [""],)):
         mp.setdefault(m["external_code"], {})[m["showcase"]] = m
 
+    # Остаток и продажи новинки. Остаток — последний срез МС (без склада «Брак»: там товар
+    # не продаётся); продажи — отгрузки МойСклада, а это ЕДИНСТВЕННЫЙ факт, общий для всех
+    # пяти витрин: площадочные витрины маржи покрывают только Ozon и ВБ, Яндекса в них нет.
+    # Выручки по позиции МС не хранит, поэтому в отчёте штуки, а не рубли.
+    # Поставщик берётся оттуда, где он вообще есть. Ключ разбора новинок знает только те
+    # коды, что заводились через вкладку (24 из 163 — остальные заводят руками в МС или
+    # внешним загрузчиком), поэтому вторым источником идёт название контрагента из витрины
+    # остатков: она покрывает почти всё, что реально лежит на складе.
+    stock = {r["ext"]: r for r in db.query("""
+        SELECT external_code ext, sum(stock) st, sum(in_transit) tr,
+               min(supplier) FILTER (WHERE supplier IS NOT NULL) supplier
+          FROM supplier_stock
+         WHERE captured_at = (SELECT max(captured_at) FROM supplier_stock)
+           AND store <> 'Брак' AND external_code = ANY(%s)
+         GROUP BY 1""", (codes or [""],))}
+    sold = {r["ext"]: r for r in db.query("""
+        SELECT p.external_code ext, min(d.moment)::date first_sale, sum(pos.qty) qty
+          FROM ms_demand_pos pos
+          JOIN ms_demand_cogs d USING (demand_id)
+          JOIN ms_product p ON p.ms_id = pos.ms_id
+         WHERE p.external_code = ANY(%s)
+         GROUP BY 1""", (codes or [""],))}
+
     def cell(r, m):
         """Клетка витрины: состояние, причина и сколько дней от заведения до продажи."""
         if not m:
@@ -2588,9 +2611,18 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
             funnel[k][cells[k]["state"]] += 1
         if gaps and all(c["state"] == "selling" for c in cells.values()):
             continue
+        st, sl = stock.get(r["external_code"]), sold.get(r["external_code"])
         out.append({"ext": r["external_code"], "created": str(r["ms_created"]),
-                    "name": r["ms_name"], "supplier": r["supplier_key"], "cards": r["cards"],
-                    "archived": r["archived"], "mp": cells})
+                    "name": r["ms_name"],
+                    "supplier": r["supplier_key"] or (st or {}).get("supplier"),
+                    "cards": r["cards"],
+                    "archived": r["archived"], "mp": cells,
+                    "stock": int(st["st"] or 0) if st else 0,
+                    "transit": int(st["tr"] or 0) if st else 0,
+                    "sold": float(sl["qty"] or 0) if sl else 0,
+                    "first_sale": str(sl["first_sale"]) if sl and sl["first_sale"] else None,
+                    "sale_days": (sl["first_sale"] - r["ms_created"]).days
+                                 if sl and sl["first_sale"] else None})
 
     months = {m["m"]: {"m": m["m"], "models": m["c"], "cards": 0, "any": m["a"], "all": m["b"]}
               for m in db.query("""
@@ -2609,6 +2641,37 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
         months.setdefault(c["m"], {"m": c["m"], "models": 0, "cards": 0, "any": 0, "all": 0})
         months[c["m"]]["cards"] = c["c"]
 
+    # Застрявшие: заведены больше недели назад, а хотя бы одной витрины до сих пор нет.
+    # Список НЕ зависит от фильтра окна — это рабочая очередь, а не срез когорты.
+    stuck = db.query("""
+        SELECT l.external_code, l.ms_created, l.ms_name, l.supplier_key,
+               count(*) FILTER (WHERE p.state = 'none') miss,
+               string_agg(p.showcase, ',' ORDER BY p.showcase) FILTER (WHERE p.state = 'none') where_miss
+          FROM prc_launch l JOIN prc_launch_mp p USING (external_code)
+         WHERE l.ms_created IS NOT NULL AND l.ms_created <= %s AND NOT l.archived
+         GROUP BY 1, 2, 3, 4 HAVING count(*) FILTER (WHERE p.state = 'none') > 0
+         ORDER BY l.ms_created, l.external_code""", (today - datetime.timedelta(days=7),))
+
+    # Кто вообще приносит новинки и как быстро они доезжают. Поставщик известен только у
+    # кодов, заведённых через разбор новинок; остальные идут строкой «не через разбор».
+    sup = db.query("""
+        SELECT coalesce(l.supplier_key, st.supplier, '—') supplier, count(*) models,
+               count(*) FILTER (WHERE s.all_sell) full,
+               count(*) FILTER (WHERE s.any_sell) any,
+               round(avg(s.miss), 1) avg_miss
+          FROM prc_launch l
+          LEFT JOIN (SELECT external_code, bool_or(state = 'selling') any_sell,
+                            bool_and(state = 'selling') all_sell,
+                            count(*) FILTER (WHERE state = 'none') miss
+                       FROM prc_launch_mp GROUP BY 1) s USING (external_code)
+          LEFT JOIN (SELECT external_code,
+                            min(supplier) FILTER (WHERE supplier IS NOT NULL) supplier
+                       FROM supplier_stock
+                      WHERE captured_at = (SELECT max(captured_at) FROM supplier_stock)
+                      GROUP BY 1) st USING (external_code)
+         WHERE l.ms_created IS NOT NULL
+         GROUP BY 1 ORDER BY 2 DESC""")
+
     head = db.query("""SELECT count(*) FILTER (WHERE ms_created = %s) today,
                               count(*) FILTER (WHERE ms_created >= %s) d30,
                               count(*) FILTER (WHERE ms_created IS NOT NULL) known
@@ -2623,6 +2686,11 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
             "cohort": len(rows), "shown": len(out), "funnel": funnel,
             "median_days": float(sla["med"]) if sla["med"] is not None else None,
             "median_n": sla["n"], "months": sorted(months.values(), key=lambda x: x["m"]),
+            "stuck": [{"ext": r["external_code"], "created": str(r["ms_created"]),
+                       "name": r["ms_name"], "supplier": r["supplier_key"], "miss": r["miss"],
+                       "days": (today - r["ms_created"]).days,
+                       "where": (r["where_miss"] or "").split(",")} for r in stuck],
+            "suppliers": [dict(r) for r in sup],
             "updated": stale.isoformat(timespec="minutes") if stale else None,
             "rows": out[:600]}
 
