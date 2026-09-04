@@ -222,6 +222,7 @@
     <a href="#" data-view="new" class="cur">✨ Разбор новинок</a>
     <a href="#" data-view="black">🚫 Чёрный список</a>
     <a href="#" data-view="unlinked">🔗 Несопоставлено</a>
+  <a href="#" data-view="launch">🚀 Запуск на МП</a>
     <a href="#" data-view="help">📘 Инструкция</a>
   </nav>
 
@@ -376,6 +377,57 @@
   <!-- Подтаб «Инструкция»: то же, что в .docx для оператора, но прямо в Пульте — чтобы
        не искать файл в переписке. Скриншоты лежат в web/static/img/novelties, отдаёт роут
        /warehouse/novelties/img/<имя>.jpg (общего mount статики у приложения нет). -->
+
+  <!-- Подтаб «Запуск на МП»: сколько времени проходит от заведения модели в МойСкладе до
+       того, как её карточка встала в продажу на каждой витрине. Единица — ВНЕШНИЙ КОД
+       (модель), не карточка: карточек на коде столько, сколько брендов-поставщиков, а
+       карточка на витрине одна. Данные готовит ежедневный трекер collectors/launch_track.py. -->
+  <div id="viewLaunch" hidden>
+    <p class="note" style="margin-top:0">Модель считается заведённой в день, когда её внешний код
+    впервые увидел ночной сбор МойСклада, и <b>в продаже</b> — когда карточка на витрине видна
+    покупателю (Ozon — «видимая», ВБ — в кабинете и не в корзине, Маркет — карточка Маркета готова).
+    Колонка витрины показывает, сколько дней прошло от заведения до продажи; <b>≤ N дн</b> значит,
+    что карточка стояла уже к первому замеру и точную дату мы не видели. Наблюдение ведётся
+    с августа 2026 — у моделей, заведённых раньше, дат нет, и в отчёт они не попадают.
+    У Дисквэра Маркета нет, поэтому витрин пять.</p>
+
+    <div class="big" id="lbig"></div>
+
+    <div class="bar" id="lbar">
+      <select id="ldays">
+        <option value="1">за сутки</option>
+        <option value="7">за 7 дней</option>
+        <option value="30" selected>за 30 дней</option>
+        <option value="90">за 90 дней</option>
+        <option value="0">всё, что знаем</option>
+      </select>
+      <select id="lsupplier"><option value="">все поставщики</option></select>
+      <label class="muted"><input type="checkbox" id="lgaps"> только с дырами</label>
+      <span class="grow"></span>
+      <span class="muted" id="lupd"></span>
+    </div>
+
+    <table id="lfun">
+      <thead><tr><th style="width:200px">Витрина</th><th>Нет карточки</th><th>Карточка есть, не продаётся</th>
+        <th>В продаже</th><th style="width:34%">Доехало</th></tr></thead>
+      <tbody id="lfunrows"><tr><td colspan="5" class="muted">загрузка…</td></tr></tbody>
+    </table>
+
+    <h3 style="margin:22px 0 8px">По месяцам</h3>
+    <table>
+      <thead><tr><th style="width:120px">Месяц</th><th>Новых моделей</th><th>Новых карточек МС</th>
+        <th>Есть хоть на одной витрине</th><th>Есть на всех пяти</th></tr></thead>
+      <tbody id="lmonrows"><tr><td colspan="5" class="muted">загрузка…</td></tr></tbody>
+    </table>
+
+    <h3 style="margin:22px 0 8px">Модели <span class="muted" id="lcohort"></span></h3>
+    <table>
+      <thead><tr id="lhead"><th style="width:78px">Код</th><th style="width:96px">Заведён</th>
+        <th>Название</th></tr></thead>
+      <tbody id="lrows"><tr><td colspan="8" class="muted">загрузка…</td></tr></tbody>
+    </table>
+    <p class="note" id="lfoot"></p>
+  </div>
   <div id="viewHelp" hidden><div class="help">
 
   <h3>1. Зачем этот раздел</h3>
@@ -1281,11 +1333,13 @@ function bview(name){
   $("#viewNew").hidden      = name !== "new";
   $("#viewBlack").hidden    = name !== "black";
   $("#viewUnlinked").hidden = name !== "unlinked";
+  $("#viewLaunch").hidden   = name !== "launch";
   $("#viewHelp").hidden     = name !== "help";
   $("#subtabs").querySelectorAll("a").forEach(a =>
     a.classList.toggle("cur", a.dataset.view === name));
   if (name === "black" && !BLOADED) loadBlack();
   if (name === "unlinked" && !ULOADED) loadUnlinked();
+  if (name === "launch" && !LLOADED) loadLaunch();
   fitBar();
 }
 $("#subtabs").querySelectorAll("a").forEach(a => a.onclick = e => {
@@ -1529,6 +1583,83 @@ const fitBar = () => document.documentElement.style.setProperty(
   "--barh", Math.max(...bars.map(b => b.offsetHeight)) + "px");
 bars.forEach(b => new ResizeObserver(fitBar).observe(b));
 fitBar();
+
+
+/* ── Подтаб «Запуск на МП» ───────────────────────────────────────────────────────────────
+   Считает всё сервер (/api/novelties/launch), здесь только рисование. Витрины приходят
+   списком, а не зашиты в разметку: появится шестая (например Маркет у Дисквэра) — таблица
+   сама вырастет на колонку. */
+let LLOADED = false, LSUP = false;
+
+function lcell(c){
+  if (!c || c.state === "none") return `<td><span class="tag skip">нет</span></td>`;
+  if (c.state === "card"){
+    return `<td><span class="tag new">карточка</span>`
+         + (c.note ? `<div class="verdict">${esc(c.note)}</div>` : "") + `</td>`;
+  }
+  const d = c.days === null ? ""
+          : `<div class="verdict">${c.about ? "≤ " : ""}${num(c.days)} дн</div>`;
+  return `<td><span class="tag matched">в продаже</span>${d}</td>`;
+}
+
+async function loadLaunch(){
+  const days = $("#ldays").value, sup = $("#lsupplier").value || "",
+        gaps = $("#lgaps").checked ? 1 : 0;
+  const d = await (await fetch(`/api/novelties/launch?days=${days}&gaps=${gaps}`
+                             + `&supplier=${encodeURIComponent(sup)}`)).json();
+  LLOADED = true;
+  $("#lupd").textContent = d.updated ? `замер: ${d.updated.replace("T", " ")}` : "";
+
+  const med = d.median_days === null ? "—" : num(Math.round(d.median_days));
+  $("#lbig").innerHTML = [
+    ["заведено сегодня", num(d.today)], ["за 30 дней", num(d.d30)],
+    ["всего под наблюдением", num(d.known)], ["в когорте", num(d.cohort)],
+    ["медиана дней до продажи", med],
+  ].map(([l, v]) => `<div class="bi" style="cursor:default"><div class="l">${l}</div>
+                       <div class="v">${v}</div></div>`).join("");
+
+  $("#lfunrows").innerHTML = d.showcases.map(sc => {
+    const f = d.funnel[sc.key] || {none: 0, card: 0, selling: 0};
+    const tot = f.none + f.card + f.selling;
+    const pct = tot ? Math.round(f.selling * 100 / tot) : 0;
+    return `<tr><td><b>${esc(sc.title)}</b></td>
+      <td class="${f.none ? "miss" : "muted"}">${num(f.none)}</td>
+      <td class="${f.card ? "miss" : "muted"}">${num(f.card)}</td>
+      <td class="ok">${num(f.selling)}</td>
+      <td>${pct} % из ${num(tot)}</td></tr>`;
+  }).join("");
+
+  $("#lmonrows").innerHTML = (d.months || []).slice().reverse().map(m =>
+    `<tr><td><b>${esc(m.m)}</b></td><td>${num(m.models)}</td><td class="muted">${num(m.cards)}</td>
+      <td>${num(m.any)}</td><td class="${m.all ? "ok" : "muted"}">${num(m.all)}</td></tr>`).join("")
+    || `<tr><td colspan="5" class="muted">пока нет месяцев с известными датами</td></tr>`;
+
+  $("#lhead").innerHTML = `<th style="width:78px">Код</th><th style="width:96px">Заведён</th>
+    <th>Название</th>` + d.showcases.map(sc => `<th>${esc(sc.title)}</th>`).join("");
+
+  const cols = 3 + d.showcases.length;
+  $("#lrows").innerHTML = (d.rows || []).map(r =>
+    `<tr><td><b>${esc(r.ext)}</b>${r.archived ? ` <span class="tag skip">архив</span>` : ""}</td>
+      <td>${esc(r.created)}</td>
+      <td>${esc(r.name || "")}<div class="verdict">${esc(r.supplier || "")}${
+        r.cards > 1 ? ` · карточек ${num(r.cards)}` : ""}</div></td>`
+      + d.showcases.map(sc => lcell(r.mp[sc.key])).join("") + `</tr>`).join("")
+    || `<tr><td colspan="${cols}" class="muted">в этом окне новых моделей нет</td></tr>`;
+
+  $("#lcohort").textContent = `— показано ${num(d.shown)} из ${num(d.cohort)}`;
+  $("#lfoot").textContent = "Отсутствие карточки на витрине — повод открыть модель в разборе "
+    + "новинок: чаще всего это либо не заведённая карточка, либо не пройденная модерация, "
+    + "либо нулевой остаток. Причину, если витрина её сообщает, видно прямо в клетке.";
+  if (!LSUP){
+    const sups = [...new Set((d.rows || []).map(r => r.supplier).filter(Boolean))].sort();
+    $("#lsupplier").innerHTML = `<option value="">все поставщики</option>`
+      + sups.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join("");
+    LSUP = true;
+  }
+  fitBar();
+}
+["#ldays", "#lsupplier", "#lgaps"].forEach(id => $(id).onchange = loadLaunch);
+
 
 load();
 </script>

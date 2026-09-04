@@ -2540,6 +2540,92 @@ def _novelty_link(raw):
     return ";".join(out), None
 
 
+@app.get("/api/novelties/launch")
+def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
+    """Отчёт «Запуск на МП»: как скоро заведённая модель доезжает до продажи на витринах.
+
+    Единица — ВНЕШНИЙ КОД (модель), а не карточка МС: карточек на коде столько, сколько
+    брендов-поставщиков, а карточка на витрине одна. Данные готовит ежедневный трекер
+    `collectors/launch_track.py`, здесь только выборка и арифметика.
+
+    `days` — окно когорты по дате заведения (0 = все известные), `gaps` — показать только
+    модели, которых нет хотя бы на одной витрине, `supplier` — фильтр по поставщику.
+    """
+    import datetime
+    from collectors.launch_track import SHOWCASES
+    keys = [k for k, _ in SHOWCASES]
+    today = datetime.date.today()
+    since = today - datetime.timedelta(days=days) if days else datetime.date(2026, 6, 14)
+
+    rows = db.query("""SELECT external_code, ms_created, ms_name, supplier_key, cards, archived
+                         FROM prc_launch
+                        WHERE ms_created IS NOT NULL AND ms_created >= %s
+                          AND (%s = '' OR supplier_key = %s)
+                        ORDER BY ms_created DESC, external_code""", (since, supplier, supplier))
+    codes = [r["external_code"] for r in rows]
+    mp = {}
+    for m in db.query("""SELECT external_code, showcase, state, card_at, selling_at, seeded, offer, note
+                           FROM prc_launch_mp WHERE external_code = ANY(%s)""", (codes or [""],)):
+        mp.setdefault(m["external_code"], {})[m["showcase"]] = m
+
+    def cell(r, m):
+        """Клетка витрины: состояние, причина и сколько дней от заведения до продажи."""
+        if not m:
+            return {"state": "none", "note": "", "days": None, "about": False, "offer": None}
+        days_ = None
+        about = False                      # «≤ N дней»: переход мы не видели, карточка уже была
+        if m["selling_at"] and r["ms_created"]:
+            days_ = (m["selling_at"] - r["ms_created"]).days
+        elif m["state"] == "selling" and m["seeded"] and r["ms_created"]:
+            days_, about = (today - r["ms_created"]).days, True
+        return {"state": m["state"], "note": m["note"] or "", "days": days_,
+                "about": about, "offer": m["offer"]}
+
+    out, funnel = [], {k: {"none": 0, "card": 0, "selling": 0} for k in keys}
+    for r in rows:
+        cells = {k: cell(r, (mp.get(r["external_code"]) or {}).get(k)) for k in keys}
+        for k in keys:
+            funnel[k][cells[k]["state"]] += 1
+        if gaps and all(c["state"] == "selling" for c in cells.values()):
+            continue
+        out.append({"ext": r["external_code"], "created": str(r["ms_created"]),
+                    "name": r["ms_name"], "supplier": r["supplier_key"], "cards": r["cards"],
+                    "archived": r["archived"], "mp": cells})
+
+    months = {m["m"]: {"m": m["m"], "models": m["c"], "cards": 0, "any": m["a"], "all": m["b"]}
+              for m in db.query("""
+        SELECT to_char(l.ms_created, 'YYYY-MM') m, count(*) c,
+               count(*) FILTER (WHERE s.any_sell) a, count(*) FILTER (WHERE s.all_sell) b
+          FROM prc_launch l
+          LEFT JOIN (SELECT external_code, bool_or(state = 'selling') any_sell,
+                            bool_and(state = 'selling') all_sell
+                       FROM prc_launch_mp GROUP BY 1) s USING (external_code)
+         WHERE l.ms_created IS NOT NULL GROUP BY 1""")}
+    for c in db.query("""SELECT to_char(f, 'YYYY-MM') m, count(*) c FROM (
+                           SELECT p.ms_id, min(r.loaded_at)::date f
+                             FROM ms_product p JOIN raw_moysklad_product r ON r.ms_id = p.ms_id
+                            WHERE p.external_code ~ '^[0-9]{4}$' GROUP BY 1) t
+                         WHERE f > '2026-06-13' GROUP BY 1"""):
+        months.setdefault(c["m"], {"m": c["m"], "models": 0, "cards": 0, "any": 0, "all": 0})
+        months[c["m"]]["cards"] = c["c"]
+
+    head = db.query("""SELECT count(*) FILTER (WHERE ms_created = %s) today,
+                              count(*) FILTER (WHERE ms_created >= %s) d30,
+                              count(*) FILTER (WHERE ms_created IS NOT NULL) known
+                         FROM prc_launch""", (today, today - datetime.timedelta(days=30)))[0]
+    sla = db.query("""SELECT percentile_cont(0.5) WITHIN GROUP (
+                          ORDER BY (selling_at - l.ms_created)) med, count(*) n
+                        FROM prc_launch_mp p JOIN prc_launch l USING (external_code)
+                       WHERE p.selling_at IS NOT NULL AND l.ms_created IS NOT NULL""")[0]
+    stale = db.query("""SELECT max(updated_at) u FROM prc_launch""")[0]["u"]
+    return {"showcases": [{"key": k, "title": t} for k, t in SHOWCASES],
+            "today": head["today"], "d30": head["d30"], "known": head["known"],
+            "cohort": len(rows), "shown": len(out), "funnel": funnel,
+            "median_days": float(sla["med"]) if sla["med"] is not None else None,
+            "median_n": sla["n"], "months": sorted(months.values(), key=lambda x: x["m"]),
+            "updated": stale.isoformat(timespec="minutes") if stale else None,
+            "rows": out[:600]}
+
 @app.get("/api/novelties/probe")
 def novelties_probe(id: int, code: str):
     """Сверка строки с товаром, код которого человек ВПЕЧАТАЛ руками. Ничего не пишет.
