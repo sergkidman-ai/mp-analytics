@@ -44,7 +44,8 @@ app.include_router(wh_loss_router)
 NOVELTY_ONLY_USERS = {u.strip() for u in
                       os.getenv("PULT_NOVELTY_USERS", "novelty").split(",") if u.strip()}
 
-# Что оператору можно: страница раздела, картинки инструкции и API четырёх подвкладок.
+# Что оператору можно: страница раздела, картинки инструкции и API всех её подвкладок
+# (разбор, чёрный список, несопоставленное, «Запуск на МП» — он под префиксом /api/novelties).
 NOVELTY_ALLOW_EXACT = {"/warehouse/novelties"}
 NOVELTY_ALLOW_PREFIX = ("/warehouse/novelties/img/", "/api/novelties", "/api/blacklist",
                         "/api/unlinked")
