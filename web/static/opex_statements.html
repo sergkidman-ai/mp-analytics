@@ -96,7 +96,7 @@
     <button class="lnk" id="btn-rules" onclick="toggleRules()">🔁 правила</button>
     <button class="lnk" id="btn-import" onclick="pickFile()"
             title="Загрузить выписку файлом — для банков без API (Озон Банк)">📤 файл выписки</button>
-    <input type="file" id="f-file" accept=".txt,.csv,.xlsx,.xls,.1c" style="display:none"
+    <input type="file" id="f-file" accept=".pdf,.txt,.csv,.xlsx,.xls,.1c" style="display:none"
            onchange="uploadFile(this)">
   </div>
   <div class="wrap" id="rules" style="display:none;margin-bottom:14px"></div>
@@ -113,7 +113,7 @@
      налог за прошлый месяц — это −1). НДС и всё, что относится к месяцу оплаты, оставляй 1.
      Платежи поставщикам оставляй без статьи: они уедут в раздел «Кэшфлоу».<br>
      <b>«📤 файл выписки»</b> — для Озон Банка: у него нет API, выписку выгружаешь из личного кабинета
-     (лучше в формате <b>1С</b>, годятся и CSV/XLSX) и загружаешь сюда файлом в ту фирму, что выбрана слева.
+     (годится <b>PDF</b> — печатная форма из ЛК; ещё лучше <b>1С</b>, читаются и CSV/XLSX) и загружаешь сюда файлом в ту фирму, что выбрана слева.
      Сначала покажу, что нашёл в файле, и спрошу подтверждение; повторная загрузка того же периода
      дублей не создаёт.</p>
 </main>

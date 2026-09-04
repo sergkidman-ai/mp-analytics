@@ -11,6 +11,9 @@
 Форматы:
   * **1С** (`1CClientBankExchange`, .txt) — основной и самый полный: есть ИНН, счета,
     БИК, номер и дата документа, назначение. Кодировка cp1251 или utf-8 — определяется.
+  * **PDF** (`parse_pdf`) — печатная форма, которую Озон Банк отдаёт по расчётному счёту.
+    Разбор по координатам слов (`pdftotext -bbox-layout` из poppler-utils), а не по колонкам
+    из пробелов; полнота проверяется по «Итого обороты» самой выписки.
   * **CSV / XLSX** — фолбэк по заголовкам колонок (банки называют их по-разному,
     поэтому распознавание — по ключевым словам). Если обязательную колонку не нашли,
     падаем с перечнем реальных заголовков файла, а не молча импортируем мусор.
@@ -252,6 +255,194 @@ def parse_table(data, filename, bank, org_inn, account=None):
     return ops, account
 
 
+# ── формат PDF (Озон Банк отдаёт выписку только печатной формой) ──────────────
+# Разбираем по КООРДИНАТАМ слов, а не по «картинке» из пробелов (`pdftotext -layout`):
+# в таблице выписки имя контрагента занимает три строки, назначение переносится, а колонки
+# в двух выписках одного и того же банка стоят на разной ширине. Координаты дают колонку
+# однозначно: границами служат слова шапки («Дебет», «Кредит», «Назначение»), а строкой —
+# вертикальная полоса вокруг даты операции, потому что дата у записи ровно одна, а строк текста
+# в ней три-четыре.
+XHTML = "{http://www.w3.org/1999/xhtml}"
+PDF_FOOT = ("всего", "итого", "исходящий")       # подвал таблицы: обороты и остаток, не операции
+
+
+def _pdf_xml(data):
+    """PDF → XHTML с координатами каждого слова (pdftotext -bbox-layout, poppler-utils)."""
+    import subprocess
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        src, out = pathlib.Path(tmp) / "s.pdf", pathlib.Path(tmp) / "s.xml"
+        src.write_bytes(data)
+        try:
+            subprocess.run(["pdftotext", "-bbox-layout", "-q", str(src), str(out)],
+                           check=True, capture_output=True)
+        except FileNotFoundError:
+            raise ValueError("PDF читает pdftotext из poppler-utils, а его нет в системе "
+                             "(apt-get install poppler-utils)")
+        except subprocess.CalledProcessError as e:
+            raise ValueError("pdftotext не смог прочитать файл: "
+                             + (e.stderr or b"").decode("utf-8", "replace")[:200])
+        return out.read_text(encoding="utf-8", errors="replace")
+
+
+def _pdf_pages(data):
+    """→ [страница], страница = [(x_начала, x_конца, y, слово)]. Пустые слова выброшены."""
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(_pdf_xml(data))
+    pages = []
+    for pg in root.iter(XHTML + "page"):
+        ws = [(float(w.get("xMin")), float(w.get("xMax")), float(w.get("yMin")),
+               (w.text or "").strip()) for w in pg.iter(XHTML + "word")]
+        pages.append([w for w in ws if w[3]])
+    return [p for p in pages if p]
+
+
+def _pdf_text(page):
+    """Страница → текст построчно (слова одной строки склеены пробелом) — для шапки выписки."""
+    rows = {}
+    for x0, x1, y, t in sorted(page, key=lambda w: (w[2], w[0])):
+        key = next((k for k in rows if abs(k - y) <= 2.5), y)
+        rows.setdefault(key, []).append(t)
+    return "\n".join(" ".join(v) for _, v in sorted(rows.items()))
+
+
+def _pdf_anchors(page):
+    """Шапка таблицы → x-начала колонок и y шапки; на странице без шапки → None."""
+    want = {"date": "дата", "doc": "номер", "debit": "дебет", "credit": "кредит",
+            "cp": "контрагент", "acct": "сч", "purpose": "назначение"}
+    # Ищем ТОЛЬКО в полосе вокруг слова «Дебет»: шапка таблицы стоит под шапкой самой выписки,
+    # а там есть свой «Счет:» с нашим расчётным — по нему граница колонки уезжала влево.
+    head_y = min([w[2] for w in page if w[3].lower().startswith("дебет")] or [None])
+    if head_y is None:
+        return None
+    got = {}
+    for x0, x1, y, t in sorted(page, key=lambda w: (w[2], w[0])):
+        if abs(y - head_y) > 20:
+            continue
+        low = t.lower().replace("c", "с")            # «Cчёт,» в шапке набран ЛАТИНСКОЙ C
+        for role, key in want.items():
+            if role not in got and low.startswith(key):
+                got[role] = x0
+    if len(got) < len(want):
+        return None
+    got["_y"] = head_y
+    return got
+
+
+def _pdf_rows(page, A, head_y=None):
+    """Слова страницы → строки таблицы: {колонка: [(y, x, слово)]}.
+
+    Границы строки — середины между соседними датами: у записи есть текст и выше даты
+    (имя контрагента), и ниже (ИНН, БИК, перенос назначения), поэтому «от даты до даты»
+    рвало бы запись пополам."""
+    # `head_y` — шапка ЭТОЙ страницы; на страницах-продолжениях её нет, и отсекать там нечего:
+    # таблица идёт с самого верха листа (по шапке первой страницы срезалась вся вторая).
+    body = [w for w in page if head_y is None or w[2] > head_y + 4]
+    stop = min([w[2] for w in body
+                if w[0] < A["debit"] and w[3].lower().startswith(PDF_FOOT)] or [1e9])
+    body = [w for w in body if w[2] < stop]
+    ys = sorted(w[2] for w in body
+                if w[0] < A["doc"] - 4 and re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", w[3]))
+    if not ys:
+        return []
+    gap = min([b - a for a, b in zip(ys, ys[1:])] or [28.0])
+    pad = min(14.0, gap / 2)
+    out = []
+    for i, y in enumerate(ys):
+        top = (y + ys[i - 1]) / 2 if i else y - pad
+        bot = (y + ys[i + 1]) / 2 if i + 1 < len(ys) else min(stop, y + pad)
+        cols = {"date": [], "doc": [], "amt": [], "cp": [], "acct": [], "purpose": []}
+        for x0, x1, wy, t in body:
+            if not top <= wy < bot:
+                continue
+            if x0 >= A["purpose"] - 8:
+                cols["purpose"].append((wy, x0, t))
+            elif x0 >= A["acct"] - 8:
+                cols["acct"].append((wy, x0, t))
+            elif x0 >= A["cp"] - 8:
+                cols["cp"].append((wy, x0, t))
+            elif x0 >= A["debit"] - 20:
+                cols["amt"].append((wy, x0, x1, t))   # суммы прижаты вправо, колонку даёт x конца
+            elif x0 >= A["doc"] - 8:
+                cols["doc"].append((wy, x0, t))
+            else:
+                cols["date"].append((wy, x0, t))
+        out.append(cols)
+    return out
+
+
+def _pdf_join(items):
+    """Слова колонки → строка в порядке чтения (сверху вниз, слева направо)."""
+    return re.sub(r"\s+", " ", " ".join(t for it in sorted(items) for t in (it[-1],))).strip()
+
+
+def parse_pdf(data, bank, org_inn, account=None):
+    """Печатная выписка PDF → (записи, наш счёт).
+
+    Наш счёт и ИНН берём из шапки выписки; ИНН сверяем с фирмой, в которую грузим, — иначе
+    выписка Дисквэра молча легла бы в Цифровой квадрат. В конце сверяем разобранные обороты
+    с «Итого» самой выписки: расхождение значит, что разбор потерял операцию, и лучше упасть,
+    чем залить в БД неполный месяц."""
+    pages = _pdf_pages(data)
+    if not pages:
+        raise ValueError("в PDF нет текста — похоже, это скан; нужна выгрузка из банка файлом")
+    head = _pdf_text(pages[0])
+    m_inn = re.search(r"ИНН:?\s*(\d{10,12})", head)
+    if m_inn and org_inn and m_inn.group(1) != str(org_inn):
+        raise ValueError(f"это выписка фирмы с ИНН {m_inn.group(1)}, "
+                         f"а грузим в {org_inn} — выбери в списке слева ту же фирму")
+    m_acc = re.search(r"[Сc]ч[ёе]т:?\s*(\d{20})", head)
+    our = account or (m_acc.group(1) if m_acc else None)
+
+    A, ops = None, []
+    for pg in pages:
+        a = _pdf_anchors(pg)               # на страницах-продолжениях шапки нет — колонки те же
+        A = a or A
+        if A is None:
+            continue
+        for c in _pdf_rows(pg, A, head_y=(a["_y"] if a else None)):
+            day = _date(_pdf_join(c["date"]))
+            amount, x_end = None, 0.0
+            for wy, x0, x1, t in sorted(c["amt"]):
+                v = _amount(t)
+                if v is not None:
+                    amount, x_end = v, x1
+                    break
+            if not day or amount is None:
+                continue
+            cp = _pdf_join(c["cp"])
+            acct = _pdf_join(c["acct"])
+            m = re.search(r"ИНН:?\s*(\d{10,12})", cp)
+            cp_inn = m.group(1) if m else None
+            cp_name = re.sub(r"\s+", " ", re.sub(r"ИНН:?\s*\d{10,12}", "", cp)).strip() or None
+            m_ca = re.search(r"[СC]:?\s*(\d{20})", acct)
+            m_bic = re.search(r"БИК:?\s*(\d{9})", acct)
+            ops.append(_row(
+                bank, our,
+                # колонка «Дебет» кончается там, где начинается «Кредит»: сумма, прижатая
+                # вправо левее этой границы, — расход
+                "DEBIT" if x_end <= A["credit"] + 2 else "CREDIT",
+                day, amount, _pdf_join(c["purpose"]) or None,
+                doc_no=_pdf_join(c["doc"]) or None,
+                cp_name=cp_name, cp_inn=cp_inn,
+                cp_acc=(m_ca.group(1) if m_ca else None),
+                cp_bic=(m_bic.group(1) if m_bic else None),
+                raw={"pdf": {"date": day, "amount": amount, "cp": cp, "acct": acct}}))
+
+    # контроль полноты: обороты выписки против разобранного
+    for label, key, direction in (("Расходы", "debit", "DEBIT"), ("Поступления", "credit", "CREDIT")):
+        m = re.search(label + r":?\s*([\d  ]+,\d{2})", head)
+        if not m:
+            continue
+        want_sum = _amount(m.group(1))
+        got_sum = round(sum(o["amount"] for o in ops if o["direction"] == direction), 2)
+        if want_sum is not None and abs(want_sum - got_sum) > 0.01:
+            raise ValueError(f"разбор не сошёлся с выпиской: {label.lower()} по шапке "
+                             f"{want_sum:.2f} ₽, разобрано {got_sum:.2f} ₽ "
+                             f"({len(ops)} операций) — формат изменился, грузить нельзя")
+    return ops, our
+
+
 # ── импорт ───────────────────────────────────────────────────────────────────
 def parse(data, filename, bank, org_inn, account=None):
     """Файл любого поддержанного формата → (записи, наш счёт)."""
@@ -259,6 +450,8 @@ def parse(data, filename, bank, org_inn, account=None):
         data = data.encode("utf-8")
     if str(filename).lower().endswith((".xlsx", ".xlsm")):
         return parse_table(data, filename, bank, org_inn, account)
+    if str(filename).lower().endswith(".pdf") or data[:5] == b"%PDF-":
+        return parse_pdf(data, bank, org_inn, account)
     text = decode(data)
     if is_1c(text):
         return parse_1c(text, bank, org_inn, account)

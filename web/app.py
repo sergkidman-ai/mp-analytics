@@ -531,7 +531,7 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
                          "FROM bank_txn WHERE org_inn=%s", (org,))[0]["m"][:10]
     if not month:
         return {"month": None, "org": org, "orgs": [], "items": [], "totals": {}}
-    month = month[:8] + "01"
+    month = _opex_month(month)      # принимает и «2026-08», и «2026-08-01»
     # Банк подставляется в три запроса — держим его отдельным куском условия
     bank = bank if bank.isalpha() else ""
     bw = " AND t.bank = %s" if bank else ""
