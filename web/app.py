@@ -301,8 +301,28 @@ ORG_NAMES = {"7807355364": "Цифровой Квадрат", "7811803918": "Д�
 ORG_ORDER = ["7807355364", "7811803918"]
 # Юрлицо → его аккаунты площадок (чтобы «чистая после расходов» считалась по своей фирме,
 # а не по бизнесу целиком): решение Сергея 04.08.2026 — общего разреза нигде не показываем.
-ORG_ACCOUNTS = {"7807355364": {"wb": "wb_acc1", "oz": "oz_acc1"},
-                "7811803918": {"wb": "wb_acc2", "oz": "oz_acc2"}}
+# Маркет торгует только под Цифровым Квадратом (аккаунт один, ya_acc1); у Дисквэра его нет —
+# ключ "ya" там None, и в «чистой фирмы» площадка не показывается вовсе.
+ORG_ACCOUNTS = {"7807355364": {"wb": "wb_acc1", "oz": "oz_acc1", "ya": "ya_acc1"},
+                "7811803918": {"wb": "wb_acc2", "oz": "oz_acc2", "ya": None}}
+
+
+def _ya_net(account, period):
+    """Чистая Маркета за месяц — ТОЙ ЖЕ формулой, что вкладка «Яндекс» (`/api/yandex/monthly`):
+    (выручка + субсидия) − COGS − расходы МП (комиссия, доставка, перевод, продвижение,
+    агентские, прочие, подписка). Источник — витрина `yandex_finance_monthly`.
+
+    Нет аккаунта у фирмы или нет строки за месяц → None, а не 0: ноль в «чистой фирмы»
+    неотличим от «месяц ещё не собран», и расхождение с вкладкой Маркета читалось бы как убыток."""
+    if not account:
+        return None
+    r = db.query("""SELECT ((coalesce(revenue,0) + coalesce(subsidy,0)) - coalesce(cogs,0)
+                            - (coalesce(fee,0) + coalesce(delivery,0) + coalesce(transfer,0)
+                               + coalesce(promotion,0) + coalesce(agency,0)
+                               + coalesce(other_fee,0) + coalesce(subscription_cost,0)))::float n
+        FROM yandex_finance_monthly WHERE account=%s AND month=%s""",
+        (account, _opex_month(period)))
+    return round(r[0]["n"], 2) if r else None
 
 
 def _opex_month(period):
@@ -372,7 +392,8 @@ def opex(period: str = "", org: str = ""):
                         месяц размечен, см. _opex_is_fact);
       source='manual' — прежний ручной снапшот; он один на бизнес и по фирмам НЕ делится,
                         поэтому отдаётся с флагом org_split=false и показывается как есть.
-    Чистая фирмы = её WB-аккаунт (из margin) + её Ozon-аккаунт (к перечислению − COGS)."""
+    Чистая фирмы = её WB-аккаунт (из margin) + её Ozon-аккаунт (к перечислению − COGS)
+    + её Маркет (`yandex_finance_monthly`, есть только у Цифрового Квадрата)."""
     if not period:
         return {"applies": False, "items": [], "total": 0}
     month = _opex_month(period)
@@ -386,8 +407,11 @@ def opex(period: str = "", org: str = ""):
             WHERE period_from=%s AND platform='wb'""" + (" AND account=%s" if org_split else ""),
             ((period, acc["wb"]) if org_split else (period,)))[0]["n"]
         oz_net = _oz_summary(acc["oz"] if org_split else "", period)["net"]
-        biz = wb_net + oz_net
-        payload.update({"wb_net": round(wb_net, 2), "oz_net": round(oz_net, 2),
+        # Маркет один на бизнес: в разрезе фирмы берём её аккаунт (у Дисквэра его нет),
+        # в общем снапшоте — тот же единственный ya_acc1.
+        ya_net = _ya_net(acc["ya"] if org_split else "ya_acc1", period)
+        biz = wb_net + oz_net + (ya_net or 0)
+        payload.update({"wb_net": round(wb_net, 2), "oz_net": round(oz_net, 2), "ya_net": ya_net,
                         "biz_net": round(biz, 2), "net_after": round(biz - total, 2),
                         "total": round(total, 2), "period": period, "month": month,
                         "org": org, "org_name": ORG_NAMES[org], "orgs": orgs,

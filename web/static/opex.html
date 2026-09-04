@@ -131,11 +131,20 @@ function renderOpex(){
       <div class="ti"><span class="lbl">Аренда</span><span class="vv">${rub(d.rent)}</span></div>
       <div class="ti"><span class="lbl">Налоги</span><span class="vv">${rub(d.tax)}</span></div>
       <div class="ti"><span class="lbl">Итого расходы/мес</span><span class="vv warn">${rub(d.total)}</span></div>
-      <div class="ti"><span class="lbl">Чистая бизнеса (WB+Ozon)</span><span class="vv">${rub(d.biz_net)}</span></div>
+      <div class="ti"><span class="lbl">Чистая бизнеса (${netLabel(d)})</span><span class="vv">${rub(d.biz_net)}</span></div>
       <div class="ti"><span class="lbl">Чистая ПОСЛЕ расходов</span><span class="vv ${naCls}">${rub(d.net_after)}</span></div>
     </div>
-    <div class="note">Чистая бизнеса = WB ${rub(d.wb_net)} + Ozon ${rub(d.oz_net)} за месяц.</div>`;
+    <div class="note">Чистая бизнеса = ${netNote(d)} за месяц.</div>`;
 }
+// Из каких площадок сложилась «чистая»: Маркет есть только у Цифрового Квадрата, поэтому
+// и подпись, и расшифровка собираются по факту, а не зашиты строкой «WB+Ozon».
+function netParts(d){
+  const p=[['WB',d.wb_net],['Ozon',d.oz_net]];
+  if(d.ya_net!=null) p.push(['Маркет',d.ya_net]);
+  return p;
+}
+function netLabel(d){ return netParts(d).map(x=>x[0]).join('+'); }
+function netNote(d){ return netParts(d).map(x=>`${x[0]} ${rub(x[1])}`).join(' + '); }
 function renderFact(d){
   // Факт из размеченной выписки (с 08.2026). Ручной снапшот на этот месяц не действует.
   $('#hint').innerHTML=`Факт по банковской выписке <b>${esc(d.org_name)}</b>: платежи этой фирмы, которым присвоена статья расходов. `
@@ -156,10 +165,10 @@ function renderFact(d){
       <tbody>${rows}</tbody></table>
     <div class="tot" style="margin-top:14px">
       <div class="ti"><span class="lbl">Итого расходы/мес</span><span class="vv warn">${rub(d.total)}</span></div>
-      <div class="ti"><span class="lbl">Чистая фирмы (WB+Ozon)</span><span class="vv">${rub(d.biz_net)}</span></div>
+      <div class="ti"><span class="lbl">Чистая фирмы (${netLabel(d)})</span><span class="vv">${rub(d.biz_net)}</span></div>
       <div class="ti"><span class="lbl">Чистая ПОСЛЕ расходов</span><span class="vv ${naCls}">${rub(d.net_after)}</span></div>
     </div>
-    <div class="note">Чистая ${esc(d.org_name)} = WB ${rub(d.wb_net)} + Ozon ${rub(d.oz_net)} за месяц.</div>`;
+    <div class="note">Чистая ${esc(d.org_name)} = ${netNote(d)} за месяц.</div>`;
 }
 function startEdit(){
   editItems=(opexData.items||[]).map(i=>({name:i.name,role:i.role||'',category:i.category,base:+i.base,tax_pct:+i.tax_pct}));
