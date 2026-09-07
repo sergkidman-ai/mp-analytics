@@ -357,3 +357,159 @@ class Целостность(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+# --- дата прогона (дефект «TODAY прибит гвоздём», найден 07.09.2026) -------------------
+_КОНТРАКТ_X1 = {'id': 'X1', 'hypothesis_id': 'X1', 'тип': 'TREATMENT_CONTROL_DID',
+                'основной_показатель': 'выручка минус расход на SKU в сутки'}
+
+
+class ДатаПрогона(unittest.TestCase):
+    """Прибитая TODAY='2026-08-22' держала evaluate-ready в BEFORE_CHECK_DATE вечно,
+    штамповала evaluated_at прошлым числом и гасила исправленную оценку как «дубль»."""
+
+    def test_today_не_константа_прошлого(self):
+        self.assertNotEqual(E.TODAY, '2026-08-22')
+        self.assertEqual(E.TODAY, dt.datetime.now(dt.timezone.utc).date().isoformat())
+
+    def test_today_берётся_из_override(self):
+        сейчас = os.environ.get('OZON_EVAL_TODAY')
+        os.environ['OZON_EVAL_TODAY'] = '2026-09-07'
+        try:
+            src = _исходник('ozon_eval_core.py')
+            g = {'__name__': 'проверка_даты'}
+            exec(compile(src, 'ozon_eval_core.py', 'exec'), g)
+            self.assertEqual(g['TODAY'], '2026-09-07')
+            hypo = _исходник('ozon_hypo.py').split('# ============================== '
+                                                   'конечный автомат')[0]
+            g2 = {'__name__': 'проверка_даты_hypo'}
+            exec(compile(hypo, 'ozon_hypo.py', 'exec'), g2)
+            self.assertEqual(g2['TODAY'], '2026-09-07')      # D6: второй часов нет
+        finally:
+            if сейчас is None:
+                os.environ.pop('OZON_EVAL_TODAY', None)
+            else:
+                os.environ['OZON_EVAL_TODAY'] = сейчас
+
+    def test_evaluated_at_берёт_дату_прогона(self):
+        rec = E._собрать_запись(
+            _КОНТРАКТ_X1,
+            'CONTINUE_MEASURING', [], 'ch', '2026-09-06', {}, None, None, {}, {}, {}, [], [],
+            [], False, today='2026-09-07')
+        self.assertEqual(rec['evaluated_at'], '2026-09-07')
+
+    def test_дата_входит_в_идентичность(self):
+        общее = (_КОНТРАКТ_X1,
+                 'CONTINUE_MEASURING', [], 'ch', '2026-09-06', {}, None, None, {}, {}, {},
+                 [], [], [], False)
+        a = E._собрать_запись(*общее, today='2026-09-06')
+        b = E._собрать_запись(*общее, today='2026-09-07')
+        c = E._собрать_запись(*общее, today='2026-09-07')
+        self.assertNotEqual(a['evaluation_id'], b['evaluation_id'])
+        self.assertEqual(b['evaluation_id'], c['evaluation_id'])   # повтор в тот же день
+
+    def test_оценить_проносит_дату_в_раннюю_ветку(self):
+        c = dict(_КОНТРАКТ_X1, тип='POWER_BLOCKED')
+        rec = E.оценить(c, None, today='2026-09-07')
+        self.assertEqual(rec['evaluated_at'], '2026-09-07')
+
+
+class ЗагрязнениеНеТеряется(unittest.TestCase):
+    """D5: дрейф когорты находился на шаге 1, а собирался на шаге 7 — все ранние ветки
+    возвращали contaminations=[] и 16 дней прятали пустую когорту из-за чужого аккаунта."""
+
+    def setUp(self):
+        self.кат = tempfile.mkdtemp(prefix='снимок_')
+        with open(os.path.join(self.кат, 'X1_treat.csv'), 'w', encoding='utf-8') as f:
+            f.write('account,sku\n')
+            for i in range(5):                    # снимок шире живой когорты → дрейф
+                f.write(f'oz_acc1,t{i}\n')
+
+    def _контракт_с_дрейфом(self, **kw):
+        return _контракт(снимок_treatment='X1_treat.csv', **kw)
+
+    def _оценить(self, c, d):
+        return E.оценить(c, d, today='2026-08-22', журнал=[], каталог_когорт=self.кат)
+
+    def test_дрейф_виден_до_даты_сверки(self):
+        d = _данные([100.0] * 3, [0.0] * 3)
+        r = self._оценить(self._контракт_с_дрейфом(дата_сверки='2026-09-30'), d)
+        self.assertEqual(r['verdict'], 'CONTINUE_MEASURING')
+        self.assertIn('BEFORE_CHECK_DATE', r['reason_codes'])
+        self.assertIn('COHORT_DRIFT', r['reason_codes'])
+        self.assertTrue(any(z['код'] == 'COHORT_DRIFT' for z in r['contaminations']))
+
+    def test_дрейф_виден_на_незрелых_данных(self):
+        d = _данные([100.0] * 3, [0.0] * 3)
+        d.зрелые = False
+        r = self._оценить(self._контракт_с_дрейфом(), d)
+        self.assertEqual(r['verdict'], 'CONTINUE_MEASURING')
+        self.assertIn('DATA_NOT_MATURE', r['reason_codes'])
+        self.assertIn('COHORT_DRIFT', r['reason_codes'])
+
+    def test_дрейф_не_дублируется_в_полном_прогоне(self):
+        d = _данные([100.0] * 3, [0.0] * 3)
+        r = self._оценить(self._контракт_с_дрейфом(), d)
+        self.assertEqual(r['reason_codes'].count('COHORT_DRIFT'), 1)
+        self.assertEqual(len([z for z in r['contaminations']
+                              if z['код'] == 'COHORT_DRIFT']), 1)
+
+
+class НезамороженныйКонтроль(unittest.TestCase):
+    """§3: состав контроля, взятый живым запросом по перезаписываемому журналу ставок,
+    прегистрацией не является. Факт объявляется контрактом, а не додумывается кодом."""
+
+    def test_флаг_снимает_причинность_и_даёт_непричинный_итог(self):
+        d = _данные([100.0 + i * 0.1 for i in range(30)], [i * 0.1 for i in range(30)])
+        r = _оценить(_контракт(контроль_заморожен=False), d)
+        self.assertEqual(r['verdict'], 'NO_CAUSAL_CLAIM')
+        self.assertIn('MISSING_FROZEN_CONTROL', r['reason_codes'])
+        self.assertFalse(r['causal_claim_allowed'])
+        self.assertNotIn(r['recommendation'], ('KEEP', 'ROLLBACK'))
+
+    def test_без_флага_поведение_не_меняется(self):
+        d = _данные([100.0 + i * 0.1 for i in range(30)], [i * 0.1 for i in range(30)])
+        r = _оценить(_контракт(), d)
+        self.assertNotIn('MISSING_FROZEN_CONTROL', r['reason_codes'])
+        self.assertEqual(r['verdict'], 'EFFECT_CONFIRMED_POSITIVE')
+
+    def test_итог_терминальный_а_не_вечное_измерение(self):
+        d = _данные([100.0] * 30, [0.0] * 30)
+        r = _оценить(_контракт(контроль_заморожен=False), d)
+        self.assertNotIn(r['verdict'], ('CONTINUE_MEASURING', 'CONTAMINATED'))
+        self.assertNotEqual(r['verdict'], 'CONTAMINATED')
+
+
+class АккаунтКонтракта(unittest.TestCase):
+    """Аккаунт для проверки зрелости берётся из контракта: E6 идёт на oz_acc2, а прогон
+    evaluate-ready стартует с oz_acc1 — готовность данных проверялась у чужих загрузчиков."""
+
+    созданные = []
+
+    class _Источник(ФейкДанные):
+        def __init__(self, acc, **kw):
+            super().__init__(**kw)
+            self.acc = acc
+            АккаунтКонтракта.созданные.append(acc)
+
+    def setUp(self):
+        АккаунтКонтракта.созданные.clear()
+
+    def test_источник_перепривязывается_к_аккаунту_контракта(self):
+        d = self._Источник('oz_acc1')
+        c = _контракт(account='oz_acc2', тип='VOID_NEVER_APPLIED')
+        r = E.оценить(c, d, today='2026-08-22', журнал=[], каталог_когорт=ПУСТОЙ)
+        self.assertEqual(r['verdict'], 'VOID')
+        self.assertEqual(АккаунтКонтракта.созданные, ['oz_acc1', 'oz_acc2'])
+
+    def test_совпадающий_аккаунт_источник_не_подменяет(self):
+        d = self._Источник('oz_acc1')
+        r = E.оценить(_контракт(account='oz_acc1'), d, today='2026-08-22', журнал=[],
+                      каталог_когорт=ПУСТОЙ)
+        self.assertIsNotNone(r['verdict'])
+        self.assertEqual(АккаунтКонтракта.созданные, ['oz_acc1'])   # подмены не было
+
+    def test_источник_без_аккаунта_не_трогается(self):
+        d = _данные([100.0] * 20, [0.0] * 20)        # ФейкДанные, поля acc нет
+        r = _оценить(_контракт(account='oz_acc2'), d)
+        self.assertIsNotNone(r['verdict'])

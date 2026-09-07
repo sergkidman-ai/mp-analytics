@@ -43,7 +43,10 @@ STUDIES = BASE + '/docs/experiments/ozon_observational_studies.json'
 COHORTS = BASE + '/docs/experiments/cohorts'
 REPORTS = BASE + '/docs/reports'
 
-TODAY = '2026-08-21'          # дата прогона задаётся явно: скрытых now() в расчётах нет
+TODAY = (os.environ.get('OZON_EVAL_TODAY')
+         or dt.datetime.now(dt.timezone.utc).date().isoformat())
+# дата прогона: реальная UTC-дата или тот же детерминированный override, что у evaluator.
+# Прибитая константа штамповала переход MEASURING→EVALUATED в журнале прошлым числом.
 
 # ============================== конечный автомат ======================================
 СТАТУСЫ = ('OBSERVED', 'DRAFT', 'VALIDATED', 'READY', 'APPROVAL_REQUIRED', 'RUNNING',
