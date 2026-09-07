@@ -67,26 +67,57 @@ def api(method, params=None, timeout=60):
         return json.loads(r.read())
 
 
+# Канал до Telegram с этого сервера рвётся: замер 07.09.2026 — половина соединений падает с
+# [Errno 101] Network is unreachable, при том что api-seller.ozon.ru отвечает 10 из 10 (то есть
+# фильтруют Telegram, а не нас). Без повторов карточка при обрыве просто не уходила, строка
+# оставалась 'queued' и об этом никто не узнавал: 07.09 так молча не ушли 3 карточки из 15.
+SEND_TRIES = int(os.getenv("FEEDBACK_TG_SEND_TRIES", "4"))
+
+
+def _transient(e):
+    """Обрыв канала (сеть, 429, 5xx) — повтор осмыслен. 400/403 — отказ самого Telegram
+    (нет чата, забанен бот, битый HTML): повтор его не переубедит, только тянет время."""
+    if isinstance(e, urllib.error.HTTPError):
+        return e.code == 429 or 500 <= e.code < 600
+    return isinstance(e, (urllib.error.URLError, OSError, TimeoutError))
+
+
+def _api_retry(method, params, what):
+    """api() с повторами на транзиентных ошибках. Возвращает ответ Telegram или None.
+    Провал всех попыток логируется ГРОМКО: это потерянное сообщение, а не шум."""
+    for attempt in range(1, SEND_TRIES + 1):
+        try:
+            r = api(method, params)
+            if attempt > 1:
+                log(f"{method} прошло с попытки {attempt}/{SEND_TRIES} ({what})")
+            return r
+        except Exception as e:
+            if not _transient(e):
+                log(f"{method} отказ Telegram, повтор бессмысленен ({what}): {e}")
+                return None
+            if attempt == SEND_TRIES:
+                log(f"⚠️ {method} НЕ ДОСТАВЛЕНО за {SEND_TRIES} попыток ({what}): {e}")
+                return None
+            pause = 2 ** attempt                   # 2, 4, 8 с — переживает короткий обрыв канала
+            log(f"{method} попытка {attempt}/{SEND_TRIES} не прошла ({what}): {e}; "
+                f"повтор через {pause}с")
+            time.sleep(pause)
+    return None
+
+
 def send(chat_id, text, reply_markup=None):
     text = text if len(text) <= 4000 else text[:3990] + "\n…(обрезано)"
     p = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     if reply_markup:
         p["reply_markup"] = reply_markup
-    try:
-        r = api("sendMessage", p)
-        return r.get("result", {}).get("message_id")
-    except Exception as e:
-        log(f"sendMessage error: {e}")
-        return None
+    r = _api_retry("sendMessage", p, f"chat={chat_id}")
+    return (r or {}).get("result", {}).get("message_id")
 
 
 def edit_text(chat_id, message_id, text):
     p = {"chat_id": chat_id, "message_id": message_id, "text": text[:4000],
          "parse_mode": "HTML", "disable_web_page_preview": True}
-    try:
-        api("editMessageText", p)
-    except Exception as e:
-        log(f"editMessageText error: {e}")
+    _api_retry("editMessageText", p, f"chat={chat_id} msg={message_id}")
 
 
 def answer_cb(cb_id, text=""):
@@ -320,7 +351,7 @@ def flush_deferred(limit=20):
 
 def send_batch(limit=5, days=None, kind=None):
     """Разослать ПОРЦИЮ карточек за окно `days` (по кнопке). Возвращает число реально отправленных."""
-    sent = 0
+    sent = lost = 0
     for row in _pending(limit, days, kind):
         card, kb = _card(row), _kb(row["id"], allow_send=(row.get("draft_route") != "human"
                                                           and publish_gate.verdict(row)[0]))
@@ -333,6 +364,12 @@ def send_batch(limit=5, days=None, kind=None):
             _set(row["id"], "carded", tg_chat_id=int(canon[0]), tg_msg_id=canon[1], carded_at="now()")
             log(f"card sent mod={row['id']} {row['platform']} {row['kind']} q={row['ext_id']} msg={canon[1]}")
             sent += 1
+        else:                                      # молчать тут нельзя: карточка не дошла, и без
+            lost += 1                              # этой строки потеря выглядит как «нечего слать»
+            log(f"⚠️ КАРТОЧКА НЕ УШЛА mod={row['id']} {row['platform']} {row['kind']} "
+                f"q={row['ext_id']} — остаётся в очереди, повторит следующий цикл")
+    if lost:
+        log(f"⚠️ итог рассылки: доставлено {sent}, потеряно {lost} — канал до Telegram рвётся")
     return sent
 
 
