@@ -79,8 +79,10 @@ Authorization Code Flow требует **интерактивного входа
 | Атрибуты платёжки | `GET /api/jp/v2/payments/{externalId}` |
 | Статус | `GET /api/jp/v2/payments/{externalId}/state` |
 | Печатная форма PDF | `POST /api/jp/v2/payments/{externalId}/print-form/download` |
-| Реестр платежей | `POST /api/jp/v2/payments/registries` |
+| Создать реестр рублёвых платежей | `POST /api/jp/v1/registries` |
+| Список платежей реестра | `GET /api/jp/v1/registries/{registryId}/payments` |
 
+- ⚠️ **Реестры, миграция до 01.10.2026** (письмо банка 07.09.2026): старые адреса `POST /api/jp/v2/payments/registries` и `GET /api/jp/v2/payments/registries/{registryId}` переводятся на `POST /api/jp/v1/registries` и `GET /api/jp/v1/registries/{registryId}/payments`. Хосты прежние: prod `https://baas.alfabank.ru`, sandbox `https://sandbox.alfabank.ru`. В нашем коде эти методы не используются (живой вызов только выписка `GET /api/jp/v1/statement/transactions`), правка только в этом справочнике.
 - **Неподписанный черновик (наш кейс):** `POST /payments` **без** `digestSignatures` → черновик; виден в вебе Альфа-Бизнес → «Платежи в работе» → «На подпись», где человек подписывает. (Если слать сразу подписанным из API — включить `digestSignatures`, тогда `payeeInn` обязателен.)
 - **Обязательные поля:** `number`, `date`, `amount`, `urgencyCode` (напр. `NORMAL`), `deliveryKind` («электронно»); блок плательщика `payerName/payerInn/payerKpp/payerAccount/payerBankBic/payerBankCorrAccount`; блок получателя `payeeName/payeeInn/payeeKpp/payeeAccount/payeeBankBic/payeeBankCorrAccount`; бюджетные — `departmentalInfo` (`uip`, `drawerStatus101`, …). BIC — поля `payerBankBic`/`payeeBankBic`.
 - **Подпись** (если понадобится подписывать из API): PKCS#7 Detached, DER; подписывается тело POST; `digestSignatures[] = {base64Encoded, certificateUuid}`. Одинарная/двойная подпись.
