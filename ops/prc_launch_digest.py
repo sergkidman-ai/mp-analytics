@@ -43,7 +43,7 @@ def build():
     """Текст сводки. Возвращает None, когда говорить не о чем."""
     today = datetime.date.today()
     fresh = db.query("""SELECT external_code, ms_name FROM prc_launch
-                         WHERE ms_created >= %s ORDER BY external_code""",
+                         WHERE ms_created >= %s AND NOT archived ORDER BY external_code""",
                      (today - datetime.timedelta(days=1),))
     stuck = db.query("""
         SELECT l.external_code, l.ms_name, l.ms_created,
@@ -56,7 +56,9 @@ def build():
     if not fresh and not stuck:
         return None
 
-    lines = [f"🚀 Запуск новинок на МП — {today:%d.%m}"]
+    lines = [f"🚀 Запуск новинок на МП — {today:%d.%m}",
+             "Считаем только новые внешние коды: привязка товара поставщика",
+             "к действующему коду новинкой не считается."]
     if fresh:
         lines.append(f"\nЗаведено за сутки: {len(fresh)} моделей")
         for r in fresh[:10]:

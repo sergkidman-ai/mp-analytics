@@ -6,11 +6,23 @@
 а карточка на витрине — одна. Поэтому «новых моделей» и «новых карточек МС» — разные числа,
 и в отчёте они стоят рядом.
 
+Новинка — это НОВЫЙ ВНЕШНИЙ КОД (решение Сергея 07.09.2026). Привязка товара поставщика
+к нашему действующему коду новинкой не считается: модель у нас уже есть, новых карточек на
+витринах она не требует. Поэтому единица учёта — код, и в отчёт идут только те коды, чьё
+ПЕРВОЕ появление в МойСкладе мы видели своими глазами.
+
 Дата заведения. Своей истории у нас нет, но `raw_moysklad_product.loaded_at` хранит момент
 ПЕРВОГО попадания карточки в слепок (upsert не трогает столбец), а слепок снимается ежедневно
 в `run_daily`. Значит дата первого появления кода = min(loaded_at) по его карточкам, с точностью
 до дня. 13.06.2026 — день первой полной загрузки (44 284 карточки): всё, что пришло тогда,
 заведено ДО начала наблюдений, у таких кодов даты нет и в статистику запусков они не идут.
+
+Два фильтра против ложных новинок (07.09.2026):
+  • Слепок МС не берёт архивные карточки — их 11 332 из 56 678. Если у кода есть карточка
+    вне слепка, код существовал до начала наблюдений: дату не ставим. Раньше таким кодам
+    трекер ставил дату своего прогона, и 63 старых кода всплывали как «заведено за сутки».
+  • Если по коду есть отгрузка раньше «даты заведения», код тоже старый (проверка по
+    `ms_demand_pos`): продать модель до её появления нельзя.
 
 Присутствие на витрине снимается из каталогов, которые и так собираются ежедневно:
   Ozon   — `ozon_product` (оффер есть / в архиве) + отдельный запрос списка visibility=VISIBLE:
@@ -78,12 +90,25 @@ def ms_models():
                min(p.name)                     AS name,
                count(*)                        AS cards,
                bool_and(p.archived)            AS archived,
-               min(r.loaded_at)::date          AS first_seen
+               min(r.loaded_at)::date          AS first_seen,
+               count(*) FILTER (WHERE r.ms_id IS NULL) AS outside
           FROM ms_product p
           LEFT JOIN raw_moysklad_product r ON r.ms_id = p.ms_id
          WHERE p.external_code ~ '^[0-9]{4}$'
          GROUP BY 1""")
     return {r["ext"]: r for r in rows}
+
+
+def sold_before():
+    """Код → дата первой отгрузки. Продажа раньше «заведения» — значит код не новый."""
+    rows = db.query("""
+        SELECT p.external_code ext, min(d.moment)::date first_sale
+          FROM ms_demand_pos pos
+          JOIN ms_demand_cogs d USING (demand_id)
+          JOIN ms_product p ON p.ms_id = pos.ms_id
+         WHERE p.external_code ~ '^[0-9]{4}$'
+         GROUP BY 1""")
+    return {r["ext"]: r["first_sale"] for r in rows}
 
 
 def novelty_meta():
@@ -188,17 +213,22 @@ def main():
     db.execute(DDL)
     today = datetime.date.today()
     seed = db.query("SELECT count(*) c FROM prc_launch")[0]["c"] == 0
-    models, nov = ms_models(), novelty_meta()
+    models, nov, sold = ms_models(), novelty_meta(), sold_before()
 
-    recs = []
+    recs, dropped = [], 0
     for ext, m in models.items():
         first = m["first_seen"]
-        if first and first > FIRST_LOAD:
+        if m["outside"]:
+            # Есть карточка вне слепка (архивная) — код жил до начала наблюдений.
+            created, src = None, "outside"
+        elif first and first > FIRST_LOAD:
             created, src = first, "raw"           # видели появление карточки в слепке
-        elif first:
-            created, src = None, "before"         # пришло первой полной загрузкой 13.06.2026
         else:
-            created, src = (None, "before") if seed else (today, "tracker")
+            created, src = None, "before"         # пришло первой полной загрузкой 13.06.2026
+        if created and (sold.get(ext) or created) < created:
+            created, src = None, "sold"           # продавали раньше, чем «завели» — код старый
+        if src in ("outside", "sold"):
+            dropped += 1
         n = nov.get(ext) or {}
         recs.append({"external_code": ext, "ms_created": created, "ms_source": src,
                      "ms_name": m["name"], "supplier_key": n.get("supplier"),
@@ -207,7 +237,8 @@ def main():
         r.pop("updated_at")
     db.upsert("prc_launch", recs, conflict_cols=["external_code"],
               update_cols=["ms_created", "ms_source", "ms_name", "supplier_key", "cards", "archived"])
-    print(f"  моделей МС: {len(recs)}, с датой заведения: {sum(1 for r in recs if r['ms_created'])}")
+    print(f"  моделей МС: {len(recs)}, новых кодов с датой заведения: "
+          f"{sum(1 for r in recs if r['ms_created'])} (отсеяно как не новинки: {dropped})")
 
     prev = {(r["external_code"], r["showcase"]): r for r in db.query(
         "SELECT external_code, showcase, state, card_at, selling_at, seeded FROM prc_launch_mp")}
