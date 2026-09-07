@@ -57,6 +57,8 @@ WHITELIST = ("распродажа стока",    # (региональные �
 GOAL_NET = 300.0                    # сколько минимум хотим оставить себе с единицы, ₽
 STEPS = 4                           # снижений от потолка до пола
 STEP_DAYS = 7                       # шаг раз в неделю
+REJECT_DAYS = 7                     # окно памяти по отказам площадки
+REJECT_TRIES = 3                    # столько отказов по цене — товар откладываем
 FLAT_EPS = 0.05                     # ход меньше 5% потолка → лестницу не строим, стоим на потолке
 KEEP_FALLBACK = {"oz_acc1": 0.421, "oz_acc2": 0.459}   # доля, что остаётся после удержаний Ozon
 SERGEY_CHAT_ID = 1031321444         # только явный chat_id, см. память telegram-channels
@@ -336,6 +338,10 @@ def _decide(row, keep, state, others, today, undercut=True):
     if last and (today - last).days >= STEP_DAYS and rung < STEPS:
         rung += 1
         row["stepped"] = True
+    # Дату шага двигаем ТОЛЬКО вместе со ступенью. Пока стоим на месте — несём старую дату,
+    # иначе ежедневный прогон переписывает отсчёт и семь дней не наступают никогда: с 22.08
+    # по 07.09 все 65 товаров так и простояли на ступени 0, по потолку.
+    row["step_on"] = today if (row.get("stepped") or not last) else last
     row["floor"], row["rung"] = round(floor, 2), rung
     price, why = price_for(cap, floor, rung)
     row["price"], row["why"] = price, why
@@ -355,6 +361,7 @@ def plan_account(account):
     # Чужие цены одинаковы для всех наших акций (свои из подрезки исключены) — читаем один раз:
     # иначе каждая белая акция заново вычитывает участников всех остальных (тысячи позиций).
     others = other_action_min(account, None)
+    stuck = rejected_recently(account)
     plans = []
     for a in acts:
         aid, title = a["id"], a.get("title")
@@ -389,6 +396,9 @@ def plan_account(account):
                 if row["stock"] < need and not row["inside"]:
                     row["skip"] = f"остаток {row['stock']} < нужно {need}"
                     continue
+                if c["id"] in stuck:
+                    row["skip"] = f"площадка не берёт цену: {stuck[c['id']]}"
+                    continue
                 _decide(row, keep, state, others, today, undercut=_has(title, UNDERCUT))
                 if row.get("skip"):
                     # цена ниже нашего порога: нового не заводим, заведённого снимаем
@@ -401,6 +411,22 @@ def plan_account(account):
                 else:
                     row["mode"] = "keep"
     return plans, keep, keep_src, acts
+
+
+def rejected_recently(account):
+    """product_id → причина, если площадка несколько прогонов подряд не берёт нашу цену.
+
+    Ozon отвечает `DiscountPercent must be greater or equal than N`: он требует скидку больше,
+    чем даёт наш потолок. Своей ценой мы это не лечим (ниже пола не идём), а крон иначе бьётся
+    в такой товар каждый день — product_id 2297937094 отказывал 16 суток подряд.
+    """
+    rows = db.query("""select product_id, max(note) note from oz_action_log
+                        where account = %s and not ok
+                          and ts > now() - (%s || ' days')::interval
+                          and note ilike %s
+                        group by product_id having count(*) >= %s""",
+                    (account, REJECT_DAYS, "%DiscountPercent%", REJECT_TRIES))
+    return {r["product_id"]: (r["note"] or "").strip()[:80] for r in rows}
 
 
 def _remember(account, aid, p, today):
@@ -416,7 +442,7 @@ def _remember(account, aid, p, today):
             last_action_id = excluded.last_action_id,
             last_step_on = excluded.last_step_on, updated_at = now()""",
         (account, p["offer_id"], p["rung"], p["floor"], p["cap"], p["price"],
-         p["cogs"], p["cogs_src"], aid, today))
+         p["cogs"], p["cogs_src"], aid, p.get("step_on") or today))
 
 
 def _log(account, aid, title, p, ok, note):
