@@ -139,7 +139,7 @@
       "confidence": null,
       "time_to_learn": null,
       "priority_score": null,
-      "status": "MEASURING",
+      "status": "EVALUATED",
       "experiment_id": "E6",
       "result": null,
       "decision": null,
