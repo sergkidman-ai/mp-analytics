@@ -77,7 +77,14 @@ NEG_OZ = ("Здравствуйте! Сожалеем, что товар выз�
 DEFECT_RX = re.compile(
     r"не\s+вид|не\s+печат|не\s+работ|не\s+опозна|не\s+распозна|не\s+захват|ошибк|замените\s+картридж|"
     r"мига|брак|бракован|полос|бледн|пуст[оа]|течёт|течет|подтек|вмятин|сломал|дефект|неисправ|"
-    r"пятн|серый\s+фон|грязн|не\s+заряж", re.I)
+    r"пятн|серый\s+фон|грязн|не\s+заряж|"
+    # A0, 07.09.2026: несовместимость и пересорт — такой же дефект-репорт, как «не печатает».
+    # Без этих слов 11 отзывов 4–5★ с маркером проблемы ушли в позитивную ротацию, 5 опубликовано
+    # («рады, что всё подошло» на «жаль, только не подошла к принтеру»).
+    r"не\s+подош|не\s+подход|не\s+совпад|не\s+определя|друг(ой|ое)\s+товар|мажет|мазал", re.I)
+# Сожаление — НЕ дефект: хендофф «напишите нам о проблеме» тут был бы враньём. Эти слова только
+# снимают отзыв с авто-маршрута, текст остаётся позитивным/нейтральным, решает оператор.
+REGRET_RX = re.compile(r"жаль|обидно|к\s+сожалению|не\s+тот\b|не\s+та\b|не\s+те\b", re.I)
 MODEL_RX = re.compile(r"[A-Za-zА-Яа-я]{0,8}[- ]?\d{2,5}[A-Za-z0-9\-]*")
 
 
@@ -99,8 +106,27 @@ def _short(name):
     return (name[:55] + "…") if len(name) > 56 else (name or "ваш товар")
 
 
+def _pick_idx(variants, ext_id):
+    return sum(map(ord, str(ext_id))) % len(variants)
+
+
 def _pick(variants, ext_id):
-    return variants[sum(map(ord, str(ext_id))) % len(variants)]
+    return variants[_pick_idx(variants, ext_id)]
+
+
+def review_text(r):
+    return " ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")])).strip()
+
+
+def review_flagged(r):
+    """В тексте отзыва есть маркер проблемы (дефект, несовместимость, сожаление, прямой вопрос).
+    A0, 07.09.2026: такой отзыв не имеет права уйти сам — ни позитивным шаблоном, ни «одобренным»
+    ответом модели. Проверка НЕ зависит от рейтинга: 5★ «жаль, не подошла к принтеру» — тоже случай
+    оператора. Замер до правки — docs/reports/rev_auto_gap_examples_2026-09-07.md (11 кейсов)."""
+    txt = review_text(r)
+    if not txt:
+        return False                                # звёзды без текста разбирать нечего
+    return bool(DEFECT_RX.search(txt) or REGRET_RX.search(txt) or "?" in txt)
 
 
 def _asked_models(body):
@@ -227,7 +253,16 @@ def _neg_draft(r, name, prod):
             else NEG_OZ), None
 
 
+def _neg_tpl_id(r, kind):
+    return f"neg_type:{kind}" if kind else ("neg_general_wb" if r["platform"] == "wb" else "neg_general_oz")
+
+
 def draft_review(r, name, prod):
+    """→ (категория, текст, маршрут, уверенность, template_id).
+
+    template_id (A2, 07.09.2026) — какой именно шаблон подставлен. До правки в БД лежал только
+    готовый текст, и померить работу шаблонов было нечем: вариант ротации восстанавливался лишь
+    пересчётом `_pick` по ext_id и терялся навсегда при любой правке списка вариантов."""
     rating = r["rating"] or 0
     empty = not (r["body"] or "").strip() and not (r["pros"] or "").strip() and not (r["cons"] or "").strip()
     txt = " ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))
@@ -237,29 +272,37 @@ def draft_review(r, name, prod):
         # ПУСТОЙ негатив (звёзды без текста) — разбирать оператору нечего: общий хендофф по QR уходит
         # шаблоном сразу (решение Сергея 24.08.2026). До правки такие отзывы висели вечно: карточку
         # оператору не создать (_enqueue_moderation требует текст), а авто-отправка берёт только 'auto'.
-        draft, _ = _neg_draft(r, name, prod)
+        draft, _k = _neg_draft(r, name, prod)
         if empty:
-            return "negative", draft, "auto", 0.9
+            return "negative", draft, "auto", 0.9, _neg_tpl_id(r, _k)
         # РЕЙТИНГ КАРТОЧКИ решает, нужен ли человек (правило Сергея 24.08.2026): карточку под убой
         # не спасают ответом — её закрывают и заводят новую, поэтому уходит сухой хендофф в чат.
         v = card_rating.verdict(r["platform"], r.get("item_id"))
         if not v["alive"]:
-            return "negative", card_rating.DEAD_TEXT, "auto", 0.85
-        return "negative", draft, "review", 0.5
+            return "negative", card_rating.DEAD_TEXT, "auto", 0.85, "dead_card"
+        return "negative", draft, "review", 0.5, _neg_tpl_id(r, _k)
     # 4★: с текстом — нейтральная благодарность на модерацию; БЕЗ текста — шаблоном сразу
     # (решение Сергея 24.08.2026). Пустая 4★ на маршруте review была тупиком: карточку оператору
     # не создать (_enqueue_moderation требует текст), авто-отправка берёт только route='auto' —
     # такие отзывы висели вечно (WB 31, Яндекс 1 на момент правки).
     if rating == 4:
         cat = "neutral4"
-        draft = (NEUTRAL4_WB.format(name=name or "Здравствуйте") if r["platform"] == "wb" else NEUTRAL4_OZ)
-        return cat, draft, ("auto" if empty else "review"), (0.9 if empty else 0.6)
+        wb = r["platform"] == "wb"
+        draft = (NEUTRAL4_WB.format(name=name or "Здравствуйте") if wb else NEUTRAL4_OZ)
+        return (cat, draft, ("auto" if empty else "review"), (0.9 if empty else 0.6),
+                "neutral4_wb" if wb else "neutral4_oz")
     cat = "empty5" if empty else "positive"
     if r["platform"] == "wb":
-        draft = _pick(POS_WB, r["ext_id"]).format(name=name or "Здравствуйте", product=prod)
+        i = _pick_idx(POS_WB, r["ext_id"])
+        draft, tpl = POS_WB[i].format(name=name or "Здравствуйте", product=prod), f"pos_wb:{i}"
     else:
-        draft = _pick(POS_OZ, r["ext_id"])
-    return cat, draft, "auto", (0.95 if cat == "empty5" else 0.8)
+        i = _pick_idx(POS_OZ, r["ext_id"])
+        draft, tpl = POS_OZ[i], f"pos_oz:{i}"
+    # A0: ротация выбирается детерминированно по ext_id и содержание текста не учитывает вообще —
+    # поэтому отзыв с маркером проблемы отдаём человеку, а благодарность оставляем материалом.
+    if review_flagged(r):
+        return cat, draft, "review", 0.5, tpl
+    return cat, draft, "auto", (0.95 if cat == "empty5" else 0.8), tpl
 
 
 # ─────────────────────── прогон ───────────────────────
@@ -283,7 +326,7 @@ def run():
             b_items.append(dict(r, cat="question", draft=draft, route=route, conf=conf, src=src,
                                 facts=f, intent=intent(r["body"]), answer_text=None))
         else:
-            cat, draft, route, conf = draft_review(r, name, prod)
+            cat, draft, route, conf, _tpl = draft_review(r, name, prod)
             b_items.append(dict(r, cat=cat, draft=draft, route=route, conf=conf, src="шаблон отзыва"))
 
     # 2) замер покрытия на ОТВЕЧЕННЫХ вопросах (черновик vs реальный ответ)

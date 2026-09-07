@@ -29,7 +29,8 @@ from reports.feedback_llm import (_card_data, _user_block, _name, SYSTEM, MODEL,
 from reports.feedback_drafts import _norm                                        # noqa: E402
 from reports.card_facts import CardFacts                                         # noqa: E402
 from reports.feedback_corpus import load_corpus, intent                         # noqa: E402
-from reports.feedback_draft_run import draft_review, _first_name, _short, DEFECT_RX  # noqa: E402
+from reports.feedback_draft_run import (draft_review, _first_name, _short, DEFECT_RX,  # noqa: E402
+                                        review_flagged)
 from reports import card_rating
 from reports import neg_templates                                                    # noqa: E402
 from reports.feedback_web import web_compat                                      # noqa: E402
@@ -288,14 +289,26 @@ def _llm(client, r, cf, corpus, hint=None):
 
 def _store(r, reply, route, conf, ground):
     from psycopg2.extras import Json
+    from reports import request_class as rc
+    # A2 (07.09.2026): шаблон и класс обращения — колонками, а не только внутри текста черновика.
+    # grounding у auto-строк не должен быть пустым (было 117 таких): без него о решении бота не
+    # известно ничего, кроме самого текста.
+    tpl = ground.get("template_id") or ("llm" if ground.get("llm") else None)
+    cls = rc.classify(" ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))
+                      if r["kind"] == "review" else r.get("body"),
+                      kind=r["kind"], rating=r.get("rating"))
+    ground = dict(ground, template_id=tpl, request_class=cls)
+    if not ground.get("note"):
+        ground["note"] = f"без пометки: {tpl or 'источник не задан'}"
     # draft_src_hash считаем от ЖИВЫХ колонок body/pros/cons в БД (не от объекта r), чтобы хэш всегда
     # был согласован с тем, что видит фильтр в _gather() — тот же md5(...) над теми же полями.
     db.execute("""UPDATE raw_feedback SET draft_text=%s, draft_route=%s, draft_confidence=%s,
         draft_category=%s, draft_grounding=%s, draft_at=now(),
+        template_id=%s, request_class=%s,
         draft_src_hash=md5(coalesce(body,'')||coalesce(pros,'')||coalesce(cons,''))
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (reply, route, conf, ("question" if r["kind"] == "question" else "review"),
-         Json(ground), r["platform"], r["account"], r["kind"], r["ext_id"]))
+         Json(ground), tpl, cls, r["platform"], r["account"], r["kind"], r["ext_id"]))
 
 
 def _enqueue_moderation(r, reply):
@@ -902,7 +915,7 @@ def _answer(client, r, cf, corpus):
                 ground.update({"note": "веб-факт без ответа; " + (ground.get("note") or "")[:200]})
     else:
         name = _first_name(r["payload"]) if r["platform"] == "wb" else None
-        _c, reply, route, conf = draft_review(r, name, _short(r["product_name"]))
+        _c, reply, route, conf, _tpl = draft_review(r, name, _short(r["product_name"]))
         # для карточки модератора видно, какой именно шаблон подставлен (тип жалобы или общий)
         _nt = neg_templates.classify(" ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))) \
             if _c == "negative" else None
@@ -911,8 +924,21 @@ def _answer(client, r, cf, corpus):
                  "шаблон отзыва (ротация вариантов)")
         if _c == "negative":                               # видно, по какому рейтингу принято решение
             _note += "; " + card_rating.note(card_rating.verdict(r["platform"], r.get("item_id")))
-        cc, ground = "", {"llm": False, "note": _note, "source": "шаблон", "template": True}
+        # template_id (A2) — не для красоты: без него нельзя ни померить работу конкретного шаблона,
+        # ни восстановить историю после правки списка вариантов ротации.
+        cc, ground = "", {"llm": False, "note": _note, "source": "шаблон", "template": True,
+                          "template_id": _tpl}
         cat = "review-empty"
+    # A0 (07.09.2026). Гейт СТОИТ ПОСЛЕ ОБЕИХ ВЕТОК, потому что дыра была в обеих: 7 отзывов с
+    # маркером проблемы закрыла позитивная ротация, ещё 4 — «одобренный» самой моделью ответ
+    # (route='auto' приходит из её JSON). Замер: rev_auto_gap_examples_2026-09-07.md.
+    # Исключение одно — «мёртвая» карточка: там уходит не благодарность, а сухой хендофф, и правило
+    # Сергея от 24.08.2026 (карточку под убой не спасают ответом) A0 не отменяет.
+    if (r["kind"] == "review" and route == "auto" and ground.get("template_id") != "dead_card"
+            and review_flagged(r)):
+        route = "review"
+        ground["review_flag"] = True
+        ground["note"] = "позитив с маркером дефекта; " + (ground.get("note") or "")[:200]
     # КАТАЛОГ-ПОСЛЕ-ВЕБА + страховка от ложного «нет»: ответ отрицает наличие ИЛИ (после веба) уводит
     # покупателя «на сторону»/говорит «не подходит» БЕЗ нашего артикула — а по коду картриджа из веб-ответа
     # или по модели принтера у нас реально есть листинг → подставляем наш площадочный артикул.
