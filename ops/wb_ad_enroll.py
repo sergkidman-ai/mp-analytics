@@ -202,14 +202,24 @@ def probe_shapes(account, advert_id, pool):
         time.sleep(13)      # у контура жёсткий лимит запросов
 
 
-def real_count(account, advert_id, safe_pool, probe_n=51):
+def real_count(account, advert_id, safe_pool, probe_n=CAMPAIGN_CAP):
     """СКОЛЬКО номенклатур в кампании НА САМОМ ДЕЛЕ — геттера у ВБ нет, но есть оракул.
 
-    Шлём заведомо сверхлимитное добавление и читаем число из отказа: ВБ пишет
+    Шлём добавление ровно на лимит и читаем число из отказа: ВБ пишет
     «advert X would have N nomenclatures after changes», где N = текущее + отправленное.
-    Запрос ВСЕГДА отклоняется, то есть по факту это чтение. Материал проб — карточки вне
-    всех наших кампаний, чтобы промах в семантике ничего не задел.
+    Материал проб — карточки вне всех наших кампаний, чтобы промах в семантике ничего не задел.
+
+    ПОЧЕМУ РОВНО 50, А НЕ 51 (правка 07.09.2026): ВБ добавил ОТДЕЛЬНУЮ проверку размера
+    запроса — «there can be no more than 50 nms to add per advert» — и она срабатывает
+    РАНЬШЕ подсчёта состава, то есть проба на 51 больше не отвечает числом.
+    Проба на 50 внутрь лимита запроса проходит, но отклоняется по составу — при условии,
+    что в кампании уже есть хотя бы одна карточка (50 + 1 > 50). Если кампания ПУСТА,
+    запрос на 50 будет ПРИНЯТ и реально заведёт 50 карточек, поэтому пробу пускаем только
+    когда наша же статистика подтверждает непустой состав.
     """
+    if not known_in_campaign(account, advert_id):
+        return None, ("кампания выглядит пустой по нашим данным — проба на 50 была бы "
+                      "ПРИНЯТА и завела бы 50 карточек; оракул не запускаю")
     over = [int(n) for n in list(safe_pool)[:probe_n]]
     if len(over) < probe_n:
         return None, f"в пуле категории всего {len(over)} карточек — оракулу не хватает"
@@ -294,11 +304,14 @@ def main():
     free = sorted(n for n in (ok_nms - unadvertised(a.account)) if subj_of.get(n) == subj)
     have, err = real_count(a.account, a.advert_id, free)
     if have is None:
+        # 07.09.2026 ВБ убрал число из текста отказа — оракула больше нет, идём лестницей.
         print(f"\nКампания {a.advert_id}: состав измерить не удалось — {err}")
-        return
-    room = CAMPAIGN_CAP - have
-    print(f"\nКампания {a.advert_id} (предмет {subj}): в ней РЕАЛЬНО {have} номенклатур, "
-          f"лимит {CAMPAIGN_CAP} → свободно {max(room, 0)}")
+        print("  идём ЛЕСТНИЦЕЙ: пробуем завести партию, при отказе по лимиту делим пополам.")
+        room = a.limit
+    else:
+        room = CAMPAIGN_CAP - have
+        print(f"\nКампания {a.advert_id} (предмет {subj}): в ней РЕАЛЬНО {have} номенклатур, "
+              f"лимит {CAMPAIGN_CAP} → свободно {max(room, 0)}")
     # Чужая категория ВБ не примет — кандидатов режем по предмету кампании.
     cand = [r for r in cand if subj_of.get(r["nm_id"]) == subj]
     take = cand[:min(a.limit, max(room, 0))]
@@ -319,7 +332,28 @@ def main():
         return
 
     H = {"Authorization": _token(a.account), "Content-Type": "application/json"}
-    r = requests.patch(WB_ADS_HOST + "/adv/v0/auction/nms", headers=H, json=body, timeout=60)
+    # ЛЕСТНИЦА: сколько в кампании свободно — ВБ больше не говорит, поэтому пробуем партией
+    # и при отказе «exceed limit» делим её пополам. Отказ атомарен: ВБ пишет «failed to add
+    # nomenclatures», то есть частично ничего не заводится. 429 — просто ждём и повторяем.
+    batch, r = list(take), None
+    while batch:
+        body = body_for(a.advert_id, add=[x["nm_id"] for x in batch])
+        r = requests.patch(WB_ADS_HOST + "/adv/v0/auction/nms", headers=H, json=body, timeout=60)
+        txt = r.text[:200].replace(chr(10), ' ')
+        print(f"  партия {len(batch)}: HTTP {r.status_code} | {txt}")
+        if r.status_code == 429:
+            time.sleep(21)
+            continue
+        if r.status_code == 400 and "exceed limit" in r.text:
+            batch = batch[:len(batch) // 2]
+            if batch:
+                time.sleep(21)
+            continue
+        break
+    take = batch
+    if not take:
+        print("\nЗАВЕСТИ НЕ УДАЛОСЬ: кампания забита под лимит 50, свободных мест нет.")
+        return
     print(f"\nОТВЕТ ВБ: HTTP {r.status_code} | {r.text[:200].replace(chr(10), ' ')}")
     JOURNAL.parent.mkdir(parents=True, exist_ok=True)
     with open(JOURNAL, "a", encoding="utf-8") as f:
