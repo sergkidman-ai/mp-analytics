@@ -38,6 +38,12 @@
   #pur th:first-child,#pur td:first-child{text-align:left;position:sticky;left:0;background:var(--card);
     border-right:1px solid var(--line);z-index:2}
   #pur thead th:first-child{z-index:3}
+  #pur .tog{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  #pur .tog:hover{color:var(--acc)}
+  #pur .tog:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
+  #pur .car{color:var(--mut);font-size:11px;transition:transform .15s}
+  #pur .tog[aria-expanded="true"] .car{transform:rotate(90deg)}
+  #pur tr.sub td:first-child{padding-left:30px;color:var(--mut);font-weight:400}
   #pur tfoot td{font-weight:700;border-top:2px solid var(--line)}
   #pur td.cur{background:rgba(127,127,127,.07)}
   #pur .z{color:var(--mut)}
@@ -115,6 +121,15 @@ const cell=(v,cur)=>{
   const ret=v.r?` title="приёмки ${rub(v.s)}, возвраты −${rub(v.r)}"`:'';
   return `<td${cur?' class="cur"':''}${ret}>${num(net)}${v.r?'<span class="neg">*</span>':''}</td>`;
 };
+function rollup(rows,ms){
+  const g={grp:'Прочие',kids:rows.slice().sort((a,b)=>b.net-a.net),by:{},supply:0,ret:0,net:0};
+  rows.forEach(r=>{
+    ms.forEach(m=>{const c=r.by[m]; if(!c) return;
+      const b=g.by[m]||(g.by[m]={s:0,r:0}); b.s+=c.s; b.r+=c.r;});
+    g.supply+=r.supply; g.ret+=r.ret; g.net+=r.net;
+  });
+  return g;
+}
 async function loadPurchases(){
   const d=await api('/api/suppliers/purchases');
   const ms=d.months||[];
@@ -122,11 +137,24 @@ async function loadPurchases(){
   $('#purhead').innerHTML='<th>Группа поставщика</th>'+
     ms.map(m=>`<th${m===d.current?' class="cur"':''}>${mlabel(m)}</th>`).join('')+
     '<th>Приёмки</th><th>Возвраты</th><th>Нетто</th>';
-  $('#pur tbody').innerHTML=(d.groups||[]).map(g=>{
-    const nm=g.in_group?g.grp:`${g.grp} <span class="muted" title="контрагента нет в таблице групп">вне групп</span>`;
-    return `<tr><td>${nm}</td>`+ms.map(m=>cell(g.by[m],m===d.current)).join('')+
-      `<td>${num(g.supply)}</td><td class="${g.ret?'neg':'z'}">${g.ret?'−'+num(g.ret):'—'}</td><td><b>${num(g.net)}</b></td></tr>`;
+  const own=(d.groups||[]).filter(g=>g.in_group), oth=(d.groups||[]).filter(g=>!g.in_group);
+  const list=own.slice();
+  if(oth.length) list.push(rollup(oth,ms));            // контрагенты вне таблицы групп — в «Прочие»
+  list.sort((a,b)=>b.net-a.net);
+  const cells=g=>ms.map(m=>cell(g.by[m],m===d.current)).join('')+
+    `<td>${num(g.supply)}</td><td class="${g.ret?'neg':'z'}">${g.ret?'−'+num(g.ret):'—'}</td><td><b>${num(g.net)}</b></td>`;
+  $('#pur tbody').innerHTML=list.map(g=>{
+    if(!g.kids) return `<tr><td>${g.grp}</td>${cells(g)}</tr>`;
+    const head=`<tr><td><button class="tog" type="button" aria-expanded="false">`+
+      `<span class="car">▶</span>Прочие <span class="muted">${g.kids.length}</span></button></td>${cells(g)}</tr>`;
+    return head+g.kids.map(k=>`<tr class="sub" data-oth hidden><td>${k.grp}</td>${cells(k)}</tr>`).join('');
   }).join('');
+  const tog=$('#pur .tog');
+  if(tog) tog.onclick=()=>{
+    const open=tog.getAttribute('aria-expanded')!=='true';
+    tog.setAttribute('aria-expanded',open);
+    document.querySelectorAll('#pur tr[data-oth]').forEach(r=>{r.hidden=!open;});
+  };
   const T=d.totals||{};
   $('#pur tfoot').innerHTML='<tr><td>Всего</td>'+
     ms.map(m=>cell(T.by[m],m===d.current)).join('')+
@@ -135,7 +163,7 @@ async function loadPurchases(){
   const sx=document.querySelector('.scrollx');
   sx.scrollLeft=sx.scrollWidth;
   const cm=mlabel(d.current);
-  $('#purfoot').textContent=`Суммы в ₽ с НДС по дате приёмки МойСклад, за вычетом возвратов поставщику (клетка со «*» — были возвраты, сумма в подсказке). Прошлые месяцы зафиксированы, пересчитывается только текущий (${cm}, поэтому он неполный). Обновлено ${(d.updated||'').slice(0,16).replace('T',' ')}.`;
+  $('#purfoot').textContent=`Суммы в ₽ с НДС по дате приёмки МойСклад, за вычетом возвратов поставщику (клетка со «*» — были возвраты, сумма в подсказке; «Прочие» — контрагенты вне таблицы групп, раскрывается по клику). Прошлые месяцы зафиксированы, пересчитывается только текущий (${cm}, поэтому он неполный). Обновлено ${(d.updated||'').slice(0,16).replace('T',' ')}.`;
 }
 $('#q').oninput=()=>{clearTimeout(t);t=setTimeout(load,300);};
 load();
