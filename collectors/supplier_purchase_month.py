@@ -125,11 +125,14 @@ def collect(since_month):
     # имена вне групп могут схлопнуться в одну строку с группой — складываем по (месяц, имя)
     merged = {}
     for r in out:
-        m = merged.setdefault((r["month"], r["grp"]), dict(r))
-        if m is not r:
-            for f in ("supply_sum", "supply_docs", "return_sum", "return_docs"):
-                m[f] += r[f]
-            m["in_group"] = m["in_group"] or r["in_group"]
+        key = (r["month"], r["grp"])
+        m = merged.get(key)
+        if m is None:                 # setdefault здесь нельзя: он кладёт КОПИЮ dict(r),
+            merged[key] = dict(r)     # и проверка `m is not r` даёт задвоение сумм
+            continue
+        for f in ("supply_sum", "supply_docs", "return_sum", "return_docs"):
+            m[f] += r[f]
+        m["in_group"] = m["in_group"] or r["in_group"]
     rows = list(merged.values())
 
     # перезапись только пересчитанного диапазона: прошлые месяцы остаются нетронутыми
