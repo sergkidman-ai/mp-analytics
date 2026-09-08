@@ -55,7 +55,7 @@ def log_event(engine_kind, source, fn, frm, res):
         "order_name": order_name, "order_id": order_id, "doc_date": doc_date,
         "ok": res.get("ok"), "created": res.get("created"), "stop": res.get("stop"),
         "dupe": bool(res.get("dupe")),          # повтор уже проведённого документа — не ошибка
-        "error": res.get("error") or res.get("stop_msg"),
+        "error": res.get("error") or res.get("post_error") or res.get("stop_msg"),
     }
     try:
         with open(LOG_PATH, "a", encoding="utf-8") as f:

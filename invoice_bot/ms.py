@@ -68,9 +68,15 @@ if __name__ == "__main__":
 def post(path, payload, retry=False):
     """POST НЕ идемпотентен: при 502 документ мог успеть создаться на той стороне,
     и повтор даст дубль заказа/приёмки. Поэтому по умолчанию НЕ повторяем — возвращаем
-    код наверх, пусть решает вызывающий. retry=True — только для заведомо безопасных POST."""
+    код наверх, пусть решает вызывающий. retry=True — только для заведомо безопасных POST.
+
+    Исключение — 429: лимит запросов МС отвергает запрос ДО обработки, документ на той
+    стороне не появляется, дубля от повтора быть не может. Инцидент 08.09.2026: счёт
+    Одиссея ОД00005464 не создался («HTTP 429: превышен лимит»), когда рядом обрабатывались
+    ещё два счёта того же поставщика; человек об этом узнал только из сообщения в боте.
+    """
     data = json.dumps(payload, ensure_ascii=False).encode()
-    tries = RETRY_TRIES if retry else 1
+    tries = RETRY_TRIES          # 429 повторяем всегда; остальные коды — только при retry=True
     for attempt in range(tries):
         req = urllib.request.Request(MS + path, data=data, method="POST", headers={
             "Authorization": f"Bearer {TOK}", "Accept-Encoding": "gzip",
@@ -82,11 +88,12 @@ def post(path, payload, retry=False):
                     d = gzip.decompress(d)
                 return r.status, json.loads(d)
         except urllib.error.HTTPError as e:
-            if attempt + 1 >= tries or e.code not in RETRY_CODES:
+            can = e.code == 429 or (retry and e.code in RETRY_CODES)
+            if attempt + 1 >= tries or not can:
                 return e.code, _body(e)
             _sleep_before_retry(f"POST {path}", attempt, e)
         except Exception as e:
-            if attempt + 1 >= tries or not _retryable(e):
+            if attempt + 1 >= tries or not retry or not _retryable(e):
                 raise
             _sleep_before_retry(f"POST {path}", attempt, e)
 

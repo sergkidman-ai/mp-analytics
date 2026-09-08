@@ -79,10 +79,21 @@ def tg_send(text, parse_mode=None):
         data = json.dumps(p).encode()
         req = urllib.request.Request(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
                                      data=data, headers={"Content-Type": "application/json"})
-        try:
-            urllib.request.urlopen(req, timeout=30)
-        except Exception as e:
-            log(f"tg_send error to {chat}: {e}")
+        # Связь с Телеграмом рвётся рывками (см. tg_bot._tg_open): с одной попытки отчёт
+        # о разобранном письме до человека мог не дойти, и о непроведённом счёте никто
+        # не узнавал. Повторяем с растущей паузой.
+        delay = 2
+        for i in range(1, 4):
+            try:
+                urllib.request.urlopen(req, timeout=30)
+                break
+            except Exception as e:
+                if i == 3:
+                    log(f"tg_send error to {chat}: {e}")
+                    break
+                log(f"tg_send to {chat}: попытка {i}/3 не прошла ({e}); повтор через {delay}с")
+                time.sleep(delay)
+                delay *= 2
 
 
 def _dec(s):
