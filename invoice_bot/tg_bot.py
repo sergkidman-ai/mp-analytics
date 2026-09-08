@@ -38,14 +38,41 @@ FILE_API = f"https://api.telegram.org/file/bot{TOKEN}"
 INBOX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "inbox")
 os.makedirs(INBOX, exist_ok=True)
 OK_EXT = (".xls", ".xlsx", ".pdf", ".xml", ".zip")
+DL_ROUNDS = 3          # столько кругов возвращаемся к нескачанному файлу, потом просим прислать заново
 
 
-def api(method, params=None, timeout=60):
+class DownloadFailed(Exception):
+    """Файл не удалось скачать из Телеграма из-за сети. Апдейт не подтверждаем — придёт снова."""
+
+
+def _tg_open(req, timeout, tries=4, what=""):
+    """Запрос к Телеграму с повторами. → bytes.
+
+    Со стороны РФ связь с api.telegram.org рвётся рывками: примерно каждое десятое
+    TCP-соединение падает с «Network is unreachable», при том что ICMP до того же адреса
+    идёт без потерь, а МойСклад и почта работают ровно. Одна такая осечка роняла загрузку
+    целого файла, поэтому любой вызов Телеграма делаем с повторами и растущей паузой.
+    """
+    delay = 2
+    for i in range(1, tries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError:
+            raise                       # ответ сервера (4xx/5xx) — повтор не поможет
+        except (urllib.error.URLError, OSError) as e:
+            if i == tries:
+                raise
+            log(f"сеть: {what or 'запрос'} — попытка {i}/{tries} не прошла ({e}); повтор через {delay}с")
+            time.sleep(delay)
+            delay *= 2
+
+
+def api(method, params=None, timeout=60, tries=4):
     data = json.dumps(params or {}).encode()
     req = urllib.request.Request(f"{API}/{method}", data=data,
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read())
+    return json.loads(_tg_open(req, timeout, tries, what=method))
 
 
 def send(chat_id, text, reply_to=None, parse_mode=None):
@@ -74,11 +101,16 @@ def _report_html(engine, res):
 
 
 def download_file(file_id, dst_name):
-    info = api("getFile", {"file_id": file_id})
-    fp = info["result"]["file_path"]
+    try:
+        info = api("getFile", {"file_id": file_id})
+        fp = info["result"]["file_path"]
+        body = _tg_open(f"{FILE_API}/{fp}", 120, tries=5, what="скачивание файла")
+    except urllib.error.HTTPError:
+        raise                                   # ответ Телеграма — это не сетевой сбой
+    except (urllib.error.URLError, OSError) as e:
+        raise DownloadFailed(str(e))
     dst = os.path.join(INBOX, dst_name)
-    with urllib.request.urlopen(f"{FILE_API}/{fp}", timeout=120) as r:
-        open(dst, "wb").write(r.read())
+    open(dst, "wb").write(body)
     return dst
 
 
@@ -235,11 +267,13 @@ def handle(msg):
     is_upd = bool(UPD_RE.search(fname)) or fname.lower().endswith((".xml", ".zip"))
     engine = upd_pipe if is_upd else pipe
     kind = "УПД → Приёмка" if is_upd else "Счёт → Заказ"
-    send(chat_id, f"⏳ Принял «{fname}» ({kind}), обрабатываю…", mid)
     try:
         # уникализируем имя файла, чтобы параллельные файлы не перетёрли друг друга
         safe = f"{int(time.time())}_{os.path.basename(fname)}"
         path = download_file(doc["file_id"], safe)
+        # «Принял» — только когда файл уже лежит у нас: при повторе апдейта после сетевого
+        # срыва пользователь не получит три одинаковых подтверждения ни о чём.
+        send(chat_id, f"⏳ Принял «{fname}» ({kind}), обрабатываю…", mid)
         log(f"process {safe} from {from_id} [{'UPD' if is_upd else 'INVOICE'}]")
         res = engine.process(path, create=True)
         proc_log.log_event("upd" if is_upd else "invoice", "tg", fname, f"tg:{from_id}", res)
@@ -249,6 +283,8 @@ def handle(msg):
         head = _esc(f"👤 {sender_label(msg)} загрузил(а) в бот · {kind}\nФайл: {fname}")
         broadcast_others(from_id, f"{head}\n\n{report}", parse_mode="HTML")
         log(f"done {safe}: ok={res.get('ok')} created={res.get('created')} stop={res.get('stop')} err={res.get('error')}")
+    except DownloadFailed:
+        raise                       # в цикл: апдейт не подтверждаем, файл не теряем
     except Exception as e:
         log("handle error: " + traceback.format_exc())
         errtext = f"❌ Внутренняя ошибка обработки: {type(e).__name__}: {e}"
@@ -263,20 +299,37 @@ def main():
     me = api("getMe")["result"]
     log(f"bot @{me.get('username')} запущен. allowed={sorted(ALLOWED) or 'ПУСТО (bootstrap)'}")
     offset = None
+    stuck = {}                      # update_id → сколько кругов подряд файл не скачался
     while True:
         try:
             params = {"timeout": 50, "allowed_updates": ["message"]}
             if offset is not None:
                 params["offset"] = offset
-            upd = api("getUpdates", params, timeout=60)
+            upd = api("getUpdates", params, timeout=60, tries=1)   # повторяет сам цикл
             for u in upd.get("result", []):
-                offset = u["update_id"] + 1
                 m = u.get("message")
                 if m:
                     try:
                         handle(m)
+                    except DownloadFailed as e:
+                        # Файл не скачался из-за сети. Апдейт НЕ подтверждаем: Телеграм отдаст
+                        # его снова, и присланный документ не пропадёт молча (раньше offset
+                        # двигался до обработки — файл терялся, а человек ничего не узнавал).
+                        n = stuck.get(u["update_id"], 0) + 1
+                        stuck[u["update_id"]] = n
+                        log(f"download failed {n}/{DL_ROUNDS} (update {u['update_id']}): {e}")
+                        if n < DL_ROUNDS:
+                            time.sleep(15)
+                            break               # offset не двигаем — вернёмся к этому файлу
+                        # Сдаёмся, иначе бот встанет на одном сообщении навсегда.
+                        send(m["chat"]["id"],
+                             f"⚠️ Не смог скачать «{(m.get('document') or {}).get('file_name') or 'файл'}» "
+                             f"из Телеграма: связь с его серверами рвётся. Пришлите файл ещё раз.",
+                             m.get("message_id"))
                     except Exception:
                         log("update error: " + traceback.format_exc())
+                offset = u["update_id"] + 1
+                stuck.pop(u["update_id"], None)
         except urllib.error.HTTPError as e:
             log(f"HTTP {e.code} на getUpdates; пауза 5с"); time.sleep(5)
         except Exception as e:
