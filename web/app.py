@@ -2223,11 +2223,11 @@ def _canon_supplier(name):
 @app.get("/api/suppliers")
 def suppliers(q: str = "", limit: int = 200):
     """Поставщики (арбитраж): остатки на их «Удалённом складе», дубли имён слиты по каноническому
-    ключу (отображаем вариант с наибольшим движением), дата последней закупки из приёмок МС и
-    спящие поставщики (давно не закупались / закрыты) — кандидаты на удаление."""
+    ключу (отображаем вариант с наибольшим движением), дата последней закупки из приёмок МС.
+    Спящие (закрытые / без закупок и без движения) в выдачу не идут."""
     cap = db.query("SELECT max(captured_at)::text c FROM supplier_stock")[0]["c"]
     if not cap:
-        return {"captured": None, "supplier_count": 0, "suppliers": [], "dormant": [],
+        return {"captured": None, "supplier_count": 0, "suppliers": [],
                 "totals": {}, "stores": []}
     raw = db.query("""SELECT coalesce(supplier,'— не указан') s, count(DISTINCT ms_id) n,
         sum(CASE WHEN coalesce(sold_30d,0)>0 THEN 1 ELSE 0 END) moving,
@@ -2267,20 +2267,53 @@ def suppliers(q: str = "", limit: int = 200):
                      "last_supply": last.isoformat() if last else None,
                      "days_since": days, "closed": m["closed"], "dormant": dormant})
     rows.sort(key=lambda x: -(x["val"] or 0))
+    # спящие (закрыты / давно не закупались и товар не движется) из выдачи исключены:
+    # таблица «Спящие поставщики» со страницы убрана 08.09.2026 как неинформативная
     active = [r for r in rows if not r["dormant"]]
-    # спящие: сначала без приёмок за год (days None), затем по убыванию давности
-    dormant = sorted([r for r in rows if r["dormant"]],
-                     key=lambda x: -(x["days_since"] if x["days_since"] is not None else 10 ** 6))
     if q:
         ql = q.lower()
         active = [r for r in active if ql in r["supplier"].lower()]
-    totals = {"frozen": round(sum(r["val"] or 0 for r in rows)),
-              "suppliers": len(rows), "dormant": len(dormant)}
+    totals = {"frozen": round(sum(r["val"] or 0 for r in rows)), "suppliers": len(rows)}
     stores = db.query("""SELECT store, count(DISTINCT ms_id) n, round(sum(stock*cost_seb)::numeric,0)::float val
         FROM supplier_stock WHERE captured_at=%s AND store IN ('Удаленный склад','Транзит') AND stock>0
         GROUP BY 1 ORDER BY val DESC NULLS LAST""", (cap,))
     return {"captured": cap, "supplier_count": len(rows), "totals": totals,
-            "suppliers": active[:limit], "dormant": dormant, "stores": stores}
+            "suppliers": active[:limit], "stores": stores}
+
+
+@app.get("/api/suppliers/purchases")
+def supplier_purchases_month():
+    """Сумма закупки по ГРУППЕ поставщика помесячно (витрина supplier_purchase_month).
+
+    Источник — приёмки и возвраты поставщику МойСклада, собирает
+    collectors/supplier_purchase_month.py ночью: прошлые месяцы статичны, пересчитывается
+    только текущий. Запросов к МС отсюда нет — чистое чтение витрины."""
+    rows = db.query("""SELECT month::text m, grp, supply_sum::float s, return_sum::float r,
+        supply_docs sd, return_docs rd, in_group FROM supplier_purchase_month ORDER BY month""")
+    upd = db.query("SELECT max(updated_at)::text u FROM supplier_purchase_month")[0]["u"]
+    months = sorted({r["m"] for r in rows})
+    groups = {}
+    for r in rows:
+        g = groups.setdefault(r["grp"], {"grp": r["grp"], "in_group": r["in_group"],
+                                         "by": {}, "supply": 0.0, "ret": 0.0, "docs": 0})
+        g["by"][r["m"]] = {"s": round(r["s"]), "r": round(r["r"]), "d": r["sd"] + r["rd"]}
+        g["supply"] += r["s"]
+        g["ret"] += r["r"]
+        g["docs"] += r["sd"]
+        g["in_group"] = g["in_group"] and r["in_group"]
+    out = []
+    for g in groups.values():
+        g["supply"], g["ret"] = round(g["supply"]), round(g["ret"])
+        g["net"] = g["supply"] - g["ret"]
+        out.append(g)
+    out.sort(key=lambda x: -x["net"])
+    totals = {"supply": sum(g["supply"] for g in out), "ret": sum(g["ret"] for g in out),
+              "docs": sum(g["docs"] for g in out),
+              "by": {m: {"s": sum(g["by"].get(m, {}).get("s", 0) for g in out),
+                         "r": sum(g["by"].get(m, {}).get("r", 0) for g in out)} for m in months}}
+    totals["net"] = totals["supply"] - totals["ret"]
+    cur = _dt.date.today().replace(day=1).isoformat()
+    return {"months": months, "groups": out, "totals": totals, "updated": upd, "current": cur}
 
 
 @app.get("/api/stale")

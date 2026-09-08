@@ -29,10 +29,12 @@
   .chip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px}
   .chip b{font-size:15px}
   .note{color:var(--mut);font-size:12px;margin:14px 0 0}
-  .dormrow td{background:#241a1d}
-  .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;background:#3a2027;color:var(--neg)}
-  .tag.w{background:#3a3120;color:var(--warn)}
   .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .scrollx{overflow-x:auto;border-radius:12px}
+  #pur th:first-child,#pur td:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:1}
+  #pur tfoot td{font-weight:700;border-top:2px solid var(--line)}
+  #pur td.cur{background:rgba(127,127,127,.07)}
+  #pur .z{color:var(--mut)}
   .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
   .whtabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
   .whtabs a:hover{color:var(--txt);background:var(--card)}
@@ -58,13 +60,14 @@
     <a href="/suppliers" class="cur">📦 Остатки</a>
     <a href="/suppliers/payment-terms">💳 График оплаты</a>
   </nav>
-  <p class="note" style="margin-top:0">Поставщики и их «Удалённый склад» (что у них есть → основа для арбитража/докупки). Дубли названий одного поставщика слиты в один. «Последняя закупка» — из приёмок МойСклад. Свои склады и дефицит — на странице «Склад».</p>
+  <p class="note" style="margin-top:0">Поставщики и их «Удалённый склад» (что у них есть → основа для арбитража/докупки). Дубли названий одного поставщика слиты в один. «Последняя закупка» — из приёмок МойСклад. Ниже — реальный объём закупки по группе поставщика помесячно. Свои склады и дефицит — на странице «Склад».</p>
   <div style="margin:10px 0 14px"><input id="q" placeholder="поиск поставщика" style="min-width:260px"></div>
   <div class="big" id="big"></div>
   <div class="chips" id="stores"></div>
 
-  <h2>🚫 Спящие поставщики — кандидаты на удаление <span class="muted" style="font-weight:400;font-size:12px">(закрыты, либо нет закупок и товар не движется)</span></h2>
-  <table id="dorm"><thead><tr><th>Поставщик</th><th>Позиций</th><th>Движется</th><th>Последняя закупка</th><th>Статус</th></tr></thead><tbody></tbody></table>
+  <h2>💰 Закупка по группам поставщиков, ₽ по месяцам <span class="muted" style="font-weight:400;font-size:12px">(приёмки МойСклад за вычетом возвратов; группа = все юрлица поставщика)</span></h2>
+  <div class="scrollx"><table id="pur"><thead><tr id="purhead"></tr></thead><tbody></tbody><tfoot></tfoot></table></div>
+  <p class="note" id="purfoot"></p>
 
   <h2>🏭 Поставщики (по объёму на их складе) <span class="muted" style="font-weight:400;font-size:12px">(движется = SKU с продажами за 30д; дубли слиты)</span></h2>
   <table id="sup"><thead><tr><th>Поставщик</th><th>Позиций</th><th>Движется</th><th>Объём у них ₽</th><th>Последняя закупка</th></tr></thead><tbody></tbody></table>
@@ -80,11 +83,6 @@ function lastCell(r){
   if(r.last_supply) return `${r.last_supply}<span class="muted"> · ${r.days_since}д</span>`;
   return '<span class="muted">нет за год</span>';
 }
-function statusCell(r){
-  if(r.closed) return '<span class="tag">закрыт</span>';
-  if(r.days_since==null) return '<span class="tag">нет закупок за год</span>';
-  return `<span class="tag w">не закупались ${r.days_since}д</span>`;
-}
 async function load(){
   const q=$('#q').value.trim();
   const d=await api('/api/suppliers?q='+encodeURIComponent(q));
@@ -92,24 +90,47 @@ async function load(){
   const tt=d.totals||{};
   $('#big').innerHTML=[
     ['Поставщиков (слито)',num(tt.suppliers)],
-    ['Спящих — на удаление',`<span class="${tt.dormant>0?'neg':''}">${num(tt.dormant)}</span>`],
     ['Объём у поставщиков',rub(tt.frozen)],
   ].map(([l,v])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
   $('#stores').innerHTML=(d.stores||[]).map(s=>`<div class="chip">${s.store}: <b>${rub(s.val)}</b> <span class="muted">${num(s.n)} поз.</span></div>`).join('');
-
-  $('#dorm tbody').innerHTML=(d.dormant||[]).map(r=>
-    `<tr class="dormrow"><td>${r.supplier}</td><td>${num(r.n)}</td><td>${num(r.moving)}</td><td>${lastCell(r)}</td><td>${statusCell(r)}</td></tr>`
-  ).join('')||'<tr><td colspan="5" class="muted">спящих нет — все поставщики активны</td></tr>';
 
   $('#sup tbody').innerHTML=(d.suppliers||[]).map(s=>{
     const vr=s.variants>1?` <span class="muted" title="слито вариантов названия">×${s.variants}</span>`:'';
     return `<tr><td>${s.supplier}${vr}</td><td>${num(s.n)}</td><td>${num(s.moving)}</td><td>${rub(s.val)}</td><td>${lastCell(s)}</td></tr>`;
   }).join('')||'<tr><td colspan="5" class="muted">нет данных</td></tr>';
 
-  $('#foot').textContent='Снимок остатков на '+d.captured+'. «Объём у поставщиков» = стоимость их стока на удалённом складе (рыночный объём, не наши деньги). Спящие — повод вычистить из базы.';
+  $('#foot').textContent='Снимок остатков на '+d.captured+'. «Объём у поставщиков» = стоимость их стока на удалённом складе (рыночный объём, не наши деньги).';
+}
+const MON=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const mlabel=m=>MON[+m.slice(5,7)-1]+' '+m.slice(2,4);
+const cell=(v,cur)=>{
+  if(!v||!v.s&&!v.r) return `<td class="z${cur?' cur':''}">—</td>`;
+  const net=v.s-v.r;
+  const ret=v.r?` title="приёмки ${rub(v.s)}, возвраты −${rub(v.r)}"`:'';
+  return `<td${cur?' class="cur"':''}${ret}>${num(net)}${v.r?'<span class="neg">*</span>':''}</td>`;
+};
+async function loadPurchases(){
+  const d=await api('/api/suppliers/purchases');
+  const ms=d.months||[];
+  if(!ms.length){$('#purfoot').textContent='Витрина закупок пуста — ночной сбор ещё не проходил.';return;}
+  $('#purhead').innerHTML='<th>Группа поставщика</th>'+
+    ms.map(m=>`<th${m===d.current?' class="cur"':''}>${mlabel(m)}</th>`).join('')+
+    '<th>Приёмки</th><th>Возвраты</th><th>Нетто</th>';
+  $('#pur tbody').innerHTML=(d.groups||[]).map(g=>{
+    const nm=g.in_group?g.grp:`${g.grp} <span class="muted" title="контрагента нет в таблице групп">вне групп</span>`;
+    return `<tr><td>${nm}</td>`+ms.map(m=>cell(g.by[m],m===d.current)).join('')+
+      `<td>${num(g.supply)}</td><td class="${g.ret?'neg':'z'}">${g.ret?'−'+num(g.ret):'—'}</td><td><b>${num(g.net)}</b></td></tr>`;
+  }).join('');
+  const T=d.totals||{};
+  $('#pur tfoot').innerHTML='<tr><td>Всего</td>'+
+    ms.map(m=>cell(T.by[m],m===d.current)).join('')+
+    `<td>${num(T.supply)}</td><td class="${T.ret?'neg':'z'}">${T.ret?'−'+num(T.ret):'—'}</td><td>${num(T.net)}</td></tr>`;
+  const cm=mlabel(d.current);
+  $('#purfoot').textContent=`Суммы в ₽ с НДС по дате приёмки МойСклад, за вычетом возвратов поставщику (клетка со «*» — были возвраты, сумма в подсказке). Прошлые месяцы зафиксированы, пересчитывается только текущий (${cm}, поэтому он неполный). Обновлено ${(d.updated||'').slice(0,16).replace('T',' ')}.`;
 }
 $('#q').oninput=()=>{clearTimeout(t);t=setTimeout(load,300);};
 load();
+loadPurchases();
 </script>
 </body>
 </html>
