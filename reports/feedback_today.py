@@ -53,6 +53,15 @@ ART = BASE_DIR / "docs" / "feedback_today_artifact.html"
 # WEB_MODEL/DeepSeek, отзывы — на общей MODEL/DeepSeek, как раньше). Sonnet-сплит в feedback_web.py убран.
 QUESTION_MODEL = os.environ.get("FEEDBACK_QUESTION_MODEL", "claude-opus-5")
 
+# A3 (бриф 07.09.2026). Отвечать на отзывы Ozon по API нельзя: /v1/review/comment/create отдаёт 403
+# без подписки Premium Plus, а подписки не будет ни у одного юрлица (решение Сергея 24.08.2026).
+# Черновиков при этом накопилось 1218 при 71 опубликованном — то есть 1147 вызовов модели ушли
+# в никуда и продолжали бы уходить каждый цикл. Поэтому отзывы Ozon в драфт не берём вовсе;
+# строка raw_feedback остаётся на месте (её ждёт ручной канал ЛК, docs/reports/
+# ozon_lk_manual_reviews_2026-08-24.md). ВОПРОСЫ Ozon правило не трогает — их API открыт.
+# Вернуть генерацию: OZON_REVIEW_DRAFTS=1 в .env (появится подписка или работа через ЛК).
+OZON_REVIEW_DRAFTS = os.environ.get("OZON_REVIEW_DRAFTS", "0") == "1"
+
 # Сводка последнего run(): {'drafts', 'fails': [{platform,kind,ext_id,err}], 'llm_calls', 'web_calls'}.
 # Читает feedback_bot.health.report_cycle, чтобы сообщить, что именно не ушло и почему.
 LAST_RUN = {"drafts": 0, "fails": [], "llm_calls": 0, "web_calls": 0}
@@ -228,8 +237,9 @@ def _gather(since):
         AND posted_at IS NULL AND NOT skipped_old
         AND (draft_src_hash IS NULL
              OR draft_src_hash IS DISTINCT FROM md5(coalesce(body,'')||coalesce(pros,'')||coalesce(cons,'')))
+        AND (%s OR NOT (platform='ozon' AND kind='review'))
         AND created_at >= %s ORDER BY (kind='question') DESC, created_at DESC NULLS LAST""",
-        (since,))
+        (OZON_REVIEW_DRAFTS, since))
     return q
 
 

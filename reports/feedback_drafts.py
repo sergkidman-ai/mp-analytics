@@ -160,7 +160,8 @@ def _classify(r):
 
 def build():
     rows = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,body,pros,cons,payload
-        FROM raw_feedback WHERE is_answered=false AND account IN ('wb_acc1','oz_acc1')""")
+        FROM raw_feedback WHERE is_answered=false AND account IN ('wb_acc1','oz_acc1')
+        AND NOT (platform='ozon' AND kind='review')""")   # A3: канал ответа на отзывы Ozon закрыт
     # грунтовка для вопросов Ozon
     q_skus = {r["item_id"] for r in rows if r["kind"] == "question" and r["platform"] == "ozon" and r["item_id"]}
     compat = _ozon_compat("oz_acc1", q_skus) if q_skus else {}

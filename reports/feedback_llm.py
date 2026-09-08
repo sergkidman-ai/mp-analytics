@@ -255,9 +255,12 @@ def _text_of(message):
 
 
 def _gather(limit=None):
-    # весь неотвеченный текстовый backlog (~49 шт), свежие первыми; вопросы в приоритет
+    # весь неотвеченный текстовый backlog (~49 шт), свежие первыми; вопросы в приоритет.
+    # Отзывы Ozon исключены жёстко (A3, 07.09.2026): канал ответа закрыт, черновик им не нужен.
+    # Это ручной оценочный скрипт, флага OZON_REVIEW_DRAFTS у него нет — включать нечего.
     rows = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,body,pros,cons,payload
         FROM raw_feedback WHERE is_answered=false AND account IN ('wb_acc1','oz_acc1')
+        AND NOT (platform='ozon' AND kind='review')
         ORDER BY created_at DESC NULLS LAST""")
     items = [r for r in rows if _classify(r) in ("question", "negative", "positive")]
     items.sort(key=lambda r: {"question": 0, "negative": 1, "positive": 2}[_classify(r)])

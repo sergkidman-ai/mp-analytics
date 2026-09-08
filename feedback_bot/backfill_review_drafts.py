@@ -34,12 +34,17 @@ def pending(accounts, days, limit=None):
         FROM raw_feedback
         WHERE kind='review' AND is_answered=false AND posted_at IS NULL
           AND NOT skipped_old AND NOT skipped_no_text
+          AND (%s OR platform <> 'ozon')
           AND account = ANY(%s)
           AND created_at >= now() - make_interval(days => %s)
           AND (draft_text IS NULL
                OR draft_src_hash IS DISTINCT FROM md5(coalesce(body,'')||coalesce(pros,'')||coalesce(cons,'')))
         ORDER BY created_at DESC"""
-    params = [list(accounts), days]
+    # A3 (07.09.2026): здесь только отзывы (kind='review'), а отвечать на отзывы Ozon по API
+    # нельзя — генерировать им черновики значит жечь модель и копить неотправляемое. Догон по
+    # Ozon снимается тем же флагом, что и штатный цикл: OZON_REVIEW_DRAFTS=1.
+    from reports.feedback_today import OZON_REVIEW_DRAFTS
+    params = [OZON_REVIEW_DRAFTS, list(accounts), days]
     if limit:
         sql += " LIMIT %s"
         params.append(limit)
