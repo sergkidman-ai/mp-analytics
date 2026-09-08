@@ -30,8 +30,14 @@
   .chip b{font-size:15px}
   .note{color:var(--mut);font-size:12px;margin:14px 0 0}
   .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
-  .scrollx{overflow-x:auto;border-radius:12px}
-  #pur th:first-child,#pur td:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:1}
+  .scrollx{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+  /* общий table{overflow:hidden} делает таблицу собственным scroll-контейнером и убивает
+     position:sticky у первой колонки — для этой таблицы рамку и скролл держит .scrollx */
+  #pur{overflow:visible;border:0;border-radius:0;width:auto;min-width:100%}
+  #pur th,#pur td{white-space:nowrap}
+  #pur th:first-child,#pur td:first-child{text-align:left;position:sticky;left:0;background:var(--card);
+    border-right:1px solid var(--line);z-index:2}
+  #pur thead th:first-child{z-index:3}
   #pur tfoot td{font-weight:700;border-top:2px solid var(--line)}
   #pur td.cur{background:rgba(127,127,127,.07)}
   #pur .z{color:var(--mut)}
@@ -125,6 +131,9 @@ async function loadPurchases(){
   $('#pur tfoot').innerHTML='<tr><td>Всего</td>'+
     ms.map(m=>cell(T.by[m],m===d.current)).join('')+
     `<td>${num(T.supply)}</td><td class="${T.ret?'neg':'z'}">${T.ret?'−'+num(T.ret):'—'}</td><td>${num(T.net)}</td></tr>`;
+  // по умолчанию показываем правый край — текущий месяц и итоги, без прокрутки руками
+  const sx=document.querySelector('.scrollx');
+  sx.scrollLeft=sx.scrollWidth;
   const cm=mlabel(d.current);
   $('#purfoot').textContent=`Суммы в ₽ с НДС по дате приёмки МойСклад, за вычетом возвратов поставщику (клетка со «*» — были возвраты, сумма в подсказке). Прошлые месяцы зафиксированы, пересчитывается только текущий (${cm}, поэтому он неполный). Обновлено ${(d.updated||'').slice(0,16).replace('T',' ')}.`;
 }
