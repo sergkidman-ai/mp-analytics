@@ -236,5 +236,38 @@ check("G стоп-лист A1.2 работает по кэшу",
       not gate.verdict(_cached("Оформим замену или возврат.", False))[0], "разрешена")
 print("10. кэш и гейт: stale ⛔, свежая ✅, обещание в тексте кэша ⛔")
 
+# ── 11. классификатор: выгрузка «прочее» от 08.09.2026 обязана разойтись по классам ──────────
+# Источник — docs/reports/rev_other_class_2026-09-08.md: 39 вопросов, которые классификатор до
+# правки 08.09 сваливал в «прочее». После трёх новых классов и расширенных формулировок в «прочем»
+# имеют право остаться только наличие/сроки, проблема печати и мусор — по договорённости ≤11.
+import re                                                    # noqa: E402
+DUMP = pathlib.Path(__file__).resolve().parent.parent / "docs/reports/rev_other_class_2026-09-08.md"
+rows, name = [], ""
+for ln in DUMP.read_text(encoding="utf-8").splitlines()[::-1]:
+    m = re.match(r"\s*<sub>(.*)</sub>\s*$", ln)
+    if m:
+        name = m.group(1)
+        continue
+    m = re.match(r"- `[^`]+` арт\. `[^`]*` · (.+)$", ln)
+    if m:
+        rows.append((m.group(1).strip(), name))
+        name = ""
+cls = [(rc.classify(b, kind="question"), b, n) for b, n in rows]
+rest = [c for c in cls if c[0] == "прочее"]
+check("11 выгрузка «прочее»: разобрано", len(rows) == 39, f"строк {len(rows)}")
+check("11 в «прочем» осталось ≤11", len(rest) <= 11, f"осталось {len(rest)}")
+# Пара Xerox C310 (бриф 08.09.2026): по теме это «ресурс»/«характеристики», по существу —
+# претензии; до A1.1-fix их держал только стоп-лист A1.2. Строки берём из БД, не из выгрузки.
+C310 = ["bijIOKABMJha5m81zPTh", "3Jy9OKAByX-W7wzvhu5A"]
+c310 = db.query("SELECT ext_id, kind, body, rating FROM raw_feedback WHERE ext_id = ANY(%s)", (C310,))
+c310c = [(r["ext_id"], rc.classify(r["body"], kind=r["kind"], rating=r["rating"])) for r in c310]
+check("11 Xerox C310 ×2 → претензия",
+      len(c310c) == 2 and all(c == "претензия" for _, c in c310c), f"{c310c}")
+by = {}
+for c, _, _ in cls:
+    by[c] = by.get(c, 0) + 1
+print(f"11. классификатор на выгрузке: строк {len(rows)}, в «прочем» {len(rest)}, "
+      f"классы " + ", ".join(f"{k} {v}" for k, v in sorted(by.items(), key=lambda x: -x[1])))
+
 print(f"\nИТОГО: проверок {ok + bad}, провалов {bad}")
 sys.exit(1 if bad else 0)
