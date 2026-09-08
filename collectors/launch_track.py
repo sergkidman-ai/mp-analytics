@@ -212,6 +212,7 @@ def state_ya(account):
 def main():
     db.execute(DDL)
     today = datetime.date.today()
+    now = datetime.datetime.now(datetime.timezone.utc)
     seed = db.query("SELECT count(*) c FROM prc_launch")[0]["c"] == 0
     models, nov, sold = ms_models(), novelty_meta(), sold_before()
 
@@ -232,11 +233,12 @@ def main():
         n = nov.get(ext) or {}
         recs.append({"external_code": ext, "ms_created": created, "ms_source": src,
                      "ms_name": m["name"], "supplier_key": n.get("supplier"),
-                     "cards": m["cards"], "archived": m["archived"], "updated_at": "now()"})
-    for r in recs:
-        r.pop("updated_at")
+                     "cards": m["cards"], "archived": m["archived"], "updated_at": now})
+    # updated_at/checked_at обновляем всегда: страница показывает по ним «данные на такое-то
+    # время», и без этого отметка застывала на дне первого прогона.
     db.upsert("prc_launch", recs, conflict_cols=["external_code"],
-              update_cols=["ms_created", "ms_source", "ms_name", "supplier_key", "cards", "archived"])
+              update_cols=["ms_created", "ms_source", "ms_name", "supplier_key", "cards",
+                           "archived", "updated_at"])
     print(f"  моделей МС: {len(recs)}, новых кодов с датой заведения: "
           f"{sum(1 for r in recs if r['ms_created'])} (отсеяно как не новинки: {dropped})")
 
@@ -264,9 +266,10 @@ def main():
                     new_sell += 1
             rows.append({"external_code": ext, "showcase": acc, "state": st["state"],
                          "card_at": card_at, "selling_at": sell_at, "seeded": seeded,
-                         "offer": st["offer"], "note": st["note"]})
+                         "offer": st["offer"], "note": st["note"], "checked_at": now})
         db.upsert("prc_launch_mp", rows, conflict_cols=["external_code", "showcase"],
-                  update_cols=["state", "card_at", "selling_at", "seeded", "offer", "note"])
+                  update_cols=["state", "card_at", "selling_at", "seeded", "offer", "note",
+                               "checked_at"])
         live = sum(1 for r in rows if r["state"] == "selling")
         card = sum(1 for r in rows if r["state"] == "card")
         print(f"  {title}: в продаже {live}, только карточка {card}, нет {len(rows) - live - card}"
