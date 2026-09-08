@@ -649,6 +649,36 @@ def find_order(seller_inn, total_kop, upd_date):
     return None, (open_hits or hits), agent
 
 
+def _same_upd_supply(cands, number):
+    """Приёмка среди кандидатов, созданная ЭТИМ ЖЕ УПД. → dict|None.
+
+    Один документ приходит двумя путями (печатная форма PDF/Excel и XML из ЭДО), и второй
+    экземпляр упирался в «все заказы уже имеют приёмку» — красная ошибка на штатной ситуации.
+    Сверяем по входящему номеру приёмки (`incomingNumber` = номер УПД, ставим его при создании):
+    совпал — это повтор того же документа, а не дыра. В почтовом поллере такой дубль уже
+    глушится по имени файла; здесь — по существу документа, независимо от канала.
+    """
+    num = (number or "").strip()
+    if not num:
+        return None
+    for o in cands:
+        for s in (o.get("supplies") or []):
+            # в заказе из find_order приёмки лежат метами без expand: id только в meta.href
+            sid = s.get("id") or (s.get("meta", {}).get("href", "").rstrip("/").split("/")[-1])
+            if not sid:
+                continue
+            try:
+                sup = inv.get_r(f"/entity/supply/{sid}")
+            except Exception:
+                continue                      # МС недоступен → молчим, останется обычная ошибка
+            if (sup.get("incomingNumber") or "").strip() == num:
+                return {"supply": sup.get("name"), "id": sup.get("id"), "order": o.get("name"),
+                        "date": (sup.get("moment") or "")[:10],
+                        "applicable": bool(sup.get("applicable")),
+                        "url": "https://online.moysklad.ru/app/#supply/edit?id=" + sid}
+    return None
+
+
 def _month_back(d, n):
     y, m = d.year, d.month - n
     while m <= 0:
@@ -890,8 +920,14 @@ def process(src, create=True, suffix="", fill=False):
             if not cands:
                 res["error"] = "Заказ не найден по сумме"
             elif all(c["has_supply"] for c in res["candidates"]):
-                res["error"] = (f"Все {len(cands)} заказ(ов) с суммой {total} уже имеют приёмку "
-                                f"— УПД, возможно, уже проведён (дубль).")
+                dupe = _same_upd_supply(cands, upd["number"])
+                if dupe:
+                    res["dupe"] = dupe        # тот же документ вторым путём — не ошибка
+                    res["error"] = (f"УПД № {upd['number']} уже проведён: приёмка «{dupe['supply']}» "
+                                    f"на заказе {dupe['order']}. Повторно не создаю.")
+                else:
+                    res["error"] = (f"Все {len(cands)} заказ(ов) с суммой {total} уже имеют приёмку "
+                                    f"— УПД, возможно, уже проведён (дубль).")
             else:
                 res["error"] = f"Неоднозначно: {len(cands)} заказ(ов) БЕЗ приёмки с суммой {total}"
             return res
@@ -1103,6 +1139,17 @@ def format_report(res):
     else:
         L.append(f"📦 ГТД-реестр Спринта | продавец ИНН {u.get('seller_inn')} | строк: {u.get('positions')}")
     L.append(f"Сумма с НДС: {res.get('total')}")
+
+    if res.get("dupe"):
+        # Штатный повтор: тот же УПД пришёл вторым путём (печатная форма и XML из ЭДО).
+        # Красной ошибки здесь быть не должно — приёмка уже есть, делать нечего.
+        d = res["dupe"]
+        L.append(f"\n☑️ Уже загружен — приёмка «{d['supply']}» на заказе {d['order']}"
+                 f" от {d['date']}"
+                 + ("" if d.get("applicable") else " (черновик, ждёт проведения)") + ".")
+        L.append("Повторную приёмку не создаю. Делать ничего не нужно.")
+        L.append(d.get("url", ""))
+        return "\n".join(L)
 
     if res.get("stop"):
         L.append(f"\n⛔ Приёмка не создана — {res['error']}.")

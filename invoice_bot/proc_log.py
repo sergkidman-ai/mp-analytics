@@ -44,6 +44,9 @@ def log_event(engine_kind, source, fn, frm, res):
         supplier = _supplier_name(u.get("seller_inn"))
         order_name = o.get("name")              # заказ, к которому привязалась приёмка
         order_id = o.get("id")
+        d = res.get("dupe")                     # тот же УПД вторым путём: приёмка уже есть
+        if d and not order_name:
+            order_name = d.get("order")
         supplier_inn = u.get("seller_inn")
         doc_date = u.get("date")                # iso
     ev = {
@@ -51,6 +54,7 @@ def log_event(engine_kind, source, fn, frm, res):
         "number": number, "supplier": supplier, "supplier_inn": supplier_inn,
         "order_name": order_name, "order_id": order_id, "doc_date": doc_date,
         "ok": res.get("ok"), "created": res.get("created"), "stop": res.get("stop"),
+        "dupe": bool(res.get("dupe")),          # повтор уже проведённого документа — не ошибка
         "error": res.get("error") or res.get("stop_msg"),
     }
     try:
@@ -61,7 +65,10 @@ def log_event(engine_kind, source, fn, frm, res):
 
 
 PENDING_SHOW = 40      # сколько «ждущих УПД» и ошибок показывать поимённо
-_ok = lambda ev: bool(ev.get("ok") and ev.get("created"))
+# «Отработано» = документ лежит в МойСкладе. Это либо созданный нами документ, либо `dupe` —
+# повтор того же УПД вторым путём (печатная форма и XML из ЭДО): приёмка уже есть, дыры нет,
+# в раздел ошибок такой повтор попадать не должен.
+_ok = lambda ev: bool((ev.get("ok") and ev.get("created")) or ev.get("dupe"))
 
 
 def _dedup_latest(events, ident):
