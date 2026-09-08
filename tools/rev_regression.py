@@ -58,7 +58,7 @@ print(f"2. чистый позитив: {len(clean)} строк, регресс�
 # ── 3. класс обращения на реальном негативе ──────────────────────────────────────────────────
 b0 = bad
 neg = db.query(f"""SELECT kind, rating, body, pros, cons FROM raw_feedback
-                   WHERE kind='review' AND rating<=2 AND length({TXT})>20 LIMIT 40""")
+                   WHERE kind='review' AND rating<=2 AND length({TXT})>20 ORDER BY ext_id LIMIT 40""")
 claims = sum(1 for r in neg
              if rc.classify(" ".join(filter(None, [r["body"], r["pros"], r["cons"]])),
                             kind="review", rating=r["rating"]) == "претензия")
@@ -72,6 +72,115 @@ q = db.query("""SELECT kind, draft_text, draft_route, draft_confidence, draft_gr
                 ORDER BY posted_at DESC LIMIT 60""")
 allowed = sum(1 for r in q if gate.verdict(r)[0])
 print(f"4. publish_gate на 60 опубликованных вопросах: разрешено {allowed}, запрещено {len(q) - allowed}")
+
+# ── 5. блок A1 на реальных строках ───────────────────────────────────────────────────────────
+# A1.1 — претензия держится; A1.2 — обещание в СВОЁМ черновике держится, тот же текст от оператора
+# проходит; A1.3 — «да, подойдёт» на модель вне карточки. Для строк, драфтнутых до 07.09.2026,
+# следа совместимости в grounding нет — восстанавливаем его тем же матчером, что и конвейер.
+from reports.feedback_llm import _asked_models              # noqa: E402
+from reports.feedback_today import _fam_status              # noqa: E402
+from reports.card_facts import CardFacts                    # noqa: E402
+_cf = CardFacts()
+
+
+def with_compat(r):
+    """Строка + восстановленный ground['compat'] (для архивных строк без него)."""
+    g = dict(r.get("draft_grounding") or {})
+    if r["kind"] == "question" and not g.get("compat"):
+        asked = _asked_models(r.get("body") or "")
+        if asked:
+            fct = (_cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else
+                   _cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else
+                   _cf.for_wb(r["item_id"]))
+            st, mm = _fam_status(r["body"], (fct or {}).get("models") or [])
+            g["compat"] = {"asked": asked, "matched": mm if st == "yes" else [], "status": st}
+    return dict(r, draft_grounding=g)
+
+
+b0 = bad
+claims = db.query(f"""SELECT kind,rating,body,pros,cons,draft_text,draft_route,draft_confidence,
+                             draft_grounding FROM raw_feedback
+                      WHERE kind='review' AND rating<=2 AND length({TXT})>20
+                        AND draft_text IS NOT NULL ORDER BY ext_id LIMIT 40""")
+from reports.card_rating import DEAD_TEXT              # noqa: E402
+live = [r for r in claims if (r["draft_text"] or "").strip() != DEAD_TEXT.strip()]
+held = sum(1 for r in live if "претензия, ручной ответ" in gate.verdict(r)[1])
+check("A1.1 претензия на 1–2★ с текстом", held == len(live), f"{held} из {len(live)}")
+print(f"5. A1.1: 1–2★ с текстом {len(claims)}, из них хендофф по мёртвой карточке "
+      f"{len(claims) - len(live)} (правило 24.08.2026), снято гейтом {held}")
+
+drafts = db.query("""SELECT kind,body,pros,cons,rating,draft_text,draft_route,draft_confidence,
+                            draft_grounding FROM raw_feedback
+                     WHERE draft_text IS NOT NULL AND created_at > now() - interval '30 days'""")
+prom = [r for r in drafts if any("обещание" in w for w in gate.verdict(r)[1])]
+for r in prom[:5]:                                   # тот же смысл, но написанный оператором, обязан пройти
+    hand = "Оформим замену или возврат, напишите нам в чат."       # ≠ черновику → это текст человека
+    why = gate.verdict(r, hand)[1]
+    check("A1.2 текст оператора не судится", not any("обещание" in w for w in why), str(why)[:80])
+print(f"6. A1.2: черновиков за 30 дней {len(drafts)}, с обещанием {len(prom)} "
+      f"({100 * len(prom) / max(1, len(drafts)):.1f} %)")
+
+CASES = {"C5890": "01a06c3e-a65e-7925-a74b-ee76a7a303c6", "LBP646": "01a0577e-d9e1-70a5-94f2-30cdfc9c028f",
+         "HP 4303": "TdNvR6ABWgxW4OcHSaRS"}
+for name, ext in CASES.items():
+    rr = db.query("""SELECT platform,account,kind,ext_id,item_id,body,rating,draft_text,draft_route,
+                            draft_confidence,draft_grounding FROM raw_feedback WHERE ext_id=%s""", (ext,))
+    if not rr:
+        check(f"A1.3 {name}", False, "строка не найдена")
+        continue
+    r = with_compat(rr[0])
+    allow, why = gate.verdict(r)
+    a13 = [w for w in why if "без подтверждения карточкой" in w]
+    conf_only = why and all("уверенность" in w for w in why)
+    check(f"A1.3 {name} запрещён", not allow, "разрешён")
+    print(f"   {name}: {'⛔' if not allow else '✅'} "
+          f"{'A1.3' if a13 else ('только порог conf' if conf_only else 'иное правило')}: "
+          f"{gate.reason_line(why, 110) or '—'}")
+print("7. A1.3: три названных кейса проверены")
+
+# ── 8. эталонный набор: A1 не имеет права РАЗРЕШИТЬ то, что запрещал прежний гейт ──────────────
+import importlib.util                                        # noqa: E402
+import subprocess                                            # noqa: E402
+_old_src = subprocess.run(["git", "-C", str(pathlib.Path(__file__).resolve().parent.parent),
+                           "show", "HEAD:reports/publish_gate.py"], capture_output=True, text=True).stdout
+old = None
+if _old_src:
+    spec = importlib.util.spec_from_loader("old_gate", loader=None)
+    old = importlib.util.module_from_spec(spec)
+    exec(compile(_old_src, "old_gate", "exec"), old.__dict__)
+GOLD = ["nZx5NqAByX-W7wzv_tfL", "iIGKN6ABQU2etUMg35yr", "ioHvNKABQU2etUMgs4wc",
+        "-CjwNKABMJha5m81k9Nt", "019fff47-f685-7486-9e97-aafba3ffb8bf",
+        "01a03373-db75-7bab-83dc-11eac94aae35", "01a016a8-4f7a-7b18-b5d6-23aa1dd3b4cc",
+        "01a033db-e4ec-7b5a-ab4c-fc75f6c117d5", "2CIAop8BMJha5m81xsZI"]
+gold = db.query("""SELECT platform,account,kind,ext_id,item_id,body,rating,draft_text,draft_route,
+                          draft_confidence,draft_grounding FROM raw_feedback
+                   WHERE ext_id = ANY(%s)""", (GOLD,))
+loosened = tightened = 0
+for r in gold:
+    new_allow = gate.verdict(with_compat(r))[0]
+    old_allow = old.verdict(r)[0] if old else new_allow
+    check(f"gold {r['ext_id'][:12]}", not (new_allow and not old_allow), "стал разрешён")
+    loosened += int(new_allow and not old_allow)
+    tightened += int(old_allow and not new_allow)
+print(f"8. эталон rev_gold_set: строк найдено {len(gold)} из {len(GOLD)}, "
+      f"стало запрещено дополнительно {tightened}, ослаблено {loosened}")
+
+# ── 9. «правильно пропущенные» обязаны и дальше проходить ────────────────────────────────────
+# Три ответа, которые Сергей на разборе признал верными (бриф 07.09.2026). Если их держит стоп-лист
+# A1.2 — он слишком широк: «замена чипа простая» и «надёжнее заменить на новый» никаких обязательств
+# компании не содержат. Именно из-за них список из брифа сужен до глаголов первого лица.
+PASSED = {"HP M252dw чип": "ntSpZ6ABWgxW4OcH5cGB", "W2122X чип": "WAAubqAB96_WEUU2c39k",
+          "TK-8800 качество": "01a04e3c-6edf-7e7a-b50d-0dd79b1b19da"}
+for name, ext in PASSED.items():
+    rr = db.query("""SELECT platform,account,kind,ext_id,item_id,body,pros,cons,rating,draft_text,
+                            draft_route,draft_confidence,draft_grounding FROM raw_feedback
+                     WHERE ext_id=%s""", (ext,))
+    if not rr:
+        check(f"пропущенный {name}", False, "строка не найдена")
+        continue
+    allow, why = gate.verdict(with_compat(rr[0]))
+    check(f"пропущенный {name}", allow, gate.reason_line(why, 90))
+print(f"9. правильно пропущенные: проверено {len(PASSED)}")
 
 print(f"\nИТОГО: проверок {ok + bad}, провалов {bad}")
 sys.exit(1 if bad else 0)

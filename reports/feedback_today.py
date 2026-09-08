@@ -801,6 +801,16 @@ def _answer(client, r, cf, corpus):
         ground = {"llm": True, "grounded": bool(d.get("grounded")), "note": (d.get("note") or "")[:300],
                   "model": used_model, "catalog": "КАТАЛОГ" in (cc or ""), "source": "карточка"}
         cat = "question" if r["kind"] == "question" else "review-text"
+        # A1.3 (07.09.2026): след совместимости — какие модели спросили и какие из них подтверждает
+        # карточка. Пишем ДО веток обогащения, чтобы след был у любого вопроса с моделью, а не только
+        # у тех, что ушли в компат-ветку; ниже компат-ветка перезапишет его точным _fam_status().
+        if r["kind"] == "question":
+            _asked0 = _asked_models(r["body"] or "")
+            if _asked0:
+                _cn0 = _norm(cc or "")
+                _mm0 = [a for a in _asked0 if _cn0 and _norm(a) in _cn0]
+                ground["compat"] = {"asked": _asked0, "matched": _mm0,
+                                    "status": "yes" if _mm0 else ("no_data" if not _cn0 else "unknown")}
         # СОВМЕСТИМОСТЬ: карточка-семья (вариант серии) → прямой ответ; регуляторный код или модель
         # вне карточки → веб (источник №3, объяснит напр. L662B = европейское обозначение CX17NF)
         if r["kind"] == "question" and (intent(r["body"]) == "совместимость модели"
@@ -811,6 +821,10 @@ def _answer(client, r, cf, corpus):
             code = (fct or {}).get("code")
             st, mm = _fam_status(r["body"], (fct or {}).get("models") or [])
             asked_m = _asked_models(r["body"])
+            if asked_m:                                # точный след: матчер с базовой моделью серии
+                # ВНИМАНИЕ: _fam_status при st != 'yes' возвращает вторым значением СПРОШЕННЫЕ модели,
+                # а не совпавшие. Записать их как matched = отменить всё правило A1.3.
+                ground["compat"] = {"asked": asked_m, "matched": mm if st == "yes" else [], "status": st}
             defect = re.search(r"вернуть|возврат|не\s+счита|не\s+вид|ошибк", (r["body"] or "").lower())
             reg = [x for x in re.findall(r"\b[A-Za-z]\d{3,4}[A-Za-z]\b", r["body"] or "")
                    if _norm(x) not in _norm(cc or "")]

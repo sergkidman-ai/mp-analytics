@@ -168,8 +168,11 @@ def _mod(mod_id):
 
 
 def _fr(m):
-    """Строка raw_feedback для post_answer (нужен payload/item_id)."""
-    r = db.query("""SELECT platform,account,kind,ext_id,item_id,payload,
+    """Строка raw_feedback для post_answer (нужен payload/item_id).
+
+    body/pros/cons/rating тянем не для показа, а для гейта: на строках, драфтнутых до 07.09.2026,
+    класса обращения в grounding нет, и «претензию» (A1.1) он считает по тексту покупателя."""
+    r = db.query("""SELECT platform,account,kind,ext_id,item_id,payload,body,pros,cons,rating,
         draft_text,draft_route,draft_confidence,draft_grounding FROM raw_feedback
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (m["platform"], m["account"], m["kind"], m["ext_id"]))
@@ -318,8 +321,8 @@ def flush_deferred(limit=20):
     остатка (её ещё зовёт цикл, шаг 3b): что было отложено при старой логике, уходит без лимита.
     Пустой 'deferred' = no-op. Возвращает число реально ушедших."""
     rows = db.query("""SELECT m.id, m.final_text, m.tg_chat_id, m.tg_msg_id, m.decided_by,
-        f.platform, f.account, f.kind, f.ext_id, f.item_id, f.payload, f.body,
-        f.draft_text, f.draft_route, f.draft_confidence, f.draft_grounding
+        f.platform, f.account, f.kind, f.ext_id, f.item_id, f.payload, f.body, f.pros, f.cons,
+        f.rating, f.draft_text, f.draft_route, f.draft_confidence, f.draft_grounding
         FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
              AND f.kind=m.kind AND f.ext_id=m.ext_id

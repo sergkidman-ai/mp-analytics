@@ -105,6 +105,7 @@ def _candidates():
     либо 'backlog'. Разделение нужно, потому что дневной лимит канала применяется ТОЛЬКО к бэклогу:
     свежие отзывы должны уходить сразу, не соревнуясь со старьём за квоту."""
     rows = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,payload,
+        body,pros,cons,draft_grounding,draft_route,draft_confidence,
         draft_text,created_at FROM raw_feedback
         WHERE draft_route='auto' AND is_answered=false AND posted_at IS NULL
         AND draft_text IS NOT NULL AND NOT skipped_old AND NOT skipped_no_text
