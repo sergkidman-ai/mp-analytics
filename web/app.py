@@ -844,6 +844,17 @@ def opex_fact(period: str = "", org: str = ""):
                 "FROM bank_txn ORDER BY 1 DESC")]}
 
 
+def _purchases_month(period):
+    """Объём закупок за месяц — витрина `supplier_purchase_month`, тот же источник, что вкладка
+    «Поставщики»: приёмки МойСклада минус возвраты поставщику, суммы С НДС как в документах,
+    по дате документа. Текущий месяц пересчитывается ночным сбором, прошлые статичны."""
+    r = db.query("""SELECT coalesce(sum(supply_sum),0)::float s, coalesce(sum(return_sum),0)::float r,
+            coalesce(sum(supply_docs),0)::int d, max(updated_at)::text u
+        FROM supplier_purchase_month WHERE month=%s""", (period,))[0]
+    return {"supply": round(r["s"], 2), "returns": round(r["r"], 2),
+            "net": round((r["s"] or 0) - (r["r"] or 0), 2), "docs": r["d"], "updated": r["u"]}
+
+
 def _biz_for(period):
     """Агрегат по ВСЕМ аккаунтам за период (через _summary_one на аккаунт) + разбивка."""
     # Главная/бизнес-экран — только WB (его метрики WB-специфичны: СПП, наша цена, raw_wb_report).
@@ -874,18 +885,26 @@ def business(period: str = ""):
     """Главный экран: агрегат по всему бизнесу (оба ВБ) + расходы + динамика к прошлому месяцу."""
     if not period:
         period = db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
-    cur, per = _biz_for(period)            # cur — WB-часть
-    oz = _oz_summary("", period)           # Ozon-часть (к перечислению − COGS)
-    # ИТОГ по всему бизнесу = WB + Ozon. ВАЖНО: ВБ берём по НАШЕЙ цене (own_revenue) и нашей
-    # марже (margin_own), а НЕ по цене покупателя после СПП — для единой базы с Ozon.
-    wb_rev = cur.get("own_revenue") or 0
-    t_rev, t_net = wb_rev + oz["revenue"], cur["net"] + oz["net"]
-    t_cogs = (cur.get("cogs") or 0) + oz["cogs"]
-    cur["wb"] = {"revenue": round(wb_rev, 2), "net": cur["net"], "cogs": cur.get("cogs"),
-                 "margin_pct": cur.get("margin_own")}
-    cur["ozon"] = {"revenue": oz["revenue"], "net": oz["net"], "margin_pct": oz["margin_pct"],
-                   "cogs": oz["cogs"]}
-    ya = _ya_business(period)              # Маркет за месяц: выручка/расходы/COGS — входит в ИТОГ
+    cur, per = _biz_for(period)            # WB-разрез витрины: СПП, комиссия, реклама — для дельт
+    oz = _oz_summary("", period)           # Ozon-разрез транзакций: категории расходов, дельты
+    # ВЕРХНИЕ ПОКАЗАТЕЛИ — из «Отчётов МП» (`reports.mp_numbers`), а не вторым счётом:
+    # там месяц собран по форме площадки и сверен с ЛК. База единая — оборот по НАШЕЙ цене
+    # (ВБ own_price = до СПП, Ozon sales, Маркет выручка + зачёт).
+    mp = _mpn.business(period)
+    mp_wb, mp_oz = mp["platforms"].get("wb"), mp["platforms"].get("ozon")
+    wb_rev = (mp_wb or {}).get("oborot") or cur.get("own_revenue") or 0
+    cur["wb"] = ({"revenue": mp_wb["oborot"], "net": mp_wb["net"], "cogs": mp_wb["cogs"],
+                  "margin_pct": mp_wb["margin_pct"]} if mp_wb else
+                 {"revenue": round(wb_rev, 2), "net": cur["net"], "cogs": cur.get("cogs"),
+                  "margin_pct": cur.get("margin_own")})
+    cur["ozon"] = ({"revenue": mp_oz["oborot"], "net": mp_oz["net"], "cogs": mp_oz["cogs"],
+                    "margin_pct": mp_oz["margin_pct"]} if mp_oz else
+                   {"revenue": oz["revenue"], "net": oz["net"], "margin_pct": oz["margin_pct"],
+                    "cogs": oz["cogs"]})
+    t_rev = cur["wb"]["revenue"] + cur["ozon"]["revenue"]
+    t_net = cur["wb"]["net"] + cur["ozon"]["net"]
+    t_cogs = (cur["wb"]["cogs"] or 0) + (cur["ozon"]["cogs"] or 0)
+    ya = _ya_business(period)              # Маркет за месяц: оборот/удержания/COGS — входит в ИТОГ
     if ya:
         cur["yandex"] = ya
         t_rev += ya["revenue"]; t_net += ya["net"]; t_cogs += ya["cogs"]
@@ -899,6 +918,11 @@ def business(period: str = ""):
     op = _opex_total(period)      # с 08.2026 — факт из размеченной выписки, раньше — ручной снапшот
     cur["opex"] = round(op, 2)
     cur["net_after_opex"] = round(t_net - op, 2)       # после ФОТ — от ИТОГА бизнеса
+    # Хвост неразмеченных платежей: без него итог опер. расходов на главной выглядит готовым,
+    # хотя на вкладке «Опер. расходы» рядом висит «ещё не разнесено».
+    om = _opex_month(period)
+    cur["opex_unassigned"] = _opex_unassigned(om) if om and len(om) == 10 else {"n": 0, "s": 0.0}
+    cur["purchases"] = _purchases_month(period)        # объём закупок — вкладка «Поставщики»
     prev_p = _prev_period("", "", period)
     if prev_p:
         prv, _ = _biz_for(prev_p)
@@ -910,10 +934,14 @@ def business(period: str = ""):
             c, o = cur.get(k), prv.get(k)
             cur["delta"][k] = None if c is None or o is None else {
                 "abs": round(c - o, 2), "pct": (None if not o else round((c - o) / abs(o) * 100, 1))}
-        # дельты по ИТОГУ (WB по нашей цене + Ozon + Маркет) — Маркет теперь помесячный
-        ya_prev = _ya_business(prev_p) if ya else None
-        p_rev = (prv.get("own_revenue") or 0) + oz_prev["revenue"] + (ya_prev["revenue"] if ya_prev else 0)
-        p_net = prv["net"] + oz_prev["net"] + (ya_prev["net"] if ya_prev else 0)
+        # дельты по ИТОГУ — прошлый месяц на ТОЙ ЖЕ базе «Отчётов МП», иначе стрелка меряла бы
+        # разницу методик, а не бизнеса
+        mp_prev = _mpn.business(prev_p)
+        p_rev, p_net = mp_prev["total"]["oborot"], mp_prev["total"]["net"]
+        if not p_rev:      # месяца ещё нет в отчётах — старый путь, чтобы стрелка не пропала
+            ya_prev = _ya_business(prev_p) if ya else None
+            p_rev = (prv.get("own_revenue") or 0) + oz_prev["revenue"] + (ya_prev["revenue"] if ya_prev else 0)
+            p_net = prv["net"] + oz_prev["net"] + (ya_prev["net"] if ya_prev else 0)
         for k, c, o in (("total_revenue", t_rev, p_rev),
                         ("total_net", t_net, p_net),
                         ("total_margin", cur["total"]["margin_pct"],
@@ -1251,6 +1279,7 @@ from collectors.ozon_realization import sales_split as _oz_realization_split  # 
 import reports.ozon_mp_report as _ozmp  # noqa: E402
 import reports.wb_mp_report as _wbmp  # noqa: E402
 import reports.yandex_mp_report as _yamp  # noqa: E402
+import reports.mp_numbers as _mpn  # noqa: E402  числовой фасад «Отчётов МП» для главной
 
 OZ_NAMES = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр"}
 OZ_RU = {"revenue": "Выручка", "commission": "Комиссия", "advertising": "Реклама/продвиж.",
@@ -3736,24 +3765,27 @@ def _ya_dow(ds):
 
 
 def _ya_business(period: str = ""):
-    """Маркет для агрегата главной — ЗА ВЫБРАННЫЙ МЕСЯЦ из yandex_finance_monthly (stats/orders,
-    история с января). Выручка = payment+subsidy, возвраты вычтены (REFUND). Расходы МП =
-    комиссия+логистика+эквайринг+буст+прочее. COGS с импутацией непокрытых штук."""
-    q = db.query("""SELECT revenue::float r, subsidy::float s, orders,
-            returns_orders, returns_sum::float rs, cogs::float cogs, cogs_cov_pct::float cov,
-            (fee+delivery+transfer+promotion+agency+other_fee+subscription_cost)::float mp
-        FROM yandex_finance_monthly WHERE account='ya_acc1' AND month=%s""", (period or None,))
-    if not q:
+    """Маркет для агрегата главной — ЦИФРЫ ВКЛАДКИ «Отчёты МП · Яндекс» за выбранный месяц
+    (`reports.mp_numbers`), плюс справочные счётчики из витрины `yandex_finance_monthly`.
+
+    Раньше здесь была своя формула: выручка = payment + subsidy, а вычитались только денежные
+    части услуг (`fee+delivery+transfer+promotion+agency+other_fee+subscription_cost`), без
+    зачёта баллами, без бустов/полок/отзывов и без возвратов. Она завышала чистую по Маркету
+    в 4–10 раз (июль-2026: 1 141 347 против 115 955 в отчёте) и текла в ИТОГ по бизнесу.
+    Оборот теперь — «наша цена» = выручка + зачёт, как на вкладке и как у ВБ и Ozon."""
+    mp = _mpn.month("yandex", period)
+    if not mp:
         return None
-    r = q[0]
-    rev = round((r["r"] or 0) + (r["s"] or 0))
-    cogs = round(r["cogs"] or 0)
-    mp_cost = round(r["mp"] or 0)
-    net = rev - cogs - mp_cost                                    # настоящая чистая
-    return {"revenue": rev, "orders": r["orders"], "cogs": cogs, "mp_cost": mp_cost, "net": net,
-            "returns": r["returns_orders"], "returns_sum": round(r["rs"] or 0),
-            "cogs_cov_pct": r["cov"],
-            "margin_pct": round(net / rev * 100, 1) if rev else None, "gross": False}
+    q = db.query("""SELECT subsidy::float s, orders, returns_orders, returns_sum::float rs,
+            cogs_cov_pct::float cov
+        FROM yandex_finance_monthly WHERE account='ya_acc1' AND month=%s""", (period or None,))
+    r = q[0] if q else {}
+    return {"revenue": round(mp["oborot"]), "orders": mp["orders"] or r.get("orders"),
+            "cogs": round(mp["cogs"]), "mp_cost": round(mp["itog"]), "net": round(mp["net"]),
+            "payout": round(mp["payout"]), "subsidy": round(r.get("s") or 0),
+            "returns": mp["returns_cnt"] or r.get("returns_orders"),
+            "returns_sum": round(r.get("rs") or 0), "cogs_cov_pct": r.get("cov"),
+            "margin_pct": mp["margin_pct"], "gross": True}
 
 
 @app.get("/download/ms-zero-cogs.csv")
