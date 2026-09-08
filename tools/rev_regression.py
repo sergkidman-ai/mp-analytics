@@ -182,5 +182,59 @@ for name, ext in PASSED.items():
     check(f"пропущенный {name}", allow, gate.reason_line(why, 90))
 print(f"9. правильно пропущенные: проверено {len(PASSED)}")
 
+# ── 10. блок G: кэш утверждённых ответов по артикулу ─────────────────────────────────────────
+# Мотив блока: 01.09.2026 один вопрос «каким тонером их заправлять?» по нашему артикулу 5422
+# пришёл на четыре аккаунта и получил разные ответы. Кэш обязан свести их в ОДНУ запись — иначе
+# он не решает задачу, ради которой заведён.
+from reports import answer_cache as ac                      # noqa: E402
+
+FILL_067H = ["01a05e30-3965-7d67-80f6-90deb4a82971", "01a05e36-39e3-72a4-9f57-ef52cdcaa865",
+             "19Q5XqABWgxW4OcHYnAB", "yI05XqABMoF-QDrbm_hv"]
+f067 = db.query("""SELECT platform, account, ext_id, item_id, article, body, rating
+                   FROM raw_feedback WHERE ext_id = ANY(%s)""", (FILL_067H,))
+trip = {(ac.internal_article(r["platform"], r["article"], r["item_id"], strict=True),) +
+        (lambda c: (c, ac.question_key(r["body"], c)[0]))(
+            rc.classify(r["body"], kind="question", rating=r["rating"]))
+        for r in f067}
+check("G 067H ×N сводятся в один ключ кэша", len(f067) == len(FILL_067H) and len(trip) == 1,
+      f"строк {len(f067)}, ключей {len(trip)}: {sorted(map(str, trip))[:2]}")
+print(f"10. кэш 067H: строк {len(f067)} на {len({r['account'] for r in f067})} аккаунтах → "
+      f"ключей кэша {len(trip)} {sorted(trip)[0] if trip else ''}")
+
+# Тот же артикул, другой класс — обязаны получиться РАЗНЫЕ ключи: иначе ответ про заправку
+# перезапишет ответ про совместимость того же товара.
+qs = db.query("""SELECT platform, account, ext_id, item_id, article, body, rating
+                 FROM raw_feedback WHERE kind='question' AND created_at > now() - interval '60 days'""")
+keyed = {}
+for r in qs:
+    cls = rc.classify(r["body"], kind="question", rating=r["rating"])
+    key = ac.question_key(r["body"], cls)[0]
+    if not key:
+        continue
+    art = ac.internal_article(r["platform"], r["article"], r["item_id"], strict=True)
+    if art:
+        keyed.setdefault((art, key), set()).add(cls)
+collide = {k: v for k, v in keyed.items() if len(v) > 1}
+check("G один ключ = один класс на артикуле", not collide, f"{list(collide)[:2]}")
+arts = {a for a, _ in keyed}
+print(f"10. ключи по вопросам за 60 дней: вопросов {len(qs)}, ключуется {len(keyed)} пар "
+      f"«артикул+ключ» на {len(arts)} артикулах, коллизий класса {len(collide)}")
+
+# stale → запрет публикации, и стоп-лист A1.2 обязан работать по тексту ИЗ КЭША.
+def _cached(text, stale):
+    g = {"llm": False, "grounded": True, "source": "кэш: утверждено 01.09.2026 на wb",
+         "template_id": "cache", "request_class": "заправка",
+         "cache": {"id": 0, "article": "5422", "key": "заправка", "hits": 3, "stale": stale}}
+    return {"kind": "question", "body": "Каким тонером их заправлять?", "draft_route": "review",
+            "draft_text": text, "draft_confidence": 0.9, "draft_grounding": g}
+
+good = "Подойдёт тонер типа TN-2375, засыпать через отверстие под пробкой."
+check("G stale-запись запрещена гейтом", not gate.verdict(_cached(good, True))[0], "разрешена")
+check("G свежая подстановка проходит", gate.verdict(_cached(good, False))[0],
+      gate.reason_line(gate.verdict(_cached(good, False))[1], 80))
+check("G стоп-лист A1.2 работает по кэшу",
+      not gate.verdict(_cached("Оформим замену или возврат.", False))[0], "разрешена")
+print("10. кэш и гейт: stale ⛔, свежая ✅, обещание в тексте кэша ⛔")
+
 print(f"\nИТОГО: проверок {ok + bad}, провалов {bad}")
 sys.exit(1 if bad else 0)

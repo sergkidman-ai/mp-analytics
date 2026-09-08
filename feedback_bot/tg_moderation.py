@@ -40,6 +40,7 @@ load_dotenv("/opt/mp-analytics/.env")
 from core import db
 import collectors.feedback_send as fs
 from reports import publish_gate
+from reports import answer_cache as ac
 
 TOKEN = (os.getenv("TG_FEEDBACK_BOT_TOKEN") or os.getenv("TG_BOT_TOKEN") or "").strip()
 _DEDICATED = bool(os.getenv("TG_FEEDBACK_BOT_TOKEN"))
@@ -172,7 +173,8 @@ def _fr(m):
 
     body/pros/cons/rating тянем не для показа, а для гейта: на строках, драфтнутых до 07.09.2026,
     класса обращения в grounding нет, и «претензию» (A1.1) он считает по тексту покупателя."""
-    r = db.query("""SELECT platform,account,kind,ext_id,item_id,payload,body,pros,cons,rating,
+    r = db.query("""SELECT platform,account,kind,ext_id,item_id,article,request_class,payload,
+        body,pros,cons,rating,
         draft_text,draft_route,draft_confidence,draft_grounding FROM raw_feedback
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (m["platform"], m["account"], m["kind"], m["ext_id"]))
@@ -246,27 +248,10 @@ def _internal_art(platform, article, item_id):
     случайным хвостом ('00281LR4TANV' → '00281'); у Ozon в raw_feedback артикула нет вовсе, берём
     offer_id по sku. Срез хвоста неоднозначен по длине — кандидаты сверяем с ms_product и выбираем
     самый длинный известный; не нашли — отдаём как есть, лучше приблизительный код, чем пусто."""
-    raw = str(article or "").strip()
-    if not raw and platform == "ozon" and item_id:
-        r = db.query("SELECT offer_id FROM ozon_product WHERE sku::text=%s LIMIT 1", (str(item_id),))
-        raw = str(r[0]["offer_id"]).strip() if r else ""
-    if not raw:
-        return None
-    cands = [raw]
-    m = _PLAT_SUFFIX_RX.match(raw)
-    if m:
-        d = m.group(1)
-        cands += [d[:k] for k in range(len(d), 2, -1)]
-    try:
-        known = {x["external_code"] for x in
-                 db.query("SELECT DISTINCT external_code FROM ms_product WHERE external_code = ANY(%s)",
-                          (cands,))}
-    except Exception:
-        known = set()
-    for c in cands:
-        if c in known:
-            return c
-    return cands[1] if len(cands) > 1 else raw
+    # Канон переехал в reports/answer_cache.py (блок G, 08.09.2026): по этому же артикулу
+    # ключуется кэш утверждённых ответов, и две разные реализации означали бы, что оператор
+    # утверждает ответ одному артикулу, а кэш кладёт его другому.
+    return ac.internal_article(platform, article, item_id)
 
 
 def _product_block(row):
@@ -340,6 +325,9 @@ def flush_deferred(limit=20):
             _set(r["id"], "sent", error=None)
             sent += 1
             log(f"deferred → отправлено mod={r['id']} {r['platform']} {r['ext_id']} ({detail})")
+            fr = _fr(r)                            # у строки досыла нет article/класса — берём живую
+            if fr:
+                _cache_remember(fr, r["final_text"], "edit" if ovr else "send")
             if r["tg_chat_id"] and r["tg_msg_id"]:  # закрываем ту же карточку в TG, чтобы не гадать
                 edit_text(r["tg_chat_id"], r["tg_msg_id"],
                           "✅ Отправлено (отложенное с прежней схемы лимита)\n\n"
@@ -474,6 +462,17 @@ def clean_operator_text(text):
     return clean, None
 
 
+def _cache_remember(fr, text, approved_by):
+    """Блок G: утверждённый человеком ответ — в кэш по нашему артикулу. Никогда не роняет отправку:
+    ответ покупателю уже ушёл, и провал записи в кэш не повод показывать оператору ошибку."""
+    try:
+        ok, why = ac.remember_sent(dict(fr), text, approved_by)
+        log(f"кэш ответов [{approved_by}] {fr.get('platform')}/{fr.get('ext_id')}: "
+            f"{'записан ' + why if ok else 'не пишем — ' + why}")
+    except Exception as e:
+        log(f"кэш ответов: сбой записи {type(e).__name__}: {str(e)[:150]}")
+
+
 def _do_send(mod_id, from_id, text, chat_id, message_id):
     """Общий путь отправки (кнопка ✅ или присланный правленый текст)."""
     m = _mod(mod_id)
@@ -497,6 +496,17 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
     override = None
     if (text or "").strip() != ((fr.get("draft_text") or "").strip()):
         override = f"правка оператора {from_id}"
+    # Замечание №1 ревью 08.09.2026: кнопка ✅ показывается только при разрешающем вердикте
+    # (см. send_batch), но карточка живёт в чате дольше вердикта — за это время кэш мог протухнуть,
+    # а черновик перегенерироваться. Нетронутый черновик пересуживаем перед самой отправкой;
+    # текст оператора (override) не судим — правка и есть его осознанный обход запрета.
+    if not override:
+        allow_now, why_now = publish_gate.verdict(dict(fr), text)
+        if not allow_now:
+            _set(mod_id, "queued", error=publish_gate.reason_line(why_now, 300))
+            edit_text(ec, em, "⛔ Отправка отменена: вердикт изменился с момента показа карточки — "
+                              + html.escape(publish_gate.reason_line(why_now, 400)))
+            return "⛔ вердикт изменился, отправка отменена"
     ok, detail = fs.post_answer(fr, text, override=override)
     if ok and detail.startswith("dry-run"):
         # Боевая отправка выключена. Помечать карточку 'sent' нельзя: ответ покупателю НЕ ушёл,
@@ -512,6 +522,7 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
     if ok:
         _set(mod_id, "sent", final_text=text, error=None,
              decided_at="now()", decided_by=int(from_id))
+        _cache_remember(fr, text, "edit" if override else "send")
         edit_text(ec, em,
                   f"✅ Отправлено\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
                   f"<b>Ответ:</b> {html.escape(text[:800])}")
@@ -610,6 +621,23 @@ def handle_message(msg):
     if text == "/all":
         cnt = send_batch(BATCH_CAP)
         send(chat_id, f"Отправлено карточек: {cnt}." if cnt else "За окно нет новых карточек.")
+        return
+    if text.startswith("/cache_drop"):             # ручная инвалидация кэша ответов (блок G)
+        parts = text.split(maxsplit=2)
+        if len(parts) < 2:
+            send(chat_id, "Формат: <code>/cache_drop артикул [класс]</code>\n"
+                          "Например: <code>/cache_drop 5422</code> — забыть все ответы по артикулу, "
+                          "<code>/cache_drop 5422 заправка</code> — только этот класс обращения.")
+            return
+        art, cls = parts[1], (parts[2].strip() if len(parts) > 2 else None)
+        try:
+            n = ac.drop(art, cls)
+        except Exception as e:
+            send(chat_id, f"⚠️ Не смог: {html.escape(f'{type(e).__name__}: {str(e)[:150]}')}")
+            return
+        log(f"/cache_drop {art} {cls or '(все классы)'} от {from_id}: удалено {n}")
+        send(chat_id, f"🗑 Кэш ответов: удалено записей — {n} "
+                      f"(артикул {html.escape(art)}{', класс ' + html.escape(cls) if cls else ''}).")
         return
     if text.startswith("/"):                       # /menu, /start, /stats и прочее — показать сводку
         t, kb = _dashboard()

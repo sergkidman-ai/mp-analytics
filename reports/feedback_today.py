@@ -35,6 +35,8 @@ from reports import card_rating
 from reports import neg_templates                                                    # noqa: E402
 from reports.feedback_web import web_compat                                      # noqa: E402
 from reports.llm_client import create_with_retry as _create, LlmUnavailable      # noqa: E402,F401
+from reports import answer_cache as ac                                          # noqa: E402
+from reports import request_class as rc                                         # noqa: E402
 from reports.compat_cache import get as cc_get, put as cc_put                    # noqa: E402
 
 # сигнал, что товар УЖЕ куплен/используется (тогда уместен QR на упаковке/чеке); иначе — пред-продажа.
@@ -231,8 +233,8 @@ def _gather(since):
     # хэш совпадает — содержимое не менялось с прошлого драфта, генерацию (в т.ч. вызов Opus на
     # вопросы) пропускаем. Без этого условия цикл каждые 2ч перегенерил ВЕСЬ неотвеченный бэклог
     # заново (было: 3 цикла за день = 3× одинаковых 15 ИИ-вызовов на те же 16 вопросов).
-    q = db.query("""SELECT platform,account,kind,ext_id,item_id,product_name,rating,body,pros,cons,payload,
-        created_at FROM raw_feedback WHERE is_answered=false
+    q = db.query("""SELECT platform,account,kind,ext_id,item_id,article,product_name,rating,body,pros,cons,
+        payload, created_at FROM raw_feedback WHERE is_answered=false
         AND account IN ('wb_acc1','wb_acc2','oz_acc1','oz_acc2','ya_acc1')
         AND posted_at IS NULL AND NOT skipped_old
         AND (draft_src_hash IS NULL
@@ -756,6 +758,42 @@ def _is_consumable(product_name):
 NO_CARD_NOTE = "без данных карточки, проверьте внимательнее"
 
 
+def _card_facts(cf, r):
+    """Карточка товара под площадку строки (у Яндекса item_id = offerId, а не nmID)."""
+    try:
+        return (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else
+                cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else
+                cf.for_wb(r["item_id"]))
+    except Exception:
+        return None
+
+
+def _cache_answer(r, cf, cls, cc=""):
+    """Блок G: готовый утверждённый ответ по нашему артикулу вместо новой генерации.
+    → (outd, reply, route, conf, ground, False, False) либо None.
+
+    Маршрут всегда review: автопубликации вопросов в движке нет вовсе (аудит 25.08.2026), и кэш
+    её не вводит — он убирает повторную генерацию, а не человека. «Первые две подстановки с
+    пометкой, дальше ALLOW» из брифа — про машинный вердикт publish_gate, а не про кнопку ✅."""
+    hit = ac.try_hit(r, _card_facts(cf, r), cls=cls)
+    if not hit:
+        return None
+    reply, ground = hit
+    # Правила качества прогоняем и по тексту из кэша (замечание №4 ревью 08.09.2026): ранний
+    # возврат не имеет права быть дырой в обход _qa_guards/_scrub_urls. Утверждён ответ был под
+    # прежний вопрос — под новым тем же ключом приписка карточке может уже не соответствовать.
+    reply, qviol = _qa_guards(reply, cc, r["body"])
+    if qviol:
+        ground["qa_guard"] = qviol
+        ground["note"] = "qa-guard: " + ", ".join(qviol) + "; " + (ground.get("note") or "")[:180]
+    reply = _scrub_urls(reply)
+    conf = 0.9
+    outd = dict(r, cat="question", reply=reply, route="review", conf=conf, card=cc,
+                note=ground.get("note"), grounded=True, catalog=False, source=ground["source"],
+                web=False, sources=[], intent=intent(r["body"]))
+    return outd, reply, "review", conf, ground, False, False
+
+
 def _early_human(r, cc, reply, note, used_llm):
     """Ранний возврат «на человека» с маркером-черновиком (домен-фильтр / ошибка парсинга).
     Маркер попадёт в очередь модерации, но отправку кнопкой ✅ бот для route=human блокирует."""
@@ -788,6 +826,13 @@ def _answer(client, r, cf, corpus):
                       "нужен ручной ответ оператора.")
             return _early_human(r, cc0, marker, "домен-фильтр: не расходник", used_llm=False)
         no_card = not (cc0 and cc0.strip())
+        # G (08.09.2026): кэш утверждённых ответов — ДО генерации, сразу после классификации.
+        # Попадание = ответ, который человек уже утвердил по этому же артикулу и тому же вопросу;
+        # модель не зовём вовсе. Домен-фильтр отработал выше: не расходник в кэш не попадёт.
+        _cls0 = rc.classify(r.get("body"), kind="question", rating=r.get("rating"))
+        _cached = _cache_answer(r, cf, _cls0, cc0)
+        if _cached:
+            return _cached
     if r["kind"] == "question":
         used_llm = True
     else:

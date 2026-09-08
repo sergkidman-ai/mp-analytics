@@ -107,6 +107,13 @@ def verdict(row, text=None):
         qa = g.get("qa_guard")
         det = ", ".join(map(str, qa))[:120] if isinstance(qa, (list, tuple)) else str(qa)[:120]
         reasons.append(f"qa-guard: {det}")
+    # G (08.09.2026): подстановка из кэша утверждённых ответов, у которой карточка успела
+    # измениться по полю из ключа (совместимость или атрибут). Текст был верен на момент
+    # утверждения — публиковать его сейчас нельзя, оператор смотрит глазами.
+    cache = g.get("cache") if isinstance(g.get("cache"), dict) else None
+    if cache and cache.get("stale"):
+        reasons.append("кэш устарел: карточка изменилась после утверждения ответа")
+
     # Текст оператора (text ≠ черновик) — не наш черновик: сравниваем без регистра и лишних
     # пробелов, иначе смена одной заглавной буквы объявляла машинный текст «правкой человека».
     own_draft = text is None or _same(text, row.get("draft_text"))
