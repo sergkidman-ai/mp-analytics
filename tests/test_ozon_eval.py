@@ -13,8 +13,11 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, '/opt/mp-analytics')
-sys.path.insert(0, '/opt/mp-analytics/tools')
+# каталог проекта считается от самого файла теста: абсолютный путь тянул модуль из общего
+# чекаута, и прогон в worktree молча проверял чужой код вместо ветки.
+_КОРЕНЬ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _КОРЕНЬ)
+sys.path.insert(0, os.path.join(_КОРЕНЬ, 'tools'))
 
 import ozon_eval_core as E  # noqa: E402
 
@@ -29,7 +32,7 @@ def tearDownModule():
 
 
 def _исходник(имя):
-    with open(f'/opt/mp-analytics/tools/{имя}', encoding='utf-8') as f:
+    with open(os.path.join(_КОРЕНЬ, 'tools', имя), encoding='utf-8') as f:
         return f.read()
 
 
