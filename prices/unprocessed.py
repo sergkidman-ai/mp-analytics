@@ -16,6 +16,10 @@
 
 В МойСклад отсюда НЕ пишется ничего: строки ложатся во вкладку «Новинки», карточки заводит
 человек.
+
+Разобранное письмо помечается в почте ПРОЧИТАННЫМ (09.09.2026) — и только после того, как
+строки записаны, то есть при `--apply`. В папке сразу видно, какие файлы уже разобраны, а
+какие ждут; проба и разбор файла с диска флаг не ставят.
 """
 import argparse
 import csv
@@ -91,9 +95,15 @@ def read_rows(text):
 
 
 def source(supplier_key, file_path):
-    """(текст файла, откуда взят). Письмо прочитанным НЕ метим: разбор идемпотентен."""
+    """(текст файла, откуда взят, UID письма). UID нужен, чтобы пометить письмо прочитанным.
+
+    Метим не здесь, а в конце разбора (`main`): прочитанное письмо означает «файл разобран,
+    строки лежат в «Новинках»», и ставить флаг до записи в БД нельзя — упавший разбор оставил
+    бы человека без единственного признака, что к письму надо вернуться. С диска (`--file`)
+    метить нечего, UID пустой.
+    """
     if file_path:
-        return Path(file_path).read_text(encoding="utf-8"), str(file_path)
+        return Path(file_path).read_text(encoding="utf-8"), str(file_path), None
     from .mailbox import fetch_latest_price
     pattern, _ = SUPPLIERS[supplier_key][0], None
     letter = fetch_latest_price(FOLDER, extensions=(".txt",), pattern=pattern)
@@ -103,7 +113,23 @@ def source(supplier_key, file_path):
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M")
     path = RAW_DIR / f"{stamp}_{letter['filename']}"
     path.write_bytes(letter["content"])          # исходник кладём как есть и больше не трогаем
-    return letter["content"].decode("utf-8", "replace"), f"{letter['date']} → {path.name}"
+    return (letter["content"].decode("utf-8", "replace"),
+            f"{letter['date']} → {path.name}", letter.get("imap_uid"))
+
+
+def seen(imap_uid, apply_):
+    """Пометить разобранное письмо прочитанным. Только после записи и только с `--apply`.
+
+    Выборка писем идёт по ALL, а не по UNSEEN, поэтому флаг ни на что в коде не влияет —
+    это сигнал человеку: в почте сразу видно, какие файлы несопоставленного уже разобраны,
+    а какие ждут. Проба (`--apply` не задан) ничего не пишет и права метить не имеет.
+    """
+    if not imap_uid or not apply_:
+        return
+    from .mailbox import mark_seen
+    ok = mark_seen(FOLDER, imap_uid)
+    print("письмо помечено прочитанным" if ok else
+          "письмо пометить прочитанным не удалось (почта — не рабочий инструмент, разбор цел)")
 
 
 SOURCE_KIND = "unprocessed"
@@ -154,11 +180,14 @@ def main(argv=None):
                     help="имена только из кэша, на сайт поставщика не ходить")
     a = ap.parse_args(argv)
 
-    text, where = source(a.supplier, a.file)
+    text, where, imap_uid = source(a.supplier, a.file)
     rows = read_rows(text)
     print(f"источник: {where}")
     print(f"строк в файле: {len(rows)}")
     if not rows:
+        # Пустое письмо — тоже разобранное: у Рапида и Изипринта таких пять в сутки, и без
+        # пометки они копятся непрочитанными вперемешку с теми, где действительно есть работа.
+        seen(imap_uid, a.apply)
         return 0
 
     resolver = SUPPLIERS[a.supplier][1]
@@ -202,6 +231,7 @@ def main(argv=None):
     print(f"  подметено в «Сопоставлено» (карточка уже с этим артикулом): {swept}")
     print(f"  получило кандидатов на выбор:        {matched - auto}")
     print(f"  без вариантов (настоящая новинка):   {len(left) - matched}")
+    seen(imap_uid, a.apply)
     if blind:
         print(f"\nбез наименования, в разбор не пошли ({len(blind)}): "
               + ", ".join(r["article"] for r in blind[:6])
