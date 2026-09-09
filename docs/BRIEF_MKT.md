@@ -144,7 +144,7 @@ wb_ads, wb_ad_nm, ad_spend_daily, ozon_ads, ozon_bids, ozon_rating, drops, wb_bi
 `run_daily.py`, финколлекторы. Задача тянет туда — **СТОП, сообщи Сергею**.
 
 ## Карантин цен, ведущий ноль, worktree
-`ops/price_quarantine.py --apply` по крону **03:58 · 11:12 · 17:47 МСК**, вмешательства не требует;
+`ops/price_quarantine.py --apply` по крону **03:58 · 11:12 · 17:47 · 23:06 МСК**, вмешательства не требует;
 правила — в архиве `docs/handoff/archive/mkt_2026-08-25.md`. Ведущий ноль в коде карточки не
 обрезать НИКОГДА (правило Сергея 26.08, `kb: leading-zero-is-part-of-code`). Ветка — только
 в своём worktree, `.workstream` внутри (инвариант 10 CLAUDE.md).
