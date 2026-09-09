@@ -145,7 +145,11 @@ wb_ads, wb_ad_nm, ad_spend_daily, ozon_ads, ozon_bids, ozon_rating, drops, wb_bi
 
 ## Карантин цен, ведущий ноль, worktree
 `ops/price_quarantine.py --apply` по крону **03:58 · 11:12 · 17:47 МСК**, вмешательства не требует;
-правила — в архиве `docs/handoff/archive/mkt_2026-08-25.md`. Ведущий ноль в коде карточки не обрезать
-НИКОГДА (правило Сергея 26.08, `kb: leading-zero-is-part-of-code`). Общий чекаут на `main`
-(инвариант 10); своя ветка — только в worktree:
-`git worktree add .claude/worktrees/mkt-<задача> -b mkt/<задача> origin/main`, внутри `.workstream`.
+правила — в архиве `docs/handoff/archive/mkt_2026-08-25.md`. Ведущий ноль в коде карточки не
+обрезать НИКОГДА (правило Сергея 26.08, `kb: leading-zero-is-part-of-code`). Ветка — только
+в своём worktree, `.workstream` внутри (инвариант 10 CLAUDE.md).
+**Вопрос mkt (нашёл поток card 09.09):** в `cogs_unit` фолбэк на базовый 4-значный код есть
+только у ТК (`code[:4] in base`), а у остатка МС его нет — `cost_for` ищет точный
+`external_code`. Поэтому `4328TLQMH10X` (acc2) числится «нет себеста», хотя двойник `4328`
+даёт 6619 ₽ («Удалённый склад»). Выпуск это не меняет (обе карточки всё равно СТОП), но хвост
+карантина выглядит хуже реального. Чинить или оставить — решение mkt.
