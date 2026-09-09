@@ -25,14 +25,13 @@ import os
 import sys
 import time
 import argparse
-import urllib.parse
-import urllib.request
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, "/opt/mp-analytics")          # фолбэк (canonical checkout может быть на другой ветке)
 sys.path.insert(0, os.path.dirname(_HERE))       # корень ЭТОГО чекаута/worktree — приоритет
 sys.path.insert(0, _HERE)
 import payment_draft as pdr                      # noqa: E402
+import tg_notify                                 # noqa: E402  доставка сводок с повторами
 import payment_send as psend                     # noqa: E402
 from core import db                              # noqa: E402
 
@@ -79,23 +78,11 @@ def _names(rows):
 
 
 def tg(msg):
-    """Сводка прогона в ОТДЕЛЬНЫЙ платёжный бот (`TG_PAY_BOT_TOKEN` / `TG_PAY_NOTIFY_ID`).
+    """Сводка прогона в ОТДЕЛЬНЫЙ платёжный бот — доставка с повторами, см. `tg_notify`.
     Общий бот invoice-bot сюда не подставляется намеренно: его канал читают несколько человек,
-    а платёжная сводка — суммы и получатели — идёт узкому адресату. Бот не настроен → сводка
-    не уходит никуда (отправку платежей это не роняет)."""
-    token = os.getenv("TG_PAY_BOT_TOKEN", "").strip()
-    ids = [x.strip() for x in os.getenv("TG_PAY_NOTIFY_ID", "").split(",") if x.strip()]
-    if not (token and ids):
-        print("TG: платёжный бот не настроен (TG_PAY_BOT_TOKEN/TG_PAY_NOTIFY_ID) — сводка "
-              "не отправлена", flush=True)
-        return
-    api = f"https://api.telegram.org/bot{token}/sendMessage"
-    for uid in ids:
-        try:
-            data = urllib.parse.urlencode({"chat_id": uid, "text": msg}).encode()
-            urllib.request.urlopen(api, data=data, timeout=20).read()
-        except Exception as e:                                   # noqa: BLE001
-            print(f"TG {uid}: не доставлено ({type(e).__name__})", flush=True)
+    а платёжная сводка — суммы и получатели — идёт узкому адресату. Не дошло → пишем причину
+    в лог (отправку платежей это не роняет)."""
+    tg_notify.tg(msg)
 
 
 def autosend(org_inns=None, kinds=None, dry_run=None, limit=None, actor="cron", notify=True):

@@ -17,8 +17,6 @@
 import os
 import sys
 import json
-import urllib.parse
-import urllib.request
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, "/opt/mp-analytics")          # фолбэк (canonical checkout может быть на другой ветке)
@@ -27,6 +25,7 @@ sys.path.insert(0, _HERE)
 import psycopg2.extras                           # noqa: E402  Json для jsonb-колонки payee
 from ms import get                               # noqa: E402
 from core import db                              # noqa: E402
+import tg_notify                                 # noqa: E402  доставка сводок с повторами
 
 MONTHS_NOM = ["январь", "февраль", "март", "апрель", "май", "июнь",
               "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]
@@ -54,21 +53,10 @@ def ru_date_words(d):
 
 
 def tg(msg):
-    """Сводка в платёжный бот (`TG_PAY_BOT_TOKEN` / `TG_PAY_NOTIFY_ID`) — тот же адресат, что у
-    `payment_autosend`: суммы и получатели идут узкому кругу, а не в общий канал invoice-bot.
-    Бот не настроен → молча пишем в лог: постановку платежа это ронять не должно."""
-    token = os.getenv("TG_PAY_BOT_TOKEN", "").strip()
-    ids = [x.strip() for x in os.getenv("TG_PAY_NOTIFY_ID", "").split(",") if x.strip()]
-    if not (token and ids):
-        print("TG: платёжный бот не настроен — сводка не отправлена", flush=True)
-        return
-    api = f"https://api.telegram.org/bot{token}/sendMessage"
-    for uid in ids:
-        try:
-            data = urllib.parse.urlencode({"chat_id": uid, "text": msg}).encode()
-            urllib.request.urlopen(api, data=data, timeout=20).read()
-        except Exception as e:                                   # noqa: BLE001
-            print(f"TG {uid}: не доставлено ({type(e).__name__})", flush=True)
+    """Сводка в платёжный бот — тот же адресат и тот же движок доставки, что у
+    `payment_autosend` (см. `tg_notify`): суммы и получатели идут узкому кругу, а не в общий
+    канал invoice-bot. Не дошло → пишем причину в лог: постановку платежа это ронять не должно."""
+    tg_notify.tg(msg)
 
 
 # ── реквизиты получателя ─────────────────────────────────────────────────────────────────────
