@@ -254,7 +254,8 @@ def _web_block(web_facts):
             + (f"(источники: {src})\n" if src else "") + "\n")
 
 
-def _user_block(r, name, compat, examples, hint=None, approved=None, web_facts=None):
+def _user_block(r, name, compat, examples, hint=None, approved=None, web_facts=None,
+                brand_notes=""):
     kind = "ВОПРОС" if r["kind"] == "question" else f"ОТЗЫВ {r['rating']}★"
     text = (r["body"] or "").strip()
     if r["pros"]:
@@ -273,13 +274,18 @@ def _user_block(r, name, compat, examples, hint=None, approved=None, web_facts=N
             f"а честно предложи покупателю уточнить у нас.\n")
     # ТОВАР — внутреннее складское имя МС: служебные пометки («*ВНИМАНИЕ*», «White Box», «не идёт
     # в аппарат …») режем ЗДЕСЬ, на сборке промпта, а не только запретом в системном промпте.
+    # Порядок блоков = приоритет источников (правило Сергея 10.09.2026):
+    # CARD_DATA > ЗНАНИЯ ПО БРЕНДУ > ОДОБРЕННЫЕ ОТВЕТЫ > ВЕБ-ФАКТЫ. Справочник бренда стоит сразу
+    # за карточкой и ДО веба: это наш проверенный факт, а веб — вторичный внешний источник.
     return (f"{_fewshot(examples)}\n\n"
             f"{_approved_block(approved)}"
-            f"{_web_block(web_facts)}"
             f"ПЛОЩАДКА: {r['platform']}\nТОВАР: {public_name(r['product_name'])}\n"
             f"ИМЯ ПОКУПАТЕЛЯ: {name}\n"
-            f"CARD_DATA (характеристики/совместимость карточки, единственный источник фактов):\n"
-            f"\"\"\"{card[:2500]}\"\"\"\n"
+            f"CARD_DATA (характеристики/совместимость карточки, единственный источник фактов "
+            f"о НАШЕМ лоте):\n"
+            f"\"\"\"{card[:2500]}\"\"\"\n\n"
+            f"{brand_notes or ''}"
+            f"{_web_block(web_facts)}"
             f"{hint_block}\n"
             f"{kind} ОТ ПОКУПАТЕЛЯ:\n\"\"\"{text[:1500]}\"\"\"\n\n"
             f"Составь ответ строго в формате JSON.")

@@ -40,6 +40,7 @@ from reports import request_class as rc                                         
 from reports.compat_cache import get as cc_get, put as cc_put                    # noqa: E402
 from reports.catalog import _BRANDS                                              # noqa: E402
 from reports import llm_batch                                                    # noqa: E402
+from reports import brand_notes as bn
 from reports import llm_routing                                                  # noqa: E402
 from reports import sku_relations                                                # noqa: E402
 from reports.llm_client import client_for                                        # noqa: E402
@@ -284,7 +285,12 @@ def _llm(client, r, cf, corpus, hint=None, web_facts=None):
                        kind=r["kind"], rating=r.get("rating"))
     approved = ac.recent_for(_cls, _brand_of(r), limit=5,
                              exclude_article=ac.internal_article(r["platform"], None, r.get("item_id")))
-    content = _user_block(r, _name(r), cc, ex, hint=hint, approved=approved, web_facts=web_facts)
+    # Справочник бренда (brand_notes, миграция 707) — наши факты о серии: чип, заправка, прошивка.
+    # Идут в промпт отдельным блоком сразу за CARD_DATA и попадают во ВХОДНЫЕ ДАННЫЕ контролёра,
+    # иначе он честно режет их как утверждения «вне входных данных» — так и было до 10.09.2026.
+    bn_block, bn_n = bn.facts_for(_brand_of(r), r.get("body") or r.get("cons") or r.get("pros"), cc)
+    content = _user_block(r, _name(r), cc, ex, hint=hint, approved=approved, web_facts=web_facts,
+                          brand_notes=bn_block)
     # thinking-модели (DeepSeek-v4 pro/flash) тратят output-токены на размышления до JSON —
     # держим запас (env FEEDBACK_MAX_TOKENS). Кэш SYSTEM снимаем на не-Anthropic (DeepSeek его игнорит).
     max_tok = int(os.environ.get("FEEDBACK_MAX_TOKENS", "3000"))
@@ -866,10 +872,16 @@ def _verified(client, r, reply, card, ground):
     Сбой контролёра черновик не рушит: молча остаёмся с тем, что собрал движок."""
     if not VERIFY_ON or not (reply or "").strip():
         return reply, ground
+    q = r.get("body") or r.get("cons") or r.get("pros")
     try:
+        # ВХОДНЫЕ ДАННЫЕ контролёра = карточка + справочник бренда. Без второго слагаемого контролёр
+        # резал как выдумку ровно то, что мы про серию знаем достоверно («чип одноразовый»,
+        # «гарантия на заправку не распространяется») — см. прогон oz_acc2 от 10.09.2026.
+        bn_block, _ = bn.facts_for(_brand_of(r), q, card)
+        inputs = (card or "") + ("\n\n" + bn_block if bn_block else "")
         verdict, note, usage = llm_routing.verify(
             lambda **kw: _create(client_for(VERIFY_MODEL), **kw), VERIFY_MODEL,
-            r["kind"], r.get("body") or r.get("cons") or r.get("pros"), reply, card)
+            r["kind"], q, reply, inputs)
         _COST.add(VERIFY_MODEL, usage)
     except Exception as e:
         ground = dict(ground, verify="skip", note=(ground.get("note") or "")[:220]
@@ -1095,6 +1107,10 @@ def _answer(client, r, cf, corpus):
                                    "grounded": True, "verdict": cached.get("verdict"),
                                    "sources": cached.get("sources") or [],
                                    "note": "из кэша совместимости: " + (cached.get("note") or "")[:200]})
+                elif need_web and bn.covers(_brand_of(r), r.get("body")):
+                    # своё знание по бренду+теме уже есть в brand_notes — чужой сайт не нужен
+                    ground.update({"source": "справочник бренда", "note": "веб не звали: есть "
+                                   "запись brand_notes по теме; " + (ground.get("note") or "")[:180]})
                 elif need_web:
                     from reports.feedback_web import WEB_MODEL
                     from reports.llm_client import client_for
@@ -1118,7 +1134,8 @@ def _answer(client, r, cf, corpus):
             route = "review"
         # ФАКТ-ВЕБ: карточка/модель не дали ответа на объективный вопрос (ТТХ / подбор по модели) —
         # достраиваем внешним поиском вместо «напишите нам». Веб → source=веб-факт, всегда на ревью.
-        if r["kind"] == "question" and not used_web and _needs_fact_web(r["body"], reply):
+        if (r["kind"] == "question" and not used_web and _needs_fact_web(r["body"], reply)
+                and not bn.covers(_brand_of(r), r.get("body"))):
             from reports.feedback_web import web_fact, WEB_MODEL
             from reports.llm_client import client_for
             base = (reply or "").strip()

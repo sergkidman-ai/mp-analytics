@@ -41,6 +41,7 @@ from core import db
 import collectors.feedback_send as fs
 from reports import publish_gate
 from reports import answer_cache as ac
+from reports import brand_notes as bn
 
 TOKEN = (os.getenv("TG_FEEDBACK_BOT_TOKEN") or os.getenv("TG_BOT_TOKEN") or "").strip()
 _DEDICATED = bool(os.getenv("TG_FEEDBACK_BOT_TOKEN"))
@@ -817,6 +818,32 @@ def handle_message(msg):
         send(chat_id, f"🗑 Кэш ответов: удалено записей — {n} "
                       f"(артикул {html.escape(art)}{', класс ' + html.escape(cls) if cls else ''}).")
         return
+    if text.startswith("/note_add"):               # пополнение справочника брендов (brand_notes, 707)
+        body = text[len("/note_add"):].strip()
+        parts = ([p.strip() for p in body.split("|")] if "|" in body
+                 else body.split(maxsplit=3))       # без «|» серия обязана быть одним словом
+        if len(parts) < 4 or not parts[3].strip():
+            send(chat_id, "Формат: <code>/note_add бренд | серия | тема | текст</code>\n"
+                          "Например: <code>/note_add canon | 067/067H | чип | Чип одноразовый, "
+                          "после заправки принтер считает картридж пустым.</code>\n"
+                          "Бренд <code>общее</code> — правило для всех брендов, серия "
+                          "<code>-</code> — весь бренд. Запись с тем же брендом, серией и темой "
+                          "перезаписывается.")
+            return
+        brand, series, topic, note = parts[0], parts[1], parts[2], "|".join(parts[3:]).strip()
+        if series in ("-", "—"):
+            series = ""
+        try:
+            bn.upsert(brand, series, topic, note, source="manual")
+        except Exception as e:
+            send(chat_id, f"⚠️ Не смог: {html.escape(f'{type(e).__name__}: {str(e)[:150]}')}")
+            return
+        log(f"/note_add {brand}|{series}|{topic} от {from_id}: {len(note)} симв.")
+        send(chat_id, f"📘 Записал в справочник: <b>{html.escape(brand)}</b>"
+                      f"{' · ' + html.escape(series) if series else ''} · "
+                      f"{html.escape(topic)}.\nБудет подставляться в контекст модели и в проверку "
+                      f"контролёра со следующего черновика.")
+        return
     if text.startswith("/"):                       # /menu, /start, /stats и прочее — показать сводку
         t, kb = _dashboard()
         send(chat_id, t, reply_markup=kb)
@@ -834,7 +861,8 @@ def main():
     try:                                           # кнопка-меню в клиенте Telegram
         api("setMyCommands", {"commands": [
             {"command": "menu", "description": "Сводка: неотвечено и очередь"},
-            {"command": "next", "description": "Показать 5 следующих карточек"}]})
+            {"command": "next", "description": "Показать 5 следующих карточек"},
+            {"command": "note_add", "description": "Записать знание по бренду: бренд|серия|тема|текст"}]})
     except Exception as e:
         log(f"setMyCommands: {e}")
     # ревизию пишем в лог осознанно: процесс держит модули в памяти с момента старта, и после
