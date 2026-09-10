@@ -1,0 +1,12 @@
+[Unit]
+Description=Feedback LLM batch tick every 30 minutes
+
+[Timer]
+OnBootSec=8min
+OnUnitActiveSec=30min
+RandomizedDelaySec=2min
+Persistent=true
+Unit=feedback-batch.service
+
+[Install]
+WantedBy=timers.target

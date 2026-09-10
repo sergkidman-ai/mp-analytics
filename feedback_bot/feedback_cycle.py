@@ -120,9 +120,15 @@ def main(no_send=None):
 
     _step("2/5 skipped_old для старых вопросов", _mark_skipped_old)
 
-    from reports import feedback_today
+    from reports import feedback_today, llm_batch
+    # 2b. Забрать готовые ответы батча ДО генерации: тогда записи, ждавшие с прошлого цикла,
+    # получат черновик прямо сейчас, а не через ещё два часа. Отправку накопившегося делаем
+    # ПОСЛЕ генерации — за шаг 3 очередь как раз пополнится.
+    _step("2b/5 батч: забрать готовые ответы модели", llm_batch.collect)
+
     since = time.strftime("%Y-%m-%d", time.localtime(time.time() - DRAFT_SINCE_DAYS * 86400))
     _step("3/5 генерация черновиков", feedback_today.run, since=since)
+    _step("3a/5 батч: отправить накопившуюся очередь", llm_batch.flush_if_due)
 
     from feedback_bot import tg_moderation
     auto = None

@@ -1,0 +1,11 @@
+[Unit]
+Description=Feedback LLM batch: забрать готовые ответы и отправить накопившуюся очередь
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python -m reports.llm_batch --tick
+StandardOutput=journal
+StandardError=journal

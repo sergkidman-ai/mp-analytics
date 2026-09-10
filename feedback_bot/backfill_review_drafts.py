@@ -63,16 +63,25 @@ def main(accounts, days=400, limit=None, dry=False):
     from reports import feedback_today as ft
     cf, corpus, client = ft.CardFacts(), ft.load_corpus(), ft._client()
     routes, done = Counter(), 0
+    from reports import llm_batch
+    pend = 0
     for i, r in enumerate(rows, 1):
         r = dict(r)
-        _, reply, route, conf, ground, _, _ = ft._answer(client, r, cf, corpus)
+        try:
+            _, reply, route, conf, ground, _, _ = ft._answer(client, r, cf, corpus)
+        except llm_batch.LlmPending:
+            pend += 1         # запрос ушёл в батч — черновик появится следующим тиком
+            continue
         ft._store(r, reply, route, conf, ground)
         ft._enqueue_moderation(r, reply)
         routes[route] += 1
         done += 1
         if i % 100 == 0 or i == len(rows):
             print(f"  [{i}/{len(rows)}] {dict(routes)}", flush=True)
-    print(f"готово: черновиков {done}, маршруты {dict(routes)}", flush=True)
+    from reports import llm_batch as _lb
+    _lb.flush_if_due()
+    print(f"готово: черновиков {done}, маршруты {dict(routes)}"
+          + (f", ждут батча {pend}" if pend else ""), flush=True)
     print("стоимость ИИ за прогон:", ft._COST.summary(), flush=True)
     ft._COST.persist()
     return done

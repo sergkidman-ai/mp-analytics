@@ -49,12 +49,19 @@ def drafts(days):
     if not rows:
         return 0
     cf, corpus, client = ft.CardFacts(), ft.load_corpus(), ft._client()
+    from reports import llm_batch
+    done = 0
     for r in rows:
         r = dict(r)
-        _, reply, route, conf, ground, _, _ = ft._answer(client, r, cf, corpus)
+        try:
+            _, reply, route, conf, ground, _, _ = ft._answer(client, r, cf, corpus)
+        except llm_batch.LlmPending:
+            continue          # запрос ушёл в батч — черновик появится следующим тиком
         ft._store(r, reply, route, conf, ground)
         ft._enqueue_moderation(r, reply)
-    return len(rows)
+        done += 1
+    llm_batch.flush_if_due()
+    return done
 
 
 def enqueue(days):

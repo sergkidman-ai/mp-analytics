@@ -83,9 +83,10 @@ def _card_data(r, cf):
         block += f"\n(чип уточнён по Ozon-двойнику того же артикула)"
     return block + ("\n\n" + cat if cat else "")
 
-# Модель для клиентских ответов — важна корректность рассуждения (совместимость, серии, чипы).
-# Дефолт — Opus 4.8 (лучшее качество). Переопределяется env FEEDBACK_MODEL (напр. claude-sonnet-5 для дешёвого батча).
-MODEL = os.environ.get("FEEDBACK_MODEL", "claude-opus-4-8")
+# Модель для клиентских ответов. Дефолт — Sonnet 4.6 (решение Сергея 10.09.2026: Opus в ответах
+# покупателю не используется, качества Sonnet для сборки ответа из фактов карточки достаточно, а
+# цена впятеро ниже). Переопределяется env FEEDBACK_MODEL.
+MODEL = os.environ.get("FEEDBACK_MODEL", "claude-sonnet-4-6")
 MAX_TOKENS = 500
 
 SYSTEM = """Ты — специалист поддержки интернет-магазина «Цифровой квадрат», продающего картриджи и
@@ -224,7 +225,36 @@ def _fewshot(examples):
     return "\n".join(lines)
 
 
-def _user_block(r, name, compat, examples, hint=None):
+def _approved_block(approved):
+    """Ответы, которые человек уже утвердил по этому же классу и бренду.
+
+    Отличие от few-shot: те — образец ТОНА из справочника наших прошлых ответов, а эти прошли
+    ✅ оператора в очереди модерации по такому же вопросу. Формулировки оттуда можно брать, но
+    факты — всё равно только из CARD_DATA: одобрен был ответ по ДРУГОЙ карточке."""
+    if not approved:
+        return ""
+    lines = ["УТВЕРЖДЁННЫЕ ОТВЕТЫ по такому же вопросу и бренду (оператор их одобрил — держись этих "
+             "формулировок; ЦИФРЫ И СОВМЕСТИМОСТЬ бери только из CARD_DATA, они там про другой товар):"]
+    for a in approved[:5]:
+        lines.append(f"— [{a.get('cls') or '—'}] «{(a.get('text') or '')[:220]}»")
+    return "\n".join(lines) + "\n\n"
+
+
+def _web_block(web_facts):
+    """Факты из веб-поиска — ОТДЕЛЬНЫМ блоком и с пометкой источника.
+
+    Смешивать их с CARD_DATA нельзя: карточка — наш факт, веб — чужой сайт, и покупателю в спорном
+    случае мы отвечаем за разницу. Модель обязана видеть, что это разные по весу источники."""
+    if not web_facts:
+        return ""
+    src = ", ".join((web_facts.get("sources") or [])[:3])
+    return ("ВЕБ-ФАКТЫ (внешний поиск, НЕ наша карточка — источник вторичный; если он противоречит "
+            "CARD_DATA, прав CARD_DATA; ссылками и названиями чужих сайтов в ответе не козыряй):\n"
+            f"\"\"\"{(web_facts.get('answer') or '')[:900]}\"\"\"\n"
+            + (f"(источники: {src})\n" if src else "") + "\n")
+
+
+def _user_block(r, name, compat, examples, hint=None, approved=None, web_facts=None):
     kind = "ВОПРОС" if r["kind"] == "question" else f"ОТЗЫВ {r['rating']}★"
     text = (r["body"] or "").strip()
     if r["pros"]:
@@ -244,6 +274,8 @@ def _user_block(r, name, compat, examples, hint=None):
     # ТОВАР — внутреннее складское имя МС: служебные пометки («*ВНИМАНИЕ*», «White Box», «не идёт
     # в аппарат …») режем ЗДЕСЬ, на сборке промпта, а не только запретом в системном промпте.
     return (f"{_fewshot(examples)}\n\n"
+            f"{_approved_block(approved)}"
+            f"{_web_block(web_facts)}"
             f"ПЛОЩАДКА: {r['platform']}\nТОВАР: {public_name(r['product_name'])}\n"
             f"ИМЯ ПОКУПАТЕЛЯ: {name}\n"
             f"CARD_DATA (характеристики/совместимость карточки, единственный источник фактов):\n"

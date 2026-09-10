@@ -38,6 +38,11 @@ from reports.llm_client import create_with_retry as _create, LlmUnavailable     
 from reports import answer_cache as ac                                          # noqa: E402
 from reports import request_class as rc                                         # noqa: E402
 from reports.compat_cache import get as cc_get, put as cc_put                    # noqa: E402
+from reports.catalog import _BRANDS                                              # noqa: E402
+from reports import llm_batch                                                    # noqa: E402
+from reports import llm_routing                                                  # noqa: E402
+from reports import sku_relations                                                # noqa: E402
+from reports.llm_client import client_for                                        # noqa: E402
 
 # сигнал, что товар УЖЕ куплен/используется (тогда уместен QR на упаковке/чеке); иначе — пред-продажа.
 # Широко: покупка + любой признак использования/поломки (печатает бело/пусто, «что делать», выдаёт ошибку).
@@ -51,9 +56,15 @@ _QR_RX = re.compile(r"(?:по\s*)?QR[-\s]?код\w*"
 
 ART = BASE_DIR / "docs" / "feedback_today_artifact.html"
 
-# ВОПРОСЫ — финальная сборка ответа теперь на Claude Opus 5 (веб-поиск/веб-факт остаются на
-# WEB_MODEL/DeepSeek, отзывы — на общей MODEL/DeepSeek, как раньше). Sonnet-сплит в feedback_web.py убран.
-QUESTION_MODEL = os.environ.get("FEEDBACK_QUESTION_MODEL", "claude-opus-5")
+# ВОПРОСЫ — финальная сборка ответа на Sonnet 4.6. Решение Сергея от 10.09.2026: Opus в ответах
+# покупателю не используется вовсе — задача (собрать ответ из готовых фактов карточки и справочников)
+# Sonnet'у по силам, а разница в цене пятикратная. Веб-поиск остаётся на WEB_MODEL/DeepSeek.
+QUESTION_MODEL = os.environ.get("FEEDBACK_QUESTION_MODEL", "claude-sonnet-4-6")
+
+# Проверяющий проход по готовому черновику (reports/llm_routing.verify) — короткий промпт,
+# синхронно и на той же модели: ставить его в батч нельзя, иначе черновик ждёт два такта батча.
+VERIFY_MODEL = os.environ.get("FEEDBACK_VERIFY_MODEL", "claude-sonnet-4-6")
+VERIFY_ON = os.environ.get("FEEDBACK_VERIFY", "1") == "1"
 
 # A3 (бриф 07.09.2026). Отвечать на отзывы Ozon по API нельзя: /v1/review/comment/create отдаёт 403
 # без подписки Premium Plus, а подписки не будет ни у одного юрлица (решение Сергея 24.08.2026).
@@ -68,17 +79,13 @@ OZON_REVIEW_DRAFTS = os.environ.get("OZON_REVIEW_DRAFTS", "0") == "1"
 # Читает feedback_bot.health.report_cycle, чтобы сообщить, что именно не ушло и почему.
 LAST_RUN = {"drafts": 0, "fails": [], "llm_calls": 0, "web_calls": 0}
 
-# $ за 1M токенов (in, out) — для оценки стоимости прогона. DeepSeek не тарифицируем (нет цены в контуре
-# задачи, отдельный биллинг), Opus/Sonnet — по прайсу Anthropic.
-_PRICING = {
-    "claude-opus-5": (5.00, 25.00),
-    "claude-opus-4-8": (5.00, 25.00),
-    "claude-sonnet-5": (3.00, 15.00),
-}
+# Прайс переехал в reports/llm_pricing.py: ту же цену считает сборщик батча, а из feedback_today
+# он её взять не мог — кольцевой импорт.
+from reports import llm_pricing                                                  # noqa: E402
 
 
 class _CostTracker:
-    """Счётчик токенов/стоимости по вызовам _llm() (сборка ответа на ВОПРОСЫ на Opus)."""
+    """Счётчик токенов/стоимости по вызовам _llm() (синхронная сборка ответа)."""
 
     def __init__(self):
         self.calls = {}
@@ -96,8 +103,7 @@ class _CostTracker:
             return "  (вызовов не было)"
         lines, total = [], 0.0
         for model, c in self.calls.items():
-            pin, pout = _PRICING.get(model, (0.0, 0.0))
-            cost = c["in"] / 1e6 * pin + c["out"] / 1e6 * pout
+            cost = llm_pricing.cost(model, c["in"], c["out"])
             total += cost
             avg = f", ≈${cost / c['n']:.4f}/ответ" if c["n"] and cost else ""
             lines.append(f"  {model}: {c['n']} вызовов · {c['in']}+{c['out']} ток. · ≈${cost:.4f}{avg}")
@@ -108,8 +114,7 @@ class _CostTracker:
         """Upsert в feedback_llm_cost_log (текущие сутки) — суточная сводка агрегирует по дню,
         т.к. _CostTracker живёт только в памяти одного процесса, а циклов в сутках ~12."""
         for model, c in self.calls.items():
-            pin, pout = _PRICING.get(model, (0.0, 0.0))
-            cost = c["in"] / 1e6 * pin + c["out"] / 1e6 * pout
+            cost = llm_pricing.cost(model, c["in"], c["out"])
             db.execute("""INSERT INTO feedback_llm_cost_log (day, model, calls, tokens_in, tokens_out, cost_usd)
                 VALUES (current_date, %s, %s, %s, %s, %s)
                 ON CONFLICT (day, model) DO UPDATE SET
@@ -254,27 +259,48 @@ def _client():
     return client_for(MODEL)
 
 
-def _llm(client, r, cf, corpus, hint=None):
+def _brand_of(r):
+    """Бренд обращения — для подбора утверждённых ответов той же семьи (пункт 4)."""
+    low = ((r.get("product_name") or "") + " " + (r.get("body") or "")).lower()
+    return next((b for b in _BRANDS if b in low), None)
+
+
+def _llm(client, r, cf, corpus, hint=None, web_facts=None):
     """ИИ-черновик: карточка+каталог+few-shot → JSON {reply,route,confidence,grounded,note}.
-    ВОПРОСЫ — финальная сборка на QUESTION_MODEL (Claude Opus 5); ОТЗЫВЫ — на общей MODEL (как раньше).
+    ВОПРОСЫ — финальная сборка на QUESTION_MODEL, ОТЗЫВЫ — на MODEL; обе с 10.09.2026 — Sonnet 4.6.
     hint — подсказка по совместимости (напр. серия-shortcut), когда вопрос ЕЩЁ про что-то помимо
-    совместимости: LLM собирает полный ответ, а не только компат."""
+    совместимости: LLM собирает полный ответ, а не только компат.
+    web_facts — ответ web_fact(): уходит в промпт ОТДЕЛЬНЫМ помеченным блоком, а не подмешивается
+    в CARD_DATA (пункт 4: карточка и чужой сайт — источники разного веса).
+
+    При включённом батче (llm_batch.enabled()) вызова API здесь нет вовсе: готовый ответ берётся
+    из feedback_llm_result, а промах поднимает LlmPending — запись остаётся без черновика до
+    следующего цикла. Это ровно то состояние, в котором она оказывается при сбое модели, и
+    пайплайн его уже умеет."""
     cc = _card_data(r, cf)
     ex = corpus.retrieve(r["kind"], r["body"] or r["pros"] or r["cons"] or "", r["product_name"], k=5)
-    content = _user_block(r, _name(r), cc, ex, hint=hint)
+    _cls = rc.classify(" ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))
+                       if r["kind"] == "review" else r.get("body"),
+                       kind=r["kind"], rating=r.get("rating"))
+    approved = ac.recent_for(_cls, _brand_of(r), limit=5,
+                             exclude_article=ac.internal_article(r["platform"], None, r.get("item_id")))
+    content = _user_block(r, _name(r), cc, ex, hint=hint, approved=approved, web_facts=web_facts)
     # thinking-модели (DeepSeek-v4 pro/flash) тратят output-токены на размышления до JSON —
     # держим запас (env FEEDBACK_MAX_TOKENS). Кэш SYSTEM снимаем на не-Anthropic (DeepSeek его игнорит).
     max_tok = int(os.environ.get("FEEDBACK_MAX_TOKENS", "3000"))
     model = QUESTION_MODEL if r["kind"] == "question" else MODEL
-    if model != MODEL:
-        from reports.llm_client import client_for
-        client = client_for(model)
-    sysparam = ([{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
-                if not model.lower().startswith("deepseek") else SYSTEM)
-    m = _create(client, model=model, max_tokens=max_tok, system=sysparam,
-                messages=[{"role": "user", "content": content}])
-    _COST.add(model, getattr(m, "usage", None))
-    raw = _text_of(m)
+    if llm_batch.enabled():
+        raw = llm_batch.ask(model, SYSTEM, content, max_tok, r)      # или LlmPending
+    else:
+        if model != MODEL:
+            from reports.llm_client import client_for
+            client = client_for(model)
+        sysparam = ([{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
+                    if not model.lower().startswith("deepseek") else SYSTEM)
+        m = _create(client, model=model, max_tokens=max_tok, system=sysparam,
+                    messages=[{"role": "user", "content": content}])
+        _COST.add(model, getattr(m, "usage", None))
+        raw = _text_of(m)
     d = None
     mm = re.search(r"\{.*\}", raw, re.S)
     if mm:
@@ -806,10 +832,61 @@ def _early_human(r, cc, reply, note, used_llm):
     return outd, reply, "human", 0, ground, used_llm, False
 
 
+def _polish_with_web(client, r, cf, corpus, wf, base_reply, ground):
+    """Пересобрать ответ на Sonnet, отдав веб-факты ОТДЕЛЬНЫМ помеченным блоком (пункт 4).
+
+    До этого веб-ответ подставлялся покупателю как есть — чужим текстом и чужим тоном, а карточка
+    в нём не участвовала. Теперь веб идёт во входные данные модели с пометкой «источник вторичный».
+
+    Проход СИНХРОННЫЙ даже при включённом батче, и это осознанно: веб-запрос уже оплачен, а
+    отложить сборку значит на следующем цикле сходить в веб заново (и получить другой текст —
+    другой ключ очереди, то есть запись, которая ждёт вечно). Сбой прохода не рушит ответ:
+    остаётся тот вариант, что был.
+    """
+    try:
+        with llm_batch.synchronous():
+            d2, cc2, model2 = _llm(client, r, cf, corpus, web_facts=wf)
+    except Exception as e:
+        ground["note"] = f"веб→модель не отработал ({type(e).__name__}); " + (ground.get("note") or "")[:200]
+        return base_reply, ground
+    txt = (d2.get("reply") or "").strip()
+    if not txt or d2.get("route") == "human":
+        return base_reply, ground
+    ground.update({"model": model2, "web_into_llm": True,
+                   "grounded": bool(d2.get("grounded")) or ground.get("grounded", False)})
+    return txt, ground
+
+
+def _verified(client, r, reply, card, ground):
+    """Проверяющий проход по ГОТОВОМУ черновику (пункт 3). → (текст, ground).
+
+    Текст не правит: вердикт FIX только помечает черновик и уводит на человека. Править ответ
+    второй моделью — это ещё одна генерация без источника фактов, ровно то, что запрещено
+    правилом об источнике факта; здесь нужен контролёр, а не соавтор.
+    Сбой контролёра черновик не рушит: молча остаёмся с тем, что собрал движок."""
+    if not VERIFY_ON or not (reply or "").strip():
+        return reply, ground
+    try:
+        verdict, note, usage = llm_routing.verify(
+            lambda **kw: _create(client_for(VERIFY_MODEL), **kw), VERIFY_MODEL,
+            r["kind"], r.get("body") or r.get("cons") or r.get("pros"), reply, card)
+        _COST.add(VERIFY_MODEL, usage)
+    except Exception as e:
+        ground = dict(ground, verify="skip", note=(ground.get("note") or "")[:220]
+                      + f"; контролёр не отработал ({type(e).__name__})")
+        return reply, ground
+    ground = dict(ground, verify=verdict)
+    if verdict == "FIX":
+        ground["route"] = "human"
+        ground["note"] = f"контролёр: {note or 'ответ не прошёл проверку'}; " + (ground.get("note") or "")[:200]
+    return reply, ground
+
+
 def _answer(client, r, cf, corpus):
     """Полный движок ответа на ОДИН элемент. → (out_dict, reply, route, conf, ground, used_llm, used_web)."""
     used_web = False
     no_card = False
+    review_len_route = False       # отзыв попал на модель по длине текста → маршрут только человеку
     # Домен-фильтр (только вопросы). НЕ расходник → на человека сразу, БЕЗ вызова модели.
     # Расходник без CARD_DATA → пропускаем в цепочку, но помечаем (no_card) для карточки модератора.
     if r["kind"] == "question":
@@ -836,6 +913,28 @@ def _answer(client, r, cf, corpus):
         if _cached:
             return _cached
     if r["kind"] == "question":
+        # Пункт 3 (10.09.2026): модель зовём только там, где ответ надо СОБРАТЬ. Простой вопрос,
+        # на который карточка отвечает буквально (чип / ресурс / состав набора), собирается
+        # детерминированно — как и было до появления LLM в этой ветке. Нет нужного факта в
+        # карточке — не выдумываем: вопрос идёт дальше по общей цепочке (каталог, справочник, веб).
+        _need, _why = llm_routing.needs_llm("question", r.get("body"), _cls0, r.get("rating"))
+        if not _need:
+            _f0 = (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else
+                   cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else
+                   cf.for_wb(r["item_id"])) or {}
+            _chip_ln = sku_relations.chip_line(r["platform"], r.get("account"), r.get("item_id"),
+                                               r.get("body"), _f0.get("chip"))
+            _txt0, _mark = llm_routing.card_answer(_cls0, r.get("body"), _f0, chip_line=_chip_ln)
+            if _txt0:
+                _g0 = {"llm": False, "grounded": True, "source": "карточка", "template": True,
+                       "template_id": "card_" + (_cls0 or "simple"), "route": "review",
+                       "note": f"без модели ({_why}); {_mark}"}
+                _txt0, _g0 = _verified(client, r, _txt0, cc0, _g0)
+                _route0 = _g0.get("route", "review")
+                _out0 = dict(r, cat="question", reply=_txt0, route=_route0, conf=0.8, card=cc0,
+                             note=_g0["note"], grounded=True, catalog=False, source="карточка",
+                             web=False, sources=[], intent=intent(r["body"]))
+                return _out0, _txt0, _route0, 0.8, _g0, False, False
         used_llm = True
     else:
         _txt = (r["body"] or "") + " " + (r["pros"] or "") + " " + (r["cons"] or "")
@@ -843,6 +942,13 @@ def _answer(client, r, cf, corpus):
         # LLM — только для положительных отзывов с вопросом/проблемой по сути; обычный позитив и
         # негатив → шаблоны (позитив: разнообразная ротация 16 вариантов; негатив: хендофф по QR)
         used_llm = _has_text(r) and (not _neg) and (bool(DEFECT_RX.search(_txt)) or "?" in _txt)
+        # Пункт 3 (10.09.2026): содержательный отзыв (текст > 50 символов) тоже собирает модель —
+        # раньше на него шла ротация шаблонов, то есть покупатель получал вежливую фразу мимо того,
+        # что написал. Отдельный флаг: такие черновики НЕ уходят автопубликацией — отзывы, в отличие
+        # от вопросов, публикуются без человека, и первый раз новый текст обязан увидеть оператор.
+        _long_review, _why_r = llm_routing.needs_llm("review", _txt, None, r.get("rating"))
+        if _long_review and _has_text(r) and not used_llm:
+            used_llm, review_len_route = True, True
     if used_llm:
         # БЕЗ except: сбой вызова (LlmUnavailable после повторов или любое другое исключение)
         # поднимается в run() и запись остаётся без черновика. Подстановка текста ошибки в reply
@@ -854,9 +960,13 @@ def _answer(client, r, cf, corpus):
                                 d.get("note") or "ошибка парсинга", used_llm=True)
         reply = (d.get("reply") or "").strip()
         route = "auto" if d.get("route") == "auto" else "review"
+        if review_len_route:
+            route = "review"
         conf = float(d.get("confidence") or 0)
         ground = {"llm": True, "grounded": bool(d.get("grounded")), "note": (d.get("note") or "")[:300],
                   "model": used_model, "catalog": "КАТАЛОГ" in (cc or ""), "source": "карточка"}
+        if review_len_route:
+            ground["note"] = f"{_why_r} — на вычитку оператору; " + (ground.get("note") or "")[:220]
         cat = "question" if r["kind"] == "question" else "review-text"
         # A1.3 (07.09.2026): след совместимости — какие модели спросили и какие из них подтверждает
         # карточка. Пишем ДО веток обогащения, чтобы след был у любого вопроса с моделью, а не только
@@ -1031,6 +1141,7 @@ def _answer(client, r, cf, corpus):
                                "sources": wf.get("sources", []),
                                "note": ("веб-факт(добор): " if append else "веб-факт: ")
                                + (wf.get("note") or "")[:220]})
+                reply, ground = _polish_with_web(client, r, cf, corpus, wf, reply, ground)
             else:
                 ground.update({"note": "веб-факт без ответа; " + (ground.get("note") or "")[:200]})
     else:
@@ -1130,6 +1241,7 @@ def _answer(client, r, cf, corpus):
                 ground.update({"web": True, "source": "веб-факт (без карточки)", "grounded": True,
                                "sources": wf.get("sources", []),
                                "note": "веб-факт: " + (wf.get("note") or "")[:200]})
+                reply, ground = _polish_with_web(client, r, cf, corpus, wf, reply, ground)
             else:
                 ground["note"] = "веб-факт без ответа; " + (ground.get("note") or "")[:200]
         fallback = str(ground.get("note") or "").startswith("фолбэк")
@@ -1148,6 +1260,10 @@ def _answer(client, r, cf, corpus):
             ground["qa_guard"] = qviol
             ground["note"] = "qa-guard: " + ", ".join(qviol) + "; " + (ground.get("note") or "")[:180]
     reply = _scrub_urls(reply)          # ссылка не должна слипаться с пунктуацией/служебным текстом
+    # Контролёр — на ЛЮБОМ черновике, включая шаблонный (пункт 3). Стоит последним: проверять надо
+    # ровно тот текст, который увидит покупатель, а не промежуточный до guard'ов и веб-добора.
+    reply, ground = _verified(client, r, reply, cc, ground)
+    route = ground.get("route", route) if ground.get("verify") == "FIX" else route
     outd = dict(r, cat=cat, reply=reply, route=route, conf=conf, card=cc,
                 note=ground.get("note", ""), grounded=ground.get("grounded", False),
                 catalog=ground.get("catalog", False), source=ground.get("source", ""),
@@ -1164,11 +1280,17 @@ def run(since="2026-06-17"):
           f"{sum(r['kind']=='question' for r in rows)}, отзывов {sum(r['kind']=='review' for r in rows)}). "
           f"Корпус few-shot: {len(corpus.items)}.", flush=True)
 
-    out, nllm, nweb, nfail = [], 0, 0, 0
+    out, nllm, nweb, nfail, npend = [], 0, 0, 0, 0
     fails = []
     for i, r in enumerate(rows, 1):
         try:
             outd, reply, route, conf, ground, ul, uw = _answer(client, r, cf, corpus)
+        except llm_batch.LlmPending:
+            # Запрос ушёл в батч, ответа ещё нет — это НЕ сбой: запись остаётся без черновика и
+            # без draft_src_hash, следующий цикл возьмёт её снова и заберёт готовый ответ из
+            # feedback_llm_result. В fails такое не пишем, иначе health поднимет ложную тревогу.
+            npend += 1
+            continue
         except Exception as e:
             # Сбой генерации — запись остаётся БЕЗ черновика и БЕЗ карточки модерации: пусть лучше
             # покупатель ждёт следующего цикла, чем получит служебный текст. draft_src_hash не
@@ -1196,7 +1318,8 @@ def run(since="2026-06-17"):
     c = Counter(o["cat"] for o in out)
     print(f"\nИТОГ: {len(out)} черновиков · ИИ-вызовов {nllm} · веб-проверок {nweb} · вопросов {c['question']} · "
           f"отзывов-с-текстом {c['review-text']} · пустых-шаблоном {c['review-empty']}"
-          + (f" · ПРОПУЩЕНО без черновика (сбой модели) {nfail}" if nfail else ""), flush=True)
+          + (f" · ПРОПУЩЕНО без черновика (сбой модели) {nfail}" if nfail else "")
+          + (f" · ЖДУТ БАТЧА {npend}" if npend else ""), flush=True)
     print("Токены/стоимость (сборка ответа _llm):", flush=True)
     print(_COST.summary(), flush=True)
     _COST.persist()
@@ -1204,7 +1327,8 @@ def run(since="2026-06-17"):
     # сводка прогона для feedback_bot.health.report_cycle — возврат run() не трогаем, его читают
     # другие вызывающие (ручные прогоны, backfill)
     global LAST_RUN
-    LAST_RUN = {"drafts": len(out), "fails": fails, "llm_calls": nllm, "web_calls": nweb}
+    LAST_RUN = {"drafts": len(out), "fails": fails, "llm_calls": nllm, "web_calls": nweb,
+                "pending": npend}
     return out
 
 

@@ -339,3 +339,37 @@ def try_hit(row, facts=None, cls=None):
                   "stale": stale, "confirm": hits <= CONFIRM_HITS, "why_key": why},
     }
     return (hit["answer_text"] or ""), ground
+
+
+def recent_for(cls, brand=None, limit=5, exclude_article=None):
+    """Свежие утверждённые ответы того же класса и бренда — во входные данные модели (пункт 4).
+
+    Точное попадание по ключу отдаёт `try_hit` и генерации не требует; сюда мы приходим, когда
+    попадания нет, но человек уже утверждал ответы на такой же вопрос по соседним карточкам того же
+    бренда. Это не факт о товаре, а образец РЕШЕНИЯ: как мы формулируем ответ этого класса —
+    поэтому подписью «одобрено оператором» блок и уходит в промпт.
+
+    Бренд определяется по названию товара исходного обращения (approved_answers своего имени товара
+    не хранит), поэтому join к raw_feedback; без бренда — просто свежие по классу.
+    """
+    if not cls:
+        return []
+    where = ["a.stale = false", "a.request_class = %s", "coalesce(a.answer_text,'') <> ''"]
+    args = [cls]
+    if brand:
+        where.append("lower(coalesce(f.product_name,'')) LIKE %s")
+        args.append(f"%{str(brand).lower()}%")
+    if exclude_article:
+        where.append("lower(a.article) <> lower(%s)")
+        args.append(str(exclude_article))
+    args.append(int(limit))
+    rows = db.query(f"""SELECT a.answer_text, a.request_class, a.article
+                          FROM approved_answers a
+                          LEFT JOIN raw_feedback f
+                            ON f.platform = a.source_platform AND f.account = a.source_account
+                           AND f.ext_id = a.source_ext_id
+                         WHERE {' AND '.join(where)}
+                         ORDER BY a.approved_at DESC NULLS LAST
+                         LIMIT %s""", tuple(args))
+    return [{"text": r["answer_text"], "cls": r["request_class"], "article": r["article"]}
+            for r in (rows or [])]
