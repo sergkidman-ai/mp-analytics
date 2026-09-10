@@ -146,7 +146,8 @@ class ClaimAndPromiseTest(unittest.TestCase):
                 grounding={'compat': {'asked': ['c5890'], 'matched': [], 'status': 'unknown'}})
         allow, why = gate.verdict(r)
         self.assertFalse(allow)
-        self.assertTrue(any('без подтверждения карточкой' in w for w in why), why)
+        # с блока D (08.09.2026) правило зовётся D1, второй законный источник — справочник
+        self.assertTrue(any('без карточки и справочника' in w for w in why), why)
         self.assertFalse(any('уверенность' in w for w in why), 'ловить правилом, а не порогом')
 
     def test_отказ_и_подтверждённая_модель_проходят(self):

@@ -876,10 +876,31 @@ def _answer(client, r, cf, corpus):
             code = (fct or {}).get("code")
             st, mm = _fam_status(r["body"], (fct or {}).get("models") or [])
             asked_m = _asked_models(r["body"])
+            # D2 (блок D, 08.09.2026): справочник compat_ref — ВТОРОЙ и последний законный источник
+            # «да» после карточки. Он детерминированный: строки заводятся одобренными ответами,
+            # командой /compat_add или импортом OEM, веб в него не пишет никогда. Модуль работает
+            # офлайн: любая ошибка БД = пустой ответ = подтверждения нет.
+            series, ref_ok, ref_src, ref_rows = None, [], "", []
+            variant_mismatch, region_needed = None, []
+            try:
+                from reports import compat_ref as _cr
+                series = code or _cr.series_of(fct or {})
+                if asked_m:
+                    ref_ok, ref_src, ref_rows = _cr.confirms(asked_m, series)
+                    variant_mismatch = _cr.variant_conflict(asked_m, series)   # D4
+                    regs = _cr.regions_for(series)                             # D5
+                    if len(regs) > 1 and not _cr.region_in(r["body"] or ""):
+                        region_needed = regs
+            except Exception:
+                series, ref_ok, ref_src, ref_rows = (code or None), [], "", []
+            ref_ok = ref_ok or []
             if asked_m:                                # точный след: матчер с базовой моделью серии
                 # ВНИМАНИЕ: _fam_status при st != 'yes' возвращает вторым значением СПРОШЕННЫЕ модели,
-                # а не совпавшие. Записать их как matched = отменить всё правило A1.3.
-                ground["compat"] = {"asked": asked_m, "matched": mm if st == "yes" else [], "status": st}
+                # а не совпавшие. Записать их как matched = отменить всё правило A1.3/D1.
+                ground["compat"] = {"asked": asked_m, "matched": mm if st == "yes" else [],
+                                    "status": st, "series": series, "ref_matched": ref_ok,
+                                    "ref_source": ref_src, "variant_mismatch": variant_mismatch,
+                                    "region_needed": region_needed}
             defect = re.search(r"вернуть|возврат|не\s+счита|не\s+вид|ошибк", (r["body"] or "").lower())
             reg = [x for x in re.findall(r"\b[A-Za-z]\d{3,4}[A-Za-z]\b", r["body"] or "")
                    if _norm(x) not in _norm(cc or "")]
@@ -895,7 +916,25 @@ def _answer(client, r, cf, corpus):
             # комплектация/гарантия), детерминированный шаблон её проигнорирует — вместо него полный
             # ответ собирает Opus по CARD_DATA/каталогу, а fam_reply идёт ему подсказкой по совместимости.
             extra_topic = bool(_EXTRA_TOPIC_RX.search(r["body"] or ""))
-            if st == "yes" and not defect and not color_q and fam_reply and not extra_topic:
+            # D4: ресурсная версия. Справочник знает эту модель под ДРУГИМ вариантом той же серии
+            # (OKI/Kyocera/HP LaserJet вниз не совместимы) — отвечаем отказом с нужной версией.
+            if variant_mismatch and not defect:
+                _th = "/".join(map(str, variant_mismatch.get("theirs") or [])) or "другая"
+                reply = (f"Здравствуйте! Нет, для {variant_mismatch.get('model')} нужна версия "
+                         f"{_th}, а этот картридж — версия {variant_mismatch.get('ours') or 'другого ресурса'}. "
+                         f"Ресурсные версии этой серии между собой не взаимозаменяемы.")
+                ground.update({"grounded": True, "source": "compat_ref:" + (ref_src.split(":")[-1] or "manual"),
+                               "note": f"D4: несовпадение ресурсной версии по справочнику ({_th})"})
+            # D5: серия существует в региональных версиях — без региона в вопросе однозначного
+            # ответа не бывает (Epson WF-C5x90: EU T11C/D/E против ASIA T11F/G).
+            elif region_needed and not defect:
+                reply = ("Здравствуйте! Уточните, пожалуйста, региональную версию вашего аппарата — "
+                         "для этой серии выпускаются разные версии картриджей ("
+                         + "/".join(map(str, region_needed)) + "), и подходит только своя.")
+                ground.update({"grounded": True, "source": "compat_ref:" + (ref_src.split(":")[-1] or "manual"),
+                               "note": "D5: нужен регион, серия есть в версиях "
+                                       + "/".join(map(str, region_needed))})
+            elif st == "yes" and not defect and not color_q and fam_reply and not extra_topic:
                 # карточка-серия, вопрос целиком про совместимость: детерминированно и бесплатно — веб не нужен
                 reply = fam_reply
                 ground.update({"grounded": True, "source": "карточка-серия",
@@ -918,6 +957,16 @@ def _answer(client, r, cf, corpus):
                                    "note": f"вариант серии, совпало по базе: {', '.join(mm)} "
                                            f"(доп.тема: LLM без ответа, fallback на shortcut)"})
                 route = "review"
+            elif (not defect and asked_m and ref_ok
+                  and all(a in ref_ok for a in asked_m) and not extra_topic and not color_q):
+                # D2: все спрошенные модели подтверждены справочником — детерминированный ответ,
+                # веб не нужен. Именно так «подойдёт к LBP633», одобренное однажды оператором,
+                # со второго раза закрывается бесплатно и одинаково.
+                reply = (f"Здравствуйте! Да, подойдёт для {', '.join(ref_ok)}"
+                         + (f" — наш картридж {code}." if code else ".")
+                         + " Совместимость подтверждена нашим справочником.")
+                ground.update({"grounded": True, "source": ref_src,
+                               "note": "подтверждено справочником совместимости: " + ", ".join(ref_ok)})
             elif not defect and bool(asked_m):
                 # MODEL-FIRST: ответ _llm по знанию модели + карточка/каталог уже готов (reply).
                 # Веб зовём РЕДКО — только если модель сама не уверена (need_web), низкая уверенность
@@ -941,7 +990,7 @@ def _answer(client, r, cf, corpus):
                     used_web = True
                     if wa and wa.get("verdict") in ("yes", "no") and (wa.get("reply") or "").strip():
                         reply = wa["reply"].strip()
-                        ground.update({"web": True, "source": "веб", "grounded": True,
+                        ground.update({"web": True, "source": "веб (BLOCK)", "grounded": True,
                                        "verdict": wa["verdict"], "sources": wa.get("sources", []),
                                        "note": "веб: " + (wa.get("note") or "")[:220]})
                         # сохраняем вердикт по КАЖДОЙ спрошенной модели → впредь бесплатно из кэша

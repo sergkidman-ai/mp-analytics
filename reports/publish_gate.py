@@ -140,22 +140,65 @@ def verdict(row, text=None):
         if m:
             reasons.append(f"обещание в черновике: «{m.group(0)}»")
 
-    # A1.3: «да, подойдёт» на модель, которой нет в списке совместимости карточки. Ровно этот путь
-    # дал Epson C5890 (T945x), Canon LBP646 (075H) и HP 4303 (212A): совместимость взята из знания
-    # модели или веба, карточка её не подтверждает. Порог уверенности такое не ловит — модель как
-    # раз уверена. compat пишет feedback_today.py; на строках без него правило молчит.
-    # Спросить могут несколько моделей: карточка подтверждает одну, вторая остаётся недоказанной,
-    # а ответ утвердительный про обе. Поэтому смотрим НЕподтверждённые, а не «matched пуст».
+    # D1 (блок D, 08.09.2026). Источников утвердительного «да» о совместимости ровно два:
+    # список совместимости карточки и справочник compat_ref. Веб — НЕ источник: ровно через него
+    # пришли Epson C5890 (T945x, за картридж принято тело ПЗК), Canon LBP646 (выдуманная серия
+    # 075H), HP 4303 («спецификация HP 212A») и Epson 680 (T026 вместо T017).
+    # Правило шире прежнего A1.3 в двух местах: справочник добавлен вторым законным источником,
+    # и на вебе запрещён также ОТРИЦАТЕЛЬНЫЙ ответ по неподтверждённой модели — отказ по LBP646
+    # был верен, но допродажа в том же тексте выдумана. Судим по тексту черновика и следу
+    # совместимости, а не по классу: класс ловит и неявные формулировки, а трейс есть у любого
+    # вопроса с моделью. compat пишет feedback_today.py; без него правило молчит.
+    source = str(g.get("source") or "")
     compat = g.get("compat") if isinstance(g.get("compat"), dict) else None
     if compat and compat.get("asked"):
-        matched = compat.get("matched") or []
-        unconfirmed = [a for a in compat["asked"] if a not in matched]
+        asked_all = list(compat.get("asked") or [])
+        matched = list(compat.get("matched") or [])
+        ref_ok = compat.get("ref_matched")
+        if ref_ok is None:            # строка старше блока D — спрашиваем справочник сами
+            try:
+                from reports import compat_ref
+                ref_ok = compat_ref.confirms(asked_all, compat.get("series"))[0]
+            except Exception:
+                ref_ok = []           # справочник молчит → подтверждения нет, гейт закрывается
+        unconfirmed = [a for a in asked_all if a not in matched and a not in (ref_ok or [])]
         affirm = FIT_RX.search(body) or (YES_RX.search(body) and not NO_FIT_RX.search(body))
-        if unconfirmed and affirm:
-            asked = ", ".join(map(str, unconfirmed))[:80]
-            reasons.append(f"положительный ответ без подтверждения карточкой (модель {asked})")
+        web_based = bool(g.get("web")) or "веб" in source
+        who = ", ".join(map(str, unconfirmed))[:80]
+        if web_based:
+            # веб — черновик оператору ВСЕГДА, независимо от знака ответа: отказ по LBP646 был
+            # верен, а допродажа в том же тексте выдумана, и разделить их гейт не может.
+            reasons.append("D1: ответ о совместимости построен на вебе"
+                           + (f", модель {who} не подтверждена карточкой или справочником" if who else ""))
+        elif unconfirmed and affirm:
+            reasons.append(f"D1: «да» о совместимости без карточки и справочника (модель {who})")
+        # D4: ресурсные версии вниз не совместимы (OKI, Kyocera, HP LaserJet). Справочник знает
+        # эту модель под ДРУГИМ вариантом той же серии — ответ обязан назвать нужный, а не наш.
+        vm = compat.get("variant_mismatch")
+        if isinstance(vm, dict) and vm:
+            reasons.append("D4: для {} нужна версия {}, а это {}".format(
+                vm.get("model"), "/".join(map(str, vm.get("theirs") or [])) or "другая",
+                vm.get("ours") or "—"))
+        # D5: серия заведена под несколько рынков (Epson WF-C5x90: EU T11C/D/E vs ASIA T11F/G).
+        # Без региона в вопросе однозначный ответ неверен примерно в половине случаев.
+        rn = compat.get("region_needed")
+        if rn:
+            reasons.append("D5: нужен регион — серия есть в версиях " + "/".join(map(str, rn)))
+        # D6: у совместимости источник обязан быть детерминированным. «Модель» и «веб» — не источник,
+        # они и есть D1; отдельной строкой это видно в очереди оператора.
+        # «кэш» — повтор ОДОБРЕННОГО ответа, он законен; «кэш(веб)» — тот же веб, только вчерашний.
+        ok_src = source.startswith(("карточка", "compat_ref:", "шаблон", "веб")) or (
+            source.startswith("кэш") and "веб" not in source)
+        if source and not ok_src:
+            reasons.append(f"D6: источник «{source}» для совместимости не детерминирован")
 
-    source = str(g.get("source") or "")
+    # D3: допродажа только из каталога. Ссылка на ЧУЖОЙ SKU допустима, только если серия
+    # подтверждена справочником или карточкой И этот SKU есть в номенклатуре МойСклада.
+    # «По знанию модели» запрещено — так в ответе по LBP646 родилась несуществующая серия 075H.
+    ups = g.get("upsell") if isinstance(g.get("upsell"), dict) else None
+    if ups and ups.get("unbacked"):
+        reasons.append("допродажа без справочника: " + ", ".join(map(str, ups["unbacked"]))[:80])
+
     if kind == "question" and source == "модель":
         reasons.append("источник — только модель: ни карточка, ни каталог, ни веб не подтвердили")
     if kind == "question" and source.startswith("карточка-серия"):
