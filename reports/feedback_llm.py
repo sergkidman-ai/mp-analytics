@@ -43,7 +43,7 @@ def _card_data(r, cf):
     # каталог наших листингов — для вопросов о наличии/цвете/артикуле (источник №3); модель принтера
     # берём из карточки, если в вопросе её нет («а цветной есть?» — модель уже известна)
     cat = (catalog_block(r.get("body") or "", r.get("product_name") or "", (f or {}).get("models"),
-                         platform=r.get("platform"),
+                         platform=r.get("platform"), account=r.get("account"),
                          card_color=" ".join(str((f or {}).get(k) or "") for k in ("color", "colormode")))
            if r["kind"] == "question" else "")
     cat = public_block(cat, "CARD_DATA/КАТАЛОГ")

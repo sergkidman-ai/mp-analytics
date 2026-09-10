@@ -586,7 +586,8 @@ def lookup(text, platform=None, kind=None, accounts=None, color_syn=None, exclud
             # в принтер покупателя, а та же модель в чужом списке совместимости — лишь «тоже подойдёт».
             tnorm = re.sub(r"[^a-z0-9]", "", (r["title"] or "").lower())
             in_title = 0 if q["norm"] in tnorm else (1 if q["core"] in tnorm else 2)
-            hits.append({"platform": r["platform"], "id": r["item_id"], "article": r["article"],
+            hits.append({"platform": r["platform"], "account": r["account"],
+                         "id": r["item_id"], "article": r["article"],
                          "title": r["title"], "url": r["url"], "kind": r["item_kind"],
                          "model": r["model_norm"], "src": r["src"],
                          "_rank": (in_title,

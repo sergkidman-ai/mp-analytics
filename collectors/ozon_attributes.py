@@ -69,15 +69,62 @@ def load_raw(account, items):
 ACCOUNTS = ("oz_acc1", "oz_acc2")
 
 
+def _alert(text, key):
+    """Тревога в Telegram. Канал тот же, что у сторожей движка отзывов, с дедупом по ключу."""
+    try:
+        from feedback_bot.health import notify
+        notify(text, key=key, repeat_hours=20)
+    except Exception as e:                                    # noqa: BLE001
+        print(f"АЛЕРТ НЕ ОТПРАВЛЕН ({e}): {text}", flush=True)
+
+
+def _catalog_size(account):
+    """Сколько живых карточек у аккаунта по нашим же данным — эталон для сверки."""
+    r = db.query("""SELECT count(*) n FROM ozon_product
+                    WHERE account=%s AND NOT coalesce(is_archived,false)""", (account,))
+    return r[0]["n"] if r else 0
+
+
+def check_after_run(account, got, with_attr):
+    """Сторож от тихой дыры: у Дисквэра атрибуты не собирались с 25.08 по 10.09.2026, и заметили
+    это только вручную — потому что «ничего не пришло» выглядело ровно как «нечего присылать».
+
+    Условие тревоги: по аккаунту НОЛЬ карточек с атрибутами, а каталог у него непустой. Значит
+    сломан не каталог, а наш путь к нему: ключ, права, эндпоинт. Возвращает текст тревоги или ''.
+    """
+    cat = _catalog_size(account)
+    if with_attr or not cat:
+        return ""
+    return (f"⚠️ Атрибуты карточек Ozon {account}: получено {got} карточек, с атрибутами 0, "
+            f"а в каталоге {cat} живых листингов.\n"
+            f"Значит ответы на вопросы этого магазина идут без CARD_DATA. Проверить: ключ/права "
+            f"аккаунта в .env, эндпоинт /v4/product/info/attributes.")
+
+
 def main(account="all"):
     """account: конкретный аккаунт или "all" — оба (по умолчанию, чтобы новый аккаунт не
     оставался без карточек молча, как Дисквэр с 25.08 по 10.09.2026)."""
+    bad = []
     for acc in (ACCOUNTS if account in ("all", None) else (account,)):
         print(f"Ozon атрибуты карточек {acc}", flush=True)
-        items = fetch(acc)
+        try:
+            items = fetch(acc)
+        except Exception as e:                                # noqa: BLE001
+            # Упавший прогон — та же дыра, только громче: без алерта он тоже пройдёт незамеченным.
+            bad.append(acc)
+            print(f"{acc}: ПРОГОН УПАЛ: {e}", flush=True)
+            _alert(f"⚠️ Атрибуты карточек Ozon {acc}: прогон упал — {e}\n"
+                   f"Карточки этого магазина в CARD_DATA не обновятся.", key=f"oz_attr_fail_{acc}")
+            continue
         n = load_raw(acc, items)
         with_attr = sum(1 for it in items if it.get("attributes"))
         print(f"{acc}: записано карточек {n} | с атрибутами {with_attr}", flush=True)
+        warn = check_after_run(acc, len(items), with_attr)
+        if warn:
+            bad.append(acc)
+            print(f"{acc}: ТРЕВОГА — {warn}", flush=True)
+            _alert(warn, key=f"oz_attr_empty_{acc}")
+    return bad
 
 
 if __name__ == "__main__":

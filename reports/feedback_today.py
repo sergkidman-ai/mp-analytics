@@ -424,7 +424,8 @@ def _scrub_urls(text):
     return re.sub(r"\s{2,}", " ", out).strip()
 
 
-def _our_offer(reply, question, product_name, models, platform, card_code=None, item_id=None):
+def _our_offer(reply, question, product_name, models, platform, card_code=None, item_id=None,
+               account=None):
     """Каталог-после-веба: ищем НАШ листинг по кодам НУЖНОГО картриджа из веб-ответа, а если по коду не
     нашли — по модели принтера из вопроса. Уважает цвет из вопроса. Коды берём ТОЛЬКО из «положительных»
     фраз (не из «X не подходит» — там наш текущий несовместимый) и исключаем код/листинг текущей карточки."""
@@ -433,11 +434,11 @@ def _our_offer(reply, question, product_name, models, platform, card_code=None, 
     pos = " ".join(s for s in re.split(r"(?<=[.!?])\s+", reply or "")
                    if not re.search(r"не\s+подход|не\s+подойд|не\s+совмест|не\s+взаимозамен|"
                                     r"разн\w+\s+(?:сери|поколен|устройств)", s, re.I))
-    off = catalog_by_code(pos, platform=platform, color=color,
+    off = catalog_by_code(pos, platform=platform, color=color, account=account,
                           exclude=[card_code] if card_code else None, exclude_id=item_id,
                           context=(question or "") + " " + (product_name or ""))
     if not off:
-        off = catalog_offer(question or "", product_name or "", models, platform)
+        off = catalog_offer(question or "", product_name or "", models, platform, account=account)
     return off
 
 
@@ -1068,7 +1069,8 @@ def _answer(client, r, cf, corpus):
                 cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else
                 cf.for_wb(r["item_id"]))
         off = _our_offer(reply, r["body"], r["product_name"], (_fct or {}).get("models"),
-                         r["platform"], (_fct or {}).get("code"), r["item_id"])
+                         r["platform"], (_fct or {}).get("code"), r["item_id"],
+                         account=r.get("account"))
         if off:
             if _DENY_AVAIL_RX.search(reply) or _REDIRECT_RX.search(reply):
                 reply = _repair_denial(reply, off)             # вырезаем отказ/увод, дописываем наш листинг

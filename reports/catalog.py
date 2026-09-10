@@ -135,7 +135,10 @@ def _detect_color(text):
 
 
 def _search(model_tokens, color, limit=8):
-    """AND по модель-токенам + (опц.) цвет. Возвращает кандидатов из wb_cards и ozon_product."""
+    """AND по модель-токенам + (опц.) цвет. Возвращает кандидатов из wb_cards и ozon_product.
+
+    Каждый кандидат несёт account: канал покупателя — это пара «площадка + аккаунт», и отбор
+    по ней делает _same_channel."""
     if not model_tokens and not color:
         return []
     out = []
@@ -149,9 +152,10 @@ def _search(model_tokens, color, limit=8):
         conds.append("(" + " OR ".join(["title ILIKE %s"] * len(syn)) + ")")
         params += ["%" + s.strip() + "%" for s in syn]
     where = " AND ".join(conds) if conds else "true"
-    for r in db.query(f"""SELECT nm_id, vendor_code, title FROM wb_cards
+    for r in db.query(f"""SELECT nm_id, account, vendor_code, title FROM wb_cards
         WHERE {where} AND coalesce(title,'')<>'' ORDER BY nm_id DESC LIMIT %s""", tuple(params) + (limit,)):
-        out.append({"platform": "wb", "id": r["nm_id"], "article": r["vendor_code"], "title": r["title"]})
+        out.append({"platform": "wb", "account": r["account"], "id": r["nm_id"],
+                    "article": r["vendor_code"], "title": r["title"]})
     # Ozon
     conds, params = [], []
     for t in model_tokens:
@@ -162,10 +166,11 @@ def _search(model_tokens, color, limit=8):
         conds.append("(" + " OR ".join(["name ILIKE %s"] * len(syn)) + ")")
         params += ["%" + s.strip() + "%" for s in syn]
     where = " AND ".join(conds) if conds else "true"
-    for r in db.query(f"""SELECT sku, offer_id, name FROM ozon_product
-        WHERE account='oz_acc1' AND {where} AND coalesce(name,'')<>'' AND NOT is_archived
+    for r in db.query(f"""SELECT sku, account, offer_id, name FROM ozon_product
+        WHERE {where} AND coalesce(name,'')<>'' AND NOT is_archived
         ORDER BY sku DESC LIMIT %s""", tuple(params) + (limit,)):
-        out.append({"platform": "ozon", "id": r["sku"], "article": r["offer_id"], "title": r["name"]})
+        out.append({"platform": "ozon", "account": r["account"], "id": r["sku"],
+                    "article": r["offer_id"], "title": r["name"]})
     # Яндекс.Маркет
     out += _search_yandex(model_tokens, color, limit)
     return out[: limit + 6]
@@ -213,22 +218,28 @@ def _nums(toks):
     return [t for t in toks if re.search(r"\d", t)]
 
 
-# Ozon: атрибуты и подбор исторически ограничены Премиум-аккаунтом (oz_acc1) — сохраняем как было,
-# чтобы врезка индекса не поменяла заодно и набор предлагаемых магазинов. WB — оба аккаунта (nmID
-# у ВБ глобально уникален), Маркет — ya_acc1.
-_LOOKUP_ACCOUNTS = {"ozon": ["oz_acc1"]}
+# Подбор идёт по ВСЕМ нашим аккаунтам площадки (распоряжение Сергея 10.09.2026): ограничение
+# Ozon Премиумом оставляло Дисквэра без подстановки листингов вовсе. Сужение до нужного
+# магазина делает не этот список, а account вопроса — см. _accounts_for и _same_channel:
+# покупателю можно предложить только тот лот, который он видит в СВОЁМ магазине.
+_LOOKUP_ACCOUNTS = {"ozon": ["oz_acc1", "oz_acc2"]}
+
+
+def _accounts_for(platform, account=None):
+    """Аккаунты для подбора: аккаунт вопроса, если он известен, иначе все наши на площадке."""
+    return [account] if account else _LOOKUP_ACCOUNTS.get(platform)
 # сопутствующий расходник → тип товара в индексе (девелопер/печка своего типа не имеют — старый путь)
 _ACC_KIND = {"фотобарабан": "drum"}
 
 
 def _index_hits(text, platform, color=None, kind=None, models=None, exclude_id=None, limit=8,
-                kind_strict=False):
+                kind_strict=False, account=None):
     """Подбор по модели принтера через индекс совместимости. → список хитов, [] если не нашли,
     None если индекс не собран (вызывающий откатывается на старый ILIKE-путь)."""
     if not compat_index.is_ready():
         return None
     return compat_index.lookup(text or "", platform=platform, kind=kind,
-                               accounts=_LOOKUP_ACCOUNTS.get(platform),
+                               accounts=_accounts_for(platform, account),
                                color_syn=COLORS.get(color) if color else None,
                                exclude_id=exclude_id, limit=limit, models=models,
                                kind_strict=kind_strict)
@@ -249,18 +260,19 @@ def _search_accessory(model_tokens, acc_key, limit=6):
     out = []
     for tbl, idc, artc, namec, extra in (
             ("wb_cards", "nm_id", "vendor_code", "title", ""),
-            ("ozon_product", "sku", "offer_id", "name", "AND account='oz_acc1' AND NOT is_archived")):
+            ("ozon_product", "sku", "offer_id", "name", "AND NOT is_archived")):
         conds, params = [], []
         for t in model_tokens:
             conds.append(f"{namec} ILIKE %s"); params.append("%" + t + "%")
         conds.append("(" + " OR ".join([f"{namec} ILIKE %s"] * len(syns)) + ")")
         params += ["%" + s + "%" for s in syns]
         where = " AND ".join(conds)
-        for r in db.query(f"""SELECT {idc} id, {artc} art, {namec} nm FROM {tbl}
+        for r in db.query(f"""SELECT {idc} id, account, {artc} art, {namec} nm FROM {tbl}
             WHERE {where} AND coalesce({namec},'')<>'' {extra} ORDER BY {idc} DESC LIMIT %s""",
                           tuple(params) + (limit,)):
             plat = "wb" if tbl == "wb_cards" else "ozon"
-            out.append({"platform": plat, "id": r["id"], "article": r["art"], "title": r["nm"]})
+            out.append({"platform": plat, "account": r["account"], "id": r["id"],
+                        "article": r["art"], "title": r["nm"]})
     # Яндекс.Маркет
     conds, params = [], []
     for t in model_tokens:
@@ -282,7 +294,7 @@ def _plat_ref(h):
     return (f"Ozon SKU {h['id']}", f"https://www.ozon.ru/product/{h['id']}")
 
 
-def _same_channel(hits, platform):
+def _same_channel(hits, platform, account=None):
     """ЖЁСТКИЙ фильтр по каналу покупателя, а НЕ сортировка «своё вперёд».
 
     Инцидент 01.08.2026: покупателю на Яндексе подставили ссылку на карточку Wildberries
@@ -290,13 +302,20 @@ def _same_channel(hits, platform):
     ключом сортировки, поэтому при отсутствии своего листинга наверх всплывал чужой.
     Правило: подставляем товар ТОЛЬКО из канала вопроса; своего нет → ничего не предлагаем
     (вызывающий код честно зовёт уточнить в чате), НИКОГДА не уводим на другую площадку.
+    С 10.09.2026 канал — это пара «площадка + аккаунт»: у нас два магазина на Ozon и два на ВБ,
+    и лот Премиума покупателю Дисквэра не поможет — это другой продавец. account=None
+    (внутренние вызовы/тесты, старые данные) — сужаем только по площадке, как раньше.
     platform=None (внутренние вызовы/тесты) — фильтр не применяем."""
     if not platform:
         return hits
-    return [h for h in hits if h["platform"] == platform]
+    hits = [h for h in hits if h["platform"] == platform]
+    if account:
+        hits = [h for h in hits if not h.get("account") or h["account"] == account]
+    return hits
 
 
-def catalog_block(text, product_name="", card_models=None, platform=None, card_color=None):
+def catalog_block(text, product_name="", card_models=None, platform=None, card_color=None,
+                  account=None):
     """Блок КАТАЛОГ для промпта или '' — если вопрос не про наличие/варианты либо ничего не нашлось.
 
     Модель принтера берём из ВОПРОСА, иначе из моделей карточки / названия товара (частый кейс:
@@ -324,7 +343,7 @@ def catalog_block(text, product_name="", card_models=None, platform=None, card_c
     acc_hits = []
     if acc:
         acc_kind = _ACC_KIND.get(acc)
-        acc_hits = _index_hits(q, platform, kind=acc_kind, kind_strict=True,
+        acc_hits = _index_hits(q, platform, account=account, kind=acc_kind, kind_strict=True,
                                models=[product_name or ""] + list(card_models or [])) if acc_kind else None
         if acc_hits is None:                      # девелопер/печка или индекс не собран — старый путь
             acc_hits = []
@@ -334,12 +353,12 @@ def catalog_block(text, product_name="", card_models=None, platform=None, card_c
                     acc_hits += _search_accessory(toks, acc)
         seen_a = set()
         acc_hits = [h for h in acc_hits if (h["platform"], h["id"]) not in seen_a and not seen_a.add((h["platform"], h["id"]))]
-        acc_hits = _same_channel(acc_hits, platform)
+        acc_hits = _same_channel(acc_hits, platform, account)
     # ПОДБОР ПО МОДЕЛИ ПРИНТЕРА — через индекс совместимости (см. шапку модуля)
-    hits = _index_hits(q, platform, color=color, models=idx_models)
+    hits = _index_hits(q, platform, color=color, models=idx_models, account=account)
     if hits is not None:
         if not hits and color:           # цвета не нашли — шире (вдруг листинг без слова-цвета в названии)
-            hits = _index_hits(q, platform, models=idx_models) or []
+            hits = _index_hits(q, platform, models=idx_models, account=account) or []
     else:                                # индекс не собран — запасной ILIKE-путь по токенам
         hits, seen = [], set()
         for num in (nums[:3] or [None]):
@@ -357,7 +376,7 @@ def catalog_block(text, product_name="", card_models=None, platform=None, card_c
                     if key not in seen:
                         seen.add(key)
                         hits.append(h)
-    hits = _same_channel(hits, platform)          # только канал покупателя (см. _same_channel)
+    hits = _same_channel(hits, platform, account)  # только канал покупателя (см. _same_channel)
     if not hits and not acc_hits:
         return ""
     want = f" ({color})" if color else ""
@@ -378,7 +397,7 @@ def catalog_block(text, product_name="", card_models=None, platform=None, card_c
     return "\n".join(lines)
 
 
-def catalog_offer(text, product_name="", card_models=None, platform=None):
+def catalog_offer(text, product_name="", card_models=None, platform=None, account=None):
     """Детерминированная страховка: есть ли у нас листинг под модель ПРИНТЕРА из вопроса. → {ref,url,
     title,platform} | None. Матчит строго (бренд AND номер модели из вопроса) — ложных не даёт. Нужна,
     чтобы поймать ложное «в каталоге нет» от модели, когда листинг реально есть (площадка покупателя — вперёд)."""
@@ -387,7 +406,7 @@ def catalog_offer(text, product_name="", card_models=None, platform=None):
     nums = _nums(_model_tokens(q))
     if not nums:
         return None                      # модели принтера в вопросе нет — подставлять нечего
-    hits = _index_hits(q, platform)      # индекс совместимости: DCP-7180DN → карточка «DCP-7180»
+    hits = _index_hits(q, platform, account=account)   # индекс: DCP-7180DN → карточка «DCP-7180»
     if hits is None:                     # индекс не собран — запасной ILIKE-путь
         hits, seen = [], set()
         for num in nums[:3]:
@@ -397,7 +416,7 @@ def catalog_offer(text, product_name="", card_models=None, platform=None):
                 if key not in seen:
                     seen.add(key)
                     hits.append(h)
-    hits = _same_channel(hits, platform)
+    hits = _same_channel(hits, platform, account)
     if not hits:
         return None
     h = hits[0]
@@ -405,7 +424,8 @@ def catalog_offer(text, product_name="", card_models=None, platform=None):
     return {"ref": ref, "url": url, "title": (h["title"] or "")[:80], "platform": h["platform"]}
 
 
-def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=None, context=""):
+def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=None, context="",
+                    account=None):
     """Поиск НАШИХ листингов ПО КОДУ КАРТРИДЖА (не по модели принтера). Нужен для «каталог-после-веба»:
     веб определил, какой картридж нужен принтеру покупателя (напр. T0731-T0734, 222A, CLP-510D7K) —
     ищем его у нас и предлагаем площадочный артикул. codes — str или list. color — ключ цвета (уважаем,
@@ -440,7 +460,7 @@ def catalog_by_code(codes, platform=None, color=None, exclude=None, exclude_id=N
             hits.append(h)
         if hits and not color:          # первого кода с попаданиями достаточно (цвет — добираем все)
             break
-    hits = _same_channel(hits, platform)
+    hits = _same_channel(hits, platform, account)
     if not hits:
         return None
     h = hits[0]

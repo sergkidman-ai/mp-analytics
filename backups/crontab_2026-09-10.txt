@@ -1,0 +1,134 @@
+# CRON_TZ этим cron (3.0pl1-137ubuntu3) НЕ поддерживается — строка была инертной, снята 2026-07-28.
+# ВСЕ времена ниже = UTC (система Etc/UTC). МСК = UTC+3: 04:00 UTC = 07:00 МСК.
+# run_daily перенесён в ночное окно МСК 21–06 (вне рабочих часов склада): 19:07 и 02:07 UTC
+# = 22:07 и 05:07 МСК. Ранний (19:07) = 'вечерний' (каталог-синк + вс: тяжёлый refresh поставщиков).
+7 19 * * * cd /opt/mp-analytics && ./venv/bin/python run_daily.py >> /opt/mp-analytics/run_daily.log 2>&1
+7 2 * * * cd /opt/mp-analytics && ./venv/bin/python run_daily.py >> /opt/mp-analytics/run_daily.log 2>&1
+# mkt: ежедневный трекер Джема+воронка WB (окно пожара Электросталь)
+# mkt: воронка WB (открытия/корзины/заказы). Сбор Джема убран 24.08.2026 — подписка на acc1
+# не подключена, collectors/wb_jam.py каждый день писал в лог «403 подписка не подключена»
+# (снимок 17.08 сохранён в БД). Вернуть строку целиком, если подписку купят.
+42 6 * * * cd /opt/mp-analytics && { ./venv/bin/python collectors/wb_funnel.py wb_acc1; ./venv/bin/python collectors/wb_funnel.py wb_acc2; } >> /opt/mp-analytics/tracker_jam.log 2>&1
+1 0 1 * * cd /opt/mp-analytics && ./venv/bin/python -m reports.ozon_mp_freeze >> /opt/mp-analytics/mp_freeze.log 2>&1
+# Ozon: еженедельный список на вывоз со склада FBO (вт, после run_daily 8:07)
+33 9 * * 2 cd /opt/mp-analytics && ./venv/bin/python invoice_bot/ozon_removal_push.py >> /opt/mp-analytics/ozon_removal.log 2>&1
+# TheCartridge живая закупка + контроль маржи (2×/день, mkt)
+50 5 * * * cd /opt/mp-analytics && ./venv/bin/python collectors/wb_card_content.py >> /opt/mp-analytics/wb_card_content.log 2>&1   # контент карточек (габариты/предмет/описание) — ПЕРЕД витриной 06:20
+20 6,13 * * * cd /opt/mp-analytics && { ./venv/bin/python -m collectors.wb_prices wb_acc1; ./venv/bin/python -m collectors.wb_prices wb_acc2; ./venv/bin/python -m collectors.wb_market_price wb_acc1; ./venv/bin/python -m collectors.wb_market_price wb_acc2; ./venv/bin/python -m collectors.thecartridge_prices; ./venv/bin/python -m reports.sku_economics; ./venv/bin/python -m reports.sku_economics wb_acc2; ./venv/bin/python -m reports.margin_control; ./venv/bin/python -m reports.margin_control --account wb_acc2; ./venv/bin/python -m ops.tc_price_alert; } >> /opt/mp-analytics/tc_prices.log 2>&1
+# invoice-bot: уборка обработанных счетов/УПД, хранение 7 дней (RETAIN_DAYS)
+17 4 * * * /opt/mp-analytics/venv/bin/python /opt/mp-analytics/invoice_bot/cleanup_inbox.py >> /opt/mp-analytics/invoice_bot/cleanup.log 2>&1
+# Запуск из deploy-worktree на main: основной чекаут бывает на чужой ветке.
+# inv: выписка Альфа-Банка за ВЧЕРА → МойСклад. ВНИМАНИЕ: CRON_TZ этим cron НЕ поддерживается
+# (проверено 2026-07-28 по syslog), время в crontab = UTC. 04:00 UTC = 07:00 МСК.
+0 4 * * * cd /opt/mp-analytics/.deploy/inv && { git checkout --detach -q main 2>/dev/null; /opt/mp-analytics/venv/bin/python run_inv.py; } >> /opt/mp-analytics/alfa_statement.log 2>&1
+# inv: внутридневной прогон — выписка за СЕГОДНЯ → МС + привязка обеих сторон, каждые 30 мин
+# в рабочие часы (08:07…20:37 МСК). Минуты некруглые намеренно: на :00 у банка пик запросов.
+7,37 5-17 * * * cd /opt/mp-analytics/.deploy/inv && { git checkout --detach -q main 2>/dev/null; /opt/mp-analytics/venv/bin/python run_inv.py --today; /opt/mp-analytics/venv/bin/python invoice_bot/po_payment_watch.py --org all --close-only; } >> /opt/mp-analytics/alfa_statement.log 2>&1
+# WB_TOKEN_REMINDER (@MC_invoicebot): ежедневный guard, no-op до 2027-01-15 → 1 отправка про перевыпуск WB_TOKEN_ACC2 → маркер → самоснятие. crontab=UTC, 06:41 UTC=09:41 МСК.
+41 6 * * * /opt/mp-analytics/venv/bin/python /opt/mp-analytics/ops/wb_token_reminder.py >> /opt/mp-analytics/ops/wb_token_reminder.log 2>&1
+# mkt: поисковые запросы Ozon по товарам — раз в неделю, СРЕДА (глубина у Ozon ~5-6 недель,
+# история копится только у нас). Дозапись без дублей: недели из ozon_search_run пропускаются.
+# Именно среда: данные Ozon отстают на 2 дня, в понедельник только что закрытая неделя
+# ещё отдаёт 400. Каждый прогон перезабирает 2 последние недели (Ozon их досчитывает).
+# crontab=UTC: 03:23 UTC = 06:23 МСК, до утреннего run_daily нагрузки нет.
+23 3 * * 3 cd /opt/mp-analytics && ./venv/bin/python collectors/ozon_search_queries.py all >> /opt/mp-analytics/ozon_search.log 2>&1
+# inv: дневной поллер сроков оплаты — наполняет «График оплаты» (07:43 МСК, после run_inv.py)
+43 4 * * * cd /opt/mp-analytics/.deploy/inv && { git checkout --detach -q main 2>/dev/null; /opt/mp-analytics/venv/bin/python invoice_bot/po_payment_watch.py --org all; } >> /opt/mp-analytics/po_payment_watch.log 2>&1
+# inv: автоотправка черновиков в банк — авансы и отсрочка, обе фирмы (07:55 МСК, после поллера).
+# Платёжка уходит БЕЗ ЭП: в банке появляется черновик, подписывает человек. Стоп-кран — PAYMENT_AUTOSEND в .env.
+# аренда: планировщик первого понедельника, за 10 мин до автоотправки (04:45 UTC = 07:45 МСК)
+45 4 * * * cd /opt/mp-analytics/.deploy/inv && { git checkout --detach -q main 2>/dev/null; /opt/mp-analytics/venv/bin/python invoice_bot/rent_schedule.py --cron; } >> /opt/mp-analytics/rent_schedule.log 2>&1
+55 4 * * * cd /opt/mp-analytics/.deploy/inv && { git checkout --detach -q main 2>/dev/null; /opt/mp-analytics/venv/bin/python invoice_bot/payment_autosend.py --org all --kinds advance,deferred_batch,rent,rent_utility; } >> /opt/mp-analytics/payment_autosend.log 2>&1
+# inv: предоплата по счёту — заказ в МС → черновик → банк, раз в день (17:00 МСК = 14:00 UTC).
+# Поллер здесь сужен по методу: полный прогон дважды в день дробил бы пачку отсрочки на две платёжки.
+0 14 * * * cd /opt/mp-analytics/.deploy/inv && { git checkout --detach -q main 2>/dev/null; /opt/mp-analytics/venv/bin/python invoice_bot/po_payment_watch.py --org all --methods prepayment_per_order && /opt/mp-analytics/venv/bin/python invoice_bot/payment_autosend.py --org all --kinds prepayment_order,rent_utility; } >> /opt/mp-analytics/payment_autosend.log 2>&1
+17 6 * * * cd /opt/mp-analytics && ./venv/bin/python ops/sber_secret_rotate.py --cron >> ops/sber_secret_rotate.log 2>&1   # SBER_SECRET_ROTATE
+# mkt: реклама WB (расход/ДРР/факт.CPC per-nm) — ежедневно, текущий месяц. 06:52 UTC=09:52 МСК, после jam-трекера (42) без наложения тяжёлого fullstats.
+52 6 * * * cd /opt/mp-analytics && { ./venv/bin/python collectors/wb_ads.py wb_acc1; ./venv/bin/python collectors/wb_ads.py wb_acc2; } >> /opt/mp-analytics/wb_ads.log 2>&1
+
+# Ozon: индекс цен (зона SUPER/GREEN/YELLOW/RED + цены конкурентов) — СНИМОК НА ДАТУ, ежедневно.
+# Дырки в истории не восстанавливаются: API отдаёт только «сейчас», прошлый индекс у Ozon не спросить.
+# ~20 вызовов на аккаунт, минута работы. 04:11 UTC = 07:11 МСК — после run_daily (02:07) и после
+# среды с поисковыми запросами (03:23 + ~30 мин), чтобы не делить лимит Ozon 2 запроса/сек.
+11 4 * * * cd /opt/mp-analytics && ./venv/bin/python collectors/ozon_price_index.py all >> /opt/mp-analytics/ozon_price_index.log 2>&1
+
+# mkt: ежедневная сводка ВБ Сергею в телеграм (@Pro_Dropbox_bot). 07:20 UTC = 10:20 МСК —
+# после коллектора рекламы (06:52 UTC), иначе вчерашний расход в отчёт ещё не попадёт.
+20 7 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.wb_daily_report >> /opt/mp-analytics/wb_daily_report.log 2>&1
+# mkt: лестница ставок +10 % через день по кору (программа 07-20.08.2026, ДРР-потолок 10 %).
+# Гейт внутри скрипта: ДРР аккаунта за 7 дн > 10 % — шаг отменяется целиком и приходит уведомление.
+# 07:35 UTC = 10:35 МСК, сразу после сводки. Первый шаг 07.08 сделан вручную.
+# OZON_ADS_MKT: реклама и ставки Ozon — ежедневно текущий месяц
+47 5 * * * cd /opt/mp-analytics && { ./venv/bin/python collectors/ozon_ads.py all; ./venv/bin/python collectors/ozon_bids.py all; } >> /opt/mp-analytics/ozon_ads.log 2>&1
+# OZON_ADS_MKT_CLOSE: пересбор ЗАКРЫТОГО месяца 3-го числа (месяц, собранный в середине, выглядит как целый)
+23 5 3 * * cd /opt/mp-analytics && ./venv/bin/python collectors/ozon_ads.py all $(date -d "last month" +\%Y-\%m-01) >> /opt/mp-analytics/ozon_ads.log 2>&1
+# mkt: Джем — сбор поисковых ЗАПРОСОВ по ВСЕЙ базе с трафиком (SEO-база «частотность × позиция»).
+# Было «core» (только кор ставок, 262 товара) — мимо анализа шли 736 товаров, дающие больше
+# переходов и заказов, чем сам кор. С 08.08.2026 срез «traffic»: 998 товаров × 5с ≈ 83 мин.
+# Пн и Чт 03:20 UTC = 06:20 МСК: заканчивается ~04:45 UTC, до ежедневного прогона в 06:42.
+# СНЯТО 24.08.2026 (нет подписки «Джем», отдавал 403):
+# 20 3 * * 1,4 cd /opt/mp-analytics && ./venv/bin/python collectors/wb_jam.py wb_acc1 7 traffic >> /opt/mp-analytics/jam_core.log 2>&1
+
+# mkt: ночной замер позиций в выдаче ВБ по модельным ключам кора (153 ключа, пауза 30-60с ≈ 2 ч).
+# 22:40 UTC = 01:40 МСК: лимитер ВБ ночью свободнее, прогон заканчивается до сбора Джема (03:20 UTC).
+# ОТКЛЮЧЕНО 09.08.2026 (сутки тишины): IP в жёстком 429 у search.wb.ru — прогон 08.08
+# за 2ч40м прошёл 5 ключей из 153, все пустые, файлов результата ноль. Ручной одиночный
+# запрос тоже 429 => лимит на адресе, а не от частоты. Ночной долбёж продлевает бан.
+# ВКЛЮЧИТЬ 10.08 вечером: короткий список модельных ключей (~40, без общих «321»/«xerox»)
+# и --pause 120 180 вместо 30 60.
+# mkt: позиции в выдаче ВБ по боевым ключам — ежедневно 22:40 UTC = 01:40 МСК.
+# Хост u-search.wb.ru (search.wb.ru отдаёт 429, замер 11.08.2026). Пауза 3-6 с, ~10 мин на 152 ключа.
+40 22 * * * cd /opt/mp-analytics && ./venv/bin/python tools/wb_serp_probe.py --pages 1 --pause 3 6 --file wb_serp_core_keys.txt --out core_$(date +\%Y\%m\%d) >> /opt/mp-analytics/serp_core.log 2>&1
+12 8 * * 1 /opt/mp-analytics/ops/wb_roy_weekly.sh   # Рой: неделя пн-вс, цвета по профилю + ТОЛЬКО понижение (🔴/🟤/⚫). Зелёные — вручную, из docs/reports/mkt_roy_profile_<вс>.csv
+40 4 * * * cd /opt/mp-analytics && { ./venv/bin/python -m collectors.wb_prices wb_acc2; ./venv/bin/python -m collectors.wb_market_price wb_acc2; ./venv/bin/python -m reports.sku_economics wb_acc2; ./venv/bin/python -m reports.margin_control --account wb_acc2; } >> /opt/mp-analytics/wb_acc2_econ.log 2>&1   # юнит-экономика и контроль маржи по acc2 ДисКвэр (раз в сутки: сбор рыночных цен по 14.5к карточек долгий)
+*/30 4-19 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.stock_watch >> /opt/mp-analytics/logs/stock_watch.log 2>&1   # сторож остатков поставщика (поток ev)
+17 9,19 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.mp_news --days 14 --digest >> /opt/mp-analytics/logs/mp_news.log 2>&1   # новости площадок: Ozon-чаты + лента WB + почта Маркета, с выжимкой по правилам (поток ev)
+*/30 * * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.diary_inbox >> /opt/mp-analytics/logs/diary_inbox.log 2>&1   # записки из бота-дропбокса в дневник (поток ev)
+47 8 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.ozon_stock_action watch --notify >> /opt/mp-analytics/logs/oz_stock_action.log 2>&1   # акции Ozon «Распродажа стока»: предупреждение в бот за сутки до старта (поток mkt)
+
+# card: здоровье карточек Ozon — ДЕТЕКТОР (только чтение API, ничего не отправляет).
+# Раскладывает проблемные карточки на классы A (лечится повтором) и C (только в ТК),
+# считает, сколько карточка висит в ошибке — площадка этой цифры не показывает.
+# Дожиматель класса A стоит отдельной строкой ниже (08:14), см. docs/BRIEF_CARD.md.
+41 7 * * * cd /opt/mp-analytics && ./venv/bin/python collectors/ozon_card_status.py all >> /opt/mp-analytics/card_health.log 2>&1
+5 9 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.ozon_stock_action apply --allow-remove >> /opt/mp-analytics/logs/oz_stock_action.log 2>&1   # акции Ozon «Распродажа стока»: заводим проходящих, двигаем ступень раз в 7 дней, снимаем тех, чей потолок ниже порога (поток mkt)
+# card: дожим карточек классов A («Не обновлён») и W («На доработку») — повторная отправка
+# того же значения, контент не меняется. Постоянное разрешение Сергея: A — 22.08.2026,
+# W — 23.08.2026. Потолок партии снят с 50 до 500 по команде Сергея 23.08.2026: очередь W
+# (204 карточки) при 50 в сутки растянулась бы на четыре ночи без всякой на то причины.
+# Предохранители партию не охраняли и не изменились: ворота после первых 20 (вылечилось
+# меньше половины — стоп), стоп при declined или уходе из продажи, 3 попытки на карточку.
+14 8 * * * cd /opt/mp-analytics && ./venv/bin/python tools/ozon_card_push.py --account oz_acc1 --limit 500 --apply >> /opt/mp-analytics/card_health.log 2>&1; cd /opt/mp-analytics && ./venv/bin/python tools/ozon_card_push.py --account oz_acc2 --limit 500 --apply >> /opt/mp-analytics/card_health.log 2>&1
+11 7 * * 1 cd /opt/mp-analytics && ./venv/bin/python tools/card_wb_presence.py >> /opt/mp-analytics/card_health.log 2>&1   # присутствие карточек WB в кабинете (чтение), понедельник
+20 18-23,0-8 * * * cd /opt/mp-analytics && ./venv/bin/python logs/oz_action_probe.py >/dev/null 2>&1   # ВРЕМЕННО до 24.08: ловим ЧАС автодобавления Ozon в региональные акции, только чтение (поток mkt)
+# mkt: карантин цен — проверка маржи и автовыпуск после массовых заливок цен из ТК
+# (17:15 и 03:26 МСК, сервер в UTC → +30 мин на посадку в карантин). Правила и разбор —
+# docs/BRIEF_MKT.md, раздел «Карантин цен». Ozon сюда не входит: только ручное подтверждение в ЛК.
+47 14 * * * cd /opt/mp-analytics && ./venv/bin/python ops/price_quarantine.py --apply >> /opt/mp-analytics/logs/price_quarantine.log 2>&1
+58 0 * * * cd /opt/mp-analytics && ./venv/bin/python ops/price_quarantine.py --apply >> /opt/mp-analytics/logs/price_quarantine.log 2>&1
+41 6 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.wb_promo_watch >> /opt/mp-analytics/logs/wb_promo_watch.log 2>&1   # автоакции WB: уведомление в бот PRC накануне старта (поток ev)
+12 8 * * * cd /opt/mp-analytics && ./venv/bin/python ops/price_quarantine.py --apply >> /opt/mp-analytics/logs/price_quarantine.log 2>&1   # чистка карантина через ~20 мин после массовой переоценки цен в ТК (10:52 МСК); поток mkt
+6 20 * * * cd /opt/mp-analytics && ./venv/bin/python ops/price_quarantine.py --apply >> /opt/mp-analytics/logs/price_quarantine.log 2>&1   # 23:06 МСК — четвёртый, вечерний прогон карантина (заказ Сергея 09.09); поток mkt
+23 6 * * 4 cd /opt/mp-analytics && ./venv/bin/python -m ops.ozon_promo_bonus_watch >> /opt/mp-analytics/logs/ozon_promo_bonus.log 2>&1   # бонусы Ozon на продвижение FBS-новинок: предупреждение за 4 дня до начисления (поток ev)
+23 7 * * 2 cd /opt/mp-analytics && ./venv/bin/python -m ops.ozon_promo_bonus_watch >> /opt/mp-analytics/logs/ozon_promo_bonus.log 2>&1   # бонусы Ozon: проверка факта начисления после понедельника (поток ev)
+# Сводка «Запуск новинок на МП» Наталье в ds_prc_bot. 06:12 UTC = 09:12 МСК — после ночного
+# run_daily (02:07) с уже свежим замером витрин и к началу рабочего дня.
+12 6 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.prc_launch_digest >> /opt/mp-analytics/logs/prc_launch_digest.log 2>&1
+7 7,14 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.mkt_margin_watch >> /opt/mp-analytics/logs/mkt_margin_watch.log 2>&1   # сторож обвала маржи: сутки к суткам, в бот PRC (поток mkt)
+
+# inv: закупка по группам поставщиков за ТЕКУЩИЙ месяц (витрина supplier_purchase_month,
+# страница «Поставщики»). Прошлые месяцы статичны — пересчёт только руками через --since.
+# Нагрузка на МС: 1–2 запроса за прогон (страница по 1000 документов, без expand).
+# crontab=UTC: 22:47 UTC = 01:47 МСК, ночное окно склада.
+47 22 * * * cd /opt/mp-analytics && ./venv/bin/python -m collectors.supplier_purchase_month >> /opt/mp-analytics/supplier_purchases.log 2>&1
+23 5 * * * cd /opt/mp-analytics && ./venv/bin/python -m collectors.launch_track >> /opt/mp-analytics/logs/prc_launch_track.log 2>&1   # вкладка «Запуск на МП»: страховка на случай, если run_daily не дошёл до своего шага; ПЕРЕД сводкой 6:12
+10 20 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.wb_promo_guard --baseline >> /opt/mp-analytics/logs/wb_promo_guard.log 2>&1   # 23:10 МСК — доакционный снимок цен, сразу после вечернего карантина (поток mkt)
+15 21 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.wb_promo_guard --apply --wave start >> /opt/mp-analytics/logs/wb_promo_guard.log 2>&1   # 00:15 МСК — сторож автоакций: вывести из акции убыточные (поток mkt)
+0 23 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.wb_promo_guard --apply --wave h2 >> /opt/mp-analytics/logs/wb_promo_guard.log 2>&1   # 02:00 МСК — вторая волна: ВБ доводит скидки не мгновенно
+0 5 * * * cd /opt/mp-analytics && ./venv/bin/python -m ops.wb_promo_guard --apply --wave h8 >> /opt/mp-analytics/logs/wb_promo_guard.log 2>&1   # 08:00 МСК — третья волна: ВБ может вернуть товар в акцию
+
+# rev: атрибуты и описания карточек Ozon (оба аккаунта) — источник CARD_DATA для ответов на
+# вопросы. Раз в неделю, вс 04:15. Сторож внутри: ноль карточек с атрибутами при непустом
+# каталоге → алерт в Telegram (дыра по oz_acc2 жила с 25.08 по 10.09.2026 именно потому,
+# что «ничего не пришло» выглядело как «нечего присылать»).
+15 4 * * 0 cd /opt/mp-analytics && ./venv/bin/python collectors/ozon_attributes.py all >> /opt/mp-analytics/ozon_attributes.log 2>&1
