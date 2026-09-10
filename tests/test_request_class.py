@@ -149,6 +149,29 @@ class ClaimOverrideTest(unittest.TestCase):
         self.assertFalse(rc.is_claim_text("подойдёт ли к HP 1320?"))
 
 
+class NegationTest(unittest.TestCase):
+    """Отрицание перед маркером дефекта (10.09.2026, отчёт rev_block_reasons).
+
+    Три ложных «претензии» — отзывы 5★ Яндекса, где CLAIM_RX ловил подстроку в похвале.
+    """
+
+    def test_похвала_с_отрицанием_не_претензия(self):
+        for t in ("Не полосит, печатает чётко", "Печатает отлично, не мажет",
+                  "Без полос, качество супер", "Нет ошибок, принтер увидел сразу",
+                  "Никаких дефектов за месяц"):
+            self.assertFalse(rc.is_claim_text(t, kind="review", rating=5), t)
+
+    def test_настоящая_жалоба_держится(self):
+        for t in ("Печатал чу-чуть размылено, полосит по краю",
+                  "Пришёл с дефектом корпуса", "Мажет на каждой странице"):
+            self.assertTrue(rc.is_claim_text(t, kind="review", rating=5), t)
+
+    def test_отрицание_у_маркера_действия_не_гасится(self):
+        # «деньги не вернули», «замену не сделали» — отрицание тут УСИЛИВАЕТ претензию
+        self.assertTrue(rc.is_claim_text("Деньги так и не вернули"))
+        self.assertTrue(rc.is_claim_text("Замену не сделали до сих пор"))
+
+
 class NoTextTest(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(rc.classify("", kind="question"), "прочее")
