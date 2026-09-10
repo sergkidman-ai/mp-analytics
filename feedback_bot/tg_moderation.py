@@ -284,7 +284,7 @@ def _card(row):
         if src or g.get("note"):
             note = f"\n<i>источник: {e(src or '—')}{'; ' + e((g.get('note') or '')) if g.get('note') else ''}</i>"
     banner = _mode_banner(row.get("account"))
-    allow_pub, why = publish_gate.verdict(row)
+    allow_pub, why, trace = publish_gate.verdict_full(row)
     if row.get("draft_route") == "human":          # домен-фильтр / ошибка парсинга — только вручную
         banner += "⚠️ <b>НА ЧЕЛОВЕКА</b> — авто-ответа нет, ответьте через «✏️ Ответить вручную»\n"
     elif not allow_pub:
@@ -293,6 +293,10 @@ def _card(row):
                    + "\nЧерновик ниже — материал для ответа, не ответ. Отвечайте через «✏️ Править».\n")
     elif isinstance(g, dict) and g.get("no_card"):  # профильный товар, но карточка пустая
         banner += "🔍 <b>БЕЗ ДАННЫХ КАРТОЧКИ</b> — ответ собран по каталогу/вебу, проверьте внимательнее\n"
+    if trace:
+        # 10.09.2026: на вопросах эти причины больше не держат публикацию (publish_gate.Q_BLOCKING),
+        # но оператор обязан их видеть — иначе послабление превращается в слепую отправку.
+        banner += "ℹ️ <i>отмечено, не блокирует: " + e(publish_gate.reason_line(trace, 400)) + "</i>\n"
     dt = row.get("created_at")
     ds = dt.strftime("%d.%m.%Y") if dt else "—"
     if row.get("kind") == "review":

@@ -128,10 +128,14 @@ class GateOnCacheTest(unittest.TestCase):
         allow, why = gate.verdict(cached_row("Заправлять тонером типа TN-2375."))
         self.assertTrue(allow, why)
 
-    def test_устаревшая_подстановка_запрещена(self):
-        allow, why = gate.verdict(cached_row("Заправлять тонером типа TN-2375.", stale=True))
-        self.assertFalse(allow)
-        self.assertTrue(any("кэш устарел" in w for w in why), why)
+    def test_устаревшая_подстановка_помечена(self):
+        # 10.09.2026: на ВОПРОСАХ причина ушла в трейс (publish_gate.Q_BLOCKING) — считается
+        # и видна оператору, но публикацию не держит. У отзыва по-прежнему блок.
+        allow, why, trace = gate.verdict_full(cached_row("Заправлять тонером типа TN-2375.", stale=True))
+        self.assertTrue(any("кэш устарел" in w for w in trace), trace)
+        r = cached_row("Заправлять тонером типа TN-2375.", stale=True)
+        r["kind"] = "review"
+        self.assertFalse(gate.verdict(r)[0])
 
     def test_стоп_лист_A12_работает_и_по_кэшу(self):
         # Ключевое требование брифа: кэш не отменяет проверок. Текст утверждён когда-то давно,

@@ -35,15 +35,10 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(why, [])
 
     def test_жёсткие_причины_держат(self):
+        """С 10.09.2026 держат ТОЛЬКО эти (gate.Q_BLOCKING) — остальное на вопросах трейс."""
         cases = {
             'route=human': row(draft_route='human'),
             'маркер-заглушка': row(draft_text='⚠️ Нужен человек: непрофильный товар'),
-            'нет карточки': row(grounding={'no_card': True}),
-            'code-guard': row(grounding={'code_guard': True}),
-            'qa-guard': row(grounding={'qa_guard': ['приписка карточке']}),
-            'источник — модель': row(grounding={'source': 'модель'}),
-            'серия по подстроке': row(grounding={'source': 'карточка-серия'}),
-            'подставлен другой лот': row(grounding={'source': '+каталог-после-веба'}),
         }
         for name, r in cases.items():
             with self.subTest(name):
@@ -51,20 +46,58 @@ class VerdictTest(unittest.TestCase):
                 self.assertFalse(allow, f'{name} прошло')
                 self.assertTrue(why)
 
+    def test_причины_вопроса_считаются_но_не_держат(self):
+        """Распоряжение 10.09.2026: на ВОПРОСАХ эти причины уходят в трейс — считаются,
+        видны оператору и в логе, но кнопку ✅ не снимают. Флаг FEEDBACK_Q_TRACE_ONLY."""
+        cases = {
+            'нет карточки': (row(grounding={'no_card': True}), 'нет данных карточки'),
+            'code-guard': (row(grounding={'code_guard': True}), 'code-guard'),
+            'qa-guard': (row(grounding={'qa_guard': ['приписка карточке']}), 'qa-guard'),
+            'источник — модель': (row(grounding={'source': 'модель'}), 'источник — только модель'),
+            'серия по подстроке': (row(grounding={'source': 'карточка-серия'}), 'дефект A1'),
+        }
+        for name, (r, frag) in cases.items():
+            with self.subTest(name):
+                allow, why, trace = gate.verdict_full(r)
+                self.assertTrue(allow, why)
+                self.assertEqual(why, [])
+                self.assertTrue(any(frag in t for t in trace), trace)
+
+    def test_отзывы_послаблением_не_затронуты(self):
+        """«Отзывы не трогать»: там те же причины по-прежнему держат публикацию."""
+        r = row(kind='review', rating=5, body='Всё хорошо', draft_text='Спасибо за отзыв!',
+                grounding={'llm': True, 'no_card': True})
+        allow, why, trace = gate.verdict_full(r)
+        self.assertFalse(allow)
+        self.assertEqual(trace, [])
+
+    def test_d3_отключён(self):
+        """D3 снят целиком 10.09.2026: подстановка нашего артикула и парного лота вернулась
+        к поведению до 08.09, справочник для неё не требуется."""
+        self.assertFalse(gate.D3_ENABLED)
+        r = row(grounding={'source': 'модель+каталог-после-веба',
+                           'upsell': {'unbacked': ['075H']}})
+        allow, why, trace = gate.verdict_full(r)
+        self.assertTrue(allow, why)
+        self.assertFalse(any('допродажа' in x or 'другой наш лот' in x for x in why + trace), trace)
+
     def test_мягкие_причины_только_для_текста_модели(self):
         """`grounded`/`confidence` — самооценка LLM. У шаблонного ответа их нет, и судить
         по отсутствующему полю нельзя: иначе гейт запрёт 4561 отзыв, к которым претензий нет."""
-        self.assertFalse(gate.verdict(row(draft_confidence=0.1, grounding={'grounded': False}))[0])
+        soft = row(draft_confidence=0.1, grounding={'grounded': False})
+        self.assertEqual(gate.verdict_full(soft)[2], gate.verdict_full(soft)[2])  # см. трейс ниже
+        self.assertTrue(len(gate.verdict_full(soft)[2]) >= 2, 'самооценка обязана попасть в трейс')
+        self.assertFalse(gate.verdict(dict(soft, kind='review'))[0])   # у отзыва — по-прежнему блок
         tmpl = row(kind='review', draft_confidence=None,
                    grounding={'llm': False, 'source': 'шаблон', 'grounded': None})
         self.assertTrue(gate.verdict(tmpl)[0], gate.verdict(tmpl)[1])
 
     def test_причины_накапливаются_и_режутся_в_одну_строку(self):
-        allow, why = gate.verdict(row(draft_confidence=0.2,
-                                      grounding={'grounded': False, 'no_card': True}))
-        self.assertFalse(allow)
-        self.assertGreaterEqual(len(why), 3)
-        self.assertLessEqual(len(gate.reason_line(why, 80)), 80)
+        allow, why, trace = gate.verdict_full(row(draft_confidence=0.2,
+                                                  grounding={'grounded': False, 'no_card': True}))
+        self.assertTrue(allow, why)                      # вопрос: всё это теперь трейс
+        self.assertGreaterEqual(len(trace), 3)
+        self.assertLessEqual(len(gate.reason_line(trace, 80)), 80)
 
     def test_текст_оператора_судится_вместо_черновика(self):
         """verdict(row, text) обязан смотреть на переданный текст: маркер-заглушку оператор
@@ -82,7 +115,8 @@ class SendPathTest(unittest.TestCase):
         self.fs = fs
 
     def test_post_answer_держит_плохой_черновик_до_всех_прочих_проверок(self):
-        bad = row(draft_confidence=0.3, grounding={'grounded': False, 'source': 'модель'})
+        # причина взята из Q_BLOCKING: послабление 10.09.2026 серверную проверку не отменяет
+        bad = row(draft_text='Здравствуйте! Оформим возврат средств.')
         with mock.patch.object(self.fs, '_live', return_value=True), \
              mock.patch.object(self.fs, 'send_wb_question') as send:
             ok, detail = self.fs.post_answer(bad, bad['draft_text'])
@@ -91,7 +125,7 @@ class SendPathTest(unittest.TestCase):
         send.assert_not_called()
 
     def test_override_пропускает_текст_человека(self):
-        bad = row(draft_confidence=0.3, grounding={'grounded': False, 'source': 'модель'})
+        bad = row(draft_text='Здравствуйте! Оформим возврат средств.')
         with mock.patch.object(self.fs, '_live', return_value=False):
             ok, detail = self.fs.post_answer(bad, 'Ответ, написанный оператором.',
                                              override='правка оператора 1')
@@ -144,10 +178,11 @@ class ClaimAndPromiseTest(unittest.TestCase):
     def test_положительный_ответ_без_подтверждения_карточкой(self):
         r = row(draft_text='Здравствуйте! Да, подойдёт для вашего принтера.',
                 grounding={'compat': {'asked': ['c5890'], 'matched': [], 'status': 'unknown'}})
-        allow, why = gate.verdict(r)
-        self.assertFalse(allow)
-        # с блока D (08.09.2026) правило зовётся D1, второй законный источник — справочник
-        self.assertTrue(any('без карточки и справочника' in w for w in why), why)
+        allow, why, trace = gate.verdict_full(r)
+        # с блока D (08.09.2026) правило зовётся D1, второй законный источник — справочник;
+        # с 10.09.2026 на вопросах D1 считается, но не держит — смотрим трейс
+        self.assertTrue(any('без карточки и справочника' in w for w in trace), trace)
+        self.assertEqual(why, [])
         self.assertFalse(any('уверенность' in w for w in why), 'ловить правилом, а не порогом')
 
     def test_отказ_и_подтверждённая_модель_проходят(self):
@@ -170,9 +205,8 @@ class ClaimAndPromiseTest(unittest.TestCase):
         mix = row(draft_text='Да, подойдёт к обеим моделям.',
                   grounding={'compat': {'asked': ['lbp6030', 'lbp646'], 'matched': ['lbp6030'],
                                         'status': 'yes'}})
-        allow, why = gate.verdict(mix)
-        self.assertFalse(allow)
-        self.assertTrue(any('lbp646' in w and 'lbp6030' not in w for w in why), why)
+        allow, why, trace = gate.verdict_full(mix)
+        self.assertTrue(any('lbp646' in w and 'lbp6030' not in w for w in trace), trace)
         # черновик, изменённый только регистром и пробелами, остаётся НАШИМ черновиком
         r = row(draft_text='Оформим замену товара.')
         self.assertFalse(gate.verdict(r, 'оформим  замену товара.')[0])
@@ -215,7 +249,9 @@ class Queue46Test(unittest.TestCase):
                         grounding={'source': 'веб (BLOCK)', 'web': True,
                                    'compat': {'asked': ['lbp646'], 'matched': [],
                                               'status': 'unknown'}})
-        self.assertFalse(gate.verdict(web)[0])
+        # D1 на вопросе с 10.09.2026 — трейс, а не блок; но причина обязана быть посчитана
+        _allow, _why, _trace = gate.verdict_full(web)
+        self.assertTrue(any('D1' in x for x in _trace), _trace)
 
     def test_послабление_не_отменяет_стоп_лист_и_мутацию_полярности(self):
         promise = self.card('характеристики',
@@ -225,10 +261,12 @@ class Queue46Test(unittest.TestCase):
         # уже изменён машиной — такой черновик остаётся блоком даже в карточном классе.
         mutated = self.card('характеристики', draft_text='Нет, технически заправить можно.',
                             grounding={'qa_guard': ['не прямой ответ']})
-        self.assertFalse(gate.verdict(mutated)[0])
+        # 10.09.2026: на вопросе полярность больше не блок — но пометка обязана дойти до оператора
+        self.assertTrue(any('не прямой ответ' in x for x in gate.verdict_full(mutated)[2]))
 
     def test_обходимость_блока_зависит_от_причины(self):
-        soft = row(draft_confidence=0.3, grounding={'grounded': False})
+        soft = row(kind='review', draft_confidence=0.3, rating=5, body='Хороший картридж',
+                   grounding={'grounded': False})       # у отзыва мягкая причина по-прежнему блок
         allow, why = gate.verdict(soft)
         self.assertFalse(allow)
         self.assertTrue(gate.can_override(why), why)          # кнопка «Отправить как есть» есть

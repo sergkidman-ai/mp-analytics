@@ -72,6 +72,32 @@ def eased_class(row, g=None, cls=None):
     return False
 
 
+# ТРЕЙС-ONLY ДЛЯ ВОПРОСОВ (10.09.2026, распоряжение Сергея после разбора очереди 46).
+# Замер причин блоков за 14 дней (docs/reports/rev_block_reasons_2026-09-10.md) показал: на
+# вопросах самостоятельной ценности не имеют ни D1/D3–D6, ни A1.3, ни grounded/confidence, ни
+# полярность, ни «подстрока в серии» (дефект A1) — под верными блоками всегда стояла одна из
+# трёх настоящих причин. Остальное держало в очереди готовые ответы. Поэтому для kind=question
+# запрет оставлен ровно за тремя: стоп-лист обещаний A1.2, класс «претензия», маркер-заглушка
+# (+ маршрут human — там черновика нет вовсе, отправлять физически нечего).
+# Причины НЕ удалены: они по-прежнему считаются и возвращаются третьим элементом verdict_full()
+# — идут в трейс карточки и в лог отправки, но кнопку ✅ не снимают. ОТЗЫВОВ НЕ КАСАЕТСЯ.
+# Выключается флагом FEEDBACK_Q_TRACE_ONLY=0 (вернёт прежнее поведение целиком).
+Q_TRACE_ONLY = os.getenv("FEEDBACK_Q_TRACE_ONLY", "1") != "0"
+
+# D3 (ссылка на парный лот только со справочником) выключен 10.09.2026 целиком — и для вопросов,
+# и для отзывов: подстановка нашего артикула вернулась к поведению до 08.09.
+D3_ENABLED = os.getenv("FEEDBACK_D3", "0") == "1"
+Q_BLOCKING = NO_OVERRIDE + ("маршрут human",)
+
+
+def split_trace(reasons, kind):
+    """→ (блокирующие, трейс-only). Для отзывов и при выключенном флаге трейс пуст."""
+    if kind != "question" or not Q_TRACE_ONLY:
+        return list(reasons), []
+    hard = [r for r in reasons if r.startswith(Q_BLOCKING)]
+    return hard, [r for r in reasons if not r.startswith(Q_BLOCKING)]
+
+
 def can_override(reasons):
     """Можно ли показать «✅ Отправить как есть» (п.1). Пустые причины = кнопка и так обычная ✅."""
     return bool(reasons) and not any(r.startswith(NO_OVERRIDE) for r in reasons)
@@ -134,7 +160,14 @@ def _ground(row):
 
 
 def verdict(row, text=None):
-    """→ (allow: bool, reasons: list[str]). Пустой список причин = публиковать можно.
+    """→ (allow: bool, reasons: list[str]) — только блокирующие причины (см. split_trace)."""
+    allow, reasons, _trace = verdict_full(row, text)
+    return allow, reasons
+
+
+def verdict_full(row, text=None):
+    """→ (allow, reasons, trace). Пустой список reasons = публиковать можно; trace — причины,
+    посчитанные, но публикацию не держащие (вопросы, см. split_trace): их место в карточке и логе.
 
     text — фактический текст к отправке; если он отличается от черновика, значит его писал человек,
     и судить машинными сигналами о черновике уже нечего (вызывающий обязан пометить это override).
@@ -254,12 +287,16 @@ def verdict(row, text=None):
         if source and not ok_src:
             reasons.append(f"D6: источник «{source}» для совместимости не детерминирован")
 
-    # D3: допродажа только из каталога. Ссылка на ЧУЖОЙ SKU допустима, только если серия
-    # подтверждена справочником или карточкой И этот SKU есть в номенклатуре МойСклада.
-    # «По знанию модели» запрещено — так в ответе по LBP646 родилась несуществующая серия 075H.
-    ups = g.get("upsell") if isinstance(g.get("upsell"), dict) else None
-    if ups and ups.get("unbacked"):
-        reasons.append("допродажа без справочника: " + ", ".join(map(str, ups["unbacked"]))[:80])
+    # D3 ОТКЛЮЧЁН 10.09.2026 (распоряжение Сергея). Правило требовало на ссылку из каталога
+    # подтверждения справочником; справочник пуст, и правило держало обычную подстановку нашего
+    # артикула и парного лота, работавшую до 08.09. Условие теперь ровно одно и проверяется НЕ
+    # здесь, а на генерации: SKU существует в номенклатуре (catalog_by_code/catalog_offer ищут
+    # по нашим листингам, _code_guard режет коды вне каталога). Код оставлен под флагом
+    # FEEDBACK_D3=1 — включается без правки файла, если правило понадобится вернуть.
+    if D3_ENABLED:
+        ups = g.get("upsell") if isinstance(g.get("upsell"), dict) else None
+        if ups and ups.get("unbacked"):
+            reasons.append("допродажа без справочника: " + ", ".join(map(str, ups["unbacked"]))[:80])
 
     if kind == "question" and source == "модель":
         reasons.append("источник — только модель: ни карточка, ни каталог, ни веб не подтвердили")
@@ -268,7 +305,8 @@ def verdict(row, text=None):
         # (feedback_today.py:198): «412» матчится и в «B412dn», и в «MB472». Пока дефект A1 не
         # исправлен токенайзером (работа №8), это не доказательство, а догадка.
         reasons.append("совместимость выведена совпадением подстроки в названии серии (дефект A1)")
-    if "каталог-после-веба" in source:
+    if "каталог-после-веба" in source and D3_ENABLED:
+        # Та же подстановка парного лота, что и D3: с 10.09.2026 она не держит публикацию.
         reasons.append("в ответ подставлен другой наш лот — проверьте, что текущий покупателю не подходит")
 
     # --- мягкие: то, что модель сообщила о себе. Только для ответов, которые она и писала ---
@@ -282,7 +320,8 @@ def verdict(row, text=None):
         if conf < MIN_CONF:
             reasons.append(f"уверенность {conf:.2f} ниже порога {MIN_CONF:.2f}")
 
-    return (not reasons), reasons
+    hard, trace = split_trace(reasons, kind)
+    return (not hard), hard, trace
 
 
 def reason_line(reasons, limit=300):

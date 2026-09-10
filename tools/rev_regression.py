@@ -17,6 +17,13 @@ from reports import feedback_draft_run as dr            # noqa: E402
 from reports import request_class as rc                 # noqa: E402
 from reports import publish_gate as gate                # noqa: E402
 
+
+def flagged(row, text=None):
+    """→ (allow, все посчитанные причины). С 10.09.2026 на ВОПРОСАХ часть причин уходит в трейс:
+    публикацию они не держат, но исчезнуть не имеют права — регрессия следит именно за этим."""
+    allow, why, trace = gate.verdict_full(row, text)
+    return allow, why + trace
+
 TXT = "trim(concat_ws(' ', body, pros, cons))"
 GAP = (r"(не работа|ошибк|не видит|полос|мажет|не подош|не совпад|брак|подтека|"
        r"засох|не печата|бледн|смаз|разбил|выкинул|вернул|шлак)")
@@ -129,14 +136,16 @@ for name, ext in CASES.items():
         check(f"A1.3 {name}", False, "строка не найдена")
         continue
     r = with_compat(rr[0])
-    allow, why = gate.verdict(r)
-    a13 = [w for w in why if "без подтверждения карточкой" in w]
-    conf_only = why and all("уверенность" in w for w in why)
-    check(f"A1.3 {name} запрещён", not allow, "разрешён")
-    print(f"   {name}: {'⛔' if not allow else '✅'} "
-          f"{'A1.3' if a13 else ('только порог conf' if conf_only else 'иное правило')}: "
-          f"{gate.reason_line(why, 110) or '—'}")
-print("7. A1.3: три названных кейса проверены")
+    allow, all_why = flagged(r)
+    d1 = [w for w in all_why if "D1" in w or "без подтверждения карточкой" in w]
+    # 10.09.2026: на вопросах D1 не держит публикацию (распоряжение Сергея) — но обязан быть
+    # ПОСЧИТАН и дойти до оператора трейсом. Регрессия проверяет наличие причины, не блок.
+    # LBP646 держится не D1, а D6/«источник — модель»: там веба нет вовсе. Требуем не конкретное
+    # правило, а чтобы кейс не остался БЕЗ единой причины.
+    check(f"A1.3/D1 {name} помечен", bool(all_why), "правило молчит")
+    print(f"   {name}: {'⛔' if not allow else 'ℹ️ трейс'} "
+          f"{'D1' if d1 else 'иное правило'}: {gate.reason_line(all_why, 110) or '—'}")
+print("7. A1.3/D1: три названных кейса проверены (на вопросах — трейсом)")
 
 # ── 8. эталонный набор: A1 не имеет права РАЗРЕШИТЬ то, что запрещал прежний гейт ──────────────
 import importlib.util                                        # noqa: E402
@@ -157,13 +166,16 @@ gold = db.query("""SELECT platform,account,kind,ext_id,item_id,body,rating,draft
                    WHERE ext_id = ANY(%s)""", (GOLD,))
 loosened = tightened = 0
 for r in gold:
-    new_allow = gate.verdict(with_compat(r))[0]
+    new_allow, new_why = flagged(with_compat(r))
     old_allow = old.verdict(r)[0] if old else new_allow
-    check(f"gold {r['ext_id'][:12]}", not (new_allow and not old_allow), "стал разрешён")
+    # Эталон переведён на «причина не потеряна» (10.09.2026): для вопросов блок заменён трейсом
+    # по распоряжению Сергея, и требовать BLOCK здесь больше нельзя. Требуем другого и большего:
+    # ни одна строка эталона не имеет права стать ЧИСТОЙ — без единой посчитанной причины.
+    check(f"gold {r['ext_id'][:12]}", bool(new_why) or old_allow, "причина исчезла совсем")
     loosened += int(new_allow and not old_allow)
     tightened += int(old_allow and not new_allow)
 print(f"8. эталон rev_gold_set: строк найдено {len(gold)} из {len(GOLD)}, "
-      f"стало запрещено дополнительно {tightened}, ослаблено {loosened}")
+      f"стало запрещено дополнительно {tightened}, снят блок (причина в трейсе) {loosened}")
 
 # ── 9. «правильно пропущенные» обязаны и дальше проходить ────────────────────────────────────
 # Три ответа, которые Сергей на разборе признал верными (бриф 07.09.2026). Если их держит стоп-лист
@@ -229,12 +241,13 @@ def _cached(text, stale):
             "draft_text": text, "draft_confidence": 0.9, "draft_grounding": g}
 
 good = "Подойдёт тонер типа TN-2375, засыпать через отверстие под пробкой."
-check("G stale-запись запрещена гейтом", not gate.verdict(_cached(good, True))[0], "разрешена")
+check("G stale-запись помечена гейтом", any("кэш устарел" in w for w in flagged(_cached(good, True))[1]),
+      "причина исчезла")
 check("G свежая подстановка проходит", gate.verdict(_cached(good, False))[0],
       gate.reason_line(gate.verdict(_cached(good, False))[1], 80))
 check("G стоп-лист A1.2 работает по кэшу",
       not gate.verdict(_cached("Оформим замену или возврат.", False))[0], "разрешена")
-print("10. кэш и гейт: stale ⛔, свежая ✅, обещание в тексте кэша ⛔")
+print("10. кэш и гейт: stale — причина есть (на вопросе трейсом), свежая ✅, обещание в кэше ⛔")
 
 # ── 11. классификатор: выгрузка «прочее» от 08.09.2026 обязана разойтись по классам ──────────
 # Источник — docs/reports/rev_other_class_2026-09-08.md: 39 вопросов, которые классификатор до

@@ -396,10 +396,13 @@ def post_answer(row, text, apply_cap=False, override=None):
     # Проверка ЗДЕСЬ, а не только в боте: мимо кнопки ✅ идут и авто-отправка, и досыл
     # отложенного, и путь «✏️ Править» — скрыть кнопку недостаточно.
     if override is None:
-        allowed, why = publish_gate.verdict(row, text)
+        allowed, why, trace = publish_gate.verdict_full(row, text)
         if not allowed:
             _log(f"HOLD {plat}/{acc} {kind}={ext}: {publish_gate.reason_line(why)}")
             return False, "hold: " + publish_gate.reason_line(why, 200)
+        if trace:
+            # причина посчитана, но публикацию не держит (вопросы, 10.09.2026) — след в логе
+            _log(f"TRACE {plat}/{acc} {kind}={ext}: {publish_gate.reason_line(trace)}")
     else:
         _log(f"OVERRIDE {plat}/{acc} {kind}={ext}: {str(override)[:120]}")
 
