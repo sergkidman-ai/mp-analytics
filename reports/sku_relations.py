@@ -1,5 +1,5 @@
 # поток: rev
-"""reports/sku_relations.py — связи номенклатуры: chip_pair | drum_toner | kit_component.
+"""reports/sku_relations.py — связи номенклатуры: chip_pair | drum_toner | kit_component | color_pair.
 
 ЗАЧЕМ. Покупатель спрашивает про соседний лот, а не про тот, на котором стоит: «а с чипом есть?»
 (стоит на бесчиповом), «что входит в комплект?», «а тонер к этому барабану?». Раньше ответ на такое
@@ -23,6 +23,9 @@
                  тонерного) и пересечение списков совместимости (общие модели принтеров).
   kit_component  комплект ↔ его составные: комплект узнаём по названию («комплект», «набор», «+»,
                  «(N шт.)»), составные — по кодам расходника внутри названия комплекта.
+  color_pair     струйные: чёрный ↔ цветной. Canon по номеру пары (PG-510 ↔ CL-511), HP по одному
+                 номеру на обе стороны (122, 123, 652, 653), Epson по серии кода; карточки без
+                 кода в названии («Картридж для Canon Pixma MP492») — по общей серии принтеров.
 
 Ссылка и идентификатор для покупателя формируются один раз, при сборке (`catalog._plat_ref`), и
 лежат в таблице — ответу остаётся подставить готовое.
@@ -44,7 +47,7 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db                                        # noqa: E402
 from reports.card_facts import facts_ozon, facts_wb, _classify_chip, _cart_code   # noqa: E402
 
-TYPES = ("chip_pair", "drum_toner", "kit_component")
+TYPES = ("chip_pair", "drum_toner", "kit_component", "color_pair")
 MAX_PER_LINK = 3          # больше трёх соседей одного типа покупателю не нужно, а таблице вредно
 
 # ─────────────────────────── код расходника по нашей конвенции ───────────────────────────
@@ -115,13 +118,13 @@ def _spine():
     """Позиции из индекса совместимости: канал, id для покупателя, наш артикул, название, тип."""
     rows = db.query("""SELECT platform, account, item_id,
                               max(article) article, max(title) title, max(url) url,
-                              max(item_kind) item_kind
+                              max(item_kind) item_kind, max(brand) brand
                          FROM compat_index WHERE verdict='yes'
                         GROUP BY platform, account, item_id""")
     return {(r["platform"], r["account"], str(r["item_id"])): {
         "platform": r["platform"], "account": r["account"], "item_id": str(r["item_id"]),
         "article": r["article"], "title": r["title"], "url": r["url"],
-        "kind": r["item_kind"], "chip": None, "code": None} for r in rows}
+        "kind": r["item_kind"], "brand": r["brand"], "chip": None, "code": None} for r in rows}
 
 
 def _chip_from_cards(items, verbose=False):
@@ -342,6 +345,133 @@ def kit_components(items):
     return out
 
 
+# ─────────────────────────── струйные: чёрный ↔ цветной (color_pair) ───────────────────────────
+# У струйных расходник делится по цвету, и спрашивают ровно об этом: «а цветной такой есть?»,
+# «а чёрный отдельно?». Сторону берём из кода и из названия:
+#   Canon — чёрный PG/PGI, цветной CL/CLI, номера идут парой (PG-510 ↔ CL-511, PG-440 ↔ CL-441,
+#           PG-445 ↔ CL-446, PGI-450 ↔ CLI-451): номер цветного = номер чёрного + 1;
+#   HP    — номер ОДИН на обе стороны (122, 123, 652, 653), сторону решает слово в названии;
+#   Epson — пара внутри серии по коду: T0921 (чёрный) ↔ T0922…T0924 (цветные).
+# Бренд в ключ входит обязательно: голый номер 664 есть и у HP, и у Epson — без бренда они бы
+# слиплись в одну «пару».
+_BLACK_RX = re.compile(r"ч[её]рн|\bblack\b", re.I)
+_COLOR_RX = re.compile(r"цветн|тр[её]хцветн|многоцветн|\bcolor\b|\bcolour\b", re.I)
+_CANON_BK_RX = re.compile(r"^PGI?-?(\d{2,4})[A-Z]*$")
+_CANON_CL_RX = re.compile(r"^CLI?-?(\d{2,4})[A-Z]*$")
+_EPSON_SER_RX = re.compile(r"^T(\d{3})(\d)$")
+_PLAIN_NUM_RX = re.compile(r"^(\d{2,4})[A-Z]{0,2}$")
+
+
+def _is_single_ink(v):
+    """Одиночный струйный лот: комплект «PG-510+CL-511» в паре не участвует — в нём уже оба."""
+    return v["kind"] == "ink" and not _KIT_RX.search(v["title"] or "")
+
+
+def _color_side(v):
+    """'black' | 'color' | None — какая сторона пары. Код сильнее названия: у Canon он однозначен."""
+    code = (v["code"] or "").upper().replace(" ", "")
+    if _CANON_CL_RX.match(code):
+        return "color"
+    if _CANON_BK_RX.match(code):
+        return "black"
+    t = v["title"] or ""
+    if _COLOR_RX.search(t):
+        return "color"
+    if _BLACK_RX.search(t):
+        return "black"
+    m = _EPSON_SER_RX.match(code)
+    if m:
+        return "black" if m.group(2) == "1" else "color"
+    return None
+
+
+def _color_key(v):
+    """Ключ пары: у обеих сторон он обязан совпасть. None — код в пару не складывается."""
+    code = (v["code"] or "").upper().replace(" ", "")
+    m = _CANON_BK_RX.match(code)
+    if m:
+        return f"canon:{int(m.group(1))}"
+    m = _CANON_CL_RX.match(code)
+    if m:
+        return f"canon:{int(m.group(1)) - 1}"
+    m = _EPSON_SER_RX.match(code)
+    if m:
+        return f"epson:{m.group(1)}"
+    m = _PLAIN_NUM_RX.match(code)
+    if m:
+        return f"{(v['brand'] or '?').lower()}:{int(m.group(1))}"
+    return None
+
+
+def _color_pairs_by_code(items):
+    g = collections.defaultdict(lambda: {"black": [], "color": []})
+    for v in items.values():
+        if not _is_single_ink(v):
+            continue
+        side, key = _color_side(v), _color_key(v)
+        if side and key:
+            g[(v["platform"], v["account"], key)][side].append(v)
+    out = []
+    for key, sides in g.items():
+        for a, b in (("black", "color"), ("color", "black")):
+            cand = sorted(sides[b], key=lambda v: (v["title"] or ""))
+            for src in sides[a]:
+                for i, dst in enumerate(cand[:MAX_PER_LINK], 1):
+                    out.append(_row(src, dst, "color_pair",
+                                    f"code={src['code']}~{dst['code']}", i))
+    return out
+
+
+def _color_pairs_by_models(items, have, verbose=False):
+    """Правило совместимости — для карточек БЕЗ кода в названии («Картридж для Canon Pixma MP492»;
+    таких у нас сотни — отдельная карточка на каждую модель принтера). Сосед берётся из того же
+    канала по общей серии принтеров и обязан сам знать свою сторону: в блок для ответа он попадёт
+    со своим названием («… CL-511 … цветной»), и спросивший «есть цветной?» получит именно его."""
+    ink = {k: v for k, v in items.items() if _is_single_ink(v)}
+    rows = db.query("""SELECT platform, account, item_id, model_core FROM compat_index
+                        WHERE verdict='yes' AND item_kind='ink' AND model_core IS NOT NULL""")
+    cores = collections.defaultdict(set)
+    by_core = collections.defaultdict(set)
+    for r in rows:
+        k = (r["platform"], r["account"], str(r["item_id"]))
+        if k not in ink:
+            continue
+        cores[k].add(r["model_core"])
+        by_core[(r["platform"], r["account"], r["model_core"])].add(k)
+    out = []
+    for k, src in ink.items():
+        if k in have or len(cores.get(k, ())) < 2:
+            continue
+        side = _color_side(src)
+        shared = collections.Counter()
+        for mc in cores[k]:
+            for n in by_core[(src["platform"], src["account"], mc)]:
+                if n != k:
+                    shared[n] += 1
+        cand = []
+        for n, sh in shared.most_common():
+            if sh < 2:
+                break
+            dst = ink[n]
+            dside = _color_side(dst)
+            if not dside or (side and dside == side):
+                continue
+            cand.append((dst, sh))
+            if len(cand) >= MAX_PER_LINK:
+                break
+        for i, (dst, sh) in enumerate(cand, 1):
+            out.append(_row(src, dst, "color_pair", f"models={sh};to={_color_side(dst)}", i))
+    if verbose:
+        print(f"  color_pair по совместимости: {len(out)} строк", flush=True)
+    return out
+
+
+def color_pairs(items, verbose=False):
+    rows = _color_pairs_by_code(items)
+    have = {(r[0], r[1], r[3]) for r in rows}
+    return rows + _color_pairs_by_models(items, have, verbose=verbose)
+
+
 # ──────────────────────────────────── сборка таблицы ────────────────────────────────────
 
 _COLS = ("platform", "account", "rel_type", "item_from", "item_to", "article_from", "article_to",
@@ -371,7 +501,8 @@ def build(verbose=True):
     rows = []
     for name, fn in (("chip_pair", lambda: chip_pairs(items)),
                      ("drum_toner", lambda: drum_toner(items, verbose=verbose)),
-                     ("kit_component", lambda: kit_components(items))):
+                     ("kit_component", lambda: kit_components(items)),
+                     ("color_pair", lambda: color_pairs(items, verbose=verbose))):
         part = fn()
         rows += part
         if verbose:
@@ -443,6 +574,9 @@ _ASK_CHIP = re.compile(r"чип", re.I)
 _ASK_KIT = re.compile(r"в\s+комплект|комплектац|что\s+вход|идёт\s+ли|идет\s+ли|набор", re.I)
 _ASK_DRUM = re.compile(r"фотобарабан|барабан|\bdrum\b|драм", re.I)
 _ASK_TONER = re.compile(r"тонер|тубу|туба|порошок", re.I)
+# «есть цветной?» / «а чёрный?» — вопрос про соседний лот другого цвета (только у струйных)
+_ASK_COLOR = re.compile(r"цветн|тр[её]хцветн|многоцветн|\bcolor\b|ч[её]рн\w*\s|ч[её]рный|ч[её]рного|"
+                        r"\bbk\b|\bblack\b", re.I)
 
 
 def types_for_question(text, card_chip=None, card_kind=None):
@@ -458,6 +592,8 @@ def types_for_question(text, card_chip=None, card_kind=None):
         out += ["kit_component", "drum_toner"]
     if (_ASK_DRUM.search(q) and card_kind != "drum") or (_ASK_TONER.search(q) and card_kind == "drum"):
         out.append("drum_toner")
+    if _ASK_COLOR.search(q):
+        out.append("color_pair")
     seen, uniq = set(), []
     for t in out:
         if t not in seen:
@@ -468,7 +604,8 @@ def types_for_question(text, card_chip=None, card_kind=None):
 
 _RU = {"chip_pair": "версия того же картриджа С ЧИПОМ",
        "drum_toner": "парный расходник (барабан ↔ тонер) под ту же серию",
-       "kit_component": "комплект / его составная часть"}
+       "kit_component": "комплект / его составная часть",
+       "color_pair": "парный струйный картридж другого цвета (чёрный ↔ цветной)"}
 
 
 def relations_block(platform, account, item_id, question, card_chip=None, card_kind=None):
@@ -489,10 +626,23 @@ def relations_block(platform, account, item_id, question, card_chip=None, card_k
 
 CHIP_LINE = "Если оригинала нет — есть версия с чипом: {url}"
 
+# Строка про версию с чипом идёт на ЛЮБОЙ вопрос о товаре (правило Сергея 10.09.2026): человек,
+# спросивший «подойдёт ли к M211?» или «какой ресурс?», про чип обычно не знает — а именно чип
+# и решает, заработает ли у него бесчиповый картридж. Не добавляем только там, где спрашивают не
+# о товаре, а о сделке: наличие, доставка, цена. Прямой вопрос про чип этот запрет перебивает.
+_ASK_DEAL = re.compile(
+    r"нали[чт]|на\s+складе|остал[ои]сь|когда\s+(?:будет|придёт|придет|привез|отправ|достав)|"
+    r"доставк|достав(?:ите|ят|ка)|срок\w*\s+(?:достав|отправ)|отправ(?:ка|ите|ляете)|"
+    r"цен[аыу]|стоимост|сколько\s+стоит|подешевле|дешевле|скидк|торг|чек\b|"
+    r"самовывоз|пвз|курьер", re.I)
+
 
 def chip_line(platform, account, item_id, question, card_chip=None):
     """Готовая строка в ответ про чип на бесчиповом лоте. Пары нет — '' (ничего не добавляем)."""
-    if card_chip == "installed" or not _ASK_CHIP.search(question or ""):
+    q = question or ""
+    if card_chip == "installed" or not q.strip():
+        return ""
+    if _ASK_DEAL.search(q) and not _ASK_CHIP.search(q):
         return ""
     rows = for_item(platform, account, item_id, ["chip_pair"], limit=1)
     return CHIP_LINE.format(url=rows[0]["url_to"]) if rows and rows[0]["url_to"] else ""

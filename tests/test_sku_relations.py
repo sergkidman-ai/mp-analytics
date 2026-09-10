@@ -72,5 +72,62 @@ class TestQuestionTypes(unittest.TestCase):
                              f"лишняя связь на вопросе: {q!r}")
 
 
+class ColorPair(unittest.TestCase):
+    """Струйная пара чёрный ↔ цветной: сторона и ключ должны сойтись у обоих лотов пары."""
+
+    def _v(self, title, brand=None, kind="ink"):
+        return {"title": title, "code": sr.code_of_title(title), "brand": brand, "kind": kind}
+
+    def test_canon_pg_cl(self):
+        for bk, cl in (("Картридж PG-510BK для Canon Pixma IP2700 черный",
+                        "Картридж CL-511 для Canon Pixma IP2700 цветной"),
+                       ("Картридж PG-440 для Canon Pixma MG2140 черный",
+                        "Картридж CL-441 для Canon Pixma MG2140 цветной"),
+                       ("Картридж PG-445 для Canon Pixma MG2440 черный",
+                        "Картридж CL-446 для Canon Pixma MG2440 цветной")):
+            b, c = self._v(bk, "canon"), self._v(cl, "canon")
+            self.assertEqual(sr._color_side(b), "black", bk)
+            self.assertEqual(sr._color_side(c), "color", cl)
+            self.assertEqual(sr._color_key(b), sr._color_key(c), f"{bk} ↔ {cl}")
+
+    def test_hp_same_number_two_sides(self):
+        b = self._v("Картридж 122 для принтеров HP Deskjet 1050 черный", "hp")
+        c = self._v("Картридж 122 для принтеров HP Deskjet 1050 цветной", "hp")
+        self.assertEqual((sr._color_side(b), sr._color_side(c)), ("black", "color"))
+        self.assertEqual(sr._color_key(b), sr._color_key(c))
+
+    def test_brand_in_key(self):
+        """Голый номер 664 есть и у HP, и у Epson — в одну пару они слипаться не должны."""
+        self.assertNotEqual(sr._color_key(self._v("Картридж 664 для принтеров HP черный", "hp")),
+                            sr._color_key(self._v("Чернила 664 для принтеров Epson черные", "epson")))
+
+    def test_kit_is_not_a_side(self):
+        """Комплект «PG-510+CL-511» в паре не участвует — в нём уже обе стороны."""
+        self.assertFalse(sr._is_single_ink(
+            self._v("Картриджи PG-510+CL-511 для Canon Pixma MX320")))
+
+    def test_color_question(self):
+        for q in ("У вас есть цветной такой картридж 492 или 490?", "а чёрный отдельно есть?"):
+            self.assertIn("color_pair", sr.types_for_question(q, card_kind="ink"), q)
+        self.assertNotIn("color_pair", sr.types_for_question("какой ресурс?", card_kind="ink"))
+
+
+class ChipLineScope(unittest.TestCase):
+    """С 10.09.2026 строка про версию с чипом идёт на любой вопрос о ТОВАРЕ, но не о сделке."""
+
+    def test_deal_questions_are_silent(self):
+        for q in ("Когда будет доставка?", "есть в наличии?", "какая цена?", "сколько стоит?", ""):
+            self.assertEqual(sr.chip_line("wb", "wb_acc1", "0", q), "", q)
+
+    def test_chip_question_beats_deal(self):
+        """«Есть в наличии с чипом?» — про чип спросили прямо, запрет по сделке не применяем."""
+        self.assertTrue(sr._ASK_DEAL.search("Есть в наличии с чипом?"))
+        self.assertTrue(sr._ASK_CHIP.search("Есть в наличии с чипом?"))
+
+    def test_product_question_passes_filter(self):
+        for q in ("Подойдёт ли к HP M211?", "какой ресурс?"):
+            self.assertFalse(sr._ASK_DEAL.search(q), q)
+
+
 if __name__ == "__main__":
     unittest.main()
