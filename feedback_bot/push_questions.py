@@ -7,8 +7,12 @@
   1. снимает `skipped_old` с вопросов ВНУТРИ запрошенного окна (вне окна флаг не трогаем);
   2. генерирует черновики тем, у кого их нет или изменился текст (движок reports/feedback_today);
   3. ставит в очередь модерации;
-  4. рассылает карточки в Telegram — БЕЗ порционного лимита цикла (лимит только у авто-ответов
-     на бэклог отзывов; вопросы им не режутся).
+  4. рассылает карточки в Telegram ПОРЦИЕЙ не больше BATCH_CAP (предохранитель бота от флуда);
+  5. подметает за собой: строка очереди либо показана, либо помечена skipped с причиной
+     «за окном показа». Без этого шага прогон с широким --days оставлял в feedback_moderation
+     строки state='queued' без tg_msg_id, которые окно показа (FEEDBACK_MOD_WINDOW_DAYS) уже
+     никогда не возьмёт: они копились молча — 10.09.2026 так набралось 247 строк, из них 179
+     старше двух недель (см. sweep_unshowable).
 
 Отправка ответов площадке отсюда НЕ идёт: вопросы всегда route=review, уходят только по ✅ оператора.
 
@@ -69,7 +73,29 @@ def enqueue(days):
     return len(rows)
 
 
-def main(days=90, limit=200, dry=False):
+def sweep_unshowable(dry=False):
+    """Строки очереди вопросов, которые окно показа уже НЕ возьмёт → skipped «за окном показа».
+
+    Показ (`tg_moderation._pending`) ограничен FEEDBACK_MOD_WINDOW_DAYS днями по дате вопроса,
+    а постановка в очередь здесь — окном --days, которое заведомо шире. Разницу между окнами
+    надо закрывать явно, иначе строка живёт в 'queued' вечно и не видна никому. Строки внутри
+    окна показа не трогаем: их покажет обычный цикл следующей порцией."""
+    from feedback_bot import tg_moderation as tg
+    rows = db.query("""SELECT m.id FROM feedback_moderation m JOIN raw_feedback f
+          ON (f.platform,f.account,f.kind,f.ext_id)=(m.platform,m.account,m.kind,m.ext_id)
+        WHERE m.kind='question' AND m.state IN ('queued','snoozed') AND m.tg_msg_id IS NULL
+          AND f.created_at < now() - make_interval(days => %s)""", (tg.WINDOW_DAYS,))
+    if dry or not rows:
+        return len(rows)
+    for r in rows:
+        db.execute("""UPDATE feedback_moderation SET state='skipped', decided_at=now(), error=%s
+            WHERE id=%s AND state IN ('queued','snoozed') AND tg_msg_id IS NULL""",
+            (f"за окном показа: вопрос старше {tg.WINDOW_DAYS} дн., карточка уже не покажется",
+             r["id"]))
+    return len(rows)
+
+
+def main(days=90, limit=None, dry=False):
     un = unskip(days)
     d = drafts(days)
     q = enqueue(days)
@@ -84,16 +110,22 @@ def main(days=90, limit=200, dry=False):
     print(f"окно {days} дн.: снят skipped_old {un}, черновиков сгенерено {d}, поставлено в очередь {q}")
     print("к показу:", {f"{r['platform']}/{r['account']}": r["n"] for r in pend} or "пусто")
     if dry:
+        print(f"за окном показа (было бы снято): {sweep_unshowable(dry=True)}")
         return 0
     from feedback_bot import tg_moderation
-    sent = tg_moderation.send_batch(limit=limit, days=days, kind="question")
-    print(f"карточек отправлено в Telegram: {sent}")
+    # Порция ограничена тем же предохранителем, что и у бота: широкий --days не имеет права
+    # вывалить в чат сотню карточек разом (очередь 46 от 10.09.2026 — ровно этот случай).
+    cap = tg_moderation.BATCH_CAP if limit is None else min(limit, tg_moderation.BATCH_CAP)
+    sent = tg_moderation.send_batch(limit=cap, days=days, kind="question")
+    swept = sweep_unshowable()
+    print(f"карточек отправлено в Telegram: {sent} (порция ≤ {cap})")
+    print(f"снято «за окном показа» (старше {tg_moderation.WINDOW_DAYS} дн.): {swept}")
     return sent
 
 
 if __name__ == "__main__":
     a = sys.argv[1:]
     kw = {"days": int(a[a.index("--days") + 1]) if "--days" in a else 90,
-          "limit": int(a[a.index("--limit") + 1]) if "--limit" in a else 200,
+          "limit": int(a[a.index("--limit") + 1]) if "--limit" in a else None,
           "dry": "--dry" in a}
     main(**kw)
