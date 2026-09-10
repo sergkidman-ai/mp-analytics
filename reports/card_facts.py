@@ -236,7 +236,13 @@ _CODE_RX = re.compile(
     r"\b(C13S0\d{5}|S0?50\d{3}|CF\d{3}[A-Z]|CE\d{3}[A-Z]|CB\d{3}[A-Z]|Q\d{4}[A-Z]|"
     r"CLT-?[A-Z]\d{3}[A-Z]?|MLT-?D\d{3}[A-Z]?|TK-?\d{3,4}[A-Z]*|TN-?\d{3,4}[A-Z]*|"
     r"DR-?\d{3,4}[A-Z]*|CRG-?\d{3}[A-Z]*|C-EXV\s?\d{1,2}|GPR-?\d{1,2}|"
-    r"CLI-?\d{1,3}[A-Z]*|PGI-?\d{1,3}[A-Z]*|K[PC]-?\d{2,3}I[PN]|RP-?\d{2,4})\b", re.I)
+    r"CLI-?\d{1,3}[A-Z]*|PGI-?\d{1,3}[A-Z]*|K[PC]-?\d{2,3}I[PN]|RP-?\d{2,4}|"
+    # HP нового поколения (W1360A, W2122X, W9008MC), Xerox (106R01485), Samsung (ML-1610D2),
+    # Kyocera-барабаны (DK-1150), Brother-барабанные блоки (DU-3000). Голые цифровые коды Canon
+    # (067H, 069) сюда НЕ берём: «069» встречается в тексте как что угодно, их ловит парсер
+    # названия по нашей конвенции (sku_relations.code_of_title).
+    r"W\d{4}[A-Z]{1,2}|\d{3}R\d{3,5}|ML-?\d{4}[A-Z]?\d?|DK-?\d{3,4}[A-Z]*|DU-?\d{3,4}[A-Z]*)\b",
+    re.I)
 
 
 def _cart_code(*texts):

@@ -47,6 +47,16 @@ def _card_data(r, cf):
                          card_color=" ".join(str((f or {}).get(k) or "") for k in ("color", "colormode")))
            if r["kind"] == "question" else "")
     cat = public_block(cat, "CARD_DATA/КАТАЛОГ")
+    # связи номенклатуры (sku_relations): версия с чипом, парный барабан/тонер, комплект и его части.
+    # Подставляются только когда спрошено именно про них и связь есть; иначе блок пустой.
+    if r["kind"] == "question":
+        from reports import sku_relations
+        rel = sku_relations.relations_block(r.get("platform"), r.get("account"), r.get("item_id"),
+                                            r.get("body") or "",
+                                            card_chip=(f or {}).get("chip"),
+                                            card_kind=(f or {}).get("kind"))
+        if rel:
+            cat = (cat + "\n\n" + public_block(rel, "CARD_DATA/СВЯЗИ")).strip()
     if not f:
         return cat  # карточки нет, но каталог по наличию может быть
     assert_public_facts(f, "CARD_DATA")   # запрет на уровне сборки: цены/остатки/поставщики — не наружу
@@ -355,6 +365,14 @@ def _store(client, batch_id, idx, cid_compat):
                 route, grounded = "review", False
                 note = "guardrail: совместимость не подтверждена карточкой; " + note
             route = "review"          # в фазе «только черновики» вопросы всегда на человека
+            # Спросили про чип на бесчиповом лоте — дописываем ссылку на версию с чипом. Строка
+            # детерминированная (из sku_relations), модели её сочинять не даём: пары нет — нет строки.
+            try:
+                from reports import sku_relations
+                reply = sku_relations.with_chip_line(reply, r["platform"], r.get("account"),
+                                                     r["item_id"], r["body"])
+            except Exception:
+                pass                  # связи не собраны — ответ уходит как есть, без строки
         ground = {"llm": True, "grounded": grounded, "note": note[:300], "model": MODEL}
         db.execute("""UPDATE raw_feedback SET draft_text=%s, draft_route=%s, draft_confidence=%s,
             draft_grounding=%s, draft_at=now() WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",

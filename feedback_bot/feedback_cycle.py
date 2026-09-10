@@ -112,6 +112,12 @@ def main(no_send=None):
     built = _step("1c/5 индекс совместимости (по гейту возраста)", compat_index.rebuild_if_stale)
     _log(f"индекс совместимости: {'пересобран, ' if built else 'не требовался, '}{_index_line()}")
 
+    # 1d. Связи номенклатуры строятся ИЗ индекса, поэтому идут сразу за ним и по тому же событию:
+    # индекс пересобрали — связи протухли. Гейт внутри (built_at связей против built_at индекса).
+    from reports import sku_relations
+    rel = _step("1d/5 связи номенклатуры (по гейту индекса)", sku_relations.rebuild_if_stale)
+    _log(f"связи номенклатуры: {f'пересобраны, {rel[0]} строк' if rel else 'не требовались'}")
+
     _step("2/5 skipped_old для старых вопросов", _mark_skipped_old)
 
     from reports import feedback_today
