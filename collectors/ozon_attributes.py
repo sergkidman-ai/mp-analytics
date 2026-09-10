@@ -5,9 +5,11 @@
 покупатель. Источник: POST /v4/product/info/attributes (пагинация last_id). Кладём объект
 целиком в raw_ozon_attributes по offer_id (= МС code, тот же ключ, что использует grounding).
 
-Идемпотентно: UPSERT по (account, offer_id). Только Премиум (oz_acc1) — где есть отзывы.
+Идемпотентно: UPSERT по (account, offer_id). ОБА аккаунта: до 10.09.2026 собирался только
+Премиум (oz_acc1) «где есть отзывы» — но у Дисквэра (oz_acc2) отзывов действительно нет, а
+ВОПРОСЫ есть (303 шт. на 222 карточки), и все они уходили в ИИ-слой с пустым CARD_DATA.
 
-Запуск:  ./venv/bin/python collectors/ozon_attributes.py [oz_acc1]
+Запуск:  ./venv/bin/python collectors/ozon_attributes.py [oz_acc1|oz_acc2|all]
 """
 import sys
 import time
@@ -64,13 +66,19 @@ def load_raw(account, items):
                      update_cols=["sku", "payload", "collected_at"])
 
 
-def main(account="oz_acc1"):
-    print(f"Ozon атрибуты карточек {account}", flush=True)
-    items = fetch(account)
-    n = load_raw(account, items)
-    with_attr = sum(1 for it in items if it.get("attributes"))
-    print(f"Записано карточек: {n} | с атрибутами: {with_attr}", flush=True)
+ACCOUNTS = ("oz_acc1", "oz_acc2")
+
+
+def main(account="all"):
+    """account: конкретный аккаунт или "all" — оба (по умолчанию, чтобы новый аккаунт не
+    оставался без карточек молча, как Дисквэр с 25.08 по 10.09.2026)."""
+    for acc in (ACCOUNTS if account in ("all", None) else (account,)):
+        print(f"Ozon атрибуты карточек {acc}", flush=True)
+        items = fetch(acc)
+        n = load_raw(acc, items)
+        with_attr = sum(1 for it in items if it.get("attributes"))
+        print(f"{acc}: записано карточек {n} | с атрибутами {with_attr}", flush=True)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "oz_acc1")
+    main(sys.argv[1] if len(sys.argv) > 1 else "all")

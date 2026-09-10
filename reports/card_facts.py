@@ -285,17 +285,40 @@ class CardFacts:
     """Ленивая загрузка индексов карточек. for_ozon(sku) / for_wb(nm)."""
 
     def __init__(self):
-        self._oz = None      # offer_id -> payload
+        self._oz = None      # offer_id -> account (лёгкий индекс, payload точечно)
         self._oz_by_sku = None
+        self._oz_pay = {}    # offer_id -> payload | None (кэш точечных чтений)
         self._wb = {}        # nm_id -> payload | None (кэш точечных чтений, см. _wb_payload)
 
     def _ensure_oz(self):
+        """Лёгкий индекс карточек Ozon: offer_id → account и sku → offer_id, БЕЗ payload.
+
+        Два изменения 10.09.2026. (1) Оба аккаунта: фильтр account='oz_acc1' оставлял
+        Дисквэра (oz_acc2) вовсе без фактов карточки — 303 вопроса уходили с пустым
+        CARD_DATA. (2) payload больше не тянется пачкой: у acc1 это 45 МБ JSONB, вдвое
+        больше в питоновских dict, и с добавлением второго аккаунта прогон рисковал OOM
+        (как уже было на карточках ВБ). За прогон нужны десятки карточек — читаем точечно."""
         if self._oz is None:
             self._oz, self._oz_by_sku = {}, {}
-            for r in db.query("SELECT offer_id, sku, payload FROM raw_ozon_attributes WHERE account='oz_acc1'"):
-                self._oz[str(r["offer_id"])] = r["payload"]
+            # ORDER BY account: при совпадении offer_id у двух аккаунтов выигрывает Премиум,
+            # у него карточки заполнены богаче.
+            for r in db.query("SELECT account, offer_id, sku FROM raw_ozon_attributes "
+                              "ORDER BY account"):
+                off = str(r["offer_id"])
+                self._oz.setdefault(off, r["account"])
                 if r["sku"]:
-                    self._oz_by_sku[str(r["sku"])] = r["payload"]
+                    self._oz_by_sku.setdefault(str(r["sku"]), off)
+
+    def _oz_payload(self, offer):
+        """payload карточки по offer_id — точечно, с кэшем."""
+        off = str(offer)
+        if off not in self._oz_pay:
+            acc = (self._oz or {}).get(off)
+            rows = db.query("SELECT payload FROM raw_ozon_attributes "
+                            "WHERE offer_id=%s AND (%s IS NULL OR account=%s) LIMIT 1",
+                            (off, acc, acc))
+            self._oz_pay[off] = rows[0]["payload"] if rows else None
+        return self._oz_pay[off]
 
     def _oz_twin(self, *codes):
         """Ozon-карточка ТОГО ЖЕ товара — только по точному коду оффера (offer_id Ozon = наш код).
@@ -307,9 +330,9 @@ class CardFacts:
         self._ensure_oz()
         for c in codes:
             c = str(c or "").strip()
-            if not c:
+            if not c or c not in self._oz:
                 continue
-            p = self._oz.get(c)
+            p = self._oz_payload(c)
             if p:
                 f = facts_ozon(p)
                 if f:
@@ -345,7 +368,7 @@ class CardFacts:
         base = m.group(0)
         brand = _brand_of(name)
         best_cl, best_f = 0, None
-        for off, p in self._oz.items():
+        for off in self._oz:
             if off == str(offer):
                 continue
             om = re.match(r"\d{4,}", off)
@@ -362,7 +385,8 @@ class CardFacts:
                 continue
             if cl <= best_cl:
                 continue
-            f = facts_ozon(p)
+            p = self._oz_payload(off)
+            f = facts_ozon(p) if p else None
             if not f:
                 continue
             fb = _brand_of(f.get("name"))
@@ -372,15 +396,21 @@ class CardFacts:
         return best_f
 
     def for_ozon(self, sku):
+        """Факты карточки по SKU Ozon — по обоим аккаунтам.
+
+        SKU у Ozon глобально уникален, поэтому фильтр по аккаунту здесь ничего не защищал,
+        а Дисквэра (oz_acc2) отсекал целиком: его вопросы шли в промпт без CARD_DATA."""
         self._ensure_oz()
-        p = self._oz_by_sku.get(str(sku))
-        offer = name = None
+        offer = self._oz_by_sku.get(str(sku))
+        name = None
+        p = self._oz_payload(offer) if offer else None
         if p is None:                      # sku→offer_id через ozon_product
-            r = db.query("SELECT offer_id, name FROM ozon_product WHERE sku=%s AND account='oz_acc1'", (str(sku),))
+            r = db.query("SELECT offer_id, name FROM ozon_product WHERE sku=%s "
+                         "ORDER BY account LIMIT 1", (str(sku),))
             if r:
                 offer = str(r[0]["offer_id"])
                 name = r[0].get("name")
-                p = self._oz.get(offer)
+                p = self._oz_payload(offer) if offer in self._oz else None
         if p:
             return facts_ozon(p)
         if offer:                          # точной карточки нет — добираем вариант по префиксу кода
