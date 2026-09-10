@@ -194,13 +194,24 @@ def _set(mod_id, state, **f):
     db.execute(f"UPDATE feedback_moderation SET {', '.join(cols)} WHERE id=%s", tuple(vals))
 
 
-def _kb(mod_id, allow_send=True):
-    # Кнопки ✅ НЕТ, когда публиковать черновик запрещено: route=human (домен-фильтр / битый JSON)
-    # или машинный вердикт publish_gate. Черновик тогда — материал, а не ответ: оператор отвечает
-    # только через ✏️ Править, и его текст уходит как override с записью причины.
+def _kb(mod_id, allow_send=True, allow_override=False):
+    """Три состояния (10.09.2026, очередь 46):
+
+    * вердикт разрешает → «✅ Отправить» + «✏️ Править»;
+    * вердикт запрещает, но причина обходима → «✅ Отправить как есть» + «✏️ Править». Нажатие =
+      оператор публикует ВОПРЕКИ машинному вердикту, причина блока пишется в raw_feedback;
+    * причина необходимая (обещание из стоп-листа A1.2 или претензия) → только «✏️ Ответить
+      вручную». Там черновик — материал, а не ответ.
+
+    До 10.09 второго состояния не было, и хороший черновик с мягким блоком (уверенность,
+    grounded, полярность) оператор мог отправить только перепечатав его руками.
+    """
     top = ([{"text": "✅ Отправить", "callback_data": f"snd:{mod_id}"},
             {"text": "✏️ Править", "callback_data": f"edt:{mod_id}"}]
            if allow_send else
+           [{"text": "✅ Отправить как есть", "callback_data": f"ovr:{mod_id}"},
+            {"text": "✏️ Править", "callback_data": f"edt:{mod_id}"}]
+           if allow_override else
            [{"text": "✏️ Ответить вручную", "callback_data": f"edt:{mod_id}"}])
     return {"inline_keyboard": [top,
         [{"text": "🕒 Позже", "callback_data": f"lat:{mod_id}"},
@@ -307,7 +318,8 @@ def flush_deferred(limit=20):
     Пустой 'deferred' = no-op. Возвращает число реально ушедших."""
     rows = db.query("""SELECT m.id, m.final_text, m.tg_chat_id, m.tg_msg_id, m.decided_by,
         f.platform, f.account, f.kind, f.ext_id, f.item_id, f.payload, f.body, f.pros, f.cons,
-        f.rating, f.draft_text, f.draft_route, f.draft_confidence, f.draft_grounding
+        f.rating, f.draft_text, f.draft_route, f.draft_confidence, f.draft_grounding,
+        f.override_reason
         FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
              AND f.kind=m.kind AND f.ext_id=m.ext_id
@@ -315,8 +327,12 @@ def flush_deferred(limit=20):
         ORDER BY m.decided_at LIMIT %s""", (limit,))
     sent = 0
     for r in rows:
+        # Решение оператора принято тогда, при отложении. Если это была кнопка «Отправить как
+        # есть» (в raw_feedback лежит override_reason), гейт при досыле пересуживать нечего —
+        # иначе он удержит тот же черновик, и карточка уйдёт в 'failed' уже после решения человека.
         ovr = (f"правка оператора {r.get('decided_by')}"
-               if (r["final_text"] or "").strip() != ((r.get("draft_text") or "").strip()) else None)
+               if (r["final_text"] or "").strip() != ((r.get("draft_text") or "").strip())
+               else (str(r.get("override_reason"))[:300] if r.get("override_reason") else None))
         ok, detail = fs.post_answer(dict(r), r["final_text"], override=ovr)  # без apply_cap
         if ok and detail.startswith("dry-run"):
             log(f"deferred → всё ещё dry-run mod={r['id']} {r['platform']} {r['ext_id']}, ждём live")
@@ -327,7 +343,11 @@ def flush_deferred(limit=20):
             log(f"deferred → отправлено mod={r['id']} {r['platform']} {r['ext_id']} ({detail})")
             fr = _fr(r)                            # у строки досыла нет article/класса — берём живую
             if fr:
-                _cache_remember(fr, r["final_text"], "edit" if ovr else "send")
+                was_ovr = bool(r.get("override_reason")) and (r["final_text"] or "").strip() == (
+                    (r.get("draft_text") or "").strip())
+                _cache_remember(fr, r["final_text"],
+                                "override" if was_ovr else ("edit" if ovr else "send"),
+                                check_gate=not was_ovr)
             if r["tg_chat_id"] and r["tg_msg_id"]:  # закрываем ту же карточку в TG, чтобы не гадать
                 edit_text(r["tg_chat_id"], r["tg_msg_id"],
                           "✅ Отправлено (отложенное с прежней схемы лимита)\n\n"
@@ -344,8 +364,10 @@ def send_batch(limit=5, days=None, kind=None):
     """Разослать ПОРЦИЮ карточек за окно `days` (по кнопке). Возвращает число реально отправленных."""
     sent = lost = 0
     for row in _pending(limit, days, kind):
-        card, kb = _card(row), _kb(row["id"], allow_send=(row.get("draft_route") != "human"
-                                                          and publish_gate.verdict(row)[0]))
+        _allow, _why = publish_gate.verdict(row)
+        _allow = _allow and row.get("draft_route") != "human"
+        card, kb = _card(row), _kb(row["id"], allow_send=_allow,
+                                   allow_override=publish_gate.can_override(_why))
         canon = None                              # первый успешный (chat_id,msg_id) — канонический для правок
         for cid in NOTIFY_IDS:
             mid = send(cid, card, reply_markup=kb)
@@ -362,6 +384,73 @@ def send_batch(limit=5, days=None, kind=None):
     if lost:
         log(f"⚠️ итог рассылки: доставлено {sent}, потеряно {lost} — канал до Telegram рвётся")
     return sent
+
+
+# Мягкие причины (п.4 очереди 46): блок держится не фактом, а самооценкой модели или нашим
+# guard'ом полярности. Именно по ним 10.09 в чате висели готовые черновики без кнопки отправки.
+SOFT_ONLY = ("не прямой ответ", "модель сама не считает ответ обоснованным",
+             "уверенность ")
+
+
+def _soft_only(reasons):
+    """Все причины блока — мягкие? Хватает одной жёсткой (нет карточки, D1, стоп-лист,
+    претензия), чтобы карточку не трогать: решение по ней принимается заново, а не кнопкой."""
+    def soft(r):
+        r = r[len("qa-guard: "):] if r.startswith("qa-guard: ") else r
+        return r.startswith(SOFT_ONLY)
+    return bool(reasons) and all(soft(r) for r in reasons)
+
+
+def refresh_markup(days=None, dry=False):
+    """п.4 очереди 46: вернуть кнопку «✅ Отправить как есть» на УЖЕ показанные карточки,
+    заблокированные только мягкими причинами. Черновик не пересоздаём и LLM не зовём — меняем
+    ровно клавиатуру (editMessageReplyMarkup). → (обновлено, просмотрено)."""
+    rows = db.query("""SELECT m.id, m.tg_chat_id, m.tg_msg_id, m.platform, m.account, m.kind,
+        m.ext_id, f.article, f.request_class, f.body, f.pros, f.cons, f.rating,
+        f.draft_text, f.draft_route, f.draft_grounding, f.draft_confidence
+        FROM feedback_moderation m
+        JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
+             AND f.kind=m.kind AND f.ext_id=m.ext_id
+        WHERE m.state IN ('carded','queued','snoozed') AND m.tg_msg_id IS NOT NULL
+          AND COALESCE(f.is_answered,false)=false AND f.posted_at IS NULL
+          AND f.created_at >= now() - make_interval(days => %s)""",
+        (WINDOW_DAYS if days is None else days,))
+    done = same = 0
+    for r in rows:
+        allow, why = publish_gate.verdict(dict(r))
+        allow = allow and r.get("draft_route") != "human"
+        if allow:
+            # п.3 снял блок (карточный класс) — на висящей плашке кнопки ✅ всё ещё нет
+            kb, mark = _kb(r["id"], allow_send=True), "✅ Отправить"
+        elif _soft_only(why) and publish_gate.can_override(why):
+            kb, mark = _kb(r["id"], allow_send=False, allow_override=True), "✅ Отправить как есть"
+        else:
+            continue                     # претензии, стоп-лист и жёсткие причины не трогаем
+        if dry:
+            done += 1
+            continue
+        try:
+            api("editMessageReplyMarkup", {"chat_id": r["tg_chat_id"],
+                                           "message_id": r["tg_msg_id"], "reply_markup": kb})
+            done += 1
+            log(f"плашка mod={r['id']} {r['platform']} {r['ext_id']} → «{mark}»: "
+                f"{publish_gate.reason_line(why, 160) if why else 'блок снят'}")
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode()[:200]
+            except Exception:
+                pass
+            if "not modified" in body:   # кнопка уже такая — это не ошибка
+                same += 1
+            else:
+                log(f"⚠️ плашка mod={r['id']} не обновлена: HTTP {e.code} {body}")
+        except Exception as e:
+            log(f"⚠️ плашка mod={r['id']} не обновлена: {type(e).__name__}: {str(e)[:150]}")
+    log(f"п.4: карточек просмотрено {len(rows)}, кнопку получили {done}"
+        + (f", уже были с нужной кнопкой {same}" if same else "")
+        + (" (dry-run)" if dry else ""))
+    return done, len(rows)
 
 
 def _dashboard():
@@ -462,19 +551,75 @@ def clean_operator_text(text):
     return clean, None
 
 
-def _cache_remember(fr, text, approved_by):
+def _remember_override(fr, from_id, reason):
+    """Факт обхода блока — в данные, а не только в лог (п.1 очереди 46, миграция 704).
+    Без этой записи нельзя ни померить долю ложных блоков, ни разобрать «кто это отправил»."""
+    try:
+        db.execute("""UPDATE raw_feedback SET override_reason=%s
+            WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
+            (f"оператор {from_id}: {reason}"[:1000], fr["platform"], fr["account"],
+             fr["kind"], fr["ext_id"]))
+    except Exception as e:
+        log(f"override_reason: сбой записи {type(e).__name__}: {str(e)[:150]}")
+    log(f"ОБХОД БЛОКА оператором {from_id} {fr.get('platform')}/{fr.get('ext_id')}: {reason[:250]}")
+
+
+def _compat_remember(fr, text, approved_by):
+    """D2(а): одобренный ответ о совместимости заводит строку в справочнике compat_ref.
+    Пишем ТОЛЬКО подтверждённое: класс «совместимость», модели из вопроса и серия карточки.
+
+    Ревью Codex 10.09.2026: записывать все `asked` подряд нельзя. Ответ «не подойдёт» тоже
+    отвечает на вопрос о совместимости, и его модели попали бы в справочник как совместимые —
+    справочник врал бы уже сам, без веба. Поэтому пишем только УТВЕРДИТЕЛЬНЫЙ ответ и только там,
+    где нет конфликта ресурсной версии (D4) и неопределённого региона (D5)."""
+    try:
+        g = fr.get("draft_grounding") if isinstance(fr.get("draft_grounding"), dict) else {}
+        cls = fr.get("request_class") or g.get("request_class")
+        c = g.get("compat") if isinstance(g.get("compat"), dict) else None
+        if cls != "совместимость" or not c or not c.get("asked"):
+            return
+        t = text or ""
+        affirm = publish_gate.FIT_RX.search(t) or (publish_gate.YES_RX.search(t)
+                                                  and not publish_gate.NO_FIT_RX.search(t))
+        if not affirm:
+            log("compat_ref: ответ не утвердительный — строку не пишем")
+            return
+        if c.get("variant_mismatch") or c.get("region_needed"):
+            log("compat_ref: конфликт версии/региона (D4/D5) — строку не пишем")
+            return
+        series = c.get("series") or (fr.get("article") or None)
+        if not series:
+            log("compat_ref: серия неизвестна, строку не пишем")
+            return
+        from reports import compat_ref
+        for model in c["asked"]:
+            ok, why = compat_ref.add(model, series, source="approved_answer",
+                                     approved_by=str(approved_by),
+                                     note=f"{fr.get('platform')}/{fr.get('ext_id')}")
+            log(f"compat_ref [{approved_by}] {model} → {series}: "
+                f"{'записано' if ok else 'не пишем — ' + str(why)}")
+    except Exception as e:
+        log(f"compat_ref: сбой записи {type(e).__name__}: {str(e)[:150]}")
+
+
+def _cache_remember(fr, text, approved_by, check_gate=True):
     """Блок G: утверждённый человеком ответ — в кэш по нашему артикулу. Никогда не роняет отправку:
     ответ покупателю уже ушёл, и провал записи в кэш не повод показывать оператору ошибку."""
     try:
-        ok, why = ac.remember_sent(dict(fr), text, approved_by)
+        ok, why = ac.remember_sent(dict(fr), text, approved_by, check_gate=check_gate)
         log(f"кэш ответов [{approved_by}] {fr.get('platform')}/{fr.get('ext_id')}: "
             f"{'записан ' + why if ok else 'не пишем — ' + why}")
     except Exception as e:
         log(f"кэш ответов: сбой записи {type(e).__name__}: {str(e)[:150]}")
+    _compat_remember(fr, text, approved_by)
 
 
-def _do_send(mod_id, from_id, text, chat_id, message_id):
-    """Общий путь отправки (кнопка ✅ или присланный правленый текст)."""
+def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False):
+    """Общий путь отправки (кнопка ✅, кнопка «отправить как есть» или правленый текст).
+
+    override_block=True — оператор нажал «✅ Отправить как есть» на заблокированной карточке:
+    вердикт пересуживать нечего, решение принято человеком. Причина блока при этом не теряется —
+    она пишется в raw_feedback.override_reason и в лог (миграция 704)."""
     m = _mod(mod_id)
     if not m:
         return "запись не найдена"
@@ -500,6 +645,20 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
     # (см. send_batch), но карточка живёт в чате дольше вердикта — за это время кэш мог протухнуть,
     # а черновик перегенерироваться. Нетронутый черновик пересуживаем перед самой отправкой;
     # текст оператора (override) не судим — правка и есть его осознанный обход запрета.
+    ovr_reason = None
+    if override_block and not override:
+        allow_now, why_now = publish_gate.verdict(dict(fr), text)
+        if not allow_now:
+            if not publish_gate.can_override(why_now):
+                # причина необходимая (обещание / претензия / заглушка) — кнопки быть не должно,
+                # но карточка живёт в чате дольше вердикта: перепроверяем перед самой отправкой.
+                _set(mod_id, "queued", error=publish_gate.reason_line(why_now, 300))
+                edit_text(ec, em, "⛔ Так отправить нельзя: "
+                          + html.escape(publish_gate.reason_line(why_now, 400))
+                          + "\n\nОтветьте, пожалуйста, через «✏️ Править».")
+                return "⛔ эту причину кнопкой не обойти"
+            ovr_reason = publish_gate.reason_line(why_now, 400)
+            override = f"оператор {from_id} отправил вопреки блоку: {ovr_reason[:200]}"
     if not override:
         allow_now, why_now = publish_gate.verdict(dict(fr), text)
         if not allow_now:
@@ -514,6 +673,8 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
         # после включения FEEDBACK_LIVE_SEND (инцидент 25-26.08.2026: так потеряли 9 ответов).
         _set(mod_id, "deferred", final_text=text, error=detail,
              decided_at="now()", decided_by=int(from_id))
+        if ovr_reason:            # решение человека принято сейчас, даже если досыл будет позже
+            _remember_override(fr, from_id, ovr_reason)
         edit_text(ec, em,
                   f"🧪 (dry-run) ОТЛОЖЕНО — покупателю ещё НЕ ушло, уйдёт после включения "
                   f"боевой отправки\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
@@ -522,7 +683,13 @@ def _do_send(mod_id, from_id, text, chat_id, message_id):
     if ok:
         _set(mod_id, "sent", final_text=text, error=None,
              decided_at="now()", decided_by=int(from_id))
-        _cache_remember(fr, text, "edit" if override else "send")
+        if ovr_reason:
+            _remember_override(fr, from_id, ovr_reason)
+        # Ответ, отправленный «как есть», человек утвердил ровно так же, как по обычной ✅:
+        # он идёт в approved_answers и (для совместимости) в compat_ref. Гейт при записи не
+        # спрашиваем — он и есть то, что оператор осознанно обошёл.
+        _cache_remember(fr, text, "override" if ovr_reason else ("edit" if override else "send"),
+                        check_gate=not ovr_reason)
         edit_text(ec, em,
                   f"✅ Отправлено\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
                   f"<b>Ответ:</b> {html.escape(text[:800])}")
@@ -562,6 +729,13 @@ def handle_callback(cb):
         if not m:
             answer_cb(cb["id"], "нет записи"); return
         res = _do_send(mod_id, from_id, (m.get("draft_text") or ""), chat_id, message_id)
+        answer_cb(cb["id"], res)
+    elif action == "ovr":                         # «✅ Отправить как есть» — обход блока человеком
+        m = _mod(mod_id)
+        if not m:
+            answer_cb(cb["id"], "нет записи"); return
+        res = _do_send(mod_id, from_id, (m.get("draft_text") or ""), chat_id, message_id,
+                       override_block=True)
         answer_cb(cb["id"], res)
     elif action == "edt":
         PENDING_EDIT[from_id] = mod_id

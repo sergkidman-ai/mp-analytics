@@ -183,5 +183,68 @@ class ClaimAndPromiseTest(unittest.TestCase):
         self.assertFalse(gate.verdict(d, 'Заменим картридж, ничего не платите.')[0])
 
 
+class Queue46Test(unittest.TestCase):
+    """Очередь модерации 46 (10.09.2026): «хорошие черновики без кнопки отправки».
+
+    Два изменения, которые нельзя потерять: (1) блок по карточному классу больше не ставится
+    самооценкой модели и guard'ом полярности, (2) обходимость блока — свойство ПРИЧИНЫ, а не
+    настроения оператора: обещание и претензия кнопкой не обходятся никогда."""
+
+    def card(self, cls, **over):
+        g = {'source': 'карточка', 'request_class': cls}
+        g.update(over.pop('grounding', {}))
+        return row(request_class=cls, grounding=g, **over)
+
+    def test_карточные_классы_не_судятся_уверенностью_и_полярностью(self):
+        for cls in ('характеристики', 'производитель', 'комплектация', 'габарит'):
+            with self.subTest(cls):
+                r = self.card(cls, draft_confidence=0.2,
+                              draft_text='Ресурс 3000 страниц, чип установлен.',
+                              grounding={'grounded': False,
+                                         'qa_guard': ['не прямой ответ (полярность не определена)']})
+                allow, why = gate.verdict(r)
+                self.assertTrue(allow, why)
+
+    def test_совместимость_послабляется_только_при_точном_совпадении(self):
+        ok = self.card('совместимость', draft_confidence=0.2, draft_text='Да, подойдёт для LBP6030.',
+                       grounding={'grounded': False,
+                                  'compat': {'asked': ['lbp6030'], 'matched': ['lbp6030'],
+                                             'status': 'yes'}})
+        self.assertTrue(gate.verdict(ok)[0], gate.verdict(ok)[1])
+        web = self.card('совместимость', draft_text='Да, подойдёт.',
+                        grounding={'source': 'веб (BLOCK)', 'web': True,
+                                   'compat': {'asked': ['lbp646'], 'matched': [],
+                                              'status': 'unknown'}})
+        self.assertFalse(gate.verdict(web)[0])
+
+    def test_послабление_не_отменяет_стоп_лист_и_мутацию_полярности(self):
+        promise = self.card('характеристики',
+                            draft_text='Ресурс 3000 страниц. Оформим возврат средств.')
+        self.assertFalse(gate.verdict(promise)[0])
+        # guard полярности ВПИСЫВАЕТ в текст «Да,»/«Нет,»; там, где он это сделал, смысл ответа
+        # уже изменён машиной — такой черновик остаётся блоком даже в карточном классе.
+        mutated = self.card('характеристики', draft_text='Нет, технически заправить можно.',
+                            grounding={'qa_guard': ['не прямой ответ']})
+        self.assertFalse(gate.verdict(mutated)[0])
+
+    def test_обходимость_блока_зависит_от_причины(self):
+        soft = row(draft_confidence=0.3, grounding={'grounded': False})
+        allow, why = gate.verdict(soft)
+        self.assertFalse(allow)
+        self.assertTrue(gate.can_override(why), why)          # кнопка «Отправить как есть» есть
+        for r in (row(draft_text='Здравствуйте! Оформим возврат средств.'),
+                  row(kind='review', rating=1, body='Картридж не работает, ошибка',
+                      draft_text='Здравствуйте! Спасибо за отзыв.',
+                      grounding={'llm': False, 'source': 'шаблон'}),
+                  row(draft_text='⚠️ Нужен человек: непрофильный товар')):
+            with self.subTest(r['draft_text'][:30]):
+                allow, why = gate.verdict(r)
+                self.assertFalse(allow)
+                self.assertFalse(gate.can_override(why), why)  # только «✏️ Править»
+
+    def test_нет_блока_нет_и_обхода(self):
+        self.assertFalse(gate.can_override([]))
+
+
 if __name__ == '__main__':
     unittest.main()
