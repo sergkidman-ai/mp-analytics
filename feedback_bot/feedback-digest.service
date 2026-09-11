@@ -6,6 +6,6 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/mp-analytics
-ExecStart=/opt/mp-analytics/venv/bin/python -m reports.feedback_digest --days 7 --send
+ExecStart=/opt/mp-analytics/venv/bin/python -m reports.feedback_digest --days 14 --send
 StandardOutput=journal
 StandardError=journal

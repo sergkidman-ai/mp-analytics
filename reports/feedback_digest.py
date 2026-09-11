@@ -17,7 +17,7 @@
 
 Запуск:
     ./venv/bin/python -m reports.feedback_digest --days 30            # собрать и показать
-    ./venv/bin/python -m reports.feedback_digest --days 7 --send      # + отправить в Telegram
+    ./venv/bin/python -m reports.feedback_digest --days 14 --send     # + отправить в Telegram
 """
 import os
 import re
@@ -92,11 +92,93 @@ COLORS = [
     ("чёрный", r"ч[её]рн\w*|black|\bbk\b"),
 ]
 
-_AFFIRM_RX = re.compile(r"\bда\b|подойд[её]т|подход(?:ит|ящ)|совмест|встанет|работать\s+будет", re.I)
 # Модель принтера в вопросе. Кириллицу в начало НЕ пускаем: общий MODEL_RX движка её допускает,
 # и «На 3103fdw подойдет?» давал кандидата «На 3103fdw», а «нужен картридж 106R01158» —
 # «ртридж 106R01158». В заголовок карточки такое попасть не должно.
 MODEL_RX = re.compile(r"\b[A-Za-z]{1,12}[- ]?\d{2,5}[A-Za-z0-9\-]*|\b\d{3,5}[A-Za-z][A-Za-z0-9\-]*")
+
+# ─────────────────────── базовый артикул номенклатуры ───────────────────────
+# raw_feedback хранит ПЛОЩАДОЧНЫЙ код: у Дисквэра на ВБ это наш артикул с хвостом
+# (5764P3V6PSY2, 3815IBBCHMW5), у карточек-детей — артикул родителя с цифрой (00351).
+# Считать повторы по такому коду бессмысленно: один и тот же картридж рассыпается на
+# четыре «разных» артикула по площадкам и аккаунтам, и порог «≥2» не срабатывает никогда.
+# Базовый артикул = внешний код карточки в МойСкладе (источник правды по номенклатуре):
+# берём САМЫЙ КОРОТКИЙ префикс длиной ≥4, который в МС существует, — так дочерние карточки
+# схлопываются к родителю, а площадочный хвост отпадает.
+_MS_CODES = None
+_BASE_MIN = 4
+
+
+def _ms_codes():
+    global _MS_CODES
+    if _MS_CODES is None:
+        try:
+            _MS_CODES = {r["ec"] for r in db.query(
+                "SELECT DISTINCT payload->>'externalCode' AS ec FROM raw_moysklad_product "
+                "WHERE coalesce(payload->>'externalCode','') <> ''") if r["ec"]}
+        except Exception:
+            _MS_CODES = set()
+    return _MS_CODES
+
+
+def base_article(article):
+    """Площадочный код → базовый артикул нашей номенклатуры. Нет совпадения в МС — код как есть
+    (лучше отдельная строка в списке, чем склейка двух разных товаров)."""
+    a = (article or "").strip()
+    codes = _ms_codes()
+    for n in range(_BASE_MIN, len(a)):
+        if a[:n] in codes:
+            return a[:n]
+    return a
+
+
+def _card_url(platform, item_id):
+    i = str(item_id or "").strip()
+    if not i:
+        return None
+    if platform == "wb":
+        return f"https://www.wildberries.ru/catalog/{i}/detail.aspx"
+    if platform == "ozon":
+        return f"https://www.ozon.ru/product/{i}/"
+    if platform == "yandex":
+        return f"https://market.yandex.ru/search?text={i}"
+    return None
+
+
+def _links(rs):
+    """Ссылки на карточки группы — по одной на площадку+лот, в порядке появления."""
+    out, seen = [], set()
+    for r in rs:
+        u = _card_url(r["platform"], r.get("item_id"))
+        if u and u not in seen:
+            seen.add(u)
+            out.append({"platform": r["platform"], "article": r.get("article_raw") or "", "url": u})
+    return out[:6]
+
+
+# ─────────────────────── полярность утверждённого ответа ───────────────────────
+# Факта «ответ утверждён человеком» мало: оператор точно так же утверждает ответ «нет, не
+# подойдёт». Первая версия фильтра искала утвердительные слова где угодно в тексте и на
+# ответе «Нет, этот комплект не подойдёт… для MA2600 нужна серия TK-5450» видела «подойдёт»
+# — так 7151 → MA2600 уехал в кандидаты в заголовок. Полярность решается ПЕРВЫМ предложением
+# ответа (после приветствия), и отрицание в нём главнее любого последующего «подойдёт».
+_GREET_RX = re.compile(r"^\s*(?:здравствуйте|добрый\s+(?:день|вечер)|доброе\s+утро|приветствую|"
+                       r"привет)[!,.\s]*", re.I)
+_NO_RX = re.compile(r"^\s*нет\b|\bне\s+(?:подойд|подход|совмест|встан|годит|рассчитан|заработа|"
+                    r"будет\s+работать)|\bне\s+тот\b|к\s+сожалению|\bувы\b", re.I)
+_YES_RX = re.compile(r"^\s*да\b|\bда[,!]|подойд[её]т|подходит|совместим|встанет|"
+                     r"будет\s+работать", re.I)
+
+
+def answer_polarity(text):
+    """'yes' | 'no' | None по утверждённому ответу оператора."""
+    t = _GREET_RX.sub("", (text or "").strip())
+    for sent in re.split(r"(?<=[.!?])\s+", t)[:2]:
+        if _NO_RX.search(sent):
+            return "no"
+        if _YES_RX.search(sent):
+            return "yes"
+    return None
 
 
 def _first(rules, text):
@@ -118,15 +200,36 @@ def _short(t, n=160):
 
 
 def _rows(days, kind=None):
-    where = ["created_at > now() - make_interval(days => %s)", "coalesce(article,'') <> ''"]
+    """Строки обращений за окно. Две вещи делаются прямо здесь, чтобы ниже о них никто не думал:
+
+    • артикул Ozon. В `raw_feedback` у Ozon он пустой ВСЕГДА (0 строк из 2451 за полгода) —
+      площадка отдаёт только SKU. Восстанавливаем через `compat_index` (лот → наш артикул),
+      иначе весь Ozon выпадал бы из дайджеста молча;
+    • базовый артикул номенклатуры — по нему идёт вся группировка (`article`), а площадочный
+      код остаётся в `article_raw` для ссылки на карточку.
+    """
+    where = ["f.created_at > now() - make_interval(days => %s)"]
     args = [days]
     if kind:
-        where.append("kind = %s")
+        where.append("f.kind = %s")
         args.append(kind)
-    return db.query(f"""SELECT platform, account, kind, ext_id, item_id, article, product_name,
-                               rating, body, pros, cons, created_at
-                        FROM raw_feedback WHERE {' AND '.join(where)}
-                        ORDER BY created_at""", tuple(args))
+    rows = db.query(f"""SELECT f.platform, f.account, f.kind, f.ext_id, f.item_id,
+                               coalesce(nullif(f.article, ''),
+                                        (SELECT c.article FROM compat_index c
+                                          WHERE c.platform = f.platform AND c.account = f.account
+                                            AND c.item_id = f.item_id LIMIT 1)) AS article,
+                               f.product_name, f.rating, f.body, f.pros, f.cons, f.created_at
+                        FROM raw_feedback f WHERE {' AND '.join(where)}
+                        ORDER BY f.created_at""", tuple(args))
+    out = []
+    for r in rows:
+        if not (r.get("article") or "").strip():
+            continue
+        r = dict(r)
+        r["article_raw"] = r["article"]
+        r["article"] = base_article(r["article"])
+        out.append(r)
+    return out
 
 
 def _group(rows, keyfn):
@@ -152,7 +255,7 @@ def content_gaps(days):
         if len(rs) < MIN_HITS:
             continue
         out.append({"article": art, "topic": topic, "n": len(rs),
-                    "product": rs[0].get("product_name") or "",
+                    "product": rs[0].get("product_name") or "", "links": _links(rs),
                     "texts": [_short(_text(r)) for r in rs],
                     "advice": ADVICE.get(topic, "добавить в карточку прямой ответ на этот вопрос")})
     return sorted(out, key=lambda x: (-x["n"], x["article"]))
@@ -175,7 +278,7 @@ def card_mismatch(days):
         t = _text(r)
         if t and MISMATCH_RX.search(t):
             out.append({"article": r["article"], "product": r.get("product_name") or "",
-                        "rating": r.get("rating"), "text": _short(t, 220),
+                        "rating": r.get("rating"), "text": _short(t, 220), "links": _links([r]),
                         "platform": r["platform"], "created": r["created_at"]})
     return sorted(out, key=lambda x: x["article"])
 
@@ -192,21 +295,27 @@ def title_candidates(days):
         cf = CardFacts()
     except Exception as e:                           # карточек нет — блок пустой, дайджест живёт
         return [], f"список моделей карточки недоступен ({e})"
-    rows = db.query("""SELECT f.platform, f.account, f.kind, f.ext_id, f.item_id, f.article,
+    rows = db.query("""SELECT f.platform, f.account, f.kind, f.ext_id, f.item_id,
+                              coalesce(nullif(f.article, ''),
+                                       (SELECT c.article FROM compat_index c
+                                         WHERE c.platform = f.platform AND c.account = f.account
+                                           AND c.item_id = f.item_id LIMIT 1)) AS article,
                               f.product_name, f.body, m.final_text
                        FROM raw_feedback f
                        JOIN feedback_moderation m
                          ON (m.platform, m.account, m.kind, m.ext_id)
                           = (f.platform, f.account, f.kind, f.ext_id)
                        WHERE f.kind = 'question' AND m.state = 'sent'
-                         AND f.created_at > now() - make_interval(days => %s)
-                         AND coalesce(f.article,'') <> ''""", (days,))
+                         AND f.created_at > now() - make_interval(days => %s)""", (days,))
     out = []
     for r in rows:
         q = r.get("body") or ""
+        if not (r.get("article") or "").strip():
+            continue
         if rc.classify(q, kind="question") != "совместимость":
             continue
-        if not _AFFIRM_RX.search(r.get("final_text") or ""):
+        # Фильтр по ПОЛЯРНОСТИ, а не по факту утверждения: оператор утверждает и отказы.
+        if answer_polarity(r.get("final_text")) != "yes":
             continue
         f = (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon"
              else cf.for_wb(r["item_id"]) if r["platform"] == "wb"
@@ -223,8 +332,10 @@ def title_candidates(days):
                 continue
             new.append(tok)
         if new:
-            out.append({"article": r["article"], "product": r.get("product_name") or "",
+            out.append({"article": base_article(r["article"]), "article_raw": r["article"],
+                        "product": r.get("product_name") or "",
                         "models": sorted(set(new)), "question": _short(q, 180),
+                        "links": _links([dict(r, article_raw=r["article"])]),
                         "has_card_models": bool(f.get("models"))})
     return sorted(out, key=lambda x: x["article"]), None
 
@@ -255,7 +366,7 @@ def symptom_claims(days):
             continue
         stars = [r["rating"] for r in rs if r.get("rating") is not None]
         out.append({"article": art, "symptom": sym, "n": len(rs),
-                    "product": rs[0].get("product_name") or "",
+                    "product": rs[0].get("product_name") or "", "links": _links(rs),
                     "stars": stars,
                     "texts": [{"rating": r.get("rating"), "platform": r["platform"],
                                "kind": r["kind"], "text": _short(r["_t"], 220)} for r in rs]})
@@ -369,7 +480,7 @@ def render_purchase(data, days, day):
     return "\n".join(x for x in L if x is not None) + "\n"
 
 
-def build(days=7, day=None):
+def build(days=14, day=None):
     day = day or dt.date.today().isoformat()
     titles, note = title_candidates(days)
     symptoms, skipped = symptom_claims(days)
@@ -380,15 +491,19 @@ def build(days=7, day=None):
     data["purchase_md"] = render_purchase(data, days, day)
     data["day"] = day
     data["days"] = days
+    data["min_hits"] = MIN_HITS
     return data
 
 
 def write_files(data):
+    """md остаётся исходником (читается в git, диффится), получателю уходит PDF."""
     d = OUT_ROOT / f"digest_{data['day']}"
     d.mkdir(parents=True, exist_ok=True)
-    c, p = d / "content.md", d / "purchasing.md"
-    c.write_text(data["content_md"], encoding="utf-8")
-    p.write_text(data["purchase_md"], encoding="utf-8")
+    (d / "content.md").write_text(data["content_md"], encoding="utf-8")
+    (d / "purchasing.md").write_text(data["purchase_md"], encoding="utf-8")
+    from reports import digest_pdf
+    c = digest_pdf.content_pdf(data, d / f"digest_{data['day']}_content.pdf")
+    p = digest_pdf.purchase_pdf(data, d / f"digest_{data['day']}_purchasing.pdf")
     return c, p
 
 
@@ -403,7 +518,7 @@ def tg_text(data, files):
     return (f"🗂 <b>Недельный дайджест по обращениям</b> ({data['day']}, окно {data['days']} дн.)\n\n"
             f"Контентщику: <b>{n_cards}</b> карточек\n"
             f"Закупщику: <b>{n_arts}</b> артикулов{color}\n\n"
-            f"<code>{c}</code>\n<code>{p}</code>")
+            f"Оба файла — вложением ниже.")
 
 
 def send(data, files):
@@ -430,7 +545,7 @@ def _send_doc(tm, chat_id, path):
                  ).encode()
     body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"document\"; "
              f"filename=\"{path.parent.name}_{path.name}\"\r\n"
-             f"Content-Type: text/markdown\r\n\r\n").encode()
+             f"Content-Type: application/pdf\r\n\r\n").encode()
     body += path.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
     req = urllib.request.Request(f"{tm.API}/sendDocument", data=body,
                                  headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
@@ -444,7 +559,7 @@ def _send_doc(tm, chat_id, path):
 
 def main():
     ap = argparse.ArgumentParser(description="Недельный дайджест по обращениям (rev)")
-    ap.add_argument("--days", type=int, default=int(os.getenv("FEEDBACK_DIGEST_DAYS", "7")))
+    ap.add_argument("--days", type=int, default=int(os.getenv("FEEDBACK_DIGEST_DAYS", "14")))
     ap.add_argument("--send", action="store_true", help="отправить в Telegram")
     ap.add_argument("--day", help="дата в имени папки (по умолчанию сегодня)")
     a = ap.parse_args()
