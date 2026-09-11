@@ -16,6 +16,7 @@ import pathlib
 
 from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, SIDEBAR, MPTABS, TAIL_JS
 from reports.yandex_mp_report import MP_EXP
+from reports import mp_tabs
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 HIST_PATH = BASE_DIR / "reports" / "data" / "mp_yandex_hist.json"
@@ -356,9 +357,7 @@ def render(hist=None):
 {MPTABS}
   </nav>
   <div class="rtabs">
-    <a class="rtab" href="/reports">🟦 Ozon</a>
-    <a class="rtab" href="/reports/wb">🟣 Wildberries</a>
-    <a class="rtab cur">🟡 Яндекс Маркет</a>
+    {mp_tabs.tabs_html('ya')}
   </div>
   <p class="eyebrow">Отчёты МП · Яндекс Маркет</p>
   <h1>Яндекс Маркет — сводный отчёт по месяцам</h1>

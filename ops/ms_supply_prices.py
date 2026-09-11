@@ -8,12 +8,16 @@ from core import db
 
 BATCH = 100   # документов за запрос; expand=positions отдаёт до 1000 позиций внутри
 
+# gtd и country нужны статформе ФТС: номер ГТД и страна происхождения товара берутся
+# по FIFO из приёмки. Оба поля — вложенные объекты, без expand приходят только ссылками.
+EXPAND = "positions,positions.country"
+
 
 def collect(since, until):
     total, offset, saved = None, 0, 0
     while total is None or offset < total:
         r = _get(f"{API}/entity/supply", params={
-            "limit": BATCH, "offset": offset, "expand": "positions",
+            "limit": BATCH, "offset": offset, "expand": EXPAND,
             "filter": f"moment>={since} 00:00:00;moment<={until} 23:59:59"})
         total = r["meta"]["size"]
         rows = r["rows"]
@@ -32,7 +36,9 @@ def collect(since, until):
                     continue                        # услуги/комплекты в себест партии не идут
                 batch.append({"supply_id": d["id"], "supply_name": d.get("name"), "moment": d["moment"],
                               "ms_id": a["href"].rsplit("/", 1)[-1], "qty": float(p.get("quantity") or 0),
-                              "price_rub": float(p.get("price") or 0) / 100.0, "agent": agent})
+                              "price_rub": float(p.get("price") or 0) / 100.0, "agent": agent,
+                              "gtd": (p.get("gtd") or {}).get("name"),
+                              "country": (p.get("country") or {}).get("name")})
         if batch:
             db.upsert("ms_supply_pos", batch, ["supply_id", "ms_id"])
             saved += len(batch)

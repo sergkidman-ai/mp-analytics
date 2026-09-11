@@ -15,6 +15,7 @@ from reports import ozon_mp_report as R
 import os
 import tempfile
 import pathlib
+from reports import mp_tabs
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 HIST_PATH = BASE_DIR / "reports" / "data" / "mp_ozon_hist.json"
@@ -560,9 +561,7 @@ def render(hist=None):
 {MPTABS}
   </nav>
   <div class="rtabs">
-    <a class="rtab cur">🟦 Ozon</a>
-    <a class="rtab" href="/reports/wb">🟣 Wildberries</a>
-    <a class="rtab" href="/reports/yandex">🟡 Яндекс Маркет</a>
+    {mp_tabs.tabs_html('oz')}
   </div>
   <p class="eyebrow">Отчёты МП · Ozon</p>
   <h1>Ozon — сводный отчёт по месяцам</h1>

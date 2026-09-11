@@ -253,6 +253,18 @@ def main():
     step("WB Отчёты МП: заморозка",
          lambda: print("[wb-freeze]", __import__("reports.wb_mp_freeze",
                        fromlist=["advance"]).advance(), flush=True))
+    # Подраздел «Отчёты ФТС». Отчёт Ozon по заказам (единственный источник признака выкупа)
+    # заказываем только 1–5 числа: статформы сдаём в первых числах за прошлый месяц, а отчёт
+    # формируется на стороне Ozon минутами и дёргать его ежедневно незачем. Страницу
+    # перерисовываем каждый день — статусы «сдано» ставятся руками в любой день.
+    if datetime.date.today().day <= 5:
+        _fts_period = (datetime.date.today().replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+        step("ФТС: отчёт Ozon по заказам",
+             lambda: __import__("collectors.ozon_orders_report",
+                                fromlist=["collect"]).main_period(_fts_period))
+    step("ФТС: страница статформ",
+         lambda: print("[fts]", __import__("reports.fts_page",
+                       fromlist=["render"]).render(), flush=True))
     # Распродажа остатков ВБ: подхватить свежие файлы из dropbox → перерисовать вкладку (сигнал по остаткам)
     step("WB распродажа: загрузка файлов",
          lambda: __import__("collectors.wb_clearance", fromlist=["main"]).main())

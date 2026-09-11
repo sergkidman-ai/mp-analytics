@@ -16,7 +16,7 @@ import pathlib
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -1373,6 +1373,69 @@ def reports_wb_page():
 @app.get("/reports/yandex", response_class=HTMLResponse)
 def reports_yandex_page():
     return (STATIC / "reports_yandex.html").read_text(encoding="utf-8")
+
+
+from datetime import date as _date, datetime as _datetime, timezone as _tz  # noqa: E402
+from urllib.parse import quote as _quote  # noqa: E402
+
+
+@app.get("/reports/fts", response_class=HTMLResponse)
+def reports_fts_page(period: str | None = None):
+    """Подраздел «Отчёты ФТС». Без period отдаём статику (её перерисовывает run_daily),
+    с period — строим на лету: архивные месяцы смотрят редко, держать файл на каждый незачем."""
+    if not period:
+        return (STATIC / "reports_fts.html").read_text(encoding="utf-8")
+    import reports.fts_page as _fts
+    return _fts.html_for(_fts_period(period))
+
+
+def _fts_period(period: str):
+    try:
+        return _date(int(period[:4]), int(period[5:7]), 1)
+    except (ValueError, IndexError):
+        raise HTTPException(status_code=400, detail="период задаётся как YYYY-MM")
+
+
+@app.get("/reports/fts/form/{period}/{country}.xml")
+def reports_fts_form(period: str, country: str):
+    """Готовая статформа для загрузки в ЛК ФТС — одна страна, один отчётный месяц.
+
+    Генерируем на лету, а не отдаём файл с диска: состав отправлений может измениться
+    (пересобрали отчёт Ozon, отметили что-то сданным) вплоть до момента подачи."""
+    import reports.fts_form as _form
+    per = _fts_period(period)
+    try:
+        xml = _form.make_xml(per, country.upper())
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    name = _form.filename(per, country.upper())
+    return Response(content=xml, media_type="application/xml",
+                    headers={"Content-Disposition":
+                             f"attachment; filename*=UTF-8''{_quote(name)}"})
+
+
+class FtsStatus(BaseModel):
+    period: str
+    platform: str = "ozon"
+    account: str
+    posting_number: str
+    filed: bool = True
+
+
+@app.post("/api/fts/status")
+def fts_status(payload: FtsStatus):
+    """Отметить отправление сданным в ФТС (или вернуть в «к сдаче») — кнопкой в дашборде.
+    Автоматически этот факт узнать неоткуда: подача происходит в ЛК ФТС руками."""
+    per = _fts_period(payload.period)
+    db.upsert("fts_posting_status", [{
+        "period": per, "platform": payload.platform, "account": payload.account,
+        "posting_number": payload.posting_number,
+        "status": "filed" if payload.filed else "due",
+        "filed_at": _datetime.now(_tz.utc) if payload.filed else None,
+    }], conflict_cols=["period", "platform", "account", "posting_number"])
+    import reports.fts_page as _fts
+    _fts.render(per)
+    return {"ok": True, "status": "filed" if payload.filed else "due"}
 
 
 @app.get("/reports/wb-clearance", response_class=HTMLResponse)
