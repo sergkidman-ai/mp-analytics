@@ -194,7 +194,11 @@ def check(acc):
         for w in worst[:5]:
             lines.append(f"  {w['nm_id']} {w['vc'] or ''} {rub(w['op0'])}→{rub(w['op1'])} ₽, "
                          f"маржа {float(w['m1']):.0f} %")
-        path = REPORTS / f"mkt_margin_flip_{d1:%Y-%m-%d}_{acc}.csv"
+        # ИМЯ С ВРЕМЕНЕМ (правка 11.09.2026). Витрина mkt_margin_control держит ОДНУ строку
+        # на captured_date, и дневной прогон затирает ночную цену. 10.09 сторож в 10:07 видел
+        # 938 переворотов, в 17:07 на той же паре дат — 22, и файл улик был переписан этими 22.
+        # Теперь каждый прогон пишет свой файл; ночной срез больше не пропадает.
+        path = REPORTS / f"mkt_margin_flip_{d1:%Y-%m-%d}_{acc}_{datetime.now(MSK):%H%M}.csv"
         with path.open("w", encoding="utf-8") as fh:
             fh.write("nm_id;vendor_code;price_was;price_now;margin_was;margin_now;cpc\n")
             for w in worst:
@@ -202,7 +206,9 @@ def check(acc):
                          f"{w['m0']};{w['m1']};{w['cpc'] or ''}\n")
         lines += ["", f"Полный список: {path.relative_to('/opt/mp-analytics')}"]
 
-    return {"date": str(d1), "text": "\n".join(lines), "why": "; ".join(triggers)}, None
+    # ключ дедупа — ПАРА дат, а не только вчера: сменилась база сравнения — это новое событие
+    return {"date": str(d1), "key": f"{d0}->{d1}",
+            "text": "\n".join(lines), "why": "; ".join(triggers)}, None
 
 
 def main():
@@ -224,15 +230,15 @@ def main():
         if quiet:
             print(f"[{now}] {quiet}")
             continue
-        if not a.force and state.get(acc) == hit["date"]:
-            print(f"[{now}] {acc}: уже сообщали за {hit['date']} — молчу")
+        if not a.force and state.get(acc) == hit["key"]:
+            print(f"[{now}] {acc}: уже сообщали по паре {hit['key']} — молчу")
             continue
         print(f"[{now}] {acc}: СРАБОТАЛО — {hit['why']}")
         if a.dry:
             print(hit["text"])
             continue
         print(f"[{now}] {acc}: телеграм — {tg(hit['text'])}")
-        state[acc] = hit["date"]
+        state[acc] = hit["key"]
 
     if not a.dry:
         STATE.parent.mkdir(parents=True, exist_ok=True)
