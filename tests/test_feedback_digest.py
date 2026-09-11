@@ -13,6 +13,7 @@
 Тест офлайн: в БД не ходит.
 """
 import os
+import pathlib
 import sys
 import unittest
 
@@ -123,6 +124,80 @@ class RenderTest(unittest.TestCase):
         txt = fd.tg_text(d, (pathlib.Path("/a/content.md"), pathlib.Path("/a/purchasing.md")))
         self.assertIn("Контентщику: <b>1</b>", txt)
         self.assertIn("Закупщику: <b>1</b>", txt)
+
+
+class PolarityTest(unittest.TestCase):
+    """Полярность утверждённого ответа. Из-за её отсутствия 7151 → MA2600 уехал в кандидаты
+    в заголовок: оператор утвердил ОТКАЗ, а фильтр увидел в тексте слово «подойдёт»."""
+
+    def test_отказ_не_считается_согласием(self):
+        self.assertEqual(fd.answer_polarity(
+            "Здравствуйте! Нет, этот комплект не подойдёт. Он рассчитан на TK-5430/TK-5440 — "
+            "это линейка MA2100. Для MA2600 нужна серия TK-5450: другой чип, подойдёт она."),
+            "no")
+        self.assertEqual(fd.answer_polarity("К сожалению, для этой модели он не подходит."), "no")
+
+    def test_согласие_считается(self):
+        self.assertEqual(fd.answer_polarity(
+            "Здравствуйте! Да, подойдёт. HP LJ 3102fdw и 3103fdw используют один картридж."),
+            "yes")
+        self.assertEqual(fd.answer_polarity("Да, совместим, ставится без переделок."), "yes")
+
+    def test_ответ_не_о_совместимости_полярности_не_имеет(self):
+        self.assertIsNone(fd.answer_polarity("Здравствуйте! Ресурс 4000 страниц при 5 % заливки."))
+
+
+class BaseArticleTest(unittest.TestCase):
+    """Склейка площадочных кодов к базовому артикулу номенклатуры."""
+
+    def setUp(self):
+        self._saved = fd._MS_CODES
+        fd._MS_CODES = {"5764", "3815", "0035", "6761", "7151"}
+
+    def tearDown(self):
+        fd._MS_CODES = self._saved
+
+    def test_хвост_площадки_отпадает(self):
+        self.assertEqual(fd.base_article("5764P3V6PSY2"), "5764")   # Дисквэр на ВБ
+        self.assertEqual(fd.base_article("3815IBBCHMW5"), "3815")
+
+    def test_дочерняя_карточка_схлопывается_к_родителю(self):
+        self.assertEqual(fd.base_article("00351"), "0035")
+        self.assertEqual(fd.base_article("67614"), "6761")
+
+    def test_базовый_артикул_остаётся_собой(self):
+        self.assertEqual(fd.base_article("7151"), "7151")
+
+    def test_неизвестный_код_не_обрезается(self):
+        # лучше отдельная строка в списке, чем склейка двух разных товаров
+        self.assertEqual(fd.base_article("9999XYZ"), "9999XYZ")
+
+
+class PdfTest(unittest.TestCase):
+    """PDF собирается из тех же структур, что и markdown, и ссылка на карточку кликабельная."""
+
+    def test_оба_файла_собираются_и_несут_ссылки(self):
+        import tempfile
+        from reports import digest_pdf
+        data = {"day": "2026-09-11", "days": 14, "min_hits": 2, "skipped_refill": 1,
+                "gaps": [{"article": "3815", "topic": "чип", "n": 2, "product": "Картридж DS",
+                          "texts": ["К картриджу нужен чип?"], "advice": "строка о чипе",
+                          "links": [{"platform": "wb", "article": "3815IBBCHMW5",
+                                     "url": "https://www.wildberries.ru/catalog/1/detail.aspx"}]}],
+                "mismatch": [], "titles": [], "titles_note": None,
+                "symptoms": [{"article": "5764", "symptom": "не подошёл", "n": 2, "stars": [1],
+                              "product": "Чернила DS", "links": [],
+                              "texts": [{"platform": "wb", "kind": "review", "rating": 1,
+                                         "text": "Не подошёл"}]}],
+                "colors": [{"color": "мажента", "n": 4, "base": 6, "articles": ["0960", "5243"],
+                            "texts": [{"article": "0960", "rating": 2, "text": "пустой"}]}]}
+        with tempfile.TemporaryDirectory() as d:
+            c = digest_pdf.content_pdf(data, pathlib.Path(d) / "c.pdf")
+            p = digest_pdf.purchase_pdf(data, pathlib.Path(d) / "p.pdf")
+            self.assertGreater(c.stat().st_size, 5000)
+            self.assertGreater(p.stat().st_size, 5000)
+            self.assertIn(b"/URI", c.read_bytes())          # ссылка на карточку живая
+            self.assertTrue(p.read_bytes().startswith(b"%PDF"))
 
 
 if __name__ == "__main__":
