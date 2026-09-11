@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly feedback digest (content + purchasing) -> Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python -m reports.feedback_digest --days 7 --send
+StandardOutput=journal
+StandardError=journal

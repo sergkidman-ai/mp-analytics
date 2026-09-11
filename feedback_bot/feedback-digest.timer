@@ -1,0 +1,14 @@
+[Unit]
+Description=Weekly feedback digest on Monday 09:00 MSK
+
+[Timer]
+# Часы машины стоят в UTC (timedatectl: Etc/UTC), systemd здесь 249 — суффикс таймзоны
+# в OnCalendar появился только в 252. Поэтому 09:00 МСК записаны как 06:00 UTC вручную;
+# при переезде сервера в другую зону строку надо пересчитать.
+OnCalendar=Mon *-*-* 06:00:00
+RandomizedDelaySec=5min
+Persistent=true
+Unit=feedback-digest.service
+
+[Install]
+WantedBy=timers.target
