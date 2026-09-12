@@ -116,9 +116,14 @@ def send(chat_id, text, reply_markup=None):
     return (r or {}).get("result", {}).get("message_id")
 
 
-def edit_text(chat_id, message_id, text):
+def edit_text(chat_id, message_id, text, reply_markup=None):
+    """Заменить текст карточки. reply_markup передаём, когда карточка ОСТАЁТСЯ рабочей:
+    без него Telegram снимает кнопки, и оператору не на что нажать (инцидент 12.09.2026 —
+    отзыв Светланы по 067H: карточка превратилась в плашку «⛔» без единой кнопки)."""
     p = {"chat_id": chat_id, "message_id": message_id, "text": text[:4000],
          "parse_mode": "HTML", "disable_web_page_preview": True}
+    if reply_markup:
+        p["reply_markup"] = reply_markup
     _api_retry("editMessageText", p, f"chat={chat_id} msg={message_id}")
 
 
@@ -149,7 +154,11 @@ def _pending(limit=5, days=None, kind=None):
         FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
              AND f.kind=m.kind AND f.ext_id=m.ext_id
-        WHERE ((m.state='queued' AND m.tg_msg_id IS NULL)
+        -- Вторая ветка 'queued' — страховка (12.09.2026). Карточку, которую гейт вернул в очередь
+        -- УЖЕ ПОСЛЕ показа, старое условие (tg_msg_id IS NULL) не брало никогда: отзыв висел в
+        -- чате мёртвой плашкой и одновременно выпадал из очереди. Теперь такие показываются снова.
+        WHERE ((m.state='queued' AND (m.tg_msg_id IS NULL
+                                      OR m.carded_at < now() - interval '2 hours'))
                OR (m.state='snoozed' AND m.snooze_until <= now()))
           -- уже отвеченное на площадке (или отправленное нами, но ещё не подтверждённое площадкой)
           -- в карточки не тянем: очередь модерации живёт дольше, чем актуальность вопроса
@@ -175,7 +184,7 @@ def _fr(m):
     body/pros/cons/rating тянем не для показа, а для гейта: на строках, драфтнутых до 07.09.2026,
     класса обращения в grounding нет, и «претензию» (A1.1) он считает по тексту покупателя."""
     r = db.query("""SELECT platform,account,kind,ext_id,item_id,article,request_class,payload,
-        body,pros,cons,rating,
+        body,pros,cons,rating,product_name,created_at,
         draft_text,draft_route,draft_confidence,draft_grounding FROM raw_feedback
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (m["platform"], m["account"], m["kind"], m["ext_id"]))
@@ -619,6 +628,28 @@ def _cache_remember(fr, text, approved_by, check_gate=True):
     _compat_remember(fr, text, approved_by)
 
 
+def _hold_card(mod_id, fr, ec, em, why, head):
+    """Гейт запретил отправку в последний момент — карточку НЕ хоронить.
+
+    До 12.09.2026 здесь стояло state='queued' с СОХРАНЁННЫМ tg_msg_id, а сообщение затиралось
+    плашкой «⛔» без кнопок. Итог: в чате мёртвая плашка, а строка выпадала из _pending (там
+    tg_msg_id IS NULL) и не показывалась больше никогда — обращение оставалось без ответа
+    (отзыв 067H, mod=650, 12.09.2026; вопрос Ozon mod=631, 10.09.2026).
+
+    Теперь карточка остаётся живой: state='carded', текст перерисовывается целиком (черновик —
+    материал для ответа, а не ответ), кнопки возвращаются. Если карточки в чате нет (правка
+    пришла текстом, а сообщение потеряно) — строка честно уходит в очередь БЕЗ tg_msg_id,
+    чтобы следующий цикл прислал её заново."""
+    reason = publish_gate.reason_line(why, 300)
+    if not (ec and em):
+        _set(mod_id, "queued", tg_msg_id=None, error=reason)
+        return
+    _set(mod_id, "carded", error=reason)
+    body = _card(dict(fr)) if fr else ""
+    edit_text(ec, em, f"{head}\n\n{body}".strip(), reply_markup=_kb(
+        mod_id, allow_send=False, allow_override=publish_gate.can_override(why)))
+
+
 def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False):
     """Общий путь отправки (кнопка ✅, кнопка «отправить как есть» или правленый текст).
 
@@ -657,20 +688,23 @@ def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False):
             if not publish_gate.can_override(why_now):
                 # причина необходимая (обещание / претензия / заглушка) — кнопки быть не должно,
                 # но карточка живёт в чате дольше вердикта: перепроверяем перед самой отправкой.
-                _set(mod_id, "queued", error=publish_gate.reason_line(why_now, 300))
-                edit_text(ec, em, "⛔ Так отправить нельзя: "
-                          + html.escape(publish_gate.reason_line(why_now, 400))
-                          + "\n\nОтветьте, пожалуйста, через «✏️ Править».")
+                _hold_card(mod_id, fr, ec, em, why_now,
+                           "⛔ <b>Так отправить нельзя</b> — "
+                           + html.escape(publish_gate.reason_line(why_now, 400))
+                           + "\nОтветьте, пожалуйста, своим текстом через «✏️ Править».")
                 return "⛔ эту причину кнопкой не обойти"
             ovr_reason = publish_gate.reason_line(why_now, 400)
             override = f"оператор {from_id} отправил вопреки блоку: {ovr_reason[:200]}"
     if not override:
         allow_now, why_now = publish_gate.verdict(dict(fr), text)
         if not allow_now:
-            _set(mod_id, "queued", error=publish_gate.reason_line(why_now, 300))
-            edit_text(ec, em, "⛔ Отправка отменена: вердикт изменился с момента показа карточки — "
-                              + html.escape(publish_gate.reason_line(why_now, 400)))
-            return "⛔ вердикт изменился, отправка отменена"
+            # Текст = наш черновик, и гейт его не пускает. Формулировка «вердикт изменился» врала:
+            # у претензии он с самого начала запрещающий, менялся не вердикт, а попытка отправки.
+            _hold_card(mod_id, fr, ec, em, why_now,
+                       "⛔ <b>Машинный текст отправить нельзя</b> — "
+                       + html.escape(publish_gate.reason_line(why_now, 400))
+                       + "\nНапишите свой ответ через «✏️ Править» — уйдёт он.")
+            return "⛔ машинный текст заблокирован, напишите свой"
     ok, detail = fs.post_answer(fr, text, override=override)
     if ok and detail.startswith("dry-run"):
         # Боевая отправка выключена. Помечать карточку 'sent' нельзя: ответ покупателю НЕ ушёл,

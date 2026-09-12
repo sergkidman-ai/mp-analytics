@@ -53,6 +53,16 @@ def _counts():
         WHERE blocked AND (last_at AT TIME ZONE 'Europe/Moscow')::date = {_MSK_YDAY}""")[0]["n"]
     stuck_open = db.query("""SELECT platform, account, kind, ext_id, attempts, last_error
         FROM feedback_send_attempts WHERE blocked ORDER BY last_at DESC""")
+    # Сторож «немых карточек» (12.09.2026). Инцидент: гейт вернул показанную карточку в очередь,
+    # сообщение в чате осталось плашкой без кнопок, строка выпала из окна показа — обращение висело
+    # без ответа и нигде не всплывало. Считаем ровно две беды: показано и не решено сутки+
+    # (state='carded'), и вернулось в очередь с ЖИВЫМ tg_msg_id (state='queued', tg_msg_id IS NOT NULL).
+    hung = db.query("""SELECT platform, account, kind, ext_id, state, error,
+               round(extract(epoch FROM now() - coalesce(carded_at, enqueued_at)) / 3600) AS hours
+          FROM feedback_moderation
+         WHERE (state='carded' AND carded_at < now() - interval '24 hours')
+            OR (state='queued' AND tg_msg_id IS NOT NULL)
+         ORDER BY coalesce(carded_at, enqueued_at)""")
     cost = db.query(f"""SELECT coalesce(sum(cost_usd), 0) AS usd, coalesce(sum(calls), 0) AS calls
         FROM feedback_llm_cost_log WHERE day = {_MSK_YDAY}""")[0]
     # ФАКТ по каналам: за отчётные сутки и за сегодня (день сводки ещё идёт) — видно не только
@@ -66,7 +76,7 @@ def _counts():
     return {"sent": sent, "published_mod": published_mod, "queued": queued, "deferred": deferred,
             "errors": errors, "cost_usd": float(cost["usd"]), "llm_calls": cost["calls"],
             "by_yday": by_yday, "by_today": by_today,
-            "stuck_yday": stuck_yday, "stuck_open": stuck_open, "index": _index()}
+            "stuck_yday": stuck_yday, "stuck_open": stuck_open, "hung": hung, "index": _index()}
 
 
 def _index():
@@ -110,8 +120,27 @@ def build_text(c):
                if c["deferred"] else "")
             + f"Ошибок отправки (разовые, повтор будет): <b>{c['errors']}</b>\n"
             + _stuck_line(c)
+            + _hung_line(c)
             + _index_line(c)
             + f"Потрачено на LLM: <b>${c['cost_usd']:.4f}</b> ({c['llm_calls']} вызовов)")
+
+
+def _hung_line(c):
+    """🕳 Немые карточки — показанные и не решённые. Строка существует затем, чтобы движок САМ
+    докладывал о зависших обращениях: до 12.09.2026 такая карточка молча выпадала из очереди и
+    не появлялась нигде (отзыв 067H mod=650, вопрос Ozon mod=631)."""
+    rows = c.get("hung") or []
+    if not rows:
+        return ""
+    head = f"🕳 <b>Карточки без ответа (показаны, решения нет): {len(rows)}</b>\n"
+    body = ""
+    for r in rows[:5]:
+        err = (r["error"] or "")[:70].replace("<", "&lt;").replace(">", "&gt;")
+        body += (f"  • {r['platform']}/{r['account']} {r['kind']}=<code>{r['ext_id']}</code> "
+                 f"[{r['state']}, {int(r['hours'])} ч]{': ' + err if err else ''}\n")
+    if len(rows) > 5:
+        body += f"  • …и ещё {len(rows) - 5}\n"
+    return head + body
 
 
 def _stuck_line(c):
