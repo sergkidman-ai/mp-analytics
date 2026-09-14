@@ -1,0 +1,204 @@
+offer_id,name,vendorCode,category,barcodes,tc_parent,tc_vc,verdict,ms,ya_twin_ok,marketSku,mapping_keys
+2066,"Картридж 106R01079, желтый",0673,Картриджи для Xerox,,,106R01079,B,vc=0673,0673,,marketCategoryId marketCategoryName
+21266,Картридж BCI-3PBK (4485A002) фото-черный,3234,Картриджи для Canon,,T-4530E,BCI-3PBK,B,vc=3234,3234 32341 32342,,marketCategoryId marketCategoryName
+21269,Картридж BCI-3PM (4484A002) фото-пурпурный,3235,Картриджи для Canon,,T-4530E,BCI-3PM,B,vc=3235,3235,,marketCategoryId marketCategoryName
+21284,Картридж T5437 (C13T543700) серый,3248,Картриджи для Epson,,MK-410,T5437,B,vc=3248,3248,,marketCategoryId marketCategoryName
+21306,Риббон-картридж PR-4 фиолетовый,3254,Ленточные картриджи,,C9153A,PR-4,B,vc=3254,3254 32541,,marketCategoryId marketCategoryName
+10013,Лента для печати наклеек PT-H75,27304,Картриджи для матричных принтеров,,44469810-44469752,,C,,,,marketCategoryId marketCategoryName
+10014,Лента для печати наклеек PT-E100,27305,Картриджи для матричных принтеров,,44469810-44469752,,C,,,,marketCategoryId marketCategoryName
+3309,Фотобумага DS Lomond 0102124 односторонняя матовая A4/205/25,3309,Фотобумага,,,,D,offer=3309;vc=3309,,,marketCategoryId marketCategoryName
+3316,Фотобумага DS Lomond 0102022 односторонняя глянцевая A4/230/50,3316,Фотобумага,,,,D,offer=3316;vc=3316,,,marketCategoryId marketCategoryName
+10030,Лента для печати наклеек PT-D400,273021,Картриджи для матричных принтеров,,43381907,,C,,,,marketCategoryId marketCategoryName
+10033,Лента для печати наклеек PT-H500,273024,Картриджи для матричных принтеров,,43381907,,C,,,,marketCategoryId marketCategoryName
+3304,Фотобумага DS Lomond 0102037 односторонняя матовая A4/180/25,3304,Фотобумага,,,,D,offer=3304;vc=3304,,,marketCategoryId marketCategoryName
+10034,Лента для печати наклеек PT-520,273025,Картриджи для матричных принтеров,,43381907,,C,,,,marketCategoryId marketCategoryName
+3335,Офисная бумага Lomond 0101005 94% OFFICE A4/80/500,3335,Фотобумага,,,,D,offer=3335;vc=3335,,,marketCategoryId marketCategoryName
+10090,Лента для печати наклеек PT-2430,273081,Картриджи для матричных принтеров,,43324402,,C,,,,marketCategoryId marketCategoryName
+10029,Лента для печати наклеек PT-350,273020,Картриджи для матричных принтеров,,43381908,,C,,,,marketCategoryId marketCategoryName
+10113,Лента для печати наклеек TZe-131,2732,Ленточные картриджи,,43324401-43324404,TZe-131,B,vc=2732,2732 2732X10 2732X2 2732X6,,marketCategoryId marketCategoryName
+10016,Лента для печати наклеек PT-H100,27307,Картриджи для матричных принтеров,,44469810-44469752,,C,,,,marketCategoryId marketCategoryName
+10268,Картридж PFI-106M пурпурный,2824,Картриджи для Canon,,44059117-44059120,PFI-106M,B,vc=2824,2824,,marketCategoryId marketCategoryName
+10031,Лента для печати наклеек PT-D450,273022,Картриджи для матричных принтеров,,43381907,,C,,,,marketCategoryId marketCategoryName
+10140,Картридж TNP-34,2757,Картриджи для Konica,,43865722,TNP-34,B,vc=2757,2757 27571 2757X10 2757X2 2757X6,,marketCategoryId marketCategoryName
+21280,Картридж T5433 (C13T543300) пурпурный,3244,Картриджи для Epson,,MK-410,T5433,B,vc=3244,3244,,marketCategoryId marketCategoryName
+10019,Лента для печати наклеек PT-200,273010,Картриджи для матричных принтеров,,44469810-44469752,,C,,,,marketCategoryId marketCategoryName
+10017,Лента для печати наклеек PT-H105,27308,Картриджи для матричных принтеров,,44469810-44469752,,C,,,,marketCategoryId marketCategoryName
+10023,Лента для печати наклеек PT-E300,273014,Картриджи для матричных принтеров,,43381908,,C,,,,marketCategoryId marketCategoryName
+10024,Лента для печати наклеек PT-H300,273015,Картриджи для матричных принтеров,,43381908,,C,,,,marketCategoryId marketCategoryName
+10296,Картридж PFI-706G зеленый,2841,Картриджи для Canon,,43487734,PFI-706G,B,vc=2841,2841,,marketCategoryId marketCategoryName
+10590,Картридж C-EXV28C,3011,Картриджи для Canon,,CLT-K508S,C-EXV28C,B,vc=3011,3011,,marketCategoryId marketCategoryName
+21308,Тонер Pantum TN-420H,3256,Картриджи Pantum,,C9153A,,C,,,,marketCategoryId marketCategoryName
+10102,Лента для печати наклеек PT-6100,273093,Картриджи для матричных принтеров,,43324401,,C,,,,marketCategoryId marketCategoryName
+10306,Картридж T6031 фото-черный,2851,Картриджи для Epson,,43487733,T6031,B,vc=2851,2851 28511 28512 28513 28514,,marketCategoryId marketCategoryName
+10311,Картридж T6032 голубой,2852,Картриджи для Epson,,43487733-43487736,T6032,B,vc=2852,2852,,marketCategoryId marketCategoryName
+14784,Картридж T1701 (C13T17014A10) черный,3135,Картриджи для Epson,,CL-38,T1701,B,vc=3135,3135 3135X10 3135X2 3135X6,,marketCategoryId marketCategoryName
+10025,Лента для печати наклеек PT-310,273016,Картриджи для матричных принтеров,,43381908,,C,,,,marketCategoryId marketCategoryName
+10026,Лента для печати наклеек PT-320,273017,Картриджи для матричных принтеров,,43381908,,C,,,,marketCategoryId marketCategoryName
+10027,Лента для печати наклеек PT-330,273018,Картриджи для матричных принтеров,,43381908,,C,,,,marketCategoryId marketCategoryName
+10028,Лента для печати наклеек PT-340,273019,Картриджи для матричных принтеров,,43381908,,C,,,,marketCategoryId marketCategoryName
+10666,Картридж CF452A Y (№655A),3057,Картриджи для HP,,CLT-Y508S,CF452A Y,B,vc=3057,3057,,marketCategoryId marketCategoryName
+14813,Картридж 106R02608 желтый,3146,Картриджи для Xerox,,CLI-526Y,106R02608,B,offer=14813;vc=3146,3146,,marketCategoryId marketCategoryName
+10036,Лента для печати наклеек PT-540,273027,Картриджи для матричных принтеров,,43381907,,C,,,,marketCategoryId marketCategoryName
+20590,Картридж 052 (2199C002),3191,Картриджи для Canon,,MPC2550EY,052,B,vc=3191,3191 3191X10 3191X2 3191X6,,marketCategoryId marketCategoryName
+20619,Картридж 106R03395,3202,Картриджи для Xerox,,MPC2551EC,106R03395,B,vc=3202,3202 32021 32022 32023 3202X10,,marketCategoryId marketCategoryName
+10037,Лента для печати наклеек PT-550,273028,Картриджи для матричных принтеров,,43381907,,C,,,,marketCategoryId marketCategoryName
+20638,Картридж CF362A (№508A) желтый,3206,Картриджи для HP,,MPC2551EY,CF362A,B,vc=3206,3206,,marketCategoryId marketCategoryName
+20639,Картридж CF363A (№508A) пурпурный,3207,Картриджи для HP,,MPC2551EY,CF363A,B,vc=3207,3207,,marketCategoryId marketCategoryName
+21260,Картридж №09X (C3909X),3231,Картриджи для HP,,T-4530E,C3909X,B,vc=3231,3231 3231X10 3231X2 3231X6,,marketCategoryId marketCategoryName
+21278,Картридж T5431 (C13T543100) черный,3242,Картриджи для Epson,,T-4590E,T5431,B,vc=3242,3242 32421 32422 32423 3242X10,,marketCategoryId marketCategoryName
+21282,Картридж T5435 (C13T543500) светло-голубой,3246,Картриджи для Epson,,MK-410,T5435,B,vc=3246,3246,,marketCategoryId marketCategoryName
+2336,"Картридж CLI-451Y XL, желтый",0821,Картриджи для Canon,,,CLI-451Y,B,vc=0821,0821,,marketCategoryId marketCategoryName
+2794,Картридж LBP-430,2794,Картриджи для принтера Canon,,,,D,,,,marketCategoryId marketCategoryName
+2797,Картридж T для Canon,2797,Картриджи для Canon,,,,D,,,,marketCategoryId marketCategoryName
+10035,Лента для печати наклеек PT-530,273026,Картриджи для матричных принтеров,,43381907,,C,,,,marketCategoryId marketCategoryName
+10063,Лента для печати наклеек PT-1300,273054,Картриджи для матричных принтеров,,43381905-43381908,,C,,,,marketCategoryId marketCategoryName
+10066,Лента для печати наклеек PT-1600,273057,Картриджи для матричных принтеров,,43381905-43381908,,C,,,,marketCategoryId marketCategoryName
+10067,Лента для печати наклеек PT-1650,273058,Картриджи для матричных принтеров,,43381905-43381908,,C,,,,marketCategoryId marketCategoryName
+10070,Лента для печати наклеек PT-1760,273061,Картриджи для матричных принтеров,,43324404,,C,,,,marketCategoryId marketCategoryName
+10039,Лента для печати наклеек PT-580,273030,Картриджи для матричных принтеров,,43381907,,C,,,,marketCategoryId marketCategoryName
+10040,Лента для печати наклеек PT-D600,273031,Картриджи для матричных принтеров,,43381906,,C,,,,marketCategoryId marketCategoryName
+10047,Лента для печати наклеек PT-1080,273038,Картриджи для матричных принтеров,,43381906,,C,,,,marketCategoryId marketCategoryName
+10042,Лента для печати наклеек PT-P750,273033,Картриджи для матричных принтеров,,43381906,,C,,,,marketCategoryId marketCategoryName
+10076,Лента для печати наклеек PT-1900,273067,Картриджи для матричных принтеров,,43324404,,C,offer=10076,,,marketCategoryId marketCategoryName
+10078,Лента для печати наклеек PT-1950,273069,Картриджи для матричных принтеров,,43324404,,C,offer=10078,,,marketCategoryId marketCategoryName
+10281,Картридж PFI-207C голубой,2833,Картриджи для Canon,,43487735,PFI-207C,B,vc=2833,2833,,marketCategoryId marketCategoryName
+10082,Лента для печати наклеек PT-2110,273073,Картриджи для матричных принтеров,,43324403,,C,offer=10082,,,marketCategoryId marketCategoryName
+10083,Лента для печати наклеек PT-2200,273074,Картриджи для матричных принтеров,,43324403,,C,offer=10083,,,marketCategoryId marketCategoryName
+10060,Лента для печати наклеек PT-1260,273051,Картриджи для матричных принтеров,,43381905-43381908,,C,,,,marketCategoryId marketCategoryName
+10062,Лента для печати наклеек PT-1290,273053,Картриджи для матричных принтеров,,43381905-43381908,,C,,,,marketCategoryId marketCategoryName
+10379,Картридж TNP-41,2891,Картриджи для Konica,,MPC3000E BK,TNP-41,B,vc=2891,2891 28911 2891X10 2891X2 2891X6,,marketCategoryId marketCategoryName
+10038,Лента для печати наклеек PT-E550,273029,Картриджи для матричных принтеров,,43381907,,C,,,,marketCategoryId marketCategoryName
+10093,Лента для печати наклеек PT-2470,273084,Картриджи для матричных принтеров,,43324402,,C,,,,marketCategoryId marketCategoryName
+10043,Лента для печати наклеек PT-P900,273034,Картриджи для матричных принтеров,,43381906,,C,,,,marketCategoryId marketCategoryName
+10403,Картридж SP-C430EM пурпурный,2897,Картриджи для Ricoh,,MPC3000E Y,SP-C430EM,B,vc=2897,2897,,marketCategoryId marketCategoryName
+10064,Лента для печати наклеек PT-1400,273055,Картриджи для матричных принтеров,,43381905-43381908,,C,,,,marketCategoryId marketCategoryName
+10097,Лента для печати наклеек PT-2610,273088,Картриджи для матричных принтеров,,43324402,,C,,,,marketCategoryId marketCategoryName
+10368,Картридж C-EXV49Y (8527B002) желтый,2886,Картриджи для Canon,,SP3400,C-EXV49Y,B,vc=2886,2886,,marketCategoryId marketCategoryName
+10098,Лента для печати наклеек PT-2700,273089,Картриджи для матричных принтеров,,43324402,,C,,,,marketCategoryId marketCategoryName
+10086,Лента для печати наклеек PT-2310,273077,Картриджи для матричных принтеров,,43324403,,C,,,,marketCategoryId marketCategoryName
+21283,Картридж T5436 (C13T543600) светло-пурпурный,3247,Картриджи для Epson,,MK-410,T5436,B,vc=3247,3247,,marketCategoryId marketCategoryName
+10110,Лента для печати наклеек PT-9700,2730101,Картриджи для матричных принтеров,,43324401-43324404,,C,,,,marketCategoryId marketCategoryName
+10270,Картридж PFI-106PC фото-голубой,2826,Картриджи для Canon,,43487736,PFI-106PC,B,vc=2826,2826,,marketCategoryId marketCategoryName
+10065,Лента для печати наклеек PT-1500,273056,Картриджи для матричных принтеров,,43381905-43381908,,C,,,,marketCategoryId marketCategoryName
+10283,Картридж PFI-207MK черный матовый,2835,Картриджи для Canon,,43487735,PFI-207MK,B,vc=2835,2835,,marketCategoryId marketCategoryName
+14812,Картридж 106R02607 пурпурный,3145,Картриджи для Xerox,,CLI-526Y,106R02607,B,offer=14812;vc=3145,3145,,marketCategoryId marketCategoryName
+10075,Лента для печати наклеек PT-1880,273066,Картриджи для матричных принтеров,,43324404,,C,,,,marketCategoryId marketCategoryName
+10111,Лента для печати наклеек PT-9800,2730102,Картриджи для матричных принтеров,,43324401-43324404,,C,,,,marketCategoryId marketCategoryName
+1855,"Картридж S050097, желтый",0462,Картриджи для Epson,,,S050097,B,vc=0462,0462,,marketCategoryId marketCategoryName
+10104,Лента для печати наклеек PT-7500,273095,Картриджи для матричных принтеров,,43324401,,C,,,,marketCategoryId marketCategoryName
+10080,Лента для печати наклеек PT-2030,273071,Картриджи для матричных принтеров,,43324403,,C,,,,marketCategoryId marketCategoryName
+21307,Риббон-картридж HDP-920,3255,Ленточные картриджи,,C9153A,HDP-920,B,vc=3255,3255 32551 3255X10 3255X2 3255X6,,marketCategoryId marketCategoryName
+10118,Лента для печати наклеек TZe-231,2737,Ленточные картриджи,,43324401-43324404,TZe-231,B,vc=2737,2737 2737X10 2737X2 2737X6,,marketCategoryId marketCategoryName
+10127,Лента для печати наклеек TZe-621,2746,Ленточные картриджи,,43865744/ 43865724 BK,TZe-621,B,vc=2746,2746,,marketCategoryId marketCategoryName
+2324,Картридж №177 (C8772HE) пурпурный,0798,Картриджи для HP,,,177M,B,vc=0798,0798,,marketCategoryId marketCategoryName
+10085,Лента для печати наклеек PT-2300,273076,Картриджи для матричных принтеров,,43324403,,C,,,,marketCategoryId marketCategoryName
+10084,Лента для печати наклеек PT-2210,273075,Картриджи для матричных принтеров,,43324403,,C,offer=10084,,,marketCategoryId marketCategoryName
+10088,Лента для печати наклеек PT-2410,273079,Картриджи для матричных принтеров,,43324403,,C,,,,marketCategoryId marketCategoryName
+10089,Лента для печати наклеек PT-2420,273080,Картриджи для матричных принтеров,,43324403,,C,,,,marketCategoryId marketCategoryName
+10081,Лента для печати наклеек PT-2100,273072,Картриджи для матричных принтеров,,43324403,,C,offer=10081,,,marketCategoryId marketCategoryName
+14788,Картридж T1704 (C13T17044A10) желтый,3138,Картриджи для Epson,,CL-38,T1704,B,vc=3138,3138,,marketCategoryId marketCategoryName
+10234,Картридж CZ637 (№46) черный,2811,Картриджи для HP,,44059119,№46,B,,28111 28112 2811X10 2811X2 2811X6,,marketCategoryId marketCategoryName
+10254,Картридж T676XL4 желтый,2817,Картриджи для Epson,,44059117,T676XL4,B,vc=2817,2817,,marketCategoryId marketCategoryName
+10252,Картридж T676XL2 голубой,2815,Картриджи для Epson,,44059117,T676XL2,B,vc=2815,2815,,marketCategoryId marketCategoryName
+10304,Картридж PFI-706Y желтый,2849,Картриджи для Canon,,43487733,PFI-706Y,B,vc=2849,2849,,marketCategoryId marketCategoryName
+10313,Картридж T6034 желтый,2854,Картриджи для Epson,,43487733-43487736,T6034,B,vc=2854,2854,,marketCategoryId marketCategoryName
+10356,Картридж C-EXV31M пурпурный,2880,Картриджи для Canon,,SP200HL,C-EXV31M,B,vc=2880,2880,,marketCategoryId marketCategoryName
+10377,Картридж TNP-40,2890,Картриджи для Konica,,MPC3000E BK,TNP-40,B,vc=2890,2890 28901 2890X10 2890X2 2890X6,,marketCategoryId marketCategoryName
+10357,Картридж C-EXV31Y желтый,2881,Картриджи для Canon,,SP200HL,C-EXV31Y,B,vc=2881,2881,,marketCategoryId marketCategoryName
+10389,Картридж MP3354,2894,Картриджи для Ricoh,,MPC3000E C,842125,C,vc=2894,2894 28941 28942 28943 28944,,marketCategoryId marketCategoryName
+21287,Риббон-картридж S015016 (C13S015262BA),3251,Ленточные картриджи,,MK-410,S015016,B,vc=3251,3251 32511 32512 32513 32514,,marketCategoryId marketCategoryName
+10106,Лента для печати наклеек PT-9200,273097,Картриджи для матричных принтеров,,43324401,,C,,,,marketCategoryId marketCategoryName
+10643,Картридж PFI-1000Y,3045,Картриджи для Canon,,CLT-C508S,PFI-1000Y,B,vc=3045,3045,,marketCategoryId marketCategoryName
+10688,Картридж 728 C (F9J67A) голубой,3073,Картриджи для HP,,AR270LT,728XL,B,vc=3073,3073,,marketCategoryId marketCategoryName
+10096,Лента для печати наклеек PT-2600,273087,Картриджи для матричных принтеров,,43324402,,C,,,,marketCategoryId marketCategoryName
+10099,Лента для печати наклеек PT-2710,273090,Картриджи для матричных принтеров,,43324402,,C,,,,marketCategoryId marketCategoryName
+10101,Лента для печати наклеек PT-3600,273092,Картриджи для матричных принтеров,,43324401,,C,,,,marketCategoryId marketCategoryName
+10103,Лента для печати наклеек PT-7100,273094,Картриджи для матричных принтеров,,43324401,,C,,,,marketCategoryId marketCategoryName
+20636,Картридж CF361A (№508A) голубой,3205,Картриджи для HP,,MPC2551EY,CF361A,B,vc=3205,3205,,marketCategoryId marketCategoryName
+21279,Картридж T5432 (C13T543200) голубой,3243,Картриджи для Epson,,T-4590E,T5432,B,vc=3243,3243,,marketCategoryId marketCategoryName
+10105,Лента для печати наклеек PT-7600,273096,Картриджи для матричных принтеров,,43324401,,C,,,,marketCategoryId marketCategoryName
+20609,Картридж SP-3710X (408285),3199,Картриджи для Ricoh,,MPC2551EBk,SP-3710X,B,offer=20609;vc=3199,3199 31991 31992 3199X10 3199X2,,marketCategoryId marketCategoryName
+20623,Картридж 106R03396,3203,Картриджи для Xerox,,MPC2551EM,106R03396,B,vc=3203,3203 3203X10 3203X2 3203X6,,marketCategoryId marketCategoryName
+10298,Картридж PFI-706M пурпурный,2843,Картриджи для Canon,,43487734,PFI-706M,B,vc=2843,2843,,marketCategoryId marketCategoryName
+10116,Лента для печати наклеек TZe-211,2735,Ленточные картриджи,,43324401-43324404,TZe-211,B,vc=2735,2735 2735X10 2735X2 2735X6,,marketCategoryId marketCategoryName
+10119,Лента для печати наклеек TZe-241,2738,Ленточные картриджи,,43324401-43324404,TZe-241,B,vc=2738,2738 2738X10 2738X2 2738X6,,marketCategoryId marketCategoryName
+10130,Лента для печати наклеек TZe-651,2749,Ленточные картриджи,,43865723,TZe-651,B,vc=2749,2749,,marketCategoryId marketCategoryName
+10412,Картридж SP-8200E,2905,Картриджи для Ricoh,,MPC3000E,SP-8200E,B,vc=2905,2905 29051 29052 2905X10 2905X2,,marketCategoryId marketCategoryName
+10240,Картридж CZ638 (№46) цветной,2812,Картриджи для HP,,44059118,№46,B,offer=10240,,,marketCategoryId marketCategoryName
+10295,Картридж PFI-706C голубой,2840,Картриджи для Canon,,43487734,PFI-706C,B,vc=2840,2840,,marketCategoryId marketCategoryName
+10302,Картридж PFI-706PM фото-пурпурный,2847,Картриджи для Canon,,43487733,PFI-706PM,B,vc=2847,2847 28478,,marketCategoryId marketCategoryName
+10312,Картридж T6033 насыщенный пурпурный,2853,Картриджи для Epson,,43487733-43487736,T6033,B,vc=2853,2853,,marketCategoryId marketCategoryName
+10641,Картридж PFI-1000PM,3043,Картриджи для Canon,,CLT-C508S,PFI-1000PM,B,vc=3043,3043,,marketCategoryId marketCategoryName
+14786,Картридж T1702 (C13T17024A10) голубой,3136,Картриджи для Epson,,CL-38,T1702,B,vc=3136,3136,,marketCategoryId marketCategoryName
+10317,Картридж T6039 светло серый,2858,Картриджи для Epson,,43487733-43487736,T6039,B,vc=2858,2858,,marketCategoryId marketCategoryName
+10665,Картридж CF451A C (№655A),3056,Картриджи для HP,,CLT-Y508S,CF451A C,B,vc=3056,3056,,marketCategoryId marketCategoryName
+10370,Картридж TN-015,2888,Картриджи для Konica,,MPC3000E BK,TN-015,B,vc=2888,2888 28881 2888X10 2888X2 2888X6,,marketCategoryId marketCategoryName
+10397,Картридж SP-C430EK черный,2895,Картриджи для Ricoh,,MPC3000E M,SP-C430EK,B,vc=2895,2895 28951 28952 28953 28954,,marketCategoryId marketCategoryName
+10092,Лента для печати наклеек PT-2460,273083,Картриджи для матричных принтеров,,43324402,,C,,,,marketCategoryId marketCategoryName
+10476,Картридж 106R02252 черный,2950,Картриджи для Xerox,,ML-3560D6,106R02252,B,vc=2950,2950 2950X10 2950X2 2950X6,,marketCategoryId marketCategoryName
+10477,Картридж 106R02249 голубой,2951,Картриджи для Xerox,,ML-3560D6,106R02249,B,vc=2951,2951,,marketCategoryId marketCategoryName
+10554,Картридж SP330L,2989,Картриджи для Ricoh,,CLT-C506S,SP330L,B,vc=2989,2989 2989X10 2989X2 2989X6,,marketCategoryId marketCategoryName
+10589,Картридж 106R00675 черный,3010,Картриджи для Xerox,,CLT-506S,106R00675,B,vc=3010,3010 3010X10 3010X2 3010X6,,marketCategoryId marketCategoryName
+10640,Картридж PFI-1000PGY,3042,Картриджи для Canon,,CLT-C508S,PFI-1000PGY,B,vc=3042,3042,,marketCategoryId marketCategoryName
+14782,Картридж CLI-8R (0626B024) красный,3132,Картриджи для Canon,,CL-38,CLI-8R,B,vc=3132,3132,,marketCategoryId marketCategoryName
+20582,Чернила L-1800,31835,Картриджи для принтеров Epson,,MPC2550EM,,C,,,,marketCategoryId marketCategoryName
+10294,Картридж PFI-706B синий,2839,Картриджи для Canon,,43487734,PFI-706B,B,vc=2839,2839,,marketCategoryId marketCategoryName
+10642,Картридж PFI-1000R,3044,Картриджи для Canon,,CLT-C508S,PFI-1000R,B,vc=3044,3044,,marketCategoryId marketCategoryName
+10655,Картридж CLI-481XXLPB,3050,Картриджи для Canon,,CLT-M508S,CLI-481XXLPB,B,vc=3050,3050,,marketCategoryId marketCategoryName
+10660,Картридж CF450A BK (№655A),3055,Картриджи для HP,,CLT-Y508S,CF450A BK,B,vc=3055,3055 30551 30552 30553 30554,,marketCategoryId marketCategoryName
+10667,Картридж CF453A M (№655A),3058,Картриджи для HP,,CLT-Y508S,CF453A M,B,vc=3058,3058,,marketCategoryId marketCategoryName
+10686,Картридж 728 Y (F9J65A) желтый,3071,Картриджи для HP,,AR270LT,728XL,B,vc=3071,3071,,marketCategoryId marketCategoryName
+20591,Картридж 054HBK (3028C002) черный,3192,Картриджи для Canon,,MPC2550EY,054HBK,B,vc=3192,3192 31921 319210 31922 31923,,marketCategoryId marketCategoryName
+21294,Риббон-картридж S015020 (8755),3252,Ленточные картриджи,,MK-460,S015020,B,vc=3252,3252 32521 325210 325211 325212,,marketCategoryId marketCategoryName
+21270,Картридж BCI-3PC (4483A002) фото-голубой,3236,Картриджи для Canon,,T-4590E,BCI-3PC,B,vc=3236,3236,,marketCategoryId marketCategoryName
+21305,Риббон-картридж 09002310 (01109102),3253,Ленточные картриджи,,C9153A,9002310,B,vc=3253,3253 32531 32532 3253X10 3253X2,,marketCategoryId marketCategoryName
+26994,Картридж DS St Pro 9450,,Картриджи для принтеров Epson,,T6121,,C,,,,marketCategoryId marketCategoryName
+4386,Картридж для HP DeskJet 300,4386,Картриджи для принтера HP,,,,D,offer=4386;vc=4386,,,marketCategoryId marketCategoryName
+10068,Лента для печати наклеек PT-1700,273059,Картриджи для матричных принтеров,,43381905-43381908,,C,,,,marketCategoryId marketCategoryName
+10685,Картридж T9461 BK,3070,Картриджи для Epson,,AR270LT,T9461 BK,B,vc=3070,3070 3070X10 3070X2 3070X6,,marketCategoryId marketCategoryName
+2795,Картридж LBP-430W,2795,Картриджи для принтера Canon,,,,D,,,,marketCategoryId marketCategoryName
+10044,Лента для печати наклеек PT-1000,273035,Картриджи для матричных принтеров,,43381906,,C,,,,marketCategoryId marketCategoryName
+10094,Лента для печати наклеек PT-2480,273085,Картриджи для матричных принтеров,,43324402,,C,,,,marketCategoryId marketCategoryName
+10100,Лента для печати наклеек PT-2730,273091,Картриджи для матричных принтеров,,43324401,,C,,,,marketCategoryId marketCategoryName
+3313,Фотобумага DS Lomond 0102049 односторонняя глянцевая A4/230/25,3313,Фотобумага,,,,D,offer=3313;vc=3313,,,marketCategoryId marketCategoryName
+10045,Лента для печати наклеек PT-1005,273036,Картриджи для матричных принтеров,,43381906,,C,,,,marketCategoryId marketCategoryName
+10109,Лента для печати наклеек PT-9600,2730100,Картриджи для матричных принтеров,,43324401,,C,,,,marketCategoryId marketCategoryName
+10120,Лента для печати наклеек TZe-251,2739,Ленточные картриджи,,43865744/ 43865724 BK,TZe-251,B,vc=2739,2739 2739X10 2739X2 2739X6,,marketCategoryId marketCategoryName
+10242,Картридж T676XL1 черный,2814,Картриджи для Epson,,44059118,T676XL1,B,offer=10242;vc=2814,2814 28141 28142 28143 28144,,marketCategoryId marketCategoryName
+3332,"Наклейка адресная Lomond 2100225 210x148,5",3332,Фотобумага,,,,D,offer=3332;vc=3332,,,marketCategoryId marketCategoryName
+3333,"Наклейка адресная Lomond 2100025 105x148,5",3333,Фотобумага,,,,D,offer=3333;vc=3333,,,marketCategoryId marketCategoryName
+10020,Лента для печати наклеек PT-D200,273011,Картриджи для матричных принтеров,,43381908,,C,,,,marketCategoryId marketCategoryName
+10046,Лента для печати наклеек PT-1010,273037,Картриджи для матричных принтеров,,43381906,,C,,,,marketCategoryId marketCategoryName
+10282,Картридж PFI-207M пурпурный,2834,Картриджи для Canon,,43487735,PFI-207M,B,vc=2834,2834,,marketCategoryId marketCategoryName
+10299,Картридж PFI-706MK черный матовый,2844,Картриджи для Canon,,43487734,PFI-706MK,B,vc=2844,2844,,marketCategoryId marketCategoryName
+14787,Картридж T1703 (C13T17034A10) пурпурный,3137,Картриджи для Epson,,CL-38,T1703,B,vc=3137,3137,,marketCategoryId marketCategoryName
+10048,Лента для печати наклеек PT-1090,273039,Картриджи для матричных принтеров,,43381906,,C,,,,marketCategoryId marketCategoryName
+10049,Лента для печати наклеек PT-1100,273040,Картриджи для матричных принтеров,,43381906,,C,,,,marketCategoryId marketCategoryName
+1872,Картридж T026 (C13T02640110) черный,0479,Картриджи для Epson,,,T026,B,vc=0479,0479 04791 04792 04793 04794,,marketCategoryId marketCategoryName
+2796,Картридж LBP-4U,2796,Картриджи для принтера Canon,,,,D,,,,marketCategoryId marketCategoryName
+10050,Лента для печати наклеек PT-1120,273041,Картриджи для матричных принтеров,,43381905,,C,,,,marketCategoryId marketCategoryName
+10051,Лента для печати наклеек PT-1130,273042,Картриджи для матричных принтеров,,43381905,,C,,,,marketCategoryId marketCategoryName
+10301,Картридж PFI-706PGY фото-серый,2846,Картриджи для Canon,,43487733,PFI-706PGY,B,vc=2846,2846,,marketCategoryId marketCategoryName
+10303,Картридж PFI-706R красный,2848,Картриджи для Canon,,43487733,PFI-706R,B,vc=2848,2848,,marketCategoryId marketCategoryName
+10710,Картридж 903XL C (T6M03AE) голубой,3084,Картриджи для HP,,AR-310NT,903XL,B,vc=3084,3084,,marketCategoryId marketCategoryName
+10728,Картридж 657X M (CF473X),3096,Картриджи для HP,,AR-455,CF473X,B,vc=3096,3096,,marketCategoryId marketCategoryName
+14824,Картридж №98A (92298A),3154,Картриджи для HP,,CLI-526C,92298A,B,vc=3154,3154 31541 31542 31543 3154X10,,marketCategoryId marketCategoryName
+10053,Лента для печати наклеек PT-1160,273044,Картриджи для матричных принтеров,,43381905,,C,offer=10053,,,marketCategoryId marketCategoryName
+10055,Лента для печати наклеек PT-1180,273046,Картриджи для матричных принтеров,,43381905,,C,,,,marketCategoryId marketCategoryName
+10056,Лента для печати наклеек PT-1190,273047,Картриджи для матричных принтеров,,43381905,,C,,,,marketCategoryId marketCategoryName
+10057,Лента для печати наклеек PT-1200,273048,Картриджи для матричных принтеров,,43381905,,C,,,,marketCategoryId marketCategoryName
+10736,Картридж 106R03880 BK (106R03862),3099,Картриджи для Xerox,,006R01160,106R03880 BK,B,vc=3099,3099 30991 30992 3099X10 3099X2,,marketCategoryId marketCategoryName
+10739,Картридж 106R03877 C (106R03859),3100,Картриджи для Xerox,,006R01160,106R03877 C,B,vc=3100,3100,,marketCategoryId marketCategoryName
+10059,Лента для печати наклеек PT-1250,273050,Картриджи для матричных принтеров,,43381905,,C,,,,marketCategoryId marketCategoryName
+10740,Картридж 106R03878 M (106R03860),3101,Картриджи для Xerox,,006R01449,106R03878 M,B,vc=3101,3101,,marketCategoryId marketCategoryName
+10177,Картридж 46507519 голубой,2781,Картриджи для OKI,,44315324,46507519,B,vc=2781,2781,,marketCategoryId marketCategoryName
+10212,Картридж 006R01146,2808,Картриджи для Xerox,,44315321-44315324,006R01146,B,vc=2808,2808 28081 280810 280811 280812,,marketCategoryId marketCategoryName
+10005,Картридж 46508735 голубой,2726,Картриджи для OKI,,44469752,46508735,B,vc=2726,2726,,marketCategoryId marketCategoryName
+10007,Картридж 46508733 желтый,2728,Картриджи для OKI,,44469752,46508733,B,vc=2728,2728,,marketCategoryId marketCategoryName
+10253,Картридж T676XL3 пурпурный,2816,Картриджи для Epson,,44059117,T676XL3,B,vc=2816,2816,,marketCategoryId marketCategoryName
+10264,Картридж PFI-106B синий,2820,Картриджи для Canon,,44059117-44059120,PFI-106B,B,vc=2820,2820,,marketCategoryId marketCategoryName
+10267,Картридж PFI-106GY серый,2823,Картриджи для Canon,,44059117-44059120,PFI-106GY,B,vc=2823,2823,,marketCategoryId marketCategoryName
+10009,Лента для печати наклеек TZe-111,2730,Ленточные картриджи,,44469752,TZe-111,B,vc=2730,2730 27301 273010 2730100 2730101,,marketCategoryId marketCategoryName
+10010,Лента для печати наклеек PT-ST5,27301,Картриджи для матричных принтеров,,44469810-44469752,,C,,,,marketCategoryId marketCategoryName
+10011,Лента для печати наклеек PT-11Q,27302,Картриджи для матричных принтеров,,44469810-44469752,,C,,,,marketCategoryId marketCategoryName
+2048,"Картридж 106R01162, желтый",0655,Картриджи для Xerox,,,106R01162,B,vc=0655,0655,,marketCategoryId marketCategoryName
