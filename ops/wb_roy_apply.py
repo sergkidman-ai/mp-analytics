@@ -18,6 +18,15 @@
 Ставка не может выйти за FLOOR..MAX_CPC. Позиция, у которой новая ставка равна старой
 (бордовый уже на полу, зелёный уже в потолке), пропускается — пустой PATCH не шлём.
 
+ХОЛДАУТ (--holdout, с 14.09.2026 по команде Сергея). Ретроспективный замер подъёма врал:
+Рой отбирает 🟢 по пику прошлой недели, и эта же неделя — база «до», поэтому откат к среднему
+неотличим от вреда подъёма. Лечится только контрольной группой: половине зелёных поднимаем,
+половине НЕ трогаем, сравниваем через неделю. Деление детерминированное по nm_id (blake2b),
+поэтому карточка ВСЕГДА в одной и той же группе — когорты копятся неделя за неделей и не
+перемешиваются. Назначение пишется в `docs/reports/mkt_roy_holdout_<конец недели>*.csv`,
+разбор — `ops/wb_roy_holdout_eval.py`. Метрика — `заказы_всего`, а НЕ рекламные: подъём может
+просто съесть собственную органику, по рекламным заказам этого не видно.
+
 По умолчанию DRY-RUN. Живая запись только с --apply.
 
 Запуск:
@@ -26,6 +35,7 @@
 """
 import csv
 import sys
+import hashlib
 import argparse
 import pathlib
 
@@ -70,8 +80,41 @@ def build(path, rules=RULES, only=None):
             except (TypeError, ValueError):
                 head = 0.0
             plan.append({'nm_id': int(r['nm_id']), 'advert_id': int(adv), 'color': r['цвет'],
-                         'rule': rule, 'old_cpc': old, 'new_cpc': new, 'headroom': round(head, 2)})
+                         'rule': rule, 'old_cpc': old, 'new_cpc': new, 'headroom': round(head, 2),
+                         # база «до» для холдаута: снимается ДО правки, иначе сравнивать не с чем
+                         'orders_tot': r.get('заказы_всего', ''),
+                         'orders_ad': r.get('заказы_реклама', ''),
+                         'spend': r.get('расход_₽', ''),
+                         'rev_tot': r.get('выручка_ВСЯ_₽', '')})
     return plan, skip
+
+
+def arm(nm_id, pct):
+    """Группа карточки в холдауте: 'hold' (не трогаем) или 'up' (поднимаем).
+
+    Детерминированно от nm_id, без случайности и без состояния: один и тот же nm_id даёт
+    одну и ту же группу в любом прогоне и на любой машине. Это важнее равенства долей —
+    карточка, перебегающая между группами, портит обе когорты сразу.
+    """
+    h = hashlib.blake2b(f'roy-holdout:{nm_id}'.encode(), digest_size=8).digest()
+    return 'hold' if int.from_bytes(h, 'big') % 100 < pct else 'up'
+
+
+def write_holdout(path, plan, held):
+    """Протокол назначения: кого подняли, кого держим, и с какой базы. Без него замер мёртв."""
+    stem = pathlib.Path(path).stem.replace('mkt_roy_profile_', '')
+    out = BASE_DIR / 'docs' / 'reports' / f'mkt_roy_holdout_{stem}.csv'
+    cols = ['nm_id', 'advert_id', 'группа', 'ставка_₽', 'ставка_план_₽',
+            'заказы_всего', 'заказы_реклама', 'расход_₽', 'выручка_ВСЯ_₽']
+    with open(out, 'w', encoding='utf-8-sig', newline='') as fh:
+        w = csv.DictWriter(fh, cols, delimiter=';')
+        w.writeheader()
+        for r, a in [(r, 'up') for r in plan if r['rule'] == 'up'] + [(r, 'hold') for r in held]:
+            w.writerow({'nm_id': r['nm_id'], 'advert_id': r['advert_id'], 'группа': a,
+                        'ставка_₽': r['old_cpc'], 'ставка_план_₽': r['new_cpc'],
+                        'заказы_всего': r['orders_tot'], 'заказы_реклама': r['orders_ad'],
+                        'расход_₽': r['spend'], 'выручка_ВСЯ_₽': r['rev_tot']})
+    return out
 
 
 def seed_quarantine(account, days=SEED_GRACE_DAYS):
@@ -101,6 +144,9 @@ def main():
     ap.add_argument('--max-up', type=int, default=0,
                     help='поднимать не более N зелёных за прогон (0 — без ограничения); '
                          'отбор по запасу ₽/нед до своего потолка ДРР')
+    ap.add_argument('--holdout', type=int, default=0, metavar='PCT',
+                    help='контрольная группа: PCT %% зелёных НЕ поднимать (50 — половину). '
+                         'Деление детерминированное по nm_id, протокол в mkt_roy_holdout_*.csv')
     ap.add_argument('--notify', action='store_true', help='итог в телеграм Сергею')
     a = ap.parse_args()
 
@@ -115,6 +161,14 @@ def main():
         if held:
             plan = [r for r in plan if r['nm_id'] not in fresh]
             skip[f'карантин посадки {SEED_GRACE_DAYS} дн.'] = len(held)
+    held = []
+    if a.holdout:
+        # делим ДО --max-up: ограничитель должен резать группу подъёма, а не контроль
+        held = [r for r in plan if r['rule'] == 'up' and arm(r['nm_id'], a.holdout) == 'hold']
+        if held:
+            hold_ids = {r['nm_id'] for r in held}
+            plan = [r for r in plan if r['nm_id'] not in hold_ids or r['rule'] != 'up']
+            skip[f'холдаут {a.holdout} %: контроль, не поднимаем'] = len(held)
     if a.max_up:
         ups = [r for r in plan if r['rule'] == 'up']
         if len(ups) > a.max_up:
@@ -134,6 +188,10 @@ def main():
     print(f"{'ИТОГО':14}{len(plan):>6}{len({r['advert_id'] for r in plan}):>10}")
     for k, v in sorted(skip.items(), key=lambda x: -x[1]):
         print(f"  пропуск · {k}: {v}")
+    if a.holdout:
+        ups = [r for r in plan if r['rule'] == 'up']
+        hp = write_holdout(a.csv_path, ups, held)
+        print(f"ХОЛДАУТ {a.holdout} %: поднимаем {len(ups)}, держим {len(held)} → {hp.name}")
 
     if not a.apply:
         print("\nDRY-RUN. В ВБ не отправлено ничего. Живая запись: добавить --apply")

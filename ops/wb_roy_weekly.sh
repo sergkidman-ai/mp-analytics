@@ -9,6 +9,11 @@
 # ниже СВОЕГО потолка (маржа − 25 %), шаг +10 %, потолок ставки 25 ₽, и не более --max-up 150
 # позиций за прогон (отбор по запасу ₽/нед до потолка ДРР) — чтобы сбой снимка не превратился
 # в разгон всего каталога. Раз в неделю, не чаще.
+# ХОЛДАУТ 50/50 С 14.09.2026 («делай холдаут 50/50 к понедельнику» — Сергей). Половина зелёных
+# по детерминированному хэшу nm_id НЕ поднимается и служит контролем: без него эффект подъёма
+# принципиально неизмерим, ретроспективный замер смещён отбором (Рой берёт 🟢 по пику прошлой
+# недели, и эта же неделя — база «до»). Назначение — mkt_roy_holdout_<конец недели>*.csv,
+# разбор через неделю — ops/wb_roy_holdout_eval.py по ОБЩИМ заказам карточки.
 # ЗАМОРОЗКА ПОДЪЁМА СНЯТА 07.09.2026 («да» Сергея). Стояла с 25.08 флагом --only floor,down,
 # чтобы замер посадки ширины не смешивался с подъёмом ставок. Замер закрыт: за две недели
 # восстановление оказалось ЦЕЛИКОМ органическим (acc1 заказы 152→186, acc2 80→162), а реклама
@@ -28,21 +33,25 @@ LOG=/opt/mp-analytics/wb_roy_weekly.log
   $PY -m ops.wb_breadth --account wb_acc2 --end "$END"     || echo "!! ширина acc2 не посчиталась"
   $PY -m ops.wb_roy_profile --end "$END"                   || echo "!! профиль не построился"
   $PY -m ops.wb_roy_profile --account wb_acc2 --end "$END" || echo "!! профиль acc2 не построился"
+  # Разбор холдаута ПРОШЛОЙ недели — обязательно до применения, пока назначение не перезаписано.
+  $PY -m ops.wb_roy_holdout_eval --end "$END"                    || echo "(холдаут acc1: нечего разбирать)"
+  $PY -m ops.wb_roy_holdout_eval --end "$END" --account wb_acc2  || echo "(холдаут acc2: нечего разбирать)"
   CSV="docs/reports/mkt_roy_profile_${END}.csv"
   if [ -s "$CSV" ]; then
-    $PY -m ops.wb_roy_apply "$CSV" --blackout --max-up 150 --apply --notify
-    $PY -m ops.wb_roy_evict "$CSV" --queue --notify
+    $PY -m ops.wb_roy_apply "$CSV" --blackout --max-up 150 --holdout 50 --apply --notify
+    # снятие ⚫ ИЗ кампаний отменено Сергеем 14.09.2026: «удалять ничего не нужно — расходы
+    # по ним небольшие, а видимость можно срезать из-за этого». ⚫ остаются в кампаниях со
+    # ставкой на полу (--blackout). Механизм цел, включается возвратом строки ниже.
+    # $PY -m ops.wb_roy_evict "$CSV" --queue --notify
   else
     echo "!! нет $CSV — ставки acc1 не трогаем"
   fi
-  # acc2 «ДисКвэр»: те же четыре правила и тот же ограничитель подъёма.
-  # Вывод ⚫ ИЗ кампании метод у ВБ имеет (PATCH /adv/v0/auction/nms, ключ delete, контракт тот же,
-  # что у заводки; живой пробы снятия ещё не было), но на автомат не ставится: заявка кладётся в очередь и ждёт галочек человека
-  # на /wb-evict; снимает подтверждённое почасовой крон ops.wb_roy_evict --apply.
+  # acc2 «ДисКвэр»: те же четыре правила, тот же ограничитель подъёма и тот же холдаут.
   CSV2="docs/reports/mkt_roy_profile_${END}_wb_acc2.csv"
   if [ -s "$CSV2" ]; then
-    $PY -m ops.wb_roy_apply "$CSV2" --account wb_acc2 --blackout --max-up 150 --apply --notify
-    $PY -m ops.wb_roy_evict "$CSV2" --account wb_acc2 --queue --notify
+    $PY -m ops.wb_roy_apply "$CSV2" --account wb_acc2 --blackout --max-up 150 --holdout 50 \
+        --apply --notify
+    # $PY -m ops.wb_roy_evict "$CSV2" --account wb_acc2 --queue --notify   # см. выше, отменено
   else
     echo "!! нет $CSV2 — ставки acc2 не трогаем"
   fi
