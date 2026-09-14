@@ -24,12 +24,38 @@
 ## Территория потока
 
 `prices/` (`profiles, mailbox, parser, cbr, loader, anomaly, blacklist, mailout, journal, run,
-novelty, features, catalog, ms_import, waiting, research, supplier_group, unlinked, unlink_apply, unprocessed, bulat_site, mail_schedule`, юниты
-`prc-price-watch@.{service,timer}`) · `core/ms_api.py` (общий клиент МС, пишет пока только prc) ·
+novelty, features, catalog, ms_import, waiting, research, supplier_group, unlinked, unlink_apply, unprocessed, bulat_site, mail_schedule, enter_buyprice`, юниты
+`prc-price-watch@.{service,timer}`, `prc-enter-buyprice.{service,timer}`) · `core/ms_api.py` (общий клиент МС, пишет пока только prc) ·
 `ops/prc_price_watch.py` · `tools/prc/` (`tpl_check, tpl_load, tpl_verify, enter_audit, tc_bench,
-tc_ms_diff, tc_links, wb_fill, cat_fix, unlink_auto, unlink_fill, archive_originals, tc_fields, recard, mail_arrival_backfill`) · `collectors/thecartridge_catalog.py` · миграции **400–413** ·
+tc_ms_diff, tc_links, wb_fill, cat_fix, unlink_auto, unlink_fill, archive_originals, tc_fields, recard, mail_arrival_backfill`) · `collectors/thecartridge_catalog.py` · миграции **400–414** ·
 UI `web/static/novelties.html` + роуты `/warehouse/novelties`, `/api/novelties*`, `/api/blacklist*`
 и `/api/unlinked*` в `web/app.py` · отчёты `docs/prc/`, `docs/reports/`.
+
+## Закупочная из оприходований — все поставщики (14.09.2026, влито, таймер включён)
+
+Задача Сергея: закупочная в карточке МС писалась только по почтовым прайсам (`loader.card_updates`),
+по внешнему API-загрузчику — нет. Теперь `prices/enter_buyprice.py` + `prc-enter-buyprice.timer`
+(23:05 МСК) ночью пишет в buyPrice цену позиции актуального оприходования на «Удаленный», только
+дельту. Правила — `PRC_RULES.md` п. 34 (исключение), 13, 51; журнал `prc_buyprice_write` (миграция
+414), слепок `backups/prc_enter_buyprice/<прогон>/before.jsonl`, план — `reports/data/prc_enter_buyprice_*.csv`.
+
+- Решения Сергея: перезаписываем всегда (остатки Звездный/Дисквер и поставщика не сверяем); наборы
+  поставщика пишем как товар; «Микс МСК» и архив — пропуск; документ старше 4 дней — нет, кроме
+  `blossom` (его документы от 14.07, внешний загрузчик его не обновляет — ОТКРЫТО, выяснить почему;
+  цены в карточках Blossom уже равны июльским, писать нечего).
+- Замер перед решением (только чтение): цена приёмки ≤30 дн против цены прайса — медиана 1,6 %;
+  расхождение растёт с давностью приёмки. Карточки со свежей приёмкой уже несут цену УПД копейка
+  в копейку — бот `upd_to_supply` пишет buyPrice, ночной прогон её перетрёт ценой прайса (принято).
+- Сухой прогон 14.09 16:30: к записи 8 078 (пустая закупочная 365, скачок >20 % — 3 151, почти
+  всегда вниз: profiline −34 %, rapid/ramis −20 %); ~228 карточек с разницей ×3 (струйка ProfiLine) —
+  по решению Сергея НЕ придерживаем.
+- Внешний загрузчик пересоздаёт документы ~02, 07, 16, 21 ч МСК (аудит МС 11–14.09).
+- Темп по `ms-mass-change`: окно 23:00–05:00, пачка 50/60 с, канарейка 200→10 мин, ≤10 000 за ночь.
+- Грабли: общий чекаут помечен `.workstream=fin` — хук не пускает коммит `BRIEF_PRC.md` из `main`,
+  коммитить из worktree `.claude/worktrees/prc-enter-buyprice` и вливать.
+- **Следующий шаг:** утром 15.09 проверить первый прогон — `journalctl -u prc-enter-buyprice`,
+  строку «перечитка: расхождений», `select count(*) from prc_buyprice_write`; предупредить fin/mkt:
+  buyPrice читают `margin_by_sku`, `margin_control`, `set_cost`, `price_quarantine`, `wb_promo_guard`.
 
 ## Отчёты о проделанной работе (31.08.2026)
 
