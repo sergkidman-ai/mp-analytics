@@ -100,6 +100,8 @@ acc2 107 → **111** при 150. Сторож остатка живьём: acc1 
 5. Ранний крон acc1 (снимок 07:00) классификатор не дал — ставить руками (отчёт 11.09).
 
 ## Открытые вопросы к Сергею (нужно прямое «да»)
+- **Себест: фолбэк на базовый 4-значный код есть у ТК (`code[:4] in base`), у остатка МС нет** —
+  `4328TLQMH10X` = «нет себеста», хотя двойник `4328` даёт 6619 ₽; хвост карантина хуже реального.
 - **`MAX_CPC` 25 → 30 ₽ при марже ≥25 %** — потолок ниже порога окупаемости (35.4 / 39.0 ₽) и
   сейчас главный тормоз. Делать ПОСЛЕ холдаута, не одновременно.
 - **Перелить бюджет на acc2** (+5 300 ₽/нед): заказ там 106 ₽ против 205 ₽ на acc1.
@@ -128,13 +130,13 @@ acc2 107 → **111** при 150. Сторож остатка живьём: acc1 
 
 ## Зона ответственности и твои файлы
 Видимость, поисковые запросы, воронка, реклама и ДРР/ROI, отзывы/рейтинг, ABC, точки роста,
-детектор просадок (маржу БЕРЁШЬ готовой). Правишь: `collectors/{wb_jam, wb_funnel, wb_ads, ozon_ads,
-ozon_bids, ozon_reviews}.py` · ставки ВБ `ops/wb_roy_*.py`, `ops/wb_bid_ladder.py`,
-`ops/wb_stock_guard.py`, `ops/wb_ad_enroll*.py`, `ops/wb_ad_campaign_new.py`, `ops/wb_roy_weekly.sh`,
-`web/marketing_app.py` (+ `web/static/wb_evict.html`) · `run_marketing.py` · витрины
-`reports/{abc,funnel,visibility,search}*` · миграции **блок 1xx** (0xx — fin). **Пишешь таблицы:**
-`wb_search_*, wb_jam_may, wb_funnel, wb_ads, wb_ad_nm, ad_spend_daily, ozon_ads, ozon_bids,
-ozon_rating, drops, wb_bid_override, wb_bid_log`.
+детектор просадок (маржу БЕРЁШЬ готовой). Правишь: `collectors/{wb_jam, wb_funnel, wb_ads,
+ozon_ads, ozon_bids, ozon_reviews}.py` · ставки ВБ `ops/wb_roy_*.py`, `ops/wb_bid_ladder.py`,
+`ops/wb_stock_guard.py`, `ops/wb_ad_enroll*.py`, `ops/wb_ad_campaign_new.py`,
+`ops/wb_roy_weekly.sh`, `web/marketing_app.py` (+ `web/static/wb_evict.html`) · `run_marketing.py`
+· витрины `reports/{abc,funnel,visibility,search}*` · миграции **блок 1xx** (0xx — fin). **Пишешь
+таблицы:** `wb_search_*, wb_jam_may, wb_funnel, wb_ads, wb_ad_nm, ad_spend_daily, ozon_ads,
+ozon_bids, ozon_rating, drops, wb_bid_override, wb_bid_log`.
 
 ## Граница и СТОП-зоны
 Маржу/себест НЕ считаешь — берёшь готовой из `margin_by_sku`/`margin_ozon_sku`, только SELECT;
@@ -144,7 +146,5 @@ ozon_rating, drops, wb_bid_override, wb_bid_log`.
 `run_daily.py`, финколлекторы — тянет туда, **СТОП, сообщи Сергею**.
 
 ## Карантин, ведущий ноль, worktree
-`ops/price_quarantine.py --apply` по крону **03:58 · 11:12 · 17:47 · 23:06 МСК**; правила —
-`docs/handoff/archive/mkt_2026-08-25.md`. 10–14.09 разбор стоял 4 дня: ВБ отдаёт записи с
-`newPrice=None`, `float(None)` ронял прогон — починено потоком card (`cd2385f`). Ведущий ноль не
-обрезать НИКОГДА (`kb: leading-zero-is-part-of-code`); ветка только в worktree (инв. 10).
+`price_quarantine.py --apply` в кроне **03:58 · 11:12 · 17:47 · 23:06 МСК**; простой 10–14.09 от
+`newPrice=None` починен card (`cd2385f`). Ведущий ноль не резать НИКОГДА; ветка — в worktree.
