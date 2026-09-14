@@ -1,0 +1,289 @@
+<title>Продажи к октябрю</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --paper:#EFF2F1; --card:#FFFFFF; --ink:#0E1618; --muted:#5B6B6C; --hair:#D3DAD8;
+  --accent:#0F5C63; --accent-soft:#D9E6E6;
+  --up:#2E7D4F; --down:#B03A2E; --flat:#8A7B3A;
+  --up-soft:#DCEBE1; --down-soft:#F3DEDA; --flat-soft:#F0EAD6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0C1214; --card:#141D1F; --ink:#E8EEEC; --muted:#94A5A4; --hair:#253234;
+    --accent:#6FC5C9; --accent-soft:#1B3437;
+    --up:#67C08C; --down:#E48374; --flat:#D4BE74;
+    --up-soft:#173026; --down-soft:#331E1B; --flat-soft:#2E2819;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0C1214; --card:#141D1F; --ink:#E8EEEC; --muted:#94A5A4; --hair:#253234;
+  --accent:#6FC5C9; --accent-soft:#1B3437;
+  --up:#67C08C; --down:#E48374; --flat:#D4BE74;
+  --up-soft:#173026; --down-soft:#331E1B; --flat-soft:#2E2819;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);
+  font-family:"Source Serif 4",Georgia,serif;font-size:17px;line-height:1.6;
+  margin:0;padding:0 20px 120px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto}
+.prose{max-width:68ch}
+h1,h2,h3,.mono,th,.label{font-family:"Bricolage Grotesque","Helvetica Neue",sans-serif}
+h1{font-size:clamp(34px,5.2vw,58px);font-weight:800;line-height:1.02;letter-spacing:-.02em;
+  margin:0 0 14px;text-wrap:balance}
+h2{font-size:clamp(22px,2.6vw,30px);font-weight:700;letter-spacing:-.01em;margin:0 0 6px;text-wrap:balance}
+h3{font-size:16px;font-weight:700;letter-spacing:.01em;margin:0 0 8px}
+p{margin:0 0 14px}
+.label{font-size:11.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.num,td.n,.big{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+header{padding:64px 0 28px;border-bottom:2px solid var(--ink)}
+header .sub{font-size:19px;color:var(--muted);max-width:60ch;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:22px;margin-top:22px;font-size:13px;color:var(--muted)}
+.meta b{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--ink)}
+section{padding:44px 0;border-bottom:1px solid var(--hair)}
+.sec-head{display:flex;flex-direction:column;gap:4px;margin-bottom:24px}
+.sec-head .label{color:var(--accent)}
+
+.verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.v{background:var(--card);border:1px solid var(--hair);border-radius:2px;padding:18px 18px 16px;
+  display:flex;flex-direction:column;gap:8px}
+.v .plat{font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:18px}
+.v .verdict{display:inline-block;align-self:flex-start;font-family:"Bricolage Grotesque",sans-serif;
+  font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 9px;border-radius:2px}
+.v.up .verdict{background:var(--up-soft);color:var(--up)}
+.v.down .verdict{background:var(--down-soft);color:var(--down)}
+.v.flat .verdict{background:var(--flat-soft);color:var(--flat)}
+.v .big{font-size:30px;font-weight:600;line-height:1}
+.v .note{font-size:14px;color:var(--muted);line-height:1.45}
+.spark{display:flex;align-items:flex-end;gap:3px;height:34px;margin-top:2px}
+.spark i{flex:1;background:var(--accent-soft);border-radius:1px 1px 0 0;min-height:2px}
+.spark i.last{background:var(--accent)}
+
+table{width:100%;border-collapse:collapse;font-size:15px}
+.scroll{overflow-x:auto;margin:0 -4px;padding:0 4px}
+th{font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  text-align:right;padding:0 0 9px;border-bottom:1px solid var(--ink);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td{padding:9px 0;border-bottom:1px solid var(--hair);text-align:right;white-space:nowrap}
+td.n{font-size:15px}
+td+td,th+th{padding-left:22px}
+tr.tot td{border-top:1px solid var(--ink);border-bottom:none;font-weight:600}
+.sm{font-size:13px;color:var(--muted)}
+.pos{color:var(--up)}.neg{color:var(--down)}
+.bars td.bar{width:34%;padding-left:22px}
+.bar span{display:block;height:9px;background:var(--accent);border-radius:1px}
+.bar.o span{background:var(--muted)}
+
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px}
+.pull{border-left:3px solid var(--accent);padding:2px 0 2px 18px;margin:24px 0;
+  font-size:19px;line-height:1.45;max-width:62ch}
+.scen{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:8px}
+.s{background:var(--card);border:1px solid var(--hair);border-radius:2px;padding:18px}
+.s.base{border-color:var(--accent);border-width:2px}
+.s .big{font-size:27px;font-weight:600;display:block;margin:6px 0 2px}
+.s ul{margin:10px 0 0;padding-left:17px;font-size:14px;color:var(--muted);line-height:1.5}
+.s li{margin-bottom:4px}
+.flags li{margin-bottom:10px}
+.flags b{font-weight:600}
+footer{padding:34px 0 0;font-size:13px;color:var(--muted)}
+footer code{font-family:"IBM Plex Mono",monospace;font-size:12px}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="label" style="margin-bottom:14px">Поток mkt · срез на 14 сентября 2026</div>
+  <h1>Продажи к октябрю</h1>
+  <p class="sub">Рост, плато или падение — по каждой площадке отдельно, потому что в сумме они
+     рассказывают противоположные вещи и гасят друг друга.</p>
+  <div class="meta">
+    <span>Август факт <b>16,95 млн ₽</b></span>
+    <span>Сентябрь run-rate <b>15,6 млн ₽</b></span>
+    <span>Октябрь ожидание <b>14,3–15,0 млн ₽</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><span class="label">Короткий ответ</span>
+    <h2>Портфель — медленное падение. Ровно −8 % в месяц, четвёртый месяц подряд</h2></div>
+  <div class="prose">
+  <p>Ни рост, ни плато. Оборот идёт вниз почти линейно: 20,0 → 18,6 → 16,9 млн ₽ за июнь-июль-август,
+     сентябрь по фактическому темпу выходит на 15,6 млн. Каждый месяц минус 7–9 %.</p></div>
+  <div class="pull">Внутри этой ровной линии — две сильные разнонаправленные силы:
+     <b>Ozon теряет примерно 550 тыс ₽ недельного оборота за каждый месяц, Wildberries прибавляет около
+     500 тыс ₽</b>. Они почти точно компенсируют друг друга по обороту — но не по прибыли.</div>
+  <div class="verdicts">
+    <div class="v down"><span class="plat">Ozon</span><span class="verdict">Падение</span>
+      <span class="big num">−18 %</span>
+      <span class="note">за месяц, сопоставимые окна (1–7 число): июль 2,96 → август 2,25 → сентябрь 1,85 млн ₽.
+        Падают отправления, не чек.</span>
+      <div class="spark"><i style="height:100%"></i><i style="height:76%"></i><i class="last" style="height:62%"></i></div></div>
+    <div class="v up"><span class="plat">WB acc1</span><span class="verdict">Рост</span>
+      <span class="big num">+85 %</span>
+      <span class="note">недельная выручка за 6 недель: 411 → 762 тыс ₽, заказы 134 → 216.
+        Чек держится около 3,0–3,5 тыс ₽.</span>
+      <div class="spark"><i style="height:54%"></i><i style="height:72%"></i><i style="height:64%"></i><i style="height:99%"></i><i style="height:83%"></i><i class="last" style="height:100%"></i></div></div>
+    <div class="v up"><span class="plat">WB acc2</span><span class="verdict">Рост на цене</span>
+      <span class="big num">+91 %</span>
+      <span class="note">307 → 586 тыс ₽, заказы 74 → 202 (+173 %). Средний чек упал 4143 → 2901 ₽:
+        объём куплен скидкой.</span>
+      <div class="spark"><i style="height:52%"></i><i style="height:42%"></i><i style="height:35%"></i><i style="height:63%"></i><i style="height:77%"></i><i class="last" style="height:100%"></i></div></div>
+    <div class="v down"><span class="plat">Яндекс</span><span class="verdict">Откат с пика</span>
+      <span class="big num">−26 %</span>
+      <span class="note">1–14 число: июль 0,75 → август 1,59 → сентябрь 1,18 млн ₽. Августовский
+        всплеск не удержан, но выше июля.</span>
+      <div class="spark"><i style="height:47%"></i><i style="height:100%"></i><i class="last" style="height:74%"></i></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Недельный ряд</span>
+    <h2>Шесть недель, выручка заказов и штуки</h2></div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Неделя (пн–вс)</th><th>WB acc1</th><th>шт</th><th>WB acc2</th><th>шт</th>
+      <th>Ozon</th><th>шт</th><th>Яндекс</th><th>шт</th></tr></thead>
+    <tbody>
+      <tr><td>03–09.08</td><td class="n">411 153</td><td class="n sm">134</td><td class="n">306 605</td><td class="n sm">74</td><td class="n">2 179 512</td><td class="n sm">269</td><td class="n">854 089</td><td class="n sm">171</td></tr>
+      <tr><td>10–16.08</td><td class="n">545 809</td><td class="n sm">182</td><td class="n">243 541</td><td class="n sm">81</td><td class="n">2 020 693</td><td class="n sm">265</td><td class="n">772 968</td><td class="n sm">176</td></tr>
+      <tr><td>17–23.08</td><td class="n">484 504</td><td class="n sm">148</td><td class="n">206 304</td><td class="n sm">77</td><td class="n">2 702 424</td><td class="n sm">292</td><td class="n">704 513</td><td class="n sm">150</td></tr>
+      <tr><td>24–30.08</td><td class="n">751 942</td><td class="n sm">159</td><td class="n">366 399</td><td class="n sm">153</td><td class="n">2 217 864</td><td class="n sm">275</td><td class="n">792 598</td><td class="n sm">127</td></tr>
+      <tr><td>31.08–06.09</td><td class="n">628 739</td><td class="n sm">186</td><td class="n">449 323</td><td class="n sm">162</td><td class="n">2 159 930</td><td class="n sm">269</td><td class="n">939 245</td><td class="n sm">131</td></tr>
+      <tr><td>07–13.09</td><td class="n">761 811</td><td class="n sm">216</td><td class="n">586 147</td><td class="n sm">202</td><td class="n sm">данные едут</td><td class="n sm">—</td><td class="n">513 050</td><td class="n sm">104</td></tr>
+    </tbody>
+  </table></div>
+  <p class="sm" style="margin-top:14px;max-width:70ch">WB — воронка продаж ВБ (полные недели, источник тот же,
+     что у недельного Роя). Ozon — доставленные отправления; за последнюю неделю доставки ещё не закрыты,
+     поэтому клетка пустая, а не нулевая. Яндекс — отгрузки МойСклада; воскресений в ряду нет,
+     по воскресеньям не отгружаем.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Месяцы</span>
+    <h2>Откуда берётся ровное −8 %</h2></div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Площадка</th><th>июнь</th><th>июль</th><th>август</th><th>сентябрь<br>по темпу</th><th>авг→сен</th></tr></thead>
+    <tbody>
+      <tr><td>Ozon acc1</td><td class="n">9 689 939</td><td class="n">10 119 586</td><td class="n">8 705 892</td><td class="n">~6 800 000</td><td class="n neg">−22 %</td></tr>
+      <tr><td>Ozon acc2</td><td class="n">2 579 903</td><td class="n">2 346 480</td><td class="n">1 544 715</td><td class="n">~1 100 000</td><td class="n neg">−29 %</td></tr>
+      <tr><td>WB acc1</td><td class="n">3 049 441</td><td class="n">2 091 330</td><td class="n">2 088 065</td><td class="n">~3 100 000</td><td class="n pos">+48 %</td></tr>
+      <tr><td>WB acc2</td><td class="n">3 004 666</td><td class="n">1 920 334</td><td class="n">1 120 990</td><td class="n">~2 030 000</td><td class="n pos">+81 %</td></tr>
+      <tr><td>Яндекс</td><td class="n">1 696 677</td><td class="n">2 080 569</td><td class="n">3 487 661</td><td class="n">~2 530 000</td><td class="n neg">−27 %</td></tr>
+      <tr class="tot"><td>Итого</td><td class="n">20 021 000</td><td class="n">18 558 000</td><td class="n">16 948 000</td><td class="n">~15 560 000</td><td class="n neg">−8 %</td></tr>
+    </tbody>
+  </table></div>
+  <p class="sm" style="margin-top:14px;max-width:70ch">Сентябрь — пересчёт фактического темпа на 30 дней,
+     не факт: WB по закрытым неделям, Ozon по первым семи дням доставок, Яндекс по 14 дням отгрузок.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Прибыль</span>
+    <h2>По обороту силы равны, по деньгам — нет</h2></div>
+  <div class="prose">
+  <p>Ozon даёт 31 % книжной маржи, Wildberries — 18–20 %. Пока ВБ отыгрывает рубль оборота,
+     потерянный на Ozon, он приносит примерно шестьдесят копеек прибыли от той, что ушла.</p></div>
+  <div class="scroll" style="margin-top:8px">
+  <table>
+    <thead><tr><th>Чистая прибыль (витрина margin_by_sku)</th><th>июнь</th><th>июль</th><th>август</th><th>маржа авг.</th></tr></thead>
+    <tbody>
+      <tr><td>Ozon acc1</td><td class="n">3 146 591</td><td class="n">3 093 772</td><td class="n">2 744 515</td><td class="n">31,0 %</td></tr>
+      <tr><td>Ozon acc2</td><td class="n">923 822</td><td class="n">788 348</td><td class="n">484 753</td><td class="n">31,8 %</td></tr>
+      <tr><td>WB acc1</td><td class="n">687 187</td><td class="n">393 875</td><td class="n">380 767</td><td class="n">20,2 %</td></tr>
+      <tr><td>WB acc2</td><td class="n">408 339</td><td class="n">326 067</td><td class="n">252 865</td><td class="n">18,1 %</td></tr>
+      <tr class="tot"><td>Итого (без Яндекса)</td><td class="n">5 165 939</td><td class="n">4 602 062</td><td class="n">3 862 900</td><td class="n">28,3 %</td></tr>
+    </tbody>
+  </table></div>
+  <div class="pull">Прибыль падает быстрее оборота: −11 %, затем −16 % в месяц.
+     Оборот теряет 8 % — потому что уходит именно дорогой по марже Ozon, а приходит дешёвый по марже ВБ.</div>
+  <p class="prose sm"><b>Поправка, которую нельзя опустить:</b> по записи в памяти проекта витрина
+     <code>margin_by_sku</code> завышает прибыль Ozon acc1 примерно на 10,6 п. п. С этой поправкой
+     август даёт не 3,86, а около <b>2,92 млн ₽</b> чистыми, и маржа Ozon acc1 ближе к 20 %, чем к 31 %.
+     Ряд от этого не меняет направление — меняется только высота, но при разговоре об абсолютных
+     деньгах брать надо поправленную цифру.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Причины</span>
+    <h2>Почему каждая площадка ведёт себя так</h2></div>
+  <div class="cols">
+    <div>
+      <h3>Ozon: уходят показы, а не покупатели</h3>
+      <p class="sm">Падают отправления (379 → 283 → 228 за первые семь дней месяца), средний чек стоит
+        на месте (8,3 тыс ₽). Это не цена и не конверсия — это видимость: то же, что зафиксировано
+        летом (−29 % показов при +31 % спроса в категории). Рычаг наш — ставки и карточки, и он
+        медленный.</p>
+    </div>
+    <div>
+      <h3>WB acc2: объём куплен скидкой</h3>
+      <p class="sm">Заказы +173 %, выручка только +91 %, чек −30 %. Это прямое следствие сентябрьской
+        просадки цен в акциях. Из акции вышли — и заказы пока держатся (202 за прошлую неделю против
+        162 до выхода). Это единственная по-настоящему хорошая новость среза, но проверять её надо
+        ещё две недели.</p>
+    </div>
+    <div>
+      <h3>WB acc1: работает механика ставок</h3>
+      <p class="sm">Чек не падал, росли штуки. Недельный Рой правит все четыре цвета автоматом;
+        за 14.09 записано 230 ставок на acc1 и 67 на acc2. Рекламные заказы acc1 42 → 62 за неделю,
+        acc2 36 → 60. Расход при этом 12,8 и 5,7 тыс ₽ в неделю — дешёвый прирост.</p>
+    </div>
+    <div>
+      <h3>Яндекс: разовый август</h3>
+      <p class="sm">Август 3,49 млн — вдвое выше июня. Сентябрь откатывается к 2,5 млн, но это всё ещё
+        выше июля (2,08). Разумно считать август выбросом, а не новой базой.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Октябрь</span>
+    <h2>Чего ждать</h2></div>
+  <div class="prose"><p>Три сценария от сентябрьского темпа 15,6 млн ₽. Различаются они одним:
+     удержится ли прирост ВБ после выхода из акции и продолжит ли Ozon сыпаться тем же шагом.</p></div>
+  <div class="scen">
+    <div class="s"><span class="label">Пессимистичный</span><span class="big num">13,5 млн ₽</span>
+      <span class="sm">−13 % к сентябрю</span>
+      <ul><li>Ozon −20 % → 6,3 млн</li><li>прирост ВБ был акционный, откат → 5,0 млн</li>
+        <li>Яндекс 2,2 млн</li></ul></div>
+    <div class="s base"><span class="label">Базовый — по инерции</span><span class="big num">14,3–15,0 млн ₽</span>
+      <span class="sm">−5…−8 % к сентябрю</span>
+      <ul><li>Ozon −15 % → 6,7 млн</li><li>ВБ +10 %, рост затухает → 5,7 млн</li>
+        <li>Яндекс 2,4 млн</li><li>совпадает с линией последних четырёх месяцев</li></ul></div>
+    <div class="s"><span class="label">Оптимистичный</span><span class="big num">16,2 млн ₽</span>
+      <span class="sm">+4 % к сентябрю</span>
+      <ul><li>падение Ozon замедляется до −8 % → 7,3 млн</li>
+        <li>124 новые карточки acc2 и акции 2905/2907 дают ВБ +25 % → 6,4 млн</li>
+        <li>Яндекс 2,5 млн</li></ul></div>
+  </div>
+  <div class="pull">Ставлю на базовый: <b>около 14,5 млн ₽ оборота и порядка 2,6 млн ₽ чистыми</b>
+     (по поправленной марже). Октябрь впервые за лето может оказаться не сильно хуже сентября —
+     но только потому, что ВБ дорастёт до размера, при котором его рост наконец заметен в общей сумме.</div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Что искажает прогноз</span>
+    <h2>Четыре вещи, которые сдвинут цифру</h2></div>
+  <ul class="prose flags">
+    <li><b>124 карточки acc2 запущены сегодня.</b> Три новые кампании пополнены по 1000 ₽ и стоят
+      в статусе «идёт». Их вклад в ряду ещё не отражён ни одной строкой — первая измеримая неделя
+      закроется 21.09.</li>
+    <li><b>Акции 2905 и 2907 стартуют 17.09.</b> Если зайдём — повторится сентябрьская картина acc2:
+      штуки вверх, чек вниз, маржа вниз. Перед стартом надо перемерить покрытие остатком.</li>
+    <li><b>Ozon — 66 % оборота и львиная доля прибыли.</b> Любая ошибка прогноза по нему весит больше,
+      чем вся работа по ВБ. Ряд по нему считается по доставкам, а они запаздывают на 3–5 дней:
+      свежая неделя всегда выглядит провальной, пока не доедет.</li>
+    <li><b>Сентябрь — не факт, а темп.</b> Витрины дневного спроса встали: <code>wb_cogs_demand</code>
+      по 13.08, <code>oz_cogs_demand</code> по 15.08. Ряд собран в обход них, по воронке ВБ, отчёту
+      доставок Ozon и отгрузкам МойСклада. Сверка Ozon за август: 8,71 млн по доставкам против
+      8,84 млн по транзакциям — расхождение 1,5 %, ряду верить можно.</li>
+  </ul>
+</section>
+
+<footer class="prose">
+  <p>Источники: <code>wb_funnel</code> и недельные воронки Роя (<code>mkt_roy_funnel_*.json</code>),
+     <code>wb_ad_nm_daily</code>, <code>raw_ozon_orders_report</code> со сверкой по
+     <code>raw_ozon_transaction</code>, <code>ya_cogs_demand</code>, <code>margin_by_sku</code>
+     (read-only, витрина потока fin). Срез на 14.09.2026.</p>
+</footer>
+</div>

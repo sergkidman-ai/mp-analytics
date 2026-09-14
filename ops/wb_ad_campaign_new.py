@@ -65,6 +65,21 @@ def campaign_budget(account, advert_id):
     return r.status_code, r.text[:200].replace("\n", " ")
 
 
+def deposit(account, advert_id, rub, src=0):
+    """Пополнить бюджет кампании. ЭТО ДЕНЬГИ.
+
+    src — откуда берём. ПРОВЕРЕНО 14.09.2026 живым пополнением: 1 = деньги со «Счёта»
+    (`/adv/v1/balance` → net; после трёх пополнений net 53 654 → 50 654). Документация ВБ
+    называет 0 «счётом», но с 0 приходит «insufficient funds» при полном счёте.
+    """
+    body = {"sum": int(rub), "type": int(src), "return": True}
+    r = requests.post(WB_ADS_HOST + "/adv/v1/budget/deposit", params={"id": int(advert_id)},
+                      json=body, timeout=60,
+                      headers={"Authorization": _token(account), "Content-Type": "application/json"})
+    note(account, "deposit", {"id": int(advert_id), **body}, r.status_code, r.text)
+    return r.status_code, r.text[:200].replace("\n", " ")
+
+
 def start(account, advert_id):
     r = requests.get(WB_ADS_HOST + "/adv/v0/start", params={"id": int(advert_id)},
                      headers={"Authorization": _token(account)}, timeout=30)
@@ -80,6 +95,9 @@ def main():
     ap.add_argument("--apply", action="store_true", help="создать кампании (денег не стоит)")
     ap.add_argument("--start", type=int, nargs="*", help="запустить кампании по id — ЭТО ДЕНЬГИ")
     ap.add_argument("--budget", type=int, nargs="*", help="показать бюджет кампаний по id")
+    ap.add_argument("--deposit", type=int, nargs="*", help="пополнить кампании по id — ЭТО ДЕНЬГИ")
+    ap.add_argument("--sum", type=int, default=1000, help="сколько ₽ класть на каждую (--deposit)")
+    ap.add_argument("--src", type=int, default=1, help="источник: 1 = Счёт (проверено), 3 бонусы")
     a = ap.parse_args()
 
     if a.budget is not None:
@@ -88,6 +106,12 @@ def main():
         print(f"баланс кабинета {a.account}: {bal.text[:120]}")
         for i in a.budget:
             print(f"  кампания {i}: {campaign_budget(a.account, i)}")
+        return
+
+    if a.deposit:
+        for i in a.deposit:
+            print(f"  пополнение {i} на {a.sum} ₽: {deposit(a.account, i, a.sum, a.src)}", flush=True)
+            time.sleep(PAUSE)
         return
 
     if a.start:
