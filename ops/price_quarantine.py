@@ -656,12 +656,21 @@ def build():
     raw = []
 
     for acc in ("wb_acc1", "wb_acc2"):
+        noprice = []
         for g in wb_quarantine(acc):
+            # ВБ отдаёт записи, у которых цена ещё не назначена: newPrice=None при newDiscount=50.
+            # Считать по ним нечего, а float(None) роняет весь прогон (17 падений 10-14.09.2026).
+            if g.get("newPrice") is None or g.get("oldPrice") is None:
+                noprice.append(g["nmID"])
+                continue
             raw.append(dict(platform="wb", account=acc, id=g["nmID"], code=wb_vc.get(g["nmID"]) or "",
                             pack=1,
                             price=float(g["newPrice"]) * (1 - float(g.get("newDiscount") or 0) / 100),
                             old=float(g["oldPrice"]) * (1 - float(g.get("oldDiscount") or 0) / 100),
                             reason=""))
+        if noprice:
+            print(f"WB {acc}: без цены в карантине, пропущено {len(noprice)} "
+                  f"({', '.join(str(x) for x in noprice[:5])}{'…' if len(noprice) > 5 else ''})")
 
     ya_offers = ya_quarantine()
     arch = ya_archived([o.get("offerId") for o in ya_offers if o.get("offerId")])
