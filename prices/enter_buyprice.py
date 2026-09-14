@@ -16,6 +16,7 @@
 - наборы поставщика — обычные карточки, пишем как товар; наборы «из цветов» живут на
   поставщике «Микс МСК» и в оприходования не входят — страхуемся явным пропуском;
 - документ старше 4 дней (по дате в имени) не берём: у поставщика на паузе он залёживается;
+  исключение — Blossom: внешний загрузчик не обновлял его с 14.07.2026, цены берём как есть;
 - ночной прогон, запись только при изменении цены.
 
 Темп — регламент массовых правок МС (skill `ms-mass-change`): окно 23:00–05:00 МСК,
@@ -45,6 +46,7 @@ REPORT_DIR = ROOT / "reports" / "data"
 BACKUP_DIR = ROOT / "backups" / "prc_enter_buyprice"
 
 MAX_AGE_DAYS = 4
+NO_AGE_LIMIT = {"blossom"}                                      # решение Сергея 14.09.2026
 SUPPLIER_MIX_MSK = "b4a20370-e872-11ef-0a80-0947000e2df8"      # «Микс МСК» — наборы из цветов
 CURRENCY_RUB = "20d3bd8c-bde9-47cc-ba24-b299ba80b6d7"
 
@@ -70,7 +72,7 @@ def fresh_docs(today):
     out, stale = [], []
     for key, date, doc in unlinked.current(unlinked.enters(STORE_REMOTE)):
         age = (today - dt.date.fromisoformat(date)).days
-        (out if age <= MAX_AGE_DAYS else stale).append((key, date, doc))
+        (out if age <= MAX_AGE_DAYS or key in NO_AGE_LIMIT else stale).append((key, date, doc))
     return out, stale
 
 
