@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчёты ФТС · Пульт бизнеса</title>
+<style>
+:root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454;
+ --panel:#172230;--ink:#e6edf3;--acc-s:#16273c;--pos-s:#13291d;--neg-s:#2f1719;--warn-s:#2f2611}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.lvlnav{display:flex;flex-direction:column;gap:3px}
+.lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+.lvlnav a:hover{background:var(--bg);color:var(--txt)}
+.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+.logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+.logo:hover{background:var(--card)}
+.navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+main{flex:1;min-width:0;padding:22px 26px 60px;max-width:1200px}
+.mptabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:2px}
+.mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+.mptabs a:hover{background:var(--card);color:var(--txt)}
+.mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+.rtabs{display:flex;gap:4px;flex-wrap:wrap;margin:16px 0 2px;border-bottom:1px solid var(--line)}
+.rtab{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
+.rtab:hover{color:var(--txt);background:var(--card)}
+.rtab.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+.rtab.soon{opacity:.45;cursor:default}
+.rtab.soon:hover{background:none;color:var(--mut)}
+
+#mpr{padding-top:4px}
+#mpr .eyebrow{font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--acc);font-weight:700;margin:14px 0 9px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#mpr h1{font-size:clamp(22px,3vw,30px);line-height:1.1;margin:0 0 8px;font-weight:720;letter-spacing:-.02em}
+#mpr .sub{color:var(--mut);font-size:14px;margin:0 0 12px;max-width:84ch}
+#mpr .muted{color:var(--mut)}
+#mpr section.org{margin-top:30px;padding-top:8px}
+#mpr h2{font-size:18px;margin:0 0 14px;font-weight:680;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+#mpr .orgdot{width:10px;height:10px;border-radius:3px;background:var(--acc);display:inline-block}
+#mpr .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px}
+#mpr .cell{background:var(--card);padding:15px 17px}
+#mpr .big{font-size:clamp(19px,2.5vw,25px);font-weight:720;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+#mpr .cell .lbl{font-size:12px;color:var(--mut);margin-top:3px}
+#mpr .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:760px){#mpr .charts{grid-template-columns:1fr}}
+#mpr .chart{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px}
+#mpr .chart h3{margin:0 0 8px;font-size:13px;font-weight:640;color:var(--txt)}
+#mpr .axt{fill:var(--mut);font-size:9px}
+#mpr .leg{display:flex;gap:13px;font-size:11.5px;color:var(--mut);margin-top:5px;flex-wrap:wrap}
+#mpr .leg i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
+#mpr .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow-x:auto}
+#mpr table{width:100%;border-collapse:collapse;font-size:13px;min-width:860px}
+#mpr th,#mpr td{padding:7px 11px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+#mpr thead th{position:sticky;top:0;background:var(--card);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--mut);font-weight:650;z-index:2}
+#mpr th:first-child,#mpr td.lbl{text-align:left;white-space:normal}
+#mpr td.lbl{font-weight:560;min-width:205px}
+/* первый столбец закреплён по горизонтали: таблица открывается на ПОСЛЕДНИХ месяцах
+   (см. TAIL_JS), и без закрепления подпись статьи уезжала бы из вида */
+#mpr th:first-child{left:0;z-index:3;background:var(--card)}
+#mpr td.lbl{position:sticky;left:0;z-index:1;background:var(--card)}
+#mpr tr.sect td>span{position:sticky;left:11px;display:inline-block}
+#mpr td.lbl.ind{font-weight:430}
+#mpr tr.sub td{color:var(--mut)}
+#mpr tr.sub td.lbl.ind{padding-left:24px;position:relative}
+#mpr tr.sub td.lbl.ind::before{content:"└";position:absolute;left:10px;color:var(--line)}
+#mpr tr.sect td{background:var(--acc-s);color:var(--acc);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:6px 11px}
+#mpr td.num{position:relative;padding-right:22px}
+#mpr td.num.g{background:var(--pos-s)}
+#mpr td.num.a{background:var(--warn-s)}
+/* стрелка тренда — в фикс. правом жёлобе (position:absolute), чтобы число было выровнено
+   одинаково и в ячейках со стрелкой, и без неё (иначе inline-стрелка сдвигает число влево) */
+#mpr td.num.up::after{content:"▲";position:absolute;right:7px;top:7px;font-size:9px}
+#mpr td.num.dn::after{content:"▼";position:absolute;right:7px;top:7px;font-size:9px}
+#mpr td.num.g.up::after,#mpr td.num.g.dn::after{color:var(--pos)}
+#mpr td.num.a.up::after,#mpr td.num.a.dn::after{color:var(--warn)}
+#mpr tr.det{display:none}
+#mpr tr.det.open{display:table-row}
+#mpr tr.hasdet td.lbl{cursor:pointer;user-select:none}
+#mpr .detbtn{display:inline-block;width:14px;color:var(--acc);transition:transform .12s}
+#mpr tr.hasdet.open .detbtn{transform:rotate(90deg)}
+#mpr tr.subtot td{border-top:2px solid var(--acc);font-weight:700}
+#mpr tr.subtot td.lbl{color:var(--txt)}
+#mpr .pc{display:block;font-size:10px;color:var(--mut);font-weight:600;margin-top:1px}
+#mpr td.pctcol{color:var(--mut);font-weight:600;border-left:1px solid var(--line)}
+#mpr td.spk{padding:2px 8px}
+#mpr .tag{font-size:9.5px;padding:1px 6px;border-radius:20px;margin-left:6px;font-weight:600;vertical-align:middle}
+#mpr .tag.наша{background:var(--acc-s);color:var(--acc)}
+#mpr .tag.расчёт{background:var(--neg-s);color:var(--neg)}
+#mpr .tlegend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin:12px 2px 0}
+#mpr .tlegend b{color:var(--txt);font-weight:600}
+#mpr .sw{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:middle;margin-right:4px}
+#mpr .foot{margin-top:30px;padding-top:16px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px;line-height:1.7}
+#mpr th.live{color:var(--acc)}
+#mpr td.num.live{border-left:1px solid var(--line)}
+#mpr td.num.fc{color:var(--mut);font-style:italic}
+#mpr .livenote{margin:14px 2px 0;font-size:12.5px;color:var(--mut);line-height:1.6}
+#mpr .livenote b{color:var(--txt);font-weight:600}
+#mpr details.howto{margin:0 0 12px}
+#mpr details.howto>summary{cursor:pointer;color:var(--acc);font-size:13px;font-weight:600;
+  list-style:none;display:inline-flex;align-items:center;gap:6px;user-select:none}
+#mpr details.howto>summary::-webkit-details-marker{display:none}
+#mpr details.howto>summary::before{content:"▸";font-size:11px}
+#mpr details.howto[open]>summary::before{content:"▾"}
+#mpr details.howto>summary:hover{text-decoration:underline}
+#mpr details.howto .sub{margin-top:8px}
+
+.fts-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0 18px}
+@media(max-width:760px){.fts-cards{grid-template-columns:1fr 1fr}}
+.fts-kc{border:1px solid var(--line);border-radius:12px;padding:12px 15px;background:var(--card,#fff)}
+.fts-kc .l{font-size:12px;color:var(--muted,#667);font-weight:600;margin-bottom:4px}
+.fts-kc .v{font-size:26px;font-weight:750;font-variant-numeric:tabular-nums}
+.fts-kc.due{border-top:3px solid #e6a04a} .fts-kc.done{border-top:3px solid #2f9e57}
+.fts-kc.warn{border-top:3px solid #d33}
+.perbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 6px}
+.perbar a{padding:4px 11px;border:1px solid var(--line);border-radius:20px;font-size:12px;
+  text-decoration:none;color:var(--txt,#333);font-weight:600}
+.perbar a.cur{background:var(--acc,#3fa7ff);border-color:transparent;color:#fff}
+table.fts{border-collapse:collapse;width:100%;font-size:13px;margin-top:6px}
+table.fts th,table.fts td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+table.fts th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted,#667)}
+table.fts td.n{text-align:right;font-variant-numeric:tabular-nums}
+table.fts td.nm{white-space:normal;max-width:280px;overflow-wrap:anywhere}
+.fts-dl{display:inline-block;background:#2f6fd0;color:#fff;border-radius:8px;padding:6px 13px;
+  font-weight:700;font-size:12px;text-decoration:none}
+.st{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.st.due{background:#faedd6;color:#8a5a12} .st.filed{background:#e2f3e9;color:#1f6d3f}
+.st.buy{background:var(--card,#eee);color:var(--muted,#667)}
+@media(prefers-color-scheme:dark){.st.due{background:#3a2e18;color:#f0c078}.st.filed{background:#183024;color:#7fd6a3}}
+.btn-mark{background:transparent;border:1px solid var(--line);color:var(--txt,#333);border-radius:7px;
+  padding:4px 10px;font-size:12px;cursor:pointer;font-weight:600}
+.btn-mark:hover{background:var(--card,#f2f2f2)}
+.prob{color:#b21f1f;font-size:12px;font-weight:600}
+@media(prefers-color-scheme:dark){.prob{color:#ff8f8f}}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports" class="cur">📋 Отчёты МП</a>
+    <a href="/reports/cost">💰 Себестоимость</a>
+  </nav>
+</header>
+<main id="mpr">
+  <nav class="mptabs">
+    <a href="/">🏢 Главная</a>
+    <a href="/dashboard">🟣 Wildberries</a>
+    <a href="/ozon">🟦 Ozon</a>
+    <a href="/market">🟡 Маркет</a>
+    <a href="/sites">🌐 Сайты</a>
+  </nav>
+  <div class="rtabs">
+    <a class="rtab" href="/reports">🟦 Ozon</a>
+    <a class="rtab" href="/reports/wb">🟣 Wildberries</a>
+    <a class="rtab" href="/reports/yandex">🟡 Яндекс Маркет</a>
+    <a class="rtab cur">🛃 Отчёты ФТС</a>
+    <a class="rtab" href="/reports/upd">📄 УПД по выкупам</a>
+  </div>
+  <p class="eyebrow">Отчёты МП · Отчёты ФТС</p>
+  <h1>Статформы ФТС по продажам в ЕАЭС</h1>
+  <p class="sub">Отчёт сдаём в первых числах месяца за прошлый. В форму попадают отправления,
+  получившие статус <b>«Доставлен» в отчётном месяце</b> (отгружены могли быть и раньше),
+  и только те, где маркетплейс <b>не выкупил</b> товар: если выкупил — собственником стал он
+  и в таможню отчитывается сам. Стоимость пересчитана по курсу ЦБ <b>на дату доставки</b>,
+  вес нетто — с карточки Ozon, ТН ВЭД и номер ГТД — из МойСклада (ГТД по FIFO: последняя
+  приёмка позиции до даты отгрузки). Одна форма — одна страна, товары схлопнуты
+  по ТН ВЭД, номеру ГТД и стране происхождения.</p>
+  <div class="perbar">Отчётный месяц:
+    <a class="cur">08.2026</a>
+    <a href="/reports/fts?period=2026-07">07.2026</a>
+    <a href="/reports/fts?period=2026-06">06.2026</a>
+    <a href="/reports/fts?period=2026-05">05.2026</a>
+    <a href="/reports/fts?period=2026-04">04.2026</a>
+    <a href="/reports/fts?period=2026-03">03.2026</a>
+  </div>
+  <div class="fts-cards">
+    <div class="fts-kc"><div class="l">Отправлений в ЕАЭС</div><div class="v">22</div></div>
+    <div class="fts-kc done"><div class="l">Выкупил маркетплейс</div><div class="v">21</div></div>
+    <div class="fts-kc due"><div class="l">К сдаче нами</div><div class="v">0</div></div>
+    <div class="fts-kc done"><div class="l">Сдано</div><div class="v">1</div></div>
+  </div>
+
+  <h2 style="font-size:17px;margin:18px 0 4px">Формы по странам</h2>
+  <table class="fts">
+    <thead><tr><th>Страна</th><th>Отправлений</th><th>К сдаче</th><th>Стоимость</th>
+    <th>Город получателя</th><th>Форма для ЛК ФТС</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Казахстан</b> <span class="sub">(KZ)</span></td>
+        <td class="n">1</td>
+        <td class="n">0</td>
+        <td class="n">13 138,11 ₽</td>
+        <td>Алматы</td>
+        <td><span class="sub">всё сдано</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="sub" style="margin-top:8px">Город получателя подставляется в форму: для Казахстана —
+  кластер доставки с наибольшей суммой, для остальных стран кластер Ozon совпадает со страной,
+  поэтому ставится столица.</p>
+
+  <h2 style="font-size:17px;margin:22px 0 4px">Отправления за 08.2026</h2>
+  <table class="fts">
+    <thead><tr><th>Отправление</th><th>Доставлено</th><th>Страна</th><th>Оплачено</th>
+    <th>В рублях</th><th>Вес нетто</th><th>ТН ВЭД / ГТД</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+      <tr>
+        <td>0157014773-0009-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
+        <td>01.08.2026</td>
+        <td>KZ <span class="sub">Алматы</span></td>
+        <td class="n">78 473,00 KZT</td>
+        <td class="n">13 138,11 ₽</td>
+        <td class="n">1755 г</td>
+        <td class="nm">8443999000 / 10228020/030226/5014219</td>
+        <td><span class="st filed">сдано</span></td>
+        <td><button class="btn-mark" onclick="ftsMark(this,'2026-08','ozon','oz_acc2','0157014773-0009-1',false)">вернуть в «к сдаче»</button></td>
+      </tr>
+      <tr>
+        <td>78433599-0035-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>02.08.2026</td>
+        <td>KZ <span class="sub">Алматы</span></td>
+        <td class="n">33 278,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">3200 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0239786786-0041-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>03.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">16,94 BYN</td>
+        <td class="n">—</td>
+        <td class="n">100 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0169628766-0008-2<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>05.08.2026</td>
+        <td>KZ <span class="sub">Астана</span></td>
+        <td class="n">65 090,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">2700 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0159241493-0519-3<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>08.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">131,87 BYN</td>
+        <td class="n">—</td>
+        <td class="n">931 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>41214429-0173-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>16.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">318,27 BYN</td>
+        <td class="n">—</td>
+        <td class="n">2421 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0140534465-0015-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>17.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">424,10 BYN</td>
+        <td class="n">—</td>
+        <td class="n">1755 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>06935664-0019-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>17.08.2026</td>
+        <td>KZ <span class="sub">Астана</span></td>
+        <td class="n">52 309,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">1360 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0131566429-0078-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>19.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">99,89 BYN</td>
+        <td class="n">—</td>
+        <td class="n">1000 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>03344016-0211-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
+        <td>20.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">77,30 BYN</td>
+        <td class="n">—</td>
+        <td class="n">1000 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0131491970-0066-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
+        <td>21.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">83,63 BYN</td>
+        <td class="n">—</td>
+        <td class="n">1000 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0152875983-0013-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>21.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">115,79 BYN</td>
+        <td class="n">—</td>
+        <td class="n">2600 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>56700781-0260-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>21.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">84,24 BYN</td>
+        <td class="n">—</td>
+        <td class="n">2100 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0210223988-0043-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>24.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">7,82 BYN</td>
+        <td class="n">—</td>
+        <td class="n">60 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0210223988-0043-3<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>24.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">50,42 BYN</td>
+        <td class="n">—</td>
+        <td class="n">360 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>18984589-0314-1<div class="sub">Ozon · Дисквэр · FBO</div></td>
+        <td>24.08.2026</td>
+        <td>KZ <span class="sub">Астана</span></td>
+        <td class="n">33 550,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">650 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>67357566-0195-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>24.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">383,62 BYN</td>
+        <td class="n">—</td>
+        <td class="n">4200 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>67357566-0196-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>24.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">118,35 BYN</td>
+        <td class="n">—</td>
+        <td class="n">1127 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>88439766-0118-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>24.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">356,52 BYN</td>
+        <td class="n">—</td>
+        <td class="n">1035 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>68016776-0073-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>27.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">153,01 BYN</td>
+        <td class="n">—</td>
+        <td class="n">1067 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0223379499-0454-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>28.08.2026</td>
+        <td>KZ <span class="sub">Астана</span></td>
+        <td class="n">10 056,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">900 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0213127705-0005-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>29.08.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">128,36 BYN</td>
+        <td class="n">—</td>
+        <td class="n">190 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+    </tbody>
+  </table>
+</main>
+
+<script>
+async function ftsMark(btn,period,platform,account,posting,filed){
+  btn.disabled=true;
+  try{
+    var r=await fetch('/api/fts/status',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({period:period,platform:platform,account:account,posting_number:posting,filed:filed})});
+    if(r.ok){location.reload();return;}
+  }catch(e){}
+  btn.disabled=false;alert('Не удалось сохранить статус');
+}
+</script>
+
+</body>
+</html>

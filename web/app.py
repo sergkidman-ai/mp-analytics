@@ -1438,6 +1438,47 @@ def fts_status(payload: FtsStatus):
     return {"ok": True, "status": "filed" if payload.filed else "due"}
 
 
+@app.get("/reports/upd", response_class=HTMLResponse)
+def reports_upd_page():
+    """Подраздел «УПД по выкупам ВБ»."""
+    return (STATIC / "reports_upd.html").read_text(encoding="utf-8")
+
+
+@app.get("/reports/upd/file/{account}/{number}.xml")
+def reports_upd_file(account: str, number: str):
+    """УПД по уведомлению о выкупе — готовый XML для загрузки в Диадок.
+
+    Генерируем на лету: реквизиты организации могут поменяться, а документ выставляется
+    в момент скачивания."""
+    import reports.upd_form as _upd
+    try:
+        name, data = _upd.make_upd(account, number)
+    except RuntimeError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return Response(content=data, media_type="application/xml",
+                    headers={"Content-Disposition":
+                             f"attachment; filename*=UTF-8''{_quote(name)}"})
+
+
+class UpdStatus(BaseModel):
+    account: str
+    doc_number: str
+    made: bool = True
+
+
+@app.post("/api/upd/status")
+def upd_status(payload: UpdStatus):
+    """Отметить, что УПД по уведомлению выгружен в Диадок (или вернуть в «к выгрузке»)."""
+    done = payload.made
+    db.execute("""UPDATE wb_redeem_notice SET upd_status=%s, upd_made_at=%s
+                   WHERE account=%s AND doc_number=%s""",
+               ("made" if done else "due", _datetime.now(_tz.utc) if done else None,
+                payload.account, payload.doc_number))
+    import reports.upd_page as _upd_page
+    _upd_page.render()
+    return {"ok": True, "status": "made" if done else "due"}
+
+
 @app.get("/reports/wb-clearance", response_class=HTMLResponse)
 def reports_wb_clearance_page():
     return (STATIC / "reports_wb_clearance.html").read_text(encoding="utf-8")

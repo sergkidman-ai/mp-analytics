@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>УПД по выкупам ВБ · Пульт бизнеса</title>
+<style>
+:root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454;
+ --panel:#172230;--ink:#e6edf3;--acc-s:#16273c;--pos-s:#13291d;--neg-s:#2f1719;--warn-s:#2f2611}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.lvlnav{display:flex;flex-direction:column;gap:3px}
+.lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+.lvlnav a:hover{background:var(--bg);color:var(--txt)}
+.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+.logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+.logo:hover{background:var(--card)}
+.navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+main{flex:1;min-width:0;padding:22px 26px 60px;max-width:1200px}
+.mptabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:2px}
+.mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
+.mptabs a:hover{background:var(--card);color:var(--txt)}
+.mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+.rtabs{display:flex;gap:4px;flex-wrap:wrap;margin:16px 0 2px;border-bottom:1px solid var(--line)}
+.rtab{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
+.rtab:hover{color:var(--txt);background:var(--card)}
+.rtab.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+.rtab.soon{opacity:.45;cursor:default}
+.rtab.soon:hover{background:none;color:var(--mut)}
+
+#mpr{padding-top:4px}
+#mpr .eyebrow{font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--acc);font-weight:700;margin:14px 0 9px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#mpr h1{font-size:clamp(22px,3vw,30px);line-height:1.1;margin:0 0 8px;font-weight:720;letter-spacing:-.02em}
+#mpr .sub{color:var(--mut);font-size:14px;margin:0 0 12px;max-width:84ch}
+#mpr .muted{color:var(--mut)}
+#mpr section.org{margin-top:30px;padding-top:8px}
+#mpr h2{font-size:18px;margin:0 0 14px;font-weight:680;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+#mpr .orgdot{width:10px;height:10px;border-radius:3px;background:var(--acc);display:inline-block}
+#mpr .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px}
+#mpr .cell{background:var(--card);padding:15px 17px}
+#mpr .big{font-size:clamp(19px,2.5vw,25px);font-weight:720;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+#mpr .cell .lbl{font-size:12px;color:var(--mut);margin-top:3px}
+#mpr .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:760px){#mpr .charts{grid-template-columns:1fr}}
+#mpr .chart{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px}
+#mpr .chart h3{margin:0 0 8px;font-size:13px;font-weight:640;color:var(--txt)}
+#mpr .axt{fill:var(--mut);font-size:9px}
+#mpr .leg{display:flex;gap:13px;font-size:11.5px;color:var(--mut);margin-top:5px;flex-wrap:wrap}
+#mpr .leg i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
+#mpr .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow-x:auto}
+#mpr table{width:100%;border-collapse:collapse;font-size:13px;min-width:860px}
+#mpr th,#mpr td{padding:7px 11px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+#mpr thead th{position:sticky;top:0;background:var(--card);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--mut);font-weight:650;z-index:2}
+#mpr th:first-child,#mpr td.lbl{text-align:left;white-space:normal}
+#mpr td.lbl{font-weight:560;min-width:205px}
+/* первый столбец закреплён по горизонтали: таблица открывается на ПОСЛЕДНИХ месяцах
+   (см. TAIL_JS), и без закрепления подпись статьи уезжала бы из вида */
+#mpr th:first-child{left:0;z-index:3;background:var(--card)}
+#mpr td.lbl{position:sticky;left:0;z-index:1;background:var(--card)}
+#mpr tr.sect td>span{position:sticky;left:11px;display:inline-block}
+#mpr td.lbl.ind{font-weight:430}
+#mpr tr.sub td{color:var(--mut)}
+#mpr tr.sub td.lbl.ind{padding-left:24px;position:relative}
+#mpr tr.sub td.lbl.ind::before{content:"└";position:absolute;left:10px;color:var(--line)}
+#mpr tr.sect td{background:var(--acc-s);color:var(--acc);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:6px 11px}
+#mpr td.num{position:relative;padding-right:22px}
+#mpr td.num.g{background:var(--pos-s)}
+#mpr td.num.a{background:var(--warn-s)}
+/* стрелка тренда — в фикс. правом жёлобе (position:absolute), чтобы число было выровнено
+   одинаково и в ячейках со стрелкой, и без неё (иначе inline-стрелка сдвигает число влево) */
+#mpr td.num.up::after{content:"▲";position:absolute;right:7px;top:7px;font-size:9px}
+#mpr td.num.dn::after{content:"▼";position:absolute;right:7px;top:7px;font-size:9px}
+#mpr td.num.g.up::after,#mpr td.num.g.dn::after{color:var(--pos)}
+#mpr td.num.a.up::after,#mpr td.num.a.dn::after{color:var(--warn)}
+#mpr tr.det{display:none}
+#mpr tr.det.open{display:table-row}
+#mpr tr.hasdet td.lbl{cursor:pointer;user-select:none}
+#mpr .detbtn{display:inline-block;width:14px;color:var(--acc);transition:transform .12s}
+#mpr tr.hasdet.open .detbtn{transform:rotate(90deg)}
+#mpr tr.subtot td{border-top:2px solid var(--acc);font-weight:700}
+#mpr tr.subtot td.lbl{color:var(--txt)}
+#mpr .pc{display:block;font-size:10px;color:var(--mut);font-weight:600;margin-top:1px}
+#mpr td.pctcol{color:var(--mut);font-weight:600;border-left:1px solid var(--line)}
+#mpr td.spk{padding:2px 8px}
+#mpr .tag{font-size:9.5px;padding:1px 6px;border-radius:20px;margin-left:6px;font-weight:600;vertical-align:middle}
+#mpr .tag.наша{background:var(--acc-s);color:var(--acc)}
+#mpr .tag.расчёт{background:var(--neg-s);color:var(--neg)}
+#mpr .tlegend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin:12px 2px 0}
+#mpr .tlegend b{color:var(--txt);font-weight:600}
+#mpr .sw{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:middle;margin-right:4px}
+#mpr .foot{margin-top:30px;padding-top:16px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px;line-height:1.7}
+#mpr th.live{color:var(--acc)}
+#mpr td.num.live{border-left:1px solid var(--line)}
+#mpr td.num.fc{color:var(--mut);font-style:italic}
+#mpr .livenote{margin:14px 2px 0;font-size:12.5px;color:var(--mut);line-height:1.6}
+#mpr .livenote b{color:var(--txt);font-weight:600}
+#mpr details.howto{margin:0 0 12px}
+#mpr details.howto>summary{cursor:pointer;color:var(--acc);font-size:13px;font-weight:600;
+  list-style:none;display:inline-flex;align-items:center;gap:6px;user-select:none}
+#mpr details.howto>summary::-webkit-details-marker{display:none}
+#mpr details.howto>summary::before{content:"▸";font-size:11px}
+#mpr details.howto[open]>summary::before{content:"▾"}
+#mpr details.howto>summary:hover{text-decoration:underline}
+#mpr details.howto .sub{margin-top:8px}
+
+.fts-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0 18px}
+@media(max-width:760px){.fts-cards{grid-template-columns:1fr 1fr}}
+.fts-kc{border:1px solid var(--line);border-radius:12px;padding:12px 15px;background:var(--card,#fff)}
+.fts-kc .l{font-size:12px;color:var(--muted,#667);font-weight:600;margin-bottom:4px}
+.fts-kc .v{font-size:26px;font-weight:750;font-variant-numeric:tabular-nums}
+.fts-kc.due{border-top:3px solid #e6a04a} .fts-kc.done{border-top:3px solid #2f9e57}
+.fts-kc.warn{border-top:3px solid #d33}
+.perbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 6px}
+.perbar a{padding:4px 11px;border:1px solid var(--line);border-radius:20px;font-size:12px;
+  text-decoration:none;color:var(--txt,#333);font-weight:600}
+.perbar a.cur{background:var(--acc,#3fa7ff);border-color:transparent;color:#fff}
+table.fts{border-collapse:collapse;width:100%;font-size:13px;margin-top:6px}
+table.fts th,table.fts td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+table.fts th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted,#667)}
+table.fts td.n{text-align:right;font-variant-numeric:tabular-nums}
+table.fts td.nm{white-space:normal;max-width:280px;overflow-wrap:anywhere}
+.fts-dl{display:inline-block;background:#2f6fd0;color:#fff;border-radius:8px;padding:6px 13px;
+  font-weight:700;font-size:12px;text-decoration:none}
+.st{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.st.due{background:#faedd6;color:#8a5a12} .st.filed{background:#e2f3e9;color:#1f6d3f}
+.st.buy{background:var(--card,#eee);color:var(--muted,#667)}
+@media(prefers-color-scheme:dark){.st.due{background:#3a2e18;color:#f0c078}.st.filed{background:#183024;color:#7fd6a3}}
+.btn-mark{background:transparent;border:1px solid var(--line);color:var(--txt,#333);border-radius:7px;
+  padding:4px 10px;font-size:12px;cursor:pointer;font-weight:600}
+.btn-mark:hover{background:var(--card,#f2f2f2)}
+.prob{color:#b21f1f;font-size:12px;font-weight:600}
+@media(prefers-color-scheme:dark){.prob{color:#ff8f8f}}
+
+.upd-filter{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin:18px 0 10px}
+.upd-filter label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mut)}
+.upd-filter select{font:inherit;font-size:13px;padding:5px 10px;border-radius:8px;
+  border:1px solid var(--line);background:var(--card);color:var(--txt)}
+.upd-count{font-size:13px;color:var(--mut);margin-left:auto}
+</style>
+</head>
+<body>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports" class="cur">📋 Отчёты МП</a>
+    <a href="/reports/cost">💰 Себестоимость</a>
+  </nav>
+<main class="wrap">
+  <div class="rtabs">
+        <a href="/">🏢 Главная</a>
+    <a href="/dashboard">🟣 Wildberries</a>
+    <a href="/ozon">🟦 Ozon</a>
+    <a href="/market">🟡 Маркет</a>
+    <a href="/sites">🌐 Сайты</a>
+    <a class="rtab" href="/reports">🟦 Ozon</a>
+    <a class="rtab" href="/reports/wb">🟣 Wildberries</a>
+    <a class="rtab" href="/reports/yandex">🟡 Яндекс Маркет</a>
+    <a class="rtab" href="/reports/fts">🛃 Отчёты ФТС</a>
+    <a class="rtab cur">📄 УПД по выкупам</a>
+  </div>
+  <p class="eyebrow">Отчёты МП · УПД по выкупам ВБ</p>
+  <h1>Уведомления о выкупе Wildberries → УПД</h1>
+  <p class="sub">Выкупая наш товар, ВБ выпускает <b>уведомление о выкупе</b>; на каждое такое
+  уведомление продавец выставляет РВБ <b>УПД</b> (счёт-фактура + документ об отгрузке, КНД
+  1115131, функция СЧФДОП) и отправляет его через ЭДО. Кнопка отдаёт готовый XML — его
+  остаётся загрузить в Диадок и подписать. Суммы берутся из уведомления как есть: стоимость
+  с НДС и сумма НДС — из документа ВБ, цена без НДС и за единицу считаются из них.
+  Генератор сверен с уже принятым УПД № 764559005 — файл совпадает побайтово.</p>
+  <div class="fts-cards">
+    <div class="fts-kc"><div class="l">Уведомлений</div><div class="v">74</div></div>
+    <div class="fts-kc due"><div class="l">УПД к выгрузке</div><div class="v">0</div></div>
+    <div class="fts-kc done"><div class="l">Выгружено</div><div class="v">74</div></div>
+    <div class="fts-kc"><div class="l">Сумма к выгрузке</div><div class="v">0,00 ₽</div></div>
+  </div>
+
+  <div class="upd-filter">
+    <label>Организация
+      <select id="fAcc" onchange="updFilter()">
+        <option value="">все</option>
+        <option value="wb_acc1">ВБ · Цифровой квадрат</option>
+        <option value="wb_acc2">ВБ · Дисквэр</option>
+      </select>
+    </label>
+    <label>Статус
+      <select id="fSt" onchange="updFilter()">
+        <option value="">все</option>
+        <option value="due">к выгрузке</option>
+        <option value="made">выгружен</option>
+      </select>
+    </label>
+    <span class="upd-count" id="fCount"></span>
+  </div>
+
+  <table class="fts">
+    <thead><tr><th>Уведомление</th><th>Дата</th><th>Позиций</th><th>Без НДС</th><th>НДС</th>
+    <th>С НДС</th><th>Статус</th><th>Документ</th><th></th></tr></thead>
+    <tbody>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="27667.18">
+        <td><b>836260236</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>01.09.2026</td>
+        <td class="n">8</td>
+        <td class="n">26 349,69 ₽</td>
+        <td class="n">1 317,49 ₽</td>
+        <td class="n">27 667,18 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/836260236.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','836260236',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="2526.89">
+        <td><b>837862358</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>01.09.2026</td>
+        <td class="n">3</td>
+        <td class="n">2 071,22 ₽</td>
+        <td class="n">455,67 ₽</td>
+        <td class="n">2 526,89 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/837862358.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','837862358',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="15323.73">
+        <td><b>827888204</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>24.08.2026</td>
+        <td class="n">7</td>
+        <td class="n">14 594,03 ₽</td>
+        <td class="n">729,70 ₽</td>
+        <td class="n">15 323,73 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/827888204.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','827888204',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="4801.55">
+        <td><b>827087762</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>24.08.2026</td>
+        <td class="n">4</td>
+        <td class="n">3 935,70 ₽</td>
+        <td class="n">865,85 ₽</td>
+        <td class="n">4 801,55 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/827087762.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','827087762',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="6043.09">
+        <td><b>822143504</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>17.08.2026</td>
+        <td class="n">5</td>
+        <td class="n">5 755,33 ₽</td>
+        <td class="n">287,76 ₽</td>
+        <td class="n">6 043,09 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/822143504.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','822143504',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="2341.54">
+        <td><b>820336887</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>17.08.2026</td>
+        <td class="n">5</td>
+        <td class="n">1 919,30 ₽</td>
+        <td class="n">422,24 ₽</td>
+        <td class="n">2 341,54 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/820336887.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','820336887',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="9926.65">
+        <td><b>813547032</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>10.08.2026</td>
+        <td class="n">10</td>
+        <td class="n">9 453,96 ₽</td>
+        <td class="n">472,69 ₽</td>
+        <td class="n">9 926,65 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/813547032.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','813547032',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="9293.00">
+        <td><b>815220578</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>10.08.2026</td>
+        <td class="n">6</td>
+        <td class="n">7 617,21 ₽</td>
+        <td class="n">1 675,79 ₽</td>
+        <td class="n">9 293,00 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/815220578.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','815220578',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="8960.56">
+        <td><b>807926890</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>03.08.2026</td>
+        <td class="n">6</td>
+        <td class="n">8 533,87 ₽</td>
+        <td class="n">426,69 ₽</td>
+        <td class="n">8 960,56 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/807926890.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','807926890',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="21104.81">
+        <td><b>806423192</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>03.08.2026</td>
+        <td class="n">8</td>
+        <td class="n">17 299,04 ₽</td>
+        <td class="n">3 805,77 ₽</td>
+        <td class="n">21 104,81 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/806423192.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','806423192',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="11015.24">
+        <td><b>798710861</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>27.07.2026</td>
+        <td class="n">5</td>
+        <td class="n">10 490,71 ₽</td>
+        <td class="n">524,53 ₽</td>
+        <td class="n">11 015,24 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/798710861.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','798710861',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="14920.01">
+        <td><b>800743740</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>27.07.2026</td>
+        <td class="n">7</td>
+        <td class="n">12 229,52 ₽</td>
+        <td class="n">2 690,49 ₽</td>
+        <td class="n">14 920,01 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/800743740.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','800743740',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="15476.03">
+        <td><b>792104466</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>20.07.2026</td>
+        <td class="n">9</td>
+        <td class="n">14 739,08 ₽</td>
+        <td class="n">736,95 ₽</td>
+        <td class="n">15 476,03 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/792104466.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','792104466',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="1833.57">
+        <td><b>792675313</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>20.07.2026</td>
+        <td class="n">2</td>
+        <td class="n">1 833,57 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">1 833,57 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/792675313.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','792675313',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="1131.20">
+        <td><b>786769905</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>13.07.2026</td>
+        <td class="n">2</td>
+        <td class="n">1 077,33 ₽</td>
+        <td class="n">53,87 ₽</td>
+        <td class="n">1 131,20 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/786769905.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','786769905',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="1072.33">
+        <td><b>789357508</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>13.07.2026</td>
+        <td class="n">1</td>
+        <td class="n">1 072,33 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">1 072,33 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/789357508.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','789357508',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="16415.42">
+        <td><b>778338445</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>06.07.2026</td>
+        <td class="n">7</td>
+        <td class="n">15 633,73 ₽</td>
+        <td class="n">781,69 ₽</td>
+        <td class="n">16 415,42 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/778338445.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','778338445',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="9212.86">
+        <td><b>778688044</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>06.07.2026</td>
+        <td class="n">5</td>
+        <td class="n">9 212,86 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">9 212,86 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/778688044.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','778688044',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="6063.12">
+        <td><b>772971003</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>29.06.2026</td>
+        <td class="n">4</td>
+        <td class="n">5 774,40 ₽</td>
+        <td class="n">288,72 ₽</td>
+        <td class="n">6 063,12 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/772971003.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','772971003',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="15939.15">
+        <td><b>772601783</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>29.06.2026</td>
+        <td class="n">4</td>
+        <td class="n">15 939,15 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">15 939,15 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/772601783.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','772601783',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="8134.92">
+        <td><b>764559005</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>22.06.2026</td>
+        <td class="n">7</td>
+        <td class="n">7 747,54 ₽</td>
+        <td class="n">387,38 ₽</td>
+        <td class="n">8 134,92 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/764559005.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','764559005',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="17511.65">
+        <td><b>765168000</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>22.06.2026</td>
+        <td class="n">8</td>
+        <td class="n">17 511,65 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">17 511,65 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/765168000.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','765168000',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="23586.58">
+        <td><b>758258865</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>15.06.2026</td>
+        <td class="n">13</td>
+        <td class="n">22 463,41 ₽</td>
+        <td class="n">1 123,17 ₽</td>
+        <td class="n">23 586,58 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/758258865.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','758258865',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="7943.98">
+        <td><b>760462314</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>15.06.2026</td>
+        <td class="n">6</td>
+        <td class="n">7 943,98 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">7 943,98 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/760462314.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','760462314',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="41653.83">
+        <td><b>751260126</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>08.06.2026</td>
+        <td class="n">16</td>
+        <td class="n">39 670,31 ₽</td>
+        <td class="n">1 983,52 ₽</td>
+        <td class="n">41 653,83 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/751260126.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','751260126',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="21592.79">
+        <td><b>750789404</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>08.06.2026</td>
+        <td class="n">15</td>
+        <td class="n">21 592,79 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">21 592,79 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/750789404.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','750789404',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="24555.60">
+        <td><b>742884169</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>01.06.2026</td>
+        <td class="n">16</td>
+        <td class="n">23 386,28 ₽</td>
+        <td class="n">1 169,32 ₽</td>
+        <td class="n">24 555,60 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/742884169.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','742884169',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="15709.79">
+        <td><b>743509642</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>01.06.2026</td>
+        <td class="n">18</td>
+        <td class="n">15 709,79 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">15 709,79 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/743509642.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','743509642',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="11708.38">
+        <td><b>737121451</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>25.05.2026</td>
+        <td class="n">10</td>
+        <td class="n">11 150,84 ₽</td>
+        <td class="n">557,54 ₽</td>
+        <td class="n">11 708,38 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/737121451.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','737121451',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="24462.50">
+        <td><b>736503164</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>25.05.2026</td>
+        <td class="n">12</td>
+        <td class="n">24 462,50 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">24 462,50 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/736503164.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','736503164',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="23066.07">
+        <td><b>727604959</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>18.05.2026</td>
+        <td class="n">17</td>
+        <td class="n">21 967,70 ₽</td>
+        <td class="n">1 098,37 ₽</td>
+        <td class="n">23 066,07 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/727604959.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','727604959',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="21256.02">
+        <td><b>726954083</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>18.05.2026</td>
+        <td class="n">17</td>
+        <td class="n">21 256,02 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">21 256,02 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/726954083.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','726954083',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="27592.88">
+        <td><b>719609917</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>11.05.2026</td>
+        <td class="n">12</td>
+        <td class="n">26 278,92 ₽</td>
+        <td class="n">1 313,96 ₽</td>
+        <td class="n">27 592,88 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/719609917.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','719609917',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="10263.55">
+        <td><b>719819479</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>11.05.2026</td>
+        <td class="n">12</td>
+        <td class="n">10 263,55 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">10 263,55 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/719819479.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','719819479',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="14392.61">
+        <td><b>712813635</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>04.05.2026</td>
+        <td class="n">11</td>
+        <td class="n">13 707,24 ₽</td>
+        <td class="n">685,37 ₽</td>
+        <td class="n">14 392,61 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/712813635.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','712813635',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="16263.52">
+        <td><b>713389939</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>04.05.2026</td>
+        <td class="n">13</td>
+        <td class="n">16 263,52 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">16 263,52 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/713389939.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','713389939',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="28492.09">
+        <td><b>706065386</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>27.04.2026</td>
+        <td class="n">20</td>
+        <td class="n">27 135,31 ₽</td>
+        <td class="n">1 356,78 ₽</td>
+        <td class="n">28 492,09 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/706065386.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','706065386',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="30715.33">
+        <td><b>707350772</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>27.04.2026</td>
+        <td class="n">18</td>
+        <td class="n">30 715,33 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">30 715,33 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/707350772.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','707350772',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="19687.88">
+        <td><b>699605821</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>20.04.2026</td>
+        <td class="n">16</td>
+        <td class="n">18 750,36 ₽</td>
+        <td class="n">937,52 ₽</td>
+        <td class="n">19 687,88 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/699605821.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','699605821',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="9142.09">
+        <td><b>699011863</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>20.04.2026</td>
+        <td class="n">11</td>
+        <td class="n">9 142,09 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">9 142,09 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/699011863.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','699011863',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="22701.03">
+        <td><b>693096972</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>13.04.2026</td>
+        <td class="n">14</td>
+        <td class="n">21 620,03 ₽</td>
+        <td class="n">1 081,00 ₽</td>
+        <td class="n">22 701,03 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/693096972.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','693096972',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="12416.31">
+        <td><b>692472713</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>13.04.2026</td>
+        <td class="n">12</td>
+        <td class="n">12 416,31 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">12 416,31 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/692472713.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','692472713',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="32308.48">
+        <td><b>685900144</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>06.04.2026</td>
+        <td class="n">17</td>
+        <td class="n">30 769,98 ₽</td>
+        <td class="n">1 538,50 ₽</td>
+        <td class="n">32 308,48 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/685900144.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','685900144',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="24348.93">
+        <td><b>686701539</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>06.04.2026</td>
+        <td class="n">12</td>
+        <td class="n">24 348,93 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">24 348,93 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/686701539.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','686701539',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="37875.28">
+        <td><b>678997228</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>30.03.2026</td>
+        <td class="n">19</td>
+        <td class="n">36 071,69 ₽</td>
+        <td class="n">1 803,59 ₽</td>
+        <td class="n">37 875,28 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/678997228.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','678997228',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="15499.96">
+        <td><b>680958240</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>30.03.2026</td>
+        <td class="n">9</td>
+        <td class="n">15 499,96 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">15 499,96 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/680958240.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','680958240',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="26408.32">
+        <td><b>672209473</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>23.03.2026</td>
+        <td class="n">14</td>
+        <td class="n">25 150,77 ₽</td>
+        <td class="n">1 257,55 ₽</td>
+        <td class="n">26 408,32 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/672209473.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','672209473',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="4144.38">
+        <td><b>674676855</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>23.03.2026</td>
+        <td class="n">5</td>
+        <td class="n">4 144,38 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">4 144,38 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/674676855.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','674676855',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="28737.09">
+        <td><b>664661927</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>16.03.2026</td>
+        <td class="n">17</td>
+        <td class="n">27 368,65 ₽</td>
+        <td class="n">1 368,44 ₽</td>
+        <td class="n">28 737,09 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/664661927.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','664661927',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="28164.86">
+        <td><b>664224244</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>16.03.2026</td>
+        <td class="n">16</td>
+        <td class="n">28 164,86 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">28 164,86 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/664224244.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','664224244',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="11601.35">
+        <td><b>657438551</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>09.03.2026</td>
+        <td class="n">7</td>
+        <td class="n">11 048,91 ₽</td>
+        <td class="n">552,44 ₽</td>
+        <td class="n">11 601,35 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/657438551.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','657438551',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="4514.12">
+        <td><b>657884991</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>09.03.2026</td>
+        <td class="n">5</td>
+        <td class="n">4 514,12 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">4 514,12 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/657884991.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','657884991',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="27357.16">
+        <td><b>650665900</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>02.03.2026</td>
+        <td class="n">18</td>
+        <td class="n">26 054,44 ₽</td>
+        <td class="n">1 302,72 ₽</td>
+        <td class="n">27 357,16 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/650665900.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','650665900',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="8651.40">
+        <td><b>651271416</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>02.03.2026</td>
+        <td class="n">7</td>
+        <td class="n">8 651,40 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">8 651,40 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/651271416.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','651271416',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="37833.75">
+        <td><b>640962850</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>23.02.2026</td>
+        <td class="n">16</td>
+        <td class="n">36 032,13 ₽</td>
+        <td class="n">1 801,62 ₽</td>
+        <td class="n">37 833,75 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/640962850.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','640962850',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="24345.96">
+        <td><b>641737658</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>23.02.2026</td>
+        <td class="n">13</td>
+        <td class="n">24 345,96 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">24 345,96 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/641737658.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','641737658',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="22679.73">
+        <td><b>634389834</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>16.02.2026</td>
+        <td class="n">15</td>
+        <td class="n">21 599,74 ₽</td>
+        <td class="n">1 079,99 ₽</td>
+        <td class="n">22 679,73 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/634389834.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','634389834',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="8834.51">
+        <td><b>635050431</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>16.02.2026</td>
+        <td class="n">10</td>
+        <td class="n">8 834,51 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">8 834,51 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/635050431.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','635050431',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="45734.39">
+        <td><b>628197292</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>09.02.2026</td>
+        <td class="n">22</td>
+        <td class="n">43 556,55 ₽</td>
+        <td class="n">2 177,84 ₽</td>
+        <td class="n">45 734,39 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/628197292.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','628197292',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="15156.38">
+        <td><b>627901052</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>09.02.2026</td>
+        <td class="n">6</td>
+        <td class="n">15 156,38 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">15 156,38 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/627901052.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','627901052',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="25144.00">
+        <td><b>621003368</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>02.02.2026</td>
+        <td class="n">23</td>
+        <td class="n">23 946,65 ₽</td>
+        <td class="n">1 197,35 ₽</td>
+        <td class="n">25 144,00 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/621003368.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','621003368',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="14441.49">
+        <td><b>621708561</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>02.02.2026</td>
+        <td class="n">11</td>
+        <td class="n">14 441,49 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">14 441,49 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/621708561.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','621708561',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="22700.16">
+        <td><b>615071917</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>26.01.2026</td>
+        <td class="n">19</td>
+        <td class="n">21 619,20 ₽</td>
+        <td class="n">1 080,96 ₽</td>
+        <td class="n">22 700,16 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/615071917.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','615071917',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="10695.37">
+        <td><b>614332159</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>26.01.2026</td>
+        <td class="n">8</td>
+        <td class="n">10 695,37 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">10 695,37 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/614332159.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','614332159',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="23927.19">
+        <td><b>608325231</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>19.01.2026</td>
+        <td class="n">14</td>
+        <td class="n">22 787,81 ₽</td>
+        <td class="n">1 139,38 ₽</td>
+        <td class="n">23 927,19 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/608325231.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','608325231',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="20068.56">
+        <td><b>607686697</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>19.01.2026</td>
+        <td class="n">10</td>
+        <td class="n">20 068,56 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">20 068,56 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/607686697.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','607686697',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="27595.72">
+        <td><b>602736729</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>12.01.2026</td>
+        <td class="n">20</td>
+        <td class="n">26 281,65 ₽</td>
+        <td class="n">1 314,07 ₽</td>
+        <td class="n">27 595,72 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/602736729.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','602736729',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="7518.96">
+        <td><b>601660986</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>12.01.2026</td>
+        <td class="n">8</td>
+        <td class="n">7 518,96 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">7 518,96 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/601660986.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','601660986',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="9491.20">
+        <td><b>595570195</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>05.01.2026</td>
+        <td class="n">12</td>
+        <td class="n">7 779,68 ₽</td>
+        <td class="n">1 711,52 ₽</td>
+        <td class="n">9 491,20 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/595570195.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','595570195',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="13544.98">
+        <td><b>595076983</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>05.01.2026</td>
+        <td class="n">10</td>
+        <td class="n">13 544,98 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">13 544,98 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/595076983.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','595076983',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="12602.43">
+        <td><b>588002844</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>01.01.2026</td>
+        <td class="n">10</td>
+        <td class="n">10 329,87 ₽</td>
+        <td class="n">2 272,56 ₽</td>
+        <td class="n">12 602,43 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/588002844.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','588002844',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="6001.45">
+        <td><b>587305842</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>01.01.2026</td>
+        <td class="n">2</td>
+        <td class="n">6 001,45 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">6 001,45 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/587305842.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','587305842',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc1" data-st="made" data-sum="12748.59">
+        <td><b>588354713</b><div class="sub">ВБ · Цифровой квадрат</div></td>
+        <td>29.12.2025</td>
+        <td class="n">9</td>
+        <td class="n">10 623,82 ₽</td>
+        <td class="n">2 124,77 ₽</td>
+        <td class="n">12 748,59 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc1/588354713.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc1','588354713',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+      <tr data-acc="wb_acc2" data-st="made" data-sum="5503.44">
+        <td><b>588548173</b><div class="sub">ВБ · Дисквэр</div></td>
+        <td>29.12.2025</td>
+        <td class="n">5</td>
+        <td class="n">5 503,44 ₽</td>
+        <td class="n">0,00 ₽</td>
+        <td class="n">5 503,44 ₽</td>
+        <td><span class="st filed">УПД выгружен</span></td>
+        <td><a class="fts-dl" href="/reports/upd/file/wb_acc2/588548173.xml">⬇ Скачать УПД</a></td>
+        <td><button class="btn-mark" onclick="updMark(this,'wb_acc2','588548173',false)">вернуть в «к выгрузке»</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="sub" style="margin-top:8px">Дата УПД равна дате уведомления (не дате его выкладки
+  в кабинете ВБ). КИЗ не выводим — в уведомлениях он пустой.</p>
+</main>
+
+<script>
+// Фильтр клиентский: строк меньше сотни, перерисовывать страницу ради него незачем.
+// Выбор храним в localStorage — после «отметить выгруженным» страница перезагружается,
+// и без этого фильтр сбрасывался бы на каждом клике.
+function updFilter(){
+  var a=document.getElementById('fAcc').value, s=document.getElementById('fSt').value;
+  try{localStorage.setItem('updFilter',a+'|'+s);}catch(e){}
+  var n=0,sum=0;
+  document.querySelectorAll('table.fts tbody tr[data-acc]').forEach(function(tr){
+    var ok=(!a||tr.dataset.acc===a)&&(!s||tr.dataset.st===s);
+    tr.hidden=!ok;
+    if(ok){n++;sum+=parseFloat(tr.dataset.sum)||0;}
+  });
+  document.getElementById('fCount').textContent=
+    n+' из '+document.querySelectorAll('table.fts tbody tr[data-acc]').length+
+    ' · '+sum.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
+}
+window.addEventListener('DOMContentLoaded',function(){
+  try{
+    var v=(localStorage.getItem('updFilter')||'').split('|');
+    if(v[0])document.getElementById('fAcc').value=v[0];
+    if(v[1])document.getElementById('fSt').value=v[1];
+  }catch(e){}
+  updFilter();
+});
+async function updMark(btn,account,number,made){
+  btn.disabled=true;
+  try{
+    var r=await fetch('/api/upd/status',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({account:account,doc_number:number,made:made})});
+    if(r.ok){location.reload();return;}
+  }catch(e){}
+  btn.disabled=false;alert('Не удалось сохранить статус');
+}
+</script>
+
+</body>
+</html>

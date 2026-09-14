@@ -265,6 +265,19 @@ def main():
     step("ФТС: страница статформ",
          lambda: print("[fts]", __import__("reports.fts_page",
                        fromlist=["render"]).render(), flush=True))
+
+    # Уведомления о выкупе ВБ → УПД для Диадока. Уведомления выкладываются раз в неделю,
+    # но забор инкрементальный (скачиваем только новые), поэтому проверяем ежедневно.
+    step("ВБ: уведомления о выкупе",
+         lambda: __import__("collectors.wb_documents", fromlist=["main_range"]).main_range(
+             datetime.date.today() - datetime.timedelta(days=45), datetime.date.today()))
+    step("ВБ: страница УПД по выкупам",
+         lambda: print("[upd]", __import__("reports.upd_page",
+                       fromlist=["render"]).render(), flush=True))
+    # ВБ выкладывает уведомления по понедельникам-вторникам, но день плавает, поэтому
+    # проверяем ежедневно: задание само шлёт только то, чего ещё не отправляло.
+    step("ВБ: УПД Наталии в телеграм",
+         lambda: __import__("ops.upd_weekly", fromlist=["run"]).run(send=True))
     # Распродажа остатков ВБ: подхватить свежие файлы из dropbox → перерисовать вкладку (сигнал по остаткам)
     step("WB распродажа: загрузка файлов",
          lambda: __import__("collectors.wb_clearance", fromlist=["main"]).main())

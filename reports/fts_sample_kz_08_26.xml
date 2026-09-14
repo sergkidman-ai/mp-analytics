@@ -1,0 +1,129 @@
+<StaticForm xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" DocumentModeID="1006124E" xmlns="urn:customs.ru:Information:CustomsDocuments:StaticForm:5.27.0">
+  <DocumentID xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">73ad3374-3885-4ab1-ab00-67f0a34fc418</DocumentID>
+  <CustomsProcedure>ЭК</CustomsProcedure>
+  <TransportModeCode>30</TransportModeCode>
+  <TransportName>Автодорожный транспорт, за исключением транспортных средств, указанных под кодами 31, 32</TransportName>
+  <ReportingDate>2026-08</ReportingDate>
+  <Consignor>
+    <OrganizationName xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">ООО "ДИСКВЭР"</OrganizationName>
+    <RFOrganizationFeatures xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">
+      <OGRN>1247800120435</OGRN>
+      <INN>7811803918</INN>
+      <KPP>781101001</KPP>
+    </RFOrganizationFeatures>
+    <BusinessEntityTypeName xmlns="urn:customs.ru:RUSCommonAggregateTypes:5.24.0">Общество с ограниченной ответственностью</BusinessEntityTypeName>
+    <SubjectAddressDetails xmlns="urn:customs.ru:RUSCommonAggregateTypes:5.24.0">
+      <PostalCode>193231</PostalCode>
+      <CountryCode>RU</CountryCode>
+      <CounryName>РОССИЯ</CounryName>
+      <City>Г.САНКТ-ПЕТЕРБУРГ</City>
+      <StreetHouse>УЛ. ПОДВОЙСКОГО, Д. 24, К. 3, ЛИТЕРА А, кв. 89</StreetHouse>
+      <OKATO>40000</OKATO>
+    </SubjectAddressDetails>
+  </Consignor>
+  <Consignee>
+    <OrganizationName xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">Физические лица</OrganizationName>
+    <RKOrganizationFeatures xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0" />
+    <SubjectAddressDetails xmlns="urn:customs.ru:RUSCommonAggregateTypes:5.24.0">
+      <CountryCode>KZ</CountryCode>
+      <CounryName>КАЗАХСТАН</CounryName>
+      <City>Алматы</City>
+    </SubjectAddressDetails>
+  </Consignee>
+  <FinancialAdjustingResponsiblePerson>
+    <OrganizationName xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">ООО "ДИСКВЭР"</OrganizationName>
+    <RFOrganizationFeatures xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">
+      <OGRN>1247800120435</OGRN>
+      <INN>7811803918</INN>
+      <KPP>781101001</KPP>
+    </RFOrganizationFeatures>
+    <BusinessEntityTypeName xmlns="urn:customs.ru:RUSCommonAggregateTypes:5.24.0">Общество с ограниченной ответственностью</BusinessEntityTypeName>
+    <SubjectAddressDetails xmlns="urn:customs.ru:RUSCommonAggregateTypes:5.24.0">
+      <PostalCode>193231</PostalCode>
+      <CountryCode>RU</CountryCode>
+      <CounryName>РОССИЯ</CounryName>
+      <City>Г.САНКТ-ПЕТЕРБУРГ</City>
+      <StreetHouse>УЛ. ПОДВОЙСКОГО, Д. 24, К. 3, ЛИТЕРА А, кв. 89</StreetHouse>
+      <OKATO>40000</OKATO>
+    </SubjectAddressDetails>
+  </FinancialAdjustingResponsiblePerson>
+  <TradeCountry>
+    <CountryName>КАЗАХСТАН</CountryName>
+    <CountryCode>KZ</CountryCode>
+  </TradeCountry>
+  <DispatchCountry>
+    <CountryName>РОССИЯ</CountryName>
+    <CountryCode>RU</CountryCode>
+  </DispatchCountry>
+  <DestinationCountry>
+    <CountryName>КАЗАХСТАН</CountryName>
+    <CountryCode>KZ</CountryCode>
+  </DestinationCountry>
+  <CustCostCurrencyCode>RUB</CustCostCurrencyCode>
+  <CustCostTotalAmount>13138.11</CustCostTotalAmount>
+  <Documents>
+    <PrDocumentName xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">Договор</PrDocumentName>
+    <PrDocumentNumber xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">б/н</PrDocumentNumber>
+    <PrDocumentDate xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">2026-08-01</PrDocumentDate>
+  </Documents>
+  <Documents>
+    <PrDocumentName xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">Счет-проформа (проформа-инвойс)</PrDocumentName>
+    <PrDocumentNumber xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">0157014773-0009-1</PrDocumentNumber>
+    <PrDocumentDate xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">2026-08-01</PrDocumentDate>
+  </Documents>
+  <GoodsInfo>
+    <GoodsNumeric>1</GoodsNumeric>
+    <GoodsTNVEDCode>8443999000</GoodsTNVEDCode>
+    <GoodsDescription>Картриджи DS C-EXV65 для принтеров Canon imageRUNNER C3326, iR C3326i</GoodsDescription>
+    <AdditionalInformationCode>07</AdditionalInformationCode>
+    <AdditionalInformation>товары, вывозимые в рамках интернет-торговли в адрес физических лиц</AdditionalInformation>
+    <NetWeightQuantity>1.755</NetWeightQuantity>
+    <InvoicedCost>13138.11</InvoicedCost>
+    <StatisticalCostRUB>13138.11</StatisticalCostRUB>
+    <StatisticalCostUSD>165.33</StatisticalCostUSD>
+    <OriginCountry>
+      <CountryName>КИТАЙ</CountryName>
+      <CountryCode>CN</CountryCode>
+    </OriginCountry>
+    <DTInfo>
+      <GoodsNumeric>1</GoodsNumeric>
+      <DTNumber>
+        <CustomsCode xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">10228020</CustomsCode>
+        <RegistrationDate xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">2026-02-03</RegistrationDate>
+        <GTDNumber xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">5014219</GTDNumber>
+      </DTNumber>
+    </DTInfo>
+  </GoodsInfo>
+  <ProvidePerson>
+    <PersonSurname xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">Терещенко</PersonSurname>
+    <PersonName xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">Светлана</PersonName>
+    <PersonMiddleName xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">Сергеевна</PersonMiddleName>
+    <PersonPost xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">ГЕНЕРАЛЬНЫЙ ДИРЕКТОР</PersonPost>
+    <CommunicationDetails xmlns="urn:customs.ru:RUSCommonAggregateTypes:5.24.0">
+      <Phone xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">79110183954</Phone>
+      <E_mail xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">sveta334@yandex.ru</E_mail>
+    </CommunicationDetails>
+    <SigningDate xmlns="urn:customs.ru:RUSCommonAggregateTypes:5.24.0">2026-09-11T00:00:00</SigningDate>
+    <Organization>
+      <OrganizationName xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "ДИСКВЭР"</OrganizationName>
+      <ShortName xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">ООО "ДИСКВЭР"</ShortName>
+      <OrganizationLanguage xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">RU</OrganizationLanguage>
+      <RFOrganizationFeatures xmlns="urn:customs.ru:CommonAggregateTypes:5.24.0">
+        <OGRN>1247800120435</OGRN>
+        <INN>7811803918</INN>
+        <KPP>781101001</KPP>
+      </RFOrganizationFeatures>
+      <SubjectAddressDetails xmlns="urn:customs.ru:RUSCommonAggregateTypes:5.24.0">
+        <PostalCode>193231</PostalCode>
+        <CountryCode>RU</CountryCode>
+        <CounryName>РОССИЯ</CounryName>
+        <Region>Г.САНКТ-ПЕТЕРБУРГ</Region>
+        <District>МУНИЦИПАЛЬНЫЙ ОКРУГ ОККЕРВИЛЬ</District>
+        <StreetHouse>УЛ. ПОДВОЙСКОГО</StreetHouse>
+        <House>Д. 24, К. 3, ЛИТЕРА А</House>
+        <Room>КВ. 89</Room>
+        <AddressText>193231, РОССИЯ, Г.САНКТ-ПЕТЕРБУРГ, МУНИЦИПАЛЬНЫЙ ОКРУГ ОККЕРВИЛЬ, УЛ. ПОДВОЙСКОГО, Д. 24, К. 3, ЛИТЕРА А, КВ. 89</AddressText>
+      </SubjectAddressDetails>
+    </Organization>
+  </ProvidePerson>
+</StaticForm>
