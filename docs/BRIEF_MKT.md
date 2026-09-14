@@ -144,7 +144,7 @@ ozon_rating, drops, wb_bid_override, wb_bid_log`.
 `run_daily.py`, финколлекторы — тянет туда, **СТОП, сообщи Сергею**.
 
 ## Карантин, ведущий ноль, worktree
-`ops/price_quarantine.py --apply` по крону **03:58 · 11:12 · 17:47 МСК**, вмешательства не требует
-(правила — `docs/handoff/archive/mkt_2026-08-25.md`). Ведущий ноль в коде карточки не обрезать
-НИКОГДА (`kb: leading-zero-is-part-of-code`). Общий чекаут на `main` (инв. 10), своя ветка только
-в worktree: `git worktree add .claude/worktrees/mkt-<задача> -b mkt/<задача> origin/main`.
+`ops/price_quarantine.py --apply` по крону **03:58 · 11:12 · 17:47 · 23:06 МСК**; правила —
+`docs/handoff/archive/mkt_2026-08-25.md`. 10–14.09 разбор стоял 4 дня: ВБ отдаёт записи с
+`newPrice=None`, `float(None)` ронял прогон — починено потоком card (`cd2385f`). Ведущий ноль не
+обрезать НИКОГДА (`kb: leading-zero-is-part-of-code`); ветка только в worktree (инв. 10).
