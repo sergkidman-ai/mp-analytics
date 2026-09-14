@@ -31,14 +31,18 @@ LOG=/opt/mp-analytics/wb_roy_weekly.log
   CSV="docs/reports/mkt_roy_profile_${END}.csv"
   if [ -s "$CSV" ]; then
     $PY -m ops.wb_roy_apply "$CSV" --blackout --max-up 150 --apply --notify
+    $PY -m ops.wb_roy_evict "$CSV" --queue --notify
   else
     echo "!! нет $CSV — ставки acc1 не трогаем"
   fi
   # acc2 «ДисКвэр»: те же четыре правила и тот же ограничитель подъёма.
-  # Удаление ⚫ из кампаний остаётся ручным — в API ВБ нет метода снять номенклатуру.
+  # Вывод ⚫ ИЗ кампании метод у ВБ имеет (PATCH /adv/v0/auction/nms, ключ delete, контракт тот же,
+  # что у заводки; живой пробы снятия ещё не было), но на автомат не ставится: заявка кладётся в очередь и ждёт галочек человека
+  # на /wb-evict; снимает подтверждённое почасовой крон ops.wb_roy_evict --apply.
   CSV2="docs/reports/mkt_roy_profile_${END}_wb_acc2.csv"
   if [ -s "$CSV2" ]; then
     $PY -m ops.wb_roy_apply "$CSV2" --account wb_acc2 --blackout --max-up 150 --apply --notify
+    $PY -m ops.wb_roy_evict "$CSV2" --account wb_acc2 --queue --notify
   else
     echo "!! нет $CSV2 — ставки acc2 не трогаем"
   fi

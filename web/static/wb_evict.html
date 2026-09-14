@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вывод из рекламы WB — подтверждение</title>
+<style>
+  :root{--bg:#eef1f6;--card:#fff;--line:#e2e8f0;--txt:#1e293b;--mut:#64748b;--acc:#2563eb;--neg:#dc2626;--warn:#d97706}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);padding:22px}
+  main{max-width:1100px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .muted{color:var(--mut)}.neg{color:var(--neg)}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px 15px;margin:14px 0;font-size:13px}
+  .q{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:18px}
+  .qh{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  .qh b{font-size:16px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th,td{padding:6px 9px;text-align:right;border-bottom:1px solid var(--line);font-size:13px}
+  th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  th:nth-child(-n+3),td:nth-child(-n+3){text-align:left}
+  tr:last-child td{border-bottom:none}
+  .act{display:flex;gap:9px;align-items:center;margin-top:13px;flex-wrap:wrap}
+  button{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:9px 15px;font:inherit;font-weight:600;color:var(--txt);cursor:pointer}
+  button.go{background:var(--acc);border-color:var(--acc);color:#fff}
+  button.no{background:#fff;border-color:#fecaca;color:var(--neg)}
+  .msg{margin-left:auto;font-size:13px}
+  .wrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+  <h1>Вывод ⚫ из кампаний WB</h1>
+  <div class="muted">Недельная заявка Роя. Снимается только отмеченное — и только после нажатия.</div>
+  <div class="note">Снятие односторонее: вернуть карточку в кампанию можно лишь заводкой, а свободных
+    мест почти нет (лимит 50 у новых кампаний, старые переполнены и добавление не принимают).
+    Смысл снятия — не экономия ставки, а освобождение места под живые карточки.</div>
+  <div id="body" class="muted">загрузка…</div>
+</main>
+<script>
+const money = v => (v||0).toLocaleString('ru-RU',{maximumFractionDigits:0});
+let data = [];
+
+async function load(){
+  const r = await fetch('/api/wb-evict');
+  data = (await r.json()).queues || [];
+  const el = document.getElementById('body');
+  if(!data.length){ el.textContent = 'Очередь пуста — заявок на снятие нет.'; return; }
+  el.className = '';
+  el.innerHTML = data.map((q,i) => `
+    <div class="q">
+      <div class="qh">
+        <b>${q.account}</b>
+        <span class="muted">заявка от ${q.date} · ${q.rows.length} карточек ·
+          расход за неделю ${money(q.spend)} ₽ при заказах 0${q.confirmed ? ' · <b>уже подтверждена</b>' : ''}</span>
+      </div>
+      <div class="wrap"><table>
+        <thead><tr><th><input type="checkbox" checked onchange="toggleAll(${i},this.checked)"></th>
+          <th>nmID</th><th>карточка</th><th>кампания</th><th>ставка ₽</th><th>расход ₽</th><th>причина</th></tr></thead>
+        <tbody>${q.rows.map(x => `<tr>
+          <td><input type="checkbox" class="c${i}" value="${x.nm_id}" checked></td>
+          <td>${x.nm_id}</td><td>${x.name||'<span class="muted">—</span>'}</td>
+          <td>${x.advert_id}</td><td>${x.cpc.toFixed(2)}</td>
+          <td class="neg">${money(x.spend)}</td><td class="muted">${x.why||''}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div class="act">
+        <button class="go" onclick="send(${i},false)">Снять отмеченные</button>
+        <button class="no" onclick="send(${i},true)">Отклонить заявку</button>
+        <span class="msg muted" id="m${i}"></span>
+      </div>
+    </div>`).join('');
+}
+
+function toggleAll(i, on){ document.querySelectorAll('.c'+i).forEach(c => c.checked = on); }
+
+async function send(i, reject){
+  const q = data[i], m = document.getElementById('m'+i);
+  const nm = [...document.querySelectorAll('.c'+i)].filter(c=>c.checked).map(c=>+c.value);
+  if(!reject && !nm.length){ m.textContent = 'Ничего не отмечено.'; return; }
+  if(!confirm(reject ? `Отклонить заявку ${q.account} целиком?`
+                     : `Снять ${nm.length} карточек с рекламы ${q.account}? Вернуть их обратно будет почти некуда.`)) return;
+  m.textContent = 'отправляю…';
+  const r = await fetch('/api/wb-evict/confirm', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({account:q.account, nm_ids:nm, reject})});
+  const j = await r.json();
+  m.textContent = j.ok ? j.msg : ('ошибка: ' + (j.error||''));
+  if(j.ok) setTimeout(load, 1200);
+}
+load();
+</script>
+</body>
+</html>

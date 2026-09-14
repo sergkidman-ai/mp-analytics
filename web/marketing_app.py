@@ -1019,9 +1019,12 @@ def wb_bid_apply(payload: dict = Body(...)):
 
 @app.post("/api/wb-bids/remove")
 def wb_bid_remove(payload: dict = Body(...)):
-    """Снять nmID с рекламы. API снятия у WB НЕ найдено (namespace управления составом за антиботом,
-    /bids только PATCH) → ОЧЕРЕДЬ: пишем намерение в журнал (action='remove', applied=false), фактическое
-    исключение nmID делается вручную в ЛК ВБ. Ставку 0 WB не принимает (пол 7.3₽), поэтому только снятие."""
+    """Снять nmID с рекламы — ОЧЕРЕДЬ НАМЕРЕНИЯ (журнал, applied=false), записи в ВБ здесь нет.
+
+    ПОПРАВКА 14.09.2026: утверждение «API снятия у WB нет» неверно — снятие делает
+    PATCH /adv/v0/auction/nms с ключом delete (тот же метод, что заводка). Живой путь вынесен
+    в ops/wb_roy_evict.py и подтверждается человеком на /wb-evict; эта кнопка осталась пометкой
+    в журнале, чтобы разовое решение из дашборда не терялось. Ставку 0 WB не принимает (пол 7.3₽)."""
     account = payload.get("account", "wb_acc1")
     nm_id = int(payload["nm_id"])
     advert_id = payload.get("advert_id")
@@ -1178,3 +1181,84 @@ def wb_bids_log(account: str = "wb_acc1", nm_id: int = 0, limit: int = 200):
                 d["eval_verdict"] = "нет эффекта"
         out.append(d)
     return {"rows": out, "account": account}
+
+
+# ── Вывод ⚫ из кампаний ВБ: ручное подтверждение недельной заявки Роя ─────────────────────────
+# Снятие номенклатуры у ВБ ЕСТЬ (PATCH /adv/v0/auction/nms, ключ delete) — контракт тот же, что
+# у заводки. Ставить это на автомат нельзя: вернуть карточку обратно можно только заводкой, а
+# свободных мест в кампаниях почти нет. Поэтому недельный прогон кладёт заявку в очередь
+# (ops/wb_roy_evict.py --queue), бот присылает ссылку сюда, человек отмечает галочками, что
+# снимать, и подтверждает. Саму запись в ВБ делает `--apply` из крона — HTTP-запрос не держим:
+# между кампаниями обязательна пауза 21 с (лимит контура), 13 кампаний это 4.5 минуты.
+EVICT_QUEUE = BASE_DIR / "docs" / "reports" / "mkt_roy_evict_queue.json"
+
+
+def _evict_queue():
+    if not EVICT_QUEUE.exists():
+        return {}
+    return json.loads(EVICT_QUEUE.read_text(encoding="utf-8"))
+
+
+@app.get("/wb-evict", response_class=HTMLResponse)
+def wb_evict_page():
+    return (STATIC / "wb_evict.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/wb-evict")
+def wb_evict_list():
+    """Что лежит в очереди на снятие — по аккаунтам, с именем карточки и недельным расходом."""
+    q = _evict_queue()
+    out = []
+    for account, item in sorted(q.items()):
+        rows = []
+        for adv, nms in item["by_advert"].items():
+            for x in nms:
+                rows.append({"advert_id": int(adv), **x})
+        names = {}
+        if rows:
+            r = db.query("""select nm_id, vendor_code, title from wb_cards
+                              where account=%s and nm_id = any(%s)""",
+                         (account, [x["nm_id"] for x in rows]))
+            names = {int(z["nm_id"]): f"{z['vendor_code']} · {(z['title'] or '')[:60]}" for z in r}
+        for x in rows:
+            x["name"] = names.get(x["nm_id"], "")
+        rows.sort(key=lambda z: -z["spend"])
+        out.append({"account": account, "date": item["date"], "csv": item.get("csv", ""),
+                    "confirmed": bool(item.get("confirmed")), "rows": rows,
+                    "spend": round(sum(x["spend"] for x in rows), 2)})
+    return {"queues": out}
+
+
+@app.post("/api/wb-evict/confirm")
+def wb_evict_confirm(payload: dict = Body(...)):
+    """Подтвердить снятие отмеченных карточек (или отклонить заявку целиком).
+
+    Подтверждение НЕ пишет в ВБ прямо здесь: оно сужает заявку до отмеченного и ставит флаг
+    confirmed. Снятие выполнит `ops.wb_roy_evict --apply` (крон, каждый час) — он молча выходит,
+    пока флага нет. Так клик не висит 5 минут и не рвётся по таймауту nginx.
+    """
+    account = payload.get("account", "")
+    q = _evict_queue()
+    item = q.get(account)
+    if not item:
+        return {"ok": False, "error": f"Очередь {account} пуста."}
+    if payload.get("reject"):
+        q.pop(account, None)
+        EVICT_QUEUE.write_text(json.dumps(q, ensure_ascii=False, indent=1), encoding="utf-8")
+        return {"ok": True, "msg": f"Заявка {account} от {item['date']} отклонена целиком."}
+    keep = {int(n) for n in payload.get("nm_ids") or []}
+    if not keep:
+        return {"ok": False, "error": "Не отмечено ни одной карточки."}
+    by_adv, n = {}, 0
+    for adv, nms in item["by_advert"].items():
+        sel = [x for x in nms if int(x["nm_id"]) in keep]
+        if sel:
+            by_adv[adv] = sel
+            n += len(sel)
+    item["by_advert"] = by_adv
+    item["confirmed"] = True
+    item["confirmed_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+    q[account] = item
+    EVICT_QUEUE.write_text(json.dumps(q, ensure_ascii=False, indent=1), encoding="utf-8")
+    return {"ok": True, "msg": f"Подтверждено снятие {n} карточек в {len(by_adv)} кампаниях "
+                               f"({account}). Уйдёт в ВБ ближайшим часом."}
