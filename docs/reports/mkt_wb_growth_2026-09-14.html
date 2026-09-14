@@ -1,0 +1,302 @@
+<title>Рычаги роста на ВБ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --paper:#EFF2F1; --card:#FFFFFF; --ink:#0E1618; --muted:#5B6B6C; --hair:#D3DAD8;
+  --accent:#0F5C63; --accent-soft:#D9E6E6;
+  --up:#2E7D4F; --down:#B03A2E; --flat:#8A7B3A;
+  --up-soft:#DCEBE1; --down-soft:#F3DEDA; --flat-soft:#F0EAD6;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0C1214; --card:#141D1F; --ink:#E8EEEC; --muted:#94A5A4; --hair:#253234;
+  --accent:#6FC5C9; --accent-soft:#1B3437;
+  --up:#67C08C; --down:#E48374; --flat:#D4BE74;
+  --up-soft:#173026; --down-soft:#331E1B; --flat-soft:#2E2819;}}
+:root[data-theme="dark"]{
+  --paper:#0C1214; --card:#141D1F; --ink:#E8EEEC; --muted:#94A5A4; --hair:#253234;
+  --accent:#6FC5C9; --accent-soft:#1B3437;
+  --up:#67C08C; --down:#E48374; --flat:#D4BE74;
+  --up-soft:#173026; --down-soft:#331E1B; --flat-soft:#2E2819;}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);
+  font-family:"Source Serif 4",Georgia,serif;font-size:17px;line-height:1.6;margin:0;
+  padding:0 20px 120px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto}
+.prose{max-width:68ch}
+h1,h2,h3,h4,.mono,th,.label{font-family:"Bricolage Grotesque","Helvetica Neue",sans-serif}
+h1{font-size:clamp(34px,5.2vw,58px);font-weight:800;line-height:1.02;letter-spacing:-.02em;margin:0 0 14px;text-wrap:balance}
+h2{font-size:clamp(22px,2.6vw,30px);font-weight:700;letter-spacing:-.01em;margin:0 0 6px;text-wrap:balance}
+h3{font-size:18px;font-weight:700;margin:0 0 6px;text-wrap:balance}
+h4{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+p{margin:0 0 14px}
+.num,td.n,.big{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.label{font-size:11.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+header{padding:64px 0 28px;border-bottom:2px solid var(--ink)}
+header .sub{font-size:19px;color:var(--muted);max-width:62ch;margin:0}
+section{padding:44px 0;border-bottom:1px solid var(--hair)}
+.sec-head{margin-bottom:24px}.sec-head .label{color:var(--accent);display:block;margin-bottom:4px}
+.pull{border-left:3px solid var(--accent);padding:2px 0 2px 18px;margin:24px 0;font-size:19px;line-height:1.45;max-width:64ch}
+table{width:100%;border-collapse:collapse;font-size:15px}
+.scroll{overflow-x:auto;margin:0 -4px;padding:0 4px}
+th{font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  text-align:right;padding:0 0 9px;border-bottom:1px solid var(--ink);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td{padding:9px 0;border-bottom:1px solid var(--hair);text-align:right;white-space:nowrap}
+td+td,th+th{padding-left:22px}
+td.wide{white-space:normal;min-width:210px}
+tr.tot td{border-top:1px solid var(--ink);border-bottom:none;font-weight:600}
+.sm{font-size:13.5px;color:var(--muted)}
+.pos{color:var(--up)}.neg{color:var(--down)}
+.gauge{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 0}
+.g{flex:1 1 240px;background:var(--card);border:1px solid var(--hair);border-radius:2px;padding:16px 18px}
+.g .big{font-size:29px;font-weight:600;line-height:1;display:block;margin:4px 0 6px}
+.g .track{height:10px;background:var(--hair);border-radius:1px;overflow:hidden;margin:10px 0 6px}
+.g .fill{height:100%;background:var(--accent)}
+.g .cap{font-size:13px;color:var(--muted);line-height:1.4}
+.inv{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}
+.i{background:var(--card);border:1px solid var(--hair);border-radius:2px;padding:16px 18px}
+.i code{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--accent)}
+.i p{margin:6px 0 0;font-size:14px;color:var(--muted);line-height:1.5}
+.hyp{background:var(--card);border:1px solid var(--hair);border-radius:2px;padding:20px 22px;margin-bottom:14px;
+  display:grid;grid-template-columns:46px 1fr;gap:0 18px;align-items:start}
+.hyp.first{border-color:var(--accent);border-width:2px}
+.rank{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:600;color:var(--accent);line-height:1}
+.hyp .body p{margin:8px 0 0;font-size:15px;line-height:1.55}
+.hyp dl{margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:14px}
+.hyp dt{font-family:"Bricolage Grotesque",sans-serif;font-size:11px;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted);padding-top:3px;white-space:nowrap}
+.hyp dd{margin:0;color:var(--ink)}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.chip{font-family:"Bricolage Grotesque",sans-serif;font-size:11px;font-weight:600;letter-spacing:.07em;
+  text-transform:uppercase;padding:3px 9px;border-radius:2px;background:var(--accent-soft);color:var(--accent)}
+.chip.free{background:var(--up-soft);color:var(--up)}
+.chip.risk{background:var(--down-soft);color:var(--down)}
+ul.plain{padding-left:19px;margin:0 0 14px}ul.plain li{margin-bottom:9px}
+footer{padding:34px 0 0;font-size:13px;color:var(--muted)}
+code{font-family:"IBM Plex Mono",monospace;font-size:13px}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="label" style="margin-bottom:14px">Поток mkt · 14 сентября 2026</div>
+  <h1>Рычаги роста на ВБ</h1>
+  <p class="sub">Что уже измерено, что измерение показало, и где оно врёт. Шесть гипотез
+     в порядке отдачи на вложенный час.</p>
+</header>
+
+<section>
+  <div class="sec-head"><span class="label">Главное</span>
+    <h2>Мы платим за клик втрое-впятеро меньше, чем он окупает</h2></div>
+  <div class="prose"><p>Это не метафора. Считается прямо: доля заказов с клика × прибыль с заказа =
+    сколько клик может стоить, не уходя в минус.</p></div>
+  <div class="gauge">
+    <div class="g"><h4>WB acc1</h4><span class="big">10,22 ₽</span>
+      <div class="track"><div class="fill" style="width:29%"></div></div>
+      <span class="cap">Клик окупается до <b>35,4 ₽</b> (CR клик→заказ 4,97 %, прибыль с заказа ~712 ₽).
+        Платим 29 % порога.</span></div>
+    <div class="g"><h4>WB acc2</h4><span class="big">7,85 ₽</span>
+      <div class="track"><div class="fill" style="width:20%"></div></div>
+      <span class="cap">Клик окупается до <b>39,0 ₽</b> (CR 7,43 %, прибыль ~525 ₽).
+        Платим 20 % порога — почти на полу 7,30 ₽.</span></div>
+    <div class="g"><h4>Где мы стоим</h4><span class="big">49-я</span>
+      <div class="track"><div class="fill" style="width:8%"></div></div>
+      <span class="cap">Средняя позиция бустера за неделю — 49 на обоих аккаунтах. Это третья
+        страница выдачи. Мы покупаем показы там, где не смотрят.</span></div>
+  </div>
+  <div class="pull">Потолок Роя <b>MAX_CPC 25 ₽ ниже порога окупаемости 35–39 ₽</b>. То есть механизм
+     физически не может дойти до убыточной ставки — он упирается в собственный потолок раньше.
+     Потолок поставлен из осторожности, а не из расчёта, и сейчас это главный тормоз.</div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Реклама ВБ, 4 недели 17.08–13.09</th><th>acc1</th><th>acc2</th></tr></thead>
+    <tbody>
+      <tr><td>Расход</td><td class="n">45 816 ₽</td><td class="n">19 541 ₽</td></tr>
+      <tr><td>Выручка с рекламы</td><td class="n">674 207 ₽</td><td class="n">488 659 ₽</td></tr>
+      <tr><td>ДРР</td><td class="n">6,8 %</td><td class="n">4,0 %</td></tr>
+      <tr><td>Показов</td><td class="n">242 879</td><td class="n">148 614</td></tr>
+      <tr><td>CTR</td><td class="n">1,85 %</td><td class="n">1,68 %</td></tr>
+      <tr><td>CR клик → корзина</td><td class="n">18,4 %</td><td class="n">24,1 %</td></tr>
+      <tr><td>CR клик → заказ</td><td class="n">4,97 %</td><td class="n">7,43 %</td></tr>
+      <tr class="tot"><td>Заказ обходится в</td><td class="n">205 ₽</td><td class="n">106 ₽</td></tr>
+    </tbody>
+  </table></div>
+  <p class="sm prose" style="margin-top:14px">Заказ на acc2 стоит <b>вдвое дешевле</b>, конвертит
+    в полтора раза лучше — и получает <b>вдвое меньше денег</b>. Распределение бюджета между
+    аккаунтами сложилось исторически и ни разу не пересматривалось под эти цифры.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Инвентарь</span>
+    <h2>Чем мы меряем сегодня</h2></div>
+  <div class="inv">
+    <div class="i"><h3>Недельная воронка Роя</h3><code>mkt_roy_funnel_*.json</code>
+      <p>Открытия → корзина → заказы → выручка по каждой карточке, неделя к неделе, с разделением
+      на рекламные и органические. Шесть недель истории. Главный инструмент.</p></div>
+    <div class="i"><h3>Дневная реклама по карточкам</h3><code>wb_ad_nm_daily</code>
+      <p>Показы, клики, корзины, заказы, расход, CPC и позиция бустера — по дням, по каждому nmID.
+      197 тыс строк, глубина до 13.09. Это то, на чём можно строить любой А/Б.</p></div>
+    <div class="i"><h3>Журнал ставок</h3><code>wb_bid_log</code>
+      <p>Каждая правка: старая и новая ставка, автор, применилась ли. Позволяет задним числом
+      собрать когорту «кому подняли» и сравнить с теми, кого не трогали.</p></div>
+    <div class="i"><h3>Месячная воронка карточек</h3><code>wb_funnel</code>
+      <p>То же, но помесячно и с рейтингом карточки и отзывами. Нужна, когда вопрос
+      про контент, а не про ставку.</p></div>
+    <div class="i"><h3>Маржа по SKU</h3><code>margin_by_sku</code>
+      <p>Витрина потока fin, читаем только. Даёт потолок ставки по каждой карточке —
+      без неё разговор об окупаемости клика невозможен.</p></div>
+    <div class="i"><h3>Пул на расширение</h3><span class="sm">еженедельный отчёт Роя</span>
+      <p>Карточки с продажами, но почти без показов. acc1 — 394 шт (628 заказов, 2,6 млн ₽),
+      acc2 — 430 шт (820 заказов, 3,1 млн ₽). Отсюда взяты 124+124 заведённые сегодня.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Дыра в методике</span>
+    <h2>Мы не знаем, работает ли подъём ставки. И текущий замер не может ответить</h2></div>
+  <div class="prose">
+  <p>Я поднял историю: Рой поднимал ставки трижды — 17.08 (76 карточек), 24.08 (67) и сегодня,
+     14.09 (104 на acc1 и 27 на acc2). Прогоны 31.08 и 07.09 <b>не подняли ни одной</b> —
+     253 и 128 правок, все вниз. То есть по факту механизм почти всё лето работал срезателем,
+     а не ускорителем.</p>
+  <p>Сравнение «до и после» по двум историческим когортам выглядит пугающе:</p></div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Когорта acc1</th><th>показы</th><th>клики</th><th>заказы</th><th>расход</th></tr></thead>
+    <tbody>
+      <tr><td>🟢 поднятые 17.08 (76 шт)</td><td class="n pos">+41 %</td><td class="n">+1 %</td><td class="n neg">−62 %</td><td class="n">+20 %</td></tr>
+      <tr><td>контроль, не трогали (8090 шт)</td><td class="n neg">−14 %</td><td class="n">−5 %</td><td class="n pos">+15 %</td><td class="n">−1 %</td></tr>
+      <tr><td>🟢 поднятые 24.08 (67 шт)</td><td class="n pos">+9 %</td><td class="n neg">−27 %</td><td class="n neg">−62 %</td><td class="n neg">−27 %</td></tr>
+      <tr><td>контроль, не трогали (7198 шт)</td><td class="n neg">−5 %</td><td class="n pos">+33 %</td><td class="n pos">+133 %</td><td class="n pos">+46 %</td></tr>
+    </tbody>
+  </table></div>
+  <div class="pull">Читать это как «подъём убивает продажи» <b>нельзя</b>. Рой выбирает 🟢 именно те
+     карточки, которые на прошлой неделе хорошо продавались — а неделя отбора и есть колонка «до».
+     Пик по определению откатывается к среднему. Мы измеряем собственный критерий отбора.</div>
+  <div class="prose">
+  <p>Что из этой таблицы всё-таки читается честно: <b>показы у поднятых выросли (+41 % и +9 %) на фоне
+     падающего контроля</b>. Ставка покупает видимость — это работает. А вот доедет ли видимость
+     до заказа, таблица сказать не может.</p>
+  <p>Вывод не «механизм плохой», а «у нас нет контрольной группы». Это чинится одной правкой
+     и одним понедельником.</p></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Гипотезы</span>
+    <h2>Что проверять, в порядке отдачи</h2></div>
+
+  <div class="hyp first"><span class="rank">1</span><div class="body">
+    <h3>Подъём на +10 % вообще что-то делает?</h3>
+    <p>Разделить зелёную когорту случайно пополам: половине поднять, половине оставить как есть.
+       Обе половины отобраны одним критерием, значит откат к среднему бьёт по обеим одинаково —
+       и разница между ними и есть чистый эффект ставки.</p>
+    <dl>
+      <dt>Как мерить</dt><dd>Через неделю сравнить по <code>wb_ad_nm_daily</code>: показы, клики,
+        и главное — <b>общие</b> заказы карточки, не только рекламные (иначе не увидим каннибализацию органики).</dd>
+      <dt>Материал</dt><dd>Уже есть: 104 зелёных на acc1 и 27 на acc2 в ближайший понедельник 21.09.</dd>
+      <dt>Решение</dt><dd>Нет разницы → потолок и шаг подняты зря, пересобирать правило.
+        Есть разница → знаем цену пункта ставки и можем считать шаг рационально.</dd>
+      <dt>Цена</dt><dd>Правка в <code>ops/wb_roy_apply.py</code> — флаг холдаута. Полчаса. Денег ноль.</dd>
+    </dl>
+    <div class="chips"><span class="chip free">бесплатно</span><span class="chip">результат через 7 дней</span><span class="chip">блокирует остальные</span></div>
+  </div></div>
+
+  <div class="hyp"><span class="rank">2</span><div class="body">
+    <h3>Шаг +10 % меньше шума аукциона</h3>
+    <p>Ставка 10 → 11 ₽ при разбросе ставок конкурентов в разы может не двигать позицию вообще.
+       Средняя позиция 49 намекает, что так и есть. Проверить третью группу с шагом +30 %.</p>
+    <dl>
+      <dt>Как мерить</dt><dd>Тот же холдаут, но в три корзины: не трогаем / +10 % / +30 %.
+        Смотреть <code>booster_pos</code> — сдвинулась ли позиция, а потом уже заказы.</dd>
+      <dt>Решение</dt><dd>Двигает только +30 % → менять STEP; не двигает и он → проблема не в ставке,
+        а в карточке (см. гипотезу 5).</dd>
+      <dt>Цена</dt><dd>Верхняя оценка расхода при +30 % на трети зелёных — около 1,5 тыс ₽/нед на оба аккаунта.</dd>
+    </dl>
+    <div class="chips"><span class="chip">≈1500 ₽/нед</span><span class="chip">результат через 7 дней</span></div>
+  </div></div>
+
+  <div class="hyp"><span class="rank">3</span><div class="body">
+    <h3>Потолок 25 ₽ занижен — поднять до расчётного</h3>
+    <p>Порог окупаемости 35,4 ₽ на acc1 и 39,0 ₽ на acc2 посчитан по фактическим CR и марже.
+       Потолок 25 ₽ отсекает нас от аукциона в самых конкурентных запросах — там, где сидят
+       те самые показы, которых не хватает.</p>
+    <dl>
+      <dt>Как мерить</dt><dd>Поднять MAX_CPC до 30 ₽ (не до порога — с запасом на падение CR)
+        только на карточках с маржой ≥25 %. Смотреть, дошла ли хоть одна ставка до нового потолка
+        и что стало с позицией.</dd>
+      <dt>Риск</dt><dd>Реальный: порог считается по средним CR, а у конкретной карточки CR может
+        быть вдвое ниже. Поэтому по марже ≥25 %, а не по всем.</dd>
+      <dt>Решение</dt><dd>Никто не дошёл до 30 ₽ → потолок вообще не связывает, тормоз в другом месте.</dd>
+    </dl>
+    <div class="chips"><span class="chip risk">нужна ваша команда</span><span class="chip">делать после гипотезы 1</span></div>
+  </div></div>
+
+  <div class="hyp"><span class="rank">4</span><div class="body">
+    <h3>Бюджет неправильно поделён между аккаунтами</h3>
+    <p>acc2 приносит заказ за 106 ₽ против 205 ₽ на acc1 и получает вдвое меньше денег.
+       Если эффективность сохранится при удвоении расхода, это самый дешёвый рост из всех доступных.</p>
+    <dl>
+      <dt>Как мерить</dt><dd>Поднять недельный расход acc2 с 5,7 до 11 тыс ₽ (через потолки Роя,
+        не разово) и следить за ценой заказа. Она обязана вырасти — вопрос, насколько.</dd>
+      <dt>Решение</dt><dd>Цена заказа осталась ниже 150 ₽ → повторить ещё раз.
+        Прыгнула выше 250 ₽ → у acc2 маленький пул спроса, вернуть как было.</dd>
+      <dt>Цена</dt><dd>+5,3 тыс ₽/нед. Свободный бюджет до текущих потолков на acc2 — 33,9 тыс ₽/нед,
+        то есть места хватает без всяких правок правил.</dd>
+    </dl>
+    <div class="chips"><span class="chip">+5300 ₽/нед</span><span class="chip">результат через 14 дней</span></div>
+  </div></div>
+
+  <div class="hyp"><span class="rank">5</span><div class="body">
+    <h3>Узкое место не в ставке, а в карточке</h3>
+    <p>CTR 1,85 % и 1,68 % — низко. Если показы есть, а кликов нет, доплачивать за показы бессмысленно:
+       деньги уходят в баннерную слепоту. Тогда рычаг роста — фото, заголовок, цена в выдаче, рейтинг.</p>
+    <dl>
+      <dt>Как мерить</dt><dd>Взять из <code>wb_funnel</code> 50 карточек с высокими показами и низким CTR,
+        сверить их рейтинг и число отзывов с 50 карточками-близнецами с высоким CTR. Данные уже лежат,
+        нужен один запрос.</dd>
+      <dt>Решение</dt><dd>Разница объясняется рейтингом/отзывами → это задача потока rev, и она
+        важнее ставок. Не объясняется → смотреть фото и заголовки.</dd>
+    </dl>
+    <div class="chips"><span class="chip free">бесплатно</span><span class="chip">результат сразу</span></div>
+  </div></div>
+
+  <div class="hyp"><span class="rank">6</span><div class="body">
+    <h3>Реклама покупает заказы, которые пришли бы сами</h3>
+    <p>На acc1 рекламных заказов 62 из 216 за неделю. Часть из них — люди, которые всё равно нашли бы
+       карточку в органике. Тогда истинная цена заказа выше 205 ₽, и вся арифметика выше оптимистична.</p>
+    <dl>
+      <dt>Как мерить</dt><dd>Тот же холдаут из гипотезы 1, но смотреть на органические заказы контрольной
+        половины. Если у поднятых органика просела ровно на столько, на сколько выросла реклама —
+        мы платим за своё же.</dd>
+      <dt>Решение</dt><dd>Каннибализация выше 50 % → пересчитать все потолки, они завышены вдвое.</dd>
+      <dt>Цена</dt><dd>Ноль: считается из данных гипотезы 1, отдельного прогона не нужно.</dd>
+    </dl>
+    <div class="chips"><span class="chip free">бесплатно</span><span class="chip">едет вместе с гипотезой 1</span></div>
+  </div></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="label">Без ожидания замеров</span>
+    <h2>Три вещи, которые можно делать уже сейчас</h2></div>
+  <ul class="plain prose">
+    <li><b>Заводка новых карточек продолжается сама собой.</b> Сегодня заведено 124 на acc1 и 124 на acc2
+      в семь новых кампаний по 1000 ₽. В пуле осталось ещё около 270 карточек на acc1 и 300 на acc2
+      с продажами и маржой ≥25 %, но без показов. Это не гипотеза, а очевидный дефицит видимости —
+      заводить дальше партиями по 124 раз в две недели, пока пул не кончится.</li>
+    <li><b>Вывод мёртвых карточек освобождает места, а не деньги.</b> В очереди на <code>/wb-evict</code>
+      лежит 31 карточка acc1 и 16 acc2. Экономия копеечная (856 ₽/нед на оба), но 50 — жёсткий предел
+      на кампанию, и каждое освобождённое место — это место для живой карточки.</li>
+    <li><b>Отчёт бота честно называет ситуацию.</b> Строку «подъём зелёных не автоматизирован» убрал —
+      она врала с момента снятия заморозки. Теперь бот пишет, какие цвета применены автоматом
+      и что ждёт человека.</li>
+  </ul>
+</section>
+
+<footer class="prose">
+  <p>Все цифры из <code>wb_ad_nm_daily</code>, <code>wb_bid_log</code>, <code>wb_funnel</code>,
+     недельных воронок Роя и <code>margin_by_sku</code> (read-only). Окно замера рекламы —
+     четыре полные недели 17.08–13.09.2026. Прибыль с заказа считана как средний чек аккаунта ×
+     маржа августа по витрине; для acc1 это 3527 ₽ × 20,2 %, для acc2 — 2901 ₽ × 18,1 %.</p>
+</footer>
+</div>
