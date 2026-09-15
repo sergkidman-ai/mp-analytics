@@ -62,6 +62,13 @@ VALUES %s
 """
 
 
+def say(text):
+    """Строка лога со временем МСК и сразу в журнал: systemd иначе копит вывод до конца прогона
+    (15.09.2026 все строки легли одним временем 05:00 — не видно, когда МС тормозил)."""
+    for line in str(text).split("\n"):
+        print(f"{now_msk():%H:%M:%S} {line}", flush=True)
+
+
 def in_window(moment):
     t = moment.time()
     return t >= WINDOW_START or t < WINDOW_END
@@ -162,7 +169,7 @@ def reread(edits):
     return bad
 
 
-def apply(edits, run_at, log=print, limit=None, clock=now_msk):
+def apply(edits, run_at, log=say, limit=None, clock=now_msk):
     """Запись пачками в окне. Возвращает (записано, остановлено_по_причине)."""
     todo = edits[:min(limit or NIGHT_CAP, NIGHT_CAP)]
     backup = BACKUP_DIR / f"{run_at:%Y-%m-%d_%H%M%S}"
@@ -189,6 +196,13 @@ def apply(edits, run_at, log=print, limit=None, clock=now_msk):
             if spent > SLOW_RESPONSE:
                 pause = min(pause * 2, 600)
                 log(f"    МС отвечает {spent:.0f} с — пауза {pause} с")
+            elif pause > PAUSE:
+                # МС отпустило — возвращаемся к штатному темпу. Ночь 14→15.09 пауза залипла
+                # на 600 с, и 2 890 карточек не успели до 05:00.
+                pause = PAUSE
+                log(f"    МС ответил за {spent:.0f} с — пауза снова {pause} с")
+            if len(done) % 1000 == 0:
+                log(f"    записано {len(done)} из {len(todo)}")
             left = len(todo) - len(done)
             if not left:
                 break
@@ -211,14 +225,14 @@ def main(argv=None):
 
     run_at = now_msk()
     if args.apply and not in_window(run_at):
-        print(f"{run_at:%H:%M} МСК — вне окна 23:00–05:00, запись запрещена")
+        say(f"{run_at:%H:%M} МСК — вне окна 23:00–05:00, запись запрещена")
         return 2
     p = plan(run_at.date())
     csv_path = REPORT_DIR / f"prc_enter_buyprice_{run_at:%Y-%m-%d_%H%M}.csv"
     write_csv(p["edits"], csv_path)
     lines = summary(p)
-    print("\n".join(lines))
-    print(f"план: {csv_path}")
+    say("\n".join(lines))
+    say(f"план: {csv_path}")
     if not args.apply:
         return 0
 
@@ -226,7 +240,7 @@ def main(argv=None):
     bad = reread(done) if done else []
     tail = [f"записано {len(done)} из {len(p['edits'])}" + (f"; стоп: {stop}" if stop else ""),
             f"перечитка: расхождений {len(bad)}"]
-    print("\n".join(tail))
+    say("\n".join(tail))
     if bad:
         (REPORT_DIR / f"prc_enter_buyprice_reread_{run_at:%Y-%m-%d_%H%M}.json").write_text(
             json.dumps(bad), encoding="utf-8")
