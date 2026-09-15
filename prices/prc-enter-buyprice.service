@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
 # Окно 23:00–05:00 МСК, пачка 50 через 60 с, потолок 10 000 за ночь — скрипт держит сам
 # (регламент ms-mass-change). Вне окна скрипт отказывается писать.
 ExecStart=/opt/mp-analytics/venv/bin/python -m prices.enter_buyprice --apply --notify

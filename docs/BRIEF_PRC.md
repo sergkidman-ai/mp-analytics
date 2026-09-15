@@ -53,7 +53,12 @@ UI `web/static/novelties.html` + роуты `/warehouse/novelties`, `/api/novelt
 - Темп по `ms-mass-change`: окно 23:00–05:00, пачка 50/60 с, канарейка 200→10 мин, ≤10 000 за ночь.
 - Грабли: общий чекаут помечен `.workstream=fin` — хук не пускает коммит `BRIEF_PRC.md` из `main`,
   коммитить из worktree `.claude/worktrees/prc-enter-buyprice` и вливать.
-- **Следующий шаг:** утром 15.09 проверить первый прогон — `journalctl -u prc-enter-buyprice`,
+- **Первая ночь 14→15.09:** записано 5 500 из 8 390, перечитка — расхождений 0; стоп по окну 05:00.
+  МС отвечал на пачку 15–63 с, пауза удваивалась до 600 с и НЕ возвращалась → ~300 карточек/час.
+  Правка 15.09: при ответе быстрее 10 с пауза снова 60 с; лог построчно со временем МСК
+  (`say`, `PYTHONUNBUFFERED=1`) — раньше systemd сбрасывал весь вывод в 05:00 одним временем.
+  Остаток 2 890 (в основном profiline, ramis) — ночью 15→16.09 сам по дельте.
+- **Следующий шаг (было):** утром 15.09 проверить первый прогон — `journalctl -u prc-enter-buyprice`,
   строку «перечитка: расхождений», `select count(*) from prc_buyprice_write`; предупредить fin/mkt:
   buyPrice читают `margin_by_sku`, `margin_control`, `set_cost`, `price_quarantine`, `wb_promo_guard`.
 
