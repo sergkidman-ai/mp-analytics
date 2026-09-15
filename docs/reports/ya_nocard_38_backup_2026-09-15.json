@@ -1,0 +1,2708 @@
+[
+ {
+  "offer": {
+   "offerId": "0802",
+   "name": "Фотобумага DS S-Print суперглянцевая А4/20/180",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________54f72ac4bc3ae.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага S-Print суперглянцевая, водостойкая для струйной печати</p><p><span>Характеристики:</span> формат А4, плотность 180г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.1
+   },
+   "vendorCode": "0802",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________54f72ac4bc3ae.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "0804",
+   "name": "Фотобумага DS S-Print глянцевая самоклеющаяся A4/25/135",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________53365d251f888.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага S-Print глянцевая самоклеющаяся для струйной печати</p><p><span>Характеристики:</span>формат А4, плотность 135г./кв.м., 25 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.1
+   },
+   "vendorCode": "0804",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________53365d251f888.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "0805",
+   "name": "Фотобумага DS S-Print глянцевая А6/20/230",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________53365c8cef48c.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага S-Print глянцевая Premium для струйной печати </p><p><span>Характеристики:</span>формат А6, плотность 230г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.1
+   },
+   "vendorCode": "0805",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________53365c8cef48c.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "0807",
+   "name": "Фотобумага DS S-Print матовая A6/25/180",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________53365b8a20054.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага S-Print матовая Family для струйной печати</p><p><span>Характеристики:</span>формат А6, плотность 180г./кв.м., 25 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.1
+   },
+   "vendorCode": "0807",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________53365b8a20054.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "10002",
+   "name": "Картридж 46508736 черный",
+   "category": "Картриджи для OKI",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/46508736.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<table style=\"width: 100%; border: 0; border-spacing: 0px;\">\n<tbody>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Тип</td>\n<td>новый, совместимый</td>\n</tr>\n<tr>\n<td>Цвет тонера</td>\n<td>черный</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Вес брутто</td>\n<td>1.000 кг.</td>\n</tr>\n<tr>\n<td>Ресурс печати</td>\n<td>3500 страниц при 5% заполнении листа А4</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Совместимость</td>\n<td>Oki C332dn<br />Oki MC363dn</td>\n</tr>\n<tr>\n<td>Производство</td>\n<td>Китай</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Гарантия</td>\n<td>1 год</td>\n</tr>\n</tbody>\n</table>\n<br />\n<p>Внешний вид товара может отличаться</p>",
+   "weightDimensions": {
+    "length": 6,
+    "width": 6,
+    "height": 6,
+    "weight": 0.7
+   },
+   "vendorCode": "2725",
+   "type": "DEFAULT",
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/46508736.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 91042,
+   "marketCategoryName": "Расходные материалы для оргтехники"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "10265",
+   "name": "Картридж PFI-106C голубой",
+   "category": "Картриджи для Canon",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/PFI-106C.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<table style=\"width: 100%; border: 0; border-spacing: 0px;\">\n<tbody>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Тип</td>\n<td>новый, совместимый</td>\n</tr>\n<tr>\n<td>Цвет чернила</td>\n<td>голубой</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Вес брутто</td>\n<td>0.200 кг.</td>\n</tr>\n<tr>\n<td>Емкость</td>\n<td>130 мл.</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Совместимость</td>\n<td>Canon iPF6300/ 6300s/ 6350<br />Canon iPF6400/ 6400s/ 6400se/ 6450</td>\n</tr>\n<tr>\n<td>Производство</td>\n<td>Китай</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Гарантия</td>\n<td>1 год</td>\n</tr>\n</tbody>\n</table>\n<p> </p>\n<p>Внешний вид товара может отличаться</p>",
+   "weightDimensions": {
+    "length": 8,
+    "width": 3,
+    "height": 14,
+    "weight": 0.001
+   },
+   "vendorCode": "2821",
+   "type": "DEFAULT",
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/PFI-106C.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 91042,
+   "marketCategoryName": "Расходные материалы для оргтехники"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "10276",
+   "name": "Картридж PFI-207K черный",
+   "category": "Картриджи для Canon",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/PFI-207K.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<table style=\"width: 100%; border: 0; border-spacing: 0px;\"><tbody><tr style=\"background-color: #eaeaeb;\"><td>Тип</td><td>новый, совместимый</td></tr><tr><td>Цвет чернила</td><td>черный</td></tr><tr style=\"background-color: #eaeaeb;\"><td>Вес брутто</td><td>0.400 кг.</td></tr><tr><td>Емкость</td><td>300 мл.</td></tr><tr style=\"background-color: #eaeaeb;\"><td>Совместимость</td><td>Canon iPF680/ 685/ 780/ 785</td></tr><tr><td>Производство</td><td>Китай</td></tr><tr style=\"background-color: #eaeaeb;\"><td>Гарантия</td><td>1 год</td></tr></tbody></table><br /><p>Внешний вид товара может отличаться</p>",
+   "weightDimensions": {
+    "length": 20,
+    "width": 20,
+    "height": 20,
+    "weight": 0.3
+   },
+   "vendorCode": "2832",
+   "type": "DEFAULT",
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/PFI-207K.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 91042,
+   "marketCategoryName": "Расходные материалы для оргтехники"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "10286",
+   "name": "Картридж PFI-706Bk черный",
+   "category": "Картриджи для Canon",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/PFI-706Bk.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<table style=\"width: 100%; border: 0; border-spacing: 0px;\">\n<tbody>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Тип</td>\n<td>новый, совместимый</td>\n</tr>\n<tr>\n<td>Цвет чернила</td>\n<td>черный</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Размеры</td>\n<td>30 x 14 x 5 см.</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Вес брутто</td>\n<td>1.050 кг.</td>\n</tr>\n<tr>\n<td>Емкость</td>\n<td>700 мл.</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Совместимость</td>\n<td>Canon iPF8300/ 8300s/ 8400/ 8400s/ 8400se/ 9400/ 9400s</td>\n</tr>\n<tr>\n<td>Производство</td>\n<td>Китай</td>\n</tr>\n<tr style=\"background-color: #eaeaeb;\">\n<td>Гарантия</td>\n<td>1 год</td>\n</tr>\n</tbody>\n</table>\n<p> </p>\n<p>Внешний вид товара может отличаться</p>",
+   "weightDimensions": {
+    "length": 13.39,
+    "width": 13.39,
+    "height": 13.39,
+    "weight": 1.065
+   },
+   "vendorCode": "2838",
+   "type": "DEFAULT",
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/PFI-706Bk.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 91042,
+   "marketCategoryName": "Расходные материалы для оргтехники"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "14783",
+   "name": "Картридж T0599 (C13T05994010) светло-серый",
+   "category": "Картриджи для Epson",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ea2a1a606999.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<table style=\"width: 100%; border: 0; border-spacing: 0px;\">\n<tbody>\n<tr>\n<td>Тип</td>\n<td>новый, совместимый</td>\n</tr>\n<tr>\n<td>Цвет</td>\n<td>светло-серый</td>\n</tr>\n<tr>\n<td>Вес</td>\n<td>0.05 кг.</td>\n</tr>\n<tr>\n<td>Ресурс печати</td>\n<td>440 страниц при 5% заполнении листа формата А4</td>\n</tr>\n<tr>\n<td>Совместимость</td>\n<td>Epson Stylus Photo R2400</td>\n</tr>\n<tr>\n<td>Производство</td>\n<td>Китай</td>\n</tr>\n<tr>\n<td>Гарантия</td>\n<td>1 год</td>\n</tr>\n</tbody>\n</table>\n<br />\n<p><span style=\"font-size: 8pt;\">Внешний вид упаковки может отличаться</span></p>",
+   "weightDimensions": {
+    "length": 10,
+    "width": 14,
+    "height": 7,
+    "weight": 0.5
+   },
+   "vendorCode": "3133",
+   "type": "DEFAULT",
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ea2a1a606999.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 91042,
+   "marketCategoryName": "Расходные материалы для оргтехники"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "14811",
+   "name": "Картридж 106R02606 голубой",
+   "category": "Картриджи для Xerox",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ea6867a296ef.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<table style=\"width: 100%; border: 0; border-spacing: 0px;\">\n<tbody>\n<tr>\n<td>Тип</td>\n<td>новый, совместимый</td>\n</tr>\n<tr>\n<td>Цвет</td>\n<td>голубой</td>\n</tr>\n<tr>\n<td>Вес</td>\n<td>0.16 кг.</td>\n</tr>\n<tr>\n<td>Ресурс печати</td>\n<td>4 500 страниц при 5% заполнении листа формата А4</td>\n</tr>\n<tr>\n<td>Совместимость</td>\n<td>Xerox Phaser-7100</td>\n</tr>\n<tr>\n<td>Производство</td>\n<td>Китай</td>\n</tr>\n<tr>\n<td>Гарантия</td>\n<td>1 год</td>\n</tr>\n</tbody>\n</table>\n<br />\n<p><span style=\"font-size: 8pt;\">Внешний вид упаковки может отличаться</span></p>",
+   "weightDimensions": {
+    "length": 10,
+    "width": 10,
+    "height": 10,
+    "weight": 1
+   },
+   "vendorCode": "3144",
+   "type": "DEFAULT",
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_BY_PARTNER"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ea6867a296ef.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 91042,
+   "marketCategoryName": "Расходные материалы для оргтехники"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3269",
+   "name": "Фотобумага DS Colortek матовая 10x15/500/220",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b4404b720.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek матовая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 220г./кв.м., 500 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 1.66
+   },
+   "vendorCode": "3269",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b4404b720.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3270",
+   "name": "Фотобумага DS Colortek матовая 10x15/20/230",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b4548c6b9.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek матовая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 230г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.1
+   },
+   "vendorCode": "3270",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b4548c6b9.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3271",
+   "name": "Фотобумага DS Colortek матовая 10x15/50/230",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b4684e70b.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek матовая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 230г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.2
+   },
+   "vendorCode": "3271",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b4684e70b.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3273",
+   "name": "Фотобумага DS Colortek шелковая 10x15/50/260",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b49a4a379.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek шелковая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 260г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.2
+   },
+   "vendorCode": "3273",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b49a4a379.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3274",
+   "name": "Фотобумага DS Colortek полуглянцевая 10x15/20/260",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b4f448364.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek полуглянцевая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 260г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.1
+   },
+   "vendorCode": "3274",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b4f448364.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3275",
+   "name": "Фотобумага DS Colortek суперглянцевая 10x15/20/260",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b50a36d67.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek суперглянцевая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 260г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.1
+   },
+   "vendorCode": "3275",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b50a36d67.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3277",
+   "name": "Фотобумага DS Colortek глянцевая 10x15/50/260",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b53047f5a.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek глянцевая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 260г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.2
+   },
+   "vendorCode": "3277",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b53047f5a.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3278",
+   "name": "Фотобумага DS Colortek сатиновая 10x15/50/260",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b5366f77f.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek сатиновая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 260г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.2
+   },
+   "vendorCode": "3278",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b5366f77f.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3279",
+   "name": "Фотобумага DS Colortek суперглянцевая 10x15/50/260",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b54458133.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek суперглянцевая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 260г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.2
+   },
+   "vendorCode": "3279",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b54458133.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3280",
+   "name": "Фотобумага DS Colortek матовая 10x15/500/170",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b5d0605dd.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek матовая для струйной печати </p><p><span>Характеристики: </span>формат 10x15, плотность 170г./кв.м., 500 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 1.66
+   },
+   "vendorCode": "3280",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b5d0605dd.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3282",
+   "name": "Фотобумага DS Colortek глянцевая двухсторонняя A4/50/150",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b5f022536.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek глянцевая двухсторонняя для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 150г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.6
+   },
+   "vendorCode": "3282",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b5f022536.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3284",
+   "name": "Фотобумага DS Colortek сублимационная A3/100/100",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b61660a79.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek сублимационная для сублимационной печати </p><p><span>Характеристики: </span>формат A3, плотность 100г./кв.м., 100 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 1.33
+   },
+   "vendorCode": "3284",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b61660a79.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3285",
+   "name": "Фотобумага DS Colortek сублимационная A4/100/100",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b621335d3.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek сублимационная для сублимационной печати </p><p><span>Характеристики: </span>формат A4, плотность 100г./кв.м., 100 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.65
+   },
+   "vendorCode": "3285",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b621335d3.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3286",
+   "name": "Фотобумага DS Colortek глянцевая A4/20/130",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b6355d10a.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek глянцевая для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 130г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.4
+   },
+   "vendorCode": "3286",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b6355d10a.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3287",
+   "name": "Фотобумага DS Colortek матовая двухсторонняя A4/50/140",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b6477ae21.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek матовая двухсторонняя для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 140г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.5
+   },
+   "vendorCode": "3287",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b6477ae21.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3288",
+   "name": "Фотобумага DS Colortek глянцевая A4/100/170",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b65c5da8b.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek глянцевая для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 170г./кв.м., 100 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 1.2
+   },
+   "vendorCode": "3288",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b65c5da8b.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3291",
+   "name": "Фотобумага DS Colortek сатиновая A4/20/260",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b6d4647f2.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Colortek сатиновая для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 260г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.4
+   },
+   "vendorCode": "3291",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec2b6d4647f2.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3305",
+   "name": "Фотобумага DS Lomond 0102065 двухсторонняя глянцевая/глянцевая A4/180/50",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec3886b05cc9.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p>Фотобумага Lomond 0102065 двухсторонняя глянцевая/глянцевая для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 180г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.7
+   },
+   "vendorCode": "3305",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec3886b05cc9.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3308",
+   "name": "Фотобумага DS Lomond 0102020 односторонняя глянцевая A4/200/50",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38898e09ce.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p>Фотобумага Lomond 0102020 односторонняя глянцевая для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 200г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.66
+   },
+   "vendorCode": "3308",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38898e09ce.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3310",
+   "name": "Фотобумага DS Lomond 0102085 односторонняя матовая A4/205/50",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38a3997104.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p>Фотобумага Lomond 0102085 односторонняя матовая для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 205г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.66
+   },
+   "vendorCode": "3310",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38a3997104.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3314",
+   "name": "Фотобумага DS Lomond 0102050 односторонняя матовая A4/230/25",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec389f106a96.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p>Фотобумага Lomond 0102050 односторонняя матовая для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 230г./кв.м., 25 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.4
+   },
+   "vendorCode": "3314",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec389f106a96.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3317",
+   "name": "Фотобумага DS Lomond 1106200 односторонняя сатин A4/270/20",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38a5f1616f.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Lomond 1106200 односторонняя сатин для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 270г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.4
+   },
+   "vendorCode": "3317",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38a5f1616f.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3318",
+   "name": "Фотобумага DS Lomond 1108100 односторонняя суперглянцевая A4/290/20",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38a61bb655.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p>Фотобумага Lomond 1108100 односторонняя суперглянцевая для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 290г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.4
+   },
+   "vendorCode": "3318",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38a61bb655.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3320",
+   "name": "Фотобумага DS Lomond 0102029 односторонняя матовая A4/90/25",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38b83de445.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p>Фотобумага Lomond 0102029 односторонняя матовая для струйной печати </p><p><span>Характеристики: </span>формат A4, плотность 90г./кв.м., 25 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.81
+   },
+   "vendorCode": "3320",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38b83de445.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3323",
+   "name": "Фотобумага DS Lomond 1103104 односторонняя суперглянцевая A5/260/20",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38bb320443.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p><span>Наименование: </span>Фотобумага Lomond 1103104 односторонняя суперглянцевая для струйной печати </p><p><span>Характеристики: </span>формат A5, плотность 260г./кв.м., 20 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.19
+   },
+   "vendorCode": "3323",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38bb320443.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 80163426,
+   "marketCategoryName": "Фотобумага"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3328",
+   "name": "Наклейка адресная Lomond 2100085 105x41",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38bef176c7.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p>Наклейка адресная Lomond 2100085 по 14 этикеток (105 х 41 мм) на каждом листе </p><p><span>Характеристики: </span>формат A4, плотность 70г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.5
+   },
+   "vendorCode": "3328",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38bef176c7.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 70381308,
+   "marketCategoryName": "Пленки самоклеящиеся"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3329",
+   "name": "Наклейка адресная Lomond 2100125 105x37",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38bf91a44c.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p>Наклейка адресная Lomond 2100125 по 16 этикеток (105 х 37 мм) на каждом листе </p><p><span>Характеристики: </span>формат A4, плотность 70г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.5
+   },
+   "vendorCode": "3329",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38bf91a44c.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 70381308,
+   "marketCategoryName": "Пленки самоклеящиеся"
+  }
+ },
+ {
+  "offer": {
+   "offerId": "3331",
+   "name": "Наклейка адресная Lomond 2100235 25,4x10",
+   "category": "Фотобумага",
+   "pictures": [
+    "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38d250e059.jpg"
+   ],
+   "vendor": "Цифровой квадрат",
+   "description": "<p>Наклейка адресная Lomond 2100235 по 189 этикеток (25,4  х 10 мм) на каждом листе </p><p><span>Характеристики: </span>формат A4, плотность 70г./кв.м., 50 листов</p>",
+   "manufacturerCountries": [
+    "Китай"
+   ],
+   "weightDimensions": {
+    "length": 0,
+    "width": 0,
+    "height": 0,
+    "weight": 0.5
+   },
+   "vendorCode": "3331",
+   "type": "DEFAULT",
+   "downloadable": false,
+   "adult": false,
+   "cardStatus": "NO_CARD_ERRORS",
+   "campaigns": [
+    {
+     "campaignId": 66831595,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 99559900,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 149178498,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 87623061,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148690992,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 148691041,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 21589415,
+     "status": "DISABLED_AUTOMATICALLY"
+    },
+    {
+     "campaignId": 22536936,
+     "status": "DISABLED_AUTOMATICALLY"
+    }
+   ],
+   "mediaFiles": {
+    "pictures": [
+     {
+      "url": "https://digitalsquare.ru/components/com_virtuemart/shop_image/product/_________________5ec38d250e059.jpg",
+      "uploadState": "UPLOADED"
+     }
+    ]
+   }
+  },
+  "mapping": {
+   "marketCategoryId": 70381308,
+   "marketCategoryName": "Пленки самоклеящиеся"
+  }
+ }
+]
