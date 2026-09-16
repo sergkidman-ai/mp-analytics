@@ -9,7 +9,7 @@
 ops/ozon_stock_action.py («Распродажа стока», «Акция для склад…») — там цену и состав ведёт
 лестница с тем же полом (решение Сергея 16.09.2026: белые пропускаем).
 
-Решения Сергея 16.09.2026:
+Решения Сергея 16.09.2026 (себестоимость — цепочкой сторожа ВБ, см. cost_map):
   пол   = (себест + max(300 ₽, 10 % себеста)) / доля выручки, что остаётся нам
           (формула ВБ-сторожа, общая с лестницей — ozon_stock_action.floor_price);
   ход   = цена в акции ниже пола → ПОДНЯТЬ action_price до пола, если пол не выше потолка
@@ -59,12 +59,73 @@ def snapshot(account):
                          "max_price": float(p.get("max_action_price") or 0),
                          "stock": int(p.get("stock") or 0), "min_stock": int(p.get("min_stock") or 0)})
     pid2 = oz.offer_of(account, sorted({r["product_id"] for r in rows})) if rows else {}
-    cogs = oz.cogs_map(sorted({v[0] for v in pid2.values() if v[0]}))
+    cogs = cost_map(sorted({v[0] for v in pid2.values() if v[0]}))
     for r in rows:
         r["offer_id"], r["name"] = pid2.get(r["product_id"], (None, ""))
         r["cogs"], r["cogs_source"] = cogs.get(r["offer_id"], (None, "НЕТ")) if r["offer_id"] else (None, "нет offer_id")
         r["keep_ratio"] = keep
     return rows, acts, keep, keep_src
+
+
+def cost_map(offers):
+    """{offer_id: (себест, источник)} — ЦЕПОЧКА СТОРОЖА ВБ (решение Сергея 16.09.2026:
+    площадки считают одинаково). Себестоимость есть, только если товар СЕЙЧАС где-то есть:
+      свой склад (Звёздный/Дисквер) хватает на кратность → средневзвешенный cost_seb;
+      иначе поставщик с остатком ≥ MIN_SUP_STOCK → минимальная цена (Удалённый склад МС + прайсы);
+      поставщик есть, цены нет → прошлая закупка ТК; нигде нет → себестоимости нет, снимаем.
+    Наборы: наличие по компонентам, цена — своя закупка комплекта, иначе сумма компонентов.
+    Бандл 4248X10 → цена единицы × кратность.
+
+    Помощники берутся из ops/wb_promo_guard.py, чтобы правило жило в одном месте. Цепочка
+    ozon_stock_action.cogs_map (история отгрузок на Ozon) сюда НЕ годится: она не смотрит
+    наличие и не видит прайсы — 16.09 из-за неё сняты 3203 (Колортек 75 шт по 952 ₽) и 6578.
+    Лестница «Распродажи стока» остаётся на ней: там нужна цена лежащего на Ozon лота."""
+    from ops import wb_promo_guard as w
+    sets_, links, stock = w.sets_map(), w.links_map(), w.stock_map()
+    out = {}
+    for off in offers:
+        raw = (off or "").strip()
+        mult, m = 1, re.match(r"^(\d{4})[Xх](\d{1,2})$", raw, re.I)
+        if m:
+            mult = int(m.group(2))
+        code = w.norm_code(raw)
+        if not code:
+            out[off] = (None, "нет кода")
+            continue
+        self_rec = stock.get(code) or {}
+        comps = sets_.get(code) or {code: 1}
+        if len(comps) == 1:
+            price, src, branch = w.unit_cost(code, links, stock, need=mult)
+            if price is None:
+                out[off] = (None, "нет в наличии нигде" if branch == "none" else "поставщик без цены")
+            else:
+                out[off] = (float(price) * mult, src + (f"_x{mult}" if mult > 1 else ""))
+            continue
+        # набор
+        if self_rec.get("qty_own", 0) >= mult and self_rec.get("cost_own"):
+            out[off] = (float(self_rec["cost_own"]) * mult, "set_own_stock" + (f"_x{mult}" if mult > 1 else ""))
+            continue
+        total, branches, gap = 0.0, set(), False
+        for comp, qty in comps.items():
+            price, src, branch = w.unit_cost(comp, links, stock, need=qty * mult)
+            branches.add(branch)
+            if price is None:
+                gap = True
+            else:
+                total += price * qty
+        if "none" in branches:
+            out[off] = (None, "набор: компонента нет в наличии")
+            continue
+        own_price = self_rec.get("tc_price") or self_rec.get("supplier_min")
+        if own_price:
+            v, src = float(own_price), "set_own_price"
+        elif not gap:
+            v, src = total, "set_components"
+        else:
+            out[off] = (None, "набор: нет цены компонента")
+            continue
+        out[off] = (v * mult, src + (f"_x{mult}" if mult > 1 else ""))
+    return out
 
 
 def decide(r):
