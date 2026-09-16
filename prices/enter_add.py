@@ -14,16 +14,26 @@
 позиция не добирается, причина попадает в отчёт.
 """
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 
 from core import ms_api
 from core.db import query
 from prices import blacklist, loader
 from prices.profiles import get_identity, STORE_REMOTE, ORG_DIGITAL, POSITIONS_PER_DOC
+from prices.supplier_group import own_ids
 
 # Поставщик без прайса тоже здесь: Солюшнс принт грузит внешний загрузчик, документы он
 # кладёт на тот же «Удаленный склад» и под тем же именем `<ключ>_<дата>_pNN`, а карточки
 # несопоставленным строкам заводим мы — их и добираем (команда Сергея 27.08.2026).
-PROC = ["colortek", "odissey", "sakura", "kaktus_msk", "s_print_msk"]
+PROC = ["colortek", "odissey", "sakura", "kaktus_msk", "s_print_msk",
+        "bulat", "profiline", "vtt", "rapid", "easy_print", "ramis"]
+# Нижняя строка — поставщики ВНЕШНЕГО загрузчика (письмо «Необработанные товары МС»), команда
+# Сергея 16.09.2026. Цена и остаток несопоставленной строки у них лежат в `prc_price_row`
+# (`source_kind='unprocessed'`), а партия `<ключ>_<дата>_pNN` на «Удаленном складе» есть
+# всегда: загрузчик пересоздаёт её целиком при каждом прогоне. Без них карточка жила пустой
+# до следующей загрузки (7206 ВТТ: создана 14.09 18:26, остаток 16.09 11:42), и ТК успевала
+# забрать её без остатка. Задвоения нет: следующая загрузка удалит партию вместе с нашей
+# позицией и соберёт новую, где карточка уже сопоставлена сама.
 SUP2KEY = {'ООО "КОМПАНИЯ ФЕРРЕТ"': "kaktus_msk", 'ООО "ОДИССЕЙ"': "odissey",
            'ООО "ОДИССЕЙ" WB': "odissey", 'ООО "ПОЗИТИВ"': "sakura",
            'ООО "КОЛОРТЕК РУС"': "colortek",
@@ -50,13 +60,35 @@ def cards_created_on(day, log=print):
     return [c for c in cards if c["key"] in PROC and not c["archived"]], len(new)
 
 
+_KEY_BY_SUPPLIER = None
+
+
+def key_of_supplier(supplier_id):
+    """id контрагента → ключ поставщика из `PROC`, по группам юрлиц (`own_ids`).
+
+    По id, а не по имени: у внешних поставщиков по два-четыре юрлица, и имена в МС меняются
+    («… (Закрыто)»), перечень имён за ними не угонится. Контрагент в двух группах сразу —
+    не угадываем, отдаём None: позиция уйдёт человеку, а не в чужую партию.
+    """
+    global _KEY_BY_SUPPLIER
+    if _KEY_BY_SUPPLIER is None:
+        seen = {}
+        for key in PROC:
+            for sid in own_ids(get_identity(key)):
+                seen.setdefault(sid, set()).add(key)
+        _KEY_BY_SUPPLIER = {sid: next(iter(keys)) for sid, keys in seen.items() if len(keys) == 1}
+    return _KEY_BY_SUPPLIER.get(supplier_id)
+
+
 def card_of(product):
     """Ответ `/entity/product` → запись карточки в том виде, в каком её ждёт `plan_add`."""
-    sup = (product.get("supplier") or {}).get("name")
+    supplier = product.get("supplier") or {}
+    sup = supplier.get("name")
+    sid = ((supplier.get("meta") or {}).get("href") or "").rsplit("/", 1)[-1]
     return {"id": product["id"], "code": product.get("code"), "ec": product.get("externalCode"),
             "article": product.get("article"), "name": product.get("name"), "sup": sup,
-            "key": SUP2KEY.get(sup), "archived": bool(product.get("archived")),
-            "meta": product["meta"]}
+            "key": key_of_supplier(sid) or SUP2KEY.get(sup),
+            "archived": bool(product.get("archived")), "meta": product["meta"]}
 
 
 def by_ids(ms_ids, log=print):
@@ -74,7 +106,8 @@ def _price_row(key, article):
     rows = query("""SELECT r.qty, r.price_src, r.price_rub, l.rate, l.id load_id, l.load_date
                       FROM prc_price_row r JOIN prc_price_load l ON l.id = r.load_id
                      WHERE l.supplier_key = %s AND NOT l.dry_run AND l.status = 'ok'
-                       AND r.article = %s ORDER BY l.id DESC LIMIT 1""", (key, article))
+                       AND upper(btrim(r.article)) = upper(btrim(%s))
+                     ORDER BY l.id DESC LIMIT 1""", (key, article))
     return rows[0] if rows else None
 
 
@@ -101,12 +134,13 @@ def plan_add(cards, log=print):
         docs = [d for d in docs if d["name"].startswith(last + "_p")]
         docs.sort(key=lambda d: int(d["name"].rsplit("_p", 1)[1]))
         docs_by_key[key] = docs
-        ids = set()
-        for d in docs:
-            for pos in ms_api.get(f"/entity/enter/{d['id']}/positions",
-                                  {"limit": 1000}).get("rows", []):
-                ids.add(ms_api.meta_id(pos, "assortment"))
-        in_docs[key] = ids
+        # Фильтра позиций по товару у МС нет (412 «неизвестное поле assortment»), читаем
+        # документы целиком — но параллельно: у Булата партия в 28 документов, подряд это
+        # ~30 с ожидания на кнопке. Четыре потока укладываются в лимит МС (45 запросов / 3 с).
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            pages = pool.map(lambda d: ms_api.get(f"/entity/enter/{d['id']}/positions",
+                                                  {"limit": 1000}).get("rows", []), docs)
+            in_docs[key] = {ms_api.meta_id(pos, "assortment") for rows in pages for pos in rows}
 
     plan = []
     for c in cards:

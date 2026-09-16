@@ -25,6 +25,7 @@ import datetime as dt
 from decimal import Decimal
 
 from core import ms_api
+from .blacklist import in_damaged
 from .cbr import effective_rate, to_kopecks
 from .profiles import ORG_DIGITAL, POSITIONS_PER_DOC, STORE_REMOTE
 from .supplier_group import own_ids
@@ -41,6 +42,7 @@ SKIP_REASONS = {
     "not_found": "нет товара в МС по артикулу",
     "archived": "карточка в архиве, живой родни того же кода нет — решает человек",
     "defective": "«брак» в наименовании МС",
+    "damaged_pack": "повреждённая упаковка в наименовании прайса",
     "no_price": "нет цены в прайсе",
     "no_stock": "нет остатка / формулировка не разобрана",
     "ambiguous": "артикул в МС неоднозначен",
@@ -291,6 +293,12 @@ def classify(rows, profile, rate):
             continue
         if "брак" in ms_name.lower():
             skipped.append({**row, "reason": "defective", "ms_name": ms_name})
+            continue
+        # Повреждённую упаковку поставщик метит в СВОЁМ наименовании, а карточка МС под тем
+        # же артикулом — обычная. Без этой проверки брак приходуется на склад по цене целого
+        # товара (правило от 16.09.2026, см. `blacklist.in_damaged`).
+        if in_damaged(row.get("name")):
+            skipped.append({**row, "reason": "damaged_pack", "ms_name": ms_name})
             continue
         if card["meta"]["type"] not in ("product", "variant", "bundle"):
             skipped.append({**row, "reason": "not_stockable", "ms_name": ms_name})
