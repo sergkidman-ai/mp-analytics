@@ -68,7 +68,6 @@ UNDERCUT = ("распродажа стока",)    # где встаём на 1 
                                     # Только распродажа стока: там цель — слить лежачий товар.
                                     # На региональных подрезка била бы по ходовому ассортименту
                                     # (решение Сергея 22.08: вариант 1 — без подрезки).
-TC_MAX_AGE = 14                     # дней: закупка ТК старше — не себест
 RET_STATUS = ("unredeemed", "return_stock", "return_ozon", "return_defect")
 
 
@@ -228,13 +227,9 @@ def cogs_map(offers):
     sets = {r["external_code"]: float(r["cost"]) for r in db.query(
         "select external_code, cost from set_cost "
         "where external_code = any(%s) and cost is not null", (allc,))}
-    # Последняя ИЗВЕСТНАЯ закупка, а не последний снимок: сбор ТК по отдельным кодам даёт
-    # no_price через день. 16.09.2026 из-за этого сторож акций снял 3203 и 6578 «без себеста»,
-    # хотя накануне цена была (953 и 7 248 ₽). Старше TC_MAX_AGE дней — не верим.
     tc = {r["external_code"]: float(r["buy_price"]) for r in db.query(
-        "select external_code, buy_price from tc_buy_price_last_known "
-        "where external_code = any(%s) and buy_price is not null "
-        "and price_date >= current_date - %s", (allc, TC_MAX_AGE))}
+        "select external_code, buy_price from tc_buy_price_latest "
+        "where external_code = any(%s) and buy_price is not null", (allc,))}
 
     def by_ship(code):
         """Себест по отгрузкам Ozon кода: сперва возврат (это тот самый лежащий товар), потом свежее."""
