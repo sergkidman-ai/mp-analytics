@@ -1,13 +1,18 @@
 # поток: card
 """tools/card_wb_weekly.py — еженедельная сводка по карточкам ВБ Наталии в бот PRC.
 
-Два блока, оба только чтение площадки:
+Два блока. Чтение площадки везде, ЕДИНСТВЕННАЯ запись — обнуление остатка FBS (см. ниже).
 
 1. КОРЗИНА. ВБ держит удалённую карточку в корзине и даёт стереть её вручную не раньше чем
    через 30 дней после удаления — и продаёт её, пока есть остаток. ТК такие карточки уже не
    обновляет, поэтому по каждой показываем остаток FBS (склад продавца, marketplace-api) и FBO
    (склады ВБ, `wb_stocks`) и срок: «30 дней прошло — можно удалять» / «ждать до …» / «есть
    остаток — продаётся». Правило Сергея 14.09.2026: остаток на складе ВБ пусть распродаётся.
+
+   ЗАПИСЬ: с `--zero-stock` (разрешение Сергея 16.09.2026) остаток FBS у карточки корзины
+   ставится в 0 — карточка в корзине покупаемой быть не должна. Ставим складу, на котором
+   остаток лежит, партиями по 100, и проверяем ПЕРЕЧИТКОЙ, а не кодом ответа. Склад ВБ (FBO)
+   так не обнулить, оттуда только вывоз, — его не трогаем. Цены и контент не трогаем вообще.
 
 2. ПИСЬМО В ПОДДЕРЖКУ по черновикам (несозданным карточкам), которые ВБ отбил за «телефонный
    номер в Наименовании»: это номер модели картриджа, а не телефон. Берём
@@ -17,10 +22,11 @@
 
 Остаток FBS читается токеном WB_TOKEN_RETURNS_ACC* — скоуп «Маркетплейс» есть только у него.
 
-Запуск:  venv/bin/python -m tools.card_wb_weekly           (сухой прогон, печатает тексты)
-         venv/bin/python -m tools.card_wb_weekly --send    (отправить Наталии)
+Запуск:  venv/bin/python -m tools.card_wb_weekly                    (сухой прогон, ничего не пишет)
+         venv/bin/python -m tools.card_wb_weekly --send --zero-stock (крон: обнулить + отправить)
 """
 import argparse
+import collections
 import os
 import sys
 import time
@@ -75,20 +81,38 @@ def _trash(acc):
         cursor = {"limit": 100, "trashedAt": cur.get("trashedAt"), "nmID": cur.get("nmID")}
 
 
-def _fbs(token_env, chrt_ids):
-    """chrtID → остаток на складах продавца. Нет ответа по chrtID = None (неизвестно, не ноль)."""
+def _mp_headers(token_env):
     tok = os.getenv(token_env)
-    if not tok or not chrt_ids:
-        return {}
-    h = {"Authorization": tok, "Content-Type": "application/json"}
+    return {"Authorization": tok, "Content-Type": "application/json"} if tok else None
+
+
+def _fbs(token_env, chrt_ids):
+    """Остаток на складах продавца: (итог по chrtID, подробно по складам).
+
+    Нет ответа по chrtID = None (неизвестно, а не ноль). Подробность нужна для обнуления:
+    остаток ставится складу, на котором он лежит.
+    """
+    h = _mp_headers(token_env)
+    if not h or not chrt_ids:
+        return {}, {}
     r = requests.get(f"{MP}/warehouses", headers=h, timeout=60)
     r.raise_for_status()
-    out = {}
+    out, per_wh = {}, {}
     for w in r.json():
         for i in range(0, len(chrt_ids), 1000):
             for s in _post(f"{MP}/stocks/{w['id']}", h, {"chrtIds": chrt_ids[i:i + 1000]}).get("stocks") or []:
                 out[s["chrtId"]] = out.get(s["chrtId"], 0) + (s.get("amount") or 0)
-    return out
+                if s.get("amount"):
+                    per_wh[(w["id"], w.get("name"), s["chrtId"])] = s["amount"]
+    return out, per_wh
+
+
+def _zero_fbs(token_env, wh_id, skus):
+    """Ставит остаток 0 указанным баркодам на складе. Успех проверяется перечиткой, не кодом."""
+    h = _mp_headers(token_env)
+    r = requests.put(f"{MP}/stocks/{wh_id}", headers=h,
+                     json={"stocks": [{"sku": s, "amount": 0} for s in skus]}, timeout=120)
+    return r.status_code, r.text[:200]
 
 
 def _fbo(acc, nm_ids):
@@ -101,12 +125,47 @@ def _fbo(acc, nm_ids):
     return {r["nm_id"]: int(r["q"] or 0) for r in rows}
 
 
-def trash_block(acc, label, token_env, today):
+def zero_trash_fbs(acc, label, token_env, cards, per_wh, apply):
+    """Карточка в корзине не должна быть покупаемой: остаток FBS ставим 0 (разрешение 16.09.2026).
+
+    Склад ВБ (FBO) так не обнулить — оттуда только вывоз, поэтому его не трогаем.
+    """
+    sku = {s["chrtID"]: (s.get("skus") or [None])[0]
+           for c in cards for s in c.get("sizes") or []}
+    vc = {s["chrtID"]: c["vendorCode"] for c in cards for s in c.get("sizes") or []}
+    todo = collections.defaultdict(list)
+    for (wh_id, wh_name, chrt), amount in per_wh.items():
+        if sku.get(chrt):
+            todo[(wh_id, wh_name)].append((chrt, sku[chrt], amount))
+    if not todo:
+        return []
+    out = []
+    for (wh_id, wh_name), items in todo.items():
+        if not apply:
+            out.append(f"{label}: НЕ обнулял (сухой прогон) — {wh_name}: "
+                       + ", ".join(f"{vc[c]} ×{a}" for c, _s, a in items))
+            continue
+        for i in range(0, len(items), 100):
+            part = items[i:i + 100]
+            code, body = _zero_fbs(token_env, wh_id, [s for _c, s, _a in part])
+            time.sleep(1)
+            left, _ = _fbs(token_env, [c for c, _s, _a in part])   # перечитка: HTTP 200 не доказательство
+            bad = [f"{vc[c]}={left.get(c)}" for c, _s, _a in part if left.get(c)]
+            out.append(f"{label}: обнулено на складе {wh_name} — {len(part)} поз. "
+                       f"({', '.join(f'{vc[c]} было {a}' for c, _s, a in part)})"
+                       + (f"; ⚠ остались: {', '.join(bad)} (HTTP {code} {body})" if bad else "; перечитка: 0"))
+    return out
+
+
+def trash_block(acc, label, token_env, today, apply=False):
     cards = _trash(acc)
     if not cards:
-        return f"{label}: корзина пуста."
+        return f"{label}: корзина пуста.", []
     chrt = [s["chrtID"] for c in cards for s in c.get("sizes") or []]
-    fbs = _fbs(token_env, chrt)
+    fbs, per_wh = _fbs(token_env, chrt)
+    zeroed = zero_trash_fbs(acc, label, token_env, cards, per_wh, apply)
+    if zeroed and apply:
+        fbs, per_wh = _fbs(token_env, chrt)
     fbo = _fbo(acc, [c["nmID"] for c in cards])
     lines = []
     for c in sorted(cards, key=lambda c: c.get("trashedAt") or ""):
@@ -119,7 +178,7 @@ def trash_block(acc, label, token_env, today):
         if f_fbs is None:
             verdict = "⚠ остаток FBS не прочитан — проверить в ЛК"
         elif f_fbs > 0:
-            verdict = "⚠ есть остаток на своём складе — карточку можно купить, обнулить"
+            verdict = "⚠ остаток FBS не обнулился — проверить в ЛК"
         elif f_fbo > 0:
             verdict = "продаётся остаток со склада ВБ, удалить пока нельзя"
         elif days >= TRASH_DAYS:
@@ -130,7 +189,7 @@ def trash_block(acc, label, token_env, today):
             verdict = f"ждать до {since + timedelta(days=TRASH_DAYS):%d.%m}"
         lines.append(f"• {c['vendorCode']} (nm {c['nmID']}) — в корзине с {since:%d.%m}, "
                      f"{days} дн.; {stock}; {verdict}")
-    return f"{label}: в корзине {len(cards)}\n" + "\n".join(lines)
+    return f"{label}: в корзине {len(cards)}\n" + "\n".join(lines), zeroed
 
 
 def phone_drafts(acc):
@@ -177,11 +236,18 @@ def _tg(text):
         raise RuntimeError(f"telegram: {r.status_code} {r.text[:200]}")
 
 
-def run(send=False):
+def run(send=False, zero=False):
     today = datetime.now(timezone(timedelta(hours=3))).date()
-    msgs = ["Карточки ВБ в корзине (еженедельно). ВБ даёт удалить вручную через 30 дней "
-            "после удаления и при нулевом остатке.\n\n"
-            + "\n\n".join(trash_block(acc, label, tok, today) for acc, (label, tok) in ACCOUNTS.items())]
+    blocks, zeroed = [], []
+    for acc, (label, tok) in ACCOUNTS.items():
+        b, z = trash_block(acc, label, tok, today, apply=zero)
+        blocks.append(b); zeroed += z
+    head = ("Карточки ВБ в корзине (еженедельно). ВБ даёт удалить вручную через 30 дней "
+            "после удаления и при нулевом остатке. Остаток на своём складе (FBS) у карточек "
+            "корзины обнуляем автоматически.\n\n")
+    if zeroed:
+        head += "Обнуление остатка FBS:\n" + "\n".join(f"• {z}" for z in zeroed) + "\n\n"
+    msgs = [head + "\n\n".join(blocks)]
     for acc, (label, _) in ACCOUNTS.items():
         drafts = phone_drafts(acc)
         print(f"{label}: черновиков с «телефоном» без созданной карточки {len(drafts)}", flush=True)
@@ -203,7 +269,10 @@ def run(send=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--send", action="store_true", help="реально отправить (иначе сухой прогон)")
-    run(send=ap.parse_args().send)
+    ap.add_argument("--zero-stock", action="store_true",
+                    help="обнулять остаток FBS у карточек корзины (разрешение 16.09.2026)")
+    a = ap.parse_args()
+    run(send=a.send, zero=a.zero_stock)
 
 
 if __name__ == "__main__":
