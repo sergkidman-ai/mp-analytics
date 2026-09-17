@@ -61,6 +61,7 @@ NOVELTY_IDS = [x.strip() for x in os.getenv("TG_PRC_NOVELTY_ID", "").split(",") 
 TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
 TG_LIMIT = 3900
 # Почта моргает; будить человека первым же таймаутом незачем, а молчать сутки — нельзя.
+CRASH_RETRIES = 3                                      # попыток на одно письмо после сбоя
 MAIL_ALERT_AFTER = 3                                   # подряд неудач ≈ 1.5 часа без почты
 MSK = timezone(timedelta(hours=3))                     # часы сервера UTC, сутки считаем по Москве
 
@@ -133,6 +134,32 @@ def write_state(key, letter, result):
         "filename": letter["filename"], "date": letter["date"], "subject": letter["subject"],
         "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "result": result,
     }, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def retry_path(key):
+    return LOG_DIR / f"prc_price_watch_{key}_retry.json"
+
+
+def crash_tries(key, letter):
+    """Сколько раз подряд ЭТО письмо уже роняло загрузку. Другое письмо — счёт с нуля."""
+    try:
+        was = json.loads(retry_path(key).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    return int(was.get("n", 0)) if was.get("id") == letter_id(letter) else 0
+
+
+def save_tries(key, letter, n):
+    retry_path(key).parent.mkdir(parents=True, exist_ok=True)
+    if n:
+        retry_path(key).write_text(json.dumps({"id": letter_id(letter), "n": n},
+                                              ensure_ascii=False), encoding="utf-8")
+    else:
+        retry_path(key).unlink(missing_ok=True)
+
+
+def letter_id(letter):
+    return f"{letter.get('filename')}|{letter.get('date')}"
 
 
 def letter_dt(letter):
@@ -425,10 +452,23 @@ def main(argv=None):
     out, code = run_load(profile, args.dry)
     after = pending_count(profile.key)
     log(logfile, f"итог {code}\n" + out)
-    # Состояние пишем при ЛЮБОМ исходе: отменённую по аномалиям загрузку человек разбирает
-    # руками, а сторож не должен долбить его тем же письмом каждые полчаса.
+    # Состояние пишем при исходе ПО ПРАВИЛУ (удача, отмена по аномалиям): такое письмо человек
+    # разбирает руками, и долбить его каждые полчаса незачем. СБОЙ (code 3) — другое дело:
+    # 17.09.2026 обрыв IMAP посреди загрузки Колортека пометил письмо обработанным, и прайс дня
+    # не загрузился вовсе. Теперь при сбое письмо не запоминаем — следующий заход повторит сам;
+    # предел CRASH_RETRIES, иначе сторож будет вечно спотыкаться об одно и то же письмо.
+    tries = crash_tries(profile.key, letter)
     if not args.dry:
-        write_state(profile.key, letter, code)
+        if code == 3 and tries + 1 < CRASH_RETRIES:
+            save_tries(profile.key, letter, tries + 1)
+            log(logfile, f"сбой {tries + 1}/{CRASH_RETRIES} — письмо НЕ помечено, повтор "
+                         f"на следующем заходе")
+        else:
+            if code == 3:
+                out += (f"\nПОВТОРЫ ИСЧЕРПАНЫ ({CRASH_RETRIES}): письмо помечено обработанным, "
+                        f"прайс этого дня в МС не попадёт — грузить руками с --force")
+            write_state(profile.key, letter, code)
+            save_tries(profile.key, letter, 0)
     auto = auto_cards(profile, args.dry, code, logfile)
     text = message(profile, out, code, args.dry, after, auto)
     if not args.quiet and text:

@@ -66,6 +66,18 @@ UI `web/static/novelties.html` + роуты `/warehouse/novelties`, `/api/novelt
   строку «перечитка: расхождений», `select count(*) from prc_buyprice_write`; предупредить fin/mkt:
   buyPrice читают `margin_by_sku`, `margin_control`, `set_cost`, `price_quarantine`, `wb_promo_guard`.
 
+## Сбой загрузки больше не съедает письмо (17.09.2026, в main)
+
+Обрыв IMAP (`problems with connection`, `ConnectionResetError`) посреди прогона ронял загрузку,
+а сторож помечал письмо обработанным при ЛЮБОМ исходе → прайс дня терялся молча. 17.09 так
+пропал Колортек (письмо 09:23, падение 09:39, в 10:11 «письмо не новое»); догружен вручную
+`--force`: 1 070 строк, 11 документов, 51,8 млн ₽.
+- `ops/prc_price_watch.py`: при `code 3` состояние НЕ пишем, счётчик попыток на письмо
+  (`logs/prc_price_watch_<ключ>_retry.json`), предел `CRASH_RETRIES=3`, потом письмо помечается
+  и в бот уходит «грузить руками с --force». Правило — `PRC_RULES.md` п. 9-бис.
+- Тонероптторг (`easy_print`) в тот же день падал на `mark_seen` ПОСЛЕ разбора — данные целы,
+  следующий заход отработал штатно. В МС по нему мы не пишем.
+
 ## Отчёты о проделанной работе (31.08.2026)
 
 Сделан отчёт заказчику по потоку за 05–31.08.2026 — по образцу `docs/reports/inv_sber_diskver_work_report.docx`
