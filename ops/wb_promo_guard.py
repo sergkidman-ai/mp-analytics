@@ -86,6 +86,7 @@ COGS_MIN_KNOWN = 3000  # ниже этого справочник считает
 # не признаём. Пример 6593: у Одиссея 3 шт по 4 766 ₽ и у Феррета 1 шт по 6 818 ₽ — оба хвоста
 # отсекаются, закупочная становится 13 238 ₽ от Картридж Трейд, то есть пол акции был занижен
 # втрое. Порог сравнивается как >=, поэтому значение — минимальный ПРИЕМЛЕМЫЙ остаток.
+OWN_COST_MIN_SHARE = 0.5   # свой себест ниже половины рыночной цены — не верим (замена брака за 1 ₽)
 MIN_SUP_STOCK = 4
 FUNNEL_URL = "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products"
 FUNNEL_TOKEN_ENV = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}  # скоуп «Аналитика»
@@ -340,6 +341,17 @@ def unit_cost(code, links, stock, need=1):
     own = [stock[c] for c in cand if stock.get(c) and stock[c]["qty_own"] > 0 and stock[c]["cost_own"]]
     if own and sum(x["qty_own"] for x in own) < need:
         own = []                                     # своего не хватает на комплект
+    # Правило Сергея 17.09.2026: свой себест ниже половины рыночной цены — это не себестоимость.
+    # Так в МС приходит замена брака от поставщика: товар оприходован за 1 ₽. У 3641 такой
+    # рубль дал пол 902 ₽ вместо 15 521 ₽ — товар прошёл бы в акцию на любой скидке.
+    # Считаем по рынку: докупать-то придётся у поставщика. Если рынка нет вовсе (0334 —
+    # остатка у поставщиков нет), ветка уходит дальше и товар остаётся без себестоимости.
+    if own:
+        mkt = [x for x in (min([p for p in (stock[c].get("supplier_min"), stock[c].get("tc_price"))
+                                if p] or [0]) for c in cand if stock.get(c)) if x]
+        if mkt and (sum(x["cost_own"] * x["qty_own"] for x in own) / sum(x["qty_own"] for x in own)
+                    < OWN_COST_MIN_SHARE * min(mkt)):
+            own = []
     if own:
         # несколько связанных кодов с остатком — средневзвешенная по количеству
         qty = sum(x["qty_own"] for x in own)
