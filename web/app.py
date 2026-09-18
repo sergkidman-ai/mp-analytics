@@ -3567,8 +3567,9 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     printer = series_mod.guess_printer(row["name"], kind)
     series_value, series_why = series_mod.series(kind, printer, row["price_rub"])
     if not kind:
-        warn.append("тип расходника из названия не читается — серия останется пустой, "
-                    "ТК не соберёт инфографику")
+        warn.append("тип расходника из названия не читается — выберите его списком. Если товара "
+                    "в списке нет (фотобумага, бумага, лампы, кассеты), это не наш ассортимент: "
+                    "заводить не нужно, строку — в чёрный список")
     return {"ok": True, "id": row["id"], "supplier": profile.title,
             "article": row["article"], "name": row["name"], "n": n,
             "kind": kind, "kinds": series_mod.kinds(),
@@ -3615,9 +3616,10 @@ class MsCreate(BaseModel):
     # ещё не знает, поэтому оба значения выбирает оператор — в форме они подставлены
     # догадкой. Пустой `kind` — считаем сами, как в форме.
     printer: str = ""
-    # None — поля в запросе не было, считаем тип сами; пустая строка — оператор ВЫБРАЛ
-    # «серия не нужна» (фотобумага, лампы), и подставлять свой вариант поверх нельзя.
-    kind: str | None = None
+    # Пусто — оператор тип не выбрал; тогда пробуем определить сами, а не вышло — отказ.
+    # «Серии нет» как выбора не существует: товар, которому серия не положена (фотобумага,
+    # лампы, кассеты), мы не заводим вовсе — он уходит в ЧС (решение Сергея 18.09.2026).
+    kind: str = ""
 
 
 @app.post("/api/novelties/ms-create")
@@ -3684,9 +3686,17 @@ def novelties_ms_create(payload: MsCreate):
     # и закупочной цене главной карточки. Карточкам под уже существующим кодом («Это он»)
     # серию не ставим вовсе (решение Сергея 18.09.2026), поэтому здесь и только здесь.
     main_card = cards[payload.main_index]
-    kind = (payload.kind.strip() if payload.kind is not None
-            else series_mod.kind_of(row["name"], main_card.external_code))
+    kind = (payload.kind or "").strip() or series_mod.kind_of(row["name"],
+                                                              main_card.external_code)
     series_value, series_why = series_mod.series(kind, payload.printer, main_card.buy_price)
+    # Без серии карточка нового кода не создаётся: ТК не соберёт по ней инфографику, а
+    # «потом дозаполним» здесь не работает — серия ставится один раз, при заведении.
+    if not series_value:
+        return {"ok": False, "series_why": series_why,
+                "error": f"серия не определилась ({series_why}) — карточка не создана. "
+                         f"Выберите тип расходника и тип техники. Если товара нет в списке "
+                         f"типов, это не наш ассортимент: такую строку заводить не нужно, "
+                         f"ей место в чёрном списке"}
 
     def rec(i, c):
         return {

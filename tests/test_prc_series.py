@@ -39,6 +39,13 @@ class Formula(unittest.TestCase):
         self.assertEqual(series.SERIES["Про"], "ПРО")
         self.assertEqual(set(series.SERIES.values()), {"Комфорт", "Бизнес", "ПРО"})
 
+    def test_вне_матрицы_серии_нет(self):
+        # Такой товар (фотобумага, лампы, кассеты) мы не заводим вовсе — строка уходит в ЧС,
+        # а карточку без серии обработчик `ms-create` не создаёт.
+        for kind in ("Фотобумага", "Лампа", ""):
+            with self.subTest(kind=kind):
+                self.assertIsNone(series.series(kind, "для струйного принтера", 500)[0])
+
     def test_список_типов_для_формы(self):
         self.assertEqual(len(series.kinds()), 21)
         self.assertIn("Картридж", series.kinds())
