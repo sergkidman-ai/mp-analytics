@@ -1,0 +1,94 @@
+{
+  "id": "OZ-ACC2-BID-DOSE-2026-09-21",
+  "stream": "mkt",
+  "status": "DRAFT_NOT_APPROVED",
+  "created": "2026-09-18",
+  "data_snapshot": "2026-09-14",
+  "planned_start": "2026-09-21",
+  "duration_days": 4,
+  "account": "oz_acc2",
+  "hypothesis": "Показы и клики SKU когорты реагируют на ставку выше текущих 8–10 ₽; цель — эластичность показов по ставке и CPC относительно безопасной ставки. Не проверяет рост продаж.",
+  "causal_claim_allowed": {
+    "sales": false,
+    "orders": false,
+    "revenue": false,
+    "contribution": false,
+    "impressions_clicks": true,
+    "note": "Причинный вывод допустим только по первичной метрике (показы/клики на SKU-день против постоянного holdout при рандомизации по семье). По продажам за 4 дня — только описание."
+  },
+  "randomization": {
+    "unit": "товарная семья (первые 4 знака offer_id); в когорте 30 семей = 30 SKU",
+    "seed": 20260914,
+    "strata": ["revHi_safeHi", "revHi_safeLo", "revLo_safeHi", "revLo_safeLo"],
+    "strata_definition": "baseline выручка май–июль (≥/< медианы) × безопасная ставка (≥/< медианы)",
+    "method": "случайная перестановка внутри страты, циклически C/H/L",
+    "assignment_file": "assignment.csv",
+    "assignment_sha256": "3c8db8ba34782e1c7b3cba558e66772b594abf1988d69dda1d097842bd391a90",
+    "cohort_file": "cohort.csv",
+    "cohort_sha256": "e69ff95ea4f1b84715f2de96f899d690750a4899740ec23f615a11e30b197c77",
+    "immutable": true
+  },
+  "arms": {
+    "C": {"role": "постоянный holdout", "n": 10, "campaign": 13424726, "bid": "текущая 8–10 ₽, без изменений до, во время и после теста; не пополняется и не расширяется"},
+    "L": {"role": "низкая доза", "n": 10, "campaign": "отдельная кампания L (создание — по согласованию)", "bid": 16},
+    "H": {"role": "безопасная ставка SKU, не выше 60 ₽", "n": 10, "campaign": "отдельная кампания H (создание — по согласованию)", "bid": "min(safe_bid, 60)"}
+  },
+  "baseline": {
+    "impressions_pre": "2026-08-31..2026-09-13 (mkt_ozon_ads_sku_daily, текущая ставка)",
+    "impressions_early": "2026-07-27..2026-08-09 (для определения падения показов)",
+    "sales_baseline": "2026-05..2026-07 (raw_ozon_posting без отмен), когорта 108 815 ₽/мес, 23,7 шт/мес",
+    "sales_current": "2026-08-17..2026-09-13, 28 728 ₽/мес",
+    "search": "ozon_search_product, неделя 2026-08-31 против 2026-06-22"
+  },
+  "metrics": {
+    "primary": ["показы на SKU-день относительно holdout (DiD, log(1+показы) ~ плечо×период + FE SKU + FE день)",
+                "клики на SKU-день относительно holdout",
+                "эластичность показов по ставке (наклон log(показы) по log(ставка/ставка_до))"],
+    "secondary": ["CTR", "CPC/ставка", "CPC против безопасной ставки", "освоение бюджета", "доля SKU-дней с 0 показов"],
+    "descriptive_only": ["заказы и выручка из raw_ozon_posting без отмен по семье"],
+    "sources": ["mkt_ozon_ads_sku_daily", "статистика Performance (GET)", "ad_spend_daily", "raw_ozon_posting", "ozon_bids"],
+    "not_used": ["raw_ozon_transaction после 2026-09-07", "margin_by_sku как каноническая прибыль"]
+  },
+  "budget": {
+    "max_total_spend_rub": 5000,
+    "weekly_budget_L_rub": 700,
+    "weekly_budget_H_rub": 1500,
+    "expected_spend_4d_rub": [246, 382],
+    "daily_budget_note": "Ozon игнорирует дневной бюджет; фактический дневной лимит — наш stop-loss S1/S2",
+    "budget_increase_during_test": "запрещено",
+    "campaign_13424726_as_guard": "запрещено (недельный бюджет 9,29 млн ₽)"
+  },
+  "stop_loss": {
+    "check": "ежедневно 10:00 МСК: mkt_ozon_ads_sku_daily за вчера + GET статистики кампаний за сегодня",
+    "S1": "накопленный расход L+H ≥ 1 500 ₽ → полный rollback",
+    "S2": "расход плеча за день: L > 150 ₽ или H > 300 ₽ → rollback плеча",
+    "S3": "CPC SKU за день > безопасной ставки (при ≥1 клике) или CPC/ставка > 1,15 два дня подряд → rollback SKU",
+    "S4": "расход SKU без заказа ≥ stop_zero_order_spend из assignment.csv → rollback SKU",
+    "S5": "остаток семьи < 3 наборов, цена ≠ снимку старта более чем на 5 %, color_index RED, ext_idx > 1,15, архив → rollback SKU",
+    "S6": "treatment-SKU остался в 13424726 → удалить оттуда; holdout-SKU изменился не по плану → семья вне анализа",
+    "S7": "0 показов у плеча 2 дня подряд → проверка модерации и статуса, не стоп"
+  },
+  "transition_to_14_28d_test": {
+    "all_required": [
+      "показы H ≥ 3× и L ≥ 1,5× к pre относительно holdout (медиана SKU); эластичность > 0, 90 % CI бутстрэпа по семьям не включает 0",
+      "CPC ≤ безопасной ставки в ≥ 90 % SKU-дней с кликами; CPC/ставка ≤ 1,15",
+      "ни одного S1/S2; S3–S5 не более чем у 2 SKU",
+      "расход 4 дней ≤ 760 ₽; нет роста отмен и смены цен у treatment"
+    ],
+    "otherwise": "стоп, rollback, без теста",
+    "next_test": "отдельный контракт и согласование: 14/28 дней, incremental contribution, те же 10 семей C как постоянный holdout"
+  },
+  "exclusions": {
+    "funnel": "19 499 SKU acc2 → 411 → 304 → 299 → 293 → 262 → 91 → 34 → 30 (preflight.md)",
+    "safe_bid_below_current": ["2785RFTI6PCU", "1446N71HA9RI", "0595H8BOCWC2", "0904RCC90HBC"],
+    "e6_removed": "21 SKU из docs/reports/ozon_acc2_e1_removed.csv — не возвращать без отдельного решения",
+    "e6_control_bid_down": "36 SKU контроля/понижения E6",
+    "no_early_impressions": "40 SKU без показов 27.07–09.08 (падение неизмеримо)",
+    "new_kits": "комплекты 3/6/9/12 (newsku_acc2_2026-09-14) — 0 в когорте",
+    "red_or_ext_idx_gt_1_15": "исключены по индексу цены",
+    "other_experiments": "E5/E7/E8/HALO/H-002/ACCOUNT_STABLE_CORE — пересечений с acc2 нет",
+    "campaign_41758909": "SKU, найденные в авто-кампании 41758909 на момент старта, — семья вне анализа (см. preflight.md)"
+  },
+  "rollback": {"file": "rollback_template.csv", "rows": 52, "fresh_bid_snapshot_before_start": true},
+  "approvals_required": ["создание двух кампаний и их недельные бюджеты", "перенос 20 SKU из 13424726", "тестовые ставки", "старт"]
+}
