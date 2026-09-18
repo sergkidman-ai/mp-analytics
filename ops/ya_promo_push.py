@@ -113,7 +113,11 @@ def decide(r):
     if not r["price"]:
         r["mode"], r["reason"] = "skip", "нет цены каталога"
         return r
+    # Потолок — И коридор скидки Маркета (1–95 % цены), И maxPromoPrice акции: 18.09 ступень
+    # «лайт» у 6077 оказалась НА РУБЛЬ ВЫШЕ maxPromoPrice, и Маркет ответил PROMO_PRICE_BIGGER_THAN_MAX.
     lo, hi = r["price"] * MIN_DISCOUNT_SHARE, math.floor(r["price"] * MAX_DISCOUNT_SHARE)
+    if r["max_promo_price"]:
+        hi = min(hi, r["max_promo_price"])
     for key, name in LEVELS:
         lvl = float(r["levels"].get(key) or 0)
         if lvl <= 0 or lvl < floor - y.PRICE_EPS:
