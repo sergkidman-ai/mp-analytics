@@ -573,6 +573,12 @@
   <ul>
     <li><b>Проба</b> — сухой прогон: показывает, что будет записано, и <b>не пишет ничего</b>.
       Делайте пробу всегда.</li>
+    <li><b>Тип расходника и тип техники</b> — от них и от закупочной цены зависит <b>Серия</b> карточки
+      (Комфорт / Бизнес / ПРО): без неё ТК не соберёт инфографику. Оба значения подставлены
+      по названию — проверьте их и при необходимости поменяйте, рядом сразу показано, какая
+      серия получится. Серия ставится один раз, при заведении нового внешнего кода, и потом
+      не меняется. Для товаров, которым серия не положена (фотобумага, лампы), выберите в типе
+      расходника «— серия не нужна —»: поле останется пустым.</li>
     <li><b>Создать в МС</b> — запись в МойСклад. Карточка сразу ложится позицией в актуальное
       оприходование поставщика, второй шаг руками не нужен. Это работает для всех поставщиков,
       включая Булат, ВТТ, Профилайн, Рапид, Изипринт и Рамис: остаток и цену берём из последнего
@@ -712,6 +718,9 @@
       <p style="margin:6px 0"><label>карточек из этой позиции:
         <input id="mscount" type="number" min="1" max="10" value="1" style="width:60px"></label>
         <span class="muted" id="msnote"></span></p>
+      <p style="margin:6px 0"><label>тип расходника: <select id="mskind"></select></label>
+        <label style="margin-left:12px">тип техники: <select id="msprinter"></select></label>
+        <span class="muted" id="msseries"></span></p>
       <div id="mscards"></div>
       <p class="mslog" id="mslog"></p>
     </div>
@@ -1065,14 +1074,45 @@ async function msLoad(n, keep){
   });
   $("#mshead").textContent = `${d.supplier} · ${d.article} · ${d.name}`;
   $("#mswarn").textContent = (d.warn || []).join(" · ");
+  // Тип техники выбирает человек: каталог ТК нового кода ещё не знает, а от типа зависит
+  // серия для инфографики. Подставлено догадкой — оператор подтверждает или меняет.
+  // Тип расходника и тип техники подставлены догадкой — оператор правит оба: каталог ТК
+  // нового кода ещё не знает, а от этой пары и цены зависит серия для инфографики.
+  const kinds = $("#mskind"), sel = $("#msprinter");
+  if (!kinds.options.length){
+    kinds.innerHTML = '<option value="">— серия не нужна —</option>'
+      + (d.kinds || []).map(k => `<option>${k}</option>`).join("");
+    kinds.onchange = msSeries;
+  }
+  if (!sel.options.length){
+    sel.innerHTML = (d.printers || []).map(p => `<option>${p}</option>`).join("");
+    sel.onchange = msSeries;
+  }
+  if (!keep){
+    kinds.value = (d.kinds || []).includes(d.kind) ? d.kind : "";
+    sel.value = d.printer || "";
+  }
+  msSeries();
   $("#msnote").textContent = "внешние коды и связь пересчитываются при смене числа";
   msRender();
   return true;
 }
 
+// Серия пересчитывается на сервере при пробе и записи; здесь — только показ текущей
+// догадки, чтобы человек видел результат до нажатия «Создать».
+async function msSeries(){
+  const cards = msCollect();
+  const price = (cards[MS.main] || cards[0] || {}).buy_price || "";
+  const d = await (await fetch("/api/novelties/series?" + new URLSearchParams(
+    {kind: $("#mskind").value, printer: $("#msprinter").value, price}))).json();
+  $("#msseries").textContent = d.ok && d.series
+    ? `серия: ${d.series} (${d.why})` : `серия не определится: ${d.why || ""}`;
+}
+
 async function msSend(dry){
   $("#mslog").textContent = dry ? "проба…" : "создаём в МойСкладе…";
-  const body = {id: MS.id, cards: msCollect(), main_index: MS.main, dry};
+  const body = {id: MS.id, cards: msCollect(), main_index: MS.main, dry,
+                printer: $("#msprinter").value, kind: $("#mskind").value};
   const out = await (await fetch("/api/novelties/ms-create", {method: "POST",
     headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)})).json();
   if (!out.ok){
@@ -1081,6 +1121,7 @@ async function msSend(dry){
   }
   $("#mslog").textContent = (out.log || []).join("\n")
     + (out.skipped && out.skipped.length ? "\nпропущено: " + out.skipped.join("; ") : "")
+    + (out.series_why ? "\n" + out.series_why : "")
     + (out.entered ? "\nоприходование: " + out.entered : "");
   if (!dry){
     if (MS.msg){

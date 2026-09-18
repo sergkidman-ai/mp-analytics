@@ -49,7 +49,7 @@ COLUMNS = [
     "Группы", "Код", "Внешний код", "Наименование", "Описание", "Артикул",
     "Доп. поле: Код поставщика", "Единица измерения", "Закупочная цена", "НДС",
     "Поставщик", "Вес", "Страна", "Доп. поле: Гарантия/ Срок службы",
-    "Доп. поле: Название WB", "Штрихкод Code128", "Доп. поле: Связь",
+    "Доп. поле: Название WB", "Штрихкод Code128", "Доп. поле: Связь", "Серия",
 ]
 
 UOM = "шт"
@@ -919,6 +919,49 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None, ms_codes=N
     return records, notes
 
 
+# Справочное доп. поле «Серия» (`prices/series.py`). В отличие от ATTRS оно не строковое:
+# в карточку пишется ССЫЛКА на значение справочника, поэтому нужны два id — самого поля и
+# выбранного значения. Оба ищем по ИМЕНИ и кэшируем на процесс: id переживут пересоздание
+# поля в МС, а зашитые константы — нет.
+SERIES_ATTR = "Серия"
+_series_meta = None
+
+
+def series_meta():
+    """(id поля «Серия», {значение: id}) из метаданных МС. Нет поля -> (None, {})."""
+    global _series_meta
+    if _series_meta is None:
+        from core import ms_api
+        attr = next((a for a in ms_api.get("/entity/product/metadata/attributes").get("rows", [])
+                     if a.get("name") == SERIES_ATTR), None)
+        if not attr or attr.get("type") != "customentity":
+            _series_meta = (None, {})
+        else:
+            ent = (attr.get("customEntityMeta") or {}).get("href", "").rsplit("/", 1)[-1]
+            rows = ms_api.get(f"/entity/customentity/{ent}", {"limit": 100}).get("rows", [])
+            _series_meta = (attr["id"], {r["name"]: (ent, r["id"]) for r in rows})
+    return _series_meta
+
+
+def series_attribute(value):
+    """Элемент `attributes` для карточки. -> (элемент, None) | (None, причина отказа)."""
+    from core import ms_api
+    attr_id, values = series_meta()
+    if not attr_id:
+        return None, f"в МоёмСкладе нет справочного поля «{SERIES_ATTR}» у товара"
+    # Регистр не сверяем: в матрице серия записана «ПРО», в справочнике МС — «Про», и это
+    # одно и то же значение. Совпадение по имени без регистра переживёт и переименование.
+    found = {k.strip().lower(): v for k, v in values.items()}.get(str(value).strip().lower())
+    if not found:
+        return None, (f"значения «{value}» нет в справочнике «{SERIES_ATTR}» "
+                      f"(есть: {', '.join(sorted(values)) or '—'})")
+    ent, vid = found
+    return {"meta": {"href": f"{ms_api.BASE}/entity/product/metadata/attributes/{attr_id}",
+                     "type": "attributemetadata", "mediaType": "application/json"},
+            "value": {"meta": {"href": f"{ms_api.BASE}/entity/customentity/{ent}/{vid}",
+                               "type": "customentity", "mediaType": "application/json"}}}, None
+
+
 # --- запись карточек в МС по API -------------------------------------------------------
 # Те же значения, что уходят в excel-файл: колонка → (id доп. поля в МС, тип).
 ATTRS = {
@@ -1021,6 +1064,14 @@ def create_in_ms(records, supplier_id, dry=True, log=print, own=None):
                 "type": ATTRS[col][1], "value": rec[col],
             } for col in ATTRS if rec.get(col) not in (None, "")],
         }
+        if rec.get("Серия"):
+            item, why = series_attribute(rec["Серия"])
+            if item:
+                body["attributes"].append(item)
+            else:
+                # Серия — свойство для инфографики ТК, а не условие продажи: карточку из-за
+                # неё не роняем, но и молчать нельзя — иначе поле тихо останется пустым.
+                log(f"  {rec['Код']}: серия не записана — {why}")
         if article:                       # пустой артикул в МС не отправляем — не пустое поле, а его отсутствие
             body["article"] = article
         if rec["Вес"]:

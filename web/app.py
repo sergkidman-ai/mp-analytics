@@ -3560,11 +3560,35 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
             "supplier_code": row["article"],
             "link": ";".join(others) if others else (row["link"] or ""),
         })
+    # Серия для инфографики ТК: тип расходника берём как в «Названии WB», тип техники
+    # угадываем и показываем оператору списком — каталог ТК нового кода ещё не знает.
+    from prices import series as series_mod
+    kind = series_mod.kind_of(row["name"], tk_ext)
+    printer = series_mod.guess_printer(row["name"], kind)
+    series_value, series_why = series_mod.series(kind, printer, row["price_rub"])
+    if not kind:
+        warn.append("тип расходника из названия не читается — серия останется пустой, "
+                    "ТК не соберёт инфографику")
     return {"ok": True, "id": row["id"], "supplier": profile.title,
             "article": row["article"], "name": row["name"], "n": n,
+            "kind": kind, "kinds": series_mod.kinds(),
+            "printers": series_mod.PRINTERS, "printer": printer,
+            "series": series_value or "", "series_why": series_why,
             "weight_source": source or "", "warn": warn,
             "folders": sorted(p for p in folders if p.startswith(ms_import.GROUP_PREFIX)),
             "cards": cards}
+
+
+@app.get("/api/novelties/series")
+def novelties_series(kind: str = "", printer: str = "", price: str = ""):
+    """Какая серия выйдет при этих типе расходника, типе техники и цене. Ничего не пишет.
+
+    Нужен форме: оператор меняет тип техники и сразу видит результат, а не узнаёт его из
+    ответа после «Создать».
+    """
+    from prices import series as series_mod
+    value, why = series_mod.series(kind, printer, price)
+    return {"ok": True, "series": value or "", "why": why}
 
 
 class MsCard(BaseModel):
@@ -3587,6 +3611,13 @@ class MsCreate(BaseModel):
     cards: list[MsCard]
     main_index: int = 0
     dry: bool = True
+    # Тип техники и тип расходника для серии (`prices/series.py`): каталог ТК нового кода
+    # ещё не знает, поэтому оба значения выбирает оператор — в форме они подставлены
+    # догадкой. Пустой `kind` — считаем сами, как в форме.
+    printer: str = ""
+    # None — поля в запросе не было, считаем тип сами; пустая строка — оператор ВЫБРАЛ
+    # «серия не нужна» (фотобумага, лампы), и подставлять свой вариант поверх нельзя.
+    kind: str | None = None
 
 
 @app.post("/api/novelties/ms-create")
@@ -3598,6 +3629,7 @@ def novelties_ms_create(payload: MsCreate):
     отсекает проверка.
     """
     from prices import ms_import
+    from prices import series as series_mod
     from prices.profiles import get_identity
     found = db.query("SELECT id, supplier_key, article, name FROM prc_novelty WHERE id = %s",
                      (payload.id,))
@@ -3648,6 +3680,14 @@ def novelties_ms_create(payload: MsCreate):
     def number(value):
         return str(value).replace(",", ".").strip()
 
+    # Серия — свойство НОВОГО внешнего кода: считаем один раз на диалог, по типу расходника
+    # и закупочной цене главной карточки. Карточкам под уже существующим кодом («Это он»)
+    # серию не ставим вовсе (решение Сергея 18.09.2026), поэтому здесь и только здесь.
+    main_card = cards[payload.main_index]
+    kind = (payload.kind.strip() if payload.kind is not None
+            else series_mod.kind_of(row["name"], main_card.external_code))
+    series_value, series_why = series_mod.series(kind, payload.printer, main_card.buy_price)
+
     def rec(i, c):
         return {
             "Группы": c.folder, "Код": c.code.strip(), "Внешний код": c.external_code.strip(),
@@ -3664,6 +3704,7 @@ def novelties_ms_create(payload: MsCreate):
             "Доп. поле: Название WB": (c.wb or "").strip(),
             "Штрихкод Code128": (c.code128 or "").strip(),
             "Доп. поле: Связь": (c.link or "").strip(),
+            "Серия": series_value or "",
         }
 
     records = [rec(i, c) for i, c in enumerate(cards)]
@@ -3673,8 +3714,11 @@ def novelties_ms_create(payload: MsCreate):
                                                   dry=payload.dry, log=lines.append)
     except Exception as exc:                       # МС ответил ошибкой на середине пачки
         return {"ok": False, "error": f"МойСклад: {type(exc).__name__}: {exc}", "log": lines}
+    series_line = (f"серия {series_value} — {series_why}" if series_value
+                   else f"серия НЕ будет заполнена: {series_why}")
     if payload.dry:
         return {"ok": True, "dry": True, "log": lines, "n": len(records),
+                "kind": kind, "series": series_value or "", "series_why": series_line,
                 "entered": enter_add.preview(
                     profile.key, records[payload.main_index]["Артикул"] or "")}
 
@@ -3694,6 +3738,7 @@ def novelties_ms_create(payload: MsCreate):
     return {"ok": True, "dry": False, "log": lines, "created": len(created),
             "skipped": [f"{a}: {why}" for a, why in skipped],
             "ms_code": main.code.strip() if made.get(main.code.strip()) else None,
+            "kind": kind, "series": series_value or "", "series_why": series_line,
             "entered": entered}
 
 
