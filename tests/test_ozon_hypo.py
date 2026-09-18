@@ -826,8 +826,11 @@ class РамкаКонтура(unittest.TestCase):
             по_id = {h['hypothesis_id']: h for h in json.load(f)['гипотезы']}
         for hid in ('H-006', 'H-008', 'H-004', 'H-002'):
             self.assertEqual(по_id[hid]['decision'], 'DEFERRED', hid)
-        for hid in ('E5', 'E6', 'E7', 'E8', 'H-001'):
+        for hid in ('E5', 'E7', 'H-001'):
             self.assertEqual(по_id[hid]['status'], 'MEASURING', hid)
+        self.assertEqual(по_id['E6']['status'], 'EVALUATED')      # NO_CAUSAL_CLAIM, 07.09
+        self.assertEqual(по_id['E8']['status'], 'INCONCLUSIVE')   # решение Сергея 14.09, закрыто 18.09
+        self.assertIs(по_id['E8']['result']['causal_claim_allowed'], False)
 
 
 if __name__ == '__main__':

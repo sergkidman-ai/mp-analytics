@@ -209,11 +209,17 @@
       "confidence": null,
       "time_to_learn": null,
       "priority_score": null,
-      "status": "MEASURING",
+      "status": "INCONCLUSIVE",
       "experiment_id": "E8",
-      "result": null,
-      "decision": null,
-      "learning": null,
+      "result": {
+        "verdict": "INCONCLUSIVE",
+        "causal_claim_allowed": false,
+        "recomputed": false,
+        "evidence": "docs/reports/ozon_decline_2026-09-14/memo.md",
+        "reason": "аудит доказательств 14.09 (docs/reports/ozon_decline_2026-09-14/memo.md, раздел E8): baseline и метрика зафиксированы после воздействия (контракт закоммичен 20.08, две разные основные метрики); отсутствие воздействия на control не доказано — «Оплата за заказ — все товары» 24244024 не разнесена по SKU"
+      },
+      "decision": "INCONCLUSIVE_CLOSED",
+      "learning": "Нет оснований ни для массового возврата рекламы снятой волне 1, ни для сохранения снятия как доказанно безвредного. Дальнейшие решения по хвосту — только новым предзарегистрированным тестом (контракт и когорты с sha в git до воздействия, единица — семья).",
       "next_hypotheses": [
         "H-001"
       ],
