@@ -126,8 +126,11 @@ def campaign_subject(account, advert_id, subj_of):
 def candidates(account):
     """Спрос доказан, маржа выше пола, в рекламе не ведём. Наличие проверяется отдельно."""
     return db.query("""
-      with adv as (select nm_id from wb_ad_nm
-                    where account=%s and period=(select max(period) from wb_ad_nm where account=%s)
+      -- Вся история, не последний период: позиция без показов в периоде из статистики выпадает,
+      -- но в кампании остаётся. Срез по последнему периоду 14.09 пропустил дубли: 113 из 124 на
+      -- acc2 и 53 из 124 на acc1 уже стояли в других кампаниях (ЛК ВБ показывает «дубли»).
+      with adv as (select nm_id from wb_ad_nm where account=%s
+                   union select nm_id from wb_ad_nm_daily where account=%s
                    union select nm_id from wb_bid_override where account=%s),
            sold as (select article::bigint nm, sum(qty) o6, sum(revenue_buyer) s6,
                            sum(revenue_buyer) filter (where period_from>='2026-08-01') s8
