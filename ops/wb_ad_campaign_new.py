@@ -80,6 +80,14 @@ def deposit(account, advert_id, rub, src=0):
     return r.status_code, r.text[:200].replace("\n", " ")
 
 
+def payment_types(account, ids):
+    """{advert_id: 'cpc'|'cpm'} по GET /api/advert/v2/adverts — тип оплаты, который ВБ реально завёл."""
+    r = requests.get(WB_ADS_HOST + "/api/advert/v2/adverts", params={"ids": ",".join(map(str, ids))},
+                     headers={"Authorization": _token(account)}, timeout=60)
+    r.raise_for_status()
+    return {int(a["id"]): (a.get("settings") or {}).get("payment_type") for a in r.json().get("adverts") or []}
+
+
 def start(account, advert_id):
     r = requests.get(WB_ADS_HOST + "/adv/v0/start", params={"id": int(advert_id)},
                      headers={"Authorization": _token(account)}, timeout=30)
@@ -115,6 +123,10 @@ def main():
         return
 
     if a.start:
+        pay = payment_types(a.account, a.start)
+        bad = [i for i in a.start if pay.get(i) != "cpc"]
+        if bad:
+            sys.exit(f"не запускаю: оплата не cpc у {[(i, pay.get(i)) for i in bad]}")
         for i in a.start:
             print(f"  запуск {i}: {start(a.account, i)}", flush=True)
             time.sleep(PAUSE)
@@ -152,6 +164,11 @@ def main():
               "кампания родится остановленной; запуск — отдельным --start)")
         return
 
+    # 18.09.2026: все 7 кампаний, созданных 14.09 с paymentType=cpc, ВБ завёл как CPM 500 ₽ за
+    # тысячу показов (проверено GET /api/advert/v2/adverts), и 113 из 124 позиций acc2 оказались
+    # дублями. Итог 924 ₽ за заказ против ~100 ₽ в старых cpc. Создание закрыто до тех пор, пока
+    # не найдено, как ВБ принимает cpc; позиции заводим в свободные места cpc-кампаний (wb_ad_enroll).
+    sys.exit("СОЗДАНИЕ ЗАКРЫТО 18.09.2026: save-ad создаёт cpm вместо cpc. См. комментарий выше.")
     for name, chunk in plan:
         code, txt = create(a.account, name, chunk)
         print(f"  «{name}»: HTTP {code} | {txt}", flush=True)

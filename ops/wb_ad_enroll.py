@@ -33,8 +33,12 @@
   GET   /adv/v1/supplier/subjects               → 200, предметы с количеством
   POST  /adv/v2/seacat/save-ad                  → СОЗДАЁТ кампанию (name + nms), а НЕ правит
                                                   состав существующей. Здесь не используется.
-  Все `/adv/v1|v2|v3/promotion/adverts` → 404: прямого геттера состава у ВБ нет, но есть оракул
-  `real_count()` — сверхлимитный запрос всегда отклоняется, а в отказе ВБ пишет итоговое число.
+  GET   /api/advert/v2/adverts?ids=…(≤50)     → ПОЛНЫЙ состав кампании (nm_settings: nm_id, ставка,
+                                                  предмет) + settings.payment_type. Найден 18.09.2026.
+                                                  Старые `/adv/v1|v2|v3/promotion/adverts` → 404.
+  Состав и дубли берём ТОЛЬКО отсюда (`composition()`): статистика `wb_ad_nm` видит лишь позиции
+  с показами, и 14.09 из-за этого завели 113 дублей из 124 на acc2. Оракул `real_count()` оставлен
+  для истории, в основном пути не используется.
 
 ДВА ОГРАНИЧЕНИЯ, КОТОРЫЕ РЕШАЮТ ВСЁ (замер 25.08.2026):
   · ЛИМИТ 50 НОМЕНКЛАТУР, а наши старые кампании acc2 стоят по ~200 (35498721 — ровно 200,
@@ -123,16 +127,44 @@ def campaign_subject(account, advert_id, subj_of):
     return max(set(subs), key=subs.count) if subs else None
 
 
+def composition(account, statuses=(4, 9, 11)):
+    """{advert_id: {"status", "payment", "nms": set, "subjects": Counter}} — точный состав всех
+    кампаний аккаунта в статусах 4/9/11 через GET /api/advert/v2/adverts (≤50 id за запрос)."""
+    import collections
+    H = {"Authorization": _token(account)}
+    cnt = requests.get(WB_ADS_HOST + "/adv/v1/promotion/count", headers=H, timeout=60)
+    cnt.raise_for_status()
+    st = {a["advertId"]: g.get("status")
+          for g in cnt.json().get("adverts") or [] for a in g.get("advert_list") or []}
+    ids = [i for i, x in st.items() if x in statuses]
+    out = {}
+    for k in range(0, len(ids), 50):
+        chunk = ids[k:k + 50]
+        for _ in range(4):
+            r = requests.get(WB_ADS_HOST + "/api/advert/v2/adverts", headers=H,
+                             params={"ids": ",".join(map(str, chunk))}, timeout=60)
+            if r.status_code != 429:
+                break
+            time.sleep(5)
+        r.raise_for_status()
+        for a in r.json().get("adverts") or []:
+            nm = a.get("nm_settings") or []
+            out[int(a["id"])] = {
+                "status": st.get(a["id"]),
+                "payment": (a.get("settings") or {}).get("payment_type"),
+                "nms": {int(x["nm_id"]) for x in nm},
+                "subjects": collections.Counter((x.get("subject") or {}).get("id") for x in nm)}
+        time.sleep(1)
+    if len(out) != len(ids):
+        raise RuntimeError(f"состав прочитан не полностью: {len(out)} из {len(ids)} кампаний")
+    return out
+
+
 def candidates(account):
     """Спрос доказан, маржа выше пола, в рекламе не ведём. Наличие проверяется отдельно."""
     return db.query("""
-      -- Вся история, не последний период: позиция без показов в периоде из статистики выпадает,
-      -- но в кампании остаётся. Срез по последнему периоду 14.09 пропустил дубли: 113 из 124 на
-      -- acc2 и 53 из 124 на acc1 уже стояли в других кампаниях (ЛК ВБ показывает «дубли»).
-      with adv as (select nm_id from wb_ad_nm where account=%s
-                   union select nm_id from wb_ad_nm_daily where account=%s
-                   union select nm_id from wb_bid_override where account=%s),
-           sold as (select article::bigint nm, sum(qty) o6, sum(revenue_buyer) s6,
+      -- Кто уже в рекламе, решает точный состав composition() в main(); здесь только спрос и маржа.
+      with sold as (select article::bigint nm, sum(qty) o6, sum(revenue_buyer) s6,
                            sum(revenue_buyer) filter (where period_from>='2026-08-01') s8
                       from sales where platform='wb' and account=%s and period_from>='2026-06-01'
                        and article ~ '^[0-9]+$' and qty>0 group by 1),
@@ -146,9 +178,9 @@ def candidates(account):
         left join sold s on s.nm=c.nm_id
         left join mc on mc.nm_id=c.nm_id
         left join rs on rs.nm_id=c.nm_id
-       where c.account=%s and c.nm_id not in (select nm_id from adv)
+       where c.account=%s
          and (s.nm is not null or rs.nm_id is not null)
-       group by c.nm_id""", (account, account, account, account, account, account, account))
+       group by c.nm_id""", (account, account, account, account))
 
 
 def known_in_campaign(account, advert_id):
@@ -244,6 +276,8 @@ def main():
     ap.add_argument('--advert-id', type=int, help='кампания-приёмник')
     ap.add_argument('--limit', type=int, default=5, help='сколько карточек завести за прогон')
     ap.add_argument('--only-resurfaced', action='store_true', help='только «вышедшие из сумрака»')
+    ap.add_argument('--min-margin', type=float, default=None,
+                    help='пол маржи, %% (по умолчанию WB_MARGIN_FLOOR; задан — позиции без маржи не берём)')
     ap.add_argument('--apply', action='store_true', help='живая запись в ВБ')
     ap.add_argument('--probe', action='store_true', help='разведка формы тела, сверхлимитная')
     ap.add_argument('--count', action='store_true', help='измерить реальный состав кампаний оракулом')
@@ -281,11 +315,16 @@ def main():
         probe_shapes(a.account, a.advert_id, safe)
         return
 
-    cand = [r for r in candidates(a.account) if r["nm_id"] in ok_nms]
+    comp = composition(a.account)
+    members = set().union(*(c["nms"] for c in comp.values())) if comp else set()
+    print(f"  точный состав: {len(comp)} кампаний, {len(members)} позиций уже в рекламе")
+    cand = [r for r in candidates(a.account) if r["nm_id"] in ok_nms and r["nm_id"] not in members]
     if a.only_resurfaced:
         cand = [r for r in cand if r["resurf"]]
-    cand = [r for r in cand
-            if r["mg"] is None or float(r["mg"]) >= WB_MARGIN_FLOOR]
+    if a.min_margin is None:
+        cand = [r for r in cand if r["mg"] is None or float(r["mg"]) >= WB_MARGIN_FLOOR]
+    else:
+        cand = [r for r in cand if r["mg"] is not None and float(r["mg"]) >= a.min_margin]
     stock = live_stock([r["nm_id"] for r in cand])
     cand = [r for r in cand if stock.get(r["nm_id"])]
     cand.sort(key=lambda r: -float(r["s6"] or 0))
@@ -303,18 +342,15 @@ def main():
                   f"{' · из сумрака' if r['resurf'] else ''}")
         return
 
-    subj = campaign_subject(a.account, a.advert_id, subj_of)
-    free = sorted(n for n in (ok_nms - unadvertised(a.account)) if subj_of.get(n) == subj)
-    have, err = real_count(a.account, a.advert_id, free)
-    if have is None:
-        # 07.09.2026 ВБ убрал число из текста отказа — оракула больше нет, идём лестницей.
-        print(f"\nКампания {a.advert_id}: состав измерить не удалось — {err}")
-        print("  идём ЛЕСТНИЦЕЙ: пробуем завести партию, при отказе по лимиту делим пополам.")
-        room = a.limit
-    else:
-        room = CAMPAIGN_CAP - have
-        print(f"\nКампания {a.advert_id} (предмет {subj}): в ней РЕАЛЬНО {have} номенклатур, "
-              f"лимит {CAMPAIGN_CAP} → свободно {max(room, 0)}")
+    tgt = comp.get(a.advert_id)
+    if not tgt:
+        sys.exit(f"кампании {a.advert_id} нет среди активных/на паузе (4/9/11)")
+    if tgt["payment"] != "cpc":
+        sys.exit(f"кампания {a.advert_id} оплачивается {tgt['payment']}, не cpc — не заводим")
+    subj = tgt["subjects"].most_common(1)[0][0] if tgt["subjects"] else None
+    room = CAMPAIGN_CAP - len(tgt["nms"])
+    print(f"\nКампания {a.advert_id} (cpc, предмет {subj}): в ней {len(tgt['nms'])} позиций, "
+          f"лимит {CAMPAIGN_CAP} → свободно {max(room, 0)}")
     # Чужая категория ВБ не примет — кандидатов режем по предмету кампании.
     cand = [r for r in cand if subj_of.get(r["nm_id"]) == subj]
     take = cand[:min(a.limit, max(room, 0))]
@@ -365,8 +401,13 @@ def main():
                             "nms": [r_["nm_id"] for r_ in take],
                             "http": r.status_code, "resp": r.text[:300]}, ensure_ascii=False) + "\n")
     print(f"записано в журнал {JOURNAL.name}")
-    print("ПРОВЕРИТЬ СОСТАВ ОТДЕЛЬНО: ответ контура приходит из общего кэша ВБ и один раз "
-          "приходил про чужую кампанию — доверять тексту ответа нельзя.")
+    # Ответ контура приходит из общего кэша ВБ — доверяем только перечитанному составу.
+    time.sleep(3)
+    after = composition(a.account).get(a.advert_id, {}).get("nms", set())
+    got = [x["nm_id"] for x in take if x["nm_id"] in after]
+    miss = [x["nm_id"] for x in take if x["nm_id"] not in after]
+    print(f"ПРОВЕРКА СОСТАВА: в кампании теперь {len(after)}; добавлено {len(got)} из {len(take)}"
+          + (f"; НЕ видно: {miss}" if miss else ""))
 
 
 if __name__ == '__main__':
