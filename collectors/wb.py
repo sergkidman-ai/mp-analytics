@@ -207,9 +207,19 @@ def collect_stocks(account, captured_at, since="2025-01-01"):
     return len(recs)
 
 
+CONTENT_TOKEN_ENV = {"wb_acc1": "WB_TOKEN_CONTENT_ACC1", "wb_acc2": "WB_TOKEN_CONTENT_ACC2"}
+
+
+def _content_token(account):
+    """Токен с категорией «Контент». С ~19.08.2026 общий WB_TOKEN_ACC1 получает 403 на content-api,
+    и wb_cards по acc1 месяц не обновлялась (wb_cards_live без единой сентябрьской карточки). Те же
+    отдельные контент-токены уже читают tools/card_wb_presence.py и collectors/wb_card_content.py."""
+    return os.getenv(CONTENT_TOKEN_ENV.get(account, "")) or _token(account)
+
+
 def collect_cards(account):
     """Карточки WB (nmID → vendorCode/название/бренд) → wb_cards. Категория «Контент»."""
-    H = {"Authorization": _token(account), "Content-Type": "application/json"}
+    H = {"Authorization": _content_token(account), "Content-Type": "application/json"}
     cursor = {"limit": 100}
     total_saved = 0
     while True:
