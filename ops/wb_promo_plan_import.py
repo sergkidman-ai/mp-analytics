@@ -45,8 +45,13 @@ def read_file(path):
     acc = next((BRAND_ACC[b] for b in brands.index if b in BRAND_ACC), None)
     if not acc:
         raise RuntimeError(f"{os.path.basename(path)}: бренд не опознан ({list(brands.index)[:3]})")
-    name = re.sub(r"^\d{8}_\d{6}_[^_]+_[^_]+_", "", os.path.basename(path))
-    return acc, name, d
+    # Имя акции — из имени файла: «Все товары подходящие для акции_<НАЗВАНИЕ>_дата.xlsx»
+    # (и «Товары для акции_<НАЗВАНИЕ>_…» у обычных акций). Префикс бота тоже срезаем.
+    base = re.sub(r"^\d{8}_\d{6}_[^_]+_[^_]+_", "", os.path.basename(path))
+    base = re.sub(r"\.(xlsx?|xl)$", "", base)
+    m = re.sub(r"^(Все товары подходящие для акции|Товары для акции)[_ ]*", "", base)
+    m = re.sub(r"[_ ]*\d{2}\.\d{2}\.\d{4}.*$", "", m).strip(" _")
+    return acc, (m or base)[:120], d
 
 
 def load(path, valid_from, valid_to):
@@ -57,7 +62,7 @@ def load(path, valid_from, valid_to):
         nm, plan = rec.get(COLS["nm"]), rec.get(COLS["plan"])
         if pd.isna(nm) or pd.isna(plan) or float(plan) <= 0:
             continue
-        rows.append({"account": acc, "nm_id": int(nm),
+        rows.append({"account": acc, "promo_key": promo, "nm_id": int(nm),
                      # артикул в файле уже без «/»: 00011 — это 0001/1, ведущий ноль значащий
                      "vendor_code": None if pd.isna(rec.get(COLS["vc"])) else str(rec[COLS["vc"]]).strip(),
                      "plan_price": round(float(plan), 2),
@@ -67,11 +72,11 @@ def load(path, valid_from, valid_to):
                      "promo_name": promo[:200], "valid_from": valid_from, "valid_to": valid_to,
                      "source_file": os.path.basename(path)[:200]})
     if rows:
-        db.upsert("wb_promo_plan_price", rows, conflict_cols=["account", "nm_id", "valid_from"],
+        db.upsert("wb_promo_plan_price", rows, conflict_cols=["account", "promo_key", "nm_id", "valid_from"],
                   update_cols=["vendor_code", "plan_price", "retail_price", "disc_pct", "in_promo",
                                "promo_name", "valid_to", "source_file", "loaded_at"])
     inp = sum(1 for x in rows if x["in_promo"])
-    print(f"  {os.path.basename(path)[:50]} → {acc}: строк {len(rows)}, в акции {inp}", flush=True)
+    print(f"  {acc} · {promo[:42]:<42} строк {len(rows):>6}, в акции {inp:>6}", flush=True)
     return acc, len(rows), inp
 
 
@@ -97,7 +102,8 @@ def check():
 
 def main():
     ap = argparse.ArgumentParser(description="ВБ: загрузка плановых цен акции из выгрузки ЛК")
-    ap.add_argument("--file", action="append", help="файл(ы); по умолчанию два свежих из dropbox")
+    ap.add_argument("--file", action="append", help="файл(ы); по умолчанию свежие из dropbox")
+    ap.add_argument("--dir", help="каталог с выгрузками (например распакованный zip из бота)")
     ap.add_argument("--valid-from", default=dt.date.today().isoformat(), help="дата выгрузки")
     ap.add_argument("--valid-to", help="дата конца акции (для отбора живых цен)")
     ap.add_argument("--check", action="store_true", help="замер: держится ли плановая цена")
@@ -105,17 +111,25 @@ def main():
     if a.check:
         check()
         return
-    files = a.file or sorted(glob.glob(os.path.join(DROPBOX, "*.xl*")), key=os.path.getmtime,
+    if a.dir:
+        files = sorted(glob.glob(os.path.join(a.dir, "**", "*.xls*"), recursive=True)
+                       + glob.glob(os.path.join(a.dir, "**", "*.xl"), recursive=True))
+    else:
+        files = a.file or sorted(glob.glob(os.path.join(DROPBOX, "*.xl*")), key=os.path.getmtime,
                              reverse=True)[:2]
     if not files:
         print("файлов не найдено", flush=True)
         return
     seen = {}
     for f in files:
-        acc, n, inp = load(f, a.valid_from, a.valid_to)
-        seen[acc] = (n, inp)
-    if len(seen) < 2:
-        print("⚠️ загружен только один кабинет — второй файл не найден", flush=True)
+        try:
+            acc, n, inp = load(f, a.valid_from, a.valid_to)
+        except Exception as e:                                        # noqa: BLE001
+            print(f"  ПРОПУСК {os.path.basename(f)[:50]}: {e}", flush=True)
+            continue
+        seen.setdefault(acc, []).append(inp)
+    for acc, v in seen.items():
+        print(f"{acc}: акций загружено {len(v)}, суммарно участий {sum(v)}", flush=True)
 
 
 if __name__ == "__main__":
