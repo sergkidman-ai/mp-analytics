@@ -15,8 +15,12 @@ v7 — 429, `u-search.wb.ru` v18 (старый крон `serp_core.log`) — 403
 wb_search_scrape_run за сегодня). 429 → пауза и до RETRIES попыток, затем запрос пропускается
 (регион/запрос не помечаются «пусто» — следующий прогон повторит).
 
-Список запросов — файл, один на строку (по умолчанию tools/wb_serp_core_keys.txt, уже
-курированный вручную; полноценный «топ-200 прибыльных моделей» — отдельная задача, см. бриф).
+Список запросов — либо файл (по умолчанию tools/wb_serp_core_keys.txt, курирован вручную), либо
+`--top N` — топ-N прибыльных моделей из margin_by_sku (SELECT, чужой территории fin не трогаем):
+последний ПОЛНЫЙ месяц (не текущий — тонкий хвост, см. incomplete-month-sku-trap), qty>=1 И
+net_profit>0, группировка по «базовому коду» (ведущий числовой префикс vendor_code, ведущий ноль
+НЕ режем — leading-zero-is-part-of-code) — одна группа = одна модель в разных цветах/вариантах,
+берём топ по net_profit внутри группы. Запрос — очищенный title карточки (wb_cards).
 Регионы по умолчанию — Москва/СПб/Екатеринбург (ответ Сергея 19.09), dest СПб/Екб сняты живым
 запросом к geo API, не угаданы; свои --dest переопределяют список целиком.
 
@@ -24,7 +28,8 @@ wb_search_scrape_run за сегодня). 429 → пауза и до RETRIES п
     ./venv/bin/python collectors/wb_search_scrape.py --limit 5              # проба, в БД не пишет
     ./venv/bin/python collectors/wb_search_scrape.py --limit 5 --write      # проба, пишет в БД
     ./venv/bin/python collectors/wb_search_scrape.py --write                # весь файл запросов
-    ./venv/bin/python collectors/wb_search_scrape.py --write --file f.txt --dest -1257786:msk
+    ./venv/bin/python collectors/wb_search_scrape.py --write --top 200      # топ-200 прибыльных
+    ./venv/bin/python collectors/wb_search_scrape.py --write --file f.txt --dest msk:-1257786
 """
 import argparse
 import pathlib
@@ -60,6 +65,45 @@ DEFAULT_REGIONS = [(-1257786, "msk"), (-1198055, "spb"), (-5818883, "ekb")]
 PAUSE = 3.5
 RETRIES = 3
 DAILY_LIMIT = 1500          # общий потолок запросов/сутки на все регионы, с запасом от ~1200 из промта
+# Найдено 21.09: search.wb.ru/card.wb.ru синхронно ушли в 403 с IP сервера (видимо, от моего
+# ручного тестирования тем же днём) — это тот самый общий риск IP из вопроса 1 промта. Без
+# прерывателя скрипт молотил бы весь список впустую ЧАСАМИ, продлевая бан себе и продовым
+# сборщикам цен на том же IP. CONSECUTIVE_FAIL_LIMIT прошедших подряд «не ответил» → стоп прогона.
+CONSECUTIVE_FAIL_LIMIT = 8
+
+
+TOP_MODELS_SQL = """
+    SELECT m.article::bigint AS nm_id, m.account, m.net_profit, c.title, c.vendor_code,
+           substring(c.vendor_code from '^\\d+') AS base_code
+    FROM margin_by_sku m
+    JOIN wb_cards c ON c.account = m.account AND c.nm_id = m.article::bigint
+    WHERE m.platform = 'wb' AND m.qty >= 1 AND m.net_profit > 0
+      AND m.period_to = (SELECT max(period_to) FROM margin_by_sku
+                          WHERE platform = 'wb'
+                            AND period_to < date_trunc('month', now())::date)
+    ORDER BY m.net_profit DESC
+"""
+
+
+def _clean_title(title):
+    return " ".join((title or "").replace(",", " ").split())
+
+
+def top_profitable_queries(n):
+    """Топ-N запросов по прибыльным моделям (SELECT из margin_by_sku/wb_cards, чужое не пишем)."""
+    rows = db.query(TOP_MODELS_SQL)
+    seen_base, queries = set(), []
+    for r in rows:
+        bc = r["base_code"] or r["vendor_code"]
+        if bc in seen_base:
+            continue
+        seen_base.add(bc)
+        q = _clean_title(r["title"])
+        if q:
+            queries.append(q)
+        if len(queries) >= n:
+            break
+    return queries
 
 
 def daily_count_today():
@@ -128,25 +172,35 @@ def main():
     global PAUSE
     ap = argparse.ArgumentParser()
     ap.add_argument("--file", default=str(DEFAULT_QUERIES_FILE), help="файл запросов, по строке")
+    ap.add_argument("--top", type=int, default=0,
+                    help="вместо --file — топ-N прибыльных моделей из margin_by_sku (см. докстринг)")
     ap.add_argument("--limit", type=int, default=0, help="взять только первые N запросов (проба)")
     ap.add_argument("--dest", action="append", default=[],
-                    help="регион вида dest:метка, можно несколько раз; по умолчанию только msk")
+                    help="регион вида метка:dest (порядок важен — dest отрицательный, argparse "
+                         "ломается на «--dest -123:msk», а «--dest msk:-123» ок), можно несколько раз")
     ap.add_argument("--pause", type=float, default=PAUSE)
     ap.add_argument("--write", action="store_true", help="писать в БД (без флага — только печать)")
     a = ap.parse_args()
     PAUSE = a.pause
 
-    qpath = pathlib.Path(a.file)
-    if not qpath.exists():
-        sys.exit(f"нет файла запросов: {qpath}")
-    queries = [s.strip() for s in qpath.read_text(encoding="utf-8-sig").splitlines() if s.strip()]
+    if a.top:
+        queries = top_profitable_queries(a.top)
+        if not queries:
+            sys.exit("топ прибыльных моделей пуст — проверь margin_by_sku/wb_cards")
+    else:
+        qpath = pathlib.Path(a.file)
+        if not qpath.exists():
+            sys.exit(f"нет файла запросов: {qpath}")
+        queries = [s.strip() for s in qpath.read_text(encoding="utf-8-sig").splitlines() if s.strip()]
     if a.limit:
         queries = queries[:a.limit]
 
     regions = []
     for d in a.dest:
-        dest, _, label = d.partition(":")
-        regions.append((int(dest), label or dest))
+        label, sep, dest = d.partition(":")
+        if not sep:            # без метки — сам dest, отрицательный, парсится нормально
+            label, dest = d, d
+        regions.append((int(dest), label))
     if not regions:
         regions = DEFAULT_REGIONS
 
@@ -164,15 +218,24 @@ def main():
 
     run_id = str(uuid.uuid4())
     session = requests.Session()
-    total_rows, total_ok, total_fail = 0, 0, 0
+    total_rows, total_ok, total_fail, consecutive_fail = 0, 0, 0, 0
+    aborted = False
     for i, q in enumerate(queries, 1):
         for dest, region in regions:
             prods, ok = fetch(session, q, dest)
             if not ok:
                 total_fail += 1
-                print(f"[{i}/{len(queries)}] «{q}» ({region}) — не ответил", flush=True)
+                consecutive_fail += 1
+                print(f"[{i}/{len(queries)}] «{q}» ({region}) — не ответил "
+                      f"(подряд {consecutive_fail})", flush=True)
+                if consecutive_fail >= CONSECUTIVE_FAIL_LIMIT:
+                    print(f"\n{consecutive_fail} отказов подряд — похоже на бан IP, "
+                          f"прерываю прогон, чтобы не продлевать его.", flush=True)
+                    aborted = True
+                    break
                 time.sleep(PAUSE)
                 continue
+            consecutive_fail = 0
             total_ok += 1
             rows = [row_of(p, run_id, q, region, dest, pos) for pos, p in enumerate(prods, 1)]
             if a.write:
@@ -180,8 +243,11 @@ def main():
             total_rows += len(rows)
             print(f"[{i}/{len(queries)}] «{q}» ({region}): товаров {len(prods)}", flush=True)
             time.sleep(PAUSE)
+        if aborted:
+            break
 
-    print(f"\nГотово. run_id={run_id} | запросов ок {total_ok}, не ответили {total_fail}, "
+    print(f"\nГотово{' (ПРЕРВАНО)' if aborted else ''}. run_id={run_id} | запросов ок {total_ok}, "
+          f"не ответили {total_fail}, "
           f"строк {'записано' if a.write else 'собрано (не записано, нет --write)'} {total_rows}")
 
 
