@@ -1,0 +1,624 @@
+{
+ "accrual_types": [
+  {
+   "id": 1,
+   "name": "Acquiring",
+   "description": "Эквайринг"
+  },
+  {
+   "id": 2,
+   "name": "BackwardShipment",
+   "description": "Обратная магистраль"
+  },
+  {
+   "id": 3,
+   "name": "BrandCommission",
+   "description": "Продвижение бренда"
+  },
+  {
+   "id": 4,
+   "name": "BrandPromotion",
+   "description": "Подключение продвижения бренда"
+  },
+  {
+   "id": 5,
+   "name": "BrandShelf",
+   "description": "Брендовая полка"
+  },
+  {
+   "id": 6,
+   "name": "Cancellation",
+   "description": "Обработка отменённых и невостребованных товаров"
+  },
+  {
+   "id": 7,
+   "name": "Charity",
+   "description": "Благотворительное пожертвование"
+  },
+  {
+   "id": 8,
+   "name": "ClaimCommission",
+   "description": "Начисления по претензиям"
+  },
+  {
+   "id": 9,
+   "name": "ClientReturn",
+   "description": "Обработка возвратов"
+  },
+  {
+   "id": 10,
+   "name": "Compensation",
+   "description": "Компенсация"
+  },
+  {
+   "id": 11,
+   "name": "CorrectionCommission",
+   "description": "Инвентаризация взаиморасчетов"
+  },
+  {
+   "id": 12,
+   "name": "CrossDock",
+   "description": "Кросс-докинг"
+  },
+  {
+   "id": 13,
+   "name": "CrossDockPickUpCourierDelivery",
+   "description": "Организация выезда курьера"
+  },
+  {
+   "id": 14,
+   "name": "DefectRate",
+   "description": "Обработка операционных ошибок продавца"
+  },
+  {
+   "id": 15,
+   "name": "Disposal",
+   "description": "Утилизация"
+  },
+  {
+   "id": 16,
+   "name": "Drop-Off",
+   "description": "Обработка отправления Drop-off"
+  },
+  {
+   "id": 17,
+   "name": "Drop-Off Agent",
+   "description": "Обработка отправления Drop-off партнёрами"
+  },
+  {
+   "id": 18,
+   "name": "EarlyPayment",
+   "description": "Досрочная выплата"
+  },
+  {
+   "id": 19,
+   "name": "ExternalPromotion",
+   "description": "Внешнее продвижение"
+  },
+  {
+   "id": 20,
+   "name": "FlexiblePayments",
+   "description": "Гибкий график выплат"
+  },
+  {
+   "id": 21,
+   "name": "Fulfillment",
+   "description": "Сборка заказа"
+  },
+  {
+   "id": 22,
+   "name": "Installment",
+   "description": "Рассрочка"
+  },
+  {
+   "id": 23,
+   "name": "InternetSiteAdvertising",
+   "description": "Реклама в сети Интернет на Сайте"
+  },
+  {
+   "id": 24,
+   "name": "ItemCloning",
+   "description": "Перенос карточек товаров"
+  },
+  {
+   "id": 25,
+   "name": "ItemCompensation",
+   "description": "Товарная компенсация"
+  },
+  {
+   "id": 26,
+   "name": "KazakhstanBuyerInstallment",
+   "description": "Рассрочка для покупателей из Казахстана"
+  },
+  {
+   "id": 27,
+   "name": "LabelOriginal",
+   "description": "Бейдж Оригинал"
+  },
+  {
+   "id": 28,
+   "name": "LastMile",
+   "description": "Последняя миля"
+  },
+  {
+   "id": 29,
+   "name": "LastMileCourier",
+   "description": "Доставка до места выдачи"
+  },
+  {
+   "id": 30,
+   "name": "LastMilePickUpPoint",
+   "description": "Выдача товара"
+  },
+  {
+   "id": 31,
+   "name": "LeadGeneration",
+   "description": "Лидогенерация для автодилеров"
+  },
+  {
+   "id": 32,
+   "name": "Logistic",
+   "description": "Логистика"
+  },
+  {
+   "id": 33,
+   "name": "Marketing",
+   "description": "Рекламные услуги"
+  },
+  {
+   "id": 34,
+   "name": "Marking",
+   "description": "Обязательная маркировка товаров"
+  },
+  {
+   "id": 35,
+   "name": "Moderation",
+   "description": "Модерация товаров"
+  },
+  {
+   "id": 36,
+   "name": "OrdersBooking",
+   "description": "Привлечение предварительных заказов"
+  },
+  {
+   "id": 37,
+   "name": "OzonData",
+   "description": "Ozon Data"
+  },
+  {
+   "id": 38,
+   "name": "PackageCost",
+   "description": "Обеспечение материалами для упаковки товара"
+  },
+  {
+   "id": 39,
+   "name": "PackingFee",
+   "description": "Упаковка товара партнёрами"
+  },
+  {
+   "id": 40,
+   "name": "PartialReturn",
+   "description": "Обработка частичного невыкупа"
+  },
+  {
+   "id": 41,
+   "name": "PayPerClick",
+   "description": "Оплата за клик"
+  },
+  {
+   "id": 42,
+   "name": "Pick-Up",
+   "description": "Обработка отправления Pick-up"
+  },
+  {
+   "id": 43,
+   "name": "PickUpCourierArrangement",
+   "description": "Организация выезда курьера"
+  },
+  {
+   "id": 44,
+   "name": "PickUpCourierDelivery",
+   "description": "Доставка курьером Pick-up"
+  },
+  {
+   "id": 45,
+   "name": "PickUpPointReturnAcceptance",
+   "description": "Обработка возвратов, отмен и невыкупов партнёрами"
+  },
+  {
+   "id": 46,
+   "name": "Placements",
+   "description": "Размещение товаров на складах Ozon"
+  },
+  {
+   "id": 47,
+   "name": "PointsForReviews",
+   "description": "Баллы за отзывы"
+  },
+  {
+   "id": 48,
+   "name": "PremiumCashbackIndividualPoints",
+   "description": "Бонусы продавца"
+  },
+  {
+   "id": 49,
+   "name": "PremiumCashbackPromotion",
+   "description": "Услуга продвижения Premium"
+  },
+  {
+   "id": 50,
+   "name": "PremiumMailingCommission",
+   "description": "Бонусы продавца - рассылка"
+  },
+  {
+   "id": 51,
+   "name": "PremiumMembership",
+   "description": "Подписка Premium Pro (процент)"
+  },
+  {
+   "id": 52,
+   "name": "PremiumSubscription",
+   "description": "Подписка Premium"
+  },
+  {
+   "id": 53,
+   "name": "PreparingToReturn",
+   "description": "Подготовка товаров к возврату"
+  },
+  {
+   "id": 54,
+   "name": "Promotion",
+   "description": "Продвижение товара"
+  },
+  {
+   "id": 55,
+   "name": "PushCampaign",
+   "description": "Рассылка пуш-уведомлений"
+  },
+  {
+   "id": 56,
+   "name": "QuantProcessingDrop",
+   "description": "Обработка и логистика кванта"
+  },
+  {
+   "id": 57,
+   "name": "RealizationReportCorrection",
+   "description": "Корректировка стоимости услуг"
+  },
+  {
+   "id": 58,
+   "name": "Replenishment",
+   "description": "Перемещение товаров между складами Ozon"
+  },
+  {
+   "id": 59,
+   "name": "ReturnFlowLogistic",
+   "description": "Обратная логистика"
+  },
+  {
+   "id": 60,
+   "name": "ReturnStorageInTheWarehouse",
+   "description": "Долгосрочное размещение возврата FBS"
+  },
+  {
+   "id": 61,
+   "name": "ReviewsPin",
+   "description": "Закрепление отзыва"
+  },
+  {
+   "id": 62,
+   "name": "RfbsClientDeliveryCharge",
+   "description": "Перечисление за доставку от покупателя"
+  },
+  {
+   "id": 63,
+   "name": "RfbsDomesticAgentFee",
+   "description": "Агентское вознаграждение Ozon Агрегатор realFBS"
+  },
+  {
+   "id": 64,
+   "name": "RfbsDomesticDelivery",
+   "description": "Доставка Партнёром Ozon"
+  },
+  {
+   "id": 65,
+   "name": "RfbsEasyReturn",
+   "description": "Лёгкий возврат"
+  },
+  {
+   "id": 66,
+   "name": "RfbsGlobalAgentFee",
+   "description": "Агентское вознаграждение Ozon"
+  },
+  {
+   "id": 67,
+   "name": "RfbsGlobalDelivery",
+   "description": "Услуги международной доставки"
+  },
+  {
+   "id": 68,
+   "name": "RfbsServiceFee",
+   "description": "Сервисный сбор за интеграцию с логистической платформой"
+  },
+  {
+   "id": 69,
+   "name": "SaleCommission",
+   "description": "Вознаграждение за продажу"
+  },
+  {
+   "id": 70,
+   "name": "SaleReview",
+   "description": "Приобретение отзывов на платформе"
+  },
+  {
+   "id": 71,
+   "name": "SellerReturns",
+   "description": "Вывоз товара со склада силами Ozon"
+  },
+  {
+   "id": 72,
+   "name": "SetOff",
+   "description": "Взаимозачет требований между Договорами"
+  },
+  {
+   "id": 73,
+   "name": "Shipment",
+   "description": "Магистраль"
+  },
+  {
+   "id": 74,
+   "name": "StarsMembership",
+   "description": "Звёздные товары"
+  },
+  {
+   "id": 75,
+   "name": "Stencil",
+   "description": "Трафареты"
+  },
+  {
+   "id": 76,
+   "name": "StockInsurance",
+   "description": "Страхование товара от массовых повреждений"
+  },
+  {
+   "id": 77,
+   "name": "SupplyInbound",
+   "description": "Обработка товара"
+  },
+  {
+   "id": 78,
+   "name": "TemporaryPlacement",
+   "description": "Краткосрочное размещение возврата FBS"
+  },
+  {
+   "id": 79,
+   "name": "TemporaryPlacementsAgent",
+   "description": "Временное размещение товара партнерами"
+  },
+  {
+   "id": 80,
+   "name": "VideoCover",
+   "description": "Генерация видеообложки"
+  },
+  {
+   "id": 81,
+   "name": "VolumeObligationReward",
+   "description": "Бонус за достижение цели продаж"
+  },
+  {
+   "id": 82,
+   "name": "VolumeWeightCharacteristicsProcessing",
+   "description": "Дополнительная обработка ОВХ"
+  },
+  {
+   "id": 83,
+   "name": "BrandDeposit",
+   "description": "Обеспечительные платежи"
+  },
+  {
+   "id": 84,
+   "name": "ItemPacking",
+   "description": "Дополнительная упаковка на складе Ozon"
+  },
+  {
+   "id": 85,
+   "name": "ItemSealing",
+   "description": "Пломбирование товара"
+  },
+  {
+   "id": 86,
+   "name": "PackmanCisPacking",
+   "description": "Дополнительная упаковка товара на ПВЗ в СНГ"
+  },
+  {
+   "id": 87,
+   "name": "SocialMediaAdvertising",
+   "description": "Реклама в социальных сетях"
+  },
+  {
+   "id": 88,
+   "name": "ClickAndCollect",
+   "description": "Самовывоз"
+  },
+  {
+   "id": 89,
+   "name": "DefectFineModeration",
+   "description": "Запрещённый контент"
+  },
+  {
+   "id": 90,
+   "name": "DefectFineProhibitedGoods",
+   "description": "Запрещённый товар"
+  },
+  {
+   "id": 91,
+   "name": "DefectFineCounterfeitGoods",
+   "description": "Товар с нарушением интеллектуальных прав"
+  },
+  {
+   "id": 92,
+   "name": "DefectFineComplaint",
+   "description": "Жалобы покупателей"
+  },
+  {
+   "id": 93,
+   "name": "DefectFineErrors",
+   "description": "Превышение индекса ошибок"
+  },
+  {
+   "id": 94,
+   "name": "DefectFineShipmentDelayRate",
+   "description": "Отгрузка в нерекомендованный слот"
+  },
+  {
+   "id": 95,
+   "name": "CustomerReviews",
+   "description": "Подписка Управление отзывами"
+  },
+  {
+   "id": 96,
+   "name": "AcceleratedReviewCollection",
+   "description": "Ускоренный сбор отзывов"
+  },
+  {
+   "id": 97,
+   "name": "PackageUnitProcessing",
+   "description": "Обработка грузоместа"
+  },
+  {
+   "id": 98,
+   "name": "DeliveryToHandoverPlaceByOzon",
+   "description": "Доставка до места выдачи силами Ozon"
+  },
+  {
+   "id": 99,
+   "name": "InternationalLogisticDelta",
+   "description": "Международная логистика"
+  },
+  {
+   "id": 100,
+   "name": "OzonGlobalLogisticsDelivery",
+   "description": "Транспортно-экспедиционная услуга по организации международной перевозки"
+  },
+  {
+   "id": 101,
+   "name": "OversizedExtraHandling",
+   "description": "Обработка нестандартного товара"
+  },
+  {
+   "id": 102,
+   "name": "B2CTemporaryPlacement",
+   "description": "Временное размещение отправления в СЦ/ПВЗ/партнёрами"
+  },
+  {
+   "id": 103,
+   "name": "B2CDisposal",
+   "description": "Утилизация отправления"
+  },
+  {
+   "id": 104,
+   "name": "B2CInsuranceCompensation",
+   "description": "Страховое возмещение"
+  },
+  {
+   "id": 105,
+   "name": "B2CInsuranceShipping",
+   "description": "Страхование отправления"
+  },
+  {
+   "id": 106,
+   "name": "B2C Drop-Off",
+   "description": "B2C Обработка отправления Drop-off"
+  },
+  {
+   "id": 107,
+   "name": "B2C Drop-Off Agent",
+   "description": "B2C Обработка отправления Drop-off партнёрами"
+  },
+  {
+   "id": 108,
+   "name": "B2CContainerPacking",
+   "description": "Обеспечение материалами для упаковки отправления"
+  },
+  {
+   "id": 109,
+   "name": "B2CContainerPackage",
+   "description": "Упаковка отправления партнёрами"
+  },
+  {
+   "id": 110,
+   "name": "B2CCourierClientReinvoice",
+   "description": "B2C Доставка до места выдачи партнёрами"
+  },
+  {
+   "id": 111,
+   "name": "B2CDeliveryToHandoverPlaceByOzon",
+   "description": "B2C Доставка до места выдачи силами Ozon"
+  },
+  {
+   "id": 112,
+   "name": "B2CPickUpPointClientReinvoice",
+   "description": "B2C Выдача товара партнёрами"
+  },
+  {
+   "id": 113,
+   "name": "B2CPickUpPointReturnAcceptance",
+   "description": "B2C Обработка возвратов, отмен и невыкупов партнёрами"
+  },
+  {
+   "id": 114,
+   "name": "B2CLogistics",
+   "description": "B2C Логистика"
+  },
+  {
+   "id": 115,
+   "name": "B2CBackwardLogistics",
+   "description": "B2C Обратная логистика"
+  },
+  {
+   "id": 116,
+   "name": "FirstCustomerReview",
+   "description": "Сбор первых отзывов"
+  },
+  {
+   "id": 117,
+   "name": "IncreaseAssortmentLimit",
+   "description": "Увеличение лимита на создание карточек товаров"
+  },
+  {
+   "id": 118,
+   "name": "LabelBrandVerified",
+   "description": "Бейдж «Бренд проверен»"
+  },
+  {
+   "id": 119,
+   "name": "CustomerChatPoints",
+   "description": "Баллы в чате с покупателем"
+  },
+  {
+   "id": 120,
+   "name": "CourierPickUpByOzon",
+   "description": "Доставка до СЦ силами Ozon"
+  },
+  {
+   "id": 121,
+   "name": "CourierPickUpReinvoice",
+   "description": "Доставка до СЦ партнёрами"
+  },
+  {
+   "id": 122,
+   "name": "RfbsGlobalIntermediaryService",
+   "description": "Услуги по заключению договора на организацию международной перевозки"
+  },
+  {
+   "id": 123,
+   "name": "RfbsGlobalPlatformConnectionService",
+   "description": "Электронная услуга подключения к логистической Платформе Ozon"
+  },
+  {
+   "id": 124,
+   "name": "RfbsBuyerDelivery",
+   "description": "Перечисление за доставку от покупателя"
+  }
+ ]
+}

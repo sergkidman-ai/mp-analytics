@@ -1,0 +1,53 @@
+{
+ "day": "2026-09-05",
+ "posting_sample": [
+  {
+   "accrual_id": 62040452012,
+   "date": "2026-09-05",
+   "total_amount": {
+    "amount": "-8.13",
+    "currency": "RUB"
+   },
+   "unit_number": "64609488-0230-1",
+   "accrued_category": "POSTING",
+   "posting": {
+    "delivery_schema": "Fbs",
+    "products": [
+     {
+      "sku": 1766855608,
+      "delivery": {
+       "total_accrued": {
+        "amount": "-8.13",
+        "currency": "RUB"
+       },
+       "services": [
+        {
+         "type_id": 29,
+         "accrued": {
+          "amount": "-8.13",
+          "currency": "RUB"
+         }
+        }
+       ]
+      },
+      "commission": null,
+      "quantity": 1
+     }
+    ]
+   },
+   "item_fees": null,
+   "non_item_fee": null,
+   "container_fees": null
+  }
+ ],
+ "totals_new": {
+  "ITEM": -1945,
+  "POSTING": 174790,
+  "NON_ITEM": -37757
+ },
+ "totals_old": {
+  "amount": 135089.0,
+  "accruals_for_sale": 330184.0,
+  "n": 125
+ }
+}

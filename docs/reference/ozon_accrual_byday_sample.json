@@ -1,0 +1,85 @@
+{
+ "day": "2026-09-15",
+ "records": 202,
+ "sample": [
+  {
+   "accrual_id": 63125223329,
+   "date": "2026-09-15",
+   "total_amount": {
+    "amount": "-88.27",
+    "currency": "RUB"
+   },
+   "unit_number": "88838094-0068",
+   "accrued_category": "ITEM",
+   "posting": null,
+   "item_fees": {
+    "fees": [
+     {
+      "sku": 3855388119,
+      "fees": [
+       {
+        "type_id": 1,
+        "accrued": {
+         "amount": "-88.27",
+         "currency": "RUB"
+        }
+       }
+      ],
+      "quantity": 1
+     }
+    ]
+   },
+   "non_item_fee": null,
+   "container_fees": null
+  },
+  {
+   "accrual_id": 63125229068,
+   "date": "2026-09-15",
+   "total_amount": {
+    "amount": "-437.96",
+    "currency": "RUB"
+   },
+   "accrued_category": "NON_ITEM",
+   "posting": null,
+   "item_fees": null,
+   "non_item_fee": {
+    "type_id": 121,
+    "accrued": {
+     "amount": "-437.96",
+     "currency": "RUB"
+    }
+   },
+   "container_fees": null
+  },
+  {
+   "accrual_id": 63125796186,
+   "date": "2026-09-15",
+   "total_amount": {
+    "amount": "-102.83",
+    "currency": "RUB"
+   },
+   "unit_number": "18137989-0359",
+   "accrued_category": "ITEM",
+   "posting": null,
+   "item_fees": {
+    "fees": [
+     {
+      "sku": 863418800,
+      "fees": [
+       {
+        "type_id": 1,
+        "accrued": {
+         "amount": "-102.83",
+         "currency": "RUB"
+        }
+       }
+      ],
+      "quantity": 1
+     }
+    ]
+   },
+   "non_item_fee": null,
+   "container_fees": null
+  }
+ ]
+}
