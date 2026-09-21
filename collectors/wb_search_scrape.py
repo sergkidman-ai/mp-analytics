@@ -24,7 +24,7 @@ wb_search_scrape_run за сегодня). 429 → пауза и до RETRIES п
     ./venv/bin/python collectors/wb_search_scrape.py --limit 5              # проба, в БД не пишет
     ./venv/bin/python collectors/wb_search_scrape.py --limit 5 --write      # проба, пишет в БД
     ./venv/bin/python collectors/wb_search_scrape.py --write                # весь файл запросов
-    ./venv/bin/python collectors/wb_search_scrape.py --write --file f.txt --dest -1257786:msk
+    ./venv/bin/python collectors/wb_search_scrape.py --write --file f.txt --dest msk:-1257786
 """
 import argparse
 import pathlib
@@ -130,7 +130,8 @@ def main():
     ap.add_argument("--file", default=str(DEFAULT_QUERIES_FILE), help="файл запросов, по строке")
     ap.add_argument("--limit", type=int, default=0, help="взять только первые N запросов (проба)")
     ap.add_argument("--dest", action="append", default=[],
-                    help="регион вида dest:метка, можно несколько раз; по умолчанию только msk")
+                    help="регион вида метка:dest (порядок важен — dest отрицательный, argparse "
+                         "ломается на «--dest -123:msk», а «--dest msk:-123» ок), можно несколько раз")
     ap.add_argument("--pause", type=float, default=PAUSE)
     ap.add_argument("--write", action="store_true", help="писать в БД (без флага — только печать)")
     a = ap.parse_args()
@@ -145,8 +146,10 @@ def main():
 
     regions = []
     for d in a.dest:
-        dest, _, label = d.partition(":")
-        regions.append((int(dest), label or dest))
+        label, sep, dest = d.partition(":")
+        if not sep:            # без метки — сам dest, отрицательный, парсится нормально
+            label, dest = d, d
+        regions.append((int(dest), label))
     if not regions:
         regions = DEFAULT_REGIONS
 
