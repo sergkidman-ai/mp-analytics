@@ -36,6 +36,11 @@ ORG_ACCOUNTS = {"7807355364": {"wb": "wb_acc1", "ozon": "oz_acc1", "yandex": "ya
 _OBOROT = {"wb": "own_price", "ozon": "sales", "yandex": "own"}
 # «Итого к перечислению»: у ВБ это itog, у Ozon и Маркета — payout
 _PAYOUT = {"wb": "itog", "ozon": "payout", "yandex": "payout"}
+# «Итого удержания площадки» — комиссия + услуги, БЕЗ возвратов (возврат не услуга, а сторно
+# продажи; единое правило всех трёх вкладок). У ВБ это `wb_exp` = наша цена − итого к оплате
+# − сторно возвратов, то есть вместе с СПП: скидку ВБ делает из нашей цены, и до нас она
+# не доходит. У Ozon и Маркета — их `itog`.
+_HOLD = {"wb": "wb_exp", "ozon": "itog", "yandex": "itog"}
 
 TTL_LIVE = 300       # текущий месяц ещё доезжает — обновляем чаще
 TTL_CLOSED = 3600    # закрытый месяц меняется только пересбором снапшота
@@ -61,8 +66,10 @@ def _pack(platform, d):
     ob = float(d.get(_OBOROT[platform]) or 0)
     net = float(d.get("net") or 0)
     cogs = float(d.get("cogs") or 0)
+    hold = float(d.get(_HOLD[platform]) or 0)
     return {"oborot": round(ob, 2), "net": round(net, 2), "cogs": round(cogs, 2),
             "payout": round(float(d.get(_PAYOUT[platform]) or 0), 2),
+            "hold": round(hold, 2), "hold_pct": round(hold / ob * 100, 1) if ob else None,
             "itog": round(float(d.get("itog") or 0), 2),
             "orders": int(d.get("orders") or 0), "returns_cnt": int(d.get("returns_cnt") or 0),
             "margin_pct": round(net / ob * 100, 1) if ob else None,
@@ -79,12 +86,13 @@ def _compute(platform, y, m):
     if not accs:
         return None
     out = {k: round(sum(v[k] or 0 for v in accs.values()), 2)
-           for k in ("oborot", "net", "cogs", "payout", "itog")}
+           for k in ("oborot", "net", "cogs", "payout", "itog", "hold")}
     out["orders"] = sum(v["orders"] for v in accs.values())
     out["returns_cnt"] = sum(v["returns_cnt"] for v in accs.values())
     ob = out["oborot"]
     out["margin_pct"] = round(out["net"] / ob * 100, 1) if ob else None
     out["cogs_pct"] = round(out["cogs"] / ob * 100, 1) if ob else None
+    out["hold_pct"] = round(out["hold"] / ob * 100, 1) if ob else None
     out["accounts"] = accs
     return out
 
@@ -128,8 +136,10 @@ def business(period: str, org: str = ""):
             a = accs.get(p)
             parts[p] = account(p, a, period) if a else None
     have = {p: v for p, v in parts.items() if v}
-    tot = {k: round(sum(v[k] or 0 for v in have.values()), 2) for k in ("oborot", "net", "cogs", "payout")}
+    tot = {k: round(sum(v[k] or 0 for v in have.values()), 2)
+           for k in ("oborot", "net", "cogs", "payout", "hold")}
     ob = tot["oborot"]
     tot["margin_pct"] = round(tot["net"] / ob * 100, 1) if ob else None
     tot["cogs_pct"] = round(tot["cogs"] / ob * 100, 1) if ob else None
+    tot["hold_pct"] = round(tot["hold"] / ob * 100, 1) if ob else None
     return {"platforms": parts, "total": tot, "org": org or None}

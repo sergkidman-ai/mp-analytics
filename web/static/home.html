@@ -182,6 +182,21 @@ async function initPeriods(){
   $('#f-period').onchange=e=>{period=e.target.value;load();};
 }
 
+// Три плашки «сколько забрала площадка»: комиссия + её услуги за месяц, БЕЗ возвратов
+// (возврат — сторно продажи, а не услуга; правило единое на всех вкладках «Отчётов МП»).
+// У ВБ сюда же входит СПП: скидку ВБ делает из нашей цены, и до нас эта часть не доходит.
+// Площадки, которой у выбранного юрлица нет (Маркет у Дисквэра), плашки не будет.
+const HOLD_NOTE={wb:'СПП + комиссия + логистика, хранение, реклама',
+                 ozon:'комиссия + логистика, продвижение, услуги',
+                 yandex:'комиссия + доставка, буст, полка, отзывы'};
+function holdTiles(b){
+  return [['wb','🟣 Комиссии ВБ'],['ozon','🟦 Комиссии Ozon'],['yandex','🟡 Комиссии Маркета']]
+    .filter(([k])=>b[k]&&b[k].hold!=null)
+    .map(([k,l])=>[l,
+      `<span class="warn">${rub(b[k].hold)}</span> <span class="muted" style="font-size:13px">${pct(b[k].hold_pct)} оборота</span>`+
+      `<div class="muted" style="font-size:11px;margin-top:2px">${HOLD_NOTE[k]}, без возвратов</div>`,'']);
+}
+
 async function load(){
   const b=await api(`/api/business?period=${period}&org=${org}`);
   if(!orgsFilled){   // список фирм приходит с данными — отдельный запрос не нужен
@@ -201,7 +216,7 @@ async function load(){
   else                           h={e:'🤒',cls:'neg',t:'Бизнес хворает',s:'После ФОТ+аренды уходим в минус. Поднимать маржу и/или оборот.'};
   $('#health').innerHTML=`<div class="health ${h.cls}"><div class="he">${h.e}</div><div><div class="ht">${h.t}</div><div class="hs">${h.s}</div></div></div>`;
 
-  // Все шесть показателей — с вкладки «Отчёты МП» (оборот по нашей цене, до скидок площадки),
+  // Все показатели — с вкладки «Отчёты МП» (оборот по нашей цене, до скидок площадки),
   // опер. расходы — с вкладки «Опер. расходы», закупки — с вкладки «Поставщики».
   const un=b.opex_unassigned||{}, pu=b.purchases||{};
   const stats=[
@@ -210,6 +225,7 @@ async function load(){
       (t.cogs_actual?`<div class="muted" style="font-size:11px;margin-top:2px">учётная (Цифровой): ${rub(t.cogs_actual)}</div>`:''),''],
     ['Чистая прибыль',`<span class="${mc(t.net)}">${rub(t.net)}</span>`,deltaHtml(dl.total_net,true,false)],
     ['Маржа',pct(t.margin_pct),deltaHtml(dl.total_margin,true,true)],
+    ...holdTiles(b),
     ['Опер. расходы',`<span class="warn">${rub(b.opex)}</span>`+
       (org&&!b.opex_org_split?`<div class="muted" style="font-size:11px;margin-top:2px">снапшот общий на бизнес — по фирмам не делится</div>`:'')+
       (un.n?`<div class="muted" style="font-size:11px;margin-top:2px">+ не разнесено: ${rub(un.s)} (${un.n})</div>`:''),''],

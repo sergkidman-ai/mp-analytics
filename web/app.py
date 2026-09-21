@@ -938,7 +938,9 @@ def business(period: str = "", org: str = ""):
     def _tile(d, fallback=None):
         if d:
             return {"revenue": d["oborot"], "net": d["net"], "cogs": d["cogs"],
-                    "margin_pct": d["margin_pct"]}
+                    "margin_pct": d["margin_pct"],
+                    # удержания площадки = комиссия + её услуги, без возвратов (у ВБ вместе с СПП)
+                    "hold": d["hold"], "hold_pct": d["hold_pct"]}
         return fallback        # месяца ещё нет в отчётах — старый путь, только для всего бизнеса
 
     cur["wb"] = _tile(mp_wb, None if org else
@@ -949,15 +951,20 @@ def business(period: str = "", org: str = ""):
                          "margin_pct": oz["margin_pct"]})
     # Маркет: те же пять цифр + справочные счётчики (субсидия, возвраты) из витрины
     ya = _ya_business(period) if mp_ya else None
+    if ya:                     # справочные счётчики витрины + удержания из «Отчётов МП»
+        ya = {**ya, "hold": mp_ya["hold"], "hold_pct": mp_ya["hold_pct"]}
     cur["yandex"] = ya if (ya and not org) else _tile(mp_ya)
     t_rev = sum((cur.get(k) or {}).get("revenue") or 0 for k in ("wb", "ozon", "yandex"))
     t_net = sum((cur.get(k) or {}).get("net") or 0 for k in ("wb", "ozon", "yandex"))
     t_cogs = sum((cur.get(k) or {}).get("cogs") or 0 for k in ("wb", "ozon", "yandex"))
+    t_hold = sum((cur.get(k) or {}).get("hold") or 0 for k in ("wb", "ozon", "yandex"))
     # Учётная себестоимость (из таблицы расходов, Цифровой) за период — для сверки рядом
     ca = db.query("SELECT coalesce(sum(cogs),0)::float c FROM cogs_actual WHERE month=%s", (period,))[0]["c"]
     cur["total"] = {"revenue": round(t_rev, 2), "net": round(t_net, 2), "cogs": round(t_cogs, 2),
                     "margin_pct": round(t_net / t_rev * 100, 1) if t_rev else None,
                     "cogs_pct": round(t_cogs / t_rev * 100, 1) if t_rev else None,
+                    "hold": round(t_hold, 2) or None,
+                    "hold_pct": round(t_hold / t_rev * 100, 1) if t_rev and t_hold else None,
                     "cogs_actual": round(ca, 2) if ca and not org else None,
                     "with_market": bool(mp_ya)}
     op = _opex_total(period, org)  # с 08.2026 — факт из размеченной выписки, раньше — ручной снапшот
