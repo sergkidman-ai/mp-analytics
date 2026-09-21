@@ -332,7 +332,7 @@ def troubles(out):
     return found
 
 
-def message(profile, out, code, dry, after, auto=None):
+def message(profile, out, code, dry, after, auto=None, recovered=False):
     """Одна строка: поставщик и сколько новинок ждёт человека. -> текст или None (молчать).
 
     Чем кончился прогон, что было в файле, какие документы завелись — есть в логе и на
@@ -346,6 +346,11 @@ def message(profile, out, code, dry, after, auto=None):
     события»: что прайс не пришёл — скажет сторож просрочки, что прогон сломался — скажет
     вердикт ниже, а сам факт загрузки виден в логе и на дашборде.
     """
+    # Молчать после СБОЯ нельзя, даже если новинок нет: про сбой человек уже прочитал в боте,
+    # и без развязки он не знает, загрузилось ли в итоге (Сергей, 21.09.2026 — Рамис).
+    if code == 0 and recovered:
+        tail = f" — Новинок — {after}" if after else ", новинок нет"
+        return f"✅ {profile.title}: повтор после сбоя прошёл{tail}" + (f"\n{auto}" if auto else "")
     # Молчим, только если сказать нечего вовсе: хвост автозаведения — тоже работа человеку
     # (список отданных ему строк) или отчёт о заведённых карточках.
     if code == 0 and after == 0 and not auto:
@@ -465,12 +470,12 @@ def main(argv=None):
                          f"на следующем заходе")
         else:
             if code == 3:
-                out += (f"\nПОВТОРЫ ИСЧЕРПАНЫ ({CRASH_RETRIES}): письмо помечено обработанным, "
+                out += (f"\n⚠ ПОВТОРЫ ИСЧЕРПАНЫ ({CRASH_RETRIES}): письмо помечено обработанным, "
                         f"прайс этого дня в МС не попадёт — грузить руками с --force")
             write_state(profile.key, letter, code)
             save_tries(profile.key, letter, 0)
     auto = auto_cards(profile, args.dry, code, logfile)
-    text = message(profile, out, code, args.dry, after, auto)
+    text = message(profile, out, code, args.dry, after, auto, recovered=bool(tries) and code == 0)
     if not args.quiet and text:
         log(logfile, "телеграм: " + tg(text))
         # Оператору — только удачный прогон: эта строка и есть «прайс загружен, новинок N».
