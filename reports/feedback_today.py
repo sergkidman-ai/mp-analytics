@@ -213,6 +213,125 @@ def _needs_fact_web(question, reply):
 _EXTRA_TOPIC_RX = re.compile(r"заправ|дозаправ|ресурс|\bчип\w*|компл[ек]т|гаранти", re.I)
 
 
+# п.7 пакета 21.09.2026: вопрос назвал СЕРИЮ, а не модель («MF650», «M6700», «C5x90»). Раньше это
+# давало 'unknown' → LLM/веб/переспрос. Верный ответ — перечислить модели этой серии, которые ЕСТЬ
+# в списке совместимости карточки: «Если у вас MF651Cw, MF655Cdw или MF657Cdw — да». Утверждения
+# сверх карточки тут нет: называем только её модели и только условно.
+_SERIES_X_RX = re.compile(r"\b([A-Za-z]{1,6})[- ]?(\d[\dxX]{1,4})\b")
+
+
+def _series_pattern(prefix, core):
+    """«mf»+«650» → mf65\\d ; «c»+«5x90» → c5\\d90 ; не серия (нет x и не кончается нулём) → None."""
+    core = core.lower()
+    if "x" in core:
+        pat = core.replace("x", r"\d")
+    elif core.endswith("0") and len(core) >= 3:
+        k = len(core) - len(core.rstrip("0"))
+        pat = core.rstrip("0") + r"\d" * k
+    else:
+        return None
+    return re.compile(re.escape(prefix.lower()) + pat + r"[a-z]{0,5}(?:ii)?$")
+
+
+def _series_members(question, card_models, limit=6):
+    """→ модели карточки из названной в вопросе серии (оригинальное написание), [] если серии нет."""
+    if not card_models:
+        return []
+    out = []
+    for pre, core in _SERIES_X_RX.findall(question or ""):
+        rx = _series_pattern(pre, core)
+        if not rx:
+            continue
+        exact = _norm(pre + core)
+        for m in card_models:
+            nm = _norm(m)
+            if nm.endswith(exact):
+                return []                       # точная модель в карточке — это не серия, это 'yes'
+            if rx.search(nm) and m not in out:
+                out.append(m)
+    return out[:limit]
+
+
+def _or_list(xs):
+    xs = list(xs)
+    return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " или " + xs[-1]
+
+
+# п.11 пакета 21.09.2026: источник в трейсе — по ФАКТУ происхождения. До правки любой ответ модели
+# писался как «карточка»; кейс 0160: модель сама написала в note «не из CARD_DATA», а источник стоял
+# «карточка» — и гейт считал ответ карточным. Теперь модель называет источник сама (поле source),
+# а её собственная оговорка в note главнее: признание «не из карточки» не перекрывается ничем.
+_LLM_SRC = {"card": "карточка", "brand_notes": "справочник бренда", "knowledge": "модель",
+            "mixed": "модель+карточка"}
+_NOT_CARD_NOTE_RX = re.compile(r"не\s+(?:из|в|по)\s+CARD_DATA|нет\s+в\s+CARD_DATA|вне\s+CARD_DATA|"
+                               r"знани\w*\s+(?:серии|модели|бренда)|по\s+(?:своим|общим)\s+знани|"
+                               r"из\s+(?:своих|общих)\s+знаний|общ\w+\s+знани", re.I)
+
+
+def _llm_source(d):
+    src = _LLM_SRC.get(str(d.get("source") or "").strip().lower())
+    if _NOT_CARD_NOTE_RX.search(d.get("note") or ""):
+        return "модель" if src in (None, "карточка") else src
+    if src:
+        return src
+    return "карточка" if d.get("grounded") else "модель"
+
+
+# п.10 пакета 21.09.2026: склейка вопросов одного покупателя по товару за 48 часов. Кейс 0160
+# (Ozon, T0921): «жёлтый картридж меньше других?» и через 4 минуты «дело в том, что жёлтый короче
+# остальных трёх…» — во втором ответе бот забыл первый. Имя покупателя опорой служить не может:
+# в том же кейсе первый вопрос подписан «Пользователь предпочёл скрыть свои данные», второй —
+# «Валерий К.», а у WB-вопросов имени нет вовсе. Поэтому ключ — (площадка, кабинет, товар, 48 ч),
+# а явно ЧУЖИЕ имена (оба указаны и различаются) склейку отменяют.
+_HIDDEN_NAME_RX = re.compile(r"скры|аноним|^покупатель$|^—?$", re.I)
+
+
+def _author(p):
+    p = p or {}
+    a = p.get("author_name") or (p.get("author") or {}).get("name") or p.get("userName") or ""
+    return str(a).strip()
+
+
+def _thread(r, hours=48, limit=3):
+    if r.get("kind") != "question" or not r.get("item_id"):
+        return []
+    try:
+        rows = db.query("""SELECT f.body, f.payload, f.created_at, m.final_text,
+                                  to_char(f.created_at AT TIME ZONE 'Europe/Moscow','DD.MM HH24:MI') AS t
+                             FROM raw_feedback f
+                             LEFT JOIN feedback_moderation m
+                               ON (m.platform,m.account,m.kind,m.ext_id)=(f.platform,f.account,f.kind,f.ext_id)
+                            WHERE f.platform=%s AND f.account=%s AND f.kind='question'
+                              AND f.item_id::text=%s AND f.ext_id<>%s
+                              AND f.created_at < %s AND f.created_at >= %s - make_interval(hours => %s)
+                            ORDER BY f.created_at DESC LIMIT %s""",
+                         (r["platform"], r["account"], str(r["item_id"]), r["ext_id"],
+                          r["created_at"], r["created_at"], hours, limit))
+    except Exception:
+        return []
+    me = _author(r.get("payload"))
+    out = []
+    for p in reversed(rows):
+        them = _author(p["payload"])
+        if me and them and not _HIDDEN_NAME_RX.search(me) and not _HIDDEN_NAME_RX.search(them) \
+                and me.lower() != them.lower():
+            continue                                  # оба назвались, и это разные люди
+        out.append({"t": p["t"], "body": p["body"], "answer": p["final_text"]})
+    return out
+
+
+def _positive_clean(r):
+    """п.1 пакета 21.09.2026: отзыв ≥4★ с текстом без DEFECT_RX и без маркеров претензии. Такой отзыв
+    публикуется БЕЗ человека после контролёра — независимо от длины. За неделю 7 длинных позитивов
+    прошли вычитку без единой правки. На вычитке остаются только ≤3★, дефект в тексте и FIX контролёра."""
+    if r.get("kind") != "review" or (r.get("rating") or 0) < 4:
+        return False
+    t = " ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")])).strip()
+    if not t:
+        return False
+    return not DEFECT_RX.search(t) and not rc.is_claim_text(t, "review", r.get("rating"))
+
+
 def _fam_status(question, card_models):
     """Совместимость с учётом ВАРИАНТОВ серии. → ('yes',matched)|('unknown',asked)|('no_data'|'no_ask',[])."""
     asked = _asked_models(question)
@@ -290,7 +409,7 @@ def _llm(client, r, cf, corpus, hint=None, web_facts=None):
     # иначе он честно режет их как утверждения «вне входных данных» — так и было до 10.09.2026.
     bn_block, bn_n = bn.facts_for(_brand_of(r), r.get("body") or r.get("cons") or r.get("pros"), cc)
     content = _user_block(r, _name(r), cc, ex, hint=hint, approved=approved, web_facts=web_facts,
-                          brand_notes=bn_block)
+                          brand_notes=bn_block, thread=_thread(r))
     # thinking-модели (DeepSeek-v4 pro/flash) тратят output-токены на размышления до JSON —
     # держим запас (env FEEDBACK_MAX_TOKENS). Кэш SYSTEM снимаем на не-Anthropic (DeepSeek его игнорит).
     max_tok = int(os.environ.get("FEEDBACK_MAX_TOKENS", "3000"))
@@ -329,6 +448,43 @@ def _llm(client, r, cf, corpus, hint=None, web_facts=None):
             d["note"] = "guardrail: совместимость не подтверждена карточкой; " + (d.get("note") or "")
         d["route"] = "review"                      # фаза «только черновики»: вопросы всегда на вычитку
     return d, cc, model
+
+
+# п.9 пакета 21.09.2026: автопубликация вопросов карточных классов. Ответ целиком из карточки
+# (или из утверждённого кэша по тому же артикулу), контролёр сказал PASS, гейт чист — кнопка не нужна.
+# Совместимость — только при ТОЧНОМ совпадении модели со списком карточки. Стоп-лист A1.2 (обещания)
+# и претензии — через тот же publish_gate.verdict_full, что держит и кнопку ✅.
+AUTO_Q_CLASSES = ("характеристики", "производитель", "комплектация", "габарит", "совместимость")
+AUTO_Q_ON = os.environ.get("FEEDBACK_AUTO_CARD_Q", "1") == "1"
+
+
+def _auto_card_q(r, reply, route, ground):
+    """→ (route, ground). Меняет только review → auto и только для вопросов, прошедших всё сразу."""
+    if not AUTO_Q_ON or r.get("kind") != "question" or route != "review" or not (reply or "").strip():
+        return route, ground
+    from reports import publish_gate
+    cls = ground.get("request_class") or rc.classify(r.get("body"), kind="question", rating=r.get("rating"))
+    if cls not in AUTO_Q_CLASSES or ground.get("verify") != "PASS":
+        return route, ground
+    src = str(ground.get("source") or "")
+    cache = ground.get("cache") if isinstance(ground.get("cache"), dict) else {}
+    if src.startswith("кэш"):
+        # первые подстановки («подтвердите»), устаревший кэш и попадание по семейству кода — глазами
+        if cache.get("confirm") or cache.get("stale") or cache.get("family") or "веб" in src:
+            return route, ground
+    elif src != "карточка":
+        return route, ground
+    g = dict(ground, request_class=cls)
+    if cls == "совместимость" and not (g.get("compat") or {}).get("exact"):
+        return route, ground
+    row = dict(r, draft_text=reply, draft_route="auto", draft_grounding=g)
+    if not publish_gate.eased_class(row, g, cls):
+        return route, ground
+    allow, why, _trace = publish_gate.verdict_full(row, reply)
+    if not allow or why:
+        return route, ground
+    return "auto", dict(g, auto_policy=f"вопрос «{cls}» из карточки, контролёр PASS",
+                        note="п.9: автопубликация карточного класса; " + (g.get("note") or "")[:200])
 
 
 def _store(r, reply, route, conf, ground):
@@ -802,7 +958,7 @@ def _card_facts(cf, r):
         return None
 
 
-def _cache_answer(r, cf, cls, cc=""):
+def _cache_answer(r, cf, cls, cc="", client=None):
     """Блок G: готовый утверждённый ответ по нашему артикулу вместо новой генерации.
     → (outd, reply, route, conf, ground, False, False) либо None.
 
@@ -821,6 +977,12 @@ def _cache_answer(r, cf, cls, cc=""):
         ground["qa_guard"] = qviol
         ground["note"] = "qa-guard: " + ", ".join(qviol) + "; " + (ground.get("note") or "")[:180]
     reply = _scrub_urls(reply)
+    # п.9 (21.09.2026): кэш — законный источник автопубликации карточного класса, но «контролёр
+    # остаётся». Подтверждаемые подстановки (первые две, семейство кода, устаревшие) и так идут
+    # человеку — на них вызов контролёра не тратим.
+    _c = ground.get("cache") or {}
+    if client is not None and not (_c.get("confirm") or _c.get("stale") or _c.get("family")):
+        reply, ground = _verified(client, r, reply, cc, ground)
     conf = 0.9
     outd = dict(r, cat="question", reply=reply, route="review", conf=conf, card=cc,
                 note=ground.get("note"), grounded=True, catalog=False, source=ground["source"],
@@ -921,7 +1083,7 @@ def _answer(client, r, cf, corpus):
         # Попадание = ответ, который человек уже утвердил по этому же артикулу и тому же вопросу;
         # модель не зовём вовсе. Домен-фильтр отработал выше: не расходник в кэш не попадёт.
         _cls0 = rc.classify(r.get("body"), kind="question", rating=r.get("rating"))
-        _cached = _cache_answer(r, cf, _cls0, cc0)
+        _cached = _cache_answer(r, cf, _cls0, cc0, client=client)
         if _cached:
             return _cached
     if r["kind"] == "question":
@@ -976,7 +1138,7 @@ def _answer(client, r, cf, corpus):
             route = "review"
         conf = float(d.get("confidence") or 0)
         ground = {"llm": True, "grounded": bool(d.get("grounded")), "note": (d.get("note") or "")[:300],
-                  "model": used_model, "catalog": "КАТАЛОГ" in (cc or ""), "source": "карточка"}
+                  "model": used_model, "catalog": "КАТАЛОГ" in (cc or ""), "source": _llm_source(d)}
         if review_len_route:
             ground["note"] = f"{_why_r} — на вычитку оператору; " + (ground.get("note") or "")[:220]
         cat = "question" if r["kind"] == "question" else "review-text"
@@ -1018,10 +1180,14 @@ def _answer(client, r, cf, corpus):
             except Exception:
                 series, ref_ok, ref_src, ref_rows = (code or None), [], "", []
             ref_ok = ref_ok or []
+            # п.9 (21.09.2026): ТОЧНОЕ совпадение — каждая спрошенная модель равна модели из списка
+            # карточки после нормализации. Подстрока/база серии (_fam_status) для автопубликации мало.
+            _cmn = {_norm(m) for m in ((fct or {}).get("models") or [])}
+            exact_m = bool(asked_m) and all(_norm(a) in _cmn for a in asked_m)
             if asked_m:                                # точный след: матчер с базовой моделью серии
                 # ВНИМАНИЕ: _fam_status при st != 'yes' возвращает вторым значением СПРОШЕННЫЕ модели,
                 # а не совпавшие. Записать их как matched = отменить всё правило A1.3/D1.
-                ground["compat"] = {"asked": asked_m, "matched": mm if st == "yes" else [],
+                ground["compat"] = {"asked": asked_m, "matched": mm if st == "yes" else [], "exact": exact_m,
                                     "status": st, "series": series, "ref_matched": ref_ok,
                                     "ref_source": ref_src, "variant_mismatch": variant_mismatch,
                                     "region_needed": region_needed}
@@ -1034,8 +1200,11 @@ def _answer(client, r, cf, corpus):
             from reports.catalog import _detect_color as _dc
             color_q = bool(_dc(r["body"] or "")) or bool(re.search(
                 r"как\w*\s+цвет|каком\s+цвете|на\s+самом\s+деле|это\s+(?:чёрн|черн|цветн)", r["body"] or "", re.I))
-            fam_reply = (f"Здравствуйте! Да, подойдёт для {', '.join(mm)} — это вариант серии из списка "
-                         f"совместимости карточки." + (f" Наш картридж — {code}." if code else "")) if mm else ""
+            # п.4 пакета 21.09.2026: хвост «— это вариант серии из списка совместимости карточки» уходил
+            # покупателю дословно — внутренняя кухня (класс D3 эталона); за неделю три блока на этой фразе.
+            fam_reply = (f"Здравствуйте! Да, подойдёт для {', '.join(mm)}."
+                         + (f" Наш картридж — {code}." if code else "")) if mm else ""
+            series_mm = _series_members(r["body"], (fct or {}).get("models") or []) if st != "yes" else []
             # shortcut = ТОЛЬКО совместимость. Если в вопросе есть ещё тема (заправка/ресурс/чип/
             # комплектация/гарантия), детерминированный шаблон её проигнорирует — вместо него полный
             # ответ собирает Opus по CARD_DATA/каталогу, а fam_reply идёт ему подсказкой по совместимости.
@@ -1075,11 +1244,16 @@ def _answer(client, r, cf, corpus):
                     ground.update({"grounded": True, "source": "карточка-серия+llm", "model": model2,
                                    "note": f"серия подтверждена ({', '.join(mm)}) + доп. тема через LLM"})
                 else:
-                    # LLM не вернул ответ — fallback на shortcut, лучше частичный ответ, чем ничего
-                    reply = fam_reply
-                    ground.update({"grounded": True, "source": "карточка-серия",
-                                   "note": f"вариант серии, совпало по базе: {', '.join(mm)} "
-                                           f"(доп.тема: LLM без ответа, fallback на shortcut)"})
+                    # п.5 пакета 21.09.2026: раньше здесь уходил shortcut по совместимости — «лучше
+                    # частичный ответ, чем ничего». Кейс FS-1120D: три вопроса, ответ на нулевой из
+                    # них, оператор его почти отправил. Вопрос многосоставный по определению ветки
+                    # (совместимость + доп. тема), поэтому без модели — пустой черновик человеку.
+                    return _early_human(
+                        r, cc, "⚠️ Модель не ответила, а вопрос многосоставный (совместимость + "
+                               "ещё тема) — ответ на одну часть здесь хуже, чем никакого. "
+                               "Нужен ручной ответ оператора.",
+                        f"LLM без ответа на многосоставный вопрос; совместимость по карточке: "
+                        f"{', '.join(mm)}", used_llm=True)
                 route = "review"
             elif (not defect and asked_m and ref_ok
                   and all(a in ref_ok for a in asked_m) and not extra_topic and not color_q):
@@ -1091,6 +1265,15 @@ def _answer(client, r, cf, corpus):
                          + " Совместимость подтверждена нашим справочником.")
                 ground.update({"grounded": True, "source": ref_src,
                                "note": "подтверждено справочником совместимости: " + ", ".join(ref_ok)})
+            elif series_mm and not defect and not color_q and not extra_topic:
+                # п.7: названа серия без модели — перечисляем модели серии из карточки, не блокируем
+                # и не переспрашиваем. Источник — список совместимости карточки, как у fam_reply.
+                reply = (f"Здравствуйте! Если у вас {_or_list(series_mm)} — да, подойдёт."
+                         + (f" Наш картридж — {code}." if code else ""))
+                ground.update({"grounded": True, "source": "карточка-серия",
+                               "note": "серия без модели, перечислены модели серии из карточки: "
+                                       + ", ".join(series_mm)})
+                ground["compat"] = dict(ground.get("compat") or {}, series_members=series_mm)
             elif not defect and bool(asked_m):
                 # MODEL-FIRST: ответ _llm по знанию модели + карточка/каталог уже готов (reply).
                 # Веб зовём РЕДКО — только если модель сама не уверена (need_web), низкая уверенность
@@ -1182,11 +1365,18 @@ def _answer(client, r, cf, corpus):
     # (route='auto' приходит из её JSON). Замер: rev_auto_gap_examples_2026-09-07.md.
     # Исключение одно — «мёртвая» карточка: там уходит не благодарность, а сухой хендофф, и правило
     # Сергея от 24.08.2026 (карточку под убой не спасают ответом) A0 не отменяет.
+    # п.1 (21.09.2026): маркер теперь только дефект или претензия. «?» и слова сожаления на позитиве
+    # вычитку больше не требуют — вопрос в отзыве отвечает модель, её текст проверяет контролёр.
     if (r["kind"] == "review" and route == "auto" and ground.get("template_id") != "dead_card"
-            and review_flagged(r)):
+            and _has_text(r) and not _positive_clean(r)):
         route = "review"
         ground["review_flag"] = True
         ground["note"] = "позитив с маркером дефекта; " + (ground.get("note") or "")[:200]
+    elif r["kind"] == "review" and _positive_clean(r) and (reply or "").strip() and route != "auto":
+        route = "auto"
+        ground["auto_policy"] = "позитив ≥4★ без дефекта и претензии"
+        ground["note"] = "п.1: чистый позитив — автопубликация после контролёра; " + \
+            (ground.get("note") or "").replace("на вычитку оператору; ", "")[:200]
     # КАТАЛОГ-ПОСЛЕ-ВЕБА + страховка от ложного «нет»: ответ отрицает наличие ИЛИ (после веба) уводит
     # покупателя «на сторону»/говорит «не подходит» БЕЗ нашего артикула — а по коду картриджа из веб-ответа
     # или по модели принтера у нас реально есть листинг → подставляем наш площадочный артикул.
@@ -1281,6 +1471,11 @@ def _answer(client, r, cf, corpus):
     # ровно тот текст, который увидит покупатель, а не промежуточный до guard'ов и веб-добора.
     reply, ground = _verified(client, r, reply, cc, ground)
     route = ground.get("route", route) if ground.get("verify") == "FIX" else route
+    # п.1: автопубликация позитива — ПОСЛЕ контролёра. Контролёр не отработал (сбой, выключен) —
+    # новое правило не действует, черновик на вычитку.
+    if ground.get("auto_policy") and route == "auto" and ground.get("verify") != "PASS":
+        route = "review"
+        ground["note"] = "контролёр не подтвердил — автопубликация отменена; " + (ground.get("note") or "")[:200]
     outd = dict(r, cat=cat, reply=reply, route=route, conf=conf, card=cc,
                 note=ground.get("note", ""), grounded=ground.get("grounded", False),
                 catalog=ground.get("catalog", False), source=ground.get("source", ""),
@@ -1320,6 +1515,7 @@ def run(since="2026-06-17"):
             print(f"[{i}/{len(rows)}] ПРОПУСК без черновика {r['platform']}/{r['kind']} "
                   f"{r['ext_id']}: {type(e).__name__}: {str(e)[:120]}", flush=True)
             continue
+        route, ground = _auto_card_q(r, reply, route, ground)
         _store(r, reply, route, conf, ground)
         _enqueue_moderation(r, reply)
         out.append(outd)

@@ -187,6 +187,70 @@ def lookup(article, cls, key):
     return r[0] if r else None
 
 
+def norm_code(code):
+    """«963 XL» / «963-xl» → «963XL». Пусто → None."""
+    c = re.sub(r"[\s\-_/]", "", str(code or "")).upper()
+    return c or None
+
+
+def family_code(facts):
+    """Код расходника карточки — ключ семейства для кэша. card_facts['code'] у Ozon часто пуст
+    (HP-струйные 963XL не входят в _CODE_RX), поэтому дальше — наша конвенция названия и коды из
+    названия/аннотации. Коды, совпадающие с моделью принтера из списка совместимости (9019 в
+    «Картридж для HP OfficeJet Pro 9019»), кодом расходника не считаем."""
+    f = facts or {}
+    from reports import sku_relations as sr
+    models = [re.sub(r"[^a-z0-9]", "", str(m).lower()) for m in (f.get("models") or [])]
+
+    def is_model(c):
+        n = re.sub(r"[^a-z0-9]", "", c.lower())
+        return any(m.endswith(n) or n == m for m in models if m)
+
+    cands = [f.get("code"), sr.code_of_title(str(f.get("name") or ""))]
+    cands += sr.codes_in_title(str(f.get("name") or "")) + sr.codes_in_title(str(f.get("annot") or ""))
+    for c in cands:
+        if c and re.search(r"\d", str(c)) and not is_model(str(c)):
+            return norm_code(c)
+    return None
+
+
+def set_code(article, cls, key, code):
+    code = norm_code(code)
+    if code:
+        db.execute("""UPDATE approved_answers SET code=%s
+                      WHERE article=%s AND request_class=%s AND question_key=%s""",
+                   (code,) + _key3(article, cls, key))
+
+
+def lookup_family(code, cls, key, exclude_article=None):
+    """п.8 (21.09.2026): запасной поиск по (код расходника, класс, ключ) — когда по артикулу пусто.
+    Устаревшие записи не берём: их и на родном артикуле подставляют только с блоком."""
+    code = norm_code(code)
+    if not (code and cls and key):
+        return None
+    r = db.query("""SELECT * FROM approved_answers
+                    WHERE code=%s AND request_class=%s AND question_key=%s AND NOT stale
+                      AND article <> %s
+                    ORDER BY approved_at DESC LIMIT 1""",
+                 (code, str(cls).strip(), str(key).strip(), str(exclude_article or "")))
+    return r[0] if r else None
+
+
+def backfill_codes():
+    """Разово: проставить код расходника уже утверждённым ответам по карточке исходного обращения."""
+    rows = db.query("""SELECT a.id, f.platform, f.item_id FROM approved_answers a
+                       JOIN raw_feedback f ON (f.platform, f.account, f.ext_id)
+                                            = (a.source_platform, a.source_account, a.source_ext_id)
+                       WHERE a.code IS NULL AND f.kind='question'""")
+    done = 0
+    for r in rows:
+        c = family_code(facts_for(dict(r)))
+        if c:
+            db.execute("UPDATE approved_answers SET code=%s WHERE id=%s", (c, r["id"]))
+            done += 1
+    return done, len(rows)
+
+
 def remember(*, article, cls, key, text, approved_by, platform=None, account=None, ext_id=None,
              card_sig=None):
     """Upsert утверждённого ответа. → (записали?, пояснение).
@@ -248,7 +312,14 @@ def remember_sent(row, text, approved_by, facts=None, check_gate=True):
         return False, why
     art = internal_article(row.get("platform"), row.get("article"), row.get("item_id"), strict=True)
     if not art:
-        return False, "артикул не подтверждён МойСкладом"
+        # п.8 (21.09.2026): карточка не сшита с МС (Ozon «Картридж для HP OfficeJet Pro 9019»), но
+        # код расходника у неё есть — запоминаем ответ под семейством, его найдёт lookup_family.
+        if facts is None:
+            facts = facts_for(row)
+        fc = family_code(facts)
+        if not fc:
+            return False, "артикул не подтверждён МойСкладом, код расходника не найден"
+        art = "fam:" + fc
     if check_gate:
         from reports import publish_gate
         allow, reasons = publish_gate.verdict(dict(row), text)
@@ -256,9 +327,12 @@ def remember_sent(row, text, approved_by, facts=None, check_gate=True):
             return False, "гейт запретил: " + "; ".join(reasons)[:120]
     if facts is None:
         facts = facts_for(row)
-    return remember(article=art, cls=cls, key=key, text=text, approved_by=approved_by,
+    res = remember(article=art, cls=cls, key=key, text=text, approved_by=approved_by,
                     platform=row.get("platform"), account=row.get("account"),
                     ext_id=row.get("ext_id"), card_sig=card_signature(facts, key))
+    if res[0]:
+        set_code(art, cls, key, family_code(facts))
+    return res
 
 
 def bump(row_id):
@@ -309,16 +383,24 @@ def try_hit(row, facts=None, cls=None):
     if not key:
         return None
     art = internal_article(row.get("platform"), row.get("article"), row.get("item_id"), strict=True)
-    if not art:
-        return None
-    hit = lookup(art, cls, key)
+    hit = lookup(art, cls, key) if art else None
+    family = None
     if not hit:
-        return None
+        # п.8: по артикулу пусто (или артикул не сшит с МС) — ищем по коду расходника карточки
+        if facts is None:
+            facts = facts_for(row)
+        fc = family_code(facts)
+        hit = lookup_family(fc, cls, key, exclude_article=art)
+        if not hit:
+            return None
+        family = fc
     # Отпечаток карточки сравниваем ТОЛЬКО в пределах площадки, на которой ответ утверждали
     # (замечание №8 ревью 08.09.2026): артикул один на все площадки, а карточки у них разные —
     # у oz_acc2 атрибутов нет вовсе. Межплощадочное сравнение давало бы вечный ложный stale
     # и запирало кэш ровно там, ради чего он заведён.
-    same_platform = bool(hit["source_platform"]) and hit["source_platform"] == row.get("platform")
+    # Попадание по семейству — чужой артикул: его отпечаток с нашей карточкой не сравним вовсе.
+    same_platform = (not family and bool(hit["source_platform"])
+                     and hit["source_platform"] == row.get("platform"))
     sig_now = card_signature(facts, key) if same_platform else None
     stale = bool(hit["stale"])
     if not stale and sig_now and hit["card_sig"] and sig_now != hit["card_sig"]:
@@ -330,13 +412,18 @@ def try_hit(row, facts=None, cls=None):
     hits = int(hit["hit_count"] or 0) + 1
     day = hit["approved_at"].strftime("%d.%m.%Y") if hit["approved_at"] else "—"
     src = f"кэш: утверждено {day} на {hit['source_platform'] or '—'}"
+    if family:
+        src += f" (семейство {family}, артикул {hit['article']})"
     ground = {
         "llm": False, "grounded": True, "source": src, "template_id": "cache",
         "request_class": cls,
         "note": (f"кэш устарел: {hit['stale_reason'] or 'карточка изменилась'}" if stale else
-                 ("из кэша, подтвердите" if hits <= CONFIRM_HITS else f"из кэша, подстановка №{hits}")),
+                 (f"из кэша по коду {family} (утверждено на артикуле {hit['article']}), подтвердите"
+                  if family else
+                  "из кэша, подтвердите" if hits <= CONFIRM_HITS else f"из кэша, подстановка №{hits}")),
         "cache": {"id": hit["id"], "article": art, "key": key, "hits": hits,
-                  "stale": stale, "confirm": hits <= CONFIRM_HITS, "why_key": why},
+                  "stale": stale, "confirm": bool(family) or hits <= CONFIRM_HITS, "why_key": why,
+                  "family": family},
     }
     return (hit["answer_text"] or ""), ground
 

@@ -42,6 +42,30 @@ from core import db                                      # noqa: E402
 from collectors import feedback_send as fs               # noqa: E402
 
 BATCH = int(os.environ.get("FEEDBACK_AUTOSEND_BATCH", "5"))
+# п.9 пакета 21.09.2026: первую неделю автопубликации вопросов — уведомление в чат о КАЖДОЙ отправке,
+# чтобы оператор видел, что ушло без кнопки. Дата — включительно; потом строка просто перестаёт работать.
+NOTIFY_Q_UNTIL = os.environ.get("FEEDBACK_AUTO_Q_NOTIFY_UNTIL", "2026-09-28")
+
+
+def _notify_question(r, text):
+    """Сбой уведомления отправку не отменяет и цикл не роняет — ответ уже на площадке."""
+    if time.strftime("%Y-%m-%d") > NOTIFY_Q_UNTIL:
+        return
+    try:
+        import html
+        from feedback_bot import tg_moderation as tm
+        g = r.get("draft_grounding") if isinstance(r.get("draft_grounding"), dict) else {}
+        msg = ("🤖 <b>Автоответ на вопрос отправлен</b> (без кнопки, п.9)\n"
+               f"{html.escape(r['platform'])}/{html.escape(r['account'])} · "
+               f"{html.escape(str(g.get('request_class') or '—'))} · источник "
+               f"{html.escape(str(g.get('source') or '—'))}\n"
+               f"<b>Товар:</b> {html.escape((r.get('product_name') or '')[:90])}\n"
+               f"<b>Вопрос:</b> {html.escape((r.get('body') or '')[:300])}\n"
+               f"<b>Ответ:</b> {html.escape((text or '')[:500])}")
+        for cid in tm.NOTIFY_IDS:
+            tm.send(cid, msg)
+    except Exception as e:
+        _log(f"уведомление об автоответе не ушло: {type(e).__name__}: {e}")
 
 
 def _log(msg):
@@ -139,6 +163,8 @@ def run():
             ok, detail = fs.post_answer(dict(r), r["draft_text"], apply_cap=(bucket == "backlog"))
             if ok and detail == "sent":
                 total_sent += 1
+                if r["kind"] == "question":
+                    _notify_question(r, r["draft_text"])
             elif ok and detail == "dry-run:daily-cap":
                 capped += 1
                 break                              # лимит канала выбран — остальное старьё завтра

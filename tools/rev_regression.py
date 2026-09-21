@@ -112,7 +112,16 @@ claims = db.query(f"""SELECT kind,rating,body,pros,cons,draft_text,draft_route,d
 from reports.card_rating import DEAD_TEXT              # noqa: E402
 live = [r for r in claims if (r["draft_text"] or "").strip() != DEAD_TEXT.strip()]
 held = sum(1 for r in live if "претензия, ручной ответ" in gate.verdict(r)[1])
-check("A1.1 претензия на 1–2★ с текстом", held == len(live), f"{held} из {len(live)}")
+# Исключение 12.09.2026 (решение Сергея): чистый хендофф в чат — кнопка ✅ доступна. Считаем его
+# отдельно; проверка — что каждая претензия либо держится, либо является именно хендоффом, и что
+# ни один пропущенный текст не содержит обещания или вердикта о причине поломки.
+handoff = [r for r in live if "претензия, ручной ответ" not in gate.verdict(r)[1]
+           and gate._safe_handoff(r.get("draft_grounding") or {}, True, r["draft_text"] or "")]
+leak = [r for r in handoff if gate.PROMISE_RX.search(r["draft_text"] or "")
+        or gate._VERDICT_RX.search(r["draft_text"] or "")]
+check("A1.1 претензия на 1–2★ с текстом: держится или чистый хендофф",
+      held + len(handoff) == len(live) and not leak,
+      f"держится {held}, хендофф {len(handoff)}, всего {len(live)}, утечек {len(leak)}")
 print(f"5. A1.1: 1–2★ с текстом {len(claims)}, из них хендофф по мёртвой карточке "
       f"{len(claims) - len(live)} (правило 24.08.2026), снято гейтом {held}")
 
@@ -281,6 +290,40 @@ for c, _, _ in cls:
     by[c] = by.get(c, 0) + 1
 print(f"11. классификатор на выгрузке: строк {len(rows)}, в «прочем» {len(rest)}, "
       f"классы " + ", ".join(f"{k} {v}" for k, v in sorted(by.items(), key=lambda x: -x[1])))
+
+# 12. Пакет правок 21.09.2026 — живые кейсы недели модерации.
+from reports import feedback_today as ft                 # noqa: E402
+
+
+def _row(ext):
+    r = db.query("SELECT * FROM raw_feedback WHERE ext_id=%s LIMIT 1", (ext,))
+    return dict(r[0]) if r else None
+
+
+_txt = lambda r: " ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))
+for ext, name in (("6UIfirqSLrinwnkThk2c", "4542 «были провалы уже»"),
+                  ("iKzxWYWviA7Tv6LoA0tq", "5418 «заменила картридж сама»")):
+    r = _row(ext)
+    if r:
+        check(f"п.2 {name}: не претензия", not rc.is_claim_text(_txt(r), "review", r["rating"]))
+        check(f"п.1 {name}: чистый позитив → авто", ft._positive_clean(r))
+r = _row("461268115")
+if r:
+    check("п.3 Яндекс 4★ «не пропечатывает до конца»: дефект, не авто",
+          bool(dr.DEFECT_RX.search(_txt(r))) and not ft._positive_clean(r))
+r = _row("01a0a4e3-1978-72b8-93e3-112cb219006e")
+if r:
+    check("п.6 0160 «жёлтый короче остальных»: претензия к набору", rc.set_claim(r["body"])
+          and rc.is_claim_text(r["body"], "question"))
+    check("п.10 0160: второй вопрос видит первый", len(ft._thread(r)) >= 1)
+pos = db.query(f"""SELECT kind, rating, body, pros, cons FROM raw_feedback
+                   WHERE kind='review' AND rating>=4 AND length({TXT})>0
+                     AND created_at > now() - interval '14 days'""")
+auto = [r for r in pos if ft._positive_clean(r)]
+dirty = [r for r in auto if dr.DEFECT_RX.search(_txt(r))]
+check("п.1 позитив на авто — ни одного с DEFECT_RX", not dirty, f"{len(dirty)}")
+print(f"12. п.1: отзывов ≥4★ с текстом за 14 дней {len(pos)}, чистый позитив на авто {len(auto)}, "
+      f"на вычитке {len(pos) - len(auto)}")
 
 print(f"\nИТОГО: проверок {ok + bad}, провалов {bad}")
 sys.exit(1 if bad else 0)
