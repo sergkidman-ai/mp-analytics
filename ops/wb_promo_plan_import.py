@@ -101,6 +101,47 @@ def check():
           "  цена обязана остаться той же, пока акция идёт.", flush=True)
 
 
+def auto(valid_to=None, days=7):
+    """Сам забирает из бота-дропбокса всё, что ещё не грузили.
+
+    Наталья кидает выгрузки в бота за сутки до старта акции; повторно тот же файл не берём —
+    отметка в `source_file`. Архивы .zip распаковываются во временный каталог.
+    Плановая цена держится всю акцию (проверено 19→21.09: 22 719 карточек, ни одного изменения),
+    поэтому дата выгрузки и есть valid_from, переписывать её каждый день не нужно."""
+    import tempfile, zipfile
+    known = {r["source_file"] for r in db.query("select distinct source_file from wb_promo_plan_price")}
+    edge = dt.date.today() - dt.timedelta(days=days)
+    todo = []
+    for f in sorted(glob.glob(os.path.join(DROPBOX, "*"))):
+        base = os.path.basename(f)
+        m = re.match(r"^(\d{4})(\d{2})(\d{2})_", base)
+        if not m or dt.date(*map(int, m.groups())) < edge:
+            continue
+        if base.lower().endswith((".xls", ".xlsx", ".xl")):
+            todo.append((f, base, m.group(0)))
+        elif base.lower().endswith(".zip") and base not in known:
+            tmp = tempfile.mkdtemp(prefix="wbplan_")
+            try:
+                with zipfile.ZipFile(f) as z:
+                    z.extractall(tmp)
+            except Exception as e:                                    # noqa: BLE001
+                print(f"  архив {base[:40]} не читается: {e}", flush=True)
+                continue
+            for inner in sorted(glob.glob(os.path.join(tmp, "**", "*.xls*"), recursive=True)):
+                todo.append((inner, base, m.group(0)))
+    n = 0
+    for path, mark, stamp in todo:
+        if os.path.basename(path)[:200] in known or mark in known:
+            continue
+        vf = f"{stamp[0:4]}-{stamp[4:6]}-{stamp[6:8]}"
+        try:
+            load(path, vf, valid_to)
+            n += 1
+        except Exception as e:                                        # noqa: BLE001
+            print(f"  ПРОПУСК {os.path.basename(path)[:44]}: {e}", flush=True)
+    print(f"автозагрузка: новых файлов {n}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description="ВБ: загрузка плановых цен акции из выгрузки ЛК")
     ap.add_argument("--file", action="append", help="файл(ы); по умолчанию свежие из dropbox")
@@ -108,9 +149,14 @@ def main():
     ap.add_argument("--valid-from", default=dt.date.today().isoformat(), help="дата выгрузки")
     ap.add_argument("--valid-to", help="дата конца акции (для отбора живых цен)")
     ap.add_argument("--check", action="store_true", help="замер: держится ли плановая цена")
+    ap.add_argument("--auto", action="store_true",
+                    help="забрать из бота-дропбокса всё новое (для крона)")
     a = ap.parse_args()
     if a.check:
         check()
+        return
+    if a.auto:
+        auto(a.valid_to)
         return
     if a.dir:
         files = sorted(glob.glob(os.path.join(a.dir, "**", "*.xls*"), recursive=True)
