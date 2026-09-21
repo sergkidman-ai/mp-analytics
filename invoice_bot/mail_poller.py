@@ -17,7 +17,7 @@ mail_poller.py — IMAP-поллер: пересланные на выделен
 
 Запуск: python mail_poller.py   (в бою — под systemd, см. invoice-mail.service)
 """
-import os, sys, re, time, imaplib, email, json, html, urllib.request, traceback
+import os, sys, re, time, imaplib, email, json, html, hashlib, urllib.request, traceback
 from email.header import decode_header
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -46,6 +46,45 @@ OK_EXT = (".xls", ".xlsx", ".pdf", ".xml", ".zip")
 
 
 def log(m): print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {m}", flush=True)
+
+
+# ── Реестр разобранных писем ───────────────────────────────────────────────────
+# Инцидент 21.09.2026: письмо Одиссея с 8 вложениями разбиралось 1,5 минуты, IMAP-сессия
+# за это время простаивала и сервер её закрыл — `STORE +FLAGS \Seen` упал в мёртвый сокет,
+# письмо осталось UNSEEN и разбиралось заново шесть кругов подряд. В МойСкладе дублей не
+# случилось (движок узнал уже проведённые УПД), но в бот каждые полторы минуты летела пачка
+# сообщений, пока письмо не пометили прочитанным руками.
+# Флаг на сервере — ненадёжная память: она за пределами нашего процесса и рвётся вместе
+# с соединением. Держим свою: разобранное письмо узнаём по Message-ID, даже если отметка
+# не встала.
+SEEN_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mail_seen.json")
+SEEN_KEEP = 3000        # столько последних писем помним; старые вычищаем
+CRASH_RETRIES = 3       # столько раз пробуем письмо, которое роняет разбор, потом сдаёмся
+
+
+def _seen_load():
+    try:
+        with open(SEEN_DB, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _seen_save(reg):
+    if len(reg) > SEEN_KEEP:
+        keep = sorted(reg.items(), key=lambda kv: kv[1].get("ts", 0), reverse=True)[:SEEN_KEEP]
+        reg = dict(keep)
+    tmp = SEEN_DB + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(reg, f, ensure_ascii=False)
+    os.replace(tmp, SEEN_DB)       # атомарно: оборванная запись не оставит битый реестр
+    return reg
+
+
+def _msg_key(m, raw):
+    """Ключ письма: Message-ID, а если его нет — отпечаток самого письма."""
+    mid = (m.get("Message-ID") or "").strip()
+    return mid or "sha1:" + hashlib.sha1(raw).hexdigest()
 
 
 def imap_utf7_encode(name):
@@ -163,6 +202,16 @@ def process_message(m, num, engine, kind):
         log(f"  {fn}: ok={res.get('ok')} created={res.get('created')} stop={res.get('stop')} err={res.get('error')}")
 
 
+def _flag_seen(imap, num):
+    """Пометить письмо прочитанным. Упало — не беда: письмо уже в реестре, второй раз
+    его не разберут, а отметку поставит следующий круг на свежем соединении."""
+    try:
+        imap.store(num, "+FLAGS", "\\Seen")
+    except Exception as e:
+        log(f"не удалось пометить письмо {num.decode()} прочитанным ({e}) — "
+            f"поставлю на следующем круге")
+
+
 def poll_once(imap, folder_name, engine, kind):
     # кириллические/с пробелом имена папок кодируем в mUTF-7 и оборачиваем в кавычки
     folder = folder_name if folder_name.isascii() else imap_utf7_encode(folder_name)
@@ -181,11 +230,51 @@ def poll_once(imap, folder_name, engine, kind):
         raw = msgdat[0][1]
         try:
             m = email.message_from_bytes(raw)
+        except Exception:
+            log("разбор письма не удался: " + traceback.format_exc())
+            _flag_seen(imap, num)
+            continue
+
+        key = _msg_key(m, raw)
+        reg = _seen_load()
+        st = reg.get(key) or {}
+        if st.get("done"):
+            # Уже разбирали — отметка на сервере не встала (обрыв IMAP). Ставим её снова
+            # на этом, свежем соединении и молчим: ни МС, ни бот второй раз не трогаем.
+            log(f"письмо {num.decode()} уже разобрано ранее ({st.get('subj', '')[:40]}) — "
+                f"повторно не разбираю, только помечаю прочитанным")
+            _flag_seen(imap, num)
+            continue
+
+        tries = st.get("tries", 0) + 1
+        st.update({"tries": tries, "ts": time.time(), "subj": _dec(m.get("Subject"))[:80]})
+        reg[key] = st
+        _seen_save(reg)            # счётчик пишем ДО разбора: падение по дороге тоже считается
+
+        if tries > CRASH_RETRIES:
+            # Письмо роняет разбор раз за разом — снимаем его с круга, но не молча.
+            log(f"письмо {num.decode()} падает {tries}-й раз — снимаю с обработки")
+            tg_send(f"⚠️ Письмо «{st.get('subj', '')}» роняет разбор {tries} раз подряд — "
+                    f"снял с автообработки, вложения нужно прислать в бот руками.")
+            st["done"] = True
+            reg[key] = st
+            _seen_save(reg)
+            _flag_seen(imap, num)
+            continue
+
+        try:
             process_message(m, num, engine, kind)
         except Exception:
             log("process_message error: " + traceback.format_exc())
-        # помечаем прочитанным после обработки (в т.ч. при ошибке — чтобы не зациклить)
-        imap.store(num, "+FLAGS", "\\Seen")
+
+        # Письмо отработано (в т.ч. с ошибкой разбора) — сначала свой реестр, он переживёт
+        # обрыв соединения, и только потом отметка на сервере.
+        reg = _seen_load()
+        st = reg.get(key) or st
+        st["done"] = True
+        reg[key] = st
+        _seen_save(reg)
+        _flag_seen(imap, num)
 
 
 def main():

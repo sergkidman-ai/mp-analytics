@@ -9,3 +9,5 @@ workcal_cache.json
 _*.bin
 _*.json
 *.jsonl
+mail_seen.json
+mail_seen.json.tmp
