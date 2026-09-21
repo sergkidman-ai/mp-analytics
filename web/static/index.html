@@ -109,10 +109,13 @@
     </div>
   </div>
   <div class="cards" id="cards"></div>
+  <p class="note" id="mpnote"></p>
+  <h2 style="margin-top:18px">🔍 Детали ВБ <span class="muted" style="font-weight:400;font-size:12px">(витрина margin_by_sku — площадочный разрез: СПП, комиссия, логистика, реклама, убыточные SKU. Свой счёт, с отчётом сходится не до рубля)</span></h2>
+  <div class="cards" id="cards2"></div>
   <div class="tips" id="signals"></div>
   <p class="note" id="prevnote"></p>
   <p class="note">Маржа <b>ВБ %</b> — от цены продажи WB (после СПП); маржа <b>наша %</b> — от нашей цены (до СПП).
-     Себестоимость = сегодняшняя закупка (replacement-cost); для распроданного — минимум по группе.</p>
+     Себестоимость витрины = сегодняшняя закупка (replacement-cost); для распроданного — минимум по группе.</p>
 
   <h2>📈 Динамика по неделям</h2>
   <table id="weekly"><thead><tr>
@@ -254,14 +257,28 @@ async function loadSummary(){
   $('#prevnote').textContent = prevLabel ? `▲▼ — изменение к прошлому периоду (${prevLabel})` : 'Прошлый период недоступен — динамика появится после загрузки ещё одного месяца.';
   const dl=s.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
   const pctOf=x=>s.revenue?(Math.round(x/s.revenue*1000)/10)+'%':'—';  // доля от выручки ВБ
-  const cards=[
+  // ВЕРХНЯЯ ПЯТЁРКА — с вкладки «Отчёты МП» (эталон месяца, сверен с ЛК), единая форма
+  // для главной и всех трёх вкладок МП. Витринные цифры ушли ниже, отдельным рядом.
+  const m=s.mp;
+  const cards = m ? [
+    ['Оборот (наша цена)',rub(m.oborot),'<span class="muted">до СПП, возвраты вычтены</span>'],
+    ['К перечислению',rub(m.payout),`<span class="muted">${m.oborot?Math.round(m.payout/m.oborot*100):'—'}% оборота</span>`],
+    ['Себестоимость',`${rub(m.cogs)} <span class="warn">${pct(m.cogs_pct)}</span>`,'<span class="muted">МойСклад, по отгрузке</span>'],
+    ['Чистая',`<span class="${mc(m.net)}">${rub(m.net)}</span>`,'<span class="muted">к перечислению − себестоимость</span>'],
+    ['Маржа',`<span class="${mc(m.margin_pct)}">${pct(m.margin_pct)}</span> ${m.margin_pct>=25?'<span class="pos">✓</span>':'<span class="muted">цель 25%</span>'}`,'<span class="muted">чистая ÷ оборот</span>'],
+  ] : [['Отчёт за месяц','—','<span class="muted">месяца ещё нет в «Отчётах МП»</span>']];
+  $('#cards').innerHTML=cards.map(([l,v,d])=>`<div class="card"><div class="lbl">${l}</div><div class="val">${v}</div>${d||''}</div>`).join('');
+  $('#mpnote').innerHTML = m
+    ? `Источник пятёрки — вкладка <a href="/reports">«Отчёты МП»</a>${state.account?' (аккаунт '+(ACCNAMES[state.account]||state.account)+')':' (оба юрлица)'}: месяц собран по форме площадки и сверен с личным кабинетом. Те же цифры стоят на главной.`
+    : 'Месяца ещё нет в «Отчётах МП» — верхние показатели появятся после сбора.';
+  const cards2=[
     ['Наша цена (продаём)',rub(s.revenue),deltaHtml(dl.revenue,true,false)],
     ['Цена ВБ (реализовал)',rub(s.revenue_wb),deltaHtml(dl.revenue_wb,true,false)],
-    ['Чистая',`<span class="${mc(s.net)}">${rub(s.net)}</span>`,deltaHtml(dl.net,true,false)],
+    ['Чистая (витрина)',`<span class="${mc(s.net)}">${rub(s.net)}</span>`,deltaHtml(dl.net,true,false)],
     ['Маржа ВБ %',`<span class="${mc(s.margin_wb)}">${pct(s.margin_wb)}</span>`,deltaHtml(dl.margin_wb,true,true)],
-    ['Маржа наша %',`<span class="${mc(s.margin_own)}">${pct(s.margin_own)}</span> ${s.margin_own>=25?'<span class="pos">✓</span>':'<span class="muted">цель 25%</span>'}`,deltaHtml(dl.margin_own,true,true)],
+    ['Маржа наша %',`<span class="${mc(s.margin_own)}">${pct(s.margin_own)}</span>`,deltaHtml(dl.margin_own,true,true)],
     ['СПП (эфф.) %',`<span class="warn">${pct(s.spp_pct)}</span>`,deltaHtml(dl.spp_pct,false,true)],
-    ['COGS',`${rub(s.cogs)} <span class="warn">${pctOf(s.cogs)}</span>`,deltaHtml(dl.cogs,false,false)],
+    ['COGS (витрина)',`${rub(s.cogs)} <span class="warn">${pctOf(s.cogs)}</span>`,deltaHtml(dl.cogs,false,false)],
     ['Комиссия WB',`${rub(s.commission)} <span class="warn">${pct(s.commission_pct)}</span>`,deltaHtml(dl.commission_pct,false,true)],
     ['Логистика',`${rub(s.logistics)} <span class="warn">${pctOf(s.logistics)}</span>`,deltaHtml(dl.logistics,false,false)],
     ['Реклама (WB Продвиж.)',`<span class="warn">${rub(s.adv_spend)}</span>${s.adv_pct!=null?` <span class="muted">${s.adv_pct}%</span>`:''}`,deltaHtml(dl.adv_spend,false,false)],
@@ -272,7 +289,7 @@ async function loadSummary(){
     ['Нераспределённые',`<span class="neg">−${rub(s.unalloc)}</span>`,
        `<span class="muted">реклама ${rub(s.adv_spend)} · отзывы ${rub(s.reviews_spend)} · хранение ${rub(s.storage_all)}</span>`],
   ];
-  $('#cards').innerHTML=cards.map(([l,v,d])=>`<div class="card"><div class="lbl">${l}</div><div class="val">${v}</div>${d||''}</div>`).join('');
+  $('#cards2').innerHTML=cards2.map(([l,v,d])=>`<div class="card"><div class="lbl">${l}</div><div class="val">${v}</div>${d||''}</div>`).join('');
   // подзаголовок блока убыточных: кол-во · штук · сумма
   $('#loss-sub').innerHTML = `${num(s.loss_count)} поз. · ${num(s.loss_qty)} шт · <span class="neg">${rub(s.loss_sum)}</span>`;
 }

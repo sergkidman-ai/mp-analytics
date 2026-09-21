@@ -28,6 +28,10 @@ from reports import wb_mp_report as _wb
 from reports import yandex_mp_report as _ya
 
 ACCOUNTS = {"wb": ("wb_acc1", "wb_acc2"), "ozon": ("oz_acc1", "oz_acc2"), "yandex": ("ya_acc1",)}
+# Юрлицо (ИНН) → его аккаунт на каждой площадке. Маркет торгует только под Цифровым Квадратом,
+# у Дисквэра его нет — там None, и площадка в разрезе фирмы не показывается вовсе.
+ORG_ACCOUNTS = {"7807355364": {"wb": "wb_acc1", "ozon": "oz_acc1", "yandex": "ya_acc1"},
+                "7811803918": {"wb": "wb_acc2", "ozon": "oz_acc2", "yandex": None}}
 # ключ строки «Оборот» в каждой площадке (на вкладке — «Продажи — оборот (наша цена)»)
 _OBOROT = {"wb": "own_price", "ozon": "sales", "yandex": "own"}
 # «Итого к перечислению»: у ВБ это itog, у Ozon и Маркета — payout
@@ -104,12 +108,28 @@ def month(platform: str, period: str):
     return val
 
 
-def business(period: str):
-    """Все три площадки + ИТОГ по бизнесу на одной базе — то, что показывает главная."""
-    parts = {p: month(p, period) for p in ("wb", "ozon", "yandex")}
+def account(platform: str, acc: str, period: str):
+    """Один аккаунт за месяц в той же форме, что `month()`. None — данных за месяц нет."""
+    d = month(platform, period)
+    return (d or {}).get("accounts", {}).get(acc)
+
+
+def business(period: str, org: str = ""):
+    """Все три площадки + ИТОГ по бизнесу на одной базе — то, что показывает главная.
+
+    `org` — ИНН юрлица: тогда по каждой площадке берётся только ЕГО аккаунт, и итог —
+    это итог фирмы (его и сравнивают с её опер. расходами)."""
+    accs = ORG_ACCOUNTS.get(org) if org else None
+    parts = {}
+    for p in ("wb", "ozon", "yandex"):
+        if accs is None:
+            parts[p] = month(p, period)
+        else:
+            a = accs.get(p)
+            parts[p] = account(p, a, period) if a else None
     have = {p: v for p, v in parts.items() if v}
-    tot = {k: round(sum(v[k] for v in have.values()), 2) for k in ("oborot", "net", "cogs", "payout")}
+    tot = {k: round(sum(v[k] or 0 for v in have.values()), 2) for k in ("oborot", "net", "cogs", "payout")}
     ob = tot["oborot"]
     tot["margin_pct"] = round(tot["net"] / ob * 100, 1) if ob else None
     tot["cogs_pct"] = round(tot["cogs"] / ob * 100, 1) if ob else None
-    return {"platforms": parts, "total": tot}
+    return {"platforms": parts, "total": tot, "org": org or None}

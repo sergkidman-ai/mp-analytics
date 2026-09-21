@@ -176,10 +176,28 @@ def _prev_period(platform, account, period):
     return row[0]["pf"] if row and row[0]["pf"] else None
 
 
+def _mp_five(platform, account, period):
+    """Пятёрка «Отчётов МП» за месяц: оборот (наша цена) → к перечислению → себестоимость →
+    чистая → маржа. `account` пуст — обе фирмы площадки. None, если месяца в отчётах нет.
+
+    Это единая форма для главной и всех трёх вкладок МП (решение Сергея 21.09.2026): витрины
+    площадок считают своё вторым путём и с отчётом расходятся, поэтому верхние баннеры везде
+    берутся отсюда, а витринная детализация стоит отдельным рядом и подписана источником."""
+    d = _mpn.account(platform, account, period) if account else _mpn.month(platform, period)
+    if not d:
+        return None
+    return {k: d.get(k) for k in ("oborot", "payout", "cogs", "net", "margin_pct", "cogs_pct",
+                                  "orders", "returns_cnt", "itog")}
+
+
 @app.get("/api/summary")
 def summary(platform: str = "", account: str = "", period: str = ""):
-    """Большие цифры + сравнение с прошлым периодом (рост/падение маржи, COGS, прибыли)."""
+    """Большие цифры + сравнение с прошлым периодом (рост/падение маржи, COGS, прибыли).
+
+    `mp` — верхняя пятёрка с вкладки «Отчёты МП» (эталон месяца); остальные поля — витрина
+    `margin_by_sku`, площадочная детализация (СПП, комиссия, логистика, реклама, убыточные SKU)."""
     r = _summary_one(platform, account, period)
+    r["mp"] = _mp_five(platform or "wb", account, period)
     prev_p = _prev_period(platform, account, period)
     if prev_p:
         pr = _summary_one(platform, account, prev_p)
@@ -360,17 +378,28 @@ def _opex_is_fact(month):
                     (month,))[0]["e"]
 
 
-def _opex_total(period):
-    """Единая точка правды об итоге опер. расходов за месяц ПО ВСЕМУ БИЗНЕСУ (обе фирмы) —
-    для главной, советов и уровневого отчёта, где агрегат считается по бизнесу целиком.
-    Постраничный разрез «Опер. расходов» разделён по юрлицам отдельно."""
+def _opex_total(period, org=""):
+    """Единая точка правды об итоге опер. расходов за месяц. Без `org` — по всему бизнесу
+    (обе фирмы), с `org` (ИНН) — по одному юрлицу: факт из размеченной выписки знает плательщика.
+
+    Ручной снапшот (июль-2026 и раньше) один на бизнес и по фирмам НЕ делится — там `org`
+    игнорируется, а вызывающий помечает цифру как общую (см. `_opex_org_split`)."""
     m = _opex_month(period)
     if not m or len(m) != 10:
         return 0.0
     if _opex_is_fact(m):
-        return db.query("SELECT coalesce(sum(amount),0)::float t FROM opex_fact_month WHERE month=%s",
-                        (m,))[0]["t"]
+        w, pr = ["month=%s"], [m]
+        if org:
+            w.append("org_inn=%s"); pr.append(org)
+        return db.query("SELECT coalesce(sum(amount),0)::float t FROM opex_fact_month "
+                        "WHERE " + " AND ".join(w), tuple(pr))[0]["t"]
     return _opex_snapshot_total(period)[0]
+
+
+def _opex_org_split(period):
+    """Умеем ли делить опер. расходы месяца по юрлицам (факт по банку — да, снапшот — нет)."""
+    m = _opex_month(period)
+    return bool(m and len(m) == 10 and _opex_is_fact(m))
 
 
 def _opex_unassigned(month, org=""):
@@ -405,15 +434,17 @@ def opex(period: str = "", org: str = ""):
     acc = ORG_ACCOUNTS[org]
 
     def _with_biz(payload, total, org_split=True):
-        # чистая по аккаунтам ЭТОЙ фирмы; для общего снапшота (manual) — по всему бизнесу
-        wb_net = db.query("""SELECT coalesce(sum(net_profit),0)::float n FROM margin_by_sku
-            WHERE period_from=%s AND platform='wb'""" + (" AND account=%s" if org_split else ""),
-            ((period, acc["wb"]) if org_split else (period,)))[0]["n"]
-        oz_net = _oz_summary(acc["oz"] if org_split else "", period)["net"]
-        # Маркет один на бизнес: в разрезе фирмы берём её аккаунт (у Дисквэра его нет),
-        # в общем снапшоте — тот же единственный ya_acc1.
-        ya_net = _ya_net(acc["ya"] if org_split else "ya_acc1", period)
-        biz = wb_net + oz_net + (ya_net or 0)
+        # Чистая — с вкладки «Отчёты МП» (`reports.mp_numbers`), той же цифрой, что на главной
+        # и на вкладках площадок: витрины считали своё вторым путём и с отчётом расходились
+        # (ВБ −2 % оборота, Маркет — в 11 раз по чистой). Разрез фирмы — её аккаунты площадок;
+        # для общего снапшота (manual) — весь бизнес.
+        b = _mpn.business(period, org if org_split else "")
+        pl = b["platforms"]
+        wb_net = (pl.get("wb") or {}).get("net") or 0
+        oz_net = (pl.get("ozon") or {}).get("net") or 0
+        # Маркет только у Цифрового Квадрата: у Дисквэра площадки нет — показываем прочерк.
+        ya_net = (pl.get("yandex") or {}).get("net")
+        biz = b["total"]["net"]
         payload.update({"wb_net": round(wb_net, 2), "oz_net": round(oz_net, 2), "ya_net": ya_net,
                         "biz_net": round(biz, 2), "net_after": round(biz - total, 2),
                         "total": round(total, 2), "period": period, "month": month,
@@ -880,49 +911,71 @@ def _biz_for(period):
     return agg, per
 
 
+# Аккаунт → как он называется в разбивке главной (юрлицо, под которым торгует площадка).
+ACC_ORG_NAMES = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр",
+                 "oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр",
+                 "ya_acc1": "Цифровой квадрат"}
+
+
 @app.get("/api/business")
-def business(period: str = ""):
-    """Главный экран: агрегат по всему бизнесу (оба ВБ) + расходы + динамика к прошлому месяцу."""
+def business(period: str = "", org: str = ""):
+    """Главный экран: показатели за месяц + расходы + динамика к прошлому месяцу.
+
+    `org` — ИНН юрлица (пусто = весь бизнес, обе фирмы). Оба источника умеют юрлицо:
+    «Отчёты МП» — через аккаунты площадок, «Опер. расходы» — через плательщика в выписке,
+    поэтому переключатель на главной честно меняет ОБЕ половины «чистой после ФОТ»."""
     if not period:
         period = db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
+    org = org if org in ORG_NAMES else ""
     cur, per = _biz_for(period)            # WB-разрез витрины: СПП, комиссия, реклама — для дельт
     oz = _oz_summary("", period)           # Ozon-разрез транзакций: категории расходов, дельты
     # ВЕРХНИЕ ПОКАЗАТЕЛИ — из «Отчётов МП» (`reports.mp_numbers`), а не вторым счётом:
     # там месяц собран по форме площадки и сверен с ЛК. База единая — оборот по НАШЕЙ цене
     # (ВБ own_price = до СПП, Ozon sales, Маркет выручка + зачёт).
-    mp = _mpn.business(period)
-    mp_wb, mp_oz = mp["platforms"].get("wb"), mp["platforms"].get("ozon")
-    wb_rev = (mp_wb or {}).get("oborot") or cur.get("own_revenue") or 0
-    cur["wb"] = ({"revenue": mp_wb["oborot"], "net": mp_wb["net"], "cogs": mp_wb["cogs"],
-                  "margin_pct": mp_wb["margin_pct"]} if mp_wb else
-                 {"revenue": round(wb_rev, 2), "net": cur["net"], "cogs": cur.get("cogs"),
-                  "margin_pct": cur.get("margin_own")})
-    cur["ozon"] = ({"revenue": mp_oz["oborot"], "net": mp_oz["net"], "cogs": mp_oz["cogs"],
-                    "margin_pct": mp_oz["margin_pct"]} if mp_oz else
-                   {"revenue": oz["revenue"], "net": oz["net"], "margin_pct": oz["margin_pct"],
-                    "cogs": oz["cogs"]})
-    t_rev = cur["wb"]["revenue"] + cur["ozon"]["revenue"]
-    t_net = cur["wb"]["net"] + cur["ozon"]["net"]
-    t_cogs = (cur["wb"]["cogs"] or 0) + (cur["ozon"]["cogs"] or 0)
-    ya = _ya_business(period)              # Маркет за месяц: оборот/удержания/COGS — входит в ИТОГ
-    if ya:
-        cur["yandex"] = ya
-        t_rev += ya["revenue"]; t_net += ya["net"]; t_cogs += ya["cogs"]
+    mp = _mpn.business(period, org)
+    mp_wb, mp_oz, mp_ya = (mp["platforms"].get(k) for k in ("wb", "ozon", "yandex"))
+
+    def _tile(d, fallback=None):
+        if d:
+            return {"revenue": d["oborot"], "net": d["net"], "cogs": d["cogs"],
+                    "margin_pct": d["margin_pct"]}
+        return fallback        # месяца ещё нет в отчётах — старый путь, только для всего бизнеса
+
+    cur["wb"] = _tile(mp_wb, None if org else
+                      {"revenue": round(cur.get("own_revenue") or 0, 2), "net": cur["net"],
+                       "cogs": cur.get("cogs"), "margin_pct": cur.get("margin_own")})
+    cur["ozon"] = _tile(mp_oz, None if org else
+                        {"revenue": oz["revenue"], "net": oz["net"], "cogs": oz["cogs"],
+                         "margin_pct": oz["margin_pct"]})
+    # Маркет: те же пять цифр + справочные счётчики (субсидия, возвраты) из витрины
+    ya = _ya_business(period) if mp_ya else None
+    cur["yandex"] = ya if (ya and not org) else _tile(mp_ya)
+    t_rev = sum((cur.get(k) or {}).get("revenue") or 0 for k in ("wb", "ozon", "yandex"))
+    t_net = sum((cur.get(k) or {}).get("net") or 0 for k in ("wb", "ozon", "yandex"))
+    t_cogs = sum((cur.get(k) or {}).get("cogs") or 0 for k in ("wb", "ozon", "yandex"))
     # Учётная себестоимость (из таблицы расходов, Цифровой) за период — для сверки рядом
     ca = db.query("SELECT coalesce(sum(cogs),0)::float c FROM cogs_actual WHERE month=%s", (period,))[0]["c"]
     cur["total"] = {"revenue": round(t_rev, 2), "net": round(t_net, 2), "cogs": round(t_cogs, 2),
                     "margin_pct": round(t_net / t_rev * 100, 1) if t_rev else None,
                     "cogs_pct": round(t_cogs / t_rev * 100, 1) if t_rev else None,
-                    "cogs_actual": round(ca, 2) if ca else None,
-                    "with_market": bool(ya)}
-    op = _opex_total(period)      # с 08.2026 — факт из размеченной выписки, раньше — ручной снапшот
+                    "cogs_actual": round(ca, 2) if ca and not org else None,
+                    "with_market": bool(mp_ya)}
+    op = _opex_total(period, org)  # с 08.2026 — факт из размеченной выписки, раньше — ручной снапшот
     cur["opex"] = round(op, 2)
-    cur["net_after_opex"] = round(t_net - op, 2)       # после ФОТ — от ИТОГА бизнеса
+    # По юрлицам расходы делит только факт по банку; на ручном снапшоте цифра общая — честно
+    # говорим об этом фронту, чтобы «чистая после ФОТ» фирмы не выглядела точной.
+    cur["opex_org_split"] = _opex_org_split(period)
+    cur["net_after_opex"] = round(t_net - op, 2)       # после ФОТ — от ИТОГА выбранного среза
     # Хвост неразмеченных платежей: без него итог опер. расходов на главной выглядит готовым,
     # хотя на вкладке «Опер. расходы» рядом висит «ещё не разнесено».
     om = _opex_month(period)
-    cur["opex_unassigned"] = _opex_unassigned(om) if om and len(om) == 10 else {"n": 0, "s": 0.0}
+    cur["opex_unassigned"] = _opex_unassigned(om, org) if om and len(om) == 10 else {"n": 0, "s": 0.0}
+    # Закупки юрлица не разделены (витрина `supplier_purchase_month` без ИНН) — при выборе
+    # фирмы цифра остаётся общей по бизнесу и помечена на главной.
     cur["purchases"] = _purchases_month(period)        # объём закупок — вкладка «Поставщики»
+    cur["org"] = org
+    cur["org_name"] = ORG_NAMES.get(org)
+    cur["orgs"] = [{"inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
     prev_p = _prev_period("", "", period)
     if prev_p:
         prv, _ = _biz_for(prev_p)
@@ -936,10 +989,10 @@ def business(period: str = ""):
                 "abs": round(c - o, 2), "pct": (None if not o else round((c - o) / abs(o) * 100, 1))}
         # дельты по ИТОГУ — прошлый месяц на ТОЙ ЖЕ базе «Отчётов МП», иначе стрелка меряла бы
         # разницу методик, а не бизнеса
-        mp_prev = _mpn.business(prev_p)
+        mp_prev = _mpn.business(prev_p, org)
         p_rev, p_net = mp_prev["total"]["oborot"], mp_prev["total"]["net"]
-        if not p_rev:      # месяца ещё нет в отчётах — старый путь, чтобы стрелка не пропала
-            ya_prev = _ya_business(prev_p) if ya else None
+        if not p_rev and not org:   # месяца ещё нет в отчётах — старый путь, чтобы стрелка не пропала
+            ya_prev = _ya_business(prev_p)
             p_rev = (prv.get("own_revenue") or 0) + oz_prev["revenue"] + (ya_prev["revenue"] if ya_prev else 0)
             p_net = prv["net"] + oz_prev["net"] + (ya_prev["net"] if ya_prev else 0)
         for k, c, o in (("total_revenue", t_rev, p_rev),
@@ -951,15 +1004,20 @@ def business(period: str = ""):
     else:
         cur["prev_period"] = None
         cur["delta"] = None
-    cur["accounts"] = [{"account": a, "platform": "ВБ",
-                        "name": {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр"}.get(a, a),
-                        "revenue": p["revenue"], "net": p["net"],
-                        "margin_pct": p["margin_pct"], "margin_own": p["margin_own"]} for a, p in per]
-    for a in ("oz_acc1", "oz_acc2"):                # Ozon-аккаунты в ту же разбивку
-        s = _oz_summary(a, period)
-        if s["revenue"]:
-            cur["accounts"].append({"account": a, "platform": "Ozon", "name": OZ_NAMES.get(a, a),
-                "revenue": s["revenue"], "net": s["net"], "margin_pct": s["margin_pct"], "margin_own": None})
+    # Разбивка «площадка × юрлицо» — с той же базы «Отчётов МП», что и верхние цифры,
+    # иначе строки не складывались бы в итог над ними.
+    cur["accounts"] = []
+    for plat, label in (("wb", "ВБ"), ("ozon", "Ozon"), ("yandex", "Маркет")):
+        own = _mpn.ORG_ACCOUNTS.get(org, {}).get(plat) if org else None
+        if org and not own:            # у фирмы этой площадки нет (Маркет — только Цифровой)
+            continue
+        for a, v in ((_mpn.month(plat, period) or {}).get("accounts") or {}).items():
+            if (own and a != own) or not v["oborot"]:
+                continue
+            cur["accounts"].append({"account": a, "platform": label,
+                                    "name": ACC_ORG_NAMES.get(a, a), "revenue": v["oborot"],
+                                    "net": v["net"], "margin_pct": v["margin_pct"],
+                                    "margin_own": None})
     cur["period"] = period
     return cur
 
@@ -4052,7 +4110,8 @@ def yandex_monthly():
         mp = round((r["fee"] or 0) + (r["delivery"] or 0) + (r["transfer"] or 0)
                    + (r["promotion"] or 0) + (r["other"] or 0))
         net = rev - round(r["cogs"] or 0) - mp
-        out.append({"month": r["ym"], "revenue": round(r["rev"] or 0),
+        mp = _mp_five("yandex", "", r["ym"] + "-01")
+        out.append({"mp": mp, "month": r["ym"], "revenue": round(r["rev"] or 0),
                     "subsidy": round(r["subsidy"] or 0), "orders": r["orders"],
                     "returns_orders": r["returns_orders"], "returns_sum": round(r["rs"] or 0),
                     "unredeemed_orders": r["unr"], "unredeemed_cost": round(r["unr_cost"]),

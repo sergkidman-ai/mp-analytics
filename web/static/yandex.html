@@ -76,7 +76,10 @@
   <p class="note" style="margin-top:0" id="period"></p>
   <p style="margin:4px 0 10px">Месяц: <select id="mon" style="font-size:14px;padding:3px 6px"></select></p>
   <div class="big" id="big"></div>
-  <h2>💸 Расходы Маркета</h2>
+  <p class="note" id="mpnote"></p>
+  <h2>📌 Справочно <span class="muted" style="font-weight:400;font-size:12px">(счётчики витрины: заказы, субсидия, возвраты — в пятёрку выше не входят)</span></h2>
+  <div class="big" id="ref"></div>
+  <h2>💸 Расходы Маркета <span class="muted" style="font-weight:400;font-size:12px">(витрина yandex_finance_monthly — разрез удержаний по типам; их сумма с «к перечислению» выше сходится не до рубля)</span></h2>
   <div class="big" id="costs"></div>
 
   <h2>✅ Задачи проверки себестоимости <span class="muted" style="font-weight:400;font-size:12px">(раздел «Себестоимость» → провал в заказ)</span></h2>
@@ -85,7 +88,7 @@
   <h2>🏪 По магазинам</h2>
   <table id="stores"><thead><tr><th>Магазин (campaignId)</th><th>Заказов</th><th>Выручка</th></tr></thead><tbody></tbody></table>
 
-  <h2>📅 Экономика по месяцам <span class="muted" style="font-weight:400;font-size:12px">(выручка = payment, возвраты вычтены; субсидия Маркета сверху; расходы МП по факту stats/orders; COGS с импутацией)</span></h2>
+  <h2>📅 Экономика по месяцам <span class="muted" style="font-weight:400;font-size:12px">(колонки «Чистая» и «Маржа» — из «Отчётов МП»; выручка/субсидия/удержания — витрина stats/orders)</span></h2>
   <p class="muted" style="font-size:12px;margin:-6px 0 8px">«Возвраты» = физический возврат товара на склад (товарные возвраты + невыкупы), по месяцу возврата. «Незаборы» — те же невыкупы в разрезе убытка логистики (доставка туда-обратно без выручки); это подсветка убытка, <b>не складывать с «Возвраты»</b>.</p>
   <table id="ymonthly"><thead><tr><th>Месяц</th><th>Заказов</th><th>Выручка</th><th>Субсидия</th><th>Комиссия</th><th>Логистика</th><th>Эквайринг</th><th>Буст</th><th>Возвраты</th><th>Незаборы</th><th>COGS</th><th>Чистая</th><th>Маржа</th></tr></thead><tbody></tbody></table>
 
@@ -107,22 +110,44 @@ async function api(p){const r=await fetch(p);return r.json();}
 async function load(){
   const d=await api('/api/yandex/summary');
   if(!d.ok){$('#big').innerHTML='<div class="muted">Данные Маркета ещё не собраны.</div>';return;}
-  $('#period').textContent='История: '+d.since+' … '+d.until+' (по месяцам). Выручка = оплата покупателя + субсидия Маркета, без отменённых, возвраты вычтены.';
+  $('#period').innerHTML='История: '+d.since+' … '+d.until+' (по месяцам). Юрлицо — <b>Цифровой Квадрат</b>: под Дисквэром Маркета нет, поэтому переключателя фирм здесь не бывает.';
   const mo=await api('/api/yandex/monthly');
   const rows=mo.rows||[];
   const sumRows=k=>rows.reduce((a,r)=>a+(r[k]||0),0);
-  const bigFor=r=>{ // r: строка месяца из /api/yandex/monthly или null=вся история из summary
-    const rev=r?(r.revenue+r.subsidy):d.revenue, pay=r?r.revenue:d.payment, sub=r?r.subsidy:d.subsidy,
-      net=r?r.net:d.net, mpct=r?r.margin_pct:d.net_margin_pct, cogs=r?r.cogs:d.cogs,
+  // «Вся история» — сумма месячных пятёрок «Отчётов МП»: одна база вместо второго счёта.
+  const mpAll=()=>{
+    const a={oborot:0,payout:0,cogs:0,net:0}; let any=false;
+    rows.forEach(r=>{if(r.mp){any=true;for(const k in a)a[k]+=r.mp[k]||0;}});
+    if(!any)return null;
+    a.margin_pct=a.oborot?Math.round(a.net/a.oborot*1000)/10:null;
+    a.cogs_pct=a.oborot?Math.round(a.cogs/a.oborot*1000)/10:null;
+    return a;
+  };
+  const bigFor=r=>{ // r: строка месяца из /api/yandex/monthly или null = вся история
+    const sub=r?r.subsidy:d.subsidy, pay=r?r.revenue:d.payment,
       cov=r?r.cogs_cov_pct:d.cogs_coverage, mp=r?r.mp_cost:d.mp_cost, ords=r?r.orders:d.orders;
-    $('#big').innerHTML=[
-      ['Выручка',rub(rev),`<span class="muted">payment ${rub(pay)} + субсидия ${rub(sub)}</span>`],
-      ['Чистая',`<span class="${net<0?'neg':'pos'}">${rub(net)}</span>`,`<span class="muted">маржа ${mpct!=null?mpct+'%':'—'}</span>`],
-      ['COGS',rub(cogs),`<span class="muted">себест${cov==100?' (факт МС)':', покрытие '+(cov||'—')+'%'}</span>`],
+    // ВЕРХНЯЯ ПЯТЁРКА — с вкладки «Отчёты МП», единая форма для главной и всех вкладок МП.
+    // Прежняя формула вкладки (выручка = payment + субсидия, вычитались только денежные услуги)
+    // завышала чистую в разы: август-2026 — 1 558 439 ₽ и 53,1 % против 142 376 ₽ и 5,3 %.
+    const m=r?r.mp:mpAll();
+    const rev=m?m.oborot:0;
+    $('#big').innerHTML=(m?[
+      ['Оборот (наша цена)',rub(m.oborot),'<span class="muted">выручка + зачёт баллами, возвраты вычтены</span>'],
+      ['К перечислению',rub(m.payout),`<span class="muted">${m.oborot?Math.round(m.payout/m.oborot*100):'—'}% оборота</span>`],
+      ['Себестоимость',`${rub(m.cogs)} <span class="warn">${m.cogs_pct!=null?m.cogs_pct+'%':'—'}</span>`,`<span class="muted">МойСклад${cov==100?' (факт)':', покрытие '+(cov||'—')+'%'}</span>`],
+      ['Чистая',`<span class="${m.net<0?'neg':'pos'}">${rub(m.net)}</span>`,'<span class="muted">к перечислению − себестоимость</span>'],
+      ['Маржа',`<span class="${m.margin_pct<0?'neg':'pos'}">${m.margin_pct!=null?m.margin_pct+'%':'—'}</span>`,'<span class="muted">чистая ÷ оборот</span>'],
+    ]:[['Отчёт за месяц','—','<span class="muted">месяца ещё нет в «Отчётах МП»</span>']])
+      .map(([l,v,dd])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${dd||''}</div></div>`).join('');
+    $('#mpnote').innerHTML=m
+      ? 'Источник пятёрки — вкладка <a href="/reports" style="color:var(--acc)">«Отчёты МП»</a>: месяц собран по форме площадки и сверен с личным кабинетом. Те же цифры стоят на главной.'
+      : 'Месяца ещё нет в «Отчётах МП».';
+    $('#ref').innerHTML=[
       ['Заказов',num(ords),'<span class="muted">без отменённых</span>'],
       ['Субсидия Маркета',rub(sub),`<span class="muted">${pay?Math.round(sub/pay*100):0}% сверх payment</span>`],
       r?['Возвраты',num(r.returns_orders),`<span class="muted">${rub(r.returns_sum)}</span>`]
        :['Отменено',`<span class="${d.cancelled>0?'neg':''}">${num(d.cancelled)}</span>`,`<span class="muted">${rub(d.cancelled_sum)}</span>`],
+      ['Оплата покупателя',rub(pay),'<span class="muted">payment витрины, без зачёта</span>'],
     ].map(([l,v,dd])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${dd||''}</div></div>`).join('');
     // расходы отдельным рядом плиток; для «всей истории» — суммы по месяцам
     const c = r||{fee:sumRows('fee'),delivery:sumRows('delivery'),transfer:sumRows('transfer'),
@@ -130,7 +155,7 @@ async function load(){
       unredeemed_orders:sumRows('unredeemed_orders'),unredeemed_cost:sumRows('unredeemed_cost')};
     const p=v=>rev?` · ${(v/rev*100).toFixed(1)}%`:'';
     $('#costs').innerHTML=[
-      ['Всего расходов',rub(mp),`<span class="muted">${rev?(mp/rev*100).toFixed(1)+'% выручки':''}</span>`],
+      ['Всего расходов',rub(mp),`<span class="muted">${rev?(mp/rev*100).toFixed(1)+'% оборота':''}</span>`],
       ['Комиссия',rub(c.fee),`<span class="muted">размещение${p(c.fee)}</span>`],
       ['Логистика',rub(c.delivery),`<span class="muted">вкл. межрегион и экспресс${p(c.delivery)}</span>`],
       ['Эквайринг',rub(c.transfer),`<span class="muted">перевод денег${p(c.transfer)}</span>`],
@@ -155,7 +180,8 @@ async function load(){
     `<td class="muted">${r.returns_orders?num(r.returns_orders)+' ('+rub(r.returns_sum)+')':'—'}</td>`+
     `<td class="muted">${r.unredeemed_orders?num(r.unredeemed_orders)+' ('+rub(r.unredeemed_cost)+')':'—'}</td>`+
     `<td class="neg">−${rub(r.cogs)}<span class="muted" style="font-size:11px"> ${r.cogs_cov_pct?r.cogs_cov_pct.toFixed(0)+'%':''}</span></td>`+
-    `<td class="${r.net<0?'neg':'pos'}"><b>${rub(r.net)}</b></td><td>${r.margin_pct==null?'—':r.margin_pct.toFixed(1)+'%'}</td></tr>`).join('')||'<tr><td colspan="13" class="muted">нет данных</td></tr>';
+    `<td class="${(r.mp?r.mp.net:r.net)<0?'neg':'pos'}"><b>${rub(r.mp?r.mp.net:r.net)}</b>${r.mp?'':'<span class="muted" style="font-size:11px"> витрина</span>'}</td>`+
+    `<td>${r.mp?(r.mp.margin_pct==null?'—':r.mp.margin_pct.toFixed(1)+'%'):(r.margin_pct==null?'—':r.margin_pct.toFixed(1)+'%')}</td></tr>`).join('')||'<tr><td colspan="13" class="muted">нет данных</td></tr>';
 
   const w=await api('/api/yandex/weekly');
   $('#weekly tbody').innerHTML=(w.rows||[]).map(r=>
@@ -164,7 +190,7 @@ async function load(){
   const sk=await api('/api/yandex/sku?limit=40');
   $('#sku tbody').innerHTML=(sk.rows||[]).map(r=>
     `<tr><td class="name" title="${(r.name||'').replace(/"/g,'&quot;')}">${r.name||'—'}</td><td class="muted">${r.offer||''}</td><td>${num(r.qty)}</td><td>${rub(r.revenue)}</td><td>${r.cogs!=null?rub(r.cogs):'<span class="muted">нет себест.</span>'}</td><td class="${r.margin_pct!=null&&r.margin_pct<15?'warn':''}">${r.margin_pct!=null?r.margin_pct+'%':'—'}</td></tr>`).join('');
-  $('#foot').textContent='Источник: Яндекс.Маркет Partner API (бизнес-уровень, все магазины кабинета). Обновляется в дневном прогоне. COGS/маржа — следующим шагом.';
+  $('#foot').innerHTML='Верхняя пятёрка и колонки «Чистая»/«Маржа» — с вкладки <b>«Отчёты МП»</b> (оборот по нашей цене = выручка + зачёт баллами, чистая = итого к перечислению − себестоимость, возвраты вычтены). Остальное — витрина Яндекс.Маркет Partner API (бизнес-уровень, все магазины кабинета), обновляется в дневном прогоне. Опер. расходы в чистую не входят — они на уровне юрлица, на <a href="/" style="color:var(--acc)">главной</a> и вкладке <a href="/opex" style="color:var(--acc)">«Опер. расходы»</a>.';
 }
 async function loadCostTasks(){
   const t=await api('/api/yandex/cost-tasks');

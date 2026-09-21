@@ -258,10 +258,10 @@ async function load(){
   $('#signals').innerHTML=(sig.tips||[]).map(t=>`<div class="tip ${t.sev}"><div class="tt">${t.title}</div><div class="tx">${t.text}</div></div>`).join('');
   const d=s.delta||{}, rev=s.revenue||1;
   $('#big').innerHTML=[
-    ['Выручка (продажи)',rub(s.revenue),deltaHtml(d.revenue,true,false)],
+    ['Оборот (наша цена)',rub(s.revenue),deltaHtml(d.revenue,true,false)],
     ['К перечислению',rub(s.to_payout),''],
-    ['COGS',rub(s.cogs)+` <span class="muted" style="font-size:13px">${pct(s.cogs_pct)}</span>`,''],
-    ['Чистая прибыль',rub(s.net),deltaHtml(d.net,true,false)],
+    ['Себестоимость',rub(s.cogs)+` <span class="muted" style="font-size:13px">${pct(s.cogs_pct)}</span>`,''],
+    ['Чистая',rub(s.net),deltaHtml(d.net,true,false)],
     ['Маржа',pct(s.margin_pct),deltaHtml(d.margin_pct,true,true)],
   ].map(([l,v,dl])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${dl}</div>`).join('');
   $('#sub').textContent=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} (текущий месяц неполный). `

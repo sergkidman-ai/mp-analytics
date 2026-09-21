@@ -117,11 +117,14 @@
       <a href="/market">🟡 Маркет</a>
       <a href="/sites">🌐 Сайты</a>
     </nav>
-    <div class="filters"><select id="f-period"></select></div>
+    <div class="filters">
+      <select id="f-org" title="Юрлицо — оба источника (Отчёты МП и Опер. расходы) умеют разрез по фирме"></select>
+      <select id="f-period"></select>
+    </div>
   </div>
   <div id="health"></div>
   <div class="big" id="big"></div>
-  <h2>📈 Динамика по неделям <span class="muted" style="font-weight:400;font-size:12px">(только ВБ + Ozon, без Маркета; недельная разбивка идёт по цене покупателя и с итогом выше не сходится — она для формы, не для суммы)</span></h2>
+  <h2>📈 Динамика по неделям <span class="muted" style="font-weight:400;font-size:12px">(только ВБ + Ozon, без Маркета; недельная разбивка идёт по цене покупателя и с итогом выше не сходится — она для формы, не для суммы)<span id="weekly-scope"></span></span></h2>
   <table id="weekly"><thead><tr><th>Неделя (Пн–Вс)</th><th>Выручка</th><th>Чистая прибыль</th><th>Реклама</th><th>Маржа %</th></tr></thead><tbody></tbody></table>
   <h2 style="margin-top:26px">🗓 Что мы меняли <span class="muted" style="font-weight:400;font-size:12px">(дневник событий — цифры выше читать вместе с ним)</span>
     <a href="#" id="ev-toggle" style="float:right;font-size:13px;font-weight:400">+ записать событие</a></h2>
@@ -158,6 +161,8 @@ const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
 const pct=v=>v==null?'—':v+'%';
 const MONTHS={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь','07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
 let period='';
+let org='';          // ИНН юрлица; пусто = весь бизнес (обе фирмы)
+let orgsFilled=false;
 
 function deltaHtml(d,goodUp,pp){
   if(!d||d.abs==null) return '';
@@ -178,7 +183,14 @@ async function initPeriods(){
 }
 
 async function load(){
-  const b=await api(`/api/business?period=${period}`);
+  const b=await api(`/api/business?period=${period}&org=${org}`);
+  if(!orgsFilled){   // список фирм приходит с данными — отдельный запрос не нужен
+    $('#f-org').innerHTML='<option value="">Весь бизнес (обе фирмы)</option>'+
+      (b.orgs||[]).map(o=>`<option value="${o.inn}">${o.name}</option>`).join('');
+    $('#f-org').value=org;
+    $('#f-org').onchange=e=>{org=e.target.value;load();};
+    orgsFilled=true;
+  }
   const t=b.total||{}, dl=b.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
   const after=b.net_after_opex;
 
@@ -199,10 +211,11 @@ async function load(){
     ['Чистая прибыль',`<span class="${mc(t.net)}">${rub(t.net)}</span>`,deltaHtml(dl.total_net,true,false)],
     ['Маржа',pct(t.margin_pct),deltaHtml(dl.total_margin,true,true)],
     ['Опер. расходы',`<span class="warn">${rub(b.opex)}</span>`+
+      (org&&!b.opex_org_split?`<div class="muted" style="font-size:11px;margin-top:2px">снапшот общий на бизнес — по фирмам не делится</div>`:'')+
       (un.n?`<div class="muted" style="font-size:11px;margin-top:2px">+ не разнесено: ${rub(un.s)} (${un.n})</div>`:''),''],
     ['Чистая после ФОТ',`<span class="${mc(after)}">${rub(after)}</span>`,''],
     ['Закупки',rub(pu.net)+
-      `<div class="muted" style="font-size:11px;margin-top:2px">${pu.docs||0} приёмок, с НДС</div>`,''],
+      `<div class="muted" style="font-size:11px;margin-top:2px">${pu.docs||0} приёмок, с НДС${org?' · по всему бизнесу':''}</div>`,''],
   ];
   $('#big').innerHTML=stats.map(([l,v,d])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${d||''}</div>`).join('');
 
@@ -212,7 +225,9 @@ async function load(){
     `<a class="plat" href="/ozon"><div class="an">🟦 Ozon →</div><div class="ar">оборот ${rub(oz.revenue)} · чистая <span class="${oz.net<0?'neg':'pos'}">${rub(oz.net)}</span> · маржа ${pct(oz.margin_pct)}</div></a>`+
     (ya?`<a class="plat" href="/market"><div class="an">🟡 Маркет →</div><div class="ar">оборот ${rub(ya.revenue)} · чистая <span class="${ya.net<0?'neg':'pos'}">${rub(ya.net)}</span> · маржа ${pct(ya.margin_pct)}</div></a>`:'');
 
-  $('#foot').innerHTML=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} (текущий месяц неполный). Итог — по 3 площадкам: <b>ВБ + Ozon + Маркет</b>, цифра в цифру со вкладкой <b>«Отчёты МП»</b>: оборот по нашей цене (ВБ до СПП, Маркет с зачётом), чистая = итого к перечислению − себестоимость, возвраты вычтены. Опер. расходы — со вкладки <b>«Опер. расходы»</b> (факт по банку, обе организации). Закупки — со вкладки <b>«Поставщики»</b>: приёмки минус возвраты поставщику, суммы с НДС, в чистую прибыль не входят. Детали и проблемные SKU — внутри площадок.`;
+  $('#foot').innerHTML=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} (текущий месяц неполный). Срез: <b>${b.org_name||'весь бизнес, обе фирмы'}</b>${b.org_name?' — только его аккаунты площадок и его платежи по банку':''}. Итог — по 3 площадкам: <b>ВБ + Ozon + Маркет</b>, цифра в цифру со вкладкой <b>«Отчёты МП»</b>: оборот по нашей цене (ВБ до СПП, Маркет с зачётом), чистая = итого к перечислению − себестоимость, возвраты вычтены. Опер. расходы — со вкладки <b>«Опер. расходы»</b> (факт по банку, обе организации). Закупки — со вкладки <b>«Поставщики»</b>: приёмки минус возвраты поставщику, суммы с НДС, в чистую прибыль не входят. Детали и проблемные SKU — внутри площадок.`;
+  // Неделя и сигналы считаются по бизнесу целиком — переключатель фирмы их не режет.
+  $('#weekly-scope').textContent = org ? ' · по всему бизнесу, без разреза по фирме' : '';
   loadWeekly();
   loadSignals();
 }
