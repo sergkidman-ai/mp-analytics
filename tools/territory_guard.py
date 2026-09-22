@@ -29,7 +29,7 @@ import subprocess
 # Манифест: домен → список regex путей (от корня репо). Первое совпадение = владелец.
 # Не перечисленное здесь — «общее» (core/db.py, CLAUDE.md, web/, docs/, разовые скрипты): НЕ флагуем.
 # Миграции делятся по БЛОКУ номера: 0xx = fin, 1xx = mkt, 2xx = inv, 3xx = ret, 4xx = prc,
-# 5xx = ev, 6xx = card
+# 5xx = ev, 6xx = card, 8xx = cf
 # (резерв против коллизий).
 DOMAINS = {
     "fin": [
@@ -79,6 +79,15 @@ DOMAINS = {
     ],
     # card = ЗДОРОВЬЕ КАРТОЧЕК на площадках: статусы модерации, «Ошибки»/«На доработку»,
     # дожим упавших апдейтов ТК. Контент карточек не наш — его пишет ТК.
+    # cf = КЭШФЛОУ: понедельный ДДС по юрлицам (факт банка + план платежей и выплат площадок).
+    # bank_txn/po_payment_status (inv) и данные площадок (fin) только читает.
+    "cf": [
+        r"^cf/",
+        r"^web/cashflow_api\.py$",
+        r"^web/static/cashflow\.html$",
+        r"^migrations/8\d\d_.*\.sql$",
+        r"^docs/BRIEF_CF\.md$",
+    ],
     "card": [
         r"^collectors/ozon_card_status\.py$",
         r"^tools/(ozon_card_|card_)",
