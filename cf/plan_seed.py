@@ -32,6 +32,10 @@ REGULAR = {
     "Бухгалтерия": ("other_out", "Бухгалтерия"),
 }
 MIN_SHARE = 0.05
+# переход на НДС 5 % без истории платежей: первый квартал считаем по обороту (Сергей 22.09:
+# «оборот за квартал × 5 % / 3 платежа»). Дисквэр на НДС с 01.08.2026, платит с октября.
+VAT_START = {"7811803918": dt.date(2026, 8, 1)}
+VAT_RATE = 0.05
 
 
 def months_back(today, n=3):
@@ -88,6 +92,35 @@ def regular_rules(today):
     return out
 
 
+def vat_from_turnover(org, today):
+    """НДС прошедшего квартала = оборот (по «Отчётам МП», наша цена) с даты перехода × 5 %,
+    тремя равными платежами 28-го в месяцах следующего квартала. Незакрытый месяц — не меньше
+    предыдущего (данные площадок отстают на дни-неделю)."""
+    from reports import mp_numbers
+    q_start = dt.date(today.year, 3 * ((today.month - 1) // 3) + 1, 1)
+    start = max(VAT_START[org], q_start)
+    months, d = [], start.replace(day=1)
+    while d <= today:
+        months.append(d)
+        d = (d + dt.timedelta(days=32)).replace(day=1)
+    turn, parts, prev = 0.0, [], 0.0
+    for m in months:
+        b = mp_numbers.business(m.strftime("%Y-%m"), org) or {}
+        v = float((b.get("total") or {}).get("oborot") or 0)
+        if m.month == today.month and m.year == today.year:
+            v = max(v, prev)
+        turn += v
+        parts.append(f"{m:%m}: {v / 1e6:.2f} млн")
+        prev = v
+    if turn <= 0:
+        return []
+    q_next = [(q_start.month + 2 + i) % 12 + 1 for i in range(3)]
+    return [dict(org_inn=org, category="vat", name="НДС (треть квартала)",
+                 amount=round(turn * VAT_RATE / 3, 2), schedule="quarterly", days=[28],
+                 months=q_next,
+                 note=f"оценка: оборот {turn / 1e6:.2f} млн ({', '.join(parts)}) × 5 % / 3")]
+
+
 def tax_rules(today):
     out = []
     taxes = db.query("""
@@ -118,6 +151,8 @@ def tax_rules(today):
                             amount=round(base, 2), schedule="quarterly", days=[28],
                             months=nxt,
                             note="оценка = текущий квартал, уточнить по декларации"))
+        elif org in VAT_START:
+            out += vat_from_turnover(org, today)
         # УСН: аванс за квартал ≈ половина последнего платежа «за полугодие»/«УСН»
         usn = [t for t in mine if "усн" in (t["purpose"] or "").lower()]
         big_enp = [t for t in enp if round(float(t["amount"]), 2) not in monthly]

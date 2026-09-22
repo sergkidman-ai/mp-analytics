@@ -94,6 +94,11 @@ class Balances:
         anchors = [(ad, b) for ad, b in self.manual.get(k, []) if ad <= d]
         if anchors:
             a_date, bal = anchors[-1]
+        elif self.manual.get(k):
+            # дата раньше первого опорного остатка — считаем НАЗАД от него
+            a_date, bal = self.manual[k][0]
+            bal -= sum(s for td, s in self.txn.get(k, []) if d < td <= a_date)
+            return bal, d <= self.last_txn.get(k, d)
         elif k in self.first_txn:
             a_date, bal = self.first_txn[k] - dt.timedelta(days=1), 0.0
         else:
@@ -144,9 +149,11 @@ def warnings(org, bal, today):
                         and direction='CREDIT' and (cp_inn='9704254424'
                         or purpose ~* 'яндекс\\s*маркет|1936049/21')""", (org,))
         d = r[0]["d"] if r else None
-        if d and (today - d).days > 10:
-            out.append(f"Яндекс Маркет: последнее поступление {d:%d.%m} — выплаты не приходят "
-                       f"{(today - d).days} дн. Проверить в ЛК, на какой счёт они идут.")
+        # в сентябре Маркет перевели с ежедневных выплат на еженедельные с отсрочкой 4 недели —
+        # пауза в месяц ожидаема; тревога, только если тишина дольше 5 недель
+        if d and (today - d).days > 35:
+            out.append(f"Яндекс Маркет: последнее поступление {d:%d.%m} — выплат нет "
+                       f"{(today - d).days} дн. Сверить с ЛК: Финансы → Предстоящие выплаты.")
     n = db.query("""select count(*) n, coalesce(sum(amount),0) s from cf_line
                     where org_inn=%s and note like '%%просрочено%%'""", (org,))[0]
     if n["n"]:
