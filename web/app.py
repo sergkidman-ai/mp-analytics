@@ -22,6 +22,7 @@ from pydantic import BaseModel
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from cf.mp_forecast import ACC_ORG as _CF_ACC_ORG  # noqa: E402
 import collectors.bank_txn_store as txn_store  # noqa: E402  правила разметки выписки (поток inv)
 import collectors.bank_file_import as bank_file_import  # noqa: E402  выписка файлом (банки без API)
 
@@ -919,6 +920,30 @@ ACC_ORG_NAMES = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Ди�
                  "ya_acc1": "Цифровой квадрат"}
 
 
+def _mp_money(org=""):
+    """«Наши деньги на МП» — последний снимок остатков лицевых счетов площадок (cf/mp_balance).
+
+    Не период, а «на сегодня»: сколько уже заработано, но ещё лежит у площадки. Цифры
+    официальные (Ozon cash-flow-statement, баланс ЛК WB, взаимозачёт Маркета), поэтому
+    у площадки без доступа (WB Дисквэр — нет токена со скоупом «Финансы») строки НЕТ:
+    фронт показывает её в сноске, а не подмешивает оценку в сумму."""
+    rows = db.query("""select b.platform, b.account, b.balance::float balance, b.day, b.source
+                         from cf_mp_balance b
+                         join (select account, max(day) d from cf_mp_balance group by 1) l
+                           on l.account = b.account and l.d = b.day
+                        where (%s = '' or b.org_inn = %s)""", (org, org))
+    if not rows:
+        return None
+    by = {}
+    for r in rows:
+        by[r["platform"]] = round(by.get(r["platform"], 0) + r["balance"], 2)
+    have = {r["account"] for r in rows}
+    missing = [a for a, o in _CF_ACC_ORG.items() if a not in have and (not org or o == org)]
+    return {"total": round(sum(by.values()), 2), **by,
+            "as_of": max(r["day"] for r in rows).isoformat(),
+            "missing": missing}
+
+
 @app.get("/api/business")
 def business(period: str = "", org: str = ""):
     """Главный экран: показатели за месяц + расходы + динамика к прошлому месяцу.
@@ -969,6 +994,7 @@ def business(period: str = "", org: str = ""):
                     "hold_pct": round(t_hold / t_rev * 100, 1) if t_rev and t_hold else None,
                     "cogs_actual": round(ca, 2) if ca and not org else None,
                     "with_market": bool(mp_ya)}
+    cur["mp_money"] = _mp_money(org)   # «Наши деньги на МП» — остатки лицевых счетов площадок
     op = _opex_total(period, org)  # с 08.2026 — факт из размеченной выписки, раньше — ручной снапшот
     cur["opex"] = round(op, 2)
     # По юрлицам расходы делит только факт по банку; на ручном снапшоте цифра общая — честно

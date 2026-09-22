@@ -202,6 +202,20 @@ function holdTiles(b){
       `<div class="muted" style="font-size:11px;margin-top:2px">${HOLD_NOTE[k]}, без возвратов</div>`,'']);
 }
 
+const MP_LBL={ozon:'🟦 Ozon',wb:'🟣 ВБ',yandex:'🟡 Маркет'};
+const MISS_LBL={wb_acc2:'ВБ Дисквэр',wb_acc1:'ВБ Цифровой',oz_acc1:'Ozon Цифровой',oz_acc2:'Ozon Дисквэр',ya_acc1:'Маркет'};
+// «Наши деньги на МП» — остаток лицевых счетов площадок (заработано, но ещё не выплачено).
+// Площадку без доступа в сумму НЕ подмешиваем: пишем сноской, чтобы цифра оставалась фактом.
+function mpMoneyTiles(m){
+  if(!m) return [];
+  const d=m.as_of?m.as_of.slice(8,10)+'.'+m.as_of.slice(5,7):'';
+  const miss=(m.missing||[]).map(k=>MISS_LBL[k]||k).join(', ');
+  return [['💰 Наши деньги на МП',`<span class="pos">${rub(m.total)}</span>`+
+      `<div class="muted" style="font-size:11px;margin-top:2px">заработано, но ещё на счетах площадок · на ${d}`+
+      (miss?` · без ${miss} (нет доступа к балансу)`:'')+`</div>`,''],
+    ...['ozon','wb','yandex'].filter(k=>m[k]!=null).map(k=>[MP_LBL[k],rub(m[k]),''])];
+}
+
 async function load(){
   const b=await api(`/api/business?period=${period}&org=${org}`);
   if(!orgsFilled){   // список фирм приходит с данными — отдельный запрос не нужен
@@ -233,6 +247,7 @@ async function load(){
     ['Маржа',pct(t.margin_pct),deltaHtml(dl.total_margin,true,true)],
   ];
   const holds=holdTiles(b);
+  const mpMoney=mpMoneyTiles(b.mp_money);
   const rest=[
     ['Опер. расходы',`<span class="warn">${rub(b.opex)}</span>${ofRev(b.opex)}`+
       (org&&!b.opex_org_split?`<div class="muted" style="font-size:11px;margin-top:2px">снапшот общий на бизнес — по фирмам не делится</div>`:'')+
@@ -242,7 +257,7 @@ async function load(){
       `<div class="muted" style="font-size:11px;margin-top:2px">${pu.docs||0} приёмок, с НДС${org?' · по всему бизнесу':''}</div>`,''],
   ];
   const tiles=a=>a.map(([l,v,d])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${d||''}</div>`).join('');
-  $('#big').innerHTML=[stats,holds,rest].filter(a=>a.length).map(a=>`<div class="row">${tiles(a)}</div>`).join('');
+  $('#big').innerHTML=[stats,holds,mpMoney,rest].filter(a=>a.length).map(a=>`<div class="row">${tiles(a)}</div>`).join('');
 
   const wb=b.wb||{}, oz=b.ozon||{}, ya=b.yandex;
   $('#plats').innerHTML=
