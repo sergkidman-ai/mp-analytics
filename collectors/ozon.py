@@ -1,6 +1,7 @@
 """collectors/ozon.py — Ozon финтранзакции → raw_ozon_transaction + разбор расходов.
 
-Источник: POST /v3/finance/transaction/list (операции по дням, реал-тайм). Это аналог
+Источник: POST /v3/finance/transaction/list — ОТКЛЮЧЁН Ozon 09.09.2026; с тех пор main() грузит
+начисления by-day + адаптер (collectors/ozon_accrual*.py) в тот же формат. Это аналог
 raw_wb_report для WB. Официальный отчёт о реализации у Ozon месячный — нам он не нужен
 для оперативной маржи, транзакции свежее.
 
@@ -236,9 +237,18 @@ def load_raw(account, ops, date_from, date_to):
 
 
 def main(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
+    # transaction/list отключён 09.09.2026 (fetch_transactions → 400 code 9): сырьё идёт через
+    # начисления by-day + адаптер в тот же raw_ozon_transaction (collectors/ozon_accrual*.py)
+    import collectors.ozon_accrual as oza
+    import collectors.ozon_accrual_adapter as ozad
     print(f"Ozon {account} {date_from}..{date_to}", flush=True)
-    ops = fetch_transactions(account, date_from, date_to)
-    n_raw = load_raw(account, ops, date_from, date_to)
+    oza.main(date_from, date_to, account)
+    ozad.main(date_from, date_to, account)
+    ops = [r["payload"] for r in db.query(
+        """select payload from raw_ozon_transaction where account = %s
+             and (payload->>'operation_date')::date between %s and %s""",
+        (account, date_from, date_to))]
+    n_raw = len(ops)
     # быстрый разбор по статьям для лога
     tot = {c: 0.0 for c in CATEGORIES}
     for o in ops:
