@@ -132,6 +132,16 @@ class Balances:
             mirror[dst].append((r["d"], -amt if r["direction"] == "CREDIT" else amt))
         return mirror
 
+    def _backward(self, k):
+        """Транзитный счёт (от нуля с первой операции не уходит в минус) — до опорной даты
+        считаем ВПЕРЁД: между последней выпиской и опорной датой были неизвестные поступления
+        площадок, и тянуть их назад нельзя. Накопительный (уходит в минус) — назад."""
+        run = low = 0.0
+        for _, s in self.txn.get(k, []):
+            run += s
+            low = min(low, run)
+        return low < -1000
+
     def kind(self, k):
         return "api" if self.api.get(k) else "roll"
 
@@ -143,8 +153,10 @@ class Balances:
         anchors = [(ad, b) for ad, b in self.manual.get(k, []) if ad <= d]
         if anchors:
             a_date, bal = anchors[-1]
-        elif self.manual.get(k):
-            # дата раньше первого опорного остатка — считаем НАЗАД от него
+        elif self.manual.get(k) and (self._backward(k) or d > self.last_txn.get(k, dt.date.min)):
+            # НАЗАД от опорной даты: либо счёт накопительный (от нуля уходит в минус — деньги
+            # лежали до первой загруженной выписки), либо дата попала в разрыв между последней
+            # выпиской и опорным остатком, где движения всё равно неизвестны
             a_date, bal = self.manual[k][0]
             bal -= sum(s for td, s in self.txn.get(k, []) if d < td <= a_date)
             bal -= sum(s for td, s in self.mirror.get(k, []) if d < td <= a_date)
@@ -274,7 +286,9 @@ def cashflow(org: str | None = None):
     fmt = lambda d: {w.isoformat(): round(v, 2) for w, v in d.items()}  # noqa: E731
     acc_list = []
     for k in sorted(bal.accounts()):
-        b, ok = bal.at(k, today - dt.timedelta(days=1))
+        # по API-счетам последний известный остаток — вчерашний, по остальным берём сегодня
+        # (там опорный остаток может быть введён сегодняшней датой)
+        b, ok = bal.at(k, today if bal.kind(k) == "roll" else today - dt.timedelta(days=1))
         # по счёту без API показываем отдельно остаток на дату выписки и движения после неё
         # (достроенные переводы): иначе «минус» пугает, хотя это просто неполная выписка
         stmt = bal.at(k, bal.last_txn[k])[0] if (not ok and k in bal.last_txn) else None
@@ -345,8 +359,9 @@ def transfers_cell(org, w):
                .replace(",", " ") +
                "она достроена по видимой стороне, на остаток это не влияет. " if mirrored else "")
             + (f"Счета без свежей выписки: {', '.join(stale)}. " if stale else "")
-            + "В строке остаётся сдвиг даты проводки на границе недели и операции по счетам, "
-              "выписок по которым нет вовсе.")
+            + "Плюс в строке — поступления на счёт, выписки по которому ещё нет: их видно по "
+              "опорному остатку, но какими операциями пришли, неизвестно (обычно выплаты Ozon). "
+              "Минус — чаще сдвиг даты проводки на границе недели.")
     return {"lines": lines, "hint": hint}
 
 
