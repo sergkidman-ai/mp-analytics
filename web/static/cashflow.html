@@ -113,6 +113,7 @@ const CATS = {salary:'Зарплата', ndfl:'НДФЛ и взносы', vat:'�
   programmer:'Программист', packaging:'Упаковка', rent:'Аренда', ads:'Реклама', delivery:'Доставка', other_out:'Прочие расходы'};
 let D = null, ORG = null, RULES = [];
 try { ORG = localStorage.getItem('cf_org'); } catch(e) {}
+const QP = new URLSearchParams(location.search).get('org'); if (QP) ORG = QP;
 
 const fmtR = v => (v == null ? '—' : Math.round(v).toLocaleString('ru-RU')) ;
 const fmtK = v => (v == null || Math.abs(v) < 500) ? '' : Math.round(v / 1000).toLocaleString('ru-RU');
