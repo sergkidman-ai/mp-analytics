@@ -303,7 +303,7 @@ def main():
     print(f"[run_daily] готово за {elapsed}с", flush=True)
 
 
-LOCK_PATH = BASE_DIR / "run_daily.lock"
+LOCK_PATH = BASE_DIR / "logs" / "run_daily.lock"
 
 
 def _single_instance():

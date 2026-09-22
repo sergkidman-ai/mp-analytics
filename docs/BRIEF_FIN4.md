@@ -71,7 +71,7 @@ accrued_category` + блоки `item_fees`, `non_item_fee`, `container_fees`, `p
 
 ## Хвосты, переданные вместе с потоком
 
-**1. ✅ `706be2a` (лок-файл `run_daily.lock` + потолок 20×429 и connect-таймаут в `collectors/wb.py`). Было: восемь зависших `run_daily.py`** — старший с 17.09, все стоят на чтении
+**1. ✅ `706be2a` (лок-файл `logs/run_daily.lock` + потолок 20×429 и connect-таймаут в `collectors/wb.py`). Было: восемь зависших `run_daily.py`** — старший с 17.09, все стоят на чтении
 `statistics-api.wildberries.ru` (финотчёт ВБ), сокеты в CLOSE-WAIT. У `collectors/wb.py:56`
 (`fetch_report`) стоит `timeout=300`, но цикл ретраев по 429 крутится без потолка — процесс
 уходит в вечное ожидание, а cron (02:07 и 19:07) каждый раз запускает следующую копию.
