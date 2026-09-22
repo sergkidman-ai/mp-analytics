@@ -1,13 +1,15 @@
 # поток: cf
-"""cf/yandex_netting.py — невыплаченное Маркетом по неделям доставки → cf_ya_netting_week.
+"""cf/yandex_netting.py — невыплаченное Маркетом по дням доставки → cf_ya_netting_day.
 
 Метода «Финансы → Предстоящие выплаты» в Partner API нет. Замена — отчёт по платежам:
     POST /v2/reports/united-netting/generate?format=CSV  {businessId, dateFrom, dateTo}
     GET  /v2/reports/info/{id} → DONE → ZIP с transaction_date.csv
-Строки «Будет переведён по графику выплат» (+) и «Будет удержан из платежей покупателей» (−) —
-ещё без платёжки, это и есть предстоящая выплата; «Переведён»/«Удержан» — уже выплачено
-(сверено с банком до копейки 22.09.2026). Даты выплаты в отчёте нет — её ставит
-cf/mp_forecast.py по графику (неделя доставки + 4 недели).
+Строки «Будет переведён по графику выплат» / «Будет удержан из платежей покупателей» — ещё без
+платёжки, это и есть предстоящая выплата; «Переведён»/«Удержан» — уже выплачено (сверено с банком
+до копейки 22.09.2026). TRANSACTION_SUM уже со знаком (удержания отрицательные). Строки без даты
+доставки — недоставленные заказы, в выплату ЛК не входят → пропускаем. Сверка со скрином ЛК
+22.09: 1–7.09 335,9 тыс. против 329,8, 8–14.09 130,8 против 122,9. Дату выплаты ставит
+cf/mp_forecast.py по графику Маркета (конец периода + 28 дней).
 Лимит: 1 генерация в 2 минуты, окно ≤ 3 месяцев. Зип кладём в incoming/yandex_netting/.
 
 Запуск:  ./venv/bin/python -m cf.yandex_netting
@@ -33,10 +35,10 @@ API = "https://api.partner.market.yandex.ru"
 ACCOUNT = "ya_acc1"
 WINDOW_DAYS = 70
 RAW_DIR = ROOT / "incoming" / "yandex_netting"
-SIGN = {"Будет переведён по графику выплат": ("pending", 1),
-        "Будет удержан из платежей покупателей": ("pending", -1),
-        "Переведён по графику выплат": ("paid", 1),
-        "Удержан из платежей покупателей": ("paid", -1)}
+KIND = {"Будет переведён по графику выплат": "pending",
+        "Будет удержан из платежей покупателей": "pending",
+        "Переведён по графику выплат": "paid",
+        "Удержан из платежей покупателей": "paid"}
 
 
 def _date(s):
@@ -66,19 +68,18 @@ def fetch(date_from, date_to):
 
 
 def parse(blob):
-    weeks = defaultdict(lambda: {"pending": 0.0, "paid": 0.0, "rows_cnt": 0})
+    days = defaultdict(lambda: {"pending": 0.0, "paid": 0.0, "rows_cnt": 0})
     with zipfile.ZipFile(io.BytesIO(blob)) as z:
         name = next(n for n in z.namelist() if n.endswith(".csv"))
         text = z.read(name).decode("utf-8-sig")
     for row in csv.DictReader(io.StringIO(text)):
-        kind = SIGN.get(row["PAYMENT_STATUS"])
-        if not kind:
+        kind = KIND.get(row["PAYMENT_STATUS"])
+        d = _date(row["ORDER_DELIVERY_DATE"])
+        if not kind or not d:
             continue
-        d = _date(row["ORDER_DELIVERY_DATE"]) or _date(row["TRANSACTION_DATE"])
-        w = d - dt.timedelta(days=d.weekday())
-        weeks[w][kind[0]] += kind[1] * float(row["TRANSACTION_SUM"] or 0)
-        weeks[w]["rows_cnt"] += 1
-    return weeks
+        days[d][kind] += float(row["TRANSACTION_SUM"] or 0)
+        days[d]["rows_cnt"] += 1
+    return days
 
 
 def main():
@@ -86,14 +87,14 @@ def main():
     blob = fetch(today - dt.timedelta(days=WINDOW_DAYS), today)
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     (RAW_DIR / f"netting_{today}.zip").write_bytes(blob)
-    weeks = parse(blob)
-    rows = [dict(account=ACCOUNT, week_start=w, pending=round(v["pending"], 2),
-                 paid=round(v["paid"], 2), rows_cnt=v["rows_cnt"]) for w, v in weeks.items()]
+    days = parse(blob)
+    rows = [dict(account=ACCOUNT, day=d, pending=round(v["pending"], 2),
+                 paid=round(v["paid"], 2), rows_cnt=v["rows_cnt"]) for d, v in days.items()]
     with db.get_conn() as conn, conn.cursor() as cur:
-        cur.execute("delete from cf_ya_netting_week where account=%s", (ACCOUNT,))
-    db.upsert("cf_ya_netting_week", rows, ["account", "week_start"])
+        cur.execute("delete from cf_ya_netting_day where account=%s", (ACCOUNT,))
+    db.upsert("cf_ya_netting_day", rows, ["account", "day"])
     pend = sum(r["pending"] for r in rows)
-    print(f"[ok] Маркет: {len(rows)} недель доставки, ждёт выплаты "
+    print(f"[ok] Маркет: {len(rows)} дней доставки, ждёт выплаты "
           + f"{pend:,.0f} ₽".replace(",", " "))
     return rows
 
