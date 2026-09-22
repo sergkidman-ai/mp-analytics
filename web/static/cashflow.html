@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кэшфлоу</title>
+<!-- поток: cf -->
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  h1{font-size:18px;margin:0}
+  h2{font-size:15px;margin:26px 0 10px}
+  main{flex:1;min-width:0;padding:22px}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}
+  .lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--card)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .orgs{display:flex;gap:4px}
+  .orgs button{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:6px 13px;font:inherit;cursor:pointer}
+  .orgs button.cur{background:var(--card);color:var(--txt);border-color:var(--acc)}
+  .alert{background:rgba(255,180,84,.10);border:1px solid var(--warn);border-radius:10px;padding:8px 14px;margin:0 0 8px;font-size:13px}
+  .kpis{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;min-width:180px}
+  .kpi .lbl{font-size:12px;color:var(--mut)}.kpi .vv{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums}
+  .kpi .sub{font-size:12px;color:var(--mut)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .scroll{overflow-x:auto}
+  table.cf{border-collapse:separate;border-spacing:0;font-size:13px;font-variant-numeric:tabular-nums;width:100%}
+  table.cf th,table.cf td{padding:4px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+  table.cf th{color:var(--mut);font-weight:600;font-size:11px;vertical-align:bottom}
+  table.cf th.k,table.cf td.k{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;min-width:190px}
+  table.cf tr.sec td{font-weight:700;background:rgba(63,167,255,.06)}
+  table.cf tr.sec td.k{background:#1a2838}
+  table.cf tr.bal td{font-weight:700;border-top:1px solid var(--mut)}
+  table.cf tr.sub td.k{padding-left:22px;color:var(--mut)}
+  table.cf td.plan{color:#b9c7d4;font-style:italic}
+  table.cf td.cur,table.cf th.cur{background:rgba(63,167,255,.10)}
+  table.cf td.click{cursor:pointer}
+  table.cf td.click:hover{outline:1px solid var(--acc);outline-offset:-1px}
+  table.cf th .wk{display:block;color:var(--txt);font-size:12px}
+  .est{color:var(--warn);font-style:normal}
+  .legend{font-size:12px;color:var(--mut);margin:8px 0 0}
+  #drill{margin-top:12px}
+  #drill table,table.oe{width:100%;border-collapse:collapse;font-size:13px}
+  #drill td,#drill th,table.oe td,table.oe th{padding:4px 7px;border-bottom:1px solid var(--line);text-align:left}
+  #drill th,table.oe th{color:var(--mut);font-size:11px}
+  .amt{text-align:right!important;white-space:nowrap;font-variant-numeric:tabular-nums}
+  table.oe input,table.oe select{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font:inherit;width:100%}
+  table.oe input[type=number]{text-align:right}
+  table.oe select{min-width:150px}
+  .ebtn{background:transparent;border:1px solid var(--line);color:var(--acc);border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer}
+  .ebtn:hover{background:var(--bg)}
+  .ebtn.primary{background:var(--acc);color:#06223c;border-color:var(--acc);font-weight:600}
+  .del{color:var(--neg);border:none;background:none;cursor:pointer;font-size:15px}
+  svg text{fill:var(--mut);font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Деньги</div>
+    <a href="/cashflow" class="cur">💰 Кэшфлоу</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main>
+  <div class="bar">
+    <h1>💰 Кэшфлоу</h1>
+    <div class="orgs" id="orgs"></div>
+    <span class="muted" id="stamp"></span>
+  </div>
+  <div id="alerts"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="card" id="chartbox"></div>
+  <h2>По неделям <span class="muted" style="font-weight:400;font-size:12px">тыс. ₽ · клик по ячейке — из чего сложилось</span></h2>
+  <div class="card">
+    <div class="scroll"><table class="cf" id="cf"></table></div>
+    <div class="legend">Прошлые недели — факт по банку. Текущая — факт по сегодня + план до конца недели.
+      Будущие — <i>план</i>; <span class="est">≈</span> — оценка (нет документа: среднее, прогноз по графику площадки).
+      «Переводы и неучтённое» — разница остатков банка и операций: переводы со счетов без выписки, сдвиг дат проводки.</div>
+    <div id="drill"></div>
+  </div>
+  <h2>Счета и остатки</h2>
+  <div class="card"><table class="oe" id="accs"></table>
+    <div class="legend">Альфа и Сбер — остаток по API банка на конец вчерашнего дня. Озон Банк API не имеет:
+      остаток = опорный остаток из выписки + операции загруженных выписок.</div></div>
+  <h2>Плановые платежи</h2>
+  <div class="card">
+    <table class="oe" id="rules"></table>
+    <div style="margin-top:10px;display:flex;gap:8px"><button class="ebtn" onclick="addRule()">+ платёж</button></div>
+    <div class="legend">«авто» — посчитано по факту за 3 месяца и пересчитывается каждую ночь. Правка любой строки
+      делает статью «ручной»: её автоправила больше не создаются. Аренда — из графика аренды (раздел поставщиков),
+      поставщики — из графика оплат + добор до среднего недельного факта, площадки — по их графикам выплат.</div>
+  </div>
+</main>
+<script>
+const CATS = {salary:'Зарплата', ndfl:'НДФЛ и взносы', vat:'НДС', usn:'УСН', taxes:'Налоги прочие',
+  programmer:'Программист', packaging:'Упаковка', rent:'Аренда', ads:'Реклама', delivery:'Доставка', other_out:'Прочие расходы'};
+let D = null, ORG = null, RULES = [];
+try { ORG = localStorage.getItem('cf_org'); } catch(e) {}
+const QP = new URLSearchParams(location.search).get('org'); if (QP) ORG = QP;
+
+const fmtR = v => (v == null ? '—' : Math.round(v).toLocaleString('ru-RU')) ;
+const fmtK = v => (v == null || Math.abs(v) < 500) ? '' : Math.round(v / 1000).toLocaleString('ru-RU');
+const cls = v => v < 0 ? 'neg' : '';
+const dm = s => s.slice(8, 10) + '.' + s.slice(5, 7);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function load() {
+  const r = await fetch('/api/cashflow' + (ORG ? '?org=' + ORG : ''));
+  D = await r.json(); ORG = D.org;
+  try { localStorage.setItem('cf_org', ORG); } catch(e) {}
+  render(); loadRules();
+}
+
+function render() {
+  document.getElementById('orgs').innerHTML = D.orgs.map(o =>
+    `<button class="${o.org_inn === ORG ? 'cur' : ''}" onclick="ORG='${o.org_inn}';load()">${esc(o.name)}</button>`).join('');
+  document.getElementById('stamp').textContent = 'на ' + dm(D.today) + '.' + D.today.slice(0, 4);
+  document.getElementById('alerts').innerHTML = D.warnings.map(w => `<div class="alert">⚠ ${esc(w)}</div>`).join('');
+  const W = D.weeks, B = D.balance;
+  // KPI
+  const nowBal = D.accounts.reduce((s, a) => s + (a.balance || 0), 0);
+  const plan = W.filter(w => w.kind !== 'fact');
+  let minW = plan[0];
+  plan.forEach(w => { if (B.close[w.week] < B.close[minW.week]) minW = w; });
+  const sum = (sec, kinds) => D.rows.filter(r => r.section === sec).reduce((s, r) =>
+    s + plan.reduce((t, w) => t + kinds.reduce((u, k) => u + ((r.cells[w.week] || {})[k] || 0), 0), 0), 0);
+  const inP = sum('in', ['plan']), outP = sum('out', ['plan']);
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="lbl">Остаток на счетах</div><div class="vv ${cls(nowBal)}">${fmtR(nowBal)} ₽</div><div class="sub">на конец вчера, все счета</div></div>
+    <div class="kpi"><div class="lbl">Минимум за ${plan.length} нед.</div><div class="vv ${cls(B.close[minW.week])}">${fmtR(B.close[minW.week])} ₽</div><div class="sub">конец недели ${dm(minW.week)}–${dm(minW.end)}</div></div>
+    <div class="kpi"><div class="lbl">Ожидаем поступлений</div><div class="vv pos">${fmtR(inP)} ₽</div><div class="sub">план до ${dm(plan[plan.length-1].end)}</div></div>
+    <div class="kpi"><div class="lbl">Запланировано платежей</div><div class="vv">${fmtR(-outP)} ₽</div><div class="sub">план до ${dm(plan[plan.length-1].end)}</div></div>`;
+  renderChart();
+  renderTable();
+  renderAccounts();
+}
+
+function renderChart() {
+  const W = D.weeks, B = D.balance, w = 900, h = 170, pl = 60, pr = 28, pt = 12, pb = 24;
+  const vals = W.map(x => B.close[x.week]);
+  const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals) || 1;
+  const x = i => pl + i * (w - pl - pr) / (W.length - 1), y = v => pt + (hi - v) * (h - pt - pb) / (hi - lo);
+  const ci = W.findIndex(q => q.kind === 'current');
+  const path = (from, to) => W.slice(from, to + 1).map((q, j) => (j ? 'L' : 'M') + x(from + j).toFixed(1) + ',' + y(vals[from + j]).toFixed(1)).join('');
+  const ticks = [lo, (lo + hi) / 2, hi];
+  let s = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px;display:block" role="img" aria-label="Остаток на конец недели">`;
+  ticks.forEach(t => s += `<line x1="${pl}" x2="${w - pr}" y1="${y(t)}" y2="${y(t)}" stroke="#243449"/><text x="${pl - 6}" y="${y(t) + 4}" text-anchor="end">${fmtK(t) || 0} т</text>`);
+  s += `<line x1="${pl}" x2="${w - pr}" y1="${y(0)}" y2="${y(0)}" stroke="#8aa0b5" stroke-width="1"/>`;
+  s += `<path d="${path(0, ci)}" fill="none" stroke="#3fa7ff" stroke-width="2.5"/>`;
+  s += `<path d="${path(ci, W.length - 1)}" fill="none" stroke="#3fa7ff" stroke-width="2" stroke-dasharray="5 4"/>`;
+  W.forEach((q, i) => {
+    const v = vals[i];
+    s += `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${v < 0 ? '#ff5d5d' : '#3fa7ff'}"><title>${dm(q.week)}–${dm(q.end)}: ${fmtR(v)} ₽</title></circle>`;
+    if (i % 2 === 0 || i === ci) s += `<text x="${x(i)}" y="${h - 6}" text-anchor="middle" ${i === ci ? 'style="fill:#e6edf3"' : ''}>${dm(q.week)}</text>`;
+  });
+  s += '</svg><div class="legend">Остаток на конец недели: сплошная — факт, пунктир — прогноз.</div>';
+  document.getElementById('chartbox').innerHTML = s;
+}
+
+function cellVal(c, kind) {
+  if (!c) return 0;
+  return kind === 'fact' ? c.fact : kind === 'plan' ? c.plan : c.fact + c.plan;
+}
+
+function renderTable() {
+  const W = D.weeks, B = D.balance;
+  const tdc = w => (w.kind === 'plan' ? 'plan ' : '') + (w.kind === 'current' ? 'cur ' : '');
+  let h = '<tr><th class="k"></th>' + W.map(w => `<th class="${w.kind === 'current' ? 'cur' : ''}">${w.kind === 'fact' ? 'факт' : w.kind === 'current' ? 'сейчас' : 'план'}<span class="wk">${dm(w.week)}–${dm(w.end)}</span></th>`).join('') + '</tr>';
+  const balRow = (label, key) => '<tr class="bal"><td class="k">' + label + '</td>' + W.map(w => {
+    const v = B[key][w.week], ex = B.exact[w.week];
+    return `<td class="${tdc(w)}${cls(v)}" title="${fmtR(v)} ₽${ex ? '' : ' · есть счета без свежей выписки'}">${fmtK(v) || '0'}${ex ? '' : '<span class="est">*</span>'}</td>`;
+  }).join('') + '</tr>';
+  h += balRow('Остаток на начало', 'open');
+  for (const sec of ['in', 'out']) {
+    const rows = D.rows.filter(r => r.section === sec && Object.keys(r.cells).length);
+    h += `<tr class="sec"><td class="k">${sec === 'in' ? 'Поступления' : 'Платежи'}</td>` + W.map(w => {
+      const v = rows.reduce((s, r) => s + cellVal(r.cells[w.week], w.kind), 0);
+      return `<td class="${tdc(w)}${cls(v)}">${fmtK(v)}</td>`;
+    }).join('') + '</tr>';
+    rows.forEach(r => {
+      h += `<tr class="sub"><td class="k">${esc(r.label)}</td>` + W.map(w => {
+        const c = r.cells[w.week]; const v = cellVal(c, w.kind);
+        if (!c || Math.abs(v) < 500) return `<td class="${tdc(w)}"></td>`;
+        let tip = fmtR(v) + ' ₽';
+        if (w.kind === 'current') tip = `факт ${fmtR(c.fact)} + план ${fmtR(c.plan)} ₽`;
+        if (c.plan0 != null) tip += ` · план на начало недели ${fmtR(c.plan0)} ₽`;
+        const est = (w.kind !== 'fact' && c.est) ? '<span class="est">≈</span>' : '';
+        return `<td class="click ${tdc(w)}${cls(v)}" title="${tip}" onclick="drill('${w.week}','${r.key}','${esc(r.label)}')">${est}${fmtK(v)}</td>`;
+      }).join('') + '</tr>';
+    });
+  }
+  h += '<tr class="sec"><td class="k">Сальдо недели</td>' + W.map(w => {
+    const v = D.rows.reduce((s, r) => s + cellVal(r.cells[w.week], w.kind), 0);
+    return `<td class="${tdc(w)}${cls(v)}">${fmtK(v) || '0'}</td>`;
+  }).join('') + '</tr>';
+  h += '<tr class="sub"><td class="k">Переводы и неучтённое</td>' + W.map(w => {
+    const v = B.diff[w.week];
+    return `<td class="${tdc(w)}${cls(v)}" title="${v == null ? '' : fmtR(v) + ' ₽'}">${v == null ? '' : fmtK(v)}</td>`;
+  }).join('') + '</tr>';
+  h += balRow('Остаток на конец', 'close');
+  document.getElementById('cf').innerHTML = h;
+  // прокрутка к текущей неделе
+  const sc = document.querySelector('.scroll'); const th = document.querySelector('th.cur');
+  if (sc && th) sc.scrollLeft = Math.max(0, th.offsetLeft - sc.clientWidth / 2);
+}
+
+async function drill(week, row, label) {
+  const r = await fetch(`/api/cashflow/cell?org=${ORG}&week=${week}&row=${row}`);
+  const d = await r.json();
+  const tot = d.lines.reduce((s, l) => s + l.amount, 0);
+  document.getElementById('drill').innerHTML = `<h2 style="margin:14px 0 6px">${esc(label)} · неделя с ${dm(week)} · ${fmtR(tot)} ₽
+    <button class="ebtn" style="margin-left:8px" onclick="document.getElementById('drill').innerHTML=''">×</button></h2>
+    <table><tr><th>дата</th><th></th><th class="amt">сумма, ₽</th><th>источник</th><th>комментарий</th></tr>` +
+    d.lines.map(l => `<tr><td>${dm(l.day)}</td><td>${l.kind === 'fact' ? 'факт' : (l.estimate ? 'оценка' : 'план')}</td>
+      <td class="amt ${cls(l.amount)}">${fmtR(l.amount)}</td><td class="muted">${esc(l.source)}</td><td>${esc(l.note)}</td></tr>`).join('') + '</table>';
+  document.getElementById('drill').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+function renderAccounts() {
+  let h = '<tr><th>банк</th><th>счёт</th><th class="amt">остаток, ₽</th><th>откуда</th><th>выписка по</th><th>опорный остаток из выписки</th></tr>';
+  D.accounts.forEach((a, i) => {
+    const man = a.manual[0];
+    const src = a.source === 'api' ? 'API банка' : (man ? `от остатка на ${dm(man.date)}` : 'от нуля с первой операции');
+    const form = a.bank === 'ozon' ? `<div style="display:flex;gap:6px">
+        <input type="date" id="bd${i}" value="${a.last_txn || ''}" style="max-width:150px">
+        <input type="number" step="0.01" id="bv${i}" placeholder="остаток на конец дня" value="${man ? man.balance : ''}">
+        <button class="ebtn" onclick="saveBal(${i})">сохранить</button></div>` : '';
+    h += `<tr><td>${esc(a.bank_name)}</td><td>…${a.account.slice(-4)}</td>
+      <td class="amt ${cls(a.balance)}">${fmtR(a.balance)}${a.exact ? '' : '<span class="est">*</span>'}</td>
+      <td class="muted">${src}</td><td>${a.last_txn ? dm(a.last_txn) : '—'}</td><td>${form}</td></tr>`;
+  });
+  document.getElementById('accs').innerHTML = h;
+}
+
+async function saveBal(i) {
+  const a = D.accounts[i];
+  const body = {org_inn: ORG, bank: a.bank, account: a.account,
+    bal_date: document.getElementById('bd' + i).value, balance: parseFloat(document.getElementById('bv' + i).value)};
+  if (!body.bal_date || isNaN(body.balance)) return alert('Укажите дату и остаток');
+  const r = await fetch('/api/cashflow/balance', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  if (!r.ok) return alert((await r.json()).detail || 'ошибка');
+  load();
+}
+
+async function loadRules() {
+  const r = await fetch('/api/cashflow/rules?org=' + ORG); const d = await r.json();
+  RULES = d.rules; renderRules(d.rent);
+}
+
+function renderRules(rent) {
+  let h = '<tr><th>статья</th><th>название</th><th class="amt">сумма платежа, ₽</th><th>дни месяца</th><th>месяцы (для квартальных)</th><th>вкл</th><th></th><th></th></tr>';
+  RULES.forEach((r, i) => {
+    h += `<tr><td><select id="rc${i}">${Object.entries(CATS).map(([k, v]) => `<option value="${k}" ${k === r.category ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
+      <td><input id="rn${i}" value="${esc(r.name)}"></td>
+      <td><input id="ra${i}" type="number" step="0.01" value="${r.amount}"></td>
+      <td><input id="rd${i}" value="${(r.days || []).join(', ')}" style="max-width:90px"></td>
+      <td><input id="rm${i}" value="${(r.months || []).join(', ')}" placeholder="каждый месяц"></td>
+      <td><input id="rx${i}" type="checkbox" ${r.active ? 'checked' : ''} style="width:auto"></td>
+      <td class="muted" title="${esc(r.note)}">${r.source === 'auto' ? 'авто' : 'ручн.'}</td>
+      <td style="white-space:nowrap"><button class="ebtn" onclick="saveRule(${i})">✓</button>${r.id ? `<button class="del" title="удалить" onclick="delRule(${r.id})">✕</button>` : ''}</td></tr>`;
+  });
+  (rent || []).forEach(r => h += `<tr><td class="muted">Аренда</td><td>${esc(r.note || 'аренда')}</td><td class="amt">${fmtR(r.amount)}</td><td colspan="5" class="muted">последний рабочий день · из графика аренды</td></tr>`);
+  document.getElementById('rules').innerHTML = h;
+}
+
+function addRule() { RULES.push({id: null, category: 'other_out', name: '', amount: 0, days: [1], months: null, active: true, source: 'manual'}); renderRules(); }
+
+async function saveRule(i) {
+  const r = RULES[i], ints = s => s.split(/[ ,;]+/).map(Number).filter(n => n > 0);
+  const months = ints(document.getElementById('rm' + i).value);
+  const body = {id: r.id, org_inn: ORG, category: document.getElementById('rc' + i).value,
+    name: document.getElementById('rn' + i).value || CATS[document.getElementById('rc' + i).value],
+    amount: parseFloat(document.getElementById('ra' + i).value) || 0,
+    days: ints(document.getElementById('rd' + i).value), months: months.length ? months : null,
+    schedule: months.length ? 'quarterly' : 'monthly', active: document.getElementById('rx' + i).checked};
+  const res = await fetch('/api/cashflow/rules', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  if (!res.ok) return alert((await res.json()).detail || 'ошибка');
+  load();
+}
+
+async function delRule(id) {
+  if (!confirm('Удалить плановый платёж?')) return;
+  await fetch('/api/cashflow/rules/' + id, {method: 'DELETE'}); load();
+}
+
+load();
+</script>
+</body>
+</html>
