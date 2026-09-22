@@ -76,13 +76,61 @@ class Balances:
         self.txn = defaultdict(list)
         self.last_txn = {}
         self.first_txn = {}
-        for r in db.query("""select bank, account, operation_date::date d,
+        for r in db.query("""select bank, account, operation_date::date as d,
                    sum(case when direction='CREDIT' then amount else -amount end) s
                    from bank_txn where org_inn=%s group by 1,2,3 order by 3""", (org,)):
             k = (r["bank"], r["account"])
             self.txn[k].append((r["d"], float(r["s"])))
             self.first_txn.setdefault(k, r["d"])
             self.last_txn[k] = r["d"]
+        self.credit_in = defaultdict(float)
+        for r in db.query("""select bank, account, sum(amount) s from bank_txn
+                             where org_inn=%s and direction='CREDIT' and cp_inn <> %s
+                             group by 1,2""", (org, org)):
+            self.credit_in[(r["bank"], r["account"])] = float(r["s"])
+        self.mirror = self._mirror_self_transfers(org)
+
+    def _mirror_self_transfers(self, org):
+        """Перевод между своими счетами виден на одном счёте, а выписки встречного за эту дату
+        ещё нет (Озон Банк присылает раз в месяц) — достраиваем встречную сторону сами, иначе
+        деньги «появляются из ниоткуда» и висят в строке «Переводы и неучтённое».
+        Счёт-получатель берём из назначения («…с накопительного счета №4070…»); если там номера
+        нет — по истории пар («тот же день, та же сумма, встречное направление»), а без истории —
+        счёт, куда приходят выплаты площадок (наибольший приход)."""
+        mirror = defaultdict(list)
+        roll = [k for k in (set(self.txn) | set(self.manual)) if not self.api.get(k)]
+        if not roll:
+            return mirror
+        by_number = {acc: (bank, acc) for bank, acc in roll}
+        rows = db.query("""select bank, account, operation_date::date as d, direction, amount,
+                                  coalesce(purpose, '') purpose
+                           from bank_txn where org_inn=%s and cp_inn=%s
+                           order by operation_date""", (org, org))
+        # пары «тот же день, та же сумма, встречное направление» за загруженный период —
+        # по ним видно, какой счёт обычно закрывает переводы с этого счёта
+        seen = defaultdict(int)
+        index = defaultdict(list)
+        for r in rows:
+            index[(r["d"], round(float(r["amount"]), 2))].append(r)
+        for (_, _), same in index.items():
+            for r in same:
+                for o in same:
+                    if o["account"] != r["account"] and o["direction"] != r["direction"]:
+                        seen[((r["bank"], r["account"]), (o["bank"], o["account"]))] += 1
+        for r in rows:
+            src = (r["bank"], r["account"])
+            dst = next((by_number[n] for n in by_number
+                        if n in r["purpose"] and by_number[n] != src), None)
+            if dst is None:
+                cand = [k for k in roll if k != src]
+                if not cand:
+                    continue
+                dst = max(cand, key=lambda k: (seen[(src, k)], self.credit_in.get(k, 0.0)))
+            if r["d"] <= self.last_txn.get(dst, dt.date.min):
+                continue                      # встречная сторона уже есть в выписке
+            amt = float(r["amount"])
+            mirror[dst].append((r["d"], -amt if r["direction"] == "CREDIT" else amt))
+        return mirror
 
     def kind(self, k):
         return "api" if self.api.get(k) else "roll"
@@ -99,6 +147,7 @@ class Balances:
             # дата раньше первого опорного остатка — считаем НАЗАД от него
             a_date, bal = self.manual[k][0]
             bal -= sum(s for td, s in self.txn.get(k, []) if d < td <= a_date)
+            bal -= sum(s for td, s in self.mirror.get(k, []) if d < td <= a_date)
             return bal, d <= self.last_txn.get(k, d)
         elif k in self.first_txn:
             a_date, bal = self.first_txn[k] - dt.timedelta(days=1), 0.0
@@ -107,6 +156,7 @@ class Balances:
         if d < a_date:
             return None, False
         bal += sum(s for td, s in self.txn.get(k, []) if a_date < td <= d)
+        bal += sum(s for td, s in self.mirror.get(k, []) if a_date < td <= d)
         return bal, d <= self.last_txn.get(k, a_date)
 
     def total(self, d):
@@ -225,8 +275,13 @@ def cashflow(org: str | None = None):
     acc_list = []
     for k in sorted(bal.accounts()):
         b, ok = bal.at(k, today - dt.timedelta(days=1))
+        # по счёту без API показываем отдельно остаток на дату выписки и движения после неё
+        # (достроенные переводы): иначе «минус» пугает, хотя это просто неполная выписка
+        stmt = bal.at(k, bal.last_txn[k])[0] if (not ok and k in bal.last_txn) else None
         acc_list.append({"bank": k[0], "bank_name": BANK_NAMES.get(k[0], k[0]),
                          "account": k[1], "balance": None if b is None else round(b, 2),
+                         "stmt_balance": None if stmt is None else round(stmt, 2),
+                         "after_stmt": None if (stmt is None or b is None) else round(b - stmt, 2),
                          "exact": ok, "source": bal.kind(k),
                          "manual": [{"date": d.isoformat(), "balance": v}
                                     for d, v in bal.manual.get(k, [])][-1:],
@@ -283,13 +338,15 @@ def transfers_cell(org, w):
              for (b, acc) in sorted(bal.accounts())
              if bal.kind((b, acc)) == "roll" and (b, acc) in bal.last_txn
              and bal.last_txn[(b, acc)] < w + dt.timedelta(days=6)]
-    net = sum(ln["amount"] for ln in lines)
-    hint = (f"Непарные переводы за неделю: {net:,.0f} ₽ — у них не видно второй стороны. "
-            .replace(",", " ") +
-            "Переводы между своими счетами в поток не идут: внутри фирмы они гасят друг друга. "
-            "Остаётся разница, если вторая сторона перевода — на счёте без свежей выписки"
-            + (": " + ", ".join(stale) if stale else "") +
-            ". Сюда же попадает сдвиг даты проводки на границе недели.")
+    mirrored = sum(abs(s) for k in bal.mirror for td, s in bal.mirror[k]
+                   if w <= td <= w + dt.timedelta(days=6))
+    hint = ("Переводы между своими счетами в поток не идут: внутри фирмы они гасят друг друга. "
+            + (f"У переводов на {mirrored:,.0f} ₽ встречной стороны в выписке нет — "
+               .replace(",", " ") +
+               "она достроена по видимой стороне, на остаток это не влияет. " if mirrored else "")
+            + (f"Счета без свежей выписки: {', '.join(stale)}. " if stale else "")
+            + "В строке остаётся сдвиг даты проводки на границе недели и операции по счетам, "
+              "выписок по которым нет вовсе.")
     return {"lines": lines, "hint": hint}
 
 

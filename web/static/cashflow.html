@@ -98,7 +98,9 @@
   <h2>Счета и остатки</h2>
   <div class="card"><table class="oe" id="accs"></table>
     <div class="legend">Альфа и Сбер — остаток по API банка на конец вчерашнего дня. Озон Банк API не имеет:
-      остаток = опорный остаток из выписки + операции загруженных выписок.</div></div>
+      остаток = опорный остаток из выписки + операции загруженных выписок. После даты выписки известны только
+      переводы между своими счетами (их встречная сторона достраивается по видимой), поэтому «после выписки»
+      обычно минус: списания видно, а поступления Ozon — нет.</div></div>
   <h2>Плановые платежи</h2>
   <div class="card">
     <table class="oe" id="rules"></table>
@@ -235,7 +237,7 @@ async function drill(week, row, label) {
 }
 
 function renderAccounts() {
-  let h = '<tr><th>банк</th><th>счёт</th><th class="amt">остаток, ₽</th><th>откуда</th><th>выписка по</th><th>опорный остаток из выписки</th></tr>';
+  let h = '<tr><th>банк</th><th>счёт</th><th class="amt">остаток, ₽</th><th class="amt">на дату выписки</th><th class="amt">после выписки</th><th>откуда</th><th>выписка по</th><th>опорный остаток из выписки</th></tr>';
   D.accounts.forEach((a, i) => {
     const man = a.manual[0];
     const src = a.source === 'api' ? 'API банка' : (man ? `от остатка на ${dm(man.date)}` : 'от нуля с первой операции');
@@ -245,6 +247,8 @@ function renderAccounts() {
         <button class="ebtn" onclick="saveBal(${i})">сохранить</button></div>` : '';
     h += `<tr><td>${esc(a.bank_name)}</td><td>…${a.account.slice(-4)}</td>
       <td class="amt ${cls(a.balance)}">${fmtR(a.balance)}${a.exact ? '' : '<span class="est">*</span>'}</td>
+      <td class="amt muted">${a.stmt_balance == null ? '' : fmtR(a.stmt_balance)}</td>
+      <td class="amt ${cls(a.after_stmt)}" title="известные движения после даты выписки: переводы между своими счетами, достроенные по видимой стороне">${a.after_stmt == null ? '' : fmtR(a.after_stmt)}</td>
       <td class="muted">${src}</td><td>${a.last_txn ? dm(a.last_txn) : '—'}</td><td>${form}</td></tr>`;
   });
   document.getElementById('accs').innerHTML = h;
