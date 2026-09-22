@@ -25,7 +25,7 @@ from core import db  # noqa: E402
 ORGS = ("7807355364", "7811803918")
 # статьи opex → (категория кэшфлоу, имя строки)
 REGULAR = {
-    "ФОТ": ("salary", "Зарплата"), "Самозанятые": ("salary", "Зарплата"),
+    "ФОТ": ("salary", "Зарплата"), "Самозанятые": ("selfemp", "Самозанятые"),
     "Налоги ФОТ": ("ndfl", "НДФЛ и взносы"),
     "Программист": ("programmer", "Программист"),
     "Упаковка": ("packaging", "Упаковка"),
@@ -79,7 +79,7 @@ def regular_rules(today):
         if cat == "salary":   # правило Сергея: 50/50 на 1 и 15 число, сумма — среднее по факту
             out.append(dict(org_inn=org, category=cat, name=name, amount=round(total / 3 / 2, 2),
                             schedule="monthly", days=[1, 15], months=None,
-                            note=f"среднее {start:%m}–{end:%m.%Y} (ФОТ + самозанятые) пополам"))
+                            note=f"среднее ФОТ {start:%m}–{end:%m.%Y} пополам"))
     for (org, cat, name, half), pays in buckets.items():
         if cat == "salary":
             continue

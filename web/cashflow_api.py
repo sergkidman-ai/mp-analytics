@@ -38,6 +38,7 @@ ROWS = [
     ("other_in", "Прочие поступления", "in", ["other_in"]),
     ("suppliers", "Поставщики", "out", ["suppliers"]),
     ("salary", "Зарплата", "out", ["salary"]),
+    ("selfemp", "Самозанятые", "out", ["selfemp"]),
     ("ndfl", "НДФЛ и взносы", "out", ["ndfl"]),
     ("taxes", "Налоги (НДС, УСН)", "out", ["vat", "usn", "taxes"]),
     ("programmer", "Программист", "out", ["programmer"]),
@@ -272,7 +273,7 @@ class Rule(BaseModel):
     note: str | None = None
 
 
-PLAN_CATS = {"salary", "ndfl", "vat", "usn", "taxes", "programmer", "packaging", "rent",
+PLAN_CATS = {"salary", "selfemp", "ndfl", "vat", "usn", "taxes", "programmer", "packaging", "rent",
              "ads", "delivery", "other_out"}
 
 

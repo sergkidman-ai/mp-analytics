@@ -35,7 +35,7 @@ SUPPLIER_RUNRATE_WEEKS = 8
 
 # статья opex_category → строка кэшфлоу
 OPEX_TO_CF = {
-    "ФОТ": "salary", "Самозанятые": "salary", "Налоги ФОТ": "ndfl", "Налоги и взносы": "taxes",
+    "ФОТ": "salary", "Самозанятые": "selfemp", "Налоги ФОТ": "ndfl", "Налоги и взносы": "taxes",
     "Аренда": "rent", "Программист": "programmer", "Упаковка": "packaging",
     "Реклама и продвижение": "ads", "Доставка": "delivery",
     "Закупка товара у поставщиков": "suppliers", "Перевод между своими счетами": "transfer",
