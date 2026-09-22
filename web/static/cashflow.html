@@ -225,8 +225,9 @@ async function drill(week, row, label) {
   const r = await fetch(`/api/cashflow/cell?org=${ORG}&week=${week}&row=${row}`);
   const d = await r.json();
   const tot = d.lines.reduce((s, l) => s + l.amount, 0);
+  const hint = d.hint ? `<div class="legend" style="margin:0 0 8px">${esc(d.hint)}</div>` : '';
   document.getElementById('drill').innerHTML = `<h2 style="margin:14px 0 6px">${esc(label)} · неделя с ${dm(week)} · ${fmtR(tot)} ₽
-    <button class="ebtn" style="margin-left:8px" onclick="document.getElementById('drill').innerHTML=''">×</button></h2>
+    <button class="ebtn" style="margin-left:8px" onclick="document.getElementById('drill').innerHTML=''">×</button></h2>${hint}
     <table><tr><th>дата</th><th></th><th class="amt">сумма, ₽</th><th>источник</th><th>комментарий</th></tr>` +
     d.lines.map(l => `<tr><td>${dm(l.day)}</td><td>${l.kind === 'fact' ? 'факт' : (l.estimate ? 'оценка' : 'план')}</td>
       <td class="amt ${cls(l.amount)}">${fmtR(l.amount)}</td><td class="muted">${esc(l.source)}</td><td>${esc(l.note)}</td></tr>`).join('') + '</table>';
