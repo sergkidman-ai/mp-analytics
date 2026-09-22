@@ -90,7 +90,10 @@ def operation_type(a, fees, has_comm, sale):
             return "OperationAgentStornoDeliveredToCustomer" if tids else "ClientReturnAgentOperation"
         return ("OperationAgentDeliveredToCustomer" if 32 in tids and len(tids) >= 2
                 else "OperationReturnGoodsFBSofRMS")
-    return f"Accrual_{'_'.join(map(str, tids)) or cat}"
+    # вид, которого не было в выборке 01.08–07.09 (напр. 116 «Сбор первых отзывов», с 09.2026):
+    # читаемый код по справочнику; в ozon_mp_report уйдёт в «Неклассифицировано», пока не внесён
+    # в ops/ozon_lines_registry по составу строки ЛК
+    return "AccrualType_" + "_".join((TYPES.get(t) or {}).get("name", str(t)) for t in tids) if tids else f"AccrualType_{cat}"
 
 
 def _op_name_type(op, fees):
@@ -102,9 +105,7 @@ def _op_name_type(op, fees):
 
 
 def _service_name(tid, amount):
-    names = MAP["service_name_by_type_id"].get(str(tid))
-    if not names:
-        return f"Accrual_{tid}_{(TYPES.get(tid) or {}).get('name', '')}"
+    names = MAP["service_name_by_type_id"][str(tid)]
     if tid == 51 and amount > 0:
         return "PremiumMembershipCommissionCancelled"
     if tid == 71:
@@ -123,7 +124,8 @@ def build(a, post, names):
     services = defaultdict(float)
     if cat != "NON_ITEM":      # у NON_ITEM старый формат держал сумму в остатке, services пусты
         for tid, v in fees:
-            services[_service_name(tid, v)] += v
+            if str(tid) in MAP["service_name_by_type_id"]:   # незнакомый вид — в остаток: его
+                services[_service_name(tid, v)] += v        # разнесёт тип операции (рус. имя)
 
     if cat == "POSTING":
         units = [(p.get("sku"), p.get("quantity") or 1) for p in a["posting"].get("products") or []]
