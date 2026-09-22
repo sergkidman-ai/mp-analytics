@@ -249,14 +249,48 @@ def cashflow(org: str | None = None):
 
 @router.get("/api/cashflow/cell")
 def cell(org: str, week: dt.date, row: str):
+    org = _org(org)
+    if row == "transfers":
+        return transfers_cell(org, monday(week))
     cats = next((c for k, _, _, c in ROWS if k == row), None)
     if cats is None:
         raise HTTPException(404, "нет такой строки")
     lines = db.query("""select day, kind, category, amount, source, note, estimate from cf_line
                         where org_inn=%s and week_start=%s and category = any(%s)
-                        order by day, amount""", (_org(org), monday(week), cats))
+                        order by day, amount""", (org, monday(week), cats))
     return {"lines": [dict(r, day=r["day"].isoformat(), amount=float(r["amount"]))
                       for r in lines]}
+
+
+def transfers_cell(org, w):
+    """Строка «Переводы и неучтённое» = остаток на конец недели − остаток на начало − операции.
+    Считается из остатков, а не из cf_line, поэтому раскрываем её отдельно: показываем переводы
+    между своими счетами за неделю (они исключены из потока) и счета без свежей выписки —
+    обычно вторая сторона перевода как раз на таком счёте."""
+    txns = db.query("""select operation_date::date as d, bank, account, direction, amount,
+                              left(purpose, 120) purpose
+                       from bank_txn where org_inn=%s and cp_inn=%s
+                         and operation_date::date between %s and %s
+                       order by operation_date, amount desc""",
+                    (org, org, w, w + dt.timedelta(days=6)))
+    bal = Balances(org)
+    lines = [{"day": t["d"].isoformat(), "kind": "fact",
+              "category": "transfer", "estimate": False,
+              "amount": float(t["amount"]) * (1 if t["direction"] == "CREDIT" else -1),
+              "source": f"{BANK_NAMES.get(t['bank'], t['bank'])} …{t['account'][-4:]}",
+              "note": t["purpose"]} for t in txns]
+    stale = [f"{BANK_NAMES.get(b, b)} …{acc[-4:]} (выписка по {bal.last_txn[(b, acc)]:%d.%m})"
+             for (b, acc) in sorted(bal.accounts())
+             if bal.kind((b, acc)) == "roll" and (b, acc) in bal.last_txn
+             and bal.last_txn[(b, acc)] < w + dt.timedelta(days=6)]
+    net = sum(ln["amount"] for ln in lines)
+    hint = (f"Непарные переводы за неделю: {net:,.0f} ₽ — у них не видно второй стороны. "
+            .replace(",", " ") +
+            "Переводы между своими счетами в поток не идут: внутри фирмы они гасят друг друга. "
+            "Остаётся разница, если вторая сторона перевода — на счёте без свежей выписки"
+            + (": " + ", ".join(stale) if stale else "") +
+            ". Сюда же попадает сдвиг даты проводки на границе недели.")
+    return {"lines": lines, "hint": hint}
 
 
 # ── правка плана и остатков ──────────────────────────────────────────────────
