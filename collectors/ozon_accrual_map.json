@@ -1,0 +1,251 @@
+{
+ "_about": "Ozon accrual/by-day → формат transaction/list. Выведено на 6986 парах 01.08–07.09.2026 (docs/reference/ozon_accrual_to_txn_mapping.md). Неоднозначные: type 71 (вывоз против сбора возвратов — берём «вывоз», как в справочнике), 25 (Потеря по вине Ozon против Начисление по спору), 16 (Drop-off ПВЗ/СЦ).",
+ "key_to_operation_type": {
+  "ITEM|15|": "DisposalOfGoods",
+  "ITEM|1|": "MarketplaceRedistributionOfAcquiringOperation",
+  "ITEM|38|": "OperationMarketplacePackageMaterialsProvision",
+  "ITEM|39|": "OperationMarketplacePackageRedistribution",
+  "ITEM|51|": "PremiumMembership",
+  "ITEM|71|": "SellerReturnsDeliveryToPickupPoint",
+  "ITEM|74|": "StarsMembership",
+  "ITEM|79|": "OperationMarketplaceItemTemporaryStorageRedistribution",
+  "ITEM|82|": "OperationMarketplaceServiceVolumeWeightCharacsProcessing",
+  "NON_ITEM|121|": "OperationCourierPickUpReinvoice",
+  "NON_ITEM|18|": "OperationMarketplaceServiceEarlyPaymentAccrual",
+  "NON_ITEM|25|": "AccrualInternalClaim",
+  "NON_ITEM|38|": "OperationMarketplacePackageMaterialsProvision",
+  "NON_ITEM|39|": "OperationMarketplacePackageRedistribution",
+  "NON_ITEM|41|": "OperationMarketplaceCostPerClick",
+  "NON_ITEM|43|": "OperationCourierArrangement",
+  "NON_ITEM|44|": "OperationCourierPickUpDelivery",
+  "NON_ITEM|46|": "OperationMarketplaceServiceStorage",
+  "NON_ITEM|52|": "OperationSubscriptionPremiumPlus",
+  "NON_ITEM|54|": "OperationPromotionWithCostPerOrder",
+  "NON_ITEM|62|": "MarketplaceSellerReexposureDeliveryReturnOperation",
+  "NON_ITEM|63|": "MarketplaceAgencyFeeAggregator3plRFBS",
+  "NON_ITEM|64|": "MarketplaceServiceRedistributionOfDeliveryServicesRFBS",
+  "NON_ITEM|65|": "MarketplaceServiceEasyReturnRfbs",
+  "NON_ITEM|93|": "DefectFineShipmentDelay",
+  "NON_ITEM|94|": "DefectFineShipmentDelayRated",
+  "NON_ITEM|96|": "OperationMarketplaceAcceleratedProductReviews",
+  "POSTING|16,17,29,32|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|16,17|": "OperationReturnGoodsFBSofRMS",
+  "POSTING|17,29,32,42|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|17,29,32|": "OperationAgentDeliveredToCustomer",
+  "POSTING|17,29,32|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|17,32,98|": "OperationAgentDeliveredToCustomer",
+  "POSTING|17,32,98|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|17,32|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|17|": "OperationReturnGoodsFBSofRMS",
+  "POSTING|29,32,42|": "OperationAgentDeliveredToCustomer",
+  "POSTING|29,32,42|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|29,32|": "OperationAgentDeliveredToCustomer",
+  "POSTING|29,32|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|29|": "OperationReturnGoodsFBSofRMS",
+  "POSTING|32,42,98|": "OperationAgentDeliveredToCustomer",
+  "POSTING|32,42,98|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|32,42,98|c-": "OperationAgentStornoDeliveredToCustomer",
+  "POSTING|32,42|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|32,98|": "OperationAgentDeliveredToCustomer",
+  "POSTING|32,98|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|32,98|c-": "OperationAgentStornoDeliveredToCustomer",
+  "POSTING|32|": "OperationReturnGoodsFBSofRMS",
+  "POSTING|32|c+": "OperationAgentDeliveredToCustomer",
+  "POSTING|32|c-": "OperationAgentStornoDeliveredToCustomer",
+  "POSTING|42|": "OperationReturnGoodsFBSofRMS",
+  "POSTING|45|": "OperationReturnGoodsFBSofRMS",
+  "POSTING|59|": "OperationReturnGoodsFBSofRMS",
+  "POSTING||c+": "OperationAgentDeliveredToCustomer",
+  "POSTING||c-": "ClientReturnAgentOperation"
+ },
+ "operation_type_to_name_type": {
+  "AccrualInternalClaim": {
+   "operation_type_name": "Потеря по вине Ozon в логистике",
+   "type": "compensation"
+  },
+  "AccrualWithoutDocs": {
+   "operation_type_name": "Начисление по спору",
+   "type": "compensation"
+  },
+  "ClientReturnAgentOperation": {
+   "operation_type_name": "Получение возврата, отмены, невыкупа от покупателя",
+   "type": "returns"
+  },
+  "DefectFineShipmentDelay": {
+   "operation_type_name": "Превышение индекса ошибок: просроченная отгрузка",
+   "type": "services"
+  },
+  "DefectFineShipmentDelayRated": {
+   "operation_type_name": "Отгрузка в нерекомендованный слот",
+   "type": "services"
+  },
+  "DefectFineShipmentDelayRatedCancelled": {
+   "operation_type_name": "Отгрузка в нерекомендованный слот - отмена начисления",
+   "type": "services"
+  },
+  "DisposalOfGoods": {
+   "operation_type_name": "Утилизация товара",
+   "type": "services"
+  },
+  "MarketplaceAgencyFeeAggregator3plRFBS": {
+   "operation_type_name": "Агентское вознаграждение за доставку Партнерами Ozon на схеме realFBS",
+   "type": "services"
+  },
+  "MarketplaceRedistributionOfAcquiringOperation": {
+   "operation_type_name": "Оплата эквайринга",
+   "type": "other"
+  },
+  "MarketplaceSellerReexposureDeliveryReturnOperation": {
+   "operation_type_name": "Перечисление за доставку от покупателя",
+   "type": "transfer_delivery"
+  },
+  "MarketplaceServiceEasyReturnRfbs": {
+   "operation_type_name": "Услуги доставки Партнёрами Ozon на схеме realFBS: Лёгкий возврат Почтой России",
+   "type": "orders"
+  },
+  "MarketplaceServiceRedistributionOfDeliveryServicesRFBS": {
+   "operation_type_name": "Услуги доставки Партнерами Ozon на схеме realFBS",
+   "type": "orders"
+  },
+  "OperationAgentDeliveredToCustomer": {
+   "operation_type_name": "Доставка покупателю",
+   "type": "orders"
+  },
+  "OperationAgentStornoDeliveredToCustomer": {
+   "operation_type_name": "Доставка покупателю — отмена начисления",
+   "type": "returns"
+  },
+  "OperationCourierArrangement": {
+   "operation_type_name": "Организация выезда курьера",
+   "type": "services"
+  },
+  "OperationCourierPickUpDelivery": {
+   "operation_type_name": "Доставка курьером Pick-up",
+   "type": "services"
+  },
+  "OperationCourierPickUpReinvoice": {
+   "operation_type_name": "Доставка до СЦ партнёрами",
+   "type": "services"
+  },
+  "OperationMarketplaceAcceleratedProductReviews": {
+   "operation_type_name": "Ускоренный сбор отзывов",
+   "type": "services"
+  },
+  "OperationMarketplaceCostPerClick": {
+   "operation_type_name": "Оплата за клик",
+   "type": "services"
+  },
+  "OperationMarketplaceItemTemporaryStorageRedistribution": {
+   "operation_type_name": "Временное размещение товара партнерами",
+   "type": "services"
+  },
+  "OperationMarketplacePackageMaterialsProvision": {
+   "operation_type_name": "Обеспечение материалами для упаковки товара",
+   "type": "services"
+  },
+  "OperationMarketplacePackageRedistribution": {
+   "operation_type_name": "Упаковка товара партнёрами",
+   "type": "services"
+  },
+  "OperationMarketplaceServiceEarlyPaymentAccrual": {
+   "operation_type_name": "Услуга досрочной выплаты",
+   "type": "services"
+  },
+  "OperationMarketplaceServiceStorage": {
+   "operation_type_name": "Услуга размещения товаров на складе",
+   "type": "services"
+  },
+  "OperationMarketplaceServiceVolumeWeightCharacsProcessing": {
+   "operation_type_name": "Услуга по дополнительной обработке ОВХ",
+   "type": "services"
+  },
+  "OperationPromotionWithCostPerOrder": {
+   "operation_type_name": "Продвижение с оплатой за заказ",
+   "type": "services"
+  },
+  "OperationReturnGoodsFBSofRMS": {
+   "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+   "type": "returns"
+  },
+  "OperationSellerReturnsCargoAssortmentInvalid": {
+   "operation_type_name": "Подготовка товара к вывозу: Брак",
+   "type": "services"
+  },
+  "OperationSellerReturnsCargoAssortmentValid": {
+   "operation_type_name": "Подготовка товара к вывозу: Валид",
+   "type": "services"
+  },
+  "OperationSubscriptionPremiumPlus": {
+   "operation_type_name": "Подписка Premium Plus",
+   "type": "services"
+  },
+  "PremiumMembership": {
+   "operation_type_name": "Подписка Premium Pro (процент)",
+   "type": "other"
+  },
+  "SellerReturnsDeliveryToPickupPoint": {
+   "operation_type_name": "Вывоз товара со Склада силами Ozon: Доставка до ПВЗ",
+   "type": "services"
+  },
+  "StarsMembership": {
+   "operation_type_name": "Звёздные товары",
+   "type": "services"
+  }
+ },
+ "service_name_by_type_id": {
+  "1": [
+   "MarketplaceRedistributionOfAcquiringOperation"
+  ],
+  "15": [
+   "MarketplaceServiceItemDisposalDetailed"
+  ],
+  "16": [
+   "MarketplaceServiceItemDropoffPVZ",
+   "MarketplaceServiceItemDropoffSC"
+  ],
+  "17": [
+   "MarketplaceServiceItemRedistributionDropOffApvz"
+  ],
+  "29": [
+   "MarketplaceServiceItemRedistributionLastMileCourier"
+  ],
+  "32": [
+   "MarketplaceServiceItemDirectFlowLogistic"
+  ],
+  "38": [
+   "MarketplaceServiceItemPackageMaterialsProvision"
+  ],
+  "39": [
+   "MarketplaceServiceItemPackageRedistribution"
+  ],
+  "42": [
+   "MarketplaceServiceItemDropoffPickup"
+  ],
+  "45": [
+   "MarketplaceServiceItemRedistributionReturnsPVZ"
+  ],
+  "51": [
+   "PremiumMembershipCommission",
+   "PremiumMembershipCommissionCancelled"
+  ],
+  "59": [
+   "MarketplaceServiceItemReturnFlowLogistic"
+  ],
+  "71": [
+   "MarketplaceServiceSellerReturnsCargoAssortment",
+   "MarketplaceServiceProductMovementFromWarehouse"
+  ],
+  "74": [
+   "ItemAgentServiceStarsMembership"
+  ],
+  "79": [
+   "MarketplaceServiceItemTemporaryStorageRedistribution"
+  ],
+  "82": [
+   "MarketplaceServiceVolumeWeightCharacsProcessing"
+  ],
+  "98": [
+   "MarketplaceServiceItemDeliveryToHandoverPlaceOzon"
+  ]
+ }
+}

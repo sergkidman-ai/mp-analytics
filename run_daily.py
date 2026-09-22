@@ -24,8 +24,9 @@ import collectors.moysklad as ms          # noqa: E402
 import collectors.wb as wb                # noqa: E402
 import collectors.ms_demand_cogs as msdc  # noqa: E402
 import collectors.ms_return_cogs as msrc  # noqa: E402
-import collectors.ozon as oz              # noqa: E402
 import collectors.ozon_postings as ozp    # noqa: E402
+import collectors.ozon_accrual as oza      # noqa: E402
+import collectors.ozon_accrual_adapter as ozad  # noqa: E402
 import collectors.ozon_realization as ozr  # noqa: E402
 import reports.margin_by_sku as margin    # noqa: E402
 import reports.margin_ozon_sku as ozm     # noqa: E402
@@ -178,8 +179,11 @@ def main():
         ozon_txn_ok, ozon_post_ok = {}, {}
         for f, l in months:
             df, dt = f.isoformat(), l.isoformat()
-            ozon_txn_ok[df] = step(f"Ozon транзакции {acc} {df}..{dt}", lambda a=acc, x=df, y=dt: oz.main(x, y, a))
+            # /v3/finance/transaction/list отключён 09.09.2026 → начисления by-day + адаптер в старый
+            # формат raw_ozon_transaction. Постинги ДО адаптера: из них схема и дата заказа.
             ozon_post_ok[df] = step(f"Ozon постинги {acc} {df}", lambda a=acc, x=df, y=dt: ozp.main(x, y, a))
+            ozon_txn_ok[df] = step(f"Ozon транзакции {acc} {df}..{dt}",
+                                   lambda a=acc, x=df, y=dt: (oza.main(x, y, a), ozad.main(x, y, a)))
             # Отчёт о реализации (сплит «Продажи»: Выручка/Баллы/Партнёры для дашборда). Не гейтит витрину.
             step(f"Ozon отчёт о реализации {acc} {f.year}-{f.month:02d}",
                  lambda a=acc, y=f.year, m=f.month: ozr.load_raw(a, y, m, ozr.fetch(a, y, m)))
@@ -299,5 +303,32 @@ def main():
     print(f"[run_daily] готово за {elapsed}с", flush=True)
 
 
+LOCK_PATH = BASE_DIR / "logs" / "run_daily.lock"
+
+
+def _single_instance():
+    """Не запускаться поверх идущего прогона: cron (02:07, 19:07) плодил копии поверх висящих.
+    flock снимается ядром при смерти процесса — устаревший лок не мешает."""
+    import fcntl
+    import os
+    f = open(LOCK_PATH, "a+")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        f.seek(0)
+        held = f.read().strip()
+        age_h = (datetime.datetime.now().timestamp() - LOCK_PATH.stat().st_mtime) / 3600
+        tag = "[FAIL]" if age_h > 12 else "[skip]"
+        print(f"{tag} run_daily: предыдущий прогон ещё идёт ({held}, {age_h:.1f} ч) — "
+              f"этот запуск пропущен", flush=True)
+        sys.exit(1 if age_h > 12 else 0)
+    f.seek(0)
+    f.truncate()
+    f.write(f"pid {os.getpid()} с {datetime.datetime.now():%Y-%m-%d %H:%M}")
+    f.flush()
+    return f
+
+
 if __name__ == "__main__":
+    _lock = _single_instance()
     main()
