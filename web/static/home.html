@@ -26,7 +26,10 @@
   .health .he{font-size:48px;line-height:1}
   .health .ht{font-size:19px;font-weight:700}
   .health .hs{color:var(--mut);font-size:13px;margin-top:3px}
-  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-bottom:16px}
+  .big{margin-bottom:16px}
+  /* три ряда: итоги · комиссии площадок (всегда вместе) · опекс/после ФОТ/закупки */
+  .big .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-bottom:14px}
+  .big .row:last-child{margin-bottom:0}
   .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
   .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:24px;font-weight:700;margin-top:4px}
   .bi .delta{font-size:12px;margin-top:3px}
@@ -219,21 +222,25 @@ async function load(){
   // Все показатели — с вкладки «Отчёты МП» (оборот по нашей цене, до скидок площадки),
   // опер. расходы — с вкладки «Опер. расходы», закупки — с вкладки «Поставщики».
   const un=b.opex_unassigned||{}, pu=b.purchases||{};
+  const ofRev=v=>(v==null||!t.revenue)?'':` <span class="muted" style="font-size:13px">${(v/t.revenue*100).toFixed(1)}% оборота</span>`;
   const stats=[
     ['Оборот (наша цена)',rub(t.revenue),deltaHtml(dl.total_revenue,true,false)],
     ['Себестоимость',`${rub(t.cogs)} <span class="muted" style="font-size:13px">${pct(t.cogs_pct)}</span>`+
       (t.cogs_actual?`<div class="muted" style="font-size:11px;margin-top:2px">учётная (Цифровой): ${rub(t.cogs_actual)}</div>`:''),''],
     ['Чистая прибыль',`<span class="${mc(t.net)}">${rub(t.net)}</span>`,deltaHtml(dl.total_net,true,false)],
     ['Маржа',pct(t.margin_pct),deltaHtml(dl.total_margin,true,true)],
-    ...holdTiles(b),
-    ['Опер. расходы',`<span class="warn">${rub(b.opex)}</span>`+
+  ];
+  const holds=holdTiles(b);
+  const rest=[
+    ['Опер. расходы',`<span class="warn">${rub(b.opex)}</span>${ofRev(b.opex)}`+
       (org&&!b.opex_org_split?`<div class="muted" style="font-size:11px;margin-top:2px">снапшот общий на бизнес — по фирмам не делится</div>`:'')+
       (un.n?`<div class="muted" style="font-size:11px;margin-top:2px">+ не разнесено: ${rub(un.s)} (${un.n})</div>`:''),''],
-    ['Чистая после ФОТ',`<span class="${mc(after)}">${rub(after)}</span>`,''],
+    ['Чистая после ФОТ',`<span class="${mc(after)}">${rub(after)}</span>${ofRev(after)}`,''],
     ['Закупки',rub(pu.net)+
       `<div class="muted" style="font-size:11px;margin-top:2px">${pu.docs||0} приёмок, с НДС${org?' · по всему бизнесу':''}</div>`,''],
   ];
-  $('#big').innerHTML=stats.map(([l,v,d])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${d||''}</div>`).join('');
+  const tiles=a=>a.map(([l,v,d])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${d||''}</div>`).join('');
+  $('#big').innerHTML=[stats,holds,rest].filter(a=>a.length).map(a=>`<div class="row">${tiles(a)}</div>`).join('');
 
   const wb=b.wb||{}, oz=b.ozon||{}, ya=b.yandex;
   $('#plats').innerHTML=
