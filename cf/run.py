@@ -1,8 +1,7 @@
 # поток: cf
-"""cf/run.py — ежедневный прогон раздела «Кэшфлоу»: остатки банков → автоплан → витрина.
+"""cf/run.py — ежедневный прогон раздела «Кэшфлоу»: остатки банков → автоплан → отчёт Маркета → витрина.
 
-Cron (UTC): после ночных выписок (inv 04:00) и run_daily; днём — пересборка витрины,
-чтобы подтягивались новые операции банка и статусы оплат поставщикам.
+Cron (UTC): раз в день 05:20, после ночных выписок (inv 04:00) и run_daily (решение Сергея 22.09).
     ./venv/bin/python -m cf.run            # полный: остатки + план + витрина
     ./venv/bin/python -m cf.run --light    # только витрина
 """
@@ -12,7 +11,7 @@ import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from cf import balances, plan_seed, build  # noqa: E402
+from cf import balances, plan_seed, build, yandex_netting  # noqa: E402
 
 
 def main():
@@ -22,6 +21,10 @@ def main():
     if not a.light:
         balances.main(["--days", "3"])   # 3 дня — догоняем пропуски, если банк лежал
         plan_seed.seed()
+        try:
+            yandex_netting.main()
+        except Exception as e:  # отчёт Маркета не пришёл — прогноз возьмёт вчерашнюю таблицу
+            print(f"[FAIL] Маркет united-netting: {type(e).__name__}: {str(e)[:200]}")
     build.build(snapshot=None)
 
 
