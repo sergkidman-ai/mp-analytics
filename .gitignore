@@ -92,3 +92,4 @@ bin/mpsess.local
 
 # сырьё писем «Необработанные товары МС» (поток prc) — не в git
 /mail_unprocessed/
+run_daily.lock

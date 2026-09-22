@@ -303,5 +303,32 @@ def main():
     print(f"[run_daily] готово за {elapsed}с", flush=True)
 
 
+LOCK_PATH = BASE_DIR / "run_daily.lock"
+
+
+def _single_instance():
+    """Не запускаться поверх идущего прогона: cron (02:07, 19:07) плодил копии поверх висящих.
+    flock снимается ядром при смерти процесса — устаревший лок не мешает."""
+    import fcntl
+    import os
+    f = open(LOCK_PATH, "a+")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        f.seek(0)
+        held = f.read().strip()
+        age_h = (datetime.datetime.now().timestamp() - LOCK_PATH.stat().st_mtime) / 3600
+        tag = "[FAIL]" if age_h > 12 else "[skip]"
+        print(f"{tag} run_daily: предыдущий прогон ещё идёт ({held}, {age_h:.1f} ч) — "
+              f"этот запуск пропущен", flush=True)
+        sys.exit(1 if age_h > 12 else 0)
+    f.seek(0)
+    f.truncate()
+    f.write(f"pid {os.getpid()} с {datetime.datetime.now():%Y-%m-%d %H:%M}")
+    f.flush()
+    return f
+
+
 if __name__ == "__main__":
+    _lock = _single_instance()
     main()

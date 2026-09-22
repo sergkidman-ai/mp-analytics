@@ -26,6 +26,7 @@ from core import db  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
 REPORT_URL = "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod"
+MAX_429 = 20   # потолок ретраев по 429 подряд (было без потолка → вечный цикл)
 STOCKS_URL = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"  # отключён WB 20.07.2026 (PLUG-404)
 REMAINS_URL = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains"  # замена: асинхр. отчёт остатков
 # псевдо-склады отчёта warehouse_remains — не физ. склады, в остаток не считаем (иначе двойной счёт).
@@ -51,13 +52,19 @@ def _token(account):
 def fetch_report(account, date_from, date_to, limit=100000):
     """Финотчёт за период, пагинация по rrdid. Лимит WB строгий — обрабатываем 429."""
     H = {"Authorization": _token(account)}
-    out, rrdid = [], 0
+    out, rrdid, n429 = [], 0, 0
     while True:
-        r = requests.get(REPORT_URL, headers=H, timeout=300, params={
+        # (connect, read): без отдельного connect-таймаута копии run_daily висели сутками (09.2026)
+        r = requests.get(REPORT_URL, headers=H, timeout=(30, 300), params={
             "dateFrom": date_from, "dateTo": date_to, "limit": limit, "rrdid": rrdid})
         if r.status_code == 429:
-            time.sleep(int(r.headers.get("Retry-After", "60")) + 1)
+            n429 += 1
+            if n429 > MAX_429:
+                raise RuntimeError(f"WB финотчёт {account} {date_from}..{date_to}: "
+                                   f"429 подряд {n429} раз — бросаем, догрузит следующий прогон")
+            time.sleep(min(int(r.headers.get("Retry-After", "60")), 300) + 1)
             continue
+        n429 = 0
         r.raise_for_status()
         batch = r.json() or []
         if not batch:
