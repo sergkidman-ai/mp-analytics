@@ -4,7 +4,7 @@
 > `HANDOFF.md`/`ARCHITECTURE.md` — только если реально понадобится координация.
 
 ## Где работаю
-- Ветка: `fin4/ozon-accrual-api` (создать от `main`), worktree по желанию.
+- Ветка: `fin4/ozon-accrual-api`, worktree `.claude/worktrees/fin4-accrual` (создан 22.09).
 - Модель: **Sonnet** — работа механическая (интеграция по документации + сверка).
 
 ## Задача одной строкой
@@ -28,7 +28,7 @@ Ozon отключил `/v3/finance/transaction/list`. С **09.09.2026** тран
 | Метод | Что отдаёт | Особенности |
 |---|---|---|
 | `POST /v1/finance/accrual/types` | справочник статей, **124 шт** (`id` → `name`/`description`) | тело `{}`; выгружен в `docs/reference/ozon_accrual_types.json` |
-| `POST /v1/finance/accrual/by-day` | все начисления за **ОДИН** день | `{"date":"YYYY-MM-DD","limit":1000,"last_id":…}`; `last_id=0` в ответе = конец |
+| `POST /v1/finance/accrual/by-day` | все начисления за **ОДИН** день | `{"date":"YYYY-MM-DD","limit":1000,"last_id":"…"}`; `last_id` — **строка**, на 1-й странице не передавать (число → 400); пустой/`"0"` = конец. `total_amount` = объект `{amount,currency}`. История есть (проверено 01.06) |
 | `POST /v1/finance/accrual/postings` | начисления по номерам отправлений | обязательный `posting_numbers`, **1–200 штук** за запрос |
 
 Форма ответа `by-day`: записи `accrual_id / date / total_amount / unit_number /
@@ -48,8 +48,8 @@ accrued_category` + блоки `item_fees`, `non_item_fee`, `container_fees`, `p
 `posting.products[].commission` и `delivery.total_accrued`.
 
 ## Порядок работы
-1. Прибить зависшие `run_daily.py` (хвост 1 ниже) — иначе сбор не проверить.
-2. Новый коллектор `collectors/ozon_accrual.py`: цикл по дням + пагинация `last_id`,
+1. ✅ 22.09 — зависших к моменту проверки уже не было. Прибить зависшие `run_daily.py` (хвост 1 ниже) — иначе сбор не проверить.
+2. ✅ 22.09 `d7ff2ef` — `collectors/ozon_accrual.py` + миграция `070_raw_ozon_accrual.sql` (применена). Сверка `--check` со старой таблицей: 01–07.09 оба аккаунта, 15.08, 01.06 — 16/16 дней до копейки. В `run_daily` НЕ подключён (ждёт п.4). Было: новый коллектор `collectors/ozon_accrual.py`: цикл по дням + пагинация `last_id`,
    сырьё в новую таблицу (миграция блока 0xx, следующая свободная — уточнить в `migrations/`).
    Старый `collectors/ozon.py` не удалять: `raw_ozon_transaction` — история до 08.09.
 3. Перемаппить классификацию `reports/ozon_mp_report.py` (`_classify_service` /
@@ -88,5 +88,7 @@ accrued_category` + блоки `item_fees`, `non_item_fee`, `container_fees`, `p
 - Не трогать территорию mkt (реклама, ставки, воронка) и rev (отзывы).
 
 ## Следующий шаг
-Прибить зависшие `run_daily` (и закрыть хвост 1), затем написать `collectors/ozon_accrual.py` и прогнать
-один день (05.09) в режиме сверки со старой таблицей — тест уже готов, цифры выше.
+Залить август (оба аккаунта) в `raw_ozon_accrual` с `--check`, затем п.3 — классификация
+по `type_id` и сверка 10 строк Баланса августа с `mp_ozon_hist.json`.
+Не сверено: цифры августа в «Главном факте» (8 844 416 / 1 524 921) — `accruals_for_sale`
+в БД даёт 8 756 340 / 1 473 413; уточнить, что это за мера.
