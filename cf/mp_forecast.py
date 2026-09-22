@@ -8,9 +8,9 @@ WB     — выплата за неделю W (по date_from отчёта) пр
          по сумме: не нашли платёж — неделя «просрочена» и встаёт в ближайшие дни.
 Ozon   — выплата в СРЕДУ W+2 = Σ транзакций недели W (сходится до рубля).
 Яндекс — только ЦК; с сентября 2026 еженедельно с отсрочкой 4 недели (до того — ежедневно,
-         отсюда пауза в сентябре): база месяца (выручка − возвраты − услуги) / дни месяца × 7,
-         в среду. Точность только помесячная — всё оценка. Эталон — ЛК «Финансы → Предстоящие
-         выплаты» (метод API для них пока не подключали).
+         отсюда пауза в сентябре). Суммы — невыплаченное по неделям доставки из отчёта по платежам
+         (cf/yandex_netting.py; метода «Предстоящие выплаты» в API нет), выплата в среду W+4.
+         Без отчёта — запасной путь по месячной базе (выручка − возвраты − услуги).
 Недели без данных (отчёт ещё не пришёл, неделя не кончилась) — среднее 4 полных недель.
 """
 import datetime as dt
@@ -157,7 +157,44 @@ def ozon_forecast(today, horizon_end):
     return out
 
 
+YA_LAG = dt.timedelta(weeks=4, days=2)   # неделя доставки W → среда W+4
+
+
 def yandex_forecast(today, horizon_end):
+    """По отчёту united-netting (cf_ya_netting_week): невыплаченное по неделям доставки,
+    выплата в среду через 4 недели. Текущая и будущие недели — среднее 3 полных недель.
+    Нет отчёта — запасной путь по месячной базе."""
+    weeks = {r["week_start"]: (float(r["pending"]), float(r["paid"])) for r in db.query(
+        "select week_start, pending, paid from cf_ya_netting_week where account='ya_acc1'")}
+    if not weeks:
+        return yandex_forecast_monthly(today, horizon_end)
+    cur_w = monday(today)
+    full = [w for w in sorted(weeks) if w < cur_w][-3:]
+    avg = sum(sum(weeks[w]) for w in full) / max(len(full), 1)
+    out = []
+    w = min(weeks)
+    while w + YA_LAG <= horizon_end:
+        pending = weeks.get(w, (0.0, 0.0))[0]
+        pay_day = w + YA_LAG
+        span = f"Маркет доставки {_fmt(w)}–{_fmt(w + dt.timedelta(days=6))}"
+        if w < cur_w:
+            if pending > 1000:
+                day, note = (pay_day, span + " · сумма по отчёту Маркета") if pay_day >= today \
+                    else (today, span + f" · по отчёту не выплачено, срок был {_fmt(pay_day)}")
+                out.append(_line("7807355364", day, "mp_yandex", pending, f"ya_acc1:{w}",
+                                 note, pay_day < today))
+        else:
+            amount = max(pending, avg)
+            note = span + (" · начислено по отчёту, до среднего 3 недель" if w == cur_w
+                           else " · оценка по среднему 3 недель")
+            if pay_day >= today and amount > 0:
+                out.append(_line("7807355364", pay_day, "mp_yandex", amount, f"ya_acc1:{w}",
+                                 note, True))
+        w += dt.timedelta(weeks=1)
+    return out
+
+
+def yandex_forecast_monthly(today, horizon_end):
     base = {}
     for r in db.query("""
         select f.month, f.revenue - coalesce(f.returns_sum,0)
