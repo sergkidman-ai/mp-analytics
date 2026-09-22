@@ -15,6 +15,7 @@ RESID_OPS = {   # тип операции → (строка, имя в ЛК)
     'MarketplaceAgencyFeeAggregator3plRFBS': ('delivery', 'Агентское вознаграждение за доставку партнёрами (realFBS)'),
     'OperationCourierArrangement': ('delivery', 'Организация выезда курьера'),
     'OperationCourierPickUpDelivery': ('delivery', 'Доставка курьером Pick-up'),
+    'OperationCourierPickUpReinvoice': ('delivery', 'Доставка до СЦ партнёрами'),   # забор курьером — Сергей 22.09.2026
     'OperationMarketplaceServiceStorage': ('fbo', 'Размещение товаров на складах'),
     'MarketplaceSellerCorrectionOperation': ('other', 'Корректировка начислений'),
     'MarketplaceSellerReexposureDeliveryReturnOperation': ('other', 'Перечисление за доставку от покупателя'),
@@ -35,6 +36,8 @@ RESID_OPS = {   # тип операции → (строка, имя в ЛК)
     'OperationMarketplaceFlexiblePaymentSchedule': ('penalty', 'Гибкий график выплат'),
     'OperationMarketplaceServiceEarlyPaymentAccrual': ('penalty', 'Досрочная выплата'),
     'OperationMarketplaceAcceleratedProductReviews': ('promo', 'Ускоренный сбор отзывов'),
+    # type 116 новых начислений (с 09.2026); код синтетический — collectors/ozon_accrual_adapter
+    'AccrualType_FirstCustomerReview': ('promo', 'Сбор первых отзывов'),   # Сергей 22.09.2026
     'OperationMarketplaceCostPerClick': ('promo', 'Оплата за клик'),
     'OperationPointsForReviews': ('promo', 'Баллы за отзывы'),
     'OperationPromotionWithCostPerOrder': ('promo', 'Продвижение с оплатой за заказ'),
