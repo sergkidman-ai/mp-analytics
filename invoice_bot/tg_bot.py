@@ -265,12 +265,17 @@ def handle(msg):
         return
 
     is_upd = bool(UPD_RE.search(fname)) or fname.lower().endswith((".xml", ".zip"))
-    engine = upd_pipe if is_upd else pipe
-    kind = "УПД → Приёмка" if is_upd else "Счёт → Заказ"
     try:
         # уникализируем имя файла, чтобы параллельные файлы не перетёрли друг друга
         safe = f"{int(time.time())}_{os.path.basename(fname)}"
         path = download_file(doc["file_id"], safe)
+        # Движок выбираем, уже видя файл: по имени ГТД-реестр Спринта не отличить от счёта
+        # (приходит как `230926152646.xls`), а шапка таблицы говорит однозначно.
+        if not is_upd and upd_pipe.looks_like_sprint_gtd(path):
+            is_upd = True
+            log(f"{safe}: шапка ГТД-реестра — веду как УПД, имя файла ни при чём")
+        engine = upd_pipe if is_upd else pipe
+        kind = "УПД → Приёмка" if is_upd else "Счёт → Заказ"
         # «Принял» — только когда файл уже лежит у нас: при повторе апдейта после сетевого
         # срыва пользователь не получит три одинаковых подтверждения ни о чём.
         send(chat_id, f"⏳ Принял «{fname}» ({kind}), обрабатываю…", mid)

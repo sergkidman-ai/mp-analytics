@@ -183,21 +183,28 @@ def process_message(m, num, engine, kind):
         safe = f"{int(time.time())}_{os.path.basename(fn)}"
         path = os.path.join(INBOX, safe)
         open(path, "wb").write(data)
-        res = engine.process(path, create=True)
+        # Движок берём из маршрута папки, но ГТД-реестр Спринта узнаём по шапке: он приходит
+        # в ящик счетов с именем вида `230926152646.xls` и там падал «Не найдена строка "Счёт №"».
+        eng, kind_eff = engine, kind
+        if eng is pipe and upd_pipe.looks_like_sprint_gtd(path):
+            eng = upd_pipe
+            kind_eff = "ГТД-реестр→Приёмка"
+            log(f"  {fn}: шапка ГТД-реестра — веду через движок УПД")
+        res = eng.process(path, create=True)
         # Метка журнала — у движка (`LOG_KIND`), а не по цепочке `if engine is …`: движков стало
         # три, и очередной новый молча уезжал бы в чужую категорию журнала.
-        proc_log.log_event(getattr(engine, "LOG_KIND", "invoice" if engine is pipe else "upd"),
+        proc_log.log_event(getattr(eng, "LOG_KIND", "invoice" if eng is pipe else "upd"),
                            "mail", fn, frm, res)
         if fn.lower().endswith((".xls", ".xlsx")) and res.get("ok"):
             done_stems.add(_stem(fn))       # Excel обработан → его PDF-двойник далее пропустим
         # жирным: группа поставщика, покупатель, сумма (у УПД своей html-версии нет — просто экранируем)
-        rep_html = getattr(engine, "format_report_html", None)
-        report = rep_html(res) if rep_html else html.escape(engine.format_report(res), quote=False)
-        head = html.escape(f"📧 Из почты ({kind}) · {frm[:40]}\nФайл: {fn}", quote=False)
+        rep_html = getattr(eng, "format_report_html", None)
+        report = rep_html(res) if rep_html else html.escape(eng.format_report(res), quote=False)
+        head = html.escape(f"📧 Из почты ({kind_eff}) · {frm[:40]}\nФайл: {fn}", quote=False)
         # Канал общего бота читают несколько человек — платежам там не место (решение Сергея
         # 11.08.2026). Движок, у которого свой адресат (аренда → платёжный бот), помечает себя
         # `NOTIFY_MAIL_BOT = False`; в общий бот тогда не уходит ничего, даже заголовок.
-        if getattr(engine, "NOTIFY_MAIL_BOT", True):
+        if getattr(eng, "NOTIFY_MAIL_BOT", True):
             tg_send(f"{head}\n\n{report}", parse_mode="HTML")
         log(f"  {fn}: ok={res.get('ok')} created={res.get('created')} stop={res.get('stop')} err={res.get('error')}")
 

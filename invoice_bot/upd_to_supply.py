@@ -555,6 +555,24 @@ def _sprint_gtd_cols(rows):
     return None
 
 
+def looks_like_sprint_gtd(path):
+    """Это ГТД-реестр Спринта? Смотрим в шапку таблицы, а не в имя файла.
+
+    Имя — ненадёжный признак: Солюшнс принт шлёт реестры именами вида `230926152646.xls`
+    и кладёт их в ящик счетов. Роутер по имени отдавал такой файл движку счетов, и тот
+    отвечал «Не найдена строка "Счёт № … от …"» — ошибка, за которой стоял не дефект
+    документа, а неверный маршрут (23.09.2026, счета 333194/И и 333195/И).
+    Шапка же однозначна: «Код товара КИС» рядом со «Страна по ГТД».
+    """
+    if not path.lower().endswith((".xls", ".xlsx")):
+        return False                       # pdf/xml/zip разбирать ради опознания незачем
+    try:
+        kind, payload = read_grid_safe(path)          # → ('table', rows) либо ('pdf', text)
+        return kind == "table" and _sprint_gtd_cols(payload) is not None
+    except Exception:
+        return False                       # не прочиталось — пусть решает движок по маршруту
+
+
 def parse_sprint_gtd(rows):
     """ГТД-реестр Спринта → dict формата parse_upd. seller фикс, номер/дата пустые."""
     cmap = _sprint_gtd_cols(rows)
