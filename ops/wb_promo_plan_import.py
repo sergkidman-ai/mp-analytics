@@ -138,7 +138,10 @@ def auto(valid_to=None, days=7):
             load(path, vf, valid_to)
             n += 1
         except Exception as e:                                        # noqa: BLE001
-            print(f"  ПРОПУСК {os.path.basename(path)[:44]}: {e}", flush=True)
+            # про старые чужие файлы (PRC, фото) молчим: они лежат в боте вечно и иначе
+            # засоряют лог каждые два часа
+            if dt.date(*map(int, (stamp[0:4], stamp[4:6], stamp[6:8]))) >= dt.date.today() - dt.timedelta(days=2):
+                print(f"  ПРОПУСК {os.path.basename(path)[:44]}: {e}", flush=True)
     print(f"автозагрузка: новых файлов {n}", flush=True)
 
 
