@@ -32,7 +32,7 @@ def read_source(profile, file_path):
         path = Path(file_path)
         return path.read_bytes(), path.name, "file", None
     from .mailbox import fetch_latest_price          # импорт здесь: без почты работает --file
-    letter = fetch_latest_price(profile.mail_folder, pattern=profile.file_pattern)
+    letter = fetch_latest_price(profile.mail_folder, pattern=profile.file_pattern, profile=profile)
     if not letter:
         raise SystemExit(f"в папке «{profile.mail_folder}» нет письма с прайсом")
     return letter["content"], letter["filename"], "mail", letter

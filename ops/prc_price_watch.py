@@ -360,8 +360,19 @@ def message(profile, out, code, dry, after, auto=None, recovered=False):
         title += " (сухой прогон)"
     if code == 0:
         return title + (f"\n{auto}" if auto else "")
-    verdict = {2: "ОТМЕНА", 3: "СБОЙ"}.get(code, "ОШИБКА")
-    return "\n".join([f"{title} — {verdict}"] + troubles(out) + ([auto] if auto else []))
+    # Первой строкой — судьба ОПРИХОДОВАНИЯ, а не счётчик новинок. Прежнее начало
+    # «Сакура — Новинок — 0 — ОТМЕНА» читалось как «новинок нет», и то, что прайс вообще
+    # не загрузился, приходилось угадывать по слову в конце (Сергей, 25.09.2026).
+    # Счётчик новинок на неудачном прогоне не печатаем вовсе: новинки считает загрузка,
+    # которой не было, и «0» здесь — не факт о прайсе, а её отсутствие.
+    fate = {
+        2: "оприходование НЕ создано, прайс не загружен",
+        3: "прогон упал — оприходование не создано или создано частично, проверьте МойСклад",
+    }.get(code, "оприходование НЕ создано — ошибка прогона")
+    head = f"⛔ {profile.title}: {fate}"
+    if dry:
+        head = f"⚠️ {profile.title}: сухой прогон не дошёл до конца (в МойСклад и так не пишем)"
+    return "\n".join([head] + troubles(out) + ([auto] if auto else []))
 
 
 def auto_cards(profile, dry, code, logfile):
@@ -424,7 +435,8 @@ def main(argv=None):
     fails = LOG_DIR / f"prc_price_watch_{profile.key}_mailfail.txt"
     try:
         kw = {"extensions": profile.extensions} if getattr(profile, "extensions", None) else {}
-        letter = fetch_latest_price(profile.mail_folder, pattern=profile.file_pattern, **kw)
+        letter = fetch_latest_price(profile.mail_folder, pattern=profile.file_pattern,
+                                    profile=profile, **kw)
     except Exception as exc:
         # Разовый таймаут — молча, в лог. Но если почты нет несколько проверок подряд, прайс
         # мог прийти и остаться незамеченным — об этом человеку надо сказать.

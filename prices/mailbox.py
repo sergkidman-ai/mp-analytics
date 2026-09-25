@@ -3,7 +3,8 @@
 """
 Забор прайса из почтовой папки поставщика (IMAP, тот же ящик, что счета и УПД).
 
-Берём ПОСЛЕДНЕЕ по дате письмо с подходящим вложением. Письма не помечаем прочитанными:
+Берём ПОСЛЕДНЕЕ по дате письмо с подходящим вложением; профилю с `pick_by_content`
+файл выбираем по содержимому, а не по очереди (см. `_pick_by_content`). Письма не помечаем прочитанными:
 загрузка идемпотентна и повторный прогон за день должен видеть тот же файл.
 """
 import os
@@ -12,6 +13,7 @@ import email
 import imaplib
 import re
 from email.header import decode_header, make_header
+from email.utils import parsedate_to_datetime
 
 from dotenv import load_dotenv
 
@@ -78,7 +80,42 @@ def mark_seen(folder, imap_uid):
             pass
 
 
-def fetch_latest_price(folder, extensions=PRICE_EXT, pattern=None):
+PICK_DEPTH = 4          # сколько последних писем смотрим, когда выбираем файл по содержимому
+
+
+def _pick_by_content(found, profile):
+    """Из писем ОДНОГО дня берём файл, в котором профиль разобрал больше строк с остатком.
+
+    Разбор дешёвый (тот же, что на загрузке) и делается на уже скачанных вложениях —
+    в почту повторно не ходим. Ничего не разобралось нигде — возвращаем самое свежее
+    письмо, то есть прежнее поведение: решение о загрузке принимает загрузчик, а не почта.
+    """
+    from .parser import parse       # локальный импорт: parser тянет профили, кругового не делаем
+
+    def day(letter):
+        try:
+            return parsedate_to_datetime(letter["date"]).date()
+        except Exception:
+            return None
+
+    top = day(found[0])
+    same = [x for x in found if top and day(x) == top] or found[:1]
+    if len(same) == 1:
+        return same[0]
+    best, best_rows = same[0], -1                     # same идёт от свежего: при равенстве
+    for letter in same:                               # остаётся свежее письмо
+        try:
+            rows, _ = parse(letter["content"], profile)
+            n = sum(1 for r in rows if r.get("qty") is not None)
+        except Exception:
+            n = 0
+        letter["pick_rows"] = n
+        if n > best_rows:
+            best, best_rows = letter, n
+    return best
+
+
+def fetch_latest_price(folder, extensions=PRICE_EXT, pattern=None, profile=None):
     """Последнее письмо папки с вложением-прайсом.
 
     `pattern` — регулярка на ИМЯ файла, нужна, когда в письме несколько прайсов. Реальный
@@ -86,9 +123,14 @@ def fetch_latest_price(folder, extensions=PRICE_EXT, pattern=None):
     Оригинал.xls» (оригинальные картриджи, другой ассортимент) — без фильтра берётся первое
     попавшееся вложение, то есть не то.
 
+    `profile` нужен профилям с `pick_by_content` (Сакура): имена файлов у них совпадают,
+    и письмо выбирается по содержимому. Без профиля поведение прежнее — последнее письмо.
+
     Возвращает dict: filename, content (bytes), subject, date, uid — или None, если писем нет.
     """
     rx = re.compile(pattern, re.I) if pattern else None
+    by_content = bool(profile is not None and getattr(profile, "pick_by_content", False))
+    found = []
     box = connect()
     try:
         status, _ = box.select('"%s"' % imap_utf7(folder), readonly=True)
@@ -103,6 +145,7 @@ def fetch_latest_price(folder, extensions=PRICE_EXT, pattern=None):
             head = raw[0][0] if isinstance(raw[0], tuple) else b""
             imap_uid = (re.search(rb"UID (\d+)", head or b"") or [None, b""])[1].decode()
             msg = email.message_from_bytes(raw[0][1])
+            letter = None
             for part in msg.walk():
                 name = part.get_filename()
                 if not name:
@@ -112,7 +155,7 @@ def fetch_latest_price(folder, extensions=PRICE_EXT, pattern=None):
                     continue
                 if rx and not rx.search(name):
                     continue
-                return {
+                letter = {
                     "filename": name,
                     "content": part.get_payload(decode=True),
                     "subject": _hdr(msg.get("Subject")),
@@ -121,7 +164,15 @@ def fetch_latest_price(folder, extensions=PRICE_EXT, pattern=None):
                     "imap_uid": imap_uid,             # стабильный UID — им и метим прочитанным
                     "message_id": (msg.get("Message-ID") or "").strip(),
                 }
-        return None
+                break                                 # одно вложение-прайс с письма
+            if letter is None:
+                continue
+            if not by_content:
+                return letter                         # обычный случай: последнее письмо
+            found.append(letter)
+            if len(found) >= PICK_DEPTH:
+                break
+        return _pick_by_content(found, profile) if found else None
     finally:
         try:
             box.logout()
