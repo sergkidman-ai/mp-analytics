@@ -40,7 +40,8 @@ KINDS_RU = {"prepayment_order": "предоплата по счёту",
             "deferred_batch": "отсрочка (пачка)",
             "advance": "аванс",
             "rent": "аренда помещения",
-            "rent_utility": "коммунальные услуги по счёту"}
+            "rent_utility": "коммунальные услуги по счёту",
+            "hosting": "хостинг по счёту"}
 
 
 def enabled():

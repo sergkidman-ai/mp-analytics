@@ -27,6 +27,7 @@ load_dotenv("/opt/mp-analytics/.env")
 import invoice_to_po as pipe          # счёт → «Заказ поставщику»
 import upd_to_supply as upd_pipe       # УПД  → «Приёмка»
 import rent_invoice as rent_pipe        # счёт арендодателя → черновик платёжки (заказ НЕ создаём)
+import beget_invoice as beget_pipe      # счёт хостинга «Бегет» → черновик платёжки СРАЗУ в банк
 import proc_log
 
 HOST = os.getenv("MAIL_HOST", "").strip()
@@ -36,6 +37,7 @@ FOLDER = os.getenv("MAIL_FOLDER", "INBOX").strip()          # папка сче�
 FOLDER_UPD = os.getenv("MAIL_FOLDER_UPD", "").strip()       # папка УПД → движок приёмки (пусто = выкл)
 FOLDER_SPRINT = os.getenv("MAIL_FOLDER_SPRINT", "").strip() # папка ГТД-реестров Спринта → тот же движок (авто-детект)
 FOLDER_RENT = os.getenv("MAIL_FOLDER_RENT", "").strip()     # папка счетов арендодателя → движок платежа (пусто = выкл)
+FOLDER_BEGET = os.getenv("MAIL_FOLDER_BEGET", "").strip()   # папка счетов хостинга → движок платежа (пусто = выкл)
 POLL = int(os.getenv("MAIL_POLL_SEC", "60"))
 TOKEN = os.getenv("TG_BOT_TOKEN", "").strip()
 NOTIFY = [x.strip() for x in os.getenv("TG_NOTIFY_ID", "").split(",") if x.strip()] or \
@@ -296,6 +298,8 @@ def main():
         routes.append((FOLDER_SPRINT, upd_pipe, "Спринт ГТД→Приёмка"))
     if FOLDER_RENT:
         routes.append((FOLDER_RENT, rent_pipe, "Аренда→Платёжка"))
+    if FOLDER_BEGET:
+        routes.append((FOLDER_BEGET, beget_pipe, "Хостинг→Платёжка"))
     log(f"mail-poller запущен: {USER}@{HOST}, интервал {POLL}с, notify={NOTIFY or 'НЕТ'}, "
         f"папки: {', '.join(f'{f} [{k}]' for f, _, k in routes)}")
     while True:
