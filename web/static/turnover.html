@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Оборот для премии</title>
+<!-- поток: fin -->
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  h1{font-size:18px;margin:0}
+  main{flex:1;min-width:0;padding:22px}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}
+  .lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--card)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  .bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .alert{background:rgba(255,180,84,.10);border:1px solid var(--warn);border-radius:10px;padding:8px 14px;margin:0 0 10px;font-size:13px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  .scroll{overflow-x:auto}
+  table.t{border-collapse:separate;border-spacing:0;font-size:13px;font-variant-numeric:tabular-nums;width:100%}
+  table.t th,table.t td{padding:5px 9px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+  table.t th{color:var(--mut);font-weight:600;font-size:11px}
+  table.t th.k,table.t td.k{text-align:left;min-width:180px}
+  table.t tr.org td{font-weight:700;background:rgba(63,167,255,.06)}
+  table.t tr.tot td{font-weight:700;border-top:2px solid var(--acc)}
+  table.t td.ret{color:var(--mut)}
+  .note{font-size:12px;color:var(--mut);margin-top:8px;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Деньги</div>
+    <a href="/cashflow">💰 Кэшфлоу</a>
+    <a href="/turnover" class="cur">🧮 Оборот для премии</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main>
+  <div class="bar"><h1>🧮 Оборот для премии</h1>
+    <span class="muted">деньги покупателя: столько реально заплатили за наш товар</span></div>
+  <div id="alerts"></div>
+  <div id="body"></div>
+  <div class="note">
+    Считается по тем же показателям, что видны в кабинетах:
+    <b>ВБ</b> — «Продажа» (цена после СПП), <b>Ozon</b> — «Реализовано на сумму»,
+    <b>Маркет</b> — «Получено от потребителей». Возвраты вычитаются из месяца, когда прошли.
+    Комиссия, логистика, реклама и штрафы базу не уменьшают.<br>
+    Скидки площадок в эту базу НЕ входят: баллы Ozon (4–5 млн ₽ в месяц), СПП у ВБ и субсидия
+    Маркета — это деньги площадки, а не покупателя. Поэтому цифры здесь меньше «оборота по нашей
+    цене» на главной примерно на 40 %.
+  </div>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const rub=n=>n==null?'—':Math.round(n).toLocaleString('ru-RU')+' ₽';
+const MON={'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь',
+           '07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
+const mname=ym=>MON[ym.slice(5,7)]+' '+ym.slice(0,4);
+
+function table(d){
+  const ps=Object.keys(d.platforms);
+  let h='<div class="card"><div class="scroll"><table class="t"><tr><th class="k">Месяц / фирма</th>';
+  ps.forEach(p=>h+=`<th>${d.platforms[p]}</th>`);
+  h+='<th>Возвраты</th><th>Итого база</th></tr>';
+  d.months.slice().reverse().forEach(m=>{
+    h+=`<tr class="tot"><td class="k">${mname(m.ym)} — всего</td>`;
+    ps.forEach(p=>{
+      const v=Object.values(m.orgs).reduce((a,o)=>a+((o.platforms[p]||{}).net||0),0);
+      h+=`<td>${v?rub(v):'—'}</td>`;
+    });
+    h+=`<td class="ret">−${rub(m.total.rets).replace(' ₽','')} ₽</td><td>${rub(m.total.net)}</td></tr>`;
+    Object.entries(m.orgs).forEach(([inn,o])=>{
+      h+=`<tr class="org"><td class="k">&nbsp;&nbsp;${d.orgs[inn]}</td>`;
+      ps.forEach(p=>{const c=o.platforms[p];h+=`<td>${c?rub(c.net):'—'}</td>`;});
+      h+=`<td class="ret">−${rub(o.rets).replace(' ₽','')} ₽</td><td>${rub(o.net)}</td></tr>`;
+    });
+  });
+  return h+'</table></div></div>';
+}
+
+async function load(){
+  const d=await (await fetch('/api/turnover?months=6')).json();
+  let a='';
+  if((d.ozon_pending||[]).length)
+    a+=`<div class="alert">Ozon: отчёт о реализации за ${d.ozon_pending.map(mname).join(', ')} ещё не вышел — площадка отдаёт его 8–10 числа. В этих месяцах Ozon пока не учтён.</div>`;
+  if(d.wb_last_day)
+    a+=`<div class="alert">ВБ: продажи известны по ${d.wb_last_day.slice(8,10)}.${d.wb_last_day.slice(5,7)} — финотчёт приходит недельными пачками. Последний месяц неполный.</div>`;
+  $('#alerts').innerHTML=a;
+  $('#body').innerHTML=table(d);
+}
+load();
+</script>
+</body>
+</html>
