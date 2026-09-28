@@ -10,8 +10,8 @@
          последнего периода. Сверено: начисление недели = end − begin + payment, совпало с нашим
          расчётом по начислениям до рубля (07–13.09 и 14–20.09.2026).
 - WB     `GET finance-api.wildberries.ru/api/v1/account/balance` → `current`. Нужен скоуп
-         «Финансы»: из 10 наших токенов его имеет ТОЛЬКО `WB_TOKEN_PRICES_ACC1` (Цифровой).
-         У Дисквэра такого токена нет — строки по wb_acc2 не будет, пока его не заведут.
+         «Финансы»: у Цифрового — `WB_TOKEN_PRICES_ACC1`, у Дисквэра — `WB_TOKEN_FINANCE_ACC2`
+         (заведён 28.09.2026, до 29.03.2027). Прочие токены на этот метод дают 403.
 - Яндекс уже в БД: `cf_ya_netting_day.pending` (собирает cf/yandex_netting.py, сверено с ЛК).
 
 Запуск:  ./venv/bin/python -m cf.mp_balance [--day YYYY-MM-DD]
@@ -36,7 +36,9 @@ load_dotenv(BASE_DIR / ".env")
 
 OZON_CF_URL = "https://api-seller.ozon.ru/v1/finance/cash-flow-statement/list"
 WB_BALANCE_URL = "https://finance-api.wildberries.ru/api/v1/account/balance"
-WB_FINANCE_TOKEN = {"wb_acc1": "WB_TOKEN_PRICES_ACC1"}   # скоуп «Финансы» есть только здесь
+# Скоуп «Финансы» (баланс ЛК): у Цифрового им обладает токен цен, у Дисквэра — отдельный
+# токен, заведён 28.09.2026 (до 29.03.2027). Остальные 9 токенов отвечают 403.
+WB_FINANCE_TOKEN = {"wb_acc1": "WB_TOKEN_PRICES_ACC1", "wb_acc2": "WB_TOKEN_FINANCE_ACC2"}
 
 
 def ozon_balance(account, day):
