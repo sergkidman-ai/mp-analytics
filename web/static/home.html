@@ -202,7 +202,7 @@ function holdTiles(b){
       `<div class="muted" style="font-size:11px;margin-top:2px">${HOLD_NOTE[k]}, без возвратов</div>`,'']);
 }
 
-const MP_LBL={ozon:'🟦 Ozon',wb:'🟣 ВБ',yandex:'🟡 Маркет'};
+const MP_LBL={ozon:'🟦 На счёте Ozon',wb:'🟣 На счёте ВБ',yandex:'🟡 На счёте Маркета'};
 const MISS_LBL={wb_acc2:'ВБ Дисквэр',wb_acc1:'ВБ Цифровой',oz_acc1:'Ozon Цифровой',oz_acc2:'Ozon Дисквэр',ya_acc1:'Маркет'};
 // «Наши деньги на МП» — остаток лицевых счетов площадок (заработано, но ещё не выплачено).
 // Площадку без доступа в сумму НЕ подмешиваем: пишем сноской, чтобы цифра оставалась фактом.
@@ -213,7 +213,8 @@ function mpMoneyTiles(m){
   return [['💰 Наши деньги на МП',`<span class="pos">${rub(m.total)}</span>`+
       `<div class="muted" style="font-size:11px;margin-top:2px">заработано, но ещё на счетах площадок · на ${d}`+
       (miss?` · без ${miss} (нет доступа к балансу)`:'')+`</div>`,''],
-    ...['ozon','wb','yandex'].filter(k=>m[k]!=null).map(k=>[MP_LBL[k],rub(m[k]),''])];
+    ...['ozon','wb','yandex'].filter(k=>m[k]!=null).map(k=>[MP_LBL[k],rub(m[k])+
+      `<div class="muted" style="font-size:11px;margin-top:2px">ещё не выплачено нам${org?'':', обе фирмы'}</div>`,''])];
 }
 
 async function load(){
