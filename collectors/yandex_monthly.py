@@ -53,38 +53,121 @@ def _cfg():
     return key, camps
 
 
+def _offer_rows(mappings):
+    """offerMappings API → строки `raw_yandex_offer`. `loaded_at` пишем явно: по умолчанию он
+    ставится только при ВСТАВКЕ, и у давно заведённых офферов навсегда остался бы день первой
+    загрузки — по такому полю не видно, жив ли сбор."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    out = []
+    for om in mappings:
+        o = om.get("offer") or {}
+        if o.get("offerId"):
+            out.append({"account": ACCOUNT, "offer_id": str(o["offerId"]),
+                        "payload": psycopg2.extras.Json(om), "loaded_at": now})
+    return out
+
+
+def _save_offers(rows):
+    return db.upsert("raw_yandex_offer", rows, conflict_cols=["account", "offer_id"],
+                     update_cols=["payload", "loaded_at"]) if rows else 0
+
+
+def _offers_page(H, biz, tok, tries=3):
+    """Одна страница каталога. -> (mappings, следующий токен) | (None, None) — обход дальше не идёт.
+
+    Маркет на глубоких страницах отдаёт то 420 (лимит 100 запросов в минуту на ресурс), то 500
+    «Internal error» — проверено 30.09.2026: контрольный обход упал на 93-й странице. Раньше
+    любая такая ошибка роняла ВЕСЬ шаг `yandex_monthly` через `raise_for_status`; теперь
+    ретраим, а если не помогло — прекращаем постраничный обход и добираем адресно.
+    """
+    params = {"limit": 200}
+    if tok:
+        params["page_token"] = tok
+    for attempt in range(tries):
+        r = requests.post(f"{API}/v2/businesses/{biz}/offer-mappings", headers=H, params=params,
+                          json={}, timeout=90)
+        if r.status_code == 420:                 # лимит: ждём окно и пробуем ту же страницу
+            time.sleep(35)
+            continue
+        if r.status_code >= 500:
+            time.sleep(5 * (attempt + 1))
+            continue
+        r.raise_for_status()
+        res = r.json().get("result", {})
+        return res.get("offerMappings", []), (res.get("paging") or {}).get("nextPageToken")
+    print(f"  каталог: страница не далась ({r.status_code}), постраничный обход прерван", flush=True)
+    return None, None
+
+
+def collect_offers_missing(H, biz, log=print):
+    """Добрать офферы, которых нет в слепке, АДРЕСНО по кодам из МС.
+
+    Зачем: постраничный обход каталога до хвоста не доходит (см. `_offers_page`), и новые
+    внешние коды в слепок не попадают — 30.09.2026 их было 201, из первой сотни 55 на Маркете
+    уже были, 32 торговали, а пульт показывал «нет карточки». Адресный запрос `offerIds`
+    стабилен и берёт до 100 кодов за раз, так что весь хвост закрывается парой запросов.
+
+    Берём коды из `ms_product`: что заведено у нас, то и должно быть на витрине. Производные
+    (`7207X2`) так не добрать — их идентификаторы знает только Маркет; они приедут
+    постраничным обходом.
+    """
+    codes = [r["external_code"] for r in db.query(
+        """SELECT DISTINCT p.external_code FROM ms_product p
+            WHERE NOT p.archived AND p.external_code ~ '^[0-9]{4}$'
+              AND NOT EXISTS (SELECT 1 FROM raw_yandex_offer r
+                               WHERE r.account = %s AND left(r.offer_id, 4) = p.external_code)
+            ORDER BY 1 DESC""", (ACCOUNT,))]
+    if not codes:
+        return 0, 0
+    got = n = 0
+    for i in range(0, len(codes), 100):          # предел API — 100 идентификаторов на запрос
+        batch = codes[i:i + 100]
+        for attempt in range(3):
+            r = requests.post(f"{API}/v2/businesses/{biz}/offer-mappings", headers=H,
+                              params={"limit": 200}, json={"offerIds": batch}, timeout=90)
+            if r.status_code == 420:
+                time.sleep(35)
+                continue
+            if r.status_code >= 500:
+                time.sleep(5 * (attempt + 1))
+                continue
+            break
+        if not r.ok:
+            log(f"  добор {batch[0]}…: HTTP {r.status_code}, пачка пропущена")
+            continue
+        rows = _offer_rows(r.json().get("result", {}).get("offerMappings", []))
+        got += len(rows)
+        n += _save_offers(rows)
+        time.sleep(0.7)
+    log(f"  каталог: адресно добрано {n} офферов по {len(codes)} кодам без слепка "
+        f"(на Маркете нашлось {got})")
+    return n, len(codes)
+
+
 def collect_offers():
     """Каталог offer-mappings (бизнес-уровень) → raw_yandex_offer: баркоды, закупочная, marketSku."""
     key = os.getenv("YANDEX_API_KEY_ACC1")
     biz = os.getenv("YANDEX_BUSINESS_ID_ACC1")
     H = {"Api-Key": key, "Content-Type": "application/json"}
-    buf, tok, n = [], None, 0
-    for _ in range(200):
-        params = {"limit": 200}
-        if tok:
-            params["page_token"] = tok
-        r = requests.post(f"{API}/v2/businesses/{biz}/offer-mappings", headers=H, params=params,
-                          json={}, timeout=90)
-        r.raise_for_status()
-        res = r.json().get("result", {})
-        for om in res.get("offerMappings", []):
-            o = om.get("offer") or {}
-            if o.get("offerId"):
-                buf.append({"account": ACCOUNT, "offer_id": str(o["offerId"]),
-                            "payload": psycopg2.extras.Json(om)})
+    buf, tok, n, pages, broke = [], None, 0, 0, False
+    for _ in range(400):
+        got, tok = _offers_page(H, biz, tok)
+        if got is None:
+            broke = True
+            break
+        buf += _offer_rows(got)
+        pages += 1
         if len(buf) >= 1000:
-            n += db.upsert("raw_yandex_offer", buf, conflict_cols=["account", "offer_id"],
-                           update_cols=["payload"])
+            n += _save_offers(buf)
             buf = []
-        tok = (res.get("paging") or {}).get("nextPageToken")
         if not tok:
             break
-        time.sleep(0.3)
-    if buf:
-        n += db.upsert("raw_yandex_offer", buf, conflict_cols=["account", "offer_id"],
-                       update_cols=["payload"])
-    print(f"  каталог офферов: {n} записано", flush=True)
-    return n
+        time.sleep(0.62)                          # 100 запросов в минуту — предел ресурса
+    n += _save_offers(buf)
+    print(f"  каталог офферов: {n} записано, страниц {pages}"
+          + (" — ОБХОД ОБОРВАЛСЯ, хвост добираю адресно" if broke else ""), flush=True)
+    added, missing = collect_offers_missing(H, biz)
+    return n + added
 
 
 def _report_csv(path, body, timeout=180):
