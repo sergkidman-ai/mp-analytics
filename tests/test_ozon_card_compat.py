@@ -189,6 +189,7 @@ class CompatibilitySafety(unittest.TestCase):
         calls = []
         with tempfile.TemporaryDirectory() as folder, \
                 patch("builtins.open", side_effect=lambda *_: Path(folder, "lock").open("a")), \
+                patch("tools.ozon_card_limit_reminder.send_due"), \
                 patch.object(compat, "run_models", side_effect=lambda *a, **k: calls.append("repair")) as repair, \
                 patch.object(push, "run", side_effect=lambda *a: calls.append("legacy")) as legacy:
             compat.run_daily("oz_acc2", 500, ("A", "W"))
@@ -200,6 +201,7 @@ class CompatibilitySafety(unittest.TestCase):
         from tools import ozon_card_push as push
         with tempfile.TemporaryDirectory() as folder, \
                 patch("builtins.open", side_effect=lambda *_: Path(folder, "lock").open("a")), \
+                patch("tools.ozon_card_limit_reminder.send_due"), \
                 patch.object(compat, "run_models", side_effect=RuntimeError("not verified")), \
                 patch.object(push, "run") as legacy:
             with self.assertRaisesRegex(RuntimeError, "not verified"):

@@ -266,6 +266,12 @@ def run_daily(account, limit, classes):
 
     with open("/opt/mp-analytics/backups/ozon_card_daily.lock", "a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
+        from tools.ozon_card_limit_reminder import send_due
+        try:
+            send_due()
+        except Exception as exc:
+            # Ошибка Telegram не останавливает карточки; повтор в следующем запуске.
+            print(f"Напоминание о лимите не доставлено: {type(exc).__name__}", flush=True)
         print(f"{account}: плановая проверка совместимости, лимит {min(limit, 20)}", flush=True)
         run_models(account, min(limit, 20), True, auto=True)
         # Исключение выше прерывает кабинет до старого дожимателя.
