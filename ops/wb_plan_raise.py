@@ -25,6 +25,7 @@
 import argparse
 import math
 import pathlib
+import re
 import sys
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -71,7 +72,9 @@ def candidates(acc):
         v, src = cost.get(r["vendor_code"], (None, "НЕТ"))
         if v is None:
             continue                                     # нет себеста = нет наличия, не трогаем
-        floor = (v + max(w.MIN_NET, w.MIN_NET_PCT * v)) / keep
+        bundle = re.fullmatch(r"\d{4}[Xх](\d{1,2})", (r["vendor_code"] or "").strip(), re.I)
+        quantity = int(bundle.group(1)) if bundle else 1
+        floor = (v + w.min_net(v, quantity)) / keep
         target = float(r["cap"])
         if target < floor:                               # потолок ниже пола — дело сторожа, не наше
             continue
