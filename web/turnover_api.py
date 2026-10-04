@@ -20,6 +20,7 @@ import sys
 import pathlib
 import datetime as dt
 from collections import defaultdict
+from threading import Lock
 
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
@@ -99,8 +100,31 @@ def page():
     return FileResponse(STATIC / "turnover.html")
 
 
+_TURNOVER_CACHE = {}
+_TURNOVER_CACHE_LOCK = Lock()
+
+
 @router.get("/api/turnover")
 def turnover(months: int = 6):
+    """Calculate once per UTC calendar day and period, on first request.
+
+    No marketplace API calls; lock prevents duplicate concurrent database scans.
+    Restart clears this process-local cache.
+    """
+    months = max(1, min(months, 24))
+    today = dt.datetime.now(dt.timezone.utc).date()
+    with _TURNOVER_CACHE_LOCK:
+        cached = _TURNOVER_CACHE.get(months)
+        if cached and cached[0] == today:
+            return cached[1]
+        result = _calculate_turnover(months)
+        result["calculated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        result["refresh_policy"] = "daily"
+        _TURNOVER_CACHE[months] = (today, result)
+        return result
+
+
+def _calculate_turnover(months: int = 6):
     """Деньги покупателя по месяцам: (площадка × фирма) и итоги. Возвраты — отдельной строкой."""
     first = (dt.date.today().replace(day=1) - dt.timedelta(days=31 * (months - 1))).replace(day=1)
     cells = defaultdict(lambda: {"sales": 0.0, "rets": 0.0})

@@ -142,6 +142,10 @@ async function load(){
     a+=`<div class="alert">Ozon: отчёт о реализации за ${d.ozon_pending.map(mname).join(', ')} ещё не вышел — площадка отдаёт его 8–10 числа. В этих месяцах Ozon пока не учтён.</div>`;
   if(d.wb_last_day)
     a+=`<div class="alert">ВБ: продажи известны по ${d.wb_last_day.slice(8,10)}.${d.wb_last_day.slice(5,7)} — финотчёт приходит недельными пачками. Последний месяц неполный.</div>`;
+  if(d.calculated_at){
+    const stamp=new Date(d.calculated_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'});
+    a+=`<div class="note">Показатели рассчитаны: ${stamp} МСК. Пересчёт — раз в сутки при первом открытии; данные площадок могут поступать с задержкой.</div>`;
+  }
   $('#alerts').innerHTML=a;
   chartData=d;
   $('#chart').innerHTML=chart(d);
