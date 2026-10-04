@@ -8,7 +8,7 @@
 нашего пола, и поднимает им цену до пола — тем самым выводя их из акции.
 
 ПОЛ (правило Сергея, 10.09.2026):
-    floor_net   = max(300 ₽; 10 % от себестоимости)          — чистая до налога и опер. расходов
+    floor_net   = max(300 ₽ × кратность; 10 % от себестоимости бандла)
     floor_price = (floor_net + cogs) / (1 − retention)
     retention   — доля удержаний МП от оборота со страницы «Отчёты МП» за последний месяц.
 Пол применяется к цене ПОСЛЕ акционной скидки, но ДО СПП (`discountedPrice` Prices API):
@@ -579,6 +579,11 @@ def mp_stock(acc):
     return out
 
 
+def min_net(cogs, quantity=1):
+    """Минимальная прибыль карточки: 300 ₽ на штуку либо 10% её полной себестоимости."""
+    return max(MIN_NET * max(1, int(quantity)), MIN_NET_PCT * float(cogs))
+
+
 def decide(acc, goods, cogs, prepromo, ret, touched_only=True):
     """Решение по каждому nm_id. → список словарей-строк журнала.
 
@@ -609,7 +614,7 @@ def decide(acc, goods, cogs, prepromo, ret, touched_only=True):
 
         if c.get("cogs"):
             cg = float(c["cogs"])
-            floor_net = max(MIN_NET, MIN_NET_PCT * cg)
+            floor_net = min_net(cg, c.get("bundle", 1))
             floor_price = (floor_net + cg) / (1.0 - ret)
             row["floor_net"] = round(floor_net, 2)
             row["floor_price"] = round(floor_price, 2)
