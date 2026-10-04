@@ -31,6 +31,12 @@
   table.t tr.org td{font-weight:700;background:rgba(63,167,255,.06)}
   table.t tr.tot td{font-weight:700;border-top:2px solid var(--acc)}
   table.t td.ret{color:var(--mut)}
+  .chart-modes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .chart-modes button{font:inherit;padding:6px 12px;color:var(--mut);background:transparent;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+  .chart-modes button.cur{color:var(--txt);border-color:var(--acc);background:var(--card)}
+  .chart svg{display:block;width:100%;min-width:600px;height:auto}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0}
+  .legend span::before{content:"";display:inline-block;width:20px;height:3px;background:var(--color);margin-right:6px;vertical-align:middle}
   .note{font-size:12px;color:var(--mut);margin-top:8px;line-height:1.6}
 </style>
 </head>
@@ -55,6 +61,7 @@
   <div class="bar"><h1>🧮 Оборот для премии</h1>
     <span class="muted">деньги покупателя: столько реально заплатили за наш товар</span></div>
   <div id="alerts"></div>
+  <div class="card chart"><div class="chart-modes" role="group" aria-label="Показатель графика"><button class="cur" data-metric="net">Оборот</button><button data-metric="avg_check">Средний чек</button><button data-metric="orders">Кол-во заказов</button></div><div id="chart"></div></div>
   <div id="body"></div>
   <div class="note">
     Считается по тем же показателям, что видны в кабинетах:
@@ -94,6 +101,40 @@ function table(d){
   return h+'</table></div></div>';
 }
 
+let chartMetric='net', chartData=null;
+const METRIC_LABEL={net:'Оборот',avg_check:'Средний чек',orders:'Кол-во заказов'};
+function metricValue(cells){
+  if(!cells.length)return null;
+  if(chartMetric==='net')return cells.reduce((v,c)=>v+c.net,0);
+  if(cells.some(c=>c.orders==null))return null;
+  const n=cells.reduce((v,c)=>v+c.orders,0);
+  return chartMetric==='orders'?n:(n?cells.reduce((v,c)=>v+c.sales,0)/n:null);
+}
+const metricFormat=v=>chartMetric==='orders'?Math.round(v).toLocaleString('ru-RU')+' заказов':rub(v);
+function chart(d){
+  const months=d.months.slice().sort((a,b)=>a.ym.localeCompare(b.ym));
+  if(!months.length)return '<span class="muted">Нет данных для графика</span>';
+  const series=[{name:'Всего',color:'#37c871',values:months.map(m=>metricValue(Object.values(m.orgs).flatMap(o=>Object.values(o.platforms))))},
+    ...[['ozon','Ozon','#3fa7ff'],['wb','ВБ','#bc8cff'],['yandex','Маркет','#ffd166']].map(([key,name,color])=>({name,color,
+      values:months.map(m=>{const cells=Object.values(m.orgs).map(o=>o.platforms[key]).filter(Boolean);
+        return metricValue(cells);})}))];
+  const W=1000,H=320,L=75,R=25,T=20,B=45;
+  const all=series.flatMap(s=>s.values).filter(v=>v!=null);
+  const lo=Math.min(0,...all), hi=Math.max(1,...all), span=hi-lo;
+  const x=i=>L+i*(W-L-R)/Math.max(1,months.length-1), y=v=>T+(hi-v)/span*(H-T-B);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Изменение оборота по месяцам, общий и по площадкам">`;
+  for(let i=0;i<=4;i++){const v=lo+span*i/4, yy=y(v);
+    svg+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="#243449"/><text x="${L-10}" y="${yy+4}" text-anchor="end" fill="#8aa0b5" font-size="12">${chartMetric==='net'?(v/1e6).toLocaleString('ru-RU',{maximumFractionDigits:1})+' млн':Math.round(v).toLocaleString('ru-RU')+(chartMetric==='avg_check'?' ₽':'')}</text>`;}
+  months.forEach((m,i)=>svg+=`<text x="${x(i)}" y="${H-15}" text-anchor="middle" fill="#8aa0b5" font-size="12">${m.ym.slice(5)}.${m.ym.slice(0,4)}</text>`);
+  for(const s of series){let path='';let connected=false;
+    s.values.forEach((v,i)=>{if(v==null){connected=false;return;}path+=`${connected?'L':'M'}${x(i)},${y(v)} `;connected=true;});
+    svg+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.name==='Всего'?3:2}"/>`;
+    s.values.forEach((v,i)=>{if(v==null)return;
+      svg+=`<circle cx="${x(i)}" cy="${y(v)}" r="5" fill="${s.color}"><title>${s.name} · ${mname(months[i].ym)}: ${metricFormat(v)}${(d.ozon_pending||[]).includes(months[i].ym)?' · месяц неполный':''}</title></circle>`;});
+  }
+  return '<b>'+METRIC_LABEL[chartMetric]+' по месяцам</b><div class="legend">'+series.map(s=>`<span style="--color:${s.color}">${s.name}</span>`).join('')+'</div><div class="scroll">'+svg+'</svg></div><div class="note">Обе организации. Оборот — за вычетом возвратов; средний чек — продажи до возвратов / количество продаж. ВБ: отдельные выкупленные позиции, Ozon и Маркет: уникальные оплаченные заказы. Общий чек учитывает это различие. Наведите на точку, чтобы увидеть значение. Отсутствующие данные не заменяются нулём; общий оборот неполных месяцев включает только доступные площадки.</div>';
+}
+
 async function load(){
   const d=await (await fetch('/api/turnover?months=6')).json();
   let a='';
@@ -102,8 +143,15 @@ async function load(){
   if(d.wb_last_day)
     a+=`<div class="alert">ВБ: продажи известны по ${d.wb_last_day.slice(8,10)}.${d.wb_last_day.slice(5,7)} — финотчёт приходит недельными пачками. Последний месяц неполный.</div>`;
   $('#alerts').innerHTML=a;
+  chartData=d;
+  $('#chart').innerHTML=chart(d);
   $('#body').innerHTML=table(d);
 }
+document.querySelectorAll('[data-metric]').forEach(button=>button.onclick=()=>{
+  chartMetric=button.dataset.metric;
+  document.querySelectorAll('[data-metric]').forEach(b=>b.classList.toggle('cur',b===button));
+  if(chartData)$('#chart').innerHTML=chart(chartData);
+});
 load();
 </script>
 </body>

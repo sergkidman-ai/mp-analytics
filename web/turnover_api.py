@@ -66,6 +66,34 @@ def _yandex(since):
                group by 1, 2""", (since,))
 
 
+def _order_counts(since):
+    """Delivered/paid sales, not placed orders. WB identifies bought item via srid."""
+    rows = []
+    for platform, sql in (
+        ("wb", """select account,to_char((payload->>'rr_dt')::date,'YYYY-MM') ym,
+            count(distinct nullif(payload->>'srid','')) orders,
+            count(*) filter (where nullif(payload->>'srid','') is null) missing
+            from raw_wb_report where (payload->>'rr_dt')::date >= %s
+            and payload->>'supplier_oper_name'='Продажа'
+            and payload->>'doc_type_name'='Продажа'
+            and (payload->>'retail_amount')::numeric > 0 group by 1,2"""),
+        ("ozon", """select account,to_char((payload->>'operation_date')::date,'YYYY-MM') ym,
+            count(distinct nullif(split_part(payload->'posting'->>'posting_number','-',1)
+              ||'-'||split_part(payload->'posting'->>'posting_number','-',2),'')) orders,
+            count(*) filter (where nullif(payload->'posting'->>'posting_number','') is null) missing
+            from raw_ozon_transaction where (payload->>'operation_date')::date >= %s
+            and (payload->>'accruals_for_sale')::numeric > 0 group by 1,2"""),
+        ("yandex", """select account,ym,count(distinct nullif(order_id::text,'')) orders,
+            count(*) filter (where nullif(order_id::text,'') is null) missing
+            from raw_yandex_closure where ym >= to_char(%s::date,'YYYY-MM')
+            and category='revenue' and amount>0 group by 1,2"""),
+    ):
+        for r in db.query(sql, (since,)):
+            rows.append({**r, "platform": platform})
+    return {(r["ym"], r["platform"], ACC_ORG.get(r["account"])):
+            None if r["missing"] else r["orders"] for r in rows}
+
+
 @router.get("/turnover")
 def page():
     return FileResponse(STATIC / "turnover.html")
@@ -85,6 +113,7 @@ def turnover(months: int = 6):
             c["sales"] += r["sales"]
             c["rets"] += r["rets"]
 
+    counts = _order_counts(first)
     yms = sorted({k[0] for k in cells})
     out = []
     for ym in yms:
@@ -97,7 +126,10 @@ def turnover(months: int = 6):
                     continue
                 net = round(c["sales"] - c["rets"], 2)
                 o["platforms"][p] = {"sales": round(c["sales"], 2),
-                                     "rets": round(c["rets"], 2), "net": net}
+                                     "rets": round(c["rets"], 2), "net": net,
+                                     "orders": counts.get((ym,p,org)),
+                                     "avg_check": round(c["sales"] / counts[(ym,p,org)],2)
+                                     if counts.get((ym,p,org)) else None}
                 o["sales"] += c["sales"]
                 o["rets"] += c["rets"]
                 o["net"] += net
