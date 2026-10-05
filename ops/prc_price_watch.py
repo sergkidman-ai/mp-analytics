@@ -66,10 +66,18 @@ MAIL_ALERT_AFTER = 3                                   # подряд неуда
 MSK = timezone(timedelta(hours=3))                     # часы сервера UTC, сутки считаем по Москве
 
 
+def redact_telegram_token(text):
+    """requests включает URL с токеном в сетевые ошибки; в диагностику он не должен попасть."""
+    text = str(text)
+    if TG_TOKEN:
+        text = text.replace(TG_TOKEN, "[REDACTED]")
+    return re.sub(r"\bbot\d+(?::|%3[aA])[A-Za-z0-9_-]+", "bot[REDACTED]", text)
+
+
 def log(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as fh:
-        fh.write(f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} {text}\n")
+        fh.write(f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} {redact_telegram_token(text)}\n")
 
 
 def tg(text, chats=None):
@@ -87,11 +95,11 @@ def tg(text, chats=None):
     for chat in chats:                     # адресатов может быть несколько (список в .env)
         try:
             r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                              data={"chat_id": chat, "text": text[:TG_LIMIT],
+                              data={"chat_id": chat, "text": redact_telegram_token(text)[:TG_LIMIT],
                                     "disable_web_page_preview": "true"}, timeout=60)
-            out.append(f"{chat}: " + ("ok" if r.ok else f"{r.status_code} {r.text[:120]}"))
+            out.append(f"{chat}: " + ("ok" if r.ok else f"{r.status_code} {redact_telegram_token(r.text)[:120]}"))
         except Exception as exc:                              # сеть/таймаут — не роняем прогон
-            out.append(f"{chat}: {type(exc).__name__}: {exc}")
+            out.append(f"{chat}: {type(exc).__name__}: {redact_telegram_token(exc)}")
     return "; ".join(out)
 
 
@@ -293,11 +301,11 @@ def run_load(profile, dry):
         try:
             with open(crash, "a", encoding="utf-8") as fh:
                 fh.write(f"\n===== {datetime.now(timezone.utc).isoformat(timespec='seconds')} =====\n")
-                fh.write(traceback.format_exc())
+                fh.write(redact_telegram_token(traceback.format_exc()))
         except OSError:
             pass                                   # не смогли записать — сбой важнее протокола
-        return (buf.getvalue() + f"\nСБОЙ: {type(exc).__name__}: {exc}"
-                + f"\nстек: {crash}"), 3
+        return redact_telegram_token(buf.getvalue() + f"\nСБОЙ: {type(exc).__name__}: {exc}"
+                                     + f"\nстек: {crash}"), 3
     return buf.getvalue(), code or 0
 
 
