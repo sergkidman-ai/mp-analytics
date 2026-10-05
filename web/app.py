@@ -923,27 +923,25 @@ ACC_ORG_NAMES = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Ди�
 
 
 def _mp_money(org=""):
-    """«Наши деньги на МП» — последний снимок остатков лицевых счетов площадок (cf/mp_balance).
+    """Official balances plus overdue WB payouts tracked in the cashflow view.
 
-    Не период, а «на сегодня»: сколько уже заработано, но ещё лежит у площадки. Цифры
-    официальные (Ozon cash-flow-statement, баланс ЛК WB, взаимозачёт Маркета), поэтому
-    у площадки без доступа (WB Дисквэр — нет токена со скоупом «Финансы») строки НЕТ:
-    фронт показывает её в сноске, а не подмешивает оценку в сумму."""
-    rows = db.query("""select b.platform, b.account, b.balance::float balance, b.day, b.source
+    Keep the balance and debt separate in the response; add the debt once to both
+    the WB tile and the marketplace total. Cashflow owns payout reconciliation.
+    """
+    from web.mp_money import compose_mp_money
+    rows = db.query("""select b.platform, b.account, b.balance, b.day, b.source
                          from cf_mp_balance b
                          join (select account, max(day) d from cf_mp_balance group by 1) l
                            on l.account = b.account and l.d = b.day
                         where (%s = '' or b.org_inn = %s)""", (org, org))
-    if not rows:
-        return None
-    by = {}
-    for r in rows:
-        by[r["platform"]] = round(by.get(r["platform"], 0) + r["balance"], 2)
-    have = {r["account"] for r in rows}
-    missing = [a for a, o in _CF_ACC_ORG.items() if a not in have and (not org or o == org)]
-    return {"total": round(sum(by.values()), 2), **by,
-            "as_of": max(r["day"] for r in rows).isoformat(),
-            "missing": missing}
+    overdue = db.query("""select distinct on (org_inn, ref)
+                           org_inn, day, amount, ref
+                         from cf_line
+                        where kind='plan' and category='mp_wb' and source='mp_forecast'
+                          and note like '%%просрочено%%' and amount > 0
+                          and (%s = '' or org_inn = %s)
+                        order by org_inn, ref, day desc, id desc""", (org, org))
+    return compose_mp_money(rows, overdue, _CF_ACC_ORG, org)
 
 
 @app.get("/api/business")

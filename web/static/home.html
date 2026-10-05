@@ -206,17 +206,20 @@ function holdTiles(b){
 
 const MP_LBL={ozon:'🟦 На счёте Ozon',wb:'🟣 На счёте ВБ',yandex:'🟡 На счёте Маркета'};
 const MISS_LBL={wb_acc2:'ВБ Дисквэр',wb_acc1:'ВБ Цифровой',oz_acc1:'Ozon Цифровой',oz_acc2:'Ozon Дисквэр',ya_acc1:'Маркет'};
-// «Наши деньги на МП» — остаток лицевых счетов площадок (заработано, но ещё не выплачено).
-// Площадку без доступа в сумму НЕ подмешиваем: пишем сноской, чтобы цифра оставалась фактом.
+// Официальные балансы + просроченные выплаты WB из Кэшфлоу, отдельными компонентами.
+const mpRub=n=>n==null?'—':n.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
 function mpMoneyTiles(m){
   if(!m) return [];
   const d=m.as_of?m.as_of.slice(8,10)+'.'+m.as_of.slice(5,7):'';
   const miss=(m.missing||[]).map(k=>MISS_LBL[k]||k).join(', ');
-  return [['💰 Наши деньги на МП',`<span class="pos">${rub(m.total)}</span>`+
-      `<div class="muted" style="font-size:11px;margin-top:2px">заработано, но ещё на счетах площадок · на ${d}`+
-      (miss?` · без ${miss} (нет доступа к балансу)`:'')+`</div>`,''],
-    ...['ozon','wb','yandex'].filter(k=>m[k]!=null).map(k=>[MP_LBL[k],rub(m[k])+
-      `<div class="muted" style="font-size:11px;margin-top:2px">ещё не выплачено нам${org?'':', обе фирмы'}</div>`,''])];
+  const late=m.wb_overdue||0;
+  return [['💰 Наши деньги на МП',`<span class="pos">${mpRub(m.total)}</span>`+
+      `<div class="muted" style="font-size:11px;margin-top:2px">остатки на счетах площадок${late?' + просроченные выплаты ВБ':''} · на ${d}`+
+      (miss?` · не учтён баланс ${miss} (нет данных)`:'')+`</div>`,''],
+    ...['ozon','wb','yandex'].filter(k=>m[k]!=null).map(k=>[MP_LBL[k],mpRub(m[k])+
+      (k==='wb'&&late?
+        `<div class="muted" style="font-size:11px;margin-top:2px">на счёте: ${mpRub(m.wb_account_balance)}<br><span class="warn">просрочено: ${mpRub(late)}</span> · ${m.wb_overdue_count} выплаты по Кэшфлоу</div>`:
+        `<div class="muted" style="font-size:11px;margin-top:2px">ещё не выплачено нам${org?'':', обе фирмы'}</div>`),''])];
 }
 
 async function load(){
