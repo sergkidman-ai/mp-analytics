@@ -53,6 +53,7 @@
     <div class="navgroup">Деньги</div>
     <a href="/cashflow">💰 Кэшфлоу</a>
     <a href="/turnover" class="cur">🧮 Оборот для премии</a>
+    <a href="/turnover/royalty">Обороты по торговым маркам</a>
     <div class="navgroup">Отчёты</div>
     <a href="/reports">📋 Отчёты МП</a>
   </nav>
@@ -203,10 +204,12 @@ async function loadRoyalty(){
   }catch(error){target.textContent='Не удалось загрузить оборот по торговым маркам. Обновите страницу.';}
 }
 function selectTurnoverSection(){
-  const royalty=window.location.hash==='#royalty';
+  const royalty=window.location.hash==='#royalty'||(!window.location.hash&&window.location.pathname==='/turnover/royalty');
   $('#premium').hidden=royalty;
   $('#premium-note').hidden=royalty;
   $('#royalty').hidden=!royalty;
+  document.querySelector('a[href="/turnover"]').classList.toggle('cur',!royalty);
+  document.querySelector('a[href="/turnover/royalty"]').classList.toggle('cur',royalty);
   document.querySelectorAll('[data-turnover-section]').forEach(button=>{
     const selected=(button.dataset.turnoverSection==='royalty')===royalty;
     button.classList.toggle('cur',selected);

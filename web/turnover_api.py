@@ -23,7 +23,7 @@ from collections import defaultdict
 from threading import Lock
 
 from fastapi import APIRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -98,6 +98,20 @@ def _order_counts(since):
 @router.get("/turnover")
 def page():
     return FileResponse(STATIC / "turnover.html", headers={"Cache-Control": "no-cache"})
+
+
+@router.get("/turnover/royalty")
+def royalty_page():
+    # Dedicated address opens the royalty panel even before JavaScript runs.
+    html = (STATIC / "turnover.html").read_text(encoding="utf-8")
+    html = html.replace('<title>Обороты</title>', '<title>Обороты по торговым маркам</title>')
+    html = html.replace('<h1>🧮 Обороты</h1>', '<h1>Обороты по торговым маркам</h1>')
+    html = html.replace('id="premium" role="tabpanel"', 'id="premium" hidden role="tabpanel"')
+    html = html.replace('id="premium-note"', 'id="premium-note" hidden')
+    html = html.replace('aria-labelledby="royalty-tab" hidden', 'aria-labelledby="royalty-tab"')
+    html = html.replace('href="/turnover" class="cur"', 'href="/turnover"')
+    html = html.replace('href="/turnover/royalty"', 'href="/turnover/royalty" class="cur"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 _TURNOVER_CACHE = {}
