@@ -1,7 +1,7 @@
 # поток: fin
 import datetime as dt
 import unittest
-from web.turnover_api import _assemble_royalty
+from web.turnover_api import _assemble_royalty, _digital_royalty
 
 
 class RoyaltyTurnoverTest(unittest.TestCase):
@@ -43,6 +43,35 @@ class RoyaltyTurnoverTest(unittest.TestCase):
             dict(account='wb_acc1', ym='2026-07', sales=100.12, rets=10.11)
         ])], [])
         self.assertEqual(d['months'][0]['orgs']['7807355364']['net'], 90.01)
+
+
+    def test_monthly_rate_thresholds_and_whole_base(self):
+        cases = [(0, 2.25), (4999999.99, 2.25), (5000000, 2.15),
+                 (9999999.99, 2.15), (10000000, 2.0), (19999999.99, 2.0),
+                 (20000000, 1.75), (30000000, 1.75), (30000000.01, 1.5)]
+        for base, rate in cases:
+            with self.subTest(base=base):
+                self.assertEqual(_digital_royalty(base)['rate_percent'], rate)
+        self.assertEqual(_digital_royalty(6000000)['amount'], 129000)
+        self.assertEqual(_digital_royalty(150)['amount'], 3.38)
+        self.assertIsNone(_digital_royalty(None)['amount'])
+
+    def test_monthly_sum_diskver_and_no_estimated_missing_month(self):
+        d = _assemble_royalty(dt.date(2026, 10, 5), [('wb', [
+            dict(account='wb_acc1', ym='2026-07', sales=6000000, rets=100000),
+            dict(account='wb_acc1', ym='2026-08', sales=4000000, rets=50000),
+        ])], [])
+        july, august, september, october = d['months']
+        self.assertEqual(july['orgs']['7807355364']['royalty']['amount'], 129000)
+        self.assertEqual(august['orgs']['7807355364']['royalty']['amount'], 90000)
+        self.assertEqual(d['digital_royalty_total']['amount'], 219000)
+        self.assertTrue(d['digital_royalty_total']['preliminary'])
+        self.assertEqual(d['digital_royalty_total']['months'], ['2026-07', '2026-08'])
+        self.assertIsNone(july['orgs']['7811803918']['royalty'])
+        self.assertIsNone(september['orgs']['7807355364']['royalty']['amount'])
+        self.assertIsNone(october['orgs']['7807355364']['royalty']['amount'])
+        self.assertEqual(d['royalty_period'], 'month')
+
 
 
 if __name__ == '__main__':

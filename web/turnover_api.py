@@ -190,6 +190,13 @@ def _calculate_turnover(months: int = 6):
 # Royalty scope approved 05.10.2026: all WB/Market, selected trademark on Ozon.
 _ROYALTY_START = dt.date(2026, 7, 1)
 _ROYALTY_BRANDS = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Dsquare"}
+_ROYALTY_RATES_DIGITAL = [
+    {"range": "до 5 000 000 рублей", "percent": "2,25"},
+    {"range": "от 5 000 000 до 10 000 000 рублей", "percent": "2,15"},
+    {"range": "от 10 000 000 до 20 000 000 рублей", "percent": "2,0"},
+    {"range": "от 20 000 000 до 30 000 000 рублей", "percent": "1,75"},
+    {"range": "свыше 30 000 000 рублей", "percent": "1,5"},
+]
 _ROYALTY_CACHE = {}
 _ROYALTY_LOCK = Lock()
 
@@ -223,6 +230,29 @@ def _royalty_months(today):
     while cursor <= today.replace(day=1):
         yield cursor.strftime("%Y-%m")
         cursor = (cursor.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+
+
+
+def _digital_royalty(base):
+    """One rate applies to the whole month's reported gross trademark sales."""
+    from decimal import Decimal, ROUND_HALF_UP
+    if base is None:
+        return {"rate_percent": None, "amount": None}
+    value = Decimal(str(base))
+    if value < 0:
+        raise ValueError("Royalty gross sales cannot be negative")
+    if value < Decimal("5000000"):
+        rate = Decimal("2.25")
+    elif value < Decimal("10000000"):
+        rate = Decimal("2.15")
+    elif value < Decimal("20000000"):
+        rate = Decimal("2.0")
+    elif value <= Decimal("30000000"):
+        rate = Decimal("1.75")
+    else:
+        rate = Decimal("1.5")
+    amount = (value * rate / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return {"rate_percent": float(rate), "amount": float(amount)}
 
 
 def _assemble_royalty(today, source_rows, coverage):
@@ -269,11 +299,34 @@ def _assemble_royalty(today, source_rows, coverage):
                             if ACC_ORG.get(c["account"]) == org and c["ym"] == ym), None),
                          "ozon_unclassified": unknown_cell,
                          "ozon_excluded": cell(excluded_cell.get("sales", 0), excluded_cell.get("rets", 0))}
+        digital = orgs["7807355364"]
+        royalty = _digital_royalty(digital["base"])
+        month_end = (dt.date.fromisoformat(ym + "-01").replace(day=28)
+                     + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        reasons = []
+        if any(c is None for c in digital["platforms"].values()):
+            reasons.append("Нет данных одной или нескольких площадок")
+        if digital["wb_last_day"] is None or digital["wb_last_day"] < month_end.isoformat():
+            reasons.append("Данные ВБ не доходят до конца месяца")
+        if digital["ozon_unclassified"].get("rows", 0):
+            reasons.append("Есть строки Ozon без подтверждённого бренда")
+        royalty.update(preliminary=bool(reasons), reasons=reasons)
+        digital["royalty"] = royalty
+        orgs["7811803918"]["royalty"] = None
         months.append({"ym": ym, "orgs": orgs})
+    from decimal import Decimal
+    calculated = [m for m in months if m["orgs"]["7807355364"]["royalty"]["amount"] is not None]
+    total = float(sum((Decimal(str(m["orgs"]["7807355364"]["royalty"]["amount"]))
+                      for m in calculated), Decimal(0))) if calculated else None
     return {"months": months, "orgs": ORGS, "platforms": PLATFORMS,
             "trademarks": {"7807355364": "Цифровой квадрат", "7811803918": "Dsquare"},
             "since": _ROYALTY_START.isoformat(), "coverage": coverage,
             "basis": "sales_before_returns",
+            "royalty_rates": {"7807355364": _ROYALTY_RATES_DIGITAL},
+            "royalty_period": "month", "royalty_method": "single_rate_on_whole_base",
+            "digital_royalty_total": {"amount": total,
+                "months": [m["ym"] for m in calculated],
+                "preliminary": any(m["orgs"]["7807355364"]["royalty"]["preliminary"] for m in calculated)},
             "refresh_policy": "daily"}
 
 

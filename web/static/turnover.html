@@ -181,20 +181,26 @@ async function loadRoyalty(){
     const response=await fetch('/api/turnover/royalty');
     if(!response.ok)throw new Error('HTTP '+response.status);
     const d=await response.json();
-    let h='';
+    let h='<h3>Размер роялти · Цифровой квадрат</h3><div class="scroll"><table class="t"><thead><tr><th class="k">Оборот за месяц</th><th>Ставка</th></tr></thead><tbody>';
+    for(const rate of d.royalty_rates['7807355364'])h+=`<tr><td class="k">${rate.range}</td><td>${rate.percent}%</td></tr>`;
+    h+='</tbody></table></div><p class="note">Ставка выбирается по обороту каждого месяца и применяется ко всей базе месяца. Расчёт округляется до копеек. Для Дисквера ставка пока не задана.</p>';
+    const total=d.digital_royalty_total;
+    h+=`<p><b>Цифровой · роялти с 01.07.2026: ${royaltyRub(total.amount)}</b>${total.preliminary?' <span class="warn">Предварительный расчёт</span>':''}</p>`;
+    h+='<div class="note">Это начисленный размер роялти по доступным отчётам, без вычета ранее сделанных платежей. Другие каналы продаж не включены.</div>';
     for(const [inn,name] of Object.entries(d.orgs)){
-      h+=`<h3>${name} · ${d.trademarks[inn]}</h3><div class="scroll"><table class="t"><thead><tr><th class="k">Месяц</th><th>ВБ · продажи</th><th>Ozon · продажи по ТЗ</th><th>Маркет · продажи</th><th>База роялти</th><th>Возвраты (справочно)</th><th>После возвратов (справочно)</th></tr></thead><tbody>`;
+      const isDigital=inn==='7807355364';
+      h+=`<h3>${name} · ${d.trademarks[inn]}</h3><div class="scroll"><table class="t"><thead><tr><th class="k">Месяц</th><th>ВБ · продажи</th><th>Ozon · продажи по ТЗ</th><th>Маркет · продажи</th><th>База роялти</th><th>Возвраты (справочно)</th><th>После возвратов (справочно)</th>${isDigital?'<th>Ставка</th><th>Роялти к уплате</th>':''}</tr></thead><tbody>`;
       for(const m of d.months.slice().reverse()){
         const o=m.orgs[inn];
         h+=`<tr><td class="k">${mname(m.ym)}</td>`;
         for(const p of ['wb','ozon','yandex'])h+=`<td>${o.platforms[p]===null?'Нет данных':royaltyRub(o.platforms[p].base)}</td>`;
-        h+=`<td><b>${royaltyRub(o.base)}</b></td><td>${royaltyRub(o.rets)}</td><td>${royaltyRub(o.net)}</td></tr>`;
+        h+=`<td><b>${royaltyRub(o.base)}</b></td><td>${royaltyRub(o.rets)}</td><td>${royaltyRub(o.net)}</td>${isDigital?`<td>${o.royalty.rate_percent==null?'—':o.royalty.rate_percent.toLocaleString('ru-RU')+'%'}</td><td><b>${royaltyRub(o.royalty.amount)}</b>${o.royalty.amount!=null&&o.royalty.preliminary?'<br><span class="warn">Предварительно</span>':''}</td>`:''}</tr>`;
         const u=o.ozon_unclassified;
-        if(u.rows)h+=`<tr><td class="k warn" colspan="7">Ozon: не определён бренд у ${u.rows} строк; ${royaltyRub(u.sales)} продаж не включены в базу роялти.</td></tr>`;
+        if(u.rows)h+=`<tr><td class="k warn" colspan="${isDigital?9:7}">Ozon: не определён бренд у ${u.rows} строк; ${royaltyRub(u.sales)} продаж не включены в базу роялти.</td></tr>`;
         const monthEnd=new Date(Date.UTC(Number(m.ym.slice(0,4)),Number(m.ym.slice(5,7)),0)).toISOString().slice(0,10);
-        if(o.wb_last_day && o.wb_last_day<monthEnd)h+=`<tr><td class="k warn" colspan="7">ВБ: данные месяца известны по ${o.wb_last_day}; база может быть неполной.</td></tr>`;
+        if(o.wb_last_day && o.wb_last_day<monthEnd)h+=`<tr><td class="k warn" colspan="${isDigital?9:7}">ВБ: данные месяца известны по ${o.wb_last_day}; база может быть неполной.</td></tr>`;
         const missing=Object.entries(o.platforms).filter(([,v])=>v===null).map(([p])=>d.platforms[p]);
-        if(missing.length)h+=`<tr><td class="k warn" colspan="7">База предварительная, включает только доступные данные; нет данных: ${missing.join(', ')}.</td></tr>`;
+        if(missing.length)h+=`<tr><td class="k warn" colspan="${isDigital?9:7}">База предварительная, включает только доступные данные; нет данных: ${missing.join(', ')}.</td></tr>`;
       }
       h+='</tbody></table></div>';
     }
