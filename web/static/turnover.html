@@ -63,6 +63,17 @@
   <div id="alerts"></div>
   <div class="card chart"><div class="chart-modes" role="group" aria-label="Показатель графика"><button class="cur" data-metric="net">Оборот</button><button data-metric="avg_check">Средний чек</button><button data-metric="orders">Кол-во заказов</button></div><div id="chart"></div></div>
   <div id="body"></div>
+  <section class="card" id="royalty">
+    <h2 style="font-size:18px;margin-top:0">Обороты по торговой марке</h2>
+    <p class="muted">Цифровой квадрат — для Цифрового; Dsquare — для Дисквера. Оборот маркетплейсов для расчёта роялти с 01.07.2026.</p>
+    <div id="royalty-body">Загрузка…</div>
+    <div class="note">ВБ: «Вайлдберриз реализовал Товар»; Ozon: «Реализовано на сумму»; Маркет: «Получено от потребителей».
+      На ВБ и Маркете учитывается весь оборот фирмы, на Ozon — только выбранная торговая марка.
+      База роялти — продажи до возвратов. Возвраты базу не уменьшают и показаны справочно.
+      Комиссии, логистика и реклама не вычитаются. Все суммы берутся из отчётов площадок.
+      Бренд Ozon определяется по последнему сохранённому состоянию карточки; история изменений бренда не хранится.
+      Другие каналы продаж в этот расчёт не входят.</div>
+  </section>
   <div class="note">
     Считается по тем же показателям, что видны в кабинетах:
     <b>ВБ</b> — «Продажа» (цена после СПП), <b>Ozon</b> — «Реализовано на сумму»,
@@ -156,7 +167,37 @@ document.querySelectorAll('[data-metric]').forEach(button=>button.onclick=()=>{
   document.querySelectorAll('[data-metric]').forEach(b=>b.classList.toggle('cur',b===button));
   if(chartData)$('#chart').innerHTML=chart(chartData);
 });
+const royaltyRub=n=>n==null?"—":n.toLocaleString("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2})+" ₽";
+async function loadRoyalty(){
+  const target=$('#royalty-body');
+  try{
+    const response=await fetch('/api/turnover/royalty');
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const d=await response.json();
+    let h='';
+    for(const [inn,name] of Object.entries(d.orgs)){
+      h+=`<h3>${name} · ${d.trademarks[inn]}</h3><div class="scroll"><table class="t"><thead><tr><th class="k">Месяц</th><th>ВБ · продажи</th><th>Ozon · продажи по ТЗ</th><th>Маркет · продажи</th><th>База роялти</th><th>Возвраты (справочно)</th><th>После возвратов (справочно)</th></tr></thead><tbody>`;
+      for(const m of d.months.slice().reverse()){
+        const o=m.orgs[inn];
+        h+=`<tr><td class="k">${mname(m.ym)}</td>`;
+        for(const p of ['wb','ozon','yandex'])h+=`<td>${o.platforms[p]===null?'Нет данных':royaltyRub(o.platforms[p].base)}</td>`;
+        h+=`<td><b>${royaltyRub(o.base)}</b></td><td>${royaltyRub(o.rets)}</td><td>${royaltyRub(o.net)}</td></tr>`;
+        const u=o.ozon_unclassified;
+        if(u.rows)h+=`<tr><td class="k warn" colspan="7">Ozon: не определён бренд у ${u.rows} строк; ${royaltyRub(u.sales)} продаж не включены в базу роялти.</td></tr>`;
+        const monthEnd=new Date(Date.UTC(Number(m.ym.slice(0,4)),Number(m.ym.slice(5,7)),0)).toISOString().slice(0,10);
+        if(o.wb_last_day && o.wb_last_day<monthEnd)h+=`<tr><td class="k warn" colspan="7">ВБ: данные месяца известны по ${o.wb_last_day}; база может быть неполной.</td></tr>`;
+        const missing=Object.entries(o.platforms).filter(([,v])=>v===null).map(([p])=>d.platforms[p]);
+        if(missing.length)h+=`<tr><td class="k warn" colspan="7">База предварительная, включает только доступные данные; нет данных: ${missing.join(', ')}.</td></tr>`;
+      }
+      h+='</tbody></table></div>';
+    }
+    h+='<div class="note">Наличие дат границ месяца само по себе не гарантирует полноту отчётов.</div>';
+    h+=`<div class="note">Рассчитано ${new Date(d.calculated_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})} МСК. Пересчёт раз в сутки.</div>`;
+    target.innerHTML=h;
+  }catch(error){target.textContent='Не удалось загрузить оборот по торговым маркам. Обновите страницу.';}
+}
 load();
+loadRoyalty();
 </script>
 </body>
 </html>

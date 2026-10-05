@@ -171,3 +171,112 @@ def _calculate_turnover(months: int = 6):
     return {"months": out, "orgs": ORGS, "platforms": PLATFORMS,
             "ozon_pending": pending,
             "wb_last_day": wb_last.isoformat() if wb_last else None}
+
+
+# Royalty scope approved 05.10.2026: all WB/Market, selected trademark on Ozon.
+_ROYALTY_START = dt.date(2026, 7, 1)
+_ROYALTY_BRANDS = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Dsquare"}
+_ROYALTY_CACHE = {}
+_ROYALTY_LOCK = Lock()
+
+
+def _royalty_ozon(since):
+    # One classification per offer prevents multiplying realization rows on joins.
+    return db.query("""with brands as (
+        select account, offer_id,
+          array_agg(distinct v->>'value') filter (
+            where nullif(trim(v->>'value'), '') is not null) labels
+        from raw_ozon_attributes
+        cross join lateral jsonb_array_elements(payload->'attributes') a
+        cross join lateral jsonb_array_elements(a->'values') v
+        where a->>'id' = '85' group by account, offer_id
+      ), classified as (
+        select r.account, to_char(make_date(year, month, 1), 'YYYY-MM') ym,
+          case when cardinality(b.labels) = 1 then b.labels[1] else null end brand,
+          coalesce((item->'delivery_commission'->>'amount')::numeric, 0) sales,
+          coalesce((item->'return_commission'->>'amount')::numeric, 0) rets
+        from raw_ozon_realization r
+        cross join lateral jsonb_array_elements(r.payload->'rows') item
+        left join brands b on b.account = r.account
+          and b.offer_id = item->'item'->>'offer_id'
+        where make_date(year, month, 1) >= %s
+      ) select account, ym, brand, sum(sales) sales, sum(rets) rets,
+          count(*) row_count from classified group by account, ym, brand""", (since,))
+
+
+def _royalty_months(today):
+    cursor = _ROYALTY_START
+    while cursor <= today.replace(day=1):
+        yield cursor.strftime("%Y-%m")
+        cursor = (cursor.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+
+
+def _assemble_royalty(today, source_rows, coverage):
+    from decimal import Decimal
+
+    def cell(sales=0, rets=0):
+        sales, rets = Decimal(str(sales)), Decimal(str(rets))
+        return {"base": float(round(sales, 2)), "sales": float(round(sales, 2)), "rets": float(round(rets, 2)),
+                "net": float(round(sales - rets, 2))}
+
+    cells, excluded, unknown = {}, {}, {}
+    for platform, rows in source_rows:
+        for r in rows:
+            org = ACC_ORG.get(r["account"])
+            if org not in ORGS:
+                continue
+            key = (r["ym"], platform, org)
+            if platform == "ozon":
+                cells.setdefault(key, cell())
+                brand = r["brand"]
+                if brand is None:
+                    unknown[key] = cell(r["sales"], r["rets"])
+                    unknown[key]["rows"] = r["row_count"]
+                    continue
+                if brand != _ROYALTY_BRANDS.get(r["account"]):
+                    bucket = excluded.setdefault(key, {"sales": Decimal(0), "rets": Decimal(0)})
+                    for field in ("sales", "rets"):
+                        bucket[field] += Decimal(str(r[field]))
+                    continue
+            cells[key] = cell(r["sales"], r["rets"])
+
+    months = []
+    for ym in _royalty_months(today):
+        orgs = {}
+        for org in ORGS:
+            platforms = {p: cells.get((ym, p, org)) for p in PLATFORMS}
+            unknown_cell = unknown.get((ym, "ozon", org), cell())
+            excluded_cell = excluded.get((ym, "ozon", org), {})
+            present = [c for c in platforms.values() if c is not None]
+            totals = {field: float(round(sum(Decimal(str(c[field])) for c in present), 2)) if present else None
+                      for field in ("sales", "rets", "net")}
+            orgs[org] = {"platforms": platforms, "base": totals["sales"], **totals,
+                         "wb_last_day": next((c["last_day"] for c in coverage
+                            if ACC_ORG.get(c["account"]) == org and c["ym"] == ym), None),
+                         "ozon_unclassified": unknown_cell,
+                         "ozon_excluded": cell(excluded_cell.get("sales", 0), excluded_cell.get("rets", 0))}
+        months.append({"ym": ym, "orgs": orgs})
+    return {"months": months, "orgs": ORGS, "platforms": PLATFORMS,
+            "trademarks": {"7807355364": "Цифровой квадрат", "7811803918": "Dsquare"},
+            "since": _ROYALTY_START.isoformat(), "coverage": coverage,
+            "basis": "sales_before_returns",
+            "refresh_policy": "daily"}
+
+
+@router.get("/api/turnover/royalty")
+def royalty_turnover():
+    today = dt.datetime.now(dt.timezone.utc).date()
+    with _ROYALTY_LOCK:
+        if _ROYALTY_CACHE.get("day") == today:
+            return _ROYALTY_CACHE["result"]
+        coverage = db.query("""select account,
+          to_char((payload->>'rr_dt')::date, 'YYYY-MM') ym,
+          max((payload->>'rr_dt')::date)::text last_day
+          from raw_wb_report where (payload->>'rr_dt')::date >= %s
+          group by account, ym""", (_ROYALTY_START,))
+        result = _assemble_royalty(today, [
+            ("wb", _wb(_ROYALTY_START)), ("ozon", _royalty_ozon(_ROYALTY_START)),
+            ("yandex", _yandex(_ROYALTY_START))], coverage)
+        result["calculated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        _ROYALTY_CACHE.update(day=today, result=result)
+        return result
