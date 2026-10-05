@@ -97,7 +97,7 @@ def _order_counts(since):
 
 @router.get("/turnover")
 def page():
-    return FileResponse(STATIC / "turnover.html")
+    return FileResponse(STATIC / "turnover.html", headers={"Cache-Control": "no-cache"})
 
 
 _TURNOVER_CACHE = {}

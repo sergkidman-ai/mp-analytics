@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Оборот для премии</title>
+<title>Обороты</title>
 <!-- поток: fin -->
 <style>
   :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
@@ -58,12 +58,18 @@
   </nav>
 </header>
 <main>
-  <div class="bar"><h1>🧮 Оборот для премии</h1>
+  <div class="bar"><h1>🧮 Обороты</h1>
     <span class="muted">деньги покупателя: столько реально заплатили за наш товар</span></div>
+  <div class="chart-modes" role="tablist" aria-label="Раздел оборотов">
+    <button id="premium-tab" role="tab" aria-controls="premium" aria-selected="true" class="cur" data-turnover-section="premium">Для премии</button>
+    <button id="royalty-tab" role="tab" aria-controls="royalty" aria-selected="false" data-turnover-section="royalty">По торговым маркам · роялти</button>
+  </div>
+  <section id="premium" role="tabpanel" aria-labelledby="premium-tab">
   <div id="alerts"></div>
   <div class="card chart"><div class="chart-modes" role="group" aria-label="Показатель графика"><button class="cur" data-metric="net">Оборот</button><button data-metric="avg_check">Средний чек</button><button data-metric="orders">Кол-во заказов</button></div><div id="chart"></div></div>
   <div id="body"></div>
-  <section class="card" id="royalty">
+  </section>
+  <section class="card" id="royalty" role="tabpanel" aria-labelledby="royalty-tab" hidden>
     <h2 style="font-size:18px;margin-top:0">Обороты по торговой марке</h2>
     <p class="muted">Цифровой квадрат — для Цифрового; Dsquare — для Дисквера. Оборот маркетплейсов для расчёта роялти с 01.07.2026.</p>
     <div id="royalty-body">Загрузка…</div>
@@ -74,7 +80,7 @@
       Бренд Ozon определяется по последнему сохранённому состоянию карточки; история изменений бренда не хранится.
       Другие каналы продаж в этот расчёт не входят.</div>
   </section>
-  <div class="note">
+  <div class="note" id="premium-note">
     Считается по тем же показателям, что видны в кабинетах:
     <b>ВБ</b> — «Продажа» (цена после СПП), <b>Ozon</b> — «Реализовано на сумму»,
     <b>Маркет</b> — «Получено от потребителей». Возвраты вычитаются из месяца, когда прошли.
@@ -196,6 +202,23 @@ async function loadRoyalty(){
     target.innerHTML=h;
   }catch(error){target.textContent='Не удалось загрузить оборот по торговым маркам. Обновите страницу.';}
 }
+function selectTurnoverSection(){
+  const royalty=window.location.hash==='#royalty';
+  $('#premium').hidden=royalty;
+  $('#premium-note').hidden=royalty;
+  $('#royalty').hidden=!royalty;
+  document.querySelectorAll('[data-turnover-section]').forEach(button=>{
+    const selected=(button.dataset.turnoverSection==='royalty')===royalty;
+    button.classList.toggle('cur',selected);
+    button.setAttribute('aria-selected',String(selected));
+  });
+}
+document.querySelectorAll('[data-turnover-section]').forEach(button=>button.onclick=()=>{
+  window.location.hash=button.dataset.turnoverSection==='royalty'?'#royalty':'#premium';
+  selectTurnoverSection();
+});
+window.addEventListener('hashchange',selectTurnoverSection);
+selectTurnoverSection();
 load();
 loadRoyalty();
 </script>
