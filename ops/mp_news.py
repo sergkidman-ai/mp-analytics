@@ -307,8 +307,10 @@ def collect_wb(dry=False, days=90):
         body = _strip_html(n.get("content"))
         imp, rule = classify(title, body)
         try:
-            when = datetime.fromisoformat(n["date"])
-        except (KeyError, ValueError):
+            # Python 3.10 does not accept the UTC suffix Z returned by WB.
+            when = datetime.fromisoformat(n["date"].replace("Z", "+00:00"))
+        except (KeyError, ValueError, TypeError, AttributeError) as exc:
+            print(f"WB: новость {mid} пропущена — некорректная дата ({type(exc).__name__})")
             continue
         # types приходит списком словарей [{"id":79,"name":"Товары"}] — кладём в chat_type
         # человеческие названия рубрик: по ним потом видно, какого рода была новость.
