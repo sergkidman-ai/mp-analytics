@@ -1,0 +1,89 @@
+{
+  "inbox": [
+    {
+      "request_id": "4a9bc33b-3e37-458a-b484-80ecabc1b8e6",
+      "event_at": "2026-10-08 10:49:43+00:00",
+      "received_at": "2026-10-08 10:49:43.179456+00:00",
+      "duplicates": 0,
+      "events": [
+        {
+          "action": "UPDATE",
+          "demand_id": "abc1e735-c2f1-11f1-0a80-0b5a00a84792",
+          "updatedFields": [
+            "applicable"
+          ]
+        }
+      ]
+    },
+    {
+      "request_id": "4e5907c9-0e61-430f-95c2-744cba426b76",
+      "event_at": "2026-10-08 10:49:58+00:00",
+      "received_at": "2026-10-08 10:49:58.322196+00:00",
+      "duplicates": 0,
+      "events": [
+        {
+          "action": "CREATE",
+          "demand_id": "0119c55c-c306-11f1-0a80-1e750054440b",
+          "updatedFields": null
+        }
+      ]
+    }
+  ],
+  "demand_subscriptions": [
+    {
+      "id": "91e5df35-81de-11f0-0a80-15af0000da70",
+      "action": "CREATE",
+      "enabled": true,
+      "host": "thecartridge.ru",
+      "path_prefix": "/api"
+    },
+    {
+      "id": "9c3bdcd0-04a5-11f0-0a80-0528003f3517",
+      "action": "UPDATE",
+      "enabled": true,
+      "host": "thecartridge.ru",
+      "path_prefix": "/api"
+    },
+    {
+      "id": "a51469d3-c2f8-11f1-0a80-113400ab1929",
+      "action": "CREATE",
+      "enabled": false,
+      "host": "bi.metaverseworld.ru",
+      "path_prefix": "/hooks"
+    },
+    {
+      "id": "a5c0e9d3-c2f8-11f1-0a80-0c4e00ab8540",
+      "action": "UPDATE",
+      "enabled": false,
+      "host": "bi.metaverseworld.ru",
+      "path_prefix": "/hooks"
+    },
+    {
+      "id": "a66f4273-c2f8-11f1-0a80-0b5a00aad153",
+      "action": "DELETE",
+      "enabled": false,
+      "host": "bi.metaverseworld.ru",
+      "path_prefix": "/hooks"
+    }
+  ],
+  "order": "5976451739",
+  "documents": [
+    {
+      "id": "abc1e735-c2f1-11f1-0a80-0b5a00a84792",
+      "created_msk": "2026-10-08 11:24:24.966",
+      "observed_actions": [
+        "UPDATE"
+      ]
+    },
+    {
+      "id": "0119c55c-c306-11f1-0a80-1e750054440b",
+      "created_msk": "2026-10-08 13:49:58.086",
+      "observed_actions": [
+        "CREATE"
+      ],
+      "create_received_msk": "2026-10-08 13:49:58.322196"
+    }
+  ],
+  "tc_delivery": "not_confirmed; TC receipt logs and HTTP acknowledgement unavailable",
+  "guard_remains_paused": true
+}
