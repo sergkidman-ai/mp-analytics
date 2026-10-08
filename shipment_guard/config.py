@@ -1,6 +1,7 @@
 # поток: fin
 import os
 from pathlib import Path
+from datetime import datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
@@ -14,6 +15,13 @@ def ms_token():
     token=os.getenv('SHIPMENT_GUARD_MS_TOKEN','').strip()
     if not token: raise RuntimeError('shipment_guard_ms_token_missing')
     return token
+
+def pilot_since():
+    value=os.getenv('SHIPMENT_GUARD_YANDEX_PILOT_SINCE','').strip()
+    if not value: return None
+    since=datetime.fromisoformat(value)
+    if since.tzinfo is None: raise ValueError('pilot_since_requires_timezone')
+    return since
 
 def account_id():
     return str(UUID(os.environ['SHIPMENT_GUARD_ACCOUNT_ID']))

@@ -5,7 +5,7 @@ import os
 import unittest
 from datetime import datetime,date,timedelta,timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch,MagicMock
 from uuid import uuid4
 import httpx
 from shipment_guard import config,store,sync
@@ -86,6 +86,37 @@ class EconomicsTests(unittest.TestCase):
         d,p,f,c,rule=example();rule['platform']='ozon';r=assess(d,p,f,c,rule);self.assertIn('rule_unknown',r['signals']);self.assertIsNone(r['floor']);self.assertIn('below_fifo',r['signals'])
     def test_returns_negative_qty_visible(self):
         d,p,f,c,rule=example();p[0]['quantity']=-1;r=assess(d,p,f,c,rule);self.assertEqual(r['status'],'data_error')
+
+class PilotTests(unittest.TestCase):
+    def test_pilot_cutoff_requires_timezone(self):
+        with patch.dict(os.environ,{'SHIPMENT_GUARD_YANDEX_PILOT_SINCE':'2026-10-08 12:00:00'}):
+            with self.assertRaisesRegex(ValueError,'requires_timezone'):config.pilot_since()
+    def test_non_yandex_never_reads_positions_fifo_or_marketplace(self):
+        from shipment_guard.worker import Worker
+        d,p,f,c,rule=example();d['accountId']=ACCOUNT
+        client=MagicMock();client.requests=1;client.get.return_value=d
+        adapter=MagicMock();worker=Worker(client,adapter)
+        job={'account_id':ACCOUNT,'demand_id':DID,'requested_at':datetime.now(timezone.utc)}
+        with patch('shipment_guard.config.pilot_since',return_value=datetime.now(timezone.utc)),patch('shipment_guard.config.identity',return_value=('wb','wb_acc1','org','id')),patch('shipment_guard.worker.store.skip_outside_pilot') as skip,patch('shipment_guard.worker.store.metric'),patch('shipment_guard.worker.store.finish') as finish:
+            worker.process(job)
+        skip.assert_called_once_with(job);client.rows.assert_not_called();adapter.confirm.assert_not_called();finish.assert_not_called()
+    def test_yandex_pilot_runs_full_assessment(self):
+        from shipment_guard.worker import Worker
+        d,p,f,c,rule=example();d['accountId']=ACCOUNT
+        client=MagicMock();client.requests=3;client.get.return_value=d;client.rows.side_effect=[p,f]
+        adapter=MagicMock();adapter.confirm.return_value=(c,{})
+        worker=Worker(client,adapter);job={'account_id':ACCOUNT,'demand_id':DID,'requested_at':datetime.now(timezone.utc)}
+        with patch('shipment_guard.config.pilot_since',return_value=datetime.now(timezone.utc)),patch('shipment_guard.worker.db.query',return_value=[rule]),patch('shipment_guard.worker.store.metric'),patch('shipment_guard.worker.store.finish') as finish,patch('shipment_guard.worker.store.skip_outside_pilot') as skip:
+            worker.process(job)
+        self.assertEqual(client.rows.call_count,2);adapter.confirm.assert_called_once();skip.assert_not_called()
+        self.assertEqual(finish.call_args.args[1]['platform'],'yandex');self.assertEqual(finish.call_args.args[1]['fifo'],5975.74)
+    def test_pilot_disables_background_discovery(self):
+        from shipment_guard.worker import Worker
+        worker=Worker(MagicMock(),MagicMock());connection=MagicMock();connection.cursor.return_value.__enter__.return_value.fetchone.return_value=(True,)
+        def stop():worker.stop=True;return None
+        with patch('shipment_guard.config.pilot_since',return_value=datetime.now(timezone.utc)),patch('shipment_guard.worker.psycopg2.connect',return_value=connection),patch('shipment_guard.worker.store.claim',side_effect=stop),patch('shipment_guard.worker.store.metric'),patch('shipment_guard.worker.store.cleanup'),patch('shipment_guard.worker.time.sleep'),patch('shipment_guard.worker.sync.reconcile') as reconcile,patch('shipment_guard.worker.sync.recheck_recent') as recent,patch('shipment_guard.worker.sync.check_tracked') as tracked,patch('shipment_guard.worker.db.query') as query:
+            worker.run()
+        reconcile.assert_not_called();recent.assert_not_called();tracked.assert_not_called();query.assert_not_called()
 
 class ReceiverTests(unittest.TestCase):
     def test_all_events_and_bad_href(self):
@@ -177,6 +208,25 @@ class QueueTests(unittest.TestCase):
         with store.transaction() as c:c.execute('SELECT * FROM ms_shipment_jobs');return [dict(r) for r in c.fetchall()]
     def test_multi_event_duplicate_and_100_batch(self):
         ids=[str(uuid4()) for _ in range(100)];rid=str(uuid4());self.assertTrue(self.push(ids,rid));self.assertFalse(self.push(ids,rid));self.assertEqual(len(self.jobs()),100);self.assertTrue(all(j['requested_generation']==1 for j in self.jobs()))
+    def test_pilot_claims_only_webhooks_after_cutoff(self):
+        self.push();self.ready()
+        with store.transaction() as c:c.execute("UPDATE ms_shipment_jobs SET requested_at=now()-interval '1 hour'")
+        cutoff=datetime.now(timezone.utc)
+        with patch('shipment_guard.config.pilot_since',return_value=cutoff):
+            self.assertIsNone(store.claim())
+            self.push();self.ready()
+            with store.transaction() as c:c.execute("UPDATE ms_shipment_jobs SET last_source='manual_recheck'")
+            self.assertIsNone(store.claim())
+            with store.transaction() as c:c.execute("UPDATE ms_shipment_jobs SET last_source='webhook'")
+            self.assertIsNotNone(store.claim())
+    def test_pilot_skip_preserves_assessment_and_new_generation(self):
+        self.push();self.ready();store.finish(store.claim(),{'status':'below_floor','platform':'wb'})
+        self.push();self.ready();job=store.claim();self.push()
+        self.assertFalse(store.skip_outside_pilot(job));self.assertEqual(self.jobs()[0]['state'],'pending')
+        with store.transaction() as c:
+            c.execute('SELECT result FROM ms_shipment_assessments WHERE is_current');self.assertEqual(c.fetchone()['result']['status'],'below_floor')
+        self.ready();self.assertTrue(store.skip_outside_pilot(store.claim()))
+        self.assertFalse(store.skip_outside_pilot(job))
     def test_crash_claim_lease_and_old_owner(self):
         self.push();self.ready();old=store.claim()
         self.assertIsNone(store.claim())

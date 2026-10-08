@@ -31,11 +31,19 @@ class Worker:
             try: document=self.client.get('/entity/demand/'+did)
             except NotFound:
                 previous=db.query('SELECT result FROM ms_shipment_assessments WHERE account_id=%s AND demand_id=%s AND is_current',(job['account_id'],did))
+                if config.pilot_since() and (not previous or previous[0]['result'].get('platform')!='yandex'):
+                    store.skip_outside_pilot(job)
+                    store.metric('pilot_skipped_unknown_or_non_yandex_deleted')
+                    return
                 result=dict(previous[0]['result']) if previous else {'name':did}
                 result.update(status='deleted',signals=[],errors=[],deleted=True)
                 store.finish(job,result)
                 return
             if document.get('accountId')!=str(job['account_id']): raise RuntimeError('document_account_mismatch')
+            if config.pilot_since() and config.identity(document)[0]!='yandex':
+                store.skip_outside_pilot(job)
+                store.metric('pilot_skipped_non_yandex',details={'platform':config.identity(document)[0]})
+                return
             positions=list(self.client.rows('/entity/demand/'+did+'/positions',{'expand':'assortment'}))
             raw_fifo=list(self.client.rows('/report/stock/byoperation',{'operation.id':did}))
             confirmed,order=self.adapter.confirm(document,positions)
@@ -86,7 +94,7 @@ class Worker:
                     self.process(job); jobs_since_page+=1
                 if once: return
                 now=time.monotonic()
-                if window is None:
+                if not config.pilot_since() and window is None:
                     state=db.query('SELECT last_attempt_at FROM ms_shipment_sync_state WHERE account_id=%s',(account,))
                     if state and (not state[0]['last_attempt_at'] or (datetime.now(timezone.utc)-state[0]['last_attempt_at']).total_seconds()>=1800):
                         window=sync.reconcile(self.client,account)
@@ -96,9 +104,9 @@ class Worker:
                     except Exception:
                         window=None; store.metric('sync_errors'); LOG.warning('Reconciliation failed; checkpoint preserved')
                     jobs_since_page=0
-                if now>=next_recent:
+                if not config.pilot_since() and now>=next_recent:
                     sync.recheck_recent(account); next_recent=now+1800
-                if now>=next_check:
+                if not config.pilot_since() and now>=next_check:
                     try: sync.check_tracked(self.client,account)
                     except Exception: store.metric('tracked_check_errors')
                     next_check=now+30
