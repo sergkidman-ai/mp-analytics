@@ -4,7 +4,7 @@
 
 Рабочий раздел: https://bi.metaverseworld.ru/shipment-guard (обычный Basic Auth Пульта).
 Ветка `fin/shipment-guard`, worktree `/opt/mp-analytics/.claude/worktrees/fin-shipment-guard`,
-база `origin/main` 959c6a3. Код установлен из этой ветки (коммиты d008c36, 6a255f9 и последующий фикс выбора WB-токенов). Общий checkout оставлен на main. Чужие 60 изменённых tracked
+база `origin/main` 959c6a3. Код установлен из этой ветки (коммиты d008c36, 6a255f9 и 7eca721 с исправлением выбора WB-токенов). Общий checkout оставлен на main. Чужие 60 изменённых tracked
 файлов сверены по SHA256; в app.py/home.html вычтены только наши две вставки, содержимое
 совпало с preflight. Параллельная mkt-сессия продвинула main до 6d62b94; её коммиты сохранены.
 
