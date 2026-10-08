@@ -16,5 +16,6 @@
   "marketplace_writes": 0,
   "newly_eligible": 57,
   "active_missing_promo_price": 68,
-  "candidate_version": "7d041e402d4ec4727b0e016a286072490d5f135ac63eed802e1531e09e1092f4"
+  "candidate_version": "7d041e402d4ec4727b0e016a286072490d5f135ac63eed802e1531e09e1092f4",
+  "hist_matches_candidate_version": true
 }

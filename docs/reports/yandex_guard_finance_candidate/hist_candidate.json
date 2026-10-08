@@ -313,7 +313,7 @@
       "accounting_provisional": true,
       "price_usable": true,
       "source": "stats/orders_calendar_payments",
-      "version": "bdbb6cdef8bb8826174729c93d68838b627200ebae1301e33feaf79cc41ccdcc",
+      "version": "7d041e402d4ec4727b0e016a286072490d5f135ac63eed802e1531e09e1092f4",
       "activation": "separate active.json required"
     }
   }
