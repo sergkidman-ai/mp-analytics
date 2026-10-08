@@ -1,5 +1,5 @@
 {
-  "installed_code_commit": "7eca721139a55f1015137edbc5fb2f4783f14039",
+  "installed_code_commit": "47b04792ae645633cf5b06de7002c72cdc1dcd8b",
   "worktree": "/opt/mp-analytics/.claude/worktrees/fin-shipment-guard",
   "services": [
     "mp-shipment-worker",
@@ -10,14 +10,16 @@
   "code_hashes": {
     "shipment_guard/store.py": "67b7470b9f47e5a25e4bf5442eb537c27d53d6bb49208f55afbeb88b3ba637a1",
     "shipment_guard/config.py": "2d12b0432828c3aafd4bf3b952486c214cb239b091d07de1bd068587006f418b",
-    "shipment_guard/economics.py": "4f8d47396702e1dc7d1e68b51f28aa9ed157917a1e610270a70fb495fc703bfb",
+    "shipment_guard/economics.py": "89f00e3e2774ff3f9ef14a302e07b15acfb770d2f3a1da0e3b04c48bf3b219c4",
     "shipment_guard/manage.py": "4fc206df56a1559accd09e0328c4c8f72c5111d3f3f173d5c115b58038f16016",
     "shipment_guard/__init__.py": "d5cb9f25da4ab3c02ae2307d86945e469e0d8a18e57f138b19e7bcd8ef91663b",
     "shipment_guard/worker.py": "30b0015ac7513c33dc8bfe7da2f006015a0cf635653567378995400cff4e65f8",
-    "shipment_guard/adapters.py": "b1739fef3263f9ab3b45b81c3bfd336d9efb2aa7800bdd52a74e35e42c5f2b66",
+    "shipment_guard/bundles.py": "b09bee228b5c38c90b8af8e3f45b498ef7a3ed1b027f2e3c7176e91d352bcee6",
+    "shipment_guard/adapters.py": "3ac41249ee066a1d0752ad6ce206444257555404015218000c36be076e799f47",
     "shipment_guard/bootstrap.py": "46feca5b2226e779a0bf6e4f7eb4c79c0ffa960e4a159b9aa76a47c3a95cd750",
     "shipment_guard/ms.py": "abf25468dbbab4d4e71ebea0d2ccc2b389f7614b5ada1b3650f69aa0f8500ae0",
     "shipment_guard/sync.py": "cab21c799d0d76b72ff9fc0b2855e9e244b741af90c62dda342f96dc8b8ba1d0"
   },
-  "test_count": 30
+  "test_count": 44,
+  "composition_migration": "072"
 }
