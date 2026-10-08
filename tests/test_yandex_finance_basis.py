@@ -154,10 +154,16 @@ class FinanceBasisTests(unittest.TestCase):
         x=classify(r,D('.33'));self.assertEqual(x['category'],'no_data');self.assertEqual(x['action'],'none')
 
     def test_guard_exact_floor_and_locked_sku(self):
-        r={'offer_id':'x','cogs':1000,'keep_ratio':D('.3299429237'),'promo_price':0,'price':5000,
+        r={'offer_id':'x','cogs':1000,'keep_ratio':D('.3299429237'),'promo_price':3000,'price':5000,
            'max_promo_price':4500,'mechanics':'DIRECT_DISCOUNT'}
         x=guard.decide(r);self.assertEqual(x['mode'],'raise');self.assertEqual(x['new_price'],3941)
         r['offer_id']='7200';self.assertEqual(guard.decide(r)['mode'],'ok')
+
+    def test_guard_missing_promo_price_blocks_mutation(self):
+        for value in (None,0):
+            r={'offer_id':'a','cogs':1000,'cogs_source':'own_stock','keep_ratio':D('.33'),
+               'promo_price':value,'price':5000,'max_promo_price':4500,'mechanics':'DIRECT_DISCOUNT'}
+            x=guard.decide(r);self.assertEqual(x['mode'],'frozen');self.assertIsNone(x['new_price'])
 
     def test_other_platforms_use_their_existing_lines_when_yandex_inactive(self):
         oz={'months':['Sep'],'period_keys':['2026-09'],'accounts':{'oz_acc1':{'lines':dict.fromkeys(

@@ -136,6 +136,9 @@ def decide(r):
     if str(r.get('offer_id')) == '7200':
         r['mode'], r['reason'] = 'ok', '7200: цена закреплена пользователем'
         return r
+    if not r.get('promo_price') or Decimal(str(r['promo_price'])) <= 0:
+        r['mode'], r['reason'] = 'frozen', 'API не возвращает проверяемую промо-цену'
+        return r
     if r["cogs"] is None:
         r["mode"], r["reason"] = "remove", f"себестоимость не найдена ({r['cogs_source']})"
         return r
@@ -243,6 +246,8 @@ def summary(rows, acts, skipped, keep, month, apply):
     lines = [f"*Маркет* · сторож акций · {'исполнение' if apply else 'расчёт'}",
              f"акций {len(acts)}, позиций {len(rows)}, остаётся нам {keep*100:.1f}% ({month})",
              f"  · проходят: {m.get('ok', 0)}  · поднять: {m.get('raise', 0)}  · убрать: {m.get('remove', 0)}"]
+    if m.get('frozen'):
+        lines.append(f"  · нет проверяемой промо-цены: {m['frozen']} (без отправки)")
     if skipped:
         lines.append("  · не трогаем (промокоды): " + ", ".join((a.get("name") or "")[:25] for a in skipped))
     why = {}
