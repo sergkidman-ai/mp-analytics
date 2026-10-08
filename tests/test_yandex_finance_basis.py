@@ -159,6 +159,14 @@ class FinanceBasisTests(unittest.TestCase):
         x=guard.decide(r);self.assertEqual(x['mode'],'raise');self.assertEqual(x['new_price'],3941)
         r['offer_id']='7200';self.assertEqual(guard.decide(r)['mode'],'ok')
 
+    def test_bad_refresh_preserves_verified_closed_month_evidence(self):
+        with tempfile.TemporaryDirectory() as directory,patch.object(b,'DATA',Path(directory)):
+            good=self.build();b.publish_report_evidence(good)
+            before=(Path(directory)/'2026-09.json').read_bytes()
+            bad=self.build(metadata={});b.publish_report_evidence(bad)
+            self.assertEqual(before,(Path(directory)/'2026-09.json').read_bytes())
+            self.assertFalse(b.load(Path(directory)/'latest_refresh_status.json')['price_usable'])
+
     def test_report_closure_is_separate_from_accounting_provisional(self):
         from reports import yandex_mp_freeze as freeze
         hist=freeze._empty_hist(); evidence=self.build();evidence['version']='verified'

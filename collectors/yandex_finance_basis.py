@@ -316,12 +316,21 @@ def refresh(month, folder, seed_job=None):
         return basis
 
 
+def publish_report_evidence(basis):
+    """An unsuccessful new refresh must not erase previously verified closed-month data."""
+    month = basis['month']
+    save(DATA/'latest_refresh_status.json', {'month':month,'status':basis['status'],
+         'price_usable':basis['price_usable'],'checked_at':stamp(),'candidate_version':basis['version']})
+    if basis.get('price_usable') is True:
+        save(DATA/(month+'.json'),basis)
+
+
 def refresh_previous():
     previous = (date.today().replace(day=1)-__import__('datetime').timedelta(days=1)).strftime('%Y-%m')
     # Serialize refresh and publication; this is REPORT evidence, not the trading pointer.
     with lock(DATA/'.evidence.lock'):
         b = refresh(previous, DATA/'runs'/previous)
-        save(DATA/(previous+'.json'),b)
+        publish_report_evidence(b)
     return b['status']
 
 
