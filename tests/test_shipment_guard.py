@@ -118,7 +118,10 @@ class QueueTests(unittest.TestCase):
             kw['options']=kw.get('options','')+' -c search_path='+cls.schema
             return cls.original(*args,**kw)
         cls.patcher=patch('psycopg2.connect',side_effect=connect);cls.patcher.start()
-        with store.transaction() as c:c.execute((Path(__file__).parents[1]/'migrations/071_shipment_guard.sql').read_text())
+        with store.transaction() as c:
+            c.execute((Path(__file__).parents[1]/'migrations/071_shipment_guard.sql').read_text())
+            c.execute((Path(__file__).parents[1]/'migrations/072_shipment_guard_bom.sql').read_text())
+            c.execute('CREATE TABLE set_cost(external_code text PRIMARY KEY, components text[],resolved_at timestamptz)')
     @classmethod
     def tearDownClass(cls):
         from core import db
@@ -184,6 +187,19 @@ class QueueTests(unittest.TestCase):
                 return {'rows':[{'id':str(uuid4()),'accountId':ACCOUNT,'updated':'2026-10-08 10:00:00'}],'meta':{'size':1}}
         with self.assertRaises(RuntimeError):list(sync.reconcile(Client(),ACCOUNT))
         with store.transaction() as c:c.execute('SELECT checkpoint FROM ms_shipment_sync_state');self.assertEqual(c.fetchone()['checkpoint'],before)
+
+    def test_tc_api_cache_preserves_repeated_components_without_cost(self):
+        from shipment_guard.bundles import Catalogue
+        from collections import Counter
+        from unittest.mock import Mock
+        request=Mock(return_value=['a','a','b']);catalog=Catalogue(request)
+        with patch.dict(os.environ,{'CARTRIDGE_API_KEY':'test'}):
+            first,source=catalog._resolve_exact('set')
+            second,_=catalog._resolve_exact('set')
+        self.assertEqual(first,Counter({'a':2,'b':1}));self.assertEqual(second,first);self.assertEqual(request.call_count,1)
+        with store.transaction() as c:
+            c.execute("SELECT raw_payload FROM ms_shipment_bom WHERE external_code='set'")
+            self.assertEqual(c.fetchone()['raw_payload'],['a','a','b'])
 
 class AdapterTests(unittest.TestCase):
     def test_yandex_total_price_not_multiplied_by_count(self):
@@ -258,3 +274,88 @@ class WBCredentialsTests(unittest.TestCase):
         a=OrderAdapter()
         with patch('shipment_guard.adapters.db.query',return_value=[]),patch.dict(os.environ,{'SHIPMENT_GUARD_WB_TOKEN_ENV_ACC1':'WB_TOKEN_RETURNS_ACC2'}):
             with self.assertRaises(SourceError):a.wb('wb_acc1','123',{'moment':'2026-10-08 10:00:00'})
+
+class TCCompositionTests(unittest.TestCase):
+    def sale(self,qtys,items,boms):
+        from shipment_guard.bundles import match
+        from collections import Counter
+        mids={str(uuid4()):s for s in qtys}
+        full=match(qtys,mids,items,{s:Counter(v) for s,v in boms.items()},
+             {s:{'source':'ТК set_cost.components','sha256':'proof'} for s in boms})
+        d,p,f,c,rule=example();d['sum']=sum(qtys.values())*10000
+        p=[{'assortment':{'meta':{'href':config.MS+'/entity/product/'+mid},'externalCode':sku},'quantity':qtys[sku],'price':10000} for mid,sku in mids.items()]
+        f=[{'positions':[{'meta':{'href':config.MS+'/entity/product/'+mid},'cost':qtys[sku]*8000} for mid,sku in mids.items()]}]
+        return full,assess(d,p,f,full,rule)
+    def test_one_set_multiple_components_real_fifo_and_goal_per_set(self):
+        full,r=self.sale({'a':1,'b':1,'c':1,'d':1},[('set',1,1000)],{'set':['a','b','c','d']})
+        self.assertTrue(full['verified']);self.assertEqual(r['fifo'],320);self.assertEqual(len(r['lines']),1)
+        self.assertEqual(r['lines'][0]['quantity'],1);self.assertEqual(len(r['lines'][0]['components']),4)
+        self.assertAlmostEqual(r['floor'],(320+300)/(1-.6700368042873839),places=2)
+    def test_repeated_component_counts_and_multiple_sets_no_double_fifo(self):
+        full,r=self.sale({'a':4,'b':2},[('set',2,1000)],{'set':['a','a','b']})
+        self.assertTrue(full['verified']);self.assertEqual(r['fifo'],480);self.assertEqual(r['lines'][0]['quantity'],2)
+        self.assertAlmostEqual(r['floor'],(480+600)/(1-.6700368042873839),places=2)
+    def test_wrong_bom_quantity_stays_visible(self):
+        full,r=self.sale({'a':1,'b':1},[('set',1,1000)],{'set':['a','a','b']})
+        self.assertFalse(full.get('verified',False));self.assertEqual(r['status'],'data_error');self.assertIn('composition_diagnostic',r)
+    def test_mixed_sets_and_single_item_keep_loss_per_sale_sku(self):
+        full,r=self.sale({'a':1,'b':1,'c':1},[('set',1,100),('c',1,2000)],{'set':['a','b']})
+        self.assertTrue(full['verified']);self.assertEqual(len(r['lines']),2);self.assertIn('below_fifo',r['signals']);self.assertGreater(r['full_price'],r['fifo'])
+    def test_shared_components_do_not_allocate_fifo_by_price(self):
+        full,r=self.sale({'a':2,'b':1,'c':1},[('set1',1,100),('set2',1,1000)],{'set1':['a','b'],'set2':['a','c']})
+        self.assertTrue(full['verified']);self.assertEqual(r['fifo'],320);self.assertEqual(len(r['lines']),1)
+        self.assertEqual(r['status'],'data_error');self.assertIsNone(r['floor']);self.assertIn('общие компоненты',r['errors'][0])
+    def test_partial_set_requires_all_components_and_verified_unit_price(self):
+        full,r=self.sale({'a':1,'b':1},[('set',3,3000)],{'set':['a','b']})
+        self.assertTrue(full['verified']);self.assertEqual(full['total'],1000);self.assertEqual(r['lines'][0]['quantity'],1)
+    def test_supplier_variants_same_external_code_grouped_no_cost_split(self):
+        from shipment_guard.bundles import match
+        full=match({'a':2},{'mid1':'a','mid2':'a'},[('a',2,1000)])
+        self.assertTrue(full['verified']);self.assertEqual(full['groups'][0]['ms_ids'],['mid1','mid2']);self.assertEqual(full['total'],1000)
+    def test_catalogue_uses_composition_not_cached_cost(self):
+        from shipment_guard.bundles import Catalogue
+        from collections import Counter
+        with patch('shipment_guard.bundles.db.query',side_effect=[[{'exists':1}],[{'components':['a','a','b'],'resolved_at':'2026-08-19','cost':999999}],[]]),patch('shipment_guard.bundles.store.transaction') as tx:
+            bom,source=Catalogue(None).resolve('set')
+        self.assertEqual(bom,Counter({'a':2,'b':1}));self.assertIn('ТК',source['source']);tx.assert_not_called()
+
+class TCBridgeTests(unittest.TestCase):
+    def test_numeric_revision_maps_to_known_tc_code_preserving_leading_zero(self):
+        from shipment_guard.bundles import Catalogue
+        from collections import Counter
+        catalog=Catalogue(None)
+        with patch('shipment_guard.bundles.db.query',side_effect=[[],[{'exists':1}],[]]),patch.object(catalog,'_resolve_exact',return_value=(Counter({'0255':1}),{'source':'ТК API mix_data','is_set':False})) as resolve:
+            bom,source=catalog.resolve('02552')
+        resolve.assert_called_once_with('0255',True);self.assertEqual(bom,Counter({'0255':1}));self.assertEqual(source['tc_external_code'],'0255')
+    def test_real_exact_tc_code_precedes_family_rule(self):
+        from shipment_guard.bundles import Catalogue
+        from collections import Counter
+        catalog=Catalogue(None)
+        with patch('shipment_guard.bundles.db.query',side_effect=[[{'exists':1}],[]]),patch.object(catalog,'_resolve_exact',return_value=(Counter({'a':1,'b':1}),{'source':'ТК set_cost.components'})) as resolve:
+            catalog.resolve('12345')
+        resolve.assert_called_once_with('12345',True)
+    def test_pack_marker_does_not_imply_quantity(self):
+        from shipment_guard.bundles import Catalogue
+        from collections import Counter
+        catalog=Catalogue(None)
+        with patch('shipment_guard.bundles.db.query',side_effect=[[],[]]),patch.object(catalog,'_resolve_exact',return_value=(Counter({'1234X4':1}),{'source':'Код отсутствует'})) as resolve:
+            catalog.resolve('1234X4')
+        resolve.assert_called_once_with('1234X4',True)
+    def test_nested_catalogue_composition_and_cycle_detection(self):
+        from shipment_guard.bundles import Catalogue
+        from collections import Counter
+        catalog=Catalogue(None)
+        with patch('shipment_guard.bundles.db.query',side_effect=[[{'exists':1}],[]]),patch.object(catalog,'_resolve_exact',return_value=(Counter({'leaf':2}),{'source':'ТК set_cost.components'})):
+            bom,_=catalog.resolve('set')
+        self.assertEqual(bom,Counter({'leaf':2}))
+        with patch('shipment_guard.bundles.db.query',return_value=[{'external_code':'set','components':['set'],'resolved_at':'now'}]):
+            with self.assertRaises(SourceError):catalog._flatten(Counter({'set':1}),{'set'})
+
+
+class NestedBOMTests(unittest.TestCase):
+    def test_nested_quantities_are_multiplied_once_with_provenance(self):
+        from shipment_guard.bundles import Catalogue
+        from collections import Counter
+        with patch('shipment_guard.bundles.db.query',side_effect=[[{'external_code':'child','components':['a','a','b'],'resolved_at':'now'}],[]]):
+            bom,proof=Catalogue(None)._flatten(Counter({'child':2}),{'parent'})
+        self.assertEqual(bom,Counter({'a':4,'b':2}));self.assertIn('child',proof)

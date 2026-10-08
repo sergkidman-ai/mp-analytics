@@ -10,6 +10,7 @@ from core import db
 from shipment_guard import config, store
 from shipment_guard.economics import number, money
 from shipment_guard.ms import SourceError, retry_seconds
+from shipment_guard.bundles import Catalogue,match
 
 class OrderAdapter:
     def __init__(self):
@@ -17,6 +18,7 @@ class OrderAdapter:
         self.unavailable={}
         self.wb_cache={}
         self.pulse=lambda:None
+        self.catalog=Catalogue(self.request)
 
     def request(self, platform, account, method, url, **kwargs):
         key=(platform,account)
@@ -34,6 +36,13 @@ class OrderAdapter:
             self.next_at[key]=time.monotonic()+retry_seconds(r.headers)
             raise SourceError(platform+'_429')
         if r.status_code in (401,403): self.unavailable[key]=time.monotonic()+3600
+        if platform=='tc' and r.status_code==422:
+            # TC validates existence of external_code. Preserve this response as
+            # an absent dictionary entry, not a network/permission failure.
+            try: validation=r.json()
+            except ValueError: raise SourceError('tc_invalid_json') from None
+            if isinstance(validation,dict) and 'external_code' in validation.get('errors',{}):
+                return {'error':'external_code_not_found','validation':validation}
         if r.status_code not in (200,201): raise SourceError(platform+'_http_'+str(r.status_code))
         try: return r.json()
         except ValueError: raise SourceError(platform+'_invalid_json') from None
@@ -58,29 +67,16 @@ class OrderAdapter:
             if platform=='yandex': raw,items,source=self.yandex(account,str(document.get('name')))
             elif platform=='ozon': raw,items,source=self.ozon(account,str(document.get('name')))
             else: raw,items,source=self.wb(account,str(document.get('name')),document)
-            actual=defaultdict(lambda:{'qty':Decimal(0),'total':Decimal(0),'units':set()})
-            for sku,qty,total in items:
-                q=number(qty); amount=number(total)
-                if q<=0 or amount<=0: raise ValueError('invalid_order_item')
-                actual[str(sku)]['qty']+=q; actual[str(sku)]['total']+=amount
-                actual[str(sku)]['units'].add(amount/q)
-            if not set(shipped)<=set(actual) or any(actual[s]['qty']<q for s,q in shipped.items()):
-                return {'error':'Состав/количество заказа не совпали с отгрузкой; полная цена не распределена','source':source},raw
-            # A document may ship only part of an order. Its own quantities are
-            # priced only when that SKU has one verified unit price in the order.
-            totals={}
-            for s,q in shipped.items():
-                if q==actual[s]['qty']:
-                    totals[s]=actual[s]['total']
-                elif len(actual[s]['units'])==1:
-                    totals[s]=next(iter(actual[s]['units']))*q
-                else:
-                    return {'error':'Частичная отгрузка SKU с разными ценами заказа: полная цена неоднозначна','source':source},raw
-            # If distinct MS IDs share the same SKU, price cannot be split safely.
-            if len(set(mids.values()))!=len(mids):
-                return {'error':'Несколько товаров МС с одним SKU: полная цена неоднозначна','source':source},raw
-            return {'verified':True,'total':money(sum(totals.values())),
-                    'items':{m:{'total':money(totals[s])} for m,s in mids.items()},'source':source},raw
+            result=match(shipped,mids,items)
+            if result.get('match_error')=='mismatch':
+                skus=sorted({str(s) for s,q,total in items})
+                if len(skus)>20:raise SourceError('tc_composition_lookup_bound')
+                boms={};sources={}
+                for sku in skus:
+                    boms[sku],sources[sku]=self.catalog.resolve(sku)
+                result=match(shipped,mids,items,boms,sources)
+            result['source']=source
+            return result,raw
         except (SourceError,ValueError,KeyError,TypeError) as e:
             code=str(e) if isinstance(e,SourceError) else platform+'_incomplete_order_data'
             store.metric('order_source_errors',details={'platform':platform,'code':code})

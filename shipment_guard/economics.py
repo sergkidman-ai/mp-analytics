@@ -88,27 +88,52 @@ def assess(document, positions, fifo, confirmed, rule):
                 result['rule']={k:str(rule[k]) for k in ['version','retention','base_from','base_to','source','source_sha256']}
         except (ValueError,KeyError): pass
     if not valid_rule: result['signals'].append('rule_unknown')
-    for mid,group in grouped.items():
-        qty=sum(x['qty'] for x in group); doc_price=sum(x['price'] for x in group)
-        sku=group[0]['sku']; item=full_items.get(mid)
-        item_price=number(item['total']) if item and full_verified else doc_price if platform=='direct' and full_verified else None
-        item_verified=item_price is not None and full_verified
-        # Different prices for repeated IDs cannot get invented FIFO allocations.
-        ambiguous=len({x['unit'] for x in group})>1
-        signals=[]
-        cost=costs[mid] if costs[mid]>0 else None
-        floor=None
-        if item_verified and cost is not None and item_price<cost: signals.append('below_fifo')
-        if valid_rule and cost is not None:
-            # Same absolute target as existing promo guards, applied per physical unit.
+    sale_groups=confirmed.get('groups') if full_verified else None
+    if sale_groups:
+        assigned=[m for g in sale_groups for m in g['ms_ids']]
+        if set(assigned)!=set(grouped) or len(assigned)!=len(set(assigned)):
+            errors.append('Состав проверки не покрывает позиции МС однозначно')
+            sale_groups=None
+    if not sale_groups:
+        sale_groups=[]
+        for mid,group in grouped.items():
+            item=full_items.get(mid)
+            price=number(item['total']) if item and full_verified else sum(x['price'] for x in group) if platform=='direct' and full_verified else None
+            sale_groups.append({'sku':group[0]['sku'],'quantity':float(sum(x['qty'] for x in group)),
+              'ms_ids':[mid],'total':money(price) if price is not None else None,
+              'ambiguous_fifo':False,'composition':[],'bom_sources':{},
+              'different_position_prices':len({x['unit'] for x in group})>1})
+    for g in sale_groups:
+        mids=g['ms_ids'];qty=number(g['quantity'])
+        doc_price=sum(x['price'] for mid in mids for x in grouped[mid])
+        item_price=number(g['total']) if g.get('total') is not None and full_verified else None
+        cost=sum(costs[mid] for mid in mids) if all(costs[mid]>0 for mid in mids) else None
+        ambiguous=g.get('ambiguous_fifo',False);signals=[];floor=None
+        if item_price is not None and cost is not None and item_price<cost:signals.append('below_fifo')
+        if valid_rule and cost is not None and not ambiguous:
+            # Absolute promo target per SOLD SKU/unit (one kit, not its physical components).
             floor=(cost+max(D(300)*qty,D('.1')*cost))/(1-retention)
-            if item_verified and item_price<floor: signals.append('below_floor')
-        result['lines'].append({'ms_id':mid,'sku':sku,'quantity':float(qty),'document_price':money(doc_price),
-          'full_price':money(item_price) if item_price is not None else None,'fifo':money(cost) if cost is not None else None,
-          'floor':money(floor) if floor is not None else None,'deviation':money(item_price-floor) if item_price is not None and floor is not None else None,
-          'level':'Товар целиком; FIFO по строкам с разной ценой не распределён' if ambiguous else 'Товар',
-          'signals':signals,'position_count':len(group)})
+            if item_price is not None and item_price<floor:signals.append('below_floor')
+        if ambiguous:
+            errors.append('Наборы '+g['sku']+' имеют общие компоненты: FIFO проверен по группе, по наборам не распределён')
+        has_bom=bool(g.get('bom_sources')) and any(s.get('is_set',s.get('source','').endswith('set_cost.components')) for s in g['bom_sources'].values())
+        level='Группа с общими компонентами; FIFO по отдельным наборам не распределён' if ambiguous else 'Набор по составу ТК' if has_bom else 'Товар целиком; FIFO по строкам с разной ценой не распределён' if g.get('different_position_prices') else 'Товар'
+        components=[{'ms_id':mid,'sku':grouped[mid][0]['sku'],
+          'quantity':float(sum(x['qty'] for x in grouped[mid])),
+          'fifo':money(costs[mid]) if costs[mid]>0 else None,
+          'document_price':money(sum(x['price'] for x in grouped[mid]))} for mid in mids]
+        result['lines'].append({'ms_id':mids[0] if len(mids)==1 else None,'ms_ids':mids,'sku':g['sku'],
+          'quantity':float(qty),'document_price':money(doc_price),
+          'full_price':money(item_price) if item_price is not None else None,
+          'fifo':money(cost) if cost is not None else None,'floor':money(floor) if floor is not None else None,
+          'deviation':money(item_price-floor) if item_price is not None and floor is not None else None,
+          'level':level,'signals':signals,'position_count':sum(len(grouped[mid]) for mid in mids),
+          'components':components,'bom_sources':g.get('bom_sources',{})})
         result['signals']+=signals
+    if confirmed.get('composition_diagnostic'):
+        result['composition_diagnostic']=confirmed['composition_diagnostic']
+    if any(g.get('bom_sources') for g in sale_groups):
+        result['sources']['composition']='Справочник ТК: внешний код набора → внешние коды/количество компонентов; стоимость справочника не используется'
     if complete and full is not None and full<sum(costs[mid] for mid in grouped): result['signals'].append('below_fifo')
     floors=[l['floor'] for l in result['lines']]
     if valid_rule and floors and all(f is not None for f in floors):
