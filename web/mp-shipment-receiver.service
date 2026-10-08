@@ -1,0 +1,12 @@
+# поток: fin
+[Unit]
+Description=Shipment guard isolated webhook receiver
+After=network-online.target docker.service
+[Service]
+WorkingDirectory=/opt/mp-analytics/.claude/worktrees/fin-shipment-guard
+ExecStart=/opt/mp-analytics/venv/bin/uvicorn web.shipment_receiver:app --host 127.0.0.1 --port 8093 --no-access-log --log-level critical
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+[Install]
+WantedBy=multi-user.target

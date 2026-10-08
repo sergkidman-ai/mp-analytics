@@ -39,6 +39,9 @@ app.include_router(wh_loss_router)
 app.include_router(cashflow_router)
 app.include_router(turnover_router)
 
+from web.shipment_guard_api import router as shipment_guard_router  # поток: fin
+app.include_router(shipment_guard_router)
+
 
 # ── Ограниченный доступ: сотрудник раздела «Новинки» (поток prc) ───────────────
 # Пароли в Пульте раздаёт nginx basic-auth. У оператора Новинок свой файл

@@ -1,0 +1,47 @@
+{
+  "queue": {
+    "pending": 197,
+    "errors": 22,
+    "oldest_seconds": 495.650693,
+    "expired_leases": 0
+  },
+  "metrics": [
+    {
+      "name": "processed_jobs",
+      "value": "153",
+      "details": {
+        "ms_reads": 3,
+        "processing_seconds": 2.815,
+        "since_received_seconds": 480.955
+      },
+      "updated_at": "2026-10-08 09:22:33.370850+00:00"
+    },
+    {
+      "name": "ms_requests",
+      "value": "474",
+      "details": {
+        "remaining": "42",
+        "last_status": 200,
+        "duration_seconds": 0.113,
+        "min_start_gap_seconds": 1.0129572749137878
+      },
+      "updated_at": "2026-10-08 09:22:35.238677+00:00"
+    }
+  ],
+  "preservation": {
+    "modified_files": 60,
+    "mismatches": [],
+    "main_head_now": "6d62b9465e7c787516b1283efac433bf9fa72635",
+    "head_moved_by_other_session": true
+  },
+  "sync": [
+    {
+      "account_id": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+      "checkpoint": "2026-10-07T09:13:15.211688+00:00",
+      "last_success_at": null,
+      "last_attempt_at": "2026-10-08T09:14:19.181577+00:00",
+      "last_error": null,
+      "window_upper": "2026-10-08T09:13:49.172312+00:00"
+    }
+  ]
+}

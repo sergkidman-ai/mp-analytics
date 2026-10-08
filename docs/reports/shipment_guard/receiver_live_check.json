@@ -1,0 +1,14 @@
+{
+  "/": 401,
+  "/shipment-guard": 401,
+  "/api/shipment-guard": 401,
+  "/hooks/ms-shipment/invalid": 405,
+  "ack_ms": [
+    63.06,
+    65.29
+  ],
+  "duplicate_generation": 1,
+  "local_health": 200,
+  "local_page": 200,
+  "local_api": 200
+}
