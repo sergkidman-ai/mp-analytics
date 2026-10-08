@@ -1,0 +1,14 @@
+*
+!.gitignore
+!report.md
+!candidate.json
+!hist_candidate.json
+!comparison.csv
+!summary.json
+!basis_changed_actions.json
+!proposed_actions.json
+!source_manifest.json
+!validation.json
+!replay.py
+
+!newly_eligible_actions.json

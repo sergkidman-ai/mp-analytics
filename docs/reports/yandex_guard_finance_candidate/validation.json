@@ -1,0 +1,20 @@
+{
+  "unit_and_bundle_tests": 26,
+  "control_margin_tests": 3,
+  "control_net": "3741.77",
+  "recompute_identical_twice": true,
+  "repeat_live_api_refresh_same_money": true,
+  "source_replay_exact": true,
+  "shared_files_unchanged": {
+    "ops/price_quarantine.py": true,
+    "collectors/yandex_monthly.py": true,
+    "collectors/yandex_closure.py": true,
+    "reports/yandex_mp_freeze.py": true,
+    "run_daily.py": true,
+    "reports/data/mp_yandex_hist.json": true
+  },
+  "marketplace_writes": 0,
+  "newly_eligible": 57,
+  "active_missing_promo_price": 68,
+  "candidate_version": "7d041e402d4ec4727b0e016a286072490d5f135ac63eed802e1531e09e1092f4"
+}
