@@ -6,11 +6,18 @@ from ops.wb_promo_guard import bundle_multiplier, decide, min_net, unit_cost
 
 class BundleFloorTests(unittest.TestCase):
     def test_bundle_multiplier_accepts_wb_suffixes(self):
-        self.assertEqual(bundle_multiplier('3933X3TQSKD9'), 3)
-        self.assertEqual(bundle_multiplier('3933X12K6OWK'), 12)
+        self.assertEqual(bundle_multiplier('3933X3TQSKD9', title='Комплект лент 3 шт'), 3)
+        self.assertEqual(bundle_multiplier('3933X12K6OWK', title='Комплект лент 12 шт'), 12)
         self.assertEqual(bundle_multiplier('3933X6'), 6)
-        self.assertEqual(bundle_multiplier('3933', '3933X9I7CAH1'), 9)
+        self.assertEqual(bundle_multiplier('3933', '3933X9I7CAH1', 'Комплект лент 9 шт'), 9)
         self.assertEqual(bundle_multiplier('3933X123TQ'), 1)
+
+    def test_random_suffix_is_not_bundle_quantity(self):
+        self.assertEqual(bundle_multiplier('1588', '1588X99JKQEZ', 'Картридж DS TNP-27K'), 1)
+        self.assertEqual(bundle_multiplier('3933', '3933X6HHWDS8'), 1)
+        self.assertEqual(bundle_multiplier('3933', '3933X6HHWDS8', 'Комплект лент 3 шт'), 1)
+        self.assertEqual(bundle_multiplier('4692', '4692X5BV7567', 'Картриджи DS №963'), 1)
+        self.assertEqual(bundle_multiplier('3933X0'), 1)
 
     def test_eligible_supplier_price_wins_over_stale_low_stock_snapshot(self):
         stock = {'3933': {'qty_own': 0, 'qty_remote': 0, 'cost_own': None,
