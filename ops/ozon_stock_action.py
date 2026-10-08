@@ -140,7 +140,7 @@ def offer_of(account, product_ids):
     for k in range(0, len(ids), 100):
         for p in _req(account, "POST", "/v3/product/info/list",
                       {"product_id": ids[k:k + 100]}).get("items", []):
-            out[p["id"]] = (p.get("offer_id"), (p.get("name") or "")[:60])
+            out[p["id"]] = (p.get("offer_id"), p.get("name") or "")
     return out
 
 
@@ -205,8 +205,18 @@ def _parent(code):
     return m.group(1) if m and m.group(1) != code else None
 
 
-def cogs_map(offers):
-    """{offer_id: (себест/шт, источник)} по цепочке фолбэков (см. память cogs-lookup-chain)."""
+def bundle_quantity(offer_id, title=None):
+    """Кратность XN; код с суффиксом требует совпадения с названием «Комплект … N шт»."""
+    from ops.wb_promo_guard import bundle_multiplier
+    return bundle_multiplier(offer_id, title=title)
+
+
+def cogs_map(offers, titles=None):
+    """{offer_id: (полный себест карточки, источник)} по цепочке фолбэков.
+
+    Отгрузка/закупка точного offer_id уже содержит цену целого бандла. Цена родителя
+    или универсальной модели пересчитывается на число штук целевой карточки.
+    """
     offers = [o for o in offers if o]
     base = sorted(set(offers) | {p for p in (_parent(o) for o in offers) if p})
     link = {}
@@ -244,11 +254,22 @@ def cogs_map(offers):
     out = {}
     for o in offers:
         par = _parent(o)
+        quantity = bundle_quantity(o, (titles or {}).get(o))
+
+        def full_cost(value, source, source_code):
+            if value is None or quantity == 1 or source_code == o:
+                return value, source
+            factor = quantity / bundle_quantity(source_code, (titles or {}).get(source_code))
+            if factor == 1:
+                return value, source
+            return value * factor, f"{source} (×{factor:g} для {o})"
+
         v, s = by_ship(o)
         if v is None and par:
             v, s = by_ship(par)
             if v:
                 s += " (родитель)"
+                v, s = full_cost(v, s, par)
         if v is None:                                    # универсальная модель из справочника ТК
             for src in [o] + ([par] if par else []):
                 cand = [(c, *by_ship(c)) for c in link.get(src, [])]
@@ -256,25 +277,29 @@ def cogs_map(offers):
                 if cand:
                     c, v, s = max(cand, key=lambda t: ship[t[0]][0]["dt"])
                     s += " (универсальная)"
+                    v, s = full_cost(v, s, c)
                     break
         if v is None:
             for c in [o] + ([par] if par else []):
                 if c in sets:
                     v, s = sets[c], f"набор {c}"
+                    v, s = full_cost(v, s, c)
                     break
         if v is None:
             for c in [o] + ([par] if par else []):
                 if c in tc:
                     v, s = tc[c], f"закупка ТК {c}"      # оценка, а не себест лежащего лота
+                    v, s = full_cost(v, s, c)
                     break
         out[o] = (v, s or "НЕТ")
     return out
 
 
-def floor_price(cogs, keep):
-    """Пол цены: себест + max(300 ₽, 10 % себеста) чистыми, делённые на долю, что остаётся нам.
+def floor_price(cogs, keep, quantity=1):
+    """Пол цены: себест + max(300 ₽ × N, 10 % полного себеста) / доля продавца.
     Общий для лестницы и сторожа акций (ops/ozon_promo_guard.py) — иначе они спорят о товаре."""
-    return (cogs + max(GOAL_NET, GOAL_NET_PCT * cogs)) / keep
+    from ops.wb_promo_guard import min_net
+    return (cogs + min_net(cogs, quantity)) / keep
 
 
 # --- лестница ---------------------------------------------------------------
@@ -328,7 +353,8 @@ def _decide(row, keep, state, others, today, undercut=True):
     if v is None:
         row["skip"] = "себестоимость не найдена"
         return row
-    floor = floor_price(v, keep)
+    row["bundle_qty"] = bundle_quantity(off, row.get("name"))
+    floor = floor_price(v, keep, row["bundle_qty"])
     if undercut:
         om = others.get(off)
         if om and om - 1 < cap:                 # в чужой акции дешевле — встаём под неё
@@ -339,7 +365,7 @@ def _decide(row, keep, state, others, today, undercut=True):
     elif row["inside"] and (row.get("now_price") or 0) > 0:
         # товар завели руками — лестница стартует от ЕГО цены, а не от потолка акции:
         # цену не дёргаем, просто берём под управление. Ниже пола не оставляем.
-        cap = max(floor, min(cap, float(row["now_price"])))
+        cap = min(cap, max(floor, float(row["now_price"])))
     row["cap"] = round(cap, 2)
     rung = int(st.get("rung") or 0)
     last = st.get("last_step_on")
@@ -377,7 +403,7 @@ def plan_account(account):
         inside = participants(account, aid) if a.get("is_participating") else []
         pid2 = offer_of(account, [c["id"] for c in cands] + [p["id"] for p in inside])
         offs = [pid2.get(x["id"], (None,))[0] for x in cands + inside]
-        cogs = cogs_map(offs)
+        cogs = cogs_map(offs, titles={off: name for off, name in pid2.values() if off})
         state = ladder_state(account, [o for o in offs if o])
 
         for src, items in (("add", cands), ("inside", inside)):
@@ -586,7 +612,7 @@ def report(account, plans, keep, keep_src, done, dry):
     ru = {"add": "завести", "update": "сдвинуть ступень", "keep": "оставить как есть",
           "remove": "снять", "мимо": "не подходят"}   # снимаем по нулю на складе ИЛИ по цене
     lines = [f"*{account}* · акции по белому списку · {'расчёт' if dry else 'исполнение'}",
-             f"нам остаётся {keep*100:.1f}% выручки ({keep_src}), цель +max({GOAL_NET:.0f} ₽; {GOAL_NET_PCT*100:.0f} % себеста) с единицы"]
+             f"нам остаётся {keep*100:.1f}% выручки ({keep_src}), цель +max({GOAL_NET:.0f} ₽ × кратность; {GOAL_NET_PCT*100:.0f} % полного себеста)"]
     for k in ("add", "update", "keep", "remove", "мимо"):
         if m.get(k):
             lines.append(f"  · {ru[k]}: {m[k]}")

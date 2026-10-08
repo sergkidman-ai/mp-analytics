@@ -1,0 +1,158 @@
+{
+  "checked_at": "2026-10-08T19:34:41.511298+00:00",
+  "note": "DB catalog plus WB 04.10 snapshot characteristics; no current participation claim.",
+  "accounts": {
+    "wb_acc1": {
+      "catalog_cards": 22432,
+      "counts": {
+        "guard_bundles": 7730
+      },
+      "issue_examples": []
+    },
+    "wb_acc2": {
+      "catalog_cards": 24187,
+      "counts": {
+        "guard_bundles": 9522,
+        "wb_plan_raise_cost_parser_misses_suffix": 9522,
+        "loose_snapshot_classifier_only": 8,
+        "loose_snapshot_x0_colour_set": 3
+      },
+      "issue_examples": [
+        {
+          "code": "0856X3Y3B3IE",
+          "nm_id": 1567072316,
+          "title": "Комплект картриджей TN-241BK 3 шт на 7500 стр. для Brother",
+          "guard_qty": 3,
+          "code_qty": 3,
+          "title_qty": 3,
+          "snapshot_field_qty": 3.0,
+          "issues": [
+            "wb_plan_raise_cost_parser_misses_suffix"
+          ]
+        },
+        {
+          "code": "5551X3J3G0H9",
+          "nm_id": 1582753248,
+          "title": "Комплект картриджей CF217XL 3 шт на 18000 стр. для HP",
+          "guard_qty": 3,
+          "code_qty": 3,
+          "title_qty": 3,
+          "snapshot_field_qty": 3.0,
+          "issues": [
+            "wb_plan_raise_cost_parser_misses_suffix"
+          ]
+        },
+        {
+          "code": "3464X9D3MQJM",
+          "nm_id": 1574586137,
+          "title": "Комплект картриджей W2410A 9 шт на 9450 стр. для HP",
+          "guard_qty": 9,
+          "code_qty": 9,
+          "title_qty": 9,
+          "snapshot_field_qty": 9.0,
+          "issues": [
+            "wb_plan_raise_cost_parser_misses_suffix"
+          ]
+        },
+        {
+          "code": "1946X3SUIK9Q",
+          "nm_id": 1845964861,
+          "title": "Комплект фотобарабанов DK-150 DU 3 шт для Kyocera M2030",
+          "guard_qty": 3,
+          "code_qty": 3,
+          "title_qty": 3,
+          "snapshot_field_qty": null,
+          "issues": [
+            "wb_plan_raise_cost_parser_misses_suffix"
+          ]
+        },
+        {
+          "code": "5530X6LU3VY3",
+          "nm_id": 1582752467,
+          "title": "Комплект картриджей W1510X 6 шт на 58200 стр. для HP",
+          "guard_qty": 6,
+          "code_qty": 6,
+          "title_qty": 6,
+          "snapshot_field_qty": 6.0,
+          "issues": [
+            "wb_plan_raise_cost_parser_misses_suffix"
+          ]
+        }
+      ]
+    },
+    "oz_acc1": {
+      "catalog_unique_active_offers": 22492,
+      "catalog_latest_update": "2026-09-30 19:25:58.212497+00:00",
+      "counts": {
+        "guard_bundles": 7773
+      },
+      "issue_examples": []
+    },
+    "oz_acc2": {
+      "catalog_unique_active_offers": 24001,
+      "catalog_latest_update": "2026-10-07 19:29:34.767408+00:00",
+      "counts": {
+        "guard_bundles": 0,
+        "title_confirmed_bundle_missed_by_guard": 10362
+      },
+      "issue_examples": [
+        {
+          "code": "0001X12MXKJM",
+          "title": "Комплект картриджей Q2610A (12 шт) на 72000 страниц для принтеров HP LaserJet 2300",
+          "guard_qty": 1,
+          "cost_qty": 1,
+          "code_qty": 12,
+          "title_qty": 12,
+          "issues": [
+            "title_confirmed_bundle_missed_by_guard"
+          ]
+        },
+        {
+          "code": "0001X3QTU6J6",
+          "title": "Комплект картриджей Q2610A (3 шт) на 18000 страниц для принтеров HP LaserJet 2300",
+          "guard_qty": 1,
+          "cost_qty": 1,
+          "code_qty": 3,
+          "title_qty": 3,
+          "issues": [
+            "title_confirmed_bundle_missed_by_guard"
+          ]
+        },
+        {
+          "code": "0001X6LH5Y9H",
+          "title": "Комплект картриджей Q2610A (6 шт) на 36000 страниц для принтеров HP LaserJet 2300",
+          "guard_qty": 1,
+          "cost_qty": 1,
+          "code_qty": 6,
+          "title_qty": 6,
+          "issues": [
+            "title_confirmed_bundle_missed_by_guard"
+          ]
+        },
+        {
+          "code": "0001X9BBSQEK",
+          "title": "Комплект картриджей Q2610A (9 шт) на 54000 страниц для принтеров HP LaserJet 2300",
+          "guard_qty": 1,
+          "cost_qty": 1,
+          "code_qty": 9,
+          "title_qty": 9,
+          "issues": [
+            "title_confirmed_bundle_missed_by_guard"
+          ]
+        },
+        {
+          "code": "0002X12MOYB4",
+          "title": "Комплект картриджей Q2612A (12 шт) на 24000 страниц для принтеров HP LaserJet 1010, LJ-1012, LJ1015, LJ 1018, LJ 1020, LJ1022, LJ 3015, LJ 3020",
+          "guard_qty": 1,
+          "cost_qty": 1,
+          "code_qty": 12,
+          "title_qty": 12,
+          "issues": [
+            "title_confirmed_bundle_missed_by_guard"
+          ]
+        }
+      ]
+    }
+  },
+  "full_report_local": "docs/reports/bundle_detection_audit_both_accounts_2026-10-08.json"
+}

@@ -25,13 +25,11 @@
 import argparse
 import math
 import pathlib
-import re
 import sys
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db                                              # noqa: E402
-from ops import ozon_promo_guard as g                            # noqa: E402
 from ops import wb_promo_guard as w                              # noqa: E402
 
 MIN_GAIN = 10.0          # ₽ на единицу: возиться с меньшим не стоит
@@ -55,25 +53,33 @@ def plan_to_discount(base, target):
 
 
 def candidates(acc):
+    # Потолок — минимум планов ТОЛЬКО среди акций, где карточка СЕЙЧАС проходит по цене
+    # (plan >= текущая цена покупателя). Акции с планом ниже нашей цены мы уже покинули —
+    # учитывать их в минимуме нельзя: 5422 на acc2 из-за этого выпал из кандидатов, хотя в
+    # своих акциях у него 1 415 ₽ запаса (разбор Натальи 23.09.2026).
     rows = db.query("""
-        with m as (select account, nm_id, min(plan_price) cap, count(*) promos
-                     from wb_promo_plan_price where in_promo group by 1, 2)
-        select m.nm_id, m.cap, m.promos, pr.vendor_code, pr.price base,
-               pr.discount_pct disc, pr.discounted_price now
-          from m join wb_price pr on pr.account = m.account and pr.nm_id = m.nm_id
-         where m.account = %s and pr.discounted_price > 0
-           and pr.discounted_price < m.cap - 1          -- есть запас
-           and m.cap <= pr.price + 1                    -- хватает уменьшить скидку
+        select p.nm_id, min(p.plan_price) cap, count(*) promos,
+               pr.vendor_code, pr.price base, pr.discount_pct disc, pr.discounted_price now
+          from wb_promo_plan_price p
+          join wb_price pr on pr.account = p.account and pr.nm_id = p.nm_id
+         where p.account = %s and p.in_promo and pr.discounted_price > 0
+           and p.plan_price >= pr.discounted_price        -- акция, в которой мы сейчас стоим
+         group by p.nm_id, pr.vendor_code, pr.price, pr.discount_pct, pr.discounted_price
+        having min(p.plan_price) > pr.discounted_price + 1     -- есть запас
+           and min(p.plan_price) <= pr.price + 1               -- хватает уменьшить скидку
         """, (acc,))
-    cost = g.cost_map(sorted({r["vendor_code"] for r in rows if r["vendor_code"]}))
+    # Та же себестоимость и проверенная кратность, что у основного сторожа WB.
+    goods = {int(r["nm_id"]): (r["base"], r["disc"], r["now"], r["vendor_code"])
+             for r in rows}
+    cost = w.cogs_map(acc, goods=goods) if rows else {}
     keep = 1 - w.RETENTION[acc]
     out = []
     for r in rows:
-        v, src = cost.get(r["vendor_code"], (None, "НЕТ"))
+        rec = cost.get(int(r["nm_id"])) or {}
+        v, src = rec.get("cogs"), rec.get("source")
         if v is None:
             continue                                     # нет себеста = нет наличия, не трогаем
-        bundle = re.fullmatch(r"\d{4}[Xх](\d{1,2})", (r["vendor_code"] or "").strip(), re.I)
-        quantity = int(bundle.group(1)) if bundle else 1
+        quantity = rec.get("bundle", 1)
         floor = (v + w.min_net(v, quantity)) / keep
         target = float(r["cap"])
         if target < floor:                               # потолок ниже пола — дело сторожа, не наше

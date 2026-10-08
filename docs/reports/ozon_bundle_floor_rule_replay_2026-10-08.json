@@ -1,0 +1,617 @@
+{
+  "checked_at": "2026-10-08T19:28:26.695221+00:00",
+  "wb_rule_unchanged": true,
+  "ozon_latest_log_rows_replayed": 10483,
+  "changed_latest_decisions": [],
+  "historical_bundle_codes_checked": 73,
+  "historical_cost_changes": 73,
+  "cost_checks": [
+    {
+      "offer_id": "0205X6",
+      "quantity": 6,
+      "before_cogs": 311.99,
+      "before_source": "возврат 06.03.26 0205 (родитель)",
+      "after_cogs": 1871.94,
+      "after_source": "возврат 06.03.26 0205 (родитель) (×6 для 0205X6)"
+    },
+    {
+      "offer_id": "0244X2",
+      "quantity": 2,
+      "before_cogs": 914.0,
+      "before_source": "закупка ТК 0244",
+      "after_cogs": 1828.0,
+      "after_source": "закупка ТК 0244 (×2 для 0244X2)"
+    },
+    {
+      "offer_id": "0264X2",
+      "quantity": 2,
+      "before_cogs": 694.81,
+      "before_source": "отгрузка 12.08.26 0264 (родитель)",
+      "after_cogs": 1389.62,
+      "after_source": "отгрузка 12.08.26 0264 (родитель) (×2 для 0264X2)"
+    },
+    {
+      "offer_id": "0305X2",
+      "quantity": 2,
+      "before_cogs": 604.51,
+      "before_source": "отгрузка 03.08.26 0305 (родитель)",
+      "after_cogs": 1209.02,
+      "after_source": "отгрузка 03.08.26 0305 (родитель) (×2 для 0305X2)"
+    },
+    {
+      "offer_id": "0320X2",
+      "quantity": 2,
+      "before_cogs": 180.75,
+      "before_source": "отгрузка 14.08.26 0320 (родитель)",
+      "after_cogs": 361.5,
+      "after_source": "отгрузка 14.08.26 0320 (родитель) (×2 для 0320X2)"
+    },
+    {
+      "offer_id": "0713X2",
+      "quantity": 2,
+      "before_cogs": 3035.25,
+      "before_source": "возврат 18.05.26 0713 (родитель)",
+      "after_cogs": 6070.5,
+      "after_source": "возврат 18.05.26 0713 (родитель) (×2 для 0713X2)"
+    },
+    {
+      "offer_id": "0744X2",
+      "quantity": 2,
+      "before_cogs": 880.0,
+      "before_source": "отгрузка 30.04.26 0744 (родитель)",
+      "after_cogs": 1760.0,
+      "after_source": "отгрузка 30.04.26 0744 (родитель) (×2 для 0744X2)"
+    },
+    {
+      "offer_id": "0770X2",
+      "quantity": 2,
+      "before_cogs": 2378.0,
+      "before_source": "закупка ТК 0770",
+      "after_cogs": 4756.0,
+      "after_source": "закупка ТК 0770 (×2 для 0770X2)"
+    },
+    {
+      "offer_id": "0877X2",
+      "quantity": 2,
+      "before_cogs": 1169.54,
+      "before_source": "отгрузка 08.07.26 2317 (универсальная)",
+      "after_cogs": 2339.08,
+      "after_source": "отгрузка 08.07.26 2317 (универсальная) (×2 для 0877X2)"
+    },
+    {
+      "offer_id": "0927X2",
+      "quantity": 2,
+      "before_cogs": 74.51,
+      "before_source": "возврат 12.01.26 0927 (родитель)",
+      "after_cogs": 149.02,
+      "after_source": "возврат 12.01.26 0927 (родитель) (×2 для 0927X2)"
+    },
+    {
+      "offer_id": "0958X10",
+      "quantity": 10,
+      "before_cogs": 168.89,
+      "before_source": "отгрузка 23.07.26 0958 (родитель)",
+      "after_cogs": 1688.8999999999999,
+      "after_source": "отгрузка 23.07.26 0958 (родитель) (×10 для 0958X10)"
+    },
+    {
+      "offer_id": "1106X10",
+      "quantity": 10,
+      "before_cogs": 862.0,
+      "before_source": "отгрузка 02.07.26 1106 (родитель)",
+      "after_cogs": 8620.0,
+      "after_source": "отгрузка 02.07.26 1106 (родитель) (×10 для 1106X10)"
+    },
+    {
+      "offer_id": "1232X10",
+      "quantity": 10,
+      "before_cogs": 142.93,
+      "before_source": "возврат 12.05.26 1232 (родитель)",
+      "after_cogs": 1429.3000000000002,
+      "after_source": "возврат 12.05.26 1232 (родитель) (×10 для 1232X10)"
+    },
+    {
+      "offer_id": "1232X2",
+      "quantity": 2,
+      "before_cogs": 142.93,
+      "before_source": "возврат 12.05.26 1232 (родитель)",
+      "after_cogs": 285.86,
+      "after_source": "возврат 12.05.26 1232 (родитель) (×2 для 1232X2)"
+    },
+    {
+      "offer_id": "1296X2",
+      "quantity": 2,
+      "before_cogs": 105.0,
+      "before_source": "отгрузка 14.08.26 1296 (родитель)",
+      "after_cogs": 210.0,
+      "after_source": "отгрузка 14.08.26 1296 (родитель) (×2 для 1296X2)"
+    },
+    {
+      "offer_id": "1367X2",
+      "quantity": 2,
+      "before_cogs": 206.58,
+      "before_source": "отгрузка 08.08.26 1367 (родитель)",
+      "after_cogs": 413.16,
+      "after_source": "отгрузка 08.08.26 1367 (родитель) (×2 для 1367X2)"
+    },
+    {
+      "offer_id": "1425X2",
+      "quantity": 2,
+      "before_cogs": 647.0,
+      "before_source": "отгрузка 16.07.26 1425 (родитель)",
+      "after_cogs": 1294.0,
+      "after_source": "отгрузка 16.07.26 1425 (родитель) (×2 для 1425X2)"
+    },
+    {
+      "offer_id": "1458X2",
+      "quantity": 2,
+      "before_cogs": 64.93,
+      "before_source": "возврат 22.06.26 1458 (родитель)",
+      "after_cogs": 129.86,
+      "after_source": "возврат 22.06.26 1458 (родитель) (×2 для 1458X2)"
+    },
+    {
+      "offer_id": "1487X2",
+      "quantity": 2,
+      "before_cogs": 195.29,
+      "before_source": "отгрузка 15.07.26 1487 (родитель)",
+      "after_cogs": 390.58,
+      "after_source": "отгрузка 15.07.26 1487 (родитель) (×2 для 1487X2)"
+    },
+    {
+      "offer_id": "1727X6",
+      "quantity": 6,
+      "before_cogs": 674.8,
+      "before_source": "отгрузка 06.04.26 1727 (родитель)",
+      "after_cogs": 4048.7999999999997,
+      "after_source": "отгрузка 06.04.26 1727 (родитель) (×6 для 1727X6)"
+    },
+    {
+      "offer_id": "2018X6",
+      "quantity": 6,
+      "before_cogs": 845.53,
+      "before_source": "отгрузка 06.07.26 2018 (родитель)",
+      "after_cogs": 5073.18,
+      "after_source": "отгрузка 06.07.26 2018 (родитель) (×6 для 2018X6)"
+    },
+    {
+      "offer_id": "2050X2",
+      "quantity": 2,
+      "before_cogs": 863.17,
+      "before_source": "отгрузка 19.05.26 2050 (родитель)",
+      "after_cogs": 1726.34,
+      "after_source": "отгрузка 19.05.26 2050 (родитель) (×2 для 2050X2)"
+    },
+    {
+      "offer_id": "2135X2",
+      "quantity": 2,
+      "before_cogs": 331.63,
+      "before_source": "отгрузка 03.08.26 2135 (родитель)",
+      "after_cogs": 663.26,
+      "after_source": "отгрузка 03.08.26 2135 (родитель) (×2 для 2135X2)"
+    },
+    {
+      "offer_id": "2152X2",
+      "quantity": 2,
+      "before_cogs": 447.44,
+      "before_source": "возврат 09.06.26 2152 (родитель)",
+      "after_cogs": 894.88,
+      "after_source": "возврат 09.06.26 2152 (родитель) (×2 для 2152X2)"
+    },
+    {
+      "offer_id": "2167X2",
+      "quantity": 2,
+      "before_cogs": 157.5,
+      "before_source": "возврат 15.06.26 2167 (родитель)",
+      "after_cogs": 315.0,
+      "after_source": "возврат 15.06.26 2167 (родитель) (×2 для 2167X2)"
+    },
+    {
+      "offer_id": "2208X2",
+      "quantity": 2,
+      "before_cogs": 56.7,
+      "before_source": "отгрузка 29.07.26 2208 (родитель)",
+      "after_cogs": 113.4,
+      "after_source": "отгрузка 29.07.26 2208 (родитель) (×2 для 2208X2)"
+    },
+    {
+      "offer_id": "2357X2",
+      "quantity": 2,
+      "before_cogs": 295.64,
+      "before_source": "отгрузка 07.07.26 2357 (родитель)",
+      "after_cogs": 591.28,
+      "after_source": "отгрузка 07.07.26 2357 (родитель) (×2 для 2357X2)"
+    },
+    {
+      "offer_id": "2650X2",
+      "quantity": 2,
+      "before_cogs": 1232.18,
+      "before_source": "отгрузка 08.05.26 2650 (родитель)",
+      "after_cogs": 2464.36,
+      "after_source": "отгрузка 08.05.26 2650 (родитель) (×2 для 2650X2)"
+    },
+    {
+      "offer_id": "2905X2",
+      "quantity": 2,
+      "before_cogs": 1515.0,
+      "before_source": "закупка ТК 2905",
+      "after_cogs": 3030.0,
+      "after_source": "закупка ТК 2905 (×2 для 2905X2)"
+    },
+    {
+      "offer_id": "2979X2",
+      "quantity": 2,
+      "before_cogs": 928.2,
+      "before_source": "возврат 25.04.26 2979 (родитель)",
+      "after_cogs": 1856.4,
+      "after_source": "возврат 25.04.26 2979 (родитель) (×2 для 2979X2)"
+    },
+    {
+      "offer_id": "3026X2",
+      "quantity": 2,
+      "before_cogs": 697.43,
+      "before_source": "отгрузка 20.03.26 3026 (родитель)",
+      "after_cogs": 1394.86,
+      "after_source": "отгрузка 20.03.26 3026 (родитель) (×2 для 3026X2)"
+    },
+    {
+      "offer_id": "3177X2",
+      "quantity": 2,
+      "before_cogs": 2166.0,
+      "before_source": "закупка ТК 3177",
+      "after_cogs": 4332.0,
+      "after_source": "закупка ТК 3177 (×2 для 3177X2)"
+    },
+    {
+      "offer_id": "3212X2",
+      "quantity": 2,
+      "before_cogs": 366.4,
+      "before_source": "отгрузка 22.07.26 3212 (родитель)",
+      "after_cogs": 732.8,
+      "after_source": "отгрузка 22.07.26 3212 (родитель) (×2 для 3212X2)"
+    },
+    {
+      "offer_id": "3262X2",
+      "quantity": 2,
+      "before_cogs": 387.88,
+      "before_source": "возврат 19.06.26 3262 (родитель)",
+      "after_cogs": 775.76,
+      "after_source": "возврат 19.06.26 3262 (родитель) (×2 для 3262X2)"
+    },
+    {
+      "offer_id": "3263X2",
+      "quantity": 2,
+      "before_cogs": 396.33,
+      "before_source": "отгрузка 12.08.26 3263 (родитель)",
+      "after_cogs": 792.66,
+      "after_source": "отгрузка 12.08.26 3263 (родитель) (×2 для 3263X2)"
+    },
+    {
+      "offer_id": "3352X2",
+      "quantity": 2,
+      "before_cogs": 4122.0,
+      "before_source": "закупка ТК 3352",
+      "after_cogs": 8244.0,
+      "after_source": "закупка ТК 3352 (×2 для 3352X2)"
+    },
+    {
+      "offer_id": "3493X2",
+      "quantity": 2,
+      "before_cogs": 599.12,
+      "before_source": "отгрузка 16.04.26 3523 (универсальная)",
+      "after_cogs": 1198.24,
+      "after_source": "отгрузка 16.04.26 3523 (универсальная) (×2 для 3493X2)"
+    },
+    {
+      "offer_id": "3855X2",
+      "quantity": 2,
+      "before_cogs": 107.13,
+      "before_source": "отгрузка 10.08.26 3855 (родитель)",
+      "after_cogs": 214.26,
+      "after_source": "отгрузка 10.08.26 3855 (родитель) (×2 для 3855X2)"
+    },
+    {
+      "offer_id": "3909X2",
+      "quantity": 2,
+      "before_cogs": 637.72,
+      "before_source": "отгрузка 13.08.26 3909 (родитель)",
+      "after_cogs": 1275.44,
+      "after_source": "отгрузка 13.08.26 3909 (родитель) (×2 для 3909X2)"
+    },
+    {
+      "offer_id": "3933X6",
+      "quantity": 6,
+      "before_cogs": 228.0,
+      "before_source": "закупка ТК 3933",
+      "after_cogs": 1368.0,
+      "after_source": "закупка ТК 3933 (×6 для 3933X6)"
+    },
+    {
+      "offer_id": "3936X2",
+      "quantity": 2,
+      "before_cogs": 162.75,
+      "before_source": "отгрузка 20.07.26 3936 (родитель)",
+      "after_cogs": 325.5,
+      "after_source": "отгрузка 20.07.26 3936 (родитель) (×2 для 3936X2)"
+    },
+    {
+      "offer_id": "4313X10",
+      "quantity": 10,
+      "before_cogs": 350.35,
+      "before_source": "отгрузка 03.08.26 4313 (родитель)",
+      "after_cogs": 3503.5,
+      "after_source": "отгрузка 03.08.26 4313 (родитель) (×10 для 4313X10)"
+    },
+    {
+      "offer_id": "4331X2",
+      "quantity": 2,
+      "before_cogs": 397.53,
+      "before_source": "отгрузка 06.08.26 4331 (родитель)",
+      "after_cogs": 795.06,
+      "after_source": "отгрузка 06.08.26 4331 (родитель) (×2 для 4331X2)"
+    },
+    {
+      "offer_id": "4433X2",
+      "quantity": 2,
+      "before_cogs": 89.735,
+      "before_source": "возврат 05.06.26 4433 (родитель)",
+      "after_cogs": 179.47,
+      "after_source": "возврат 05.06.26 4433 (родитель) (×2 для 4433X2)"
+    },
+    {
+      "offer_id": "4599X2",
+      "quantity": 2,
+      "before_cogs": 185.18,
+      "before_source": "отгрузка 14.05.26 4599 (родитель)",
+      "after_cogs": 370.36,
+      "after_source": "отгрузка 14.05.26 4599 (родитель) (×2 для 4599X2)"
+    },
+    {
+      "offer_id": "4821X2",
+      "quantity": 2,
+      "before_cogs": 353.0,
+      "before_source": "возврат 22.06.26 4821 (родитель)",
+      "after_cogs": 706.0,
+      "after_source": "возврат 22.06.26 4821 (родитель) (×2 для 4821X2)"
+    },
+    {
+      "offer_id": "4862X2",
+      "quantity": 2,
+      "before_cogs": 464.26,
+      "before_source": "возврат 14.01.26 4862 (родитель)",
+      "after_cogs": 928.52,
+      "after_source": "возврат 14.01.26 4862 (родитель) (×2 для 4862X2)"
+    },
+    {
+      "offer_id": "4887X2",
+      "quantity": 2,
+      "before_cogs": 487.8,
+      "before_source": "отгрузка 21.07.26 4887 (родитель)",
+      "after_cogs": 975.6,
+      "after_source": "отгрузка 21.07.26 4887 (родитель) (×2 для 4887X2)"
+    },
+    {
+      "offer_id": "5309X2",
+      "quantity": 2,
+      "before_cogs": 205.0,
+      "before_source": "возврат 22.06.26 5309 (родитель)",
+      "after_cogs": 410.0,
+      "after_source": "возврат 22.06.26 5309 (родитель) (×2 для 5309X2)"
+    },
+    {
+      "offer_id": "5370X2",
+      "quantity": 2,
+      "before_cogs": 533.0,
+      "before_source": "отгрузка 06.08.26 6405 (универсальная)",
+      "after_cogs": 1066.0,
+      "after_source": "отгрузка 06.08.26 6405 (универсальная) (×2 для 5370X2)"
+    },
+    {
+      "offer_id": "5413X10",
+      "quantity": 10,
+      "before_cogs": 89.96,
+      "before_source": "возврат 12.01.26 5413 (родитель)",
+      "after_cogs": 899.5999999999999,
+      "after_source": "возврат 12.01.26 5413 (родитель) (×10 для 5413X10)"
+    },
+    {
+      "offer_id": "5418X2",
+      "quantity": 2,
+      "before_cogs": 584.36,
+      "before_source": "возврат 15.06.26 5418 (родитель)",
+      "after_cogs": 1168.72,
+      "after_source": "возврат 15.06.26 5418 (родитель) (×2 для 5418X2)"
+    },
+    {
+      "offer_id": "5439X2",
+      "quantity": 2,
+      "before_cogs": 771.5,
+      "before_source": "возврат 22.06.26 5439 (родитель)",
+      "after_cogs": 1543.0,
+      "after_source": "возврат 22.06.26 5439 (родитель) (×2 для 5439X2)"
+    },
+    {
+      "offer_id": "5525X2",
+      "quantity": 2,
+      "before_cogs": 501.31,
+      "before_source": "отгрузка 06.06.26 5525 (родитель)",
+      "after_cogs": 1002.62,
+      "after_source": "отгрузка 06.06.26 5525 (родитель) (×2 для 5525X2)"
+    },
+    {
+      "offer_id": "5550X2",
+      "quantity": 2,
+      "before_cogs": 900.0,
+      "before_source": "отгрузка 21.07.26 5550 (родитель)",
+      "after_cogs": 1800.0,
+      "after_source": "отгрузка 21.07.26 5550 (родитель) (×2 для 5550X2)"
+    },
+    {
+      "offer_id": "5587X2",
+      "quantity": 2,
+      "before_cogs": 1973.18,
+      "before_source": "отгрузка 04.08.26 5587 (родитель)",
+      "after_cogs": 3946.36,
+      "after_source": "отгрузка 04.08.26 5587 (родитель) (×2 для 5587X2)"
+    },
+    {
+      "offer_id": "5626X10",
+      "quantity": 10,
+      "before_cogs": 836.5,
+      "before_source": "возврат 22.06.26 5626 (родитель)",
+      "after_cogs": 8365.0,
+      "after_source": "возврат 22.06.26 5626 (родитель) (×10 для 5626X10)"
+    },
+    {
+      "offer_id": "5631X2",
+      "quantity": 2,
+      "before_cogs": 248.59,
+      "before_source": "возврат 03.06.26 5631 (родитель)",
+      "after_cogs": 497.18,
+      "after_source": "возврат 03.06.26 5631 (родитель) (×2 для 5631X2)"
+    },
+    {
+      "offer_id": "5636X2",
+      "quantity": 2,
+      "before_cogs": 1769.0,
+      "before_source": "закупка ТК 5636",
+      "after_cogs": 3538.0,
+      "after_source": "закупка ТК 5636 (×2 для 5636X2)"
+    },
+    {
+      "offer_id": "5715X2",
+      "quantity": 2,
+      "before_cogs": 1418.0,
+      "before_source": "отгрузка 06.05.26 5715 (родитель)",
+      "after_cogs": 2836.0,
+      "after_source": "отгрузка 06.05.26 5715 (родитель) (×2 для 5715X2)"
+    },
+    {
+      "offer_id": "5757X2",
+      "quantity": 2,
+      "before_cogs": 988.16,
+      "before_source": "отгрузка 09.06.26 5757 (родитель)",
+      "after_cogs": 1976.32,
+      "after_source": "отгрузка 09.06.26 5757 (родитель) (×2 для 5757X2)"
+    },
+    {
+      "offer_id": "5767X2",
+      "quantity": 2,
+      "before_cogs": 970.63,
+      "before_source": "возврат 11.06.26 5767 (родитель)",
+      "after_cogs": 1941.26,
+      "after_source": "возврат 11.06.26 5767 (родитель) (×2 для 5767X2)"
+    },
+    {
+      "offer_id": "5806X2",
+      "quantity": 2,
+      "before_cogs": 846.07,
+      "before_source": "отгрузка 03.07.26 5806 (родитель)",
+      "after_cogs": 1692.14,
+      "after_source": "отгрузка 03.07.26 5806 (родитель) (×2 для 5806X2)"
+    },
+    {
+      "offer_id": "5807X2",
+      "quantity": 2,
+      "before_cogs": 1384.7,
+      "before_source": "возврат 15.06.26 5807 (родитель)",
+      "after_cogs": 2769.4,
+      "after_source": "возврат 15.06.26 5807 (родитель) (×2 для 5807X2)"
+    },
+    {
+      "offer_id": "5893X2",
+      "quantity": 2,
+      "before_cogs": 1719.94,
+      "before_source": "отгрузка 06.08.26 5893 (родитель)",
+      "after_cogs": 3439.88,
+      "after_source": "отгрузка 06.08.26 5893 (родитель) (×2 для 5893X2)"
+    },
+    {
+      "offer_id": "6113X10",
+      "quantity": 10,
+      "before_cogs": 306.0,
+      "before_source": "закупка ТК 6113",
+      "after_cogs": 3060.0,
+      "after_source": "закупка ТК 6113 (×10 для 6113X10)"
+    },
+    {
+      "offer_id": "6173X2",
+      "quantity": 2,
+      "before_cogs": 777.02,
+      "before_source": "отгрузка 06.05.26 6173 (родитель)",
+      "after_cogs": 1554.04,
+      "after_source": "отгрузка 06.05.26 6173 (родитель) (×2 для 6173X2)"
+    },
+    {
+      "offer_id": "6382X2",
+      "quantity": 2,
+      "before_cogs": 1389.0,
+      "before_source": "закупка ТК 6382",
+      "after_cogs": 2778.0,
+      "after_source": "закупка ТК 6382 (×2 для 6382X2)"
+    },
+    {
+      "offer_id": "6384X2",
+      "quantity": 2,
+      "before_cogs": 1559.44,
+      "before_source": "отгрузка 17.02.26 6384 (родитель)",
+      "after_cogs": 3118.88,
+      "after_source": "отгрузка 17.02.26 6384 (родитель) (×2 для 6384X2)"
+    },
+    {
+      "offer_id": "6409X2",
+      "quantity": 2,
+      "before_cogs": 1479.0,
+      "before_source": "возврат 04.06.26 6409 (родитель)",
+      "after_cogs": 2958.0,
+      "after_source": "возврат 04.06.26 6409 (родитель) (×2 для 6409X2)"
+    },
+    {
+      "offer_id": "6452X2",
+      "quantity": 2,
+      "before_cogs": 157.67,
+      "before_source": "возврат 29.05.26 6452 (родитель)",
+      "after_cogs": 315.34,
+      "after_source": "возврат 29.05.26 6452 (родитель) (×2 для 6452X2)"
+    },
+    {
+      "offer_id": "6798X6",
+      "quantity": 6,
+      "before_cogs": 1654.34,
+      "before_source": "отгрузка 13.05.26 6798 (родитель)",
+      "after_cogs": 9926.039999999999,
+      "after_source": "отгрузка 13.05.26 6798 (родитель) (×6 для 6798X6)"
+    },
+    {
+      "offer_id": "7042X2",
+      "quantity": 2,
+      "before_cogs": 756.0,
+      "before_source": "закупка ТК 7042",
+      "after_cogs": 1512.0,
+      "after_source": "закупка ТК 7042 (×2 для 7042X2)"
+    }
+  ],
+  "ordinary_stock_regional_controls": [
+    {
+      "offer_id": "1367X2",
+      "quantity": 2,
+      "full_cogs": 413.16,
+      "keep_ratio": 0.4,
+      "guard_floor": 2532.9,
+      "stock_regional_floor": 2532.9,
+      "minimum_profit": 600
+    },
+    {
+      "offer_id": "3933X6",
+      "quantity": 6,
+      "full_cogs": 1368.0,
+      "keep_ratio": 0.4,
+      "guard_floor": 7920.0,
+      "stock_regional_floor": 7920.0,
+      "minimum_profit": 1800
+    }
+  ],
+  "api_writes": 0,
+  "db_writes": 0,
+  "note": "Historical bundle cards and latest operational logs; not current live participation. keep .4 in controls is an explicit test value."
+}

@@ -10,7 +10,7 @@ ops/ozon_stock_action.py («Распродажа стока», «Акция дл
 лестница с тем же полом (решение Сергея 16.09.2026: белые пропускаем).
 
 Решения Сергея 16.09.2026 (себестоимость — цепочкой сторожа ВБ, см. cost_map):
-  пол   = (себест + max(300 ₽, 10 % себеста)) / доля выручки, что остаётся нам
+  пол   = (себест + max(300 ₽ × кратность, 10 % полного себеста)) / доля выручки, что остаётся нам
           (формула ВБ-сторожа, общая с лестницей — ozon_stock_action.floor_price);
   ход   = цена в акции ниже пола → ПОДНЯТЬ action_price до пола, если пол не выше потолка
           акции (товар остаётся в акции, видимость сохраняется); иначе СНЯТЬ поштучно;
@@ -59,7 +59,8 @@ def snapshot(account):
                          "max_price": float(p.get("max_action_price") or 0),
                          "stock": int(p.get("stock") or 0), "min_stock": int(p.get("min_stock") or 0)})
     pid2 = oz.offer_of(account, sorted({r["product_id"] for r in rows})) if rows else {}
-    cogs = cost_map(sorted({v[0] for v in pid2.values() if v[0]}))
+    quantities = {off: oz.bundle_quantity(off, name) for off, name in pid2.values() if off}
+    cogs = cost_map(sorted(quantities), quantities=quantities)
     for r in rows:
         r["offer_id"], r["name"] = pid2.get(r["product_id"], (None, ""))
         r["cogs"], r["cogs_source"] = cogs.get(r["offer_id"], (None, "НЕТ")) if r["offer_id"] else (None, "нет offer_id")
@@ -67,7 +68,7 @@ def snapshot(account):
     return rows, acts, keep, keep_src
 
 
-def cost_map(offers):
+def cost_map(offers, quantities=None):
     """{offer_id: (себест, источник)} — ЦЕПОЧКА СТОРОЖА ВБ (решение Сергея 16.09.2026:
     площадки считают одинаково). Себестоимость есть, только если товар СЕЙЧАС где-то есть:
       свой склад (Звёздный/Дисквер) хватает на кратность → средневзвешенный cost_seb;
@@ -88,6 +89,10 @@ def cost_map(offers):
         mult, m = 1, re.match(r"^(\d{4})[Xх](\d{1,2})$", raw, re.I)
         if m:
             mult = int(m.group(2))
+        if quantities is not None:
+            # Ozon передаёт проверенную кратность с полным названием карточки.
+            # Другие площадки без этого аргумента сохраняют свой прежний расчёт.
+            mult = max(1, int(quantities.get(off, 1)))
         code = w.norm_code(raw)
         if not code:
             out[off] = (None, "нет кода")
@@ -134,7 +139,8 @@ def decide(r):
     if r["cogs"] is None:
         r["mode"], r["reason"] = "remove", f"себестоимость не найдена ({r['cogs_source']})"
         return r
-    floor = oz.floor_price(float(r["cogs"]), r["keep_ratio"])
+    r["bundle_qty"] = oz.bundle_quantity(r.get("offer_id"), r.get("name"))
+    floor = oz.floor_price(float(r["cogs"]), r["keep_ratio"], r["bundle_qty"])
     r["floor_price"] = round(floor, 2)
     if r["action_price"] >= floor - PRICE_EPS:
         r["mode"], r["reason"] = "ok", "проходит по полу"
