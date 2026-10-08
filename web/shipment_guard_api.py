@@ -13,11 +13,12 @@ def page():
     return (Path(__file__).parent/'static/shipment_guard.html').read_text()
 
 @router.get('/api/shipment-guard')
-def data(platform: str='',account: str='',since: date|None=None,until: date|None=None,
+def data(platform: str='',account: str='',organization: str='',since: date|None=None,until: date|None=None,
          signal: str='',limit: int=Query(100,ge=1,le=500)):
     where=['is_current']; args=[]
     if platform: where.append('platform=%s'); args.append(platform)
     if account: where.append('account=%s'); args.append(account)
+    if organization: where.append('organization=%s'); args.append(organization)
     if since: where.append("document_moment >= (%s::date::timestamp AT TIME ZONE 'Europe/Moscow')"); args.append(since)
     if until: where.append("document_moment < ((%s::date+1)::timestamp AT TIME ZONE 'Europe/Moscow')"); args.append(until)
     if signal: where.append('signals ? %s'); args.append(signal)
