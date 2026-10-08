@@ -1,0 +1,17 @@
+{
+  "created": 127,
+  "delivered": 95,
+  "fifo_missing": 0,
+  "below_reference_floor_orders": 28,
+  "below_reference_floor_single_unit": 27,
+  "paid_orders_negative_identified_result": 25,
+  "negative_identified_sum": "-16468.67",
+  "below_floor_and_negative_paid_orders": 11,
+  "weekly_expense_total": "346702.23",
+  "weekly_expense_other_creation_weeks": "211624.43",
+  "weekly_expense_unassigned": "6953.06",
+  "weekly_expense_this_creation_week": "128124.74",
+  "historical_promo_attribution": "unavailable; earliest guard log 2026-09-17",
+  "reference_keep_ratio": "0.3335",
+  "reference_floor_rule": "(cogs + max(300, 0.1*cogs))/0.3335; правила введены позже, контрфактическое сравнение"
+}
