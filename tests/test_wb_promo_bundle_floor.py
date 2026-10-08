@@ -1,10 +1,29 @@
 # поток: mkt
 import unittest
 
-from ops.wb_promo_guard import decide, min_net
+from ops.wb_promo_guard import bundle_multiplier, decide, min_net, unit_cost
 
 
 class BundleFloorTests(unittest.TestCase):
+    def test_bundle_multiplier_accepts_wb_suffixes(self):
+        self.assertEqual(bundle_multiplier('3933X3TQSKD9'), 3)
+        self.assertEqual(bundle_multiplier('3933X12K6OWK'), 12)
+        self.assertEqual(bundle_multiplier('3933X6'), 6)
+        self.assertEqual(bundle_multiplier('3933', '3933X9I7CAH1'), 9)
+        self.assertEqual(bundle_multiplier('3933X123TQ'), 1)
+
+    def test_eligible_supplier_price_wins_over_stale_low_stock_snapshot(self):
+        stock = {'3933': {'qty_own': 0, 'qty_remote': 0, 'cost_own': None,
+                          'supplier_min': 213, 'tc_price': 228}}
+        self.assertEqual(unit_cost('3933', {}, stock, need=6),
+                         (213, 'supplier_min', 'remote'))
+
+    def test_last_buy_fallback_still_requires_supplier_stock(self):
+        stock = {'3933': {'qty_own': 0, 'qty_remote': 4, 'cost_own': None,
+                          'supplier_min': None, 'tc_price': 228}}
+        self.assertEqual(unit_cost('3933', {}, stock, need=6),
+                         (228, 'tc_last_buy', 'remote'))
+
     def test_minimum_per_piece_and_percentage(self):
         self.assertEqual(min_net(1000), 300)
         self.assertEqual(min_net(6000, 6), 1800)

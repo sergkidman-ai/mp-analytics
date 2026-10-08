@@ -190,6 +190,21 @@ def norm_code(code):
     return code[:4] if len(code) > 4 else (code or None)
 
 
+def bundle_multiplier(code, vendor_code=None):
+    """Кратность бандла из кода вида 3933X3 или 3933X3TQSKD9.
+
+    Приоритет у артикула продавца: внешний код МойСклада может быть уже сведён
+    к базовому 3933. После числа допустим буквенный суффикс; следующая цифра уже
+    неоднозначна и не считается частью кода кратности.
+    """
+    for candidate in (vendor_code, code):
+        m = re.match(r"^(\d{4})[Xх](\d{1,2})(?=$|\D)",
+                     (candidate or "").strip(), re.I)
+        if m:
+            return int(m.group(2))
+    return 1
+
+
 def sets_map():
     """{код набора: {код компонента: количество}} из справочника set_cost.
 
@@ -356,11 +371,15 @@ def unit_cost(code, links, stock, need=1):
         # несколько связанных кодов с остатком — средневзвешенная по количеству
         qty = sum(x["qty_own"] for x in own)
         return sum(x["cost_own"] * x["qty_own"] for x in own) / qty, "own_stock", "own"
-    has_remote = any(stock.get(c) and stock[c]["qty_remote"] > 0 for c in cand)
     prices = [stock[c]["supplier_min"] for c in cand if stock.get(c) and stock[c]["supplier_min"]]
+    # supplier_min строится из актуального прайса с qty >= MIN_SUP_STOCK либо из
+    # снимка Удаленного склада с тем же порогом. Эти источники могут расходиться:
+    # снимок supplier_stock бывает меньше порога, когда свежий прайс подтверждает
+    # доступное количество. Не блокируем валидную цену только из-за такого расхождения.
+    if prices:
+        return min(prices), "supplier_min", "remote"
+    has_remote = any(stock.get(c) and stock[c]["qty_remote"] > 0 for c in cand)
     if has_remote:
-        if prices:
-            return min(prices), "supplier_min", "remote"
         # предложения поставщика нет — остаётся наша прошлая закупка из ТК. Хуже, чем живая
         # цена, поэтому источник называется явно и виден в отчёте.
         tcs = [stock[c]["tc_price"] for c in cand if stock.get(c) and stock[c]["tc_price"]]
@@ -413,9 +432,7 @@ def cogs_map(acc, goods=None):
         # Себестоимость карточки = себестоимость единицы × кратность. Без множителя пол
         # считался бы по одной штуке и был бы занижен в 6-10 раз. Шаблон якорный
         # (ровно «4 цифры + X + число»), чтобы не зацепить обычные производные коды.
-        mult, m = 1, re.match(r"^(\d{4})[Xх](\d{1,2})$", raw, re.I)
-        if m:
-            mult = int(m.group(2))
+        mult = bundle_multiplier(raw, r["vendor_code"])
 
         code = norm_code(raw)
         # 'unmapped' — карточка ВБ вообще не связана с номенклатурой МойСклада (у acc1 таких
