@@ -123,7 +123,7 @@ def compare(folder,basis_path,baseline_path):
     import csv
     with (folder/'comparison.csv').open('w') as f:
         cols=['offer_id','promo_id','status','mechanics','cogs','cogs_source','price','promo_price','max_promo_price','old_floor','new_floor','cap','target','category','action','changed_by_basis','reason']
-        w=csv.DictWriter(f,fieldnames=cols);w.writeheader()
+        w=csv.DictWriter(f,fieldnames=cols,lineterminator='\n');w.writeheader()
         for r in out:w.writerow({**{k:r.get(k) for k in cols[:9]},'old_floor':r['old']['floor'],'new_floor':r['new']['floor'],
                                   'cap':r['new'].get('cap'),'target':r['new']['target'],'category':r['category'],'action':r['new']['action'],'changed_by_basis':r['changed_by_basis'],'reason':r['new'].get('reason',r['new']['category'])})
     return summary
