@@ -190,18 +190,23 @@ def norm_code(code):
     return code[:4] if len(code) > 4 else (code or None)
 
 
-def bundle_multiplier(code, vendor_code=None):
+def bundle_multiplier(code, vendor_code=None, title=None):
     """Кратность бандла из кода вида 3933X3 или 3933X3TQSKD9.
 
-    Приоритет у артикула продавца: внешний код МойСклада может быть уже сведён
-    к базовому 3933. После числа допустим буквенный суффикс; следующая цифра уже
-    неоднозначна и не считается частью кода кратности.
+    Суффиксные коды требуют подтверждения кратности названием карточки: обычные
+    производные артикулы тоже содержат случайные X99 и подобные последовательности.
     """
     for candidate in (vendor_code, code):
-        m = re.match(r"^(\d{4})[Xх](\d{1,2})(?=$|\D)",
-                     (candidate or "").strip(), re.I)
+        candidate = (candidate or "").strip()
+        m = re.fullmatch(r"\d{4}[Xх](\d{1,2})", candidate, re.I)
         if m:
-            return int(m.group(2))
+            return max(1, int(m.group(1)))
+        m = re.match(r"^\d{4}[Xх](\d{1,2})(?=\D)", candidate, re.I)
+        qty = re.search(r"\b(\d+)\s*шт\b", title or "", re.I)
+        if (m and qty and int(m.group(1)) > 1
+                and int(m.group(1)) == int(qty.group(1))
+                and re.match(r"^Комплект\b", title or "", re.I)):
+            return int(m.group(1))
     return 1
 
 
@@ -405,6 +410,8 @@ def cogs_map(acc, goods=None):
                          AND captured_date = (SELECT max(captured_date) FROM mkt_margin_control
                                               WHERE account = %s)""",
                     (acc, acc))
+    cards = {int(r["nm_id"]): r for r in db.query(
+        "SELECT nm_id, vendor_code, title FROM wb_cards WHERE account = %s", (acc,))}
     # Справочник покрывает не весь каталог: 11.09.2026 в нём 13 255 карточек из 20 573 по acc1
     # и 10 641 из 17 270 по acc2. Карточка без строки уходила из акции с причиной «нет
     # себестоимости», хотя её артикул — обычный 4-значный код, по которому себестоимость
@@ -432,7 +439,9 @@ def cogs_map(acc, goods=None):
         # Себестоимость карточки = себестоимость единицы × кратность. Без множителя пол
         # считался бы по одной штуке и был бы занижен в 6-10 раз. Шаблон якорный
         # (ровно «4 цифры + X + число»), чтобы не зацепить обычные производные коды.
-        mult = bundle_multiplier(raw, r["vendor_code"])
+        card = cards.get(int(r["nm_id"])) or {}
+        title = card.get("title") if card.get("vendor_code") == r["vendor_code"] else None
+        mult = bundle_multiplier(raw, r["vendor_code"], title)
 
         code = norm_code(raw)
         # 'unmapped' — карточка ВБ вообще не связана с номенклатурой МойСклада (у acc1 таких
