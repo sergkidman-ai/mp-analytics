@@ -1,0 +1,1381 @@
+{
+  "completed_utc": "2026-10-08T12:22:04.472647+00:00",
+  "scope_covered_active_sku": 6575,
+  "written_and_verified": 6545,
+  "model_identity_unresolved": 30,
+  "code_counts": {
+    "3215900009": 39,
+    "3707909000": 9,
+    "8443999000": 6497
+  },
+  "source_counts": {
+    "FEED_CHECKED": 5634,
+    "FALLBACK_MODEL_CANDIDATE": 866,
+    "FALLBACK_IDENTITY": 45
+  },
+  "verification": "All written codes read back in both sku.classifier_codes and sku.seller_regulatory_data.classification.tnved_codes; prices, stocks, identity, category, status, other regulatory fields preserved.",
+  "ali_service_date_changes": 6545,
+  "sole_code_source": "TC live API ved_eaes_code",
+  "request_payload_audit": [
+    {
+      "path": "additional_batches/batch_0001/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "additional_batches/batch_0002/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "additional_batches/batch_0004/request.json",
+      "sku_count": 2
+    },
+    {
+      "path": "additional_batches/batch_0003/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0059/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0106/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0037/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0020/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0279/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0070/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0199/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0019/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0146/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0051/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0231/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0210/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0041/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0164/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0093/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0102/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0117/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0315/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0133/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0314/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0001/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0288/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0313/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0112/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0116/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0080/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0213/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0239/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0167/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0095/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0141/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0261/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0043/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0171/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0050/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0243/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0157/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0262/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0030/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0294/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0252/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0265/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0240/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0272/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0196/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0035/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0305/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0284/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0083/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0089/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0296/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0226/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0198/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0208/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0139/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0111/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0021/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0181/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0282/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0236/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0153/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0009/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0194/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0002/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0071/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0074/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0216/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0018/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0306/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0033/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0201/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0309/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0084/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0244/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0016/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0119/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0290/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0124/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0301/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0011/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0054/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0155/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0169/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0014/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0303/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0175/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0058/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0128/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0273/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0205/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0267/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0082/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0227/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0052/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0087/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0134/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0150/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0188/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0004/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0042/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0182/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0130/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0063/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0072/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0114/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0140/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0078/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0138/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0053/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0076/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0211/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0312/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0055/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0045/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0100/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0292/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0026/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0135/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0266/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0269/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0143/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0251/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0232/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0191/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0029/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0323/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0187/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0163/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0172/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0068/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0069/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0173/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0008/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0123/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0121/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0286/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0247/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0235/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0147/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0200/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0091/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0007/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0206/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0168/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0300/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0260/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0107/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0311/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0113/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0298/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0186/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0120/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0285/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0013/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0281/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0161/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0067/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0307/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0322/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0218/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0291/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0317/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0212/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0109/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0049/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0073/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0318/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0270/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0152/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0065/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0057/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0108/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0293/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0061/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0010/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0253/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0295/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0255/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0160/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0241/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0256/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0275/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0154/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0098/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0249/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0024/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0103/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0263/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0221/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0174/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0276/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0031/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0308/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0207/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0126/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0225/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0259/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0224/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0162/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0006/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0149/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0190/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0017/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0222/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0145/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0104/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0077/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0183/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0192/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0096/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0299/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0280/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0025/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0245/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0189/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0193/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0320/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0038/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0158/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0129/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0081/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0064/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0202/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0022/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0148/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0319/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0217/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0060/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0254/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0316/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0105/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0142/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0088/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0287/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0215/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0297/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0044/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0056/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0176/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0101/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0023/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0278/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0062/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0271/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0156/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0324/request.json",
+      "sku_count": 17
+    },
+    {
+      "path": "batches/batch_0151/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0127/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0214/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0027/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0209/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0012/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0277/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0248/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0195/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0092/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0246/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0289/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0179/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0136/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0094/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0180/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0219/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0144/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0137/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0075/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0039/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0257/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0178/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0165/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0310/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0159/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0304/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0118/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0274/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0003/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0321/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0268/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0085/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0110/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0220/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0238/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0170/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0090/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0258/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0229/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0264/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0048/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0233/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0177/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0046/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0204/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0028/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0125/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0230/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0086/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0099/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0079/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0032/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0122/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0302/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0132/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0005/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0242/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0250/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0097/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0184/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0283/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0228/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0185/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0131/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0036/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0047/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0034/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0223/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0237/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0166/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0197/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0234/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0203/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0115/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0040/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0066/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "batches/batch_0015/request.json",
+      "sku_count": 20
+    },
+    {
+      "path": "old_only_ink/request.json",
+      "sku_count": 1
+    },
+    {
+      "path": "working_pilot/request.json",
+      "sku_count": 5
+    },
+    {
+      "path": "native_reg_after_old/request.json",
+      "sku_count": 2
+    },
+    {
+      "path": "native_pilot/request.json",
+      "sku_count": 2
+    },
+    {
+      "path": "old_only_cartridge/request.json",
+      "sku_count": 1
+    },
+    {
+      "path": "reg_only_cartridge/request.json",
+      "sku_count": 1
+    },
+    {
+      "path": "native_old_only/request.json",
+      "sku_count": 2
+    },
+    {
+      "path": "sku_code_both/request.json",
+      "sku_count": 1
+    },
+    {
+      "path": "sku_code_old/request.json",
+      "sku_count": 1
+    },
+    {
+      "path": "pilot_request.json",
+      "sku_count": 6
+    }
+  ],
+  "initial_sku_id_pilot": "9 SKU update attempts failed validation; resolved using sku_code. Successful preliminary old-field update for one SKU was subsequently completed in both fields.",
+  "rate_limits": "Explicit 429 rejections journalled; only rejected requests retried, successful submissions reused by group_id.",
+  "no_other_marketplace_code_sources": true,
+  "temporary_moderation_sku_count": 77,
+  "two_native_cards_completed_in_separate_steps": [
+    "40057",
+    "10284"
+  ]
+}

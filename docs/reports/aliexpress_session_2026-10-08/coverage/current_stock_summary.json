@@ -1,0 +1,152 @@
+{
+  "feed_last_modified_utc": "2026-10-08T01:23:06+00:00",
+  "feed_retrieved_utc": "2026-10-08T10:19:20+00:00",
+  "feed_age_hours_at_read": 8.94,
+  "ali_live_read": {
+    "start_utc": "2026-10-08T10:19:44.595887+00:00",
+    "end_utc": "2026-10-08T10:22:23.672332+00:00",
+    "cards": 23801,
+    "pages": 478,
+    "tail_empty": true,
+    "writes": 0
+  },
+  "scope": 20175,
+  "current_status_counts": {
+    "onSelling": 19945,
+    "auditing": 199,
+    "": 31
+  },
+  "groups": {
+    "all_retained": {
+      "cards": 20175,
+      "tnved_potentially_covered": 15914,
+      "tnved_unresolved": 4261,
+      "tnved_sources": {
+        "FALLBACK_MODEL_CANDIDATE": 8451,
+        "FEED_CHECKED": 7182,
+        "NEEDS_REVIEW": 986,
+        "NO_MODEL_MATCH": 3275,
+        "FALLBACK_IDENTITY": 281
+      }
+    },
+    "on_sale": {
+      "cards": 19945,
+      "tnved_potentially_covered": 15726,
+      "tnved_unresolved": 4219,
+      "tnved_sources": {
+        "FALLBACK_MODEL_CANDIDATE": 8427,
+        "FEED_CHECKED": 7018,
+        "NEEDS_REVIEW": 981,
+        "NO_MODEL_MATCH": 3238,
+        "FALLBACK_IDENTITY": 281
+      }
+    },
+    "in_feed": {
+      "cards": 9800,
+      "tnved_potentially_covered": 8328,
+      "tnved_unresolved": 1472,
+      "tnved_sources": {
+        "FEED_CHECKED": 7182,
+        "NEEDS_REVIEW": 190,
+        "FALLBACK_MODEL_CANDIDATE": 1085,
+        "NO_MODEL_MATCH": 1282,
+        "FALLBACK_IDENTITY": 61
+      }
+    },
+    "feed_positive_stock": {
+      "cards": 8632,
+      "tnved_potentially_covered": 7328,
+      "tnved_unresolved": 1304,
+      "tnved_sources": {
+        "FEED_CHECKED": 6297,
+        "NEEDS_REVIEW": 165,
+        "FALLBACK_MODEL_CANDIDATE": 978,
+        "NO_MODEL_MATCH": 1139,
+        "FALLBACK_IDENTITY": 53
+      }
+    },
+    "on_sale_in_feed": {
+      "cards": 9601,
+      "tnved_potentially_covered": 8163,
+      "tnved_unresolved": 1438,
+      "tnved_sources": {
+        "FEED_CHECKED": 7018,
+        "NEEDS_REVIEW": 188,
+        "FALLBACK_MODEL_CANDIDATE": 1084,
+        "NO_MODEL_MATCH": 1250,
+        "FALLBACK_IDENTITY": 61
+      }
+    },
+    "on_sale_feed_positive_stock": {
+      "cards": 8442,
+      "tnved_potentially_covered": 7172,
+      "tnved_unresolved": 1270,
+      "tnved_sources": {
+        "FEED_CHECKED": 6141,
+        "NEEDS_REVIEW": 163,
+        "FALLBACK_MODEL_CANDIDATE": 978,
+        "NO_MODEL_MATCH": 1107,
+        "FALLBACK_IDENTITY": 53
+      }
+    },
+    "on_sale_feed_and_ali_positive_stock": {
+      "cards": 7700,
+      "tnved_potentially_covered": 6575,
+      "tnved_unresolved": 1125,
+      "tnved_sources": {
+        "FEED_CHECKED": 5634,
+        "NEEDS_REVIEW": 138,
+        "FALLBACK_MODEL_CANDIDATE": 896,
+        "NO_MODEL_MATCH": 987,
+        "FALLBACK_IDENTITY": 45
+      }
+    },
+    "not_in_feed": {
+      "cards": 10375,
+      "tnved_potentially_covered": 7586,
+      "tnved_unresolved": 2789,
+      "tnved_sources": {
+        "FALLBACK_MODEL_CANDIDATE": 7366,
+        "NEEDS_REVIEW": 796,
+        "NO_MODEL_MATCH": 1993,
+        "FALLBACK_IDENTITY": 220
+      }
+    },
+    "on_sale_not_in_feed": {
+      "cards": 10344,
+      "tnved_potentially_covered": 7563,
+      "tnved_unresolved": 2781,
+      "tnved_sources": {
+        "FALLBACK_MODEL_CANDIDATE": 7343,
+        "NEEDS_REVIEW": 793,
+        "NO_MODEL_MATCH": 1988,
+        "FALLBACK_IDENTITY": 220
+      }
+    },
+    "on_sale_ali_positive_stock": {
+      "cards": 7700,
+      "tnved_potentially_covered": 6575,
+      "tnved_unresolved": 1125,
+      "tnved_sources": {
+        "FEED_CHECKED": 5634,
+        "NEEDS_REVIEW": 138,
+        "FALLBACK_MODEL_CANDIDATE": 896,
+        "NO_MODEL_MATCH": 987,
+        "FALLBACK_IDENTITY": 45
+      }
+    }
+  },
+  "active_feed_positive_but_ali_zero": 742,
+  "active_feed_positive_but_ali_unknown": 0,
+  "all_feed_quantity_zero": 1168,
+  "stock_comparison_among_on_sale_feed_positive": {
+    "same": 7700,
+    "different": 742
+  },
+  "notes": [
+    "Freshness is HTTP last-modified of the feed file, not a guaranteed timestamp of every physical stock.",
+    "Presence in a price/stock feed identifies the supplied update set. Actual successful Ali import schedule/job logs are not exposed in checked data.",
+    "Ali live stock and feed quantity can differ because of sales/reservations or import timing; difference alone does not prove import failure.",
+    "TNVED coverage remains provisional; no writes performed."
+  ]
+}

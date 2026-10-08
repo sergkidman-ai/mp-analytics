@@ -1,0 +1,39 @@
+{
+  "source": "https://thecartridge.ru/api/catalog/cartridge_models",
+  "api_field": "ved_eaes_code",
+  "started_utc": "2026-10-08T09:39:16Z",
+  "finished_utc": "2026-10-08T09:41:23Z",
+  "unique_models": 6735,
+  "states": {
+    "VALID_10_DIGIT_CODE": 6735
+  },
+  "complete_empty_final_page": true,
+  "pages_including_empty": 35,
+  "duplicate_external_codes": [],
+  "empty_external_codes": 0,
+  "code_counts": {
+    "8443999000": 6441,
+    "3215900009": 145,
+    "3707909000": 149
+  },
+  "type_counts": {
+    "Картридж": 4494,
+    "Тонер-картридж": 240,
+    "Лента для принтера": 223,
+    "Комплект картриджей": 797,
+    "Фотобарабан": 425,
+    "Сервисный комплект": 7,
+    "Комплект фотобарабанов": 43,
+    "Чернила": 118,
+    "Комплект чернил": 27,
+    "Заправочный комплект": 63,
+    "Тонер": 86,
+    "Блок проявки": 36,
+    "Печатающая головка": 17,
+    "Фотобарабан + картридж": 145,
+    "Бункер отработанного тонера": 13,
+    "Блок переноса": 1
+  },
+  "marketplace_writes": 0,
+  "db_writes": 0
+}

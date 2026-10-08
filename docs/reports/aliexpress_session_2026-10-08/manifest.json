@@ -1,0 +1,131 @@
+{
+  "created_utc": "2026-10-08T13:42:13.039671+00:00",
+  "files": [
+    {
+      "path": "cleanup/allowed_categories.json",
+      "bytes": 43962,
+      "sha256": "6ea734cb1e217bb061289fe7cb4df73744597dbf7fccfc47642b623932ec509d"
+    },
+    {
+      "path": "cleanup/final_verification.json",
+      "bytes": 6348,
+      "sha256": "22e56dbccfa57ca6b6fc048485c41203d8e8158230226ac1dfb8f7118d48d377"
+    },
+    {
+      "path": "cleanup/observed_inventory_changes.csv",
+      "bytes": 1809,
+      "sha256": "5d1a69888f55d7f4148715a9b1e04f1159ed90b387b418af8aea731195ee8005"
+    },
+    {
+      "path": "cleanup/report.txt",
+      "bytes": 3554,
+      "sha256": "19fac79a54b86db71363f411f64bf755121a196909cc20b39b46311893a03fd4"
+    },
+    {
+      "path": "cleanup/results.csv",
+      "bytes": 488928,
+      "sha256": "bee683586d7e6fa53ce120a107c95292624b83bcdd241d2d1667bcbad4319bfa"
+    },
+    {
+      "path": "cleanup/submission_audit.json",
+      "bytes": 135,
+      "sha256": "ae1ee11fd0df1f707589d0c1f8b27652d07d32057379bd203e3521eae87357d4"
+    },
+    {
+      "path": "coverage/active_feed_and_ali_positive_stock.csv",
+      "bytes": 1764996,
+      "sha256": "f38d8e33fade3e7d72b549daa4ef8b854e5be38a4a0df68956f51fe2c2d2dc73"
+    },
+    {
+      "path": "coverage/current_stock_report.txt",
+      "bytes": 3381,
+      "sha256": "022fd4a54a6d07c3a8bb7bedc4bd10bf944959eaa30d7c6959a2f6450d8161ab"
+    },
+    {
+      "path": "coverage/current_stock_summary.json",
+      "bytes": 4402,
+      "sha256": "ec6738807f5dca8137a0c3e0d8183c55f20c1605e8578eee2eb902136215c832"
+    },
+    {
+      "path": "coverage/feed_first_coverage.csv",
+      "bytes": 5826330,
+      "sha256": "5dadb0cccb008342768a5ce91a6f9a0cefb0c80de45c1b21c9db61773fdfc47a"
+    },
+    {
+      "path": "coverage/feed_first_report.txt",
+      "bytes": 1891,
+      "sha256": "b80566d16d3aa6870901609a34772280d5cab5e0d73b8ae0b24623d952a53eb3"
+    },
+    {
+      "path": "coverage/feed_first_summary.json",
+      "bytes": 2203,
+      "sha256": "60d9d7c5e2204bcb41ac970a30962143ac8d42fe99efb1a60656449092c4ab81"
+    },
+    {
+      "path": "coverage/feed_report.txt",
+      "bytes": 4163,
+      "sha256": "2c74f730fa118b6f4ae7dd9c3a3b934f3e4cb29c1e852d395f4eb52f6e83d9d9"
+    },
+    {
+      "path": "coverage/feed_summary.json",
+      "bytes": 1081,
+      "sha256": "a8cc1750b134263eaa58f95699f33510c4e23611a4289ab2e35cf722ae47f6a0"
+    },
+    {
+      "path": "report.txt",
+      "bytes": 6183,
+      "sha256": "9ea3c59e805f30a1f2226874069b23c6568ab63649b7ba4a647a37a58e079838"
+    },
+    {
+      "path": "tc_source/all_models.csv",
+      "bytes": 1003699,
+      "sha256": "6944564079ba391f37d19e8cff85ec1571ab84d500ea1023fe04e754c498b8d3"
+    },
+    {
+      "path": "tc_source/report.txt",
+      "bytes": 2733,
+      "sha256": "a32e1a5e485a8e1952a695f930588af9ccdbd432a4f625a2035d39b4fcabdc5e"
+    },
+    {
+      "path": "tc_source/summary.json",
+      "bytes": 1233,
+      "sha256": "355a92a8bf28b2555eef3ac098b5cb578e808be9ab8a6985c130810a40423a08"
+    },
+    {
+      "path": "tnved/final_summary.json",
+      "bytes": 29574,
+      "sha256": "6ac9778a46986d68ff889264771c57ab58e3e8a59f077bc157e3d153ac341386"
+    },
+    {
+      "path": "tnved/report.txt",
+      "bytes": 4131,
+      "sha256": "8c0fe5f4298a46a8c5850bea57ec786610414b56b0f2fa4c07f30af823357f22"
+    },
+    {
+      "path": "tnved/unresolved_30.csv",
+      "bytes": 4245,
+      "sha256": "67f61f209f823929f7cfc53c1ed15319ef95a84a3fded43b09349aac67a4932b"
+    },
+    {
+      "path": "tnved/unresolved_30_current_stock.csv",
+      "bytes": 2860,
+      "sha256": "7dcc4447c28f39240a5e7195a23a5e1c4b6ca7319917e47cd35c7c71cdeb2afa"
+    },
+    {
+      "path": "tnved/written_codes.csv",
+      "bytes": 1208566,
+      "sha256": "739a6343c084e7628a69006ad00c7d0e8048d28ae08f2521d751f3b04b10f359"
+    },
+    {
+      "path": "unresolved_offline/results.csv",
+      "bytes": 2800,
+      "sha256": "4929ed3b62e60551b7b21fd13a2e0ad2b22c932cd22ae1db7f6777403393ea7c"
+    },
+    {
+      "path": "unresolved_offline/summary.json",
+      "bytes": 194,
+      "sha256": "e1bef739132ec8e6b078237606da2dc493cdb285c2c9246fd8a5ee33de148cfe"
+    }
+  ],
+  "csv_line_endings": "LF (normalised from source CRLF; CSV records preserved)"
+}

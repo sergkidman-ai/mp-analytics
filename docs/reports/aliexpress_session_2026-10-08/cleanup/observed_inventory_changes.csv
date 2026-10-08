@@ -1,0 +1,14 @@
+﻿product_id,title,sku_id,sku_code,before_stock,after_stock,status,included_in_cleanup_requests,source
+1005006131275804,Картридж TK-5215Y желтый,12000035899994759,28384,14,0,onSelling,False,not established
+1005006131322459,Картридж TK-5215M пурпурный,12000035900109521,28383,14,0,onSelling,False,not established
+1005006131325666,Набор картриджей TK-5215,12000035900309145,28385,10,0,onSelling,False,not established
+1005006131392101,Картридж TK-5215C голубой,12000035900149450,28382,13,0,onSelling,False,not established
+1005008533657158,Картридж TK-5215Bk Kyocera черный совместимый,12000045596644920,28380,10,0,onSelling,False,not established
+141746319,Картридж TK-1140XL для Kyocera M2035  M2535 черный,5000000525750289,80590,50,0,onSelling,False,not established
+141746601,Картридж 106R02752 для Xerox WC 6655 голубой,5000000525751003,80623,20,0,onSelling,False,not established
+141746622,Картридж 106R02753 для Xerox WC 6655 пурпурный,5000000525751064,80624,20,0,onSelling,False,not established
+141746842,Картриджи 106R02752-106R02755 для Xerox WC 6655,5000000525751792,80644,20,0,onSelling,False,not established
+141749932,Фотобарабан + картридж DK-170 DU+TK-1140XL для Kyocera,5000000525762395,80958,50,0,onSelling,False,not established
+347078064,Картридж 056H для Canon MF542x  MF543x  LBP-325 черный,5000001905959911,81112,200,0,onSelling,False,not established
+411028124,Картридж для Kyocera TASKalfa 406 (TK-5215Bk),5000002149617391,28381,10,0,onSelling,False,not established
+538689040,Тонер-картридж для Kyocera FS-1035MFP,5000002933139858,82507,50,0,onSelling,False,not established
