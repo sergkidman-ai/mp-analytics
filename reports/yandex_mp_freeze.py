@@ -133,6 +133,16 @@ def _freeze(hist, y, m):
     key = _key(y, m)
     i = _slot(hist, key)
     _put(hist, i, _record(y, m))
+    from collectors.yandex_finance_basis import verified_month
+    evidence = verified_month(key)
+    hist.setdefault('finance_basis', {})[key] = {
+        'calendar_closed': True, 'accounting_provisional': evidence.get('accounting_provisional', True) if evidence else True,
+        'price_usable': bool(evidence), 'source': evidence.get('source') if evidence else None,
+        'version': evidence.get('version') if evidence else None, 'activation': 'separate active.json required'}
+    provisional = set(hist.get('provisional') or [])
+    if not evidence or evidence.get('accounting_provisional'): provisional.add(key)
+    else: provisional.discard(key)
+    hist['provisional'] = sorted(provisional)
     return key
 
 

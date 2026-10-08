@@ -29,6 +29,7 @@ MARKET_PROMOCODE не трогаем вовсе (схема оплаты ски�
     ./venv/bin/python -m ops.ya_promo_guard --apply --wave morning   # исполнение
 Журнал: ya_promo_guard_log (migrations/125_ya_promo_guard.sql).
 """
+from decimal import Decimal
 import argparse
 import math
 import os
@@ -104,8 +105,8 @@ def promo_offers(promo_id):
 
 def snapshot():
     """Строки «товар × акция» с себестоимостью и полом. Возвращает (rows, promos, keep)."""
-    ret, month = q.retention()
-    keep = 1 - float(ret[ACCOUNT])
+    rate, month = q.yandex_retention()
+    keep = Decimal(1) - rate
     acts = promos()
     rows, skipped = [], []
     for a in acts:
@@ -132,12 +133,16 @@ def snapshot():
 def decide(r):
     """mode: ok | raise | remove | frozen (механику править нельзя)."""
     r["floor_price"] = r["new_price"] = None
+    if str(r.get('offer_id')) == '7200':
+        r['mode'], r['reason'] = 'ok', '7200: цена закреплена пользователем'
+        return r
     if r["cogs"] is None:
         r["mode"], r["reason"] = "remove", f"себестоимость не найдена ({r['cogs_source']})"
         return r
-    floor = oz.floor_price(float(r["cogs"]), r["keep_ratio"])
+    from collectors.yandex_finance_basis import floor_price
+    floor = floor_price(r['cogs'], r['keep_ratio'])
     r["floor_price"] = round(floor, 2)
-    if r["promo_price"] > 0 and r["promo_price"] >= floor - PRICE_EPS:
+    if r["promo_price"] > 0 and Decimal(str(r["promo_price"])) >= floor - Decimal(str(PRICE_EPS)):
         r["mode"], r["reason"] = "ok", "проходит по полу"
         return r
     target = float(math.ceil(floor))

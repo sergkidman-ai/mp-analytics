@@ -23,6 +23,7 @@
     ./venv/bin/python -m ops.ya_promo_push --csv /tmp/push.csv   # + построчно
     ./venv/bin/python -m ops.ya_promo_push --apply --limit 100   # завести (по прямой команде)
 """
+from decimal import Decimal
 import argparse
 import math
 import pathlib
@@ -65,8 +66,8 @@ def catalog_prices(offer_ids):
 
 def plan():
     """Строки решения по каждому товару-кандидату акций «Бестселлеры»."""
-    ret, month = q.retention()
-    keep = 1 - float(ret[y.ACCOUNT])
+    rate, month = q.yandex_retention()
+    keep = Decimal(1) - rate
     rows, acts = [], []
     for a in y.promos():
         mi = a.get("mechanicsInfo") or {}
@@ -105,10 +106,14 @@ def decide(r):
     """mode: add (со ступенью в note) | skip."""
     r["floor_price"] = r["new_price"] = r["level"] = None
     r["status_row"], r["note"] = "dry", None
+    if str(r.get('offer_id')) == '7200':
+        r['mode'], r['reason'] = 'skip', '7200: цена закреплена пользователем'
+        return r
     if r["cogs"] is None:
         r["mode"], r["reason"] = "skip", f"себестоимости нет ({r['cogs_source']})"
         return r
-    floor = oz.floor_price(float(r["cogs"]), r["keep_ratio"])
+    from collectors.yandex_finance_basis import floor_price
+    floor = floor_price(r['cogs'], r['keep_ratio'])
     r["floor_price"] = round(floor, 2)
     if not r["price"]:
         r["mode"], r["reason"] = "skip", "нет цены каталога"
@@ -120,7 +125,7 @@ def decide(r):
         hi = min(hi, r["max_promo_price"])
     for key, name in LEVELS:
         lvl = float(r["levels"].get(key) or 0)
-        if lvl <= 0 or lvl < floor - y.PRICE_EPS:
+        if lvl <= 0 or lvl < floor - Decimal(str(y.PRICE_EPS)):
             continue
         if lvl > hi or lvl < lo:              # вне коридора скидки Маркета (1–95 % цены)
             continue
