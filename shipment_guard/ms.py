@@ -61,7 +61,7 @@ class MSClient:
             self.requests+=1
             try:
                 r=self.session.get(config.MS+path,params=params,
-                  headers={'Authorization':'Bearer '+os.environ['MOYSKLAD_TOKEN'],'Accept-Encoding':'gzip'},timeout=(5,45))
+                  headers={'Authorization':'Bearer '+config.ms_token(),'Accept-Encoding':'gzip'},timeout=(5,45))
             except requests.RequestException:
                 store.metric('ms_network_errors')
                 raise SourceError('ms_network_error') from None

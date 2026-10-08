@@ -108,6 +108,12 @@ class ReceiverTests(unittest.TestCase):
         asyncio.run(check())
 
 class LimiterTests(unittest.TestCase):
+    def test_dedicated_token_never_falls_back_to_admin(self):
+        with patch.dict(os.environ,{'MOYSKLAD_TOKEN':'admin','SHIPMENT_GUARD_MS_TOKEN':''}):
+            with self.assertRaisesRegex(RuntimeError,'shipment_guard_ms_token_missing'):
+                config.ms_token()
+        with patch.dict(os.environ,{'MOYSKLAD_TOKEN':'admin','SHIPMENT_GUARD_MS_TOKEN':'operator'}):
+            self.assertEqual(config.ms_token(),'operator')
     def test_100_documents_and_429_shared_pause(self):
         now=[0.]; starts=[]
         class Response:
@@ -119,7 +125,7 @@ class LimiterTests(unittest.TestCase):
                 if len(starts)==2:r.status_code=429;r.headers={'Retry-After':'7'}
                 return r
         client=MSClient(Session(),lambda:now[0],lambda n:now.__setitem__(0,now[0]+n))
-        with patch('shipment_guard.ms.store.metric'),patch.dict(os.environ,{'MOYSKLAD_TOKEN':'test'}):
+        with patch('shipment_guard.ms.store.metric'),patch.dict(os.environ,{'SHIPMENT_GUARD_MS_TOKEN':'test'}):
             for _ in range(300):
                 try:client.get('/entity/demand/'+DID)
                 except SourceError:pass
@@ -133,7 +139,7 @@ class LimiterTests(unittest.TestCase):
                     def json(self):return {}
                 return R()
         c=MSClient(Session(),lambda:now[0],lambda n:now.__setitem__(0,now[0]+n))
-        with patch('shipment_guard.ms.store.metric'),patch.dict(os.environ,{'MOYSKLAD_TOKEN':'test'}):
+        with patch('shipment_guard.ms.store.metric'),patch.dict(os.environ,{'SHIPMENT_GUARD_MS_TOKEN':'test'}):
             c.get('/entity/demand/'+DID);c.get('/report/stock/byoperation')
         self.assertGreaterEqual(now[0],5)
 

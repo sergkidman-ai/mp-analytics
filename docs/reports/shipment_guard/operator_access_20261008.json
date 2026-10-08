@@ -1,0 +1,31 @@
+{
+  "token_source_filename": "20261008_125521_Natalie_Pro_natalya_токен_МС_оператор.txt",
+  "checks": [
+    {
+      "resource": "identity",
+      "http_status": 200,
+      "uid": "operator@dsquare",
+      "employee_id": "a9bb3f7c-aa74-11ec-0a80-00600004c84d"
+    },
+    {
+      "resource": "demand",
+      "http_status": 200,
+      "name": "5983657477",
+      "account_matches": true
+    },
+    {
+      "resource": "positions",
+      "http_status": 200,
+      "row_count": 1
+    },
+    {
+      "resource": "fifo",
+      "http_status": 200,
+      "row_count": 1,
+      "cost_fields_present": true,
+      "positive_total_cost": true
+    }
+  ],
+  "verified_operator": true,
+  "guard_remains_paused": true
+}

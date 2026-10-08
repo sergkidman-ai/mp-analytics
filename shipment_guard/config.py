@@ -9,6 +9,12 @@ load_dotenv(ROOT / '.env')
 MS = 'https://api.moysklad.ru/api/remap/1.2'
 MS_TZ = ZoneInfo('Europe/Moscow')
 
+def ms_token():
+    # No fallback to the admin token shared with TC and other collectors.
+    token=os.getenv('SHIPMENT_GUARD_MS_TOKEN','').strip()
+    if not token: raise RuntimeError('shipment_guard_ms_token_missing')
+    return token
+
 def account_id():
     return str(UUID(os.environ['SHIPMENT_GUARD_ACCOUNT_ID']))
 
