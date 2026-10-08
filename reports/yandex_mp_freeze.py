@@ -135,7 +135,8 @@ def _freeze(hist, y, m):
     _put(hist, i, _record(y, m))
     from collectors.yandex_finance_basis import verified_month
     evidence = verified_month(key)
-    hist.setdefault('finance_basis', {})[key] = {
+    bases = hist.setdefault('finance_basis', {})
+    bases[key] = {**bases.get(key, {}),
         'calendar_closed': True, 'accounting_provisional': evidence.get('accounting_provisional', True) if evidence else True,
         'price_usable': bool(evidence), 'source': evidence.get('source') if evidence else None,
         'version': evidence.get('version') if evidence else None, 'activation': 'separate active.json required'}
@@ -187,11 +188,19 @@ def bootstrap(y1m1, y2m2):
         return hist["period_keys"]
 
 
-def freeze_month(y, m):
+def freeze_month(y, m, close_report=False):
+    if close_report:
+        from collectors.yandex_finance_basis import verified_month
+        if not verified_month(_key(y, m)):
+            raise RuntimeError('Нельзя закрыть отчёт без проверенной финансовой базы')
     with _lock():
         hist = _load()
         _backup()
         key = _freeze(hist, y, m)
+        if close_report:
+            meta = hist['finance_basis'][key]
+            meta.update(report_closed=True, closed_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        closed_basis_version=meta['version'])
         _save_atomic(hist)
         P.render(hist)
         return key

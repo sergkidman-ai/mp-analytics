@@ -159,6 +159,27 @@ class FinanceBasisTests(unittest.TestCase):
         x=guard.decide(r);self.assertEqual(x['mode'],'raise');self.assertEqual(x['new_price'],3941)
         r['offer_id']='7200';self.assertEqual(guard.decide(r)['mode'],'ok')
 
+    def test_report_closure_is_separate_from_accounting_provisional(self):
+        from reports import yandex_mp_freeze as freeze
+        hist=freeze._empty_hist(); evidence=self.build();evidence['version']='verified'
+        rec={'lines':dict.fromkeys(freeze._BAL_KEYS,0),**dict.fromkeys(freeze._DERIVED,0)}
+        with patch.object(freeze,'_record',return_value=rec),patch.object(b,'verified_month',return_value=evidence),\
+             patch.object(freeze,'_lock'),patch.object(freeze,'_load',return_value=hist),\
+             patch.object(freeze,'_backup'),patch.object(freeze,'_save_atomic'),patch.object(freeze.P,'render'):
+            freeze.freeze_month(2026,9,close_report=True)
+            self.assertTrue(hist['finance_basis']['2026-09']['report_closed'])
+            self.assertTrue(hist['finance_basis']['2026-09']['accounting_provisional'])
+            self.assertIn('2026-09',hist['provisional'])
+            freeze._freeze(hist,2026,9)
+            self.assertTrue(hist['finance_basis']['2026-09']['report_closed'])
+
+    def test_unverified_report_cannot_be_closed(self):
+        from reports import yandex_mp_freeze as freeze
+        with patch.object(b,'verified_month',return_value=None),patch.object(freeze,'_save_atomic') as write:
+            with self.assertRaisesRegex(RuntimeError,'проверенной'):
+                freeze.freeze_month(2026,9,close_report=True)
+            write.assert_not_called()
+
     def test_guard_missing_promo_price_blocks_mutation(self):
         for value in (None,0):
             r={'offer_id':'a','cogs':1000,'cogs_source':'own_stock','keep_ratio':D('.33'),

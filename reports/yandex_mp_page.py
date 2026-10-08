@@ -345,7 +345,8 @@ def render(hist=None):
         source = 'подтверждённые календарные платежи' if basis.get('source') == 'stats/orders_calendar_payments' else 'сверенные закрывающие документы'
         if not basis.get('price_usable'): source = 'полнота финансовой базы не подтверждена'
         accounting = 'сверка с закрывающими документами ожидается' if basis.get('accounting_provisional') else 'сверка завершена'
-        finance_note = f'<p class="sub">База Маркета за {escape(key)}: {source}; {accounting}.</p>'
+        report_state = 'месяц закрыт в Пульте; ' if basis.get('report_closed') else ''
+        finance_note = f'<p class="sub">База Маркета за {escape(key)}: {report_state}{source}; {accounting}.</p>'
     N = len(data["months"])
     _C.update({"data": data, "M": data["months"], "N": N, "base": list(range(N)),
            "K": data.get("period_keys", [])})
