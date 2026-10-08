@@ -1,0 +1,35 @@
+{
+  "run_ts": "2026-10-08T09:34:28.002244+00:00",
+  "summary": {
+    "wb_acc1": {
+      "total": 79,
+      "statuses": {
+        "confirmed": 79
+      },
+      "bundles": 6,
+      "negative_before": 1,
+      "confirmed_above_floor": 78,
+      "crossed_plan": 39,
+      "crossed_plan_from_export_participant": 35,
+      "previously_participating_above_plan": 35,
+      "previously_participating_within_plan": 2,
+      "not_in_exports": 0,
+      "negative_after": 0
+    },
+    "wb_acc2": {
+      "total": 249,
+      "statuses": {
+        "confirmed": 249
+      },
+      "bundles": 221,
+      "negative_before": 32,
+      "confirmed_above_floor": 241,
+      "crossed_plan": 166,
+      "crossed_plan_from_export_participant": 165,
+      "previously_participating_above_plan": 221,
+      "previously_participating_within_plan": 9,
+      "not_in_exports": 0,
+      "negative_after": 0
+    }
+  }
+}
