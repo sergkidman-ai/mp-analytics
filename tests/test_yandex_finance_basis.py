@@ -101,6 +101,25 @@ class FinanceBasisTests(unittest.TestCase):
                 data,meta=b.report('test',{},folder,polls=1)
             self.assertIsNone(data);self.assertEqual(meta['status'],'PENDING');req.assert_called_once_with('GET','/reports/info/job')
 
+    def test_full_order_pagination_and_order_deduplication(self):
+        order={'id':123,'creationDate':'2026-08-01','payments':[]}
+        replies=[{'orders':[order],'paging':{'nextPageToken':'next'}},{'orders':[]},{'orders':[order]}]
+        with tempfile.TemporaryDirectory() as directory,patch.object(b,'request',side_effect=replies),patch.object(b.time,'sleep'):
+            orders,meta=b.fetch_orders('2025-11-01','2026-10-08',Path(directory))
+        self.assertEqual(len(orders),1);self.assertTrue(meta['complete']);self.assertEqual(meta['pages']['1']['pages'],2)
+
+    def test_order_page_failure_cannot_publish_complete_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory,patch.object(b,'request',side_effect=[
+                {'orders':[],'paging':{'nextPageToken':'next'}},RuntimeError('page failure')]),patch.object(b.time,'sleep'):
+            folder=Path(directory)
+            with self.assertRaisesRegex(RuntimeError,'page failure'):b.fetch_orders('2025-11-01','2026-10-08',folder)
+            self.assertFalse((folder/'orders_metadata.json').exists())
+
+    def test_cyclic_order_pagination_rejected(self):
+        reply={'orders':[],'paging':{'nextPageToken':'same'}}
+        with tempfile.TemporaryDirectory() as directory,patch.object(b,'request',return_value=reply),patch.object(b.time,'sleep'):
+            with self.assertRaisesRegex(RuntimeError,'pagination'):b.fetch_orders('2025-11-01','2026-10-08',Path(directory))
+
     def test_catalog_entry_requires_real_price_cap_and_levels(self):
         r={'offer_id':'34749','cogs':'1138.50','status':'NOT_PARTICIPATING','mechanics':'DIRECT_DISCOUNT',
            'price':5559,'promo_price':None,'max_promo_price':4451,'levels':{'lightBestLevel':4451}}
@@ -128,6 +147,11 @@ class FinanceBasisTests(unittest.TestCase):
         self.assertEqual(a,c);self.assertEqual(len(a),1)
         self.assertEqual(a[0]['revenue'],D('1000.01'));self.assertEqual(a[0]['returns_sum'],D(100))
         self.assertEqual(a[0]['cogs'],D(300));self.assertEqual(fin['2026-08-01']['revenue'],0)
+
+    def test_live_missing_promo_price_is_not_a_verified_price_change(self):
+        r={'offer_id':'a','cogs':1000,'status':'AUTO','price':5000,'promo_price':None,
+           'max_promo_price':4500,'mechanics':'DIRECT_DISCOUNT'}
+        x=classify(r,D('.33'));self.assertEqual(x['category'],'no_data');self.assertEqual(x['action'],'none')
 
     def test_guard_exact_floor_and_locked_sku(self):
         r={'offer_id':'x','cogs':1000,'keep_ratio':D('.3299429237'),'promo_price':0,'price':5000,
