@@ -4,12 +4,12 @@
 
 Рабочий раздел: https://bi.metaverseworld.ru/shipment-guard (обычный Basic Auth Пульта).
 Ветка `fin/shipment-guard`, worktree `/opt/mp-analytics/.claude/worktrees/fin-shipment-guard`,
-база `origin/main` 959c6a3. Общий checkout оставлен на main. Чужие 60 изменённых tracked
+база `origin/main` 959c6a3. Код установлен из этой ветки (коммиты d008c36, 6a255f9 и последующий фикс выбора WB-токенов). Общий checkout оставлен на main. Чужие 60 изменённых tracked
 файлов сверены по SHA256; в app.py/home.html вычтены только наши две вставки, содержимое
 совпало с preflight. Параллельная mkt-сессия продвинула main до 6d62b94; её коммиты сохранены.
 
 Код: пакет shipment_guard, миграция 071, web/shipment_guard_api.py,
-web/shipment_receiver.py, web/static/shipment_guard.html, 28 проверок в tests/test_shipment_guard.py.
+web/shipment_receiver.py, web/static/shipment_guard.html, 30 проверок в tests/test_shipment_guard.py.
 Миграция применена только к новым ms_shipment_* и ms_webhook_inbox. Старые финансовые
 таблицы не записывались; run_daily и финансовые пересборки не запускались.
 
@@ -59,7 +59,7 @@ FIFO: byoperation.cost /100 уже для всего количества. quant
 при отсутствии сырья узкий business orders по orderIds. Ozon: точные реальные posting
 или сохранённые дочерние posting, products.price×qty; на 106 реальных позициях проверено
 совпадение с financial_data.products.price. WB: assembly_id → строка продажи отчёта
-retail_price_withdisc_rub до СПП, иначе marketplace orders.price/100.
+retail_price_withdisc_rub до СПП, иначе marketplace orders.price/100 (или подтверждённый convertedPrice/100 при convertedCurrencyCode=643).
 Для частичной отгрузки заказ используется только по точному SKU и проверенной цене единицы;
 разные цены частичного SKU, неоднозначные мосты и несовпадение количества — видимая ошибка.
 
@@ -93,7 +93,7 @@ Jobs, assessments и их raw сохраняются без автоматиче
 
 ## Проверки и замеры
 
-28 unit/изолированных PostgreSQL проверок: массив 100 documents, duplicate requestId,
+30 unit/изолированных PostgreSQL проверок: массив 100 documents, duplicate requestId,
 rollback и 503 до ACK, crash/reclaim/старый lease, UPDATE во время расчёта, DELETE/403,
 неуспешная и нестабильная пагинация, границы/часовой пояс/пропущенный CREATE, 429/остаток квоты,
 300 последовательных чтений для пачки 100, номинальная цена, qty>1, повторный ms_id,
@@ -109,12 +109,16 @@ HTTPS synthetic UPDATE+дубль: ACK 63.06/65.29 мс, generation остала
 
 ## Открытые ограничения и обслуживание
 
-Текущие WB_TOKEN_ACC1/ACC2 дали 403 категории «Маркетплейс» обоих кабинетов.
-Нужны SHIPMENT_GUARD_WB_TOKEN_ACC1/ACC2 напрямую в .env, затем restart worker и
-«Проверить снова» у ошибки. Секреты в чат не присылать. По старым доступным отчётам цена
-подтверждается; свежие не подтверждаются до токена. Ряд Ozon SKU/количеств имеет
-неоднозначный мост к реальным позициям МС (включая комплекты): статус ошибки с сохранённой
-ценой документа и FIFO, без угадывания пересчёта упаковки. Их разбор — по сохранённым raw.
+После уточнения пользователя проверены все 11 WB-токенов в .env на GET orders.
+WB_TOKEN_RETURNS_ACC1 и WB_TOKEN_RETURNS_ACC2 вернули 200; остальные — 403.
+По JWT sid/uid проверено, что это те же продавцы соответствующих основных токенов
+(id различается как идентификатор самого токена). Подключены ссылки
+SHIPMENT_GUARD_WB_TOKEN_ENV_ACC1=WB_TOKEN_RETURNS_ACC1 и ...ACC2=WB_TOKEN_RETURNS_ACC2;
+секреты не копировались/не менялись. Свежие WB-заказы уже подтвердили цену; появился below_floor. Worker перезапущен, 110 прежних ошибок WB
+поставлены на повторную проверку source_access_restored. Новые токены не нужны.
+Ряд Ozon SKU/количеств имеет неоднозначный мост к реальным позициям МС (включая комплекты):
+статус ошибки с сохранённой ценой документа и FIFO, без угадывания пересчёта упаковки.
+Их разбор — по сохранённым raw. WB с такой же неоднозначностью тоже получает ошибку.
 Начальная сверка и накопившиеся технические повторы продолжаются в фоне; очередь долговечна.
 
 Команды из worktree:

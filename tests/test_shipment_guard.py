@@ -243,3 +243,18 @@ class MoreWorkerTests(unittest.TestCase):
             w.process(job)
         self.assertEqual(finish.call_args.args[1]['status'],'data_error')
 
+
+class WBCredentialsTests(unittest.TestCase):
+    def test_selected_existing_token_and_verified_rub_conversion(self):
+        from shipment_guard.adapters import OrderAdapter
+        from unittest.mock import Mock
+        a=OrderAdapter();a.request=Mock(return_value={'orders':[{'id':123,'article':'7200','currencyCode':398,'convertedCurrencyCode':643,'price':99999,'convertedPrice':504800}],'next':0})
+        with patch('shipment_guard.adapters.db.query',return_value=[]),patch.dict(os.environ,{'SHIPMENT_GUARD_WB_TOKEN_ENV_ACC1':'WB_TOKEN_RETURNS_ACC1','WB_TOKEN_RETURNS_ACC1':'test-token'}):
+            raw,items,source=a.wb('wb_acc1','123',{'moment':'2026-10-08 10:00:00'})
+        self.assertEqual(items,[('7200',1,5048)]);self.assertIn('convertedPrice',source)
+        self.assertEqual(a.request.call_args.kwargs['headers']['Authorization'],'test-token')
+    def test_reject_cross_account_token_reference(self):
+        from shipment_guard.adapters import OrderAdapter
+        a=OrderAdapter()
+        with patch('shipment_guard.adapters.db.query',return_value=[]),patch.dict(os.environ,{'SHIPMENT_GUARD_WB_TOKEN_ENV_ACC1':'WB_TOKEN_RETURNS_ACC2'}):
+            with self.assertRaises(SourceError):a.wb('wb_acc1','123',{'moment':'2026-10-08 10:00:00'})

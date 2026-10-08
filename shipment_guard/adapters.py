@@ -140,9 +140,12 @@ class OrderAdapter:
             if len(vals)!=1: raise SourceError('wb_report_price_ambiguous')
             p=rows[0]['payload']
             return p,[(p['sa_name'],1,number(p['retail_price_withdisc_rub']))], 'WB отчёт: retail_price_withdisc_rub до СПП; '+str(rows[0]['loaded_at'])
-        token=os.getenv('SHIPMENT_GUARD_WB_TOKEN_ACC'+account[-1]) or os.getenv('WB_TOKEN_ACC'+account[-1])
+        selected=os.getenv('SHIPMENT_GUARD_WB_TOKEN_ENV_ACC'+account[-1],'WB_TOKEN_ACC'+account[-1])
+        if not re.fullmatch(r'WB_TOKEN_[A-Z_]*ACC'+account[-1],selected):
+            raise SourceError('wb_token_reference_invalid')
+        token=os.getenv('SHIPMENT_GUARD_WB_TOKEN_ACC'+account[-1]) or os.getenv(selected)
         if not token: raise SourceError('wb_marketplace_token_missing')
-        stamp=int(__import__('datetime').datetime.fromisoformat(document['moment']).replace(tzinfo=config.MS_TZ).timestamp())-14*86400
+        stamp=int(__import__('datetime').datetime.fromisoformat(document['moment']).replace(hour=0,minute=0,second=0,microsecond=0,tzinfo=config.MS_TZ).timestamp())-14*86400
         key=(account,stamp//86400)
         cached=self.wb_cache.get(key)
         if cached and cached[0]>time.monotonic():
@@ -151,7 +154,7 @@ class OrderAdapter:
             orders=[]; cursor=0
             for _ in range(20):
                 j=self.request('wb',account,'GET','https://marketplace-api.wildberries.ru/api/v3/orders',
-                  headers={'Authorization':token},params={'limit':100,'next':cursor,'dateFrom':stamp})
+                  headers={'Authorization':token},params={'limit':1000,'next':cursor,'dateFrom':stamp})
                 page=j.get('orders',[]); orders+=page
                 nxt=j.get('next')
                 if not page or not nxt or nxt==cursor: break
@@ -161,5 +164,9 @@ class OrderAdapter:
         matched=[o for o in orders if str(o.get('id'))==assembly]
         if len(matched)!=1: raise SourceError('wb_order_not_found')
         o=matched[0]
-        if o.get('currencyCode') not in (643,'643'): raise SourceError('wb_non_rub')
-        return o,[(o['article'],1,number(o['price'])/100)],'WB orders.price / 100: цена продавца до скидок WB'
+        if o.get('currencyCode') in (643,'643'):
+            amount=number(o['price'])/100;source='WB orders.price / 100: цена продавца до скидок WB'
+        elif o.get('convertedCurrencyCode') in (643,'643'):
+            amount=number(o['convertedPrice'])/100;source='WB orders.convertedPrice / 100: подтверждённая цена продавца в RUB'
+        else: raise SourceError('wb_non_rub')
+        return o,[(o['article'],1,amount)],source

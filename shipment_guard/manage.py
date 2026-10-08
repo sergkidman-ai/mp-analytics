@@ -15,6 +15,8 @@ def register():
     url='https://bi.metaverseworld.ru/hooks/ms-shipment/'+secret
     # Invalid payload checks TLS, secret and routing, without adding an event/job.
     try:
+        health=requests.get('http://127.0.0.1:8093/health',timeout=3)
+        if health.status_code!=200: raise RuntimeError('receiver_database_not_ready')
         probe=requests.post(url,params={'requestId':str(uuid4())},json={'events':[]},timeout=5)
         if probe.status_code!=400: raise RuntimeError('receiver_not_ready_'+str(probe.status_code))
         h={'Authorization':'Bearer '+os.environ['MOYSKLAD_TOKEN'],'Accept-Encoding':'gzip'}
