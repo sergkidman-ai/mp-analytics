@@ -24,10 +24,13 @@ def assess(document, positions, fifo, confirmed, rule):
     result={'name':document.get('name'),'updated':document.get('updated'),
        'moment':ms_time(document.get('moment')),'platform':platform,'account':account,
        'organization':organization,'order_id':document.get('name'),
-       'document_price':None,'full_price':None,'fifo':None,'floor':None,'deviation':None,
+       'document_price':None,'full_price':None,'calculation_price':None,
+       'price_basis':'ms_document' if platform=='wb' else 'platform_confirmed',
+       'fifo':None,'floor':None,'deviation':None,
        'signals':[],'errors':[],'lines':[],
        'sources':{'document':'МойСклад demand.sum (копейки)','fifo':'report/stock/byoperation.cost (итог, копейки)',
           'quantity':'demand.positions.quantity','full_price':confirmed.get('source'),
+          'calculation_price':'МойСклад demand.sum; скидка WB за счёт площадки не вычитается' if platform=='wb' else confirmed.get('source'),
           'expenses':'Предварительная база расходов; не фактическая комиссия заказа'},
        'rule':None,'status':'ok'}
     errors=result['errors']
@@ -76,9 +79,11 @@ def assess(document, positions, fifo, confirmed, rule):
         if not full_verified or full<=0: raise ValueError()
         result['full_price']=money(full)
         result['price_difference']=money(full-D(str(result['document_price']))) if result['document_price'] is not None else None
-        result['price_difference_reason']='Полная база площадки отличается от документа: сохранены обе суммы' if result.get('price_difference') else None
+        result['price_difference_reason']=('Цена WB справочная; расчёт по цене МС, без вычета скидки за счёт WB' if platform=='wb' else 'Полная база площадки отличается от документа: сохранены обе суммы') if result.get('price_difference') else None
     except ValueError:
         full=None; errors.append(confirmed.get('error') or 'Полная цена площадки не подтверждена')
+    calculation_price=number(result['document_price']) if platform=='wb' and result['document_price'] is not None else full if platform!='wb' else None
+    result['calculation_price']=money(calculation_price) if calculation_price is not None else None
     valid_rule=False
     if rule:
         try:
@@ -107,13 +112,14 @@ def assess(document, positions, fifo, confirmed, rule):
         mids=g['ms_ids'];qty=number(g['quantity'])
         doc_price=sum(x['price'] for mid in mids for x in grouped[mid])
         item_price=number(g['total']) if g.get('total') is not None and full_verified else None
+        calculation_item=doc_price if platform=='wb' and full_verified and result['document_price'] is not None else item_price if platform!='wb' else None
         cost=sum(costs[mid] for mid in mids) if all(costs[mid]>0 for mid in mids) else None
         ambiguous=g.get('ambiguous_fifo',False);signals=[];floor=None
-        if item_price is not None and cost is not None and item_price<cost:signals.append('below_fifo')
+        if calculation_item is not None and cost is not None and calculation_item<cost:signals.append('below_fifo')
         if valid_rule and cost is not None and not ambiguous:
             # Absolute promo target per SOLD SKU/unit (one kit, not its physical components).
             floor=(cost+max(D(300)*qty,D('.1')*cost))/(1-retention)
-            if item_price is not None and item_price<floor:signals.append('below_floor')
+            if calculation_item is not None and calculation_item<floor:signals.append('below_floor')
         if ambiguous:
             errors.append('Наборы '+g['sku']+' имеют общие компоненты: FIFO проверен по группе, по наборам не распределён')
         has_bom=bool(g.get('bom_sources')) and any(s.get('is_set',s.get('source','').endswith('set_cost.components')) for s in g['bom_sources'].values())
@@ -125,8 +131,10 @@ def assess(document, positions, fifo, confirmed, rule):
         result['lines'].append({'ms_id':mids[0] if len(mids)==1 else None,'ms_ids':mids,'sku':g['sku'],
           'quantity':float(qty),'document_price':money(doc_price),
           'full_price':money(item_price) if item_price is not None else None,
+          'calculation_price':money(calculation_item) if calculation_item is not None else None,
+          'price_basis':result['price_basis'],
           'fifo':money(cost) if cost is not None else None,'floor':money(floor) if floor is not None else None,
-          'deviation':money(item_price-floor) if item_price is not None and floor is not None else None,
+          'deviation':money(calculation_item-floor) if calculation_item is not None and floor is not None else None,
           'level':level,'signals':signals,'position_count':sum(len(grouped[mid]) for mid in mids),
           'components':components,'bom_sources':g.get('bom_sources',{})})
         result['signals']+=signals
@@ -134,13 +142,13 @@ def assess(document, positions, fifo, confirmed, rule):
         result['composition_diagnostic']=confirmed['composition_diagnostic']
     if any(g.get('bom_sources') for g in sale_groups):
         result['sources']['composition']='Справочник ТК: внешний код набора → внешние коды/количество компонентов; стоимость справочника не используется'
-    if complete and full is not None and full<sum(costs[mid] for mid in grouped): result['signals'].append('below_fifo')
+    if complete and calculation_price is not None and calculation_price<sum(costs[mid] for mid in grouped): result['signals'].append('below_fifo')
     floors=[l['floor'] for l in result['lines']]
     if valid_rule and floors and all(f is not None for f in floors):
         result['floor']=round(sum(floors),2)
-        if full is not None:
-            result['deviation']=money(full-D(str(result['floor'])))
-            if full<D(str(result['floor'])): result['signals'].append('below_floor')
+        if calculation_price is not None:
+            result['deviation']=money(calculation_price-D(str(result['floor'])))
+            if calculation_price<D(str(result['floor'])): result['signals'].append('below_floor')
     if errors:
         result['signals'].append('data_error'); result['status']='data_error'
     elif 'below_fifo' in result['signals']: result['status']='below_fifo'

@@ -44,6 +44,38 @@ class EconomicsTests(unittest.TestCase):
     def test_nominal_ms_preserves_full(self):
         d,p,f,c,rule=example(); d['sum']=100;p[0]['price']=100
         r=assess(d,p,f,c,rule);self.assertEqual(r['document_price'],1);self.assertEqual(r['full_price'],5048);self.assertIn('below_fifo',r['signals'])
+    def test_wb_uses_ms_price_and_keeps_buyer_price(self):
+        d,p,f,c,rule=example(1,3090,659.98)
+        rule.update(platform='wb',retention='0.5542811671013601038525939805')
+        c.update(total=2457,items={MID:{'total':2457}})
+        with patch('shipment_guard.config.identity',return_value=('wb','wb_acc2','org','id')):
+            r=assess(d,p,f,c,rule)
+        self.assertEqual(r['document_price'],3090);self.assertEqual(r['full_price'],2457)
+        self.assertEqual(r['calculation_price'],3090);self.assertEqual(r['floor'],2153.78)
+        self.assertEqual(r['deviation'],936.22);self.assertEqual(r['lines'][0]['deviation'],936.22)
+        self.assertEqual(r['status'],'ok');self.assertEqual(r['price_basis'],'ms_document')
+    def test_wb_discount_does_not_create_false_loss(self):
+        d,p,f,c,rule=example(1,3090,659.98);rule.update(platform='wb',retention=.55)
+        c.update(total=500,items={MID:{'total':500}})
+        with patch('shipment_guard.config.identity',return_value=('wb','wb_acc2','org','id')):
+            r=assess(d,p,f,c,rule)
+            self.assertEqual(r['signals'],[])
+            d['sum']=None
+            r=assess(d,p,f,c,rule)
+            self.assertIsNone(r['calculation_price']);self.assertIsNone(r['deviation'])
+            self.assertEqual(r['status'],'data_error')
+    def test_wb_ms_prices_check_each_sale_group(self):
+        d,p,f,c,rule=example(1,500,660);rule.update(platform='wb',retention=.55)
+        other=str(uuid4());p.append({'assortment':{'meta':{'href':config.MS+'/entity/product/'+other}},'quantity':1,'price':500000})
+        f[0]['positions'].append({'meta':{'href':config.MS+'/entity/product/'+other},'cost':10000})
+        d['sum']=550000;c.update(total=4000,groups=[
+          {'sku':'kit','quantity':1,'ms_ids':[MID],'total':2000},
+          {'sku':'other','quantity':1,'ms_ids':[other],'total':2000}])
+        with patch('shipment_guard.config.identity',return_value=('wb','wb_acc2','org','id')):
+            r=assess(d,p,f,c,rule)
+        self.assertEqual([l['calculation_price'] for l in r['lines']],[500,5000])
+        self.assertIn('below_fifo',r['lines'][0]['signals']);self.assertIn('below_fifo',r['signals'])
+        self.assertEqual(sum(l['calculation_price'] for l in r['lines']),r['calculation_price'])
     def test_repeated_product_and_ambiguous_rows(self):
         d,p,f,c,rule=example(1,3000,3500); p+=[dict(p[0],price=100000)];d['sum']=400000;c['total']=4000;c['items'][MID]['total']=4000
         r=assess(d,p,f,c,rule);self.assertEqual(len(r['lines']),1);self.assertEqual(r['lines'][0]['quantity'],2);self.assertEqual(r['fifo'],3500);self.assertIn('не распределён',r['lines'][0]['level'])
