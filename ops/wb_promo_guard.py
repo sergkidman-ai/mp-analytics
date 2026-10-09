@@ -610,13 +610,47 @@ def min_net(cogs, quantity=1):
     return max(MIN_NET * max(1, int(quantity)), MIN_NET_PCT * float(cogs))
 
 
-def decide(acc, goods, cogs, prepromo, ret, touched_only=True):
+def floor_controlled_bundles(acc, goods, cogs, today=None, active_promo_names=()):
+    """Бандлы для проверки пола без зависимости от nightly baseline.
+
+    Участник действующей акции по выгрузке + цена в пределах плана, либо ранее
+    подтверждённый подъём до пола. Флаг выгрузки — снимок, не текущий статус API.
+    """
+    bundles = {int(nm) for nm, c in cogs.items()
+               if c.get("cogs") and c.get("bundle", 1) > 1
+               and nm in goods and goods[nm][2] > 0}
+    if not bundles:
+        return {}
+    today = today or datetime.now(MSK).date()
+    controlled = {}
+    def name_key(name):
+        return re.sub(r"[\W_]+", " ", (name or "").lower().replace("ё", "е")).strip()
+    active_names = {name_key(name) for name in active_promo_names if name}
+    for r in db.query("""SELECT nm_id, plan_price, promo_name FROM wb_promo_plan_price
+                         WHERE account = %s AND nm_id = ANY(%s) AND in_promo
+                           AND plan_price > 0
+                           AND (valid_from IS NULL OR valid_from <= %s)
+                           AND (valid_to IS NULL OR valid_to >= %s)""",
+                      (acc, sorted(bundles), today, today)):
+        nm = int(r["nm_id"])
+        if (name_key(r["promo_name"]) in active_names
+                and goods[nm][2] <= float(r["plan_price"]) + 1):
+            controlled[nm] = "участник по выгрузке и цене"
+    for r in db.query("""SELECT DISTINCT nm_id FROM wb_promo_guard_log
+                         WHERE account = %s AND nm_id = ANY(%s)
+                           AND status = 'confirmed' AND floor_price IS NOT NULL""",
+                      (acc, sorted(bundles))):
+        controlled[int(r["nm_id"])] = "пол ранее подтверждён сторожем"
+    return controlled
+
+
+def decide(acc, goods, cogs, prepromo, ret, touched_only=True, floor_controlled=None):
     """Решение по каждому nm_id. → список словарей-строк журнала.
 
-    touched_only=True (по умолчанию и в кроне) — трогаем ТОЛЬКО те карточки, которым цену
-    уронила акция: текущая цена ниже доакционной. Без этого ограничения сторож начинает
-    поднимать цену всему, что стоит ниже пола (10.09.2026 — 3367 карточек), а это уже не
-    «вывести из акции», а переоценка каталога. Снять ограничение можно только руками: --all.
+    touched_only=True сохраняет проверку падения цены для обычных карточек. Бандлы
+    из floor_controlled проверяются по актуальному полу даже при низком baseline,
+    снижении меньше DROP_EPS или росте себестоимости. Прочие карточки сохраняют прежний
+    режим; глобальная переоценка возможна только с --all.
     """
     rows = []
     for nm, (base, disc, cur, vendor) in goods.items():
@@ -633,7 +667,9 @@ def decide(acc, goods, cogs, prepromo, ret, touched_only=True):
                "target_price": None, "send_price": None, "send_disc": None,
                "status": "skip", "reason": "", "err": None, "price_after": None}
 
-        if touched_only and not touched:
+        control = (floor_controlled or {}).get(nm)
+        enforce_floor = bool(control and c.get("cogs") and c.get("bundle", 1) > 1)
+        if touched_only and not touched and not enforce_floor:
             row["reason"] = ("акция цену не трогала" if pre else "нет доакционного снимка")
             rows.append(row)
             continue
@@ -658,6 +694,8 @@ def decide(acc, goods, cogs, prepromo, ret, touched_only=True):
             row["send_price"], row["send_disc"] = raise_plan(base, target)
             row["status"] = "todo"
             row["reason"] = f"ниже пола на {floor_price - cur:.0f} ₽, чистая {row['net_before']:.0f} ₽"
+            if enforce_floor and not touched:
+                row["reason"] += f"; контроль бандла без baseline: {control}"
         else:
             # Себестоимости нет — считать пол не из чего. Выводим из акции возвратом
             # к доакционной цене, но только если цена реально просела: иначе снесли бы
@@ -851,7 +889,10 @@ def main():
             alarms.append(msg)
             continue
         pre = prepromo_map(acc, cycle_start)
-        rows = decide(acc, goods, cogs, pre, ret, touched_only=not a.all)
+        controlled = floor_controlled_bundles(acc, goods, cogs,
+                                              active_promo_names=[p[1] for p in promos])
+        rows = decide(acc, goods, cogs, pre, ret, touched_only=not a.all,
+                      floor_controlled=controlled)
         pid = ",".join(str(p[0]) for p in promos)
         for r in rows:
             r["wave"], r["promo_ids"] = a.wave, pid
