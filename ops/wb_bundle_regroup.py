@@ -249,11 +249,12 @@ def journal(entry):
 
 
 def rejected_missing_target(response):
-    """Only this explicit rejection permits another attempt after independent reads."""
+    """Only explicit missing/inactive target rejections allow verified new attempts."""
     if response.status_code!=400: return False
     try: data=response.json()
     except ValueError: return False
-    return data.get('error') is True and data.get('errorText','').strip()=='target imt not found'
+    return data.get('error') is True and data.get('errorText','').strip() in {
+        'target imt not found', 'Defunct IMT specified'}
 
 
 def by_nm(client,nm):

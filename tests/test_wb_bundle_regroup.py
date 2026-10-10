@@ -122,7 +122,10 @@ def test_only_an_explicit_rejection_permits_rechecked_attempt():
         def __init__(self,status,data):self.status_code=status;self.data=data
         def json(self):return self.data
     assert module.rejected_missing_target(Response(400,{'error':True,'errorText':'target imt not found'}))
+    assert module.rejected_missing_target(Response(400,{'error':True,'errorText':'Defunct IMT specified'}))
     assert not module.rejected_missing_target(Response(500,{'error':True,'errorText':'target imt not found'}))
+    assert not module.rejected_missing_target(Response(500,{'error':True,'errorText':'Defunct IMT specified'}))
+    assert not module.rejected_missing_target(Response(400,{'error':False,'errorText':'Defunct IMT specified'}))
     assert not module.rejected_missing_target(Response(400,{'error':True,'errorText':'other error'}))
 
 
