@@ -1,5 +1,9 @@
 """Safety checks for new groups found outside existing bundle groups."""
 import unittest
+from unittest.mock import patch
+from pathlib import Path
+import tempfile,json
+from ops import wb_core_glue as module
 from ops.wb_core_glue import components_for, model_matches, prepare, printers, tokens
 
 
@@ -12,6 +16,24 @@ def rec(nm,model,kind,col='черный',chip='чип не указан',printer
 
 
 class Safety(unittest.TestCase):
+    def test_restart_gap_releases_lock_and_keeps_waiting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Path(tmp);state=p/'apply_results.json'
+            state.write_text(json.dumps({'finished':False}))
+            sleeps=[]
+            def advance(seconds):
+                sleeps.append(seconds)
+                state.write_text(json.dumps({'finished':True}))
+            with patch.object(module,'BUNDLE_OUT',p),patch.object(module.time,'sleep',advance):
+                lock=module.wait_previous()
+                self.assertEqual(sleeps,[5]);lock.close()
+
+    def test_stopped_write_never_starts_following_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Path(tmp);(p/'apply_results.json').write_text(json.dumps({'finished':False,'stopped_at':10}))
+            with patch.object(module,'BUNDLE_OUT',p):
+                with self.assertRaises(RuntimeError):module.wait_previous()
+
     def test_exact_range_and_no_resource_letter_removal(self):
         self.assertEqual(tokens('CF530A-CF533A'),['CF530A','CF531A','CF532A','CF533A'])
         self.assertEqual(tokens('S051161-S051158'),['S051158','S051159','S051160','S051161'])

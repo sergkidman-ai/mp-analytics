@@ -220,13 +220,20 @@ def report(plan,state):
 
 
 def wait_previous():
-    # Hold the same lock for the whole new pass, so the old executor cannot resume.
-    lock=(BUNDLE_OUT/'apply.lock').open('a')
-    fcntl.flock(lock,fcntl.LOCK_EX)
-    state=json.loads((BUNDLE_OUT/'apply_results.json').read_text())
-    if state.get('stopped_at') or not state.get('finished'):
-        raise RuntimeError('Previous bundle pass is not finished/confirmed; no new grouping writes')
-    return lock
+    # Do not occupy the old executor's lock during a restart gap. Keep it only
+    # after clean completion, preventing concurrent regrouping during this pass.
+    print('Waiting for clean completion of the bundle pass',flush=True)
+    while True:
+        lock=(BUNDLE_OUT/'apply.lock').open('a')
+        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:
+            lock.close();time.sleep(5);continue
+        state=json.loads((BUNDLE_OUT/'apply_results.json').read_text())
+        if state.get('stopped_at'):
+            lock.close()
+            raise RuntimeError('Previous bundle write needs reconciliation; no new grouping writes')
+        if state.get('finished'):return lock
+        lock.close();time.sleep(5)
 
 
 def main():
