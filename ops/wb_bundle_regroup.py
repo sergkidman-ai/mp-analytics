@@ -39,6 +39,15 @@ def base(card):
     return code[:4] if re.fullmatch(r'\d{4}',code) or is_bundle(card) else None
 
 
+def colored_card(card):
+    # Multi-color ink cartridges may list C/M/Y in a single characteristic.
+    # Comparing only the combined string with 'C', 'M', 'Y' loses those groups.
+    values=char(card,58854)
+    tokens=[color(v.strip()) for v in re.split(r'[;,/]',values) if v.strip()]
+    return (any(v in {'C','M','Y','CMYK','CMY','LC','LM'} for v in tokens)
+            or bool(re.search(r'голуб|пурпур|желт|цветн|cyan|magenta|yellow',values,re.I)))
+
+
 def chip_info(parent, bundles, ref, marks):
     declared = set(marks)
     tc = {'chip':'с чипом','nochip':'без чипа','chip_free':'чип без счётчика'}.get(ref.get('chip'))
@@ -154,7 +163,7 @@ def prepare(snapshot, source):
             if not core: continue
             core_types={families[base(c)]['ref']['consumable_type'] for c in core}
             is_drum='Фотобарабан' in core_types or 'Фотобарабан + картридж' in core_types
-            is_color=any(color(char(c,58854)) in {'C','M','Y','CMYK','CMY','LC','LM'} for c in core)
+            is_color=any(colored_card(c) for c in core)
             # Full resource equality, not letters. Capacity-only mixed groups
             # are split only when every member has its own validated bundles.
             resources={normalized(char(c,88963)) for c in core if families[base(c)]['ref']['consumable_type'] in CARTRIDGES}
@@ -237,6 +246,14 @@ def validate(op):
 def journal(entry):
     with (OUT/'journal.jsonl').open('a') as f:
         f.write(json.dumps({'ts':now(),**entry},ensure_ascii=False)+'\n'); f.flush()
+
+
+def rejected_missing_target(response):
+    """Only this explicit rejection permits another attempt after independent reads."""
+    if response.status_code!=400: return False
+    try: data=response.json()
+    except ValueError: return False
+    return data.get('error') is True and data.get('errorText','').strip()=='target imt not found'
 
 
 def by_nm(client,nm):
@@ -328,6 +345,20 @@ def perform(client, op, body, state):
              'before_groups':{str(r):sorted(c['nmID'] for c in expected if c['imtID']==r) for r in affected}})
     r=client.move(body)
     journal({'id':op['id'],'status':'response','http':r.status_code,'response':r.text[:500]})
+    # A newly detached imt can be readable before the write index knows it.
+    # Only an explicit 400 rejection is eligible; timeout/5xx/unknown errors
+    # are never repeated. Re-read the entire affected state before each attempt.
+    if 'targetIMT' in body:
+        for delay in (5,10,20):
+            if not rejected_missing_target(r): break
+            journal({'id':op['id'],'status':'rejected_target_not_ready','body':body})
+            time.sleep(delay)
+            independent=[c for root in affected for c in client.group(root)]
+            if fingerprint(independent)!=fingerprint(expected):
+                raise RuntimeError('Rejected request changed live state; reconcile before continuing')
+            journal({'id':op['id'],'status':'rejection_reread_unchanged','body':body})
+            r=client.move(body)
+            journal({'id':op['id'],'status':'response','http':r.status_code,'response':r.text[:500]})
     r.raise_for_status()
     if r.content and r.json().get('error'): raise RuntimeError('WB rejected grouping')
     # An accepted detach creates a new root; discover it through the moved anchor.

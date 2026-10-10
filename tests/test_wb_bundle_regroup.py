@@ -4,7 +4,7 @@ from unittest.mock import patch
 import tempfile
 from pathlib import Path
 import ops.wb_bundle_regroup as module
-from ops.wb_bundle_regroup import UNKNOWN, chip_info, prepare, reasons, validate
+from ops.wb_bundle_regroup import UNKNOWN, chip_info, colored_card, prepare, reasons, validate
 from ops.wb_bundle_plan import fingerprint
 
 
@@ -92,6 +92,62 @@ def test_single_ribbon_keeps_its_own_bundles():
     source={'references':{'0001':{'title':'Ribbon','consumable_type':'Лента для принтера','raw':{}}},'marks':{}}
     p=prepare({'cards':cc,'read_at':'test'},source)
     assert not p['operations'] and not p['review']
+
+
+def test_combined_ink_colors_remain_a_color_group():
+    c=card(1)
+    c['characteristics']=[{'id':58854,'value':['голубой','желтый','пурпурный']}]
+    assert colored_card(c)
+    c['characteristics']=[{'id':58854,'value':['черный']}]
+    assert not colored_card(c)
+    cc=[]
+    colors=['черный','голубой;желтый;пурпурный']
+    for i,co in enumerate(colors,1):
+        x=card(i);x['characteristics']=[{'id':5023,'value':[f'M{i}']},{'id':179792,'value':1},
+                                       {'id':179078,'value':['Printer']},{'id':58854,'value':[co]}]
+        cc.append(x)
+    for q in (2,6,10):
+        x={**cc[0],'nmID':100+q,'vendorCode':'0001X'+str(q),'title':f'M1 {q} шт'}
+        x['characteristics']=[{'id':5023,'value':['M1']},{'id':179792,'value':q},
+                              {'id':179078,'value':['Printer']},{'id':58854,'value':['черный']}]
+        cc.append(x)
+    src={'references':{f'{i:04d}':{'title':f'M{i}','consumable_type':'Картридж','raw':{}} for i in (1,2)},'marks':{}}
+    p=prepare({'cards':cc,'read_at':'test'},src)
+    assert len(p['operations'])==1 and not p['review']
+    assert {frozenset(x) for x in p['operations'][0]['partitions']}=={frozenset([1,2,102]),frozenset([106,110])}
+
+
+def test_only_an_explicit_rejection_permits_rechecked_attempt():
+    class Response:
+        def __init__(self,status,data):self.status_code=status;self.data=data
+        def json(self):return self.data
+    assert module.rejected_missing_target(Response(400,{'error':True,'errorText':'target imt not found'}))
+    assert not module.rejected_missing_target(Response(500,{'error':True,'errorText':'target imt not found'}))
+    assert not module.rejected_missing_target(Response(400,{'error':True,'errorText':'other error'}))
+
+
+def test_rejected_move_is_rechecked_before_a_new_attempt():
+    cc=[card(1),{**card(2),'imtID':11}];live={c['nmID']:dict(c) for c in cc};reads=[]
+    class Response:
+        content=b'{}';text='{}'
+        def __init__(self,status):self.status_code=status
+        def json(self):return {'error':True,'errorText':'target imt not found'} if self.status_code==400 else {}
+        def raise_for_status(self):assert self.status_code==200
+    class Client:
+        writes=0
+        def group(self,root):
+            reads.append((self.writes,root))
+            return [dict(c) for c in live.values() if c['imtID']==root]
+        def move(self,body):
+            self.writes+=1
+            if self.writes==1:return Response(400)
+            assert any(n==1 for n,r in reads)
+            live[1]['imtID']=11
+            return Response(200)
+    client=Client()
+    with patch.object(module,'by_nm',lambda cli,nm:dict(live[nm])),patch.object(module,'journal'),patch.object(module.time,'sleep'):
+        module.perform(client,{'id':1},{'targetIMT':11,'nmIDs':[1]},live)
+    assert client.writes==2 and live[1]['imtID']==11
 
 
 def test_stale_detach_response_is_not_a_confirmation():
