@@ -26,6 +26,8 @@ from reports.bid_policy import (WB_MARGIN_GATE, WB_DRR_CEIL, WB_STEP_PCT,  # noq
 
 STATIC = BASE_DIR / "web" / "static"
 app = FastAPI(title="mp-analytics · Маркетинг")
+from web.marketing_reports import router as marketing_reports_router
+app.include_router(marketing_reports_router)
 
 # ── Управление ставками WB ────────────────────────────────────────────────────────────────────
 # Ставка WB — CPC per-nmID (не на кампанию), шаг 1 коп. Геттера текущей ставки у WB НЕТ →

@@ -1,0 +1,40 @@
+# поток: mkt
+"""Explicit report links behind the existing WB dashboard authentication."""
+from pathlib import Path
+import json
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
+
+REPORTS = Path(__file__).resolve().parents[1] / 'docs' / 'reports'
+PREFIX = '/api/wb-bids/reports'
+FILES = {
+    'glue-24h-2026-10-11': 'mkt_wb_glue_24h_2026-10-11.html',
+    'glue-24h-2026-10-11-data': 'mkt_wb_glue_24h_2026-10-11.json',
+    'glue-regroup-2026-10-10': 'mkt_wb_bundle_regroup_2026-10-10_acc1/index.html',
+    'glue-core-2026-10-10': 'mkt_wb_core_glue_2026-10-10_acc1/index.html',
+    'glue-chips-2026-10-10': 'mkt_wb_chip_progress_2026-10-10.html',
+}
+router = APIRouter()
+
+
+@router.get(PREFIX + '/{key}')
+def report(key: str):
+    relative = FILES.get(key)
+    if relative is None:
+        raise HTTPException(status_code=404, detail='Report not found')
+    path = REPORTS / relative
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail='Report not found')
+    text = path.read_text(encoding='utf-8')
+    headers = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}
+    if path.suffix == '.json':
+        data = json.loads(text)
+        # Downloadable summary does not need the full card-content evidence.
+        if isinstance(data.get('stopped_operation'), dict):
+            data['stopped_operation'].pop('groups', None)
+        return JSONResponse(data, headers=headers)
+    for report_key, file_name in FILES.items():
+        text = text.replace('href="' + file_name + '"',
+                            'href="' + PREFIX + '/' + report_key + '"')
+    return HTMLResponse(text, headers=headers)
