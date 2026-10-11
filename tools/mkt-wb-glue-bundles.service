@@ -1,0 +1,20 @@
+[Unit]
+Description=WB acc1 bundle regrouping with verified recovery
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=1800
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python -u -m ops.wb_glue_supervisor --kind bundle --recovery-attempts 3
+StandardOutput=append:/opt/mp-analytics/docs/reports/mkt_wb_bundle_regroup_2026-10-10_acc1/worker.log
+StandardError=append:/opt/mp-analytics/docs/reports/mkt_wb_bundle_regroup_2026-10-10_acc1/worker.log
+Restart=on-failure
+RestartSec=60
+RestartPreventExitStatus=78
+User=root
+
+[Install]
+WantedBy=multi-user.target
