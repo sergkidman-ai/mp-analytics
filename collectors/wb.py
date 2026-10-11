@@ -1,7 +1,8 @@
-"""collectors/wb.py — Этап 2. WB финотчёт → raw_wb_report → sales.
+"""collectors/wb.py — WB Finance API → raw_wb_finance_detail + совместимый raw_wb_report.
 
-reportDetailByPeriod (категория «Статистика», после 15.07.2026 → «Финансы»).
-- Грузим ВСЕ строки отчёта в raw_wb_report (UPSERT по account+rrd_id) — полное сырьё.
+POST /api/finance/v1/sales-reports/detailed (категория «Финансы»).
+- Ответ API без изменений хранится в raw_wb_finance_detail; старую схему raw_wb_report
+  заполняем адаптером для существующих витрин и мостов к отгрузкам МС.
 - Нормализуем агрегатом по nm_id за период → sales (деньги: выручка, комиссия,
   логистика, хранение, приёмка, возвраты, к перечислению).
 - Парсинг полей изолирован в одной функции (раздел 13: с 15.07.2026 формат меняется).
@@ -14,6 +15,9 @@ import sys
 import time
 import datetime
 import pathlib
+import tempfile
+import json
+import re
 from collections import defaultdict
 
 import requests
@@ -25,7 +29,7 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
-REPORT_URL = "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod"
+REPORT_URL = "https://finance-api.wildberries.ru/api/finance/v1/sales-reports/detailed"
 MAX_429 = 20   # потолок ретраев по 429 подряд (было без потолка → вечный цикл)
 STOCKS_URL = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"  # отключён WB 20.07.2026 (PLUG-404)
 REMAINS_URL = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains"  # замена: асинхр. отчёт остатков
@@ -40,6 +44,43 @@ _PSEUDO_WH = {"Всего находится на складах"} | set(_IN_WAY
 IN_WAY_WH = "(в пути)"
 CARDS_URL = "https://content-api.wildberries.ru/content/v2/get/cards/list"
 TOKEN_ENV = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}
+FINANCE_TOKEN_ENV = {"wb_acc1": ("WB_TOKEN_FINANCE_ACC1", "WB_TOKEN_PRICES_ACC1"),
+                     "wb_acc2": ("WB_TOKEN_FINANCE_ACC2",)}
+_last_finance_request = {}
+
+# Поля, у которых Finance API изменил не только регистр имени. Остальные имена
+# переводятся из camelCase в snake_case; исходная строка всегда остаётся в raw.
+FINANCE_NAMES = {
+    "reportId": "realizationreport_id", "createDate": "create_dt",
+    "rrDate": "rr_dt", "orderId": "assembly_id", "vendorCode": "sa_name",
+    "sku": "barcode", "sellerOperName": "supplier_oper_name",
+    "retailPriceWithDisc": "retail_price_withdisc_rub", "forPay": "ppvz_for_pay",
+    "deliveryService": "delivery_rub", "paidStorage": "storage_fee",
+    "paidAcceptance": "acceptance", "spp": "ppvz_spp_prc",
+    "kvw": "ppvz_kvw_prc", "kvwBase": "ppvz_kvw_prc_base",
+    "vw": "ppvz_vw", "vwNds": "ppvz_vw_nds",
+    "ppvzSupplierInn": "ppvz_inn", "currency": "currency_name",
+    "country": "site_country", "supRatingUp": "sup_rating_prc_up",
+}
+
+
+def _finance_token(account):
+    for name in FINANCE_TOKEN_ENV[account]:
+        token = os.getenv(name, "").strip()
+        if token:
+            return token
+    raise RuntimeError(f"Нет токена ВБ категории «Финансы» для {account}")
+
+
+def adapt_finance_row(row):
+    """Совместимые имена для витрин; типы значений сохраняются как в Finance API."""
+    if row.get("rrdId") is None or not row.get("createDate"):
+        raise ValueError("В строке Finance API отсутствует rrdId или createDate")
+    out = {}
+    for key, value in row.items():
+        name = FINANCE_NAMES.get(key) or re.sub(r"(?<!^)(?=[A-Z])", "_", key).lower()
+        out[name] = value
+    return out
 
 
 def _token(account):
@@ -50,39 +91,80 @@ def _token(account):
 
 
 def fetch_report(account, date_from, date_to, limit=100000):
-    """Финотчёт за период, пагинация по rrdid. Лимит WB строгий — обрабатываем 429."""
-    H = {"Authorization": _token(account)}
+    """Недельные финотчёты за окно дат; пагинация по rrdId, один запрос/мин."""
+    headers = {"Authorization": _finance_token(account)}
     out, rrdid, n429 = [], 0, 0
     while True:
-        # (connect, read): без отдельного connect-таймаута копии run_daily висели сутками (09.2026)
-        r = requests.get(REPORT_URL, headers=H, timeout=(30, 300), params={
-            "dateFrom": date_from, "dateTo": date_to, "limit": limit, "rrdid": rrdid})
+        elapsed = time.monotonic() - _last_finance_request.get(account, -1e9)
+        if elapsed < 61:
+            time.sleep(61 - elapsed)
+        body = {"dateFrom": date_from, "dateTo": date_to, "limit": limit,
+                "rrdId": rrdid, "period": "weekly"}
+        _last_finance_request[account] = time.monotonic()
+        with requests.post(REPORT_URL, headers=headers, json=body,
+                           stream=True, timeout=(30, 300)) as r:
+            if r.status_code == 429:
+                n429 += 1
+                if n429 > MAX_429:
+                    raise RuntimeError(f"WB финотчёт {account}: 429 подряд {n429} раз")
+                delay = min(int(r.headers.get("Retry-After", "60")), 300) + 1
+            elif r.status_code == 204:
+                break
+            else:
+                n429 = 0
+                r.raise_for_status()
+                with tempfile.TemporaryFile(mode="w+b") as saved:
+                    for chunk in r.iter_content(chunk_size=65536):
+                        if chunk:
+                            saved.write(chunk)
+                    saved.seek(0)
+                    batch = json.load(saved)
         if r.status_code == 429:
-            n429 += 1
-            if n429 > MAX_429:
-                raise RuntimeError(f"WB финотчёт {account} {date_from}..{date_to}: "
-                                   f"429 подряд {n429} раз — бросаем, догрузит следующий прогон")
-            time.sleep(min(int(r.headers.get("Retry-After", "60")), 300) + 1)
+            time.sleep(delay)
             continue
-        n429 = 0
-        r.raise_for_status()
-        batch = r.json() or []
+        if not isinstance(batch, list):
+            raise RuntimeError("Ответ WB Finance API не является списком")
         if not batch:
             break
+        for row in batch:
+            adapt_finance_row(row)  # не сохранять неполный ответ
         out.extend(batch)
-        rrdid = batch[-1]["rrd_id"]
+        next_rrdid = int(batch[-1]["rrdId"])
+        if next_rrdid <= rrdid:
+            raise RuntimeError("Пагинация WB Finance API не продвинулась")
+        rrdid = next_rrdid
         print(f"  [wb fetch] +{len(batch)} (всего {len(out)}) rrdid→{rrdid}", flush=True)
         if len(batch) < limit:
             break
-        time.sleep(2)
     return out
 
 
 def load_raw(account, rows, date_from, date_to):
-    recs = [{"account": account, "rrd_id": r.get("rrd_id"),
-             "period_from": date_from, "period_to": date_to,
-             "payload": psycopg2.extras.Json(r)} for r in rows if r.get("rrd_id") is not None]
-    return db.upsert("raw_wb_report", recs, conflict_cols=["account", "rrd_id"])
+    """Обе raw-таблицы обновляются атомарно; повторный прогон не создаёт дублей."""
+    if not rows:
+        return 0
+    values = []
+    for row in rows:
+        compat = adapt_finance_row(row)
+        values.append((account, int(row["rrdId"]), row["createDate"][:10],
+                       psycopg2.extras.Json(row), date_from, date_to,
+                       psycopg2.extras.Json(compat)))
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            psycopg2.extras.execute_batch(cur, """
+                INSERT INTO raw_wb_finance_detail (account,rrd_id,report_date,payload)
+                VALUES (%s,%s,%s,%s)
+                ON CONFLICT (account,rrd_id) DO UPDATE SET
+                    report_date=EXCLUDED.report_date,payload=EXCLUDED.payload,loaded_at=now()
+            """, [v[:4] for v in values], page_size=500)
+            psycopg2.extras.execute_batch(cur, """
+                INSERT INTO raw_wb_report (account,rrd_id,period_from,period_to,payload)
+                VALUES (%s,%s,%s,%s,%s)
+                ON CONFLICT (account,rrd_id) DO UPDATE SET
+                    period_from=EXCLUDED.period_from,period_to=EXCLUDED.period_to,
+                    payload=EXCLUDED.payload,loaded_at=now()
+            """, [(v[0],v[1],v[4],v[5],v[6]) for v in values], page_size=500)
+    return len(values)
 
 
 def _f(r, k):
