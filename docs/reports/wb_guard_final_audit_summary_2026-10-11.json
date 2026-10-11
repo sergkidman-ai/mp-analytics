@@ -1,0 +1,119 @@
+{
+  "wb_acc1": {
+    "checked": 104,
+    "flagged": 10,
+    "finding_counts": {
+      "cost_unresolved": 9,
+      "below_floor": 1
+    },
+    "scope_preview": {
+      "controlled": 11968,
+      "ordinary_controlled": 9742,
+      "below_floor_tasks": 229
+    },
+    "price_writes": 0,
+    "mp_availability_checked": false,
+    "examples": [],
+    "5213": [
+      {
+        "vendor_code": "5213X2",
+        "cost": 1856.0,
+        "price": 9101.91,
+        "floor": 5698.375870069605,
+        "findings": []
+      },
+      {
+        "vendor_code": "5213",
+        "cost": 928.0,
+        "price": 3863.25,
+        "floor": 2849.1879350348026,
+        "findings": []
+      }
+    ]
+  },
+  "wb_acc2": {
+    "checked": 2262,
+    "flagged": 51,
+    "finding_counts": {
+      "selected_supplier_quantity_short": 2,
+      "cost_unresolved": 20,
+      "below_floor": 23,
+      "identity_mismatch": 6,
+      "cost_changed_or_mismatch": 2
+    },
+    "scope_preview": {
+      "controlled": 11485,
+      "ordinary_controlled": 9283,
+      "below_floor_tasks": 228
+    },
+    "price_writes": 0,
+    "mp_availability_checked": false,
+    "examples": [
+      {
+        "vendor_code": "2037D1T2ABOM",
+        "price": 3370.6,
+        "floor": 3337.6905829596412,
+        "findings": [
+          "identity_mismatch"
+        ],
+        "primary_external_code": "2638"
+      },
+      {
+        "vendor_code": "2049JVZDCEJG",
+        "price": 1795.2,
+        "floor": 1764.7141255605384,
+        "findings": [
+          "identity_mismatch"
+        ],
+        "primary_external_code": "0112"
+      },
+      {
+        "vendor_code": "00334PJN0QX4",
+        "price": 2094.75,
+        "floor": 2016.9170403587448,
+        "findings": [
+          "identity_mismatch",
+          "cost_changed_or_mismatch"
+        ],
+        "primary_external_code": "0035"
+      },
+      {
+        "vendor_code": "6120B7DYH9BV",
+        "price": 1841.84,
+        "floor": 1595.0336322869957,
+        "findings": [
+          "identity_mismatch"
+        ],
+        "primary_external_code": "5776"
+      },
+      {
+        "vendor_code": "02516BBCPRPA",
+        "price": 1848.28,
+        "floor": 1764.7141255605384,
+        "findings": [
+          "identity_mismatch"
+        ],
+        "primary_external_code": "0112"
+      },
+      {
+        "vendor_code": "0086UBA3OOKH",
+        "price": 1553.4,
+        "floor": 1349.7757847533633,
+        "findings": [
+          "identity_mismatch",
+          "cost_changed_or_mismatch"
+        ],
+        "primary_external_code": "0205"
+      }
+    ],
+    "5213": [
+      {
+        "vendor_code": "5213SAXBU034",
+        "cost": 928.0,
+        "price": 2890.44,
+        "floor": 2753.3632286995517,
+        "findings": []
+      }
+    ]
+  }
+}

@@ -40,12 +40,12 @@ class WbFloorControlTests(unittest.TestCase):
             floor_controlled={1: 'пол ранее подтверждён сторожем'})[0]
         self.assertEqual(row['status'], 'todo')
 
-    def test_bundle_at_floor_and_single_card_still_skipped(self):
+    def test_bundle_at_floor_and_controlled_single_card_checked(self):
         for quantity, price, cost in [(6, 8000, 1200), (1, 500, 1200)]:
             row = guard.decide('wb_acc1', {1: (10000, 50, price, '3933')},
                 {1: {'cogs': cost, 'bundle': quantity}}, {1: price}, .569,
                 floor_controlled={1: 'участник по выгрузке и цене'})[0]
-            self.assertEqual(row['status'], 'skip')
+            self.assertEqual(row['status'], 'skip' if quantity == 6 else 'todo')
 
     def test_unknown_cost_keeps_existing_restore_policy(self):
         row = guard.decide('wb_acc1', {1: (10000, 50, 5000, '3933X6')},
@@ -66,7 +66,7 @@ class WbFloorControlTests(unittest.TestCase):
         self.assertEqual(set(scope), {1, 3})
         for call in query.call_args_list:
             self.assertEqual(call.args[1][0], 'wb_acc2')
-            self.assertEqual(call.args[1][1], [1, 2, 3])
+            self.assertEqual(call.args[1][1], [1, 2, 3, 4])
 
     def test_finished_promo_is_not_an_extra_floor_control_source(self):
         goods = {1: (10000, 50, 5000, '3933X6')}
