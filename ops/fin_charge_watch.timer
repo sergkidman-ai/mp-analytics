@@ -1,0 +1,11 @@
+[Unit]
+Description=Check new Ozon, WB and Yandex charges weekly
+
+[Timer]
+# Вторник 10:30 МСК; сервер UTC. После понедельничного финотчёта ВБ.
+OnCalendar=Tue *-*-* 07:30:00
+Persistent=true
+Unit=fin-charge-watch.service
+
+[Install]
+WantedBy=timers.target
