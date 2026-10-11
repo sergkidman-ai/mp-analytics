@@ -1,0 +1,1471 @@
+{
+  "window_start": "2026-10-10T08:36:14.187321+00:00",
+  "window_end": "2026-10-11T08:36:14.187321+00:00",
+  "account": "wb_acc1",
+  "confirmed_24h": 499,
+  "cards_in_confirmed_24h": 4004,
+  "bundles_in_confirmed_24h": 2013,
+  "confirmed_total": 499,
+  "cards_confirmed_total": 4004,
+  "bundles_confirmed_total": 2013,
+  "operations_total": 992,
+  "pending": 493,
+  "pending_cards": 4116,
+  "pending_bundles": 2169,
+  "rule_counts_24h": {
+    "цвет/существующая группа: только x2": 319,
+    "барабан+компоненты, только тонер-картридж x2": 79,
+    "заправочный тонер отдельно": 5,
+    "одиночные семьи с бандлами отдельно": 18,
+    "одиночный+свои бандлы": 47,
+    "ресурс раздельно с бандлами": 35,
+    "ленты: бандлы отдельно": 3
+  },
+  "manual_components": 415,
+  "manual_cards": 4072,
+  "core_confirmed_24h": 1,
+  "core_confirmed_total": 1,
+  "core_pending": 5,
+  "core_manual_checks": 547,
+  "last_confirmed_at": "2026-10-10T20:04:39.742531+00:00",
+  "stopped_operation": {
+    "operation_id": 474181357,
+    "anchor": 199333234,
+    "group_sizes": [
+      6,
+      1,
+      1
+    ],
+    "all_cards_preserved": true,
+    "all_content_unchanged": true,
+    "planned_sizes": [
+      3,
+      3,
+      2
+    ],
+    "groups": {
+      "474181357": [
+        {
+          "nmID": 216355265,
+          "imtID": 474181357,
+          "nmUUID": "018e3184-1a4b-7b50-97fc-78bb3f8227f0",
+          "subjectID": 1820,
+          "subjectName": "Картриджи для принтеров",
+          "vendorCode": "1117",
+          "brand": "Цифровой квадрат",
+          "title": "Фотобарабан 113R00755 DU для Xerox WC 4250, WC 4260 черный",
+          "description": " Фотобарабан 113R00755 DU для принтеров Xerox - это совместимый фотобарабан, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Ксерокс. Фотобарабан 113R00755 DU  совместим с такими моделями, как Xerox WC 4250, WC 4260. Фотобарабан 113R00755 DU  не требуется чип, что обеспечивает удобство в установке и использовании. Фотобарабан для принтеров Xerox  4250,  4260 имеет цвет черный, а его ресурс печати составляет  80000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+          "video": "https://videonme-basket-02.wbbasket.ru/vol17/part21635/216355265/hls/1440p/index.m3u8",
+          "needKiz": false,
+          "kizMarked": false,
+          "photos": [
+            {
+              "big": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/big/1.webp",
+              "c246x328": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c246x328/1.webp",
+              "c516x688": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c516x688/1.webp",
+              "hq": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/hq/1.webp",
+              "square": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/square/1.webp",
+              "tm": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/tm/1.webp"
+            },
+            {
+              "big": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/big/2.webp",
+              "c246x328": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c246x328/2.webp",
+              "c516x688": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c516x688/2.webp",
+              "hq": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/hq/2.webp",
+              "square": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/square/2.webp",
+              "tm": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/tm/2.webp"
+            },
+            {
+              "big": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/big/3.webp",
+              "c246x328": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c246x328/3.webp",
+              "c516x688": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c516x688/3.webp",
+              "hq": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/hq/3.webp",
+              "square": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/square/3.webp",
+              "tm": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/tm/3.webp"
+            },
+            {
+              "big": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/big/4.webp",
+              "c246x328": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c246x328/4.webp",
+              "c516x688": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c516x688/4.webp",
+              "hq": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/hq/4.webp",
+              "square": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/square/4.webp",
+              "tm": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/tm/4.webp"
+            },
+            {
+              "big": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/big/5.webp",
+              "c246x328": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c246x328/5.webp",
+              "c516x688": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/c516x688/5.webp",
+              "hq": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/hq/5.webp",
+              "square": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/square/5.webp",
+              "tm": "https://basket-14.wbbasket.ru/vol2163/part216355/216355265/images/tm/5.webp"
+            }
+          ],
+          "dimensions": {
+            "width": 37,
+            "height": 15,
+            "length": 20,
+            "weightBrutto": 2.6,
+            "isValid": true
+          },
+          "characteristics": [
+            {
+              "id": 58854,
+              "name": "Цвет картриджа/чернил",
+              "value": [
+                "Черный"
+              ]
+            },
+            {
+              "id": 160868,
+              "name": "Вид картриджа для принтера",
+              "value": [
+                "совместимый"
+              ]
+            },
+            {
+              "id": 9623,
+              "name": "Гарантийный срок",
+              "value": [
+                "1 год"
+              ]
+            },
+            {
+              "id": 5023,
+              "name": "Модель",
+              "value": [
+                "113R00755 DU"
+              ]
+            },
+            {
+              "id": 179078,
+              "name": "Совместимость картриджа",
+              "value": [
+                "Xerox WorkCentre 4250",
+                "Xerox WorkCentre 4260"
+              ]
+            },
+            {
+              "id": 15004139,
+              "name": "Код ТН ВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 378533,
+              "name": "Комплектация",
+              "value": [
+                "Фотобарабан 113R00755 DU"
+              ]
+            },
+            {
+              "id": 14177451,
+              "name": "Страна производства",
+              "value": [
+                "Китай"
+              ]
+            },
+            {
+              "id": 179792,
+              "name": "Количество предметов в упаковке",
+              "value": [
+                "1"
+              ]
+            },
+            {
+              "id": 88963,
+              "name": "Максимальный ресурс",
+              "value": 80000
+            },
+            {
+              "id": 15000001,
+              "name": "ТНВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 15001405,
+              "name": "Ставка НДС",
+              "value": [
+                "5"
+              ]
+            },
+            {
+              "id": 58867,
+              "name": "Тип картриджа",
+              "value": [
+                "для лазерного принтера"
+              ]
+            }
+          ],
+          "sizes": [
+            {
+              "chrtID": 344920318,
+              "techSize": "0",
+              "wbSize": "",
+              "skus": [
+                "DSNDH0001117"
+              ]
+            }
+          ],
+          "createdAt": "2024-03-12T07:15:27.046055Z",
+          "updatedAt": "2026-09-19T16:58:10.643315Z",
+          "documents": {
+            "excludeDocuments": false
+          }
+        },
+        {
+          "nmID": 1477293776,
+          "imtID": 474181357,
+          "nmUUID": "01a041db-867b-7410-bead-edfe0ec50873",
+          "subjectID": 1820,
+          "subjectName": "Картриджи для принтеров",
+          "vendorCode": "1117X10",
+          "brand": "Цифровой квадрат",
+          "title": "Комплект фотобарабанов 113R00755 DU 10 шт на 800000 стр. для Xerox",
+          "description": " Фотобарабан 113R00755 DU для принтеров Xerox - это совместимый фотобарабан, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Ксерокс. Фотобарабан 113R00755 DU  совместим с такими моделями, как Xerox WC 4250, WC 4260. Фотобарабан 113R00755 DU  не требуется чип, что обеспечивает удобство в установке и использовании. Фотобарабан для принтеров Xerox  4250,  4260 имеет цвет черный, а его ресурс печати составляет  80000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+          "video": "https://videonme-basket-07.wbbasket.ru/vol80/part147729/1477293776/hls/1440p/index.m3u8",
+          "needKiz": false,
+          "kizMarked": false,
+          "photos": [
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/big/1.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c246x328/1.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c516x688/1.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/hq/1.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/square/1.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/tm/1.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/big/2.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c246x328/2.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c516x688/2.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/hq/2.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/square/2.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/tm/2.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/big/3.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c246x328/3.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c516x688/3.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/hq/3.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/square/3.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/tm/3.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/big/4.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c246x328/4.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c516x688/4.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/hq/4.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/square/4.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/tm/4.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/big/5.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c246x328/5.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/c516x688/5.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/hq/5.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/square/5.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293776/images/tm/5.webp"
+            }
+          ],
+          "dimensions": {
+            "width": 40,
+            "height": 75,
+            "length": 37,
+            "weightBrutto": 25.1,
+            "isValid": false
+          },
+          "characteristics": [
+            {
+              "id": 58867,
+              "name": "Тип картриджа",
+              "value": [
+                "для лазерного принтера"
+              ]
+            },
+            {
+              "id": 160868,
+              "name": "Вид картриджа для принтера",
+              "value": [
+                "совместимый"
+              ]
+            },
+            {
+              "id": 9623,
+              "name": "Гарантийный срок",
+              "value": [
+                "1 год"
+              ]
+            },
+            {
+              "id": 179792,
+              "name": "Количество предметов в упаковке",
+              "value": [
+                "10"
+              ]
+            },
+            {
+              "id": 5023,
+              "name": "Модель",
+              "value": [
+                "113R00755 DU"
+              ]
+            },
+            {
+              "id": 58854,
+              "name": "Цвет картриджа/чернил",
+              "value": [
+                "Черный"
+              ]
+            },
+            {
+              "id": 88963,
+              "name": "Максимальный ресурс",
+              "value": 80000
+            },
+            {
+              "id": 179078,
+              "name": "Совместимость картриджа",
+              "value": [
+                "Xerox WorkCentre 4250",
+                "Xerox WorkCentre 4260"
+              ]
+            },
+            {
+              "id": 14177451,
+              "name": "Страна производства",
+              "value": [
+                "Китай"
+              ]
+            },
+            {
+              "id": 15001405,
+              "name": "Ставка НДС",
+              "value": [
+                "5"
+              ]
+            },
+            {
+              "id": 15000001,
+              "name": "ТНВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 15004139,
+              "name": "Код ТН ВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 378533,
+              "name": "Комплектация",
+              "value": [
+                "Фотобарабан 113R00755 DU 10 шт."
+              ]
+            }
+          ],
+          "sizes": [
+            {
+              "chrtID": 2211491075,
+              "techSize": "0",
+              "wbSize": "",
+              "skus": [
+                "DSZIU1117X10"
+              ]
+            }
+          ],
+          "createdAt": "2026-08-27T06:15:01.118792Z",
+          "updatedAt": "2026-09-20T11:41:46.888478Z",
+          "wholesale": {
+            "enabled": true,
+            "quantum": 10,
+            "minOrderQuantity": 0
+          },
+          "documents": {
+            "excludeDocuments": false
+          }
+        },
+        {
+          "nmID": 199333234,
+          "imtID": 474181357,
+          "nmUUID": "018cee6a-4005-7650-a665-b68247478466",
+          "subjectID": 1820,
+          "subjectName": "Картриджи для принтеров",
+          "vendorCode": "1094",
+          "brand": "Цифровой квадрат",
+          "title": "Картридж 106R01410 для Xerox WC 4250, WC 4260 черный",
+          "description": " Картридж 106R01410 для принтеров Xerox - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Ксерокс. Картридж 106R01410  совместим с такими моделями, как Xerox WC 4250, WC 4260. Картридж 106R01410  не требуется чип, что обеспечивает удобство в установке и использовании. Картридж для принтеров Xerox  4250,  4260 имеет цвет черный, а его ресурс печати составляет  25000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+          "video": "https://videonme-basket-07.wbbasket.ru/vol82/part19933/199333234/hls/1440p/index.m3u8",
+          "needKiz": false,
+          "kizMarked": false,
+          "photos": [
+            {
+              "big": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/big/1.webp",
+              "c246x328": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c246x328/1.webp",
+              "c516x688": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c516x688/1.webp",
+              "hq": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/hq/1.webp",
+              "square": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/square/1.webp",
+              "tm": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/tm/1.webp"
+            },
+            {
+              "big": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/big/2.webp",
+              "c246x328": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c246x328/2.webp",
+              "c516x688": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c516x688/2.webp",
+              "hq": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/hq/2.webp",
+              "square": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/square/2.webp",
+              "tm": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/tm/2.webp"
+            },
+            {
+              "big": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/big/3.webp",
+              "c246x328": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c246x328/3.webp",
+              "c516x688": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c516x688/3.webp",
+              "hq": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/hq/3.webp",
+              "square": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/square/3.webp",
+              "tm": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/tm/3.webp"
+            },
+            {
+              "big": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/big/4.webp",
+              "c246x328": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c246x328/4.webp",
+              "c516x688": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c516x688/4.webp",
+              "hq": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/hq/4.webp",
+              "square": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/square/4.webp",
+              "tm": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/tm/4.webp"
+            },
+            {
+              "big": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/big/5.webp",
+              "c246x328": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c246x328/5.webp",
+              "c516x688": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/c516x688/5.webp",
+              "hq": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/hq/5.webp",
+              "square": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/square/5.webp",
+              "tm": "https://basket-13.wbbasket.ru/vol1993/part199333/199333234/images/tm/5.webp"
+            }
+          ],
+          "dimensions": {
+            "width": 37,
+            "height": 15,
+            "length": 20,
+            "weightBrutto": 1.8,
+            "isValid": true
+          },
+          "characteristics": [
+            {
+              "id": 15000001,
+              "name": "ТНВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 58867,
+              "name": "Тип картриджа",
+              "value": [
+                "для лазерного принтера"
+              ]
+            },
+            {
+              "id": 160868,
+              "name": "Вид картриджа для принтера",
+              "value": [
+                "совместимый"
+              ]
+            },
+            {
+              "id": 9623,
+              "name": "Гарантийный срок",
+              "value": [
+                "1 год"
+              ]
+            },
+            {
+              "id": 179792,
+              "name": "Количество предметов в упаковке",
+              "value": [
+                "1"
+              ]
+            },
+            {
+              "id": 5023,
+              "name": "Модель",
+              "value": [
+                "106R01410"
+              ]
+            },
+            {
+              "id": 14177451,
+              "name": "Страна производства",
+              "value": [
+                "Китай"
+              ]
+            },
+            {
+              "id": 58854,
+              "name": "Цвет картриджа/чернил",
+              "value": [
+                "Черный"
+              ]
+            },
+            {
+              "id": 15004139,
+              "name": "Код ТН ВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 378533,
+              "name": "Комплектация",
+              "value": [
+                "Картридж 106R01410"
+              ]
+            },
+            {
+              "id": 88963,
+              "name": "Максимальный ресурс",
+              "value": 25000
+            },
+            {
+              "id": 179078,
+              "name": "Совместимость картриджа",
+              "value": [
+                "Xerox WorkCentre 4250",
+                "Xerox WorkCentre 4260"
+              ]
+            },
+            {
+              "id": 15001405,
+              "name": "Ставка НДС",
+              "value": [
+                "5"
+              ]
+            }
+          ],
+          "sizes": [
+            {
+              "chrtID": 322607605,
+              "techSize": "0",
+              "wbSize": "",
+              "skus": [
+                "DSLDF0001094"
+              ]
+            }
+          ],
+          "createdAt": "2024-01-05T07:07:32.115108Z",
+          "updatedAt": "2026-09-21T15:21:09.985737Z",
+          "documents": {
+            "excludeDocuments": false
+          }
+        },
+        {
+          "nmID": 1705268030,
+          "imtID": 474181357,
+          "nmUUID": "01a0cd2e-7f9b-7366-8019-96090798c042",
+          "subjectID": 1820,
+          "subjectName": "Картриджи для принтеров",
+          "vendorCode": "1094X10",
+          "brand": "Цифровой квадрат",
+          "title": "Комплект картриджей 106R01410 10 шт для Xerox WC 4250",
+          "description": " Картридж 106R01410 для принтеров Xerox - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Ксерокс. Картридж 106R01410  совместим с такими моделями, как Xerox WC 4250, WC 4260. Картридж 106R01410  не требуется чип, что обеспечивает удобство в установке и использовании. Картридж для принтеров Xerox  4250,  4260 имеет цвет черный, а его ресурс печати составляет  25000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+          "video": "https://videonme-basket-02.wbbasket.ru/vol14/part170526/1705268030/hls/1440p/index.m3u8",
+          "needKiz": false,
+          "kizMarked": false,
+          "photos": [
+            {
+              "big": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/big/1.webp",
+              "c246x328": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c246x328/1.webp",
+              "c516x688": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c516x688/1.webp",
+              "hq": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/hq/1.webp",
+              "square": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/square/1.webp",
+              "tm": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/tm/1.webp"
+            },
+            {
+              "big": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/big/2.webp",
+              "c246x328": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c246x328/2.webp",
+              "c516x688": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c516x688/2.webp",
+              "hq": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/hq/2.webp",
+              "square": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/square/2.webp",
+              "tm": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/tm/2.webp"
+            },
+            {
+              "big": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/big/3.webp",
+              "c246x328": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c246x328/3.webp",
+              "c516x688": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c516x688/3.webp",
+              "hq": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/hq/3.webp",
+              "square": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/square/3.webp",
+              "tm": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/tm/3.webp"
+            },
+            {
+              "big": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/big/4.webp",
+              "c246x328": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c246x328/4.webp",
+              "c516x688": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c516x688/4.webp",
+              "hq": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/hq/4.webp",
+              "square": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/square/4.webp",
+              "tm": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/tm/4.webp"
+            },
+            {
+              "big": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/big/5.webp",
+              "c246x328": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c246x328/5.webp",
+              "c516x688": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/c516x688/5.webp",
+              "hq": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/hq/5.webp",
+              "square": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/square/5.webp",
+              "tm": "https://basket-50.wbbasket.ru/vol17052/part1705268/1705268030/images/tm/5.webp"
+            }
+          ],
+          "dimensions": {
+            "width": 40,
+            "height": 75,
+            "length": 37,
+            "weightBrutto": 17.1,
+            "isValid": false
+          },
+          "characteristics": [
+            {
+              "id": 160868,
+              "name": "Вид картриджа для принтера",
+              "value": [
+                "совместимый"
+              ]
+            },
+            {
+              "id": 9623,
+              "name": "Гарантийный срок",
+              "value": [
+                "1 год"
+              ]
+            },
+            {
+              "id": 15001405,
+              "name": "Ставка НДС",
+              "value": [
+                "5"
+              ]
+            },
+            {
+              "id": 88963,
+              "name": "Максимальный ресурс",
+              "value": 25000
+            },
+            {
+              "id": 15000001,
+              "name": "ТНВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 58854,
+              "name": "Цвет картриджа/чернил",
+              "value": [
+                "Черный"
+              ]
+            },
+            {
+              "id": 378533,
+              "name": "Комплектация",
+              "value": [
+                "Картридж 106R01410 10 шт."
+              ]
+            },
+            {
+              "id": 5023,
+              "name": "Модель",
+              "value": [
+                "106R01410"
+              ]
+            },
+            {
+              "id": 58867,
+              "name": "Тип картриджа",
+              "value": [
+                "для лазерного принтера"
+              ]
+            },
+            {
+              "id": 15004139,
+              "name": "Код ТН ВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 179792,
+              "name": "Количество предметов в упаковке",
+              "value": [
+                "10"
+              ]
+            },
+            {
+              "id": 179078,
+              "name": "Совместимость картриджа",
+              "value": [
+                "Xerox WorkCentre 4250",
+                "Xerox WorkCentre 4260"
+              ]
+            },
+            {
+              "id": 14177451,
+              "name": "Страна производства",
+              "value": [
+                "Китай"
+              ]
+            }
+          ],
+          "sizes": [
+            {
+              "chrtID": 2779101204,
+              "techSize": "0",
+              "wbSize": "",
+              "skus": [
+                "DSEBB1094X10"
+              ]
+            }
+          ],
+          "createdAt": "2026-09-23T07:32:52.119386Z",
+          "updatedAt": "2026-09-23T07:35:32.710068Z",
+          "wholesale": {
+            "enabled": true,
+            "quantum": 10,
+            "minOrderQuantity": 0
+          },
+          "documents": {
+            "excludeDocuments": false
+          }
+        },
+        {
+          "nmID": 1516902454,
+          "imtID": 474181357,
+          "nmUUID": "01a06839-0d09-7bcb-9c3d-ffc321bed717",
+          "subjectID": 1820,
+          "subjectName": "Картриджи для принтеров",
+          "vendorCode": "1094X2",
+          "brand": "Цифровой квадрат",
+          "title": "Комплект картриджей 106R01410 2 шт на 50000 стр. для Xerox",
+          "description": " Картридж 106R01410 для принтеров Xerox - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Ксерокс. Картридж 106R01410  совместим с такими моделями, как Xerox WC 4250, WC 4260. Картридж 106R01410  не требуется чип, что обеспечивает удобство в установке и использовании. Картридж для принтеров Xerox  4250,  4260 имеет цвет черный, а его ресурс печати составляет  25000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+          "video": "https://videonme-basket-10.wbbasket.ru/vol118/part151690/1516902454/hls/1440p/index.m3u8",
+          "needKiz": false,
+          "kizMarked": false,
+          "photos": [
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/big/1.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c246x328/1.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c516x688/1.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/hq/1.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/square/1.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/tm/1.webp"
+            },
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/big/2.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c246x328/2.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c516x688/2.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/hq/2.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/square/2.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/tm/2.webp"
+            },
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/big/3.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c246x328/3.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c516x688/3.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/hq/3.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/square/3.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/tm/3.webp"
+            },
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/big/4.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c246x328/4.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c516x688/4.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/hq/4.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/square/4.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/tm/4.webp"
+            },
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/big/5.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c246x328/5.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/c516x688/5.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/hq/5.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/square/5.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15169/part1516902/1516902454/images/tm/5.webp"
+            }
+          ],
+          "dimensions": {
+            "width": 37,
+            "height": 30,
+            "length": 20,
+            "weightBrutto": 3.5,
+            "isValid": true
+          },
+          "characteristics": [
+            {
+              "id": 15004139,
+              "name": "Код ТН ВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 14177451,
+              "name": "Страна производства",
+              "value": [
+                "Китай"
+              ]
+            },
+            {
+              "id": 88963,
+              "name": "Максимальный ресурс",
+              "value": 25000
+            },
+            {
+              "id": 5023,
+              "name": "Модель",
+              "value": [
+                "106R01410"
+              ]
+            },
+            {
+              "id": 160868,
+              "name": "Вид картриджа для принтера",
+              "value": [
+                "совместимый"
+              ]
+            },
+            {
+              "id": 179792,
+              "name": "Количество предметов в упаковке",
+              "value": [
+                "2"
+              ]
+            },
+            {
+              "id": 179078,
+              "name": "Совместимость картриджа",
+              "value": [
+                "Xerox WorkCentre 4250",
+                "Xerox WorkCentre 4260"
+              ]
+            },
+            {
+              "id": 15001405,
+              "name": "Ставка НДС",
+              "value": [
+                "5"
+              ]
+            },
+            {
+              "id": 9623,
+              "name": "Гарантийный срок",
+              "value": [
+                "1 год"
+              ]
+            },
+            {
+              "id": 378533,
+              "name": "Комплектация",
+              "value": [
+                "Картридж 106R01410 2 шт."
+              ]
+            },
+            {
+              "id": 15000001,
+              "name": "ТНВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 58867,
+              "name": "Тип картриджа",
+              "value": [
+                "для лазерного принтера"
+              ]
+            },
+            {
+              "id": 58854,
+              "name": "Цвет картриджа/чернил",
+              "value": [
+                "Черный"
+              ]
+            }
+          ],
+          "sizes": [
+            {
+              "chrtID": 2311050744,
+              "techSize": "0",
+              "wbSize": "",
+              "skus": [
+                "DSAQG01094X2"
+              ]
+            }
+          ],
+          "createdAt": "2026-09-03T17:02:47.76695Z",
+          "updatedAt": "2026-09-30T06:22:38.535293Z",
+          "wholesale": {
+            "enabled": true,
+            "quantum": 2,
+            "minOrderQuantity": 0
+          },
+          "documents": {
+            "overallVerdict": {
+              "isFullyChecked": true,
+              "status": 2,
+              "reason": "documents_missing",
+              "createdAt": "2026-09-04T01:53:44.167601+03:00"
+            },
+            "excludeDocuments": false
+          }
+        },
+        {
+          "nmID": 1477293500,
+          "imtID": 474181357,
+          "nmUUID": "01a041db-586e-70ab-aeff-f5e54dfdd79c",
+          "subjectID": 1820,
+          "subjectName": "Картриджи для принтеров",
+          "vendorCode": "1117X2",
+          "brand": "Цифровой квадрат",
+          "title": "Комплект фотобарабанов 113R00755 DU (2 шт.) для Xerox",
+          "description": " Фотобарабан 113R00755 DU для принтеров Xerox - это совместимый фотобарабан, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Ксерокс. Фотобарабан 113R00755 DU  совместим с такими моделями, как Xerox WC 4250, WC 4260. Фотобарабан 113R00755 DU  не требуется чип, что обеспечивает удобство в установке и использовании. Фотобарабан для принтеров Xerox  4250,  4260 имеет цвет черный, а его ресурс печати составляет  80000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+          "video": "https://videonme-basket-08.wbbasket.ru/vol92/part147729/1477293500/hls/1440p/index.m3u8",
+          "needKiz": false,
+          "kizMarked": false,
+          "photos": [
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/big/1.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c246x328/1.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c516x688/1.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/hq/1.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/square/1.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/tm/1.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/big/2.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c246x328/2.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c516x688/2.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/hq/2.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/square/2.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/tm/2.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/big/3.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c246x328/3.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c516x688/3.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/hq/3.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/square/3.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/tm/3.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/big/4.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c246x328/4.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c516x688/4.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/hq/4.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/square/4.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/tm/4.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/big/5.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c246x328/5.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/c516x688/5.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/hq/5.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/square/5.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293500/images/tm/5.webp"
+            }
+          ],
+          "dimensions": {
+            "width": 37,
+            "height": 30,
+            "length": 20,
+            "weightBrutto": 5.1,
+            "isValid": true
+          },
+          "characteristics": [
+            {
+              "id": 5023,
+              "name": "Модель",
+              "value": [
+                "113R00755 DU"
+              ]
+            },
+            {
+              "id": 15001405,
+              "name": "Ставка НДС",
+              "value": [
+                "5"
+              ]
+            },
+            {
+              "id": 58867,
+              "name": "Тип картриджа",
+              "value": [
+                "для лазерного принтера"
+              ]
+            },
+            {
+              "id": 160868,
+              "name": "Вид картриджа для принтера",
+              "value": [
+                "совместимый"
+              ]
+            },
+            {
+              "id": 15004139,
+              "name": "Код ТН ВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 179792,
+              "name": "Количество предметов в упаковке",
+              "value": [
+                "2"
+              ]
+            },
+            {
+              "id": 88963,
+              "name": "Максимальный ресурс",
+              "value": 80000
+            },
+            {
+              "id": 58854,
+              "name": "Цвет картриджа/чернил",
+              "value": [
+                "Черный"
+              ]
+            },
+            {
+              "id": 9623,
+              "name": "Гарантийный срок",
+              "value": [
+                "1 год"
+              ]
+            },
+            {
+              "id": 378533,
+              "name": "Комплектация",
+              "value": [
+                "Фотобарабан 113R00755 DU 2 шт."
+              ]
+            },
+            {
+              "id": 179078,
+              "name": "Совместимость картриджа",
+              "value": [
+                "Xerox WorkCentre 4250",
+                "Xerox WorkCentre 4260"
+              ]
+            },
+            {
+              "id": 14177451,
+              "name": "Страна производства",
+              "value": [
+                "Китай"
+              ]
+            },
+            {
+              "id": 15000001,
+              "name": "ТНВЭД",
+              "value": [
+                "8443999000"
+              ]
+            }
+          ],
+          "sizes": [
+            {
+              "chrtID": 2211490686,
+              "techSize": "0",
+              "wbSize": "",
+              "skus": [
+                "DSICY01117X2"
+              ]
+            }
+          ],
+          "createdAt": "2026-08-27T06:14:56.211019Z",
+          "updatedAt": "2026-10-05T13:46:49.389485Z",
+          "wholesale": {
+            "enabled": true,
+            "quantum": 2,
+            "minOrderQuantity": 0
+          },
+          "documents": {
+            "overallVerdict": {
+              "isFullyChecked": true,
+              "status": 2,
+              "reason": "documents_missing",
+              "createdAt": "2026-10-05T16:46:40.373549+03:00"
+            },
+            "excludeDocuments": false
+          }
+        }
+      ],
+      "4270793956": [
+        {
+          "nmID": 1477293499,
+          "imtID": 4270793956,
+          "nmUUID": "01a041db-72f3-768c-acbf-21e34e3fd8de",
+          "subjectID": 1820,
+          "subjectName": "Картриджи для принтеров",
+          "vendorCode": "1117X6",
+          "brand": "Цифровой квадрат",
+          "title": "Комплект фотобарабанов 113R00755 DU 6 шт для Xerox WC 4250",
+          "description": " Фотобарабан 113R00755 DU для принтеров Xerox - это совместимый фотобарабан, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Ксерокс. Фотобарабан 113R00755 DU  совместим с такими моделями, как Xerox WC 4250, WC 4260. Фотобарабан 113R00755 DU  не требуется чип, что обеспечивает удобство в установке и использовании. Фотобарабан для принтеров Xerox  4250,  4260 имеет цвет черный, а его ресурс печати составляет  80000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+          "video": "https://videonme-basket-08.wbbasket.ru/vol91/part147729/1477293499/hls/1440p/index.m3u8",
+          "needKiz": false,
+          "kizMarked": false,
+          "photos": [
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/big/1.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c246x328/1.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c516x688/1.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/hq/1.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/square/1.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/tm/1.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/big/2.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c246x328/2.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c516x688/2.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/hq/2.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/square/2.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/tm/2.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/big/3.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c246x328/3.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c516x688/3.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/hq/3.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/square/3.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/tm/3.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/big/4.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c246x328/4.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c516x688/4.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/hq/4.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/square/4.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/tm/4.webp"
+            },
+            {
+              "big": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/big/5.webp",
+              "c246x328": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c246x328/5.webp",
+              "c516x688": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/c516x688/5.webp",
+              "hq": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/hq/5.webp",
+              "square": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/square/5.webp",
+              "tm": "https://basket-47.wbbasket.ru/vol14772/part1477293/1477293499/images/tm/5.webp"
+            }
+          ],
+          "dimensions": {
+            "width": 40,
+            "height": 45,
+            "length": 37,
+            "weightBrutto": 15.1,
+            "isValid": false
+          },
+          "characteristics": [
+            {
+              "id": 5023,
+              "name": "Модель",
+              "value": [
+                "113R00755 DU"
+              ]
+            },
+            {
+              "id": 179078,
+              "name": "Совместимость картриджа",
+              "value": [
+                "Xerox WorkCentre 4250",
+                "Xerox WorkCentre 4260"
+              ]
+            },
+            {
+              "id": 160868,
+              "name": "Вид картриджа для принтера",
+              "value": [
+                "совместимый"
+              ]
+            },
+            {
+              "id": 15000001,
+              "name": "ТНВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 58867,
+              "name": "Тип картриджа",
+              "value": [
+                "для лазерного принтера"
+              ]
+            },
+            {
+              "id": 9623,
+              "name": "Гарантийный срок",
+              "value": [
+                "1 год"
+              ]
+            },
+            {
+              "id": 15001405,
+              "name": "Ставка НДС",
+              "value": [
+                "5"
+              ]
+            },
+            {
+              "id": 58854,
+              "name": "Цвет картриджа/чернил",
+              "value": [
+                "Черный"
+              ]
+            },
+            {
+              "id": 15004139,
+              "name": "Код ТН ВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 179792,
+              "name": "Количество предметов в упаковке",
+              "value": [
+                "6"
+              ]
+            },
+            {
+              "id": 378533,
+              "name": "Комплектация",
+              "value": [
+                "Фотобарабан 113R00755 DU 6 шт."
+              ]
+            },
+            {
+              "id": 14177451,
+              "name": "Страна производства",
+              "value": [
+                "Китай"
+              ]
+            },
+            {
+              "id": 88963,
+              "name": "Максимальный ресурс",
+              "value": 80000
+            }
+          ],
+          "sizes": [
+            {
+              "chrtID": 2211490685,
+              "techSize": "0",
+              "wbSize": "",
+              "skus": [
+                "DSTRS01117X6"
+              ]
+            }
+          ],
+          "createdAt": "2026-08-27T06:14:56.134796Z",
+          "updatedAt": "2026-09-30T05:24:08.927412Z",
+          "wholesale": {
+            "enabled": true,
+            "quantum": 6,
+            "minOrderQuantity": 0
+          },
+          "documents": {
+            "overallVerdict": {
+              "isFullyChecked": true,
+              "status": 2,
+              "reason": "documents_missing",
+              "createdAt": "2026-10-01T03:55:58.931826+03:00"
+            },
+            "excludeDocuments": false
+          }
+        }
+      ],
+      "4270794350": [
+        {
+          "nmID": 1505365847,
+          "imtID": 4270794350,
+          "nmUUID": "01a05f29-5e7e-7b74-bf8f-7b86ea4898fd",
+          "subjectID": 1820,
+          "subjectName": "Картриджи для принтеров",
+          "vendorCode": "1094X6",
+          "brand": "Цифровой квадрат",
+          "title": "Комплект картриджей 106R01410 6 шт на 150000 стр. для Xerox",
+          "description": " Картридж 106R01410 для принтеров Xerox - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Ксерокс. Картридж 106R01410  совместим с такими моделями, как Xerox WC 4250, WC 4260. Картридж 106R01410  не требуется чип, что обеспечивает удобство в установке и использовании. Картридж для принтеров Xerox  4250,  4260 имеет цвет черный, а его ресурс печати составляет  25000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+          "video": "https://videonme-basket-06.wbbasket.ru/vol71/part150536/1505365847/hls/1440p/index.m3u8",
+          "needKiz": false,
+          "kizMarked": false,
+          "photos": [
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/big/1.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c246x328/1.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c516x688/1.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/hq/1.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/square/1.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/tm/1.webp"
+            },
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/big/2.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c246x328/2.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c516x688/2.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/hq/2.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/square/2.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/tm/2.webp"
+            },
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/big/3.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c246x328/3.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c516x688/3.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/hq/3.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/square/3.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/tm/3.webp"
+            },
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/big/4.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c246x328/4.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c516x688/4.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/hq/4.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/square/4.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/tm/4.webp"
+            },
+            {
+              "big": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/big/5.webp",
+              "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c246x328/5.webp",
+              "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/c516x688/5.webp",
+              "hq": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/hq/5.webp",
+              "square": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/square/5.webp",
+              "tm": "https://basket-48.wbbasket.ru/vol15053/part1505365/1505365847/images/tm/5.webp"
+            }
+          ],
+          "dimensions": {
+            "width": 40,
+            "height": 45,
+            "length": 37,
+            "weightBrutto": 10.3,
+            "isValid": false
+          },
+          "characteristics": [
+            {
+              "id": 160868,
+              "name": "Вид картриджа для принтера",
+              "value": [
+                "совместимый"
+              ]
+            },
+            {
+              "id": 14177451,
+              "name": "Страна производства",
+              "value": [
+                "Китай"
+              ]
+            },
+            {
+              "id": 9623,
+              "name": "Гарантийный срок",
+              "value": [
+                "1 год"
+              ]
+            },
+            {
+              "id": 15004139,
+              "name": "Код ТН ВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 378533,
+              "name": "Комплектация",
+              "value": [
+                "Картридж 106R01410 6 шт."
+              ]
+            },
+            {
+              "id": 58854,
+              "name": "Цвет картриджа/чернил",
+              "value": [
+                "Черный"
+              ]
+            },
+            {
+              "id": 179792,
+              "name": "Количество предметов в упаковке",
+              "value": [
+                "6"
+              ]
+            },
+            {
+              "id": 5023,
+              "name": "Модель",
+              "value": [
+                "106R01410"
+              ]
+            },
+            {
+              "id": 15001405,
+              "name": "Ставка НДС",
+              "value": [
+                "5"
+              ]
+            },
+            {
+              "id": 88963,
+              "name": "Максимальный ресурс",
+              "value": 25000
+            },
+            {
+              "id": 179078,
+              "name": "Совместимость картриджа",
+              "value": [
+                "Xerox WorkCentre 4250",
+                "Xerox WorkCentre 4260"
+              ]
+            },
+            {
+              "id": 15000001,
+              "name": "ТНВЭД",
+              "value": [
+                "8443999000"
+              ]
+            },
+            {
+              "id": 58867,
+              "name": "Тип картриджа",
+              "value": [
+                "для лазерного принтера"
+              ]
+            }
+          ],
+          "sizes": [
+            {
+              "chrtID": 2276440904,
+              "techSize": "0",
+              "wbSize": "",
+              "skus": [
+                "DSLGO01094X6"
+              ]
+            }
+          ],
+          "createdAt": "2026-09-01T22:49:03.349858Z",
+          "updatedAt": "2026-10-05T14:11:38.111148Z",
+          "wholesale": {
+            "enabled": true,
+            "quantum": 6,
+            "minOrderQuantity": 0
+          },
+          "documents": {
+            "overallVerdict": {
+              "isFullyChecked": true,
+              "status": 2,
+              "reason": "documents_missing",
+              "createdAt": "2026-09-03T18:12:54.745422+03:00"
+            },
+            "excludeDocuments": false
+          }
+        }
+      ]
+    }
+  },
+  "worker_state": "failed; core waiting worker also stopped",
+  "no_price_ads_stock_or_chip_field_changes_in_grouping_executors": true
+}
