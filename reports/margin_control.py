@@ -104,6 +104,15 @@ def _mapping(account, known_codes):
         if r["ec"] in known_codes:
             m[int(r["nm"])] = (r["ec"], "shipment")
 
+    # Набор отгружается несколькими компонентами. Победитель shipment по sum(qty)
+    # описывает один компонент, а не идентичность карточки. Подтверждённый состав
+    # набора и артикул карточки сохраняют родительский код при любом таком мосте.
+    set_codes = {r["external_code"] for r in db.query(
+        "SELECT external_code FROM set_cost WHERE cardinality(components) > 0")}
+    for r in cards:
+        parent = r["vc"][:4]
+        if parent in set_codes and parent in known_codes:
+            m[int(r["nm_id"])] = (parent, "set_vendor")
     return m
 
 

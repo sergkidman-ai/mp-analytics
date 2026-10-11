@@ -435,6 +435,15 @@ def cogs_map(acc, goods=None):
             # артикул и есть код с кратностью. Остальные 55 — обычные коды.
             raw = (r["vendor_code"] or "").strip()
 
+        # Состав отгрузки может содержать компоненты набора. Shipment-мост выбирает
+        # один из них по количеству, поэтому для известного набора идентичность берём
+        # из текущего артикула карточки, а не из выбранного компонента отгрузки.
+        live_vendor = goods[int(r["nm_id"])][3] if goods and int(r["nm_id"]) in goods else r["vendor_code"]
+        set_code = norm_code(live_vendor)
+        mapped_raw = raw
+        if set_code in sets_:
+            raw = set_code
+
         # БАНДЛ: 4248X10 — это 10 штук товара 4248 в одной упаковке, 0025X6 — шесть штук 0025.
         # Себестоимость карточки = себестоимость единицы × кратность. Без множителя пол
         # считался бы по одной штуке и был бы занижен в 6-10 раз. Шаблон якорный
@@ -448,13 +457,14 @@ def cogs_map(acc, goods=None):
         # 3443). Действие то же, что при отсутствии себестоимости, но причина другая.
         rec = {"cogs": None, "source": None, "branch": ("none" if code else "unmapped"),
                "external_code": raw or None, "vendor_code": r["vendor_code"],
-               "n_comp": 0, "bundle": mult, "code_from": ("vendor_code" if from_vc else "external_code")}
+               "n_comp": 0, "is_set": code in sets_, "mapped_external_code": mapped_raw or None,
+               "bundle": mult, "code_from": ("vendor_code" if from_vc else "external_code")}
         if code:
             self_rec = stock.get(code) or {}
             comps = sets_.get(code) or {code: 1}
             rec["n_comp"] = len(comps)
 
-            if len(comps) == 1:                          # обычный товар, не набор
+            if not rec["is_set"]:                       # обычный товар, не набор
                 price, src, branch = unit_cost(code, links, stock, need=mult)
                 rec.update(cogs=price, source=src, branch=branch)
                 if mult > 1 and price:
@@ -470,7 +480,10 @@ def cogs_map(acc, goods=None):
             # компонентам остаётся фолбэком, когда своей цены нет (таких наборов 33).
             # Считать наборы только по компонентам — значит занизить пол и продавать в минус:
             # 6528 — 19 353 ₽ своя цена против 8 874 ₽ по частям, пол расходится вдвое.
-            if self_rec.get("qty_own", 0) >= mult and self_rec.get("cost_own"):
+            set_market = [float(p) for p in (self_rec.get("supplier_min"), self_rec.get("tc_price")) if p]
+            own_set_valid = (self_rec.get("cost_own") and
+                             (not set_market or float(self_rec["cost_own"]) >= OWN_COST_MIN_SHARE * min(set_market)))
+            if self_rec.get("qty_own", 0) >= mult and own_set_valid:
                 rec.update(cogs=self_rec["cost_own"], source="set_own_stock", branch="own")
                 if mult > 1:
                     rec["cogs"], rec["source"] = float(rec["cogs"]) * mult, f"set_own_stock_x{mult}"
@@ -492,7 +505,11 @@ def cogs_map(acc, goods=None):
                 rec["branch"] = "own" if "own" in branches else "remote"
                 own_price = self_rec.get("tc_price") or self_rec.get("supplier_min")
                 if own_price:
-                    rec.update(cogs=float(own_price), source="set_own_price")
+                    # Полная закупочная комплекта и сумма доступных компонентов —
+                    # два независимых основания. Не занижаем цену более дешёвой строкой.
+                    use_components = not gap and total > float(own_price)
+                    rec.update(cogs=max(float(own_price), total) if not gap else float(own_price),
+                               source="set_components" if use_components else "set_own_price")
                 elif not gap:
                     rec.update(cogs=total, source="set_components")
         if mult > 1 and rec.get("cogs"):
@@ -611,13 +628,13 @@ def min_net(cogs, quantity=1):
 
 
 def floor_controlled_bundles(acc, goods, cogs, today=None, active_promo_names=()):
-    """Бандлы для проверки пола без зависимости от nightly baseline.
+    """Бандлы и известные наборы для проверки пола без зависимости от baseline.
 
     Участник действующей акции по выгрузке + цена в пределах плана, либо ранее
     подтверждённый подъём до пола. Флаг выгрузки — снимок, не текущий статус API.
     """
     bundles = {int(nm) for nm, c in cogs.items()
-               if c.get("cogs") and c.get("bundle", 1) > 1
+               if c.get("cogs") and (c.get("bundle", 1) > 1 or c.get("is_set"))
                and nm in goods and goods[nm][2] > 0}
     if not bundles:
         return {}
@@ -626,6 +643,11 @@ def floor_controlled_bundles(acc, goods, cogs, today=None, active_promo_names=()
     def name_key(name):
         return re.sub(r"[\W_]+", " ", (name or "").lower().replace("ё", "е")).strip()
     active_names = {name_key(name) for name in active_promo_names if name}
+    # Наборы со скидкой контролируем и без выгрузки: низкий baseline не доказывает
+    # безопасность. Состав подтверждён set_cost, активный календарь нужен для области.
+    if active_names:
+        controlled.update({nm: "известный набор со скидкой при действующих акциях"
+                           for nm in bundles if cogs[nm].get("is_set") and goods[nm][1] > 0})
     for r in db.query("""SELECT nm_id, plan_price, promo_name FROM wb_promo_plan_price
                          WHERE account = %s AND nm_id = ANY(%s) AND in_promo
                            AND plan_price > 0
@@ -668,7 +690,8 @@ def decide(acc, goods, cogs, prepromo, ret, touched_only=True, floor_controlled=
                "status": "skip", "reason": "", "err": None, "price_after": None}
 
         control = (floor_controlled or {}).get(nm)
-        enforce_floor = bool(control and c.get("cogs") and c.get("bundle", 1) > 1)
+        enforce_floor = bool(control and c.get("cogs")
+                             and (c.get("bundle", 1) > 1 or c.get("is_set")))
         if touched_only and not touched and not enforce_floor:
             row["reason"] = ("акция цену не трогала" if pre else "нет доакционного снимка")
             rows.append(row)
@@ -695,7 +718,7 @@ def decide(acc, goods, cogs, prepromo, ret, touched_only=True, floor_controlled=
             row["status"] = "todo"
             row["reason"] = f"ниже пола на {floor_price - cur:.0f} ₽, чистая {row['net_before']:.0f} ₽"
             if enforce_floor and not touched:
-                row["reason"] += f"; контроль бандла без baseline: {control}"
+                row["reason"] += f"; контроль комплекта без baseline: {control}"
         else:
             # Себестоимости нет — считать пол не из чего. Выводим из акции возвратом
             # к доакционной цене, но только если цена реально просела: иначе снесли бы
