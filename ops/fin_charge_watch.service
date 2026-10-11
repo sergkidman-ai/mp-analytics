@@ -6,6 +6,6 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/mp-analytics
-ExecStart=/opt/mp-analytics/venv/bin/python -m ops.fin_charge_watch --send
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.fin_charge_watch --collect-wb --send
 StandardOutput=journal
 StandardError=journal
