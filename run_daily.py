@@ -134,13 +134,12 @@ def main():
     for acc in ACCOUNTS:
         step(f"WB карточки {acc}", lambda acc=acc: wb.collect_cards(acc))
         step(f"WB остатки FBO {acc}", lambda acc=acc: wb.collect_stocks(acc, today.isoformat()))
-        wb_reports_ok = {}
-        for f, l in months:
-            df, dt = f.isoformat(), l.isoformat()
-            wb_reports_ok[(acc, df)] = step(
-                f"WB отчёт {acc} {df}..{dt}",
-                lambda a=acc, x=df, y=dt: wb.main(a, x, y),
-            )
+        # Finance API: один запрос в минуту на кабинет. Одним окном закрываем оба
+        # месяца, затем строим месячные витрины по create_dt, как и раньше.
+        wb_from, wb_to = months[0][0].isoformat(), months[-1][1].isoformat()
+        wb_report_ok = step(f"WB отчёт {acc} {wb_from}..{wb_to}",
+                            lambda a=acc, x=wb_from, y=wb_to: wb.main(a, x, y))
+        wb_reports_ok = {(acc, f.isoformat()): wb_report_ok for f, _ in months}
         # Себест отгрузок МС (report/stock/byoperation) — один раз на аккаунт после сбора
         # отчётов: идемпотентно/резюмируемо, тянет только НЕкэшированные отгрузки (новые/свежие).
         recent = (today - datetime.timedelta(days=80)).isoformat()

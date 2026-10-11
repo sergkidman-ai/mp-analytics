@@ -154,13 +154,16 @@ def scan_wb(seen):
                              payload->>'cashback_amount' AS cashback,
                              payload->>'penalty' AS penalty,
                              payload->>'deduction' AS deduction
-                      FROM raw_wb_report
-                      WHERE coalesce((payload->>'deduction')::numeric,0)>0
+                      FROM raw_wb_report AS legacy
+                      WHERE NOT EXISTS (
+                            SELECT 1 FROM raw_wb_finance_detail AS current
+                            WHERE current.account=legacy.account AND current.rrd_id=legacy.rrd_id)
+                        AND (coalesce((payload->>'deduction')::numeric,0)>0
                          OR coalesce((payload->>'penalty')::numeric,0)>0
                          OR coalesce((payload->>'delivery_rub')::numeric,0)>0
                          OR coalesce((payload->>'storage_fee')::numeric,0)>0
                          OR coalesce((payload->>'acceptance')::numeric,0)>0
-                         OR coalesce((payload->>'cashback_amount')::numeric,0)>0""")
+                         OR coalesce((payload->>'cashback_amount')::numeric,0)>0)""")
     for r in rows:
         if not r["day"]:
             continue
