@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly marketplace charge and service watch for Natalia
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.fin_charge_watch --send
+StandardOutput=journal
+StandardError=journal

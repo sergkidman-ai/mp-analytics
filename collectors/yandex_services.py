@@ -94,7 +94,9 @@ def _csv_cat(fname, service_name):
         return "shelf"
     if "средн" in sn or "миля" in sn:             # доставка «средняя миля» — отдельный вид логистики
         return "logistics"
-    return CSV_CAT.get(fname)                     # None → строка пропускается
+    # Неизвестный файл сохраняем как сырьё для недельного сторожа новых услуг.
+    # Финансовая витрина не включает unclassified в известные строки.
+    return CSV_CAT.get(fname, "unclassified")
 
 
 def _csv_cost(fname, rec):
