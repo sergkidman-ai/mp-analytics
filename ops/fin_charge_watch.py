@@ -1,8 +1,9 @@
 # поток: fin
 """Weekly alert about newly observed marketplace charges and service names.
 
-Reads existing raw finance data only. First run seeds the historical baseline; later
-runs send only unseen types to Natalia. --send delivers Telegram, default is preview.
+Reads raw finance data and optionally refreshes WB via its current Finance API.
+First run seeds the historical baseline; later runs send only unseen types to
+Natalia. --send delivers Telegram, default is preview.
 """
 import argparse
 import datetime as dt
@@ -36,12 +37,16 @@ WB_FINANCE_URL = "https://finance-api.wildberries.ru/api/finance/v1/sales-report
 def collect_wb(today):
     """Fetch the last four weeks via the current WB Finance API, preserving raw rows.
 
-    Only tokens explicitly scoped for Finance are used. Responses are streamed to disk
+    Only tokens verified for Finance access are used. Responses are streamed to disk
     before parsing, as a weekly detail report can exceed 1 MB.
     """
     failures = []
     for account, suffix in (("wb_acc1", "ACC1"), ("wb_acc2", "ACC2")):
         token = os.getenv("WB_TOKEN_FINANCE_" + suffix, "").strip()
+        if not token and account == "wb_acc1":
+            # Проверено 11.10: существующий токен ACC1 имеет Finance-scope,
+            # новый POST /sales-reports/detailed возвращает 200.
+            token = os.getenv("WB_TOKEN_PRICES_ACC1", "").strip()
         if not token:
             failures.append(f"ВБ {ACCOUNT[account]}: нет токена категории «Финансы»")
             continue
@@ -100,17 +105,32 @@ def _money(value):
     return Decimal(str(value or 0))
 
 
-def _add(seen, platform, kind, code, label, account, day, amount):
+def _add(seen, platform, kind, code, label, account, day, amount,
+         period_from=None, period_to=None):
     key = (platform, kind, code)
     if key not in seen:
         seen[key] = {"label": label.strip() or code, "first": day, "last": day,
-                     "accounts": set(), "amount": Decimal(0), "rows": 0}
+                     "accounts": set(), "amount": Decimal(0), "rows": 0,
+                     "daily": {}, "daily_account": {}}
     item = seen[key]
     item["first"] = min(item["first"], day)
     item["last"] = max(item["last"], day)
-    item["accounts"].add(ACCOUNT.get(account, account))
+    account_name = ACCOUNT.get(account, account)
+    item["accounts"].add(account_name)
     item["amount"] += amount
     item["rows"] += 1
+    daily = item["daily"].setdefault(day, {"amount": Decimal(0), "rows": 0,
+                                          "from": None, "to": None})
+    daily["amount"] += amount
+    daily["rows"] += 1
+    account_day = item["daily_account"].setdefault((day, account_name),
+                                                     {"amount": Decimal(0), "rows": 0})
+    account_day["amount"] += amount
+    account_day["rows"] += 1
+    if period_from:
+        daily["from"] = min(daily["from"], period_from) if daily["from"] else period_from
+    if period_to:
+        daily["to"] = max(daily["to"], period_to) if daily["to"] else period_to
 
 
 def scan_ozon(seen):
@@ -170,7 +190,8 @@ def scan_wb(seen):
             name = wb_norm((bonus if field in ("deduction", "penalty") else op) or op or kind)
             if field == "deliveryService" and _money(p.get("returnAmount")) > 0:
                 name += " (обратная)"
-            _add(seen, "wb", kind, name, name, r["account"], r["report_date"], amount)
+            _add(seen, "wb", kind, name, name, r["account"], r["report_date"], amount,
+                 p.get("dateFrom"), p.get("dateTo"))
 
 
 def scan_yandex(seen):
@@ -220,21 +241,53 @@ def source_health(today):
     return warnings
 
 
-def _fmt(item, key):
+def _rub(amount):
+    return f"{amount:,.2f}".replace(",", " ").replace(".", ",")
+
+
+def _fmt(item, key, week_start, week_end):
     platform, kind, code = key
-    accounts = ", ".join(sorted(item["accounts"]))
-    amount = f"{item['amount']:,.2f}".replace(",", " ").replace(".", ",")
     label = item["label"][:130]
+    days = [v for day, v in item["daily"].items() if week_start <= day <= week_end]
+    selected = {day for day in item["daily"] if week_start <= day <= week_end}
+    if days:
+        amount = sum((v["amount"] for v in days), Decimal(0))
+        count = sum(v["rows"] for v in days)
+        period = f"за {week_start:%d.%m}–{week_end:%d.%m.%Y}"
+        if platform == "wb":
+            period += " (дата формирования отчёта)"
+            starts = [v["from"] for v in days if v["from"]]
+            ends = [v["to"] for v in days if v["to"]]
+            if starts and ends:
+                period += f"; услуги за {min(starts)[8:10]}.{min(starts)[5:7]}–{max(ends)[8:10]}.{max(ends)[5:7]}.{max(ends)[:4]}"
+    else:
+        count, amount = item["rows"], item["amount"]
+        period = f"за догруженный период {item['first']:%d.%m.%Y}–{item['last']:%d.%m.%Y}"
+        selected = set(item["daily"])
+    by_account = {}
+    for (day, account), value in item["daily_account"].items():
+        if day not in selected:
+            continue
+        total = by_account.setdefault(account, {"rows": 0, "amount": Decimal(0)})
+        total["rows"] += value["rows"]
+        total["amount"] += value["amount"]
+    accounts = ", ".join(sorted(by_account))
+    breakdown = ""
+    if len(by_account) > 1:
+        breakdown = "\n  " + "; ".join(
+            f"{account}: {value['rows']} / {_rub(value['amount'])} ₽"
+            for account, value in sorted(by_account.items()))
     return (f"• {PLATFORM[platform]} · {accounts}: {label} "
             f"({kind}, код {code})\n"
-            f"  с {item['first']:%d.%m.%Y}, {item['rows']} строк, {amount} ₽")
+            f"  {count} списаний, {_rub(amount)} ₽ {period}{breakdown}")
 
 
-def _messages(new, warnings):
+def _messages(new, warnings, week_start, week_end):
     blocks = []
     if new:
-        blocks.append("Новые виды списаний и услуг МП:")
-        blocks.extend(_fmt(item, key) for key, item in new)
+        blocks.append(f"Новые виды списаний и услуг МП · проверка за "
+                      f"{week_start:%d.%m}–{week_end:%d.%m.%Y}:")
+        blocks.extend(_fmt(item, key, week_start, week_end) for key, item in new)
     if warnings:
         blocks.append("⚠ Данные требуют проверки:")
         blocks.extend(warnings)
@@ -276,8 +329,11 @@ def _save(keys, seen):
                             (platform, kind, code, item["first"], item["last"]))
 
 
-def run(send=False, collect_wb_data=False):
-    collection_warnings = collect_wb(dt.date.today()) if collect_wb_data else []
+def run(send=False, collect_wb_data=False, today=None):
+    today = today or dt.date.today()
+    week_end = today - dt.timedelta(days=today.weekday() + 1)
+    week_start = week_end - dt.timedelta(days=6)
+    collection_warnings = collect_wb(today) if collect_wb_data else []
     seen = scan()
     known = {(r["platform"], r["kind"], r["code"]) for r in db.query(
         "SELECT platform, kind, code FROM fin_charge_watch")}
@@ -286,10 +342,11 @@ def run(send=False, collect_wb_data=False):
             _save(list(seen), seen)
         print(f"Первичная база: {len(seen)} видов; исторические списания не рассылаются")
         return 0
-    new = sorted(((key, item) for key, item in seen.items() if key not in known),
+    new = sorted(((key, item) for key, item in seen.items()
+                  if key not in known and item["first"] <= week_end),
                  key=lambda pair: (pair[1]["first"], pair[0]))
-    warnings = collection_warnings + source_health(dt.date.today())
-    messages = _messages(new, warnings)
+    warnings = collection_warnings + source_health(today)
+    messages = _messages(new, warnings, week_start, week_end)
     if not send:
         print(f"Сухой прогон: новых видов {len(new)}, предупреждений {len(warnings)}")
         for message in messages:
