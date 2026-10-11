@@ -1,0 +1,176 @@
+{
+  "received_at": "2026-10-08T09:45:40.581773+00:00",
+  "basis_version": "7d041e402d4ec4727b0e016a286072490d5f135ac63eed802e1531e09e1092f4",
+  "old_retention": "0.6953495011284288542410839569",
+  "new_retention": "0.6700570763006093172236042287",
+  "rows": 2127,
+  "unique_skus": 2127,
+  "categories": {
+    "cap_or_mechanics_unavailable": 443,
+    "eligible_entry": 320,
+    "unchanged": 1280,
+    "no_data": 83,
+    "excluded_7200": 1
+  },
+  "basis_changed_actions": {
+    "add": 147
+  },
+  "proposed_actions": {
+    "add": 320
+  },
+  "sku_checks": {
+    "34749": [
+      {
+        "offer_id": "34749",
+        "promo_id": "cf_2002361",
+        "promo_name": "Бестселлеры: Первая волна октября",
+        "mechanics": "DIRECT_DISCOUNT",
+        "status": "NOT_PARTICIPATING",
+        "price": 5559,
+        "promo_price": null,
+        "max_promo_price": 4451,
+        "cogs": 1138.5,
+        "cogs_source": "own_stock",
+        "levels": {
+          "lightBestLevel": 4451,
+          "bestLevel": 4309,
+          "superBestLevel": 4167,
+          "topBestLevel": 4025
+        },
+        "catalog_price": 5559,
+        "old": {
+          "floor": "4721.804183246769936211855338",
+          "target": null,
+          "action": "none",
+          "cap": "4451",
+          "category": "cap_or_mechanics_unavailable"
+        },
+        "new": {
+          "floor": "4359.844981281095826815391185",
+          "target": "4451",
+          "action": "add",
+          "cap": "4451",
+          "category": "eligible_entry",
+          "level": "lightBestLevel"
+        },
+        "category": "eligible_entry",
+        "changed_by_basis": true,
+        "basis_version": "7d041e402d4ec4727b0e016a286072490d5f135ac63eed802e1531e09e1092f4"
+      }
+    ],
+    "347410": [
+      {
+        "offer_id": "347410",
+        "promo_id": "cf_2002361",
+        "promo_name": "Бестселлеры: Первая волна октября",
+        "mechanics": "DIRECT_DISCOUNT",
+        "status": "NOT_PARTICIPATING",
+        "price": 5559,
+        "promo_price": null,
+        "max_promo_price": 4695,
+        "cogs": 1138.5,
+        "cogs_source": "own_stock",
+        "levels": {
+          "lightBestLevel": 4695,
+          "bestLevel": 4610,
+          "superBestLevel": 4525,
+          "topBestLevel": 4440
+        },
+        "catalog_price": 5559,
+        "old": {
+          "floor": "4721.804183246769936211855338",
+          "target": null,
+          "action": "none",
+          "cap": "4695",
+          "category": "cap_or_mechanics_unavailable"
+        },
+        "new": {
+          "floor": "4359.844981281095826815391185",
+          "target": "4440",
+          "action": "add",
+          "cap": "4695",
+          "category": "eligible_entry",
+          "level": "topBestLevel"
+        },
+        "category": "eligible_entry",
+        "changed_by_basis": true,
+        "basis_version": "7d041e402d4ec4727b0e016a286072490d5f135ac63eed802e1531e09e1092f4"
+      }
+    ],
+    "22262": [
+      {
+        "offer_id": "22262",
+        "promo_id": "cf_2002361",
+        "promo_name": "Бестселлеры: Первая волна октября",
+        "mechanics": "DIRECT_DISCOUNT",
+        "status": "NOT_PARTICIPATING",
+        "price": 4058,
+        "promo_price": null,
+        "max_promo_price": 2969,
+        "cogs": 650.75,
+        "cogs_source": "own_stock",
+        "levels": {
+          "lightBestLevel": 2969,
+          "bestLevel": 2874,
+          "superBestLevel": 2779,
+          "topBestLevel": 2684
+        },
+        "catalog_price": 4058,
+        "old": {
+          "floor": "3120.789243810821353391325313",
+          "target": null,
+          "action": "none",
+          "cap": "2969",
+          "category": "cap_or_mechanics_unavailable"
+        },
+        "new": {
+          "floor": "2881.558996143901186892410962",
+          "target": "2969",
+          "action": "add",
+          "cap": "2969",
+          "category": "eligible_entry",
+          "level": "lightBestLevel"
+        },
+        "category": "eligible_entry",
+        "changed_by_basis": true,
+        "basis_version": "7d041e402d4ec4727b0e016a286072490d5f135ac63eed802e1531e09e1092f4"
+      }
+    ],
+    "7200": [
+      {
+        "offer_id": "7200",
+        "promo_id": "cf_2002361",
+        "promo_name": "Бестселлеры: Первая волна октября",
+        "mechanics": "DIRECT_DISCOUNT",
+        "status": "NOT_PARTICIPATING",
+        "price": 8199,
+        "promo_price": null,
+        "max_promo_price": 6260,
+        "cogs": 1285.67,
+        "cogs_source": "supplier_min",
+        "levels": {
+          "lightBestLevel": 6260,
+          "bestLevel": 6163,
+          "superBestLevel": 6067,
+          "topBestLevel": 5970
+        },
+        "catalog_price": 8199,
+        "old": {
+          "floor": null,
+          "target": null,
+          "action": "none",
+          "category": "excluded_7200"
+        },
+        "new": {
+          "floor": null,
+          "target": null,
+          "action": "none",
+          "category": "excluded_7200"
+        },
+        "category": "excluded_7200",
+        "changed_by_basis": false,
+        "basis_version": "7d041e402d4ec4727b0e016a286072490d5f135ac63eed802e1531e09e1092f4"
+      }
+    ]
+  }
+}

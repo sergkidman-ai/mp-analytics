@@ -78,7 +78,7 @@ def _last_closed(d):
     for i in range(len(d["months"]) - 1, -1, -1):
         if not keys or keys[i] not in prov:
             return i
-    return len(d["months"]) - 1
+    raise RuntimeError("Нет закрытого пригодного месяца: все периоды provisional")
 
 
 def retention():
@@ -102,15 +102,22 @@ def retention():
         itog = L["to_pay"][i] - sum(L[k][i] for k in exp) + comp
         out[acc] = (ob - itog - retp) / ob
 
-    d = json.loads((HIST / "mp_yandex_hist.json").read_text())
-    i = _last_closed(d)
-    # promotion — РОДИТЕЛЬСКАЯ строка (бусты/полка/отзывы/реклама уже внутри неё): берём её,
-    # компоненты отдельно не складываем, иначе продвижение считается дважды.
-    exp = ["fee", "delivery", "transfer", "promotion", "agency", "other_fee", "subscription_cost"]
-    for acc, a in d["accounts"].items():
-        L = a["lines"]
-        out[acc] = sum(L[k][i] for k in exp) / (L["revenue"][i] + L["netting"][i])
+    # UI history is not an authorization to change Yandex prices.
+    from collectors.yandex_finance_basis import active_basis
+    try:
+        basis = active_basis()
+    except RuntimeError as exc:
+        print(str(exc), flush=True)  # WB/Ozon remain usable; Yandex is explicitly omitted.
+    else:
+        out['ya_acc1'] = float(basis['retention'])
     return out, month
+
+
+def yandex_retention():
+    """Exact Yandex rate and its own month; fail closed before API writes."""
+    from collectors.yandex_finance_basis import active_basis, D
+    basis = active_basis()
+    return D(str(basis['retention'])), basis['month']
 
 
 def ya_retention_bands():
@@ -128,9 +135,8 @@ def ya_retention_bands():
     Тонкому диапазону (n < YA_BAND_MIN_N) своей ставке не верим: берём БОЛЬШУЮ из своей
     и ближайшей плотной — ошибаться безопаснее в сторону завышенных удержаний.
     """
-    d = json.loads((HIST / "mp_yandex_hist.json").read_text())
-    keys = d.get("period_keys") or []
-    last_key = keys[_last_closed(d)] if keys else "9999-12"
+    from collectors.yandex_finance_basis import active_basis
+    last_key = active_basis()['month']
     rows = db.query("""
         WITH z AS (SELECT order_id AS o, SUM(amount) AS rev
                      FROM raw_yandex_closure
@@ -650,7 +656,7 @@ def apply_ok(rows, log=None):
 
 def build():
     ret, month = retention()
-    ya_bands = ya_retention_bands()
+    ya_bands = ya_retention_bands() if "ya_acc1" in ret else []
     cm = cost_map()
     wb_vc = {r["nm_id"]: r["vendor_code"] for r in db.query("SELECT nm_id, vendor_code FROM wb_price")}
     raw = []
@@ -672,7 +678,7 @@ def build():
             print(f"WB {acc}: без цены в карантине, пропущено {len(noprice)} "
                   f"({', '.join(str(x) for x in noprice[:5])}{'…' if len(noprice) > 5 else ''})")
 
-    ya_offers = ya_quarantine()
+    ya_offers = ya_quarantine() if "ya_acc1" in ret else []
     arch = ya_archived([o.get("offerId") for o in ya_offers if o.get("offerId")])
     if arch:
         print(f"Маркет: архивных офферов пропущено {len(arch)} ({', '.join(sorted(arch))})")

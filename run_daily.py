@@ -233,6 +233,9 @@ def main():
     # поэтому собирается ДО помесячной сборки. Закрытые месяцы коллектор не трогает.
     step("Яндекс.Маркет: себест отгрузок (FIFO)",
          lambda: __import__("collectors.ya_cogs_demand", fromlist=["main"]).main())
+    # Verified display evidence; never publishes the active trading pointer.
+    step("Яндекс.Маркет: проверенная финансовая база",
+         lambda: print(__import__("collectors.yandex_finance_basis", fromlist=["refresh_previous"]).refresh_previous()))
     step("Яндекс.Маркет: помесячно", lambda: __import__("collectors.yandex_monthly", fromlist=["main"]).main())
 
     # Запуск новинок на МП (поток prc): по каждому внешнему коду — есть ли карточка и стоит ли
