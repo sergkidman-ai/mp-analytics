@@ -57,7 +57,55 @@ class Safety(unittest.TestCase):
         cc[0]['printers']=('wb',('PRINTER1','PRINTER2'))
         self.assertIsNotNone(components_for(kit,cc)[1])
         cc[0]['printers']=kit['printers'];cc[0]['chip']='с чипом'
+        self.assertIsNone(components_for(kit,cc)[1])
+        self.assertIsNotNone(components_for(kit,cc,allow_colour_gaps=False)[1])
+
+    def test_missing_set_and_missing_colours_inherit_consistent_chips(self):
+        kit=rec(10,'CF530A-CF533A','Комплект картриджей')
+        cc=[rec(i+1,f'CF53{i}A','Картридж',c,chip='с чипом' if i<3 else 'чип не указан')
+            for i,c in enumerate(['черный','голубой','желтый','пурпурный'])]
+        found,reason=components_for(kit,cc)
+        self.assertIsNone(reason);self.assertEqual(len(found),4)
+        self.assertEqual(module.colour_chip_resolution(kit,found),'с чипом')
+        self.assertEqual(kit['chip'],'чип не указан')
+
+    def test_majority_never_overrules_explicit_opposing_chip(self):
+        kit=rec(10,'CF530A-CF533A','Комплект картриджей')
+        cc=[rec(i+1,f'CF53{i}A','Картридж',c,chip='с чипом')
+            for i,c in enumerate(['черный','голубой','желтый','пурпурный'])]
+        for opposite in ['без чипа','чип без счётчика','противоречие']:
+            cc[-1]['chip']=opposite
+            self.assertIsNotNone(components_for(kit,cc)[1])
+
+    def test_unknown_set_cannot_choose_between_known_chip_variants(self):
+        kit=rec(10,'CF530A-CF533A','Комплект картриджей')
+        cc=[rec(i+1,f'CF53{i}A','Картридж',c,chip='с чипом')
+            for i,c in enumerate(['черный','голубой','желтый','пурпурный'])]
+        cc.append(rec(20,'CF530A','Картридж',chip='без чипа'))
         self.assertIsNotNone(components_for(kit,cc)[1])
+
+    def test_existing_colour_group_keeps_unknown_set_in_same_partition(self):
+        from ops import wb_bundle_regroup as regroup
+        rr=[rec(10,'CF530A-CF533A','Комплект картриджей')]+[
+            rec(i+1,f'CF53{i}A','Картридж',c)
+            for i,c in enumerate(['черный','голубой','желтый','пурпурный'])]
+        for r in rr:r['card']['imtID']=100
+        parent=rr[1]['card'];bb=[]
+        for n in [2,6,10]:
+            b=json.loads(json.dumps(parent));b['nmID']=1000+n;b['imtID']=b['nmID']
+            b['vendorCode']=parent['vendorCode']+'X'+str(n)
+            b['characteristics'][-1]['value']=[n];bb.append(b)
+        source={'references':{r['card']['vendorCode']:r['ref'] for r in rr},'marks':{'0001':['с чипом']}}
+        snapshot={'read_at':'test','cards':[r['card'] for r in rr]+bb}
+        plan=regroup.prepare(snapshot,source)
+        self.assertEqual(len(plan['operations']),1)
+        self.assertIn([1,2,3,4,10,1002],plan['operations'][0]['partitions'])
+        self.assertIn([1006,1010],plan['operations'][0]['partitions'])
+        self.assertEqual(regroup.prepare(snapshot,source,allow_colour_gaps=False)['operations'],[])
+        source['marks']['0004']=['без чипа']
+        self.assertEqual(regroup.prepare(snapshot,source)['operations'],[])
+        source['marks'].pop('0004');source['references'].pop('0004')
+        self.assertEqual(regroup.prepare(snapshot,source)['operations'],[])
 
     def test_ambiguous_same_color_and_missing_component_block(self):
         kit=rec(10,'GI-490','Комплект чернил')

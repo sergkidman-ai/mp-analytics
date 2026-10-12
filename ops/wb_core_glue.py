@@ -2,7 +2,8 @@
 # поток: mkt
 """Find missing acc1 color/kit-component groups, independently of bundles.
 
-Exact kit models, whole printer lists and explicit chip classes are required.
+Exact kit models and whole printer lists are required. Missing colour-kit chip
+mentions may inherit a consistent with-chip execution, never an explicit opposite.
 Current good groups are preserved; foreign members and ambiguous matches go
 to review. Writes use the verified lossless executor, never blind retries.
 """
@@ -76,7 +77,26 @@ def model_matches(token,c,ref):
     return False
 
 
-def components_for(kit,records):
+def colour_chip_resolution(kit, members):
+    """Missing mentions may inherit WITH-chip inside one proven colour kit.
+
+    This is a grouping decision, never a change to source facts. Explicit
+    no-chip, counter-free or contradictory executions are not outvoted.
+    Drum kits and inks retain their previous, strict treatment.
+    """
+    if kit['ref']['consumable_type'] != 'Комплект картриджей':
+        return None
+    known={r['chip'] for r in [kit,*members] if r['chip'] != regroup.UNKNOWN}
+    if known != {'с чипом'}:
+        return None
+    if not any(r['chip']=='с чипом' for r in members):
+        return None
+    if not any(regroup.colored_card(r['card']) for r in members):
+        return None
+    return 'с чипом'
+
+
+def components_for(kit,records,allow_colour_gaps=True):
     kref=kit['ref'];typ=kref['consumable_type'];model=kref.get('title','')
     if typ=='Фотобарабан + картридж' and '+' not in model:
         return [],'В модели набора не перечислены оба компонента'
@@ -95,8 +115,13 @@ def components_for(kit,records):
     for token in requested:
         candidates=[r for r in compatible if model_matches(token,r['card'],r['ref'])]
         if not candidates:return [],'Не найден точный компонент '+token+' с тем же полным списком принтеров'
-        # Chip restrictions apply to cartridges, including unknown vs known.
-        candidates=[r for r in candidates if r['ref']['consumable_type']=='Фотобарабан' or r['chip']==kit['chip']]
+        # For colour kits, first prove the exact components. A missing kit
+        # label does not justify picking between explicit different executions.
+        relaxed=allow_colour_gaps and typ=='Комплект картриджей'
+        candidates=[r for r in candidates if r['ref']['consumable_type']=='Фотобарабан'
+                    or r['chip']==kit['chip']
+                    or (relaxed and kit['chip']==regroup.UNKNOWN)
+                    or (relaxed and kit['chip']=='с чипом' and r['chip']==regroup.UNKNOWN)]
         if not candidates:return [],'Компонент '+token+': другой или неизвестный относительно набора чип'
         buckets=defaultdict(list)
         for r in candidates:
@@ -118,10 +143,13 @@ def components_for(kit,records):
             return [],'Число цветов не соответствует подтверждённому составу набора'
         if not any(c in {'C','M','Y','CMY','CMYK','PBK','MBK','LC','LM','R','G','B'} or regroup.colored_card(r['card']) for c,r in zip(colors,selected)):
             return [],'Набор не подтверждён как цветная линейка'
+    if typ=='Комплект картриджей' and any(r['chip']!=kit['chip'] for r in selected):
+        if not allow_colour_gaps or colour_chip_resolution(kit,selected) is None:
+            return [],'Явные исполнения чипа расходятся либо нет подтверждения чипа цветной серии'
     return selected,None
 
 
-def prepare(snapshot,source):
+def prepare(snapshot,source,allow_colour_gaps=True):
     groups=defaultdict(list);own=defaultdict(list);parents={}
     for c in snapshot['cards']:
         groups[c['imtID']].append(c)
@@ -142,7 +170,7 @@ def prepare(snapshot,source):
     for kit in records:
         typ=kit['ref']['consumable_type']
         if typ not in KIT_TYPES:continue
-        members,reason=components_for(kit,records)
+        members,reason=components_for(kit,records,allow_colour_gaps=allow_colour_gaps)
         if reason:
             review.append({'anchor':kit['card']['nmID'],'title':kit['card']['title'],'type':typ,'reason':reason});continue
         cards=[kit['card'],*(r['card'] for r in members)]
@@ -183,7 +211,10 @@ def prepare(snapshot,source):
             review.append({'anchor':kit['card']['nmID'],'title':kit['card']['title'],'type':typ,'reason':'Лимит 30 карточек'});continue
         anchor=kit['card']
         op={'id':anchor['nmID'],'anchor':anchor['nmID'],'title':anchor['title'],'url':f'https://www.wildberries.ru/catalog/{anchor["nmID"]}/detail.aspx',
-            'type':typ,'component_ids':sorted(core_ids),'chip':kit['chip'],'rules':['создать отсутствующую склейку: '+typ],
+            'type':typ,'component_ids':sorted(core_ids),'chip':colour_chip_resolution(kit,members) or kit['chip'],
+            'chip_inference':[r['card']['vendorCode'] for r in [kit,*members]
+                              if r['chip']==regroup.UNKNOWN and colour_chip_resolution(kit,members)],
+            'rules':['создать отсутствующую склейку: '+typ],
             'before_groups':{str(imt):sorted(c['nmID'] for c in groups[imt]) for imt in touched},
             'before_cards':all_cards,'before_fingerprint':fingerprint(all_cards),'partitions':parts,
             'preferred_roots':{str(anchor['imtID']):anchor['nmID']}}

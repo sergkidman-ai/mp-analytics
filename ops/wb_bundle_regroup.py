@@ -4,7 +4,9 @@
 
 Partitions preserve all cards and content. Source and destination membership
 are checked before every write; uncertain writes stop and are never repeated.
-Missing chip is a separate class, not evidence of absence. No price/ads writes.
+Missing chip remains an unknown source fact, not evidence of absence. Colour
+kit gaps may be reconciled after exact component checks (12.10 decision).
+No price/ads writes.
 """
 import argparse
 from collections import Counter, defaultdict
@@ -96,7 +98,37 @@ def reasons(parent, bundles, ref, chip):
     return sorted(set(rr))
 
 
-def prepare(snapshot, source):
+def colour_group_chip_map(core, families):
+    """Infer missing mentions only after exact kit/model/printer verification."""
+    from ops.wb_core_glue import components_for, printers
+    records=[]
+    for c in core:
+        f=families.get(base(c),{})
+        typ=f.get('ref',{}).get('consumable_type')
+        if typ not in CARTRIDGES|{'Комплект картриджей'}:
+            return {}
+        records.append({'card':c,'ref':f['ref'],'chip':f['chip'],
+                        'printers':printers(c,f['ref'])})
+    if {r['chip'] for r in records if r['chip']!=UNKNOWN} != {'с чипом'}:
+        return {}
+    if not any(r['chip']=='с чипом' and r['ref']['consumable_type'] in CARTRIDGES for r in records):
+        return {}
+    if not any(colored_card(r['card']) for r in records):
+        return {}
+    covered=set();kits=[r for r in records if r['ref']['consumable_type']=='Комплект картриджей']
+    if not kits:
+        return {}
+    for kit in kits:
+        members,reason=components_for(kit,records)
+        if reason:
+            return {}
+        covered|={kit['card']['nmID'],*(r['card']['nmID'] for r in members)}
+    if covered != {c['nmID'] for c in core}:
+        return {}
+    return {base(r['card']):'с чипом' for r in records if r['chip']==UNKNOWN}
+
+
+def prepare(snapshot, source, allow_colour_gaps=True):
     cards = snapshot['cards']
     refs, marks = source['references'], source['marks']
     byid = {c['nmID']:c for c in cards}
@@ -115,6 +147,12 @@ def prepare(snapshot, source):
         chip,evidence=chip_info(p,bb,ref,marks.get(code,[]))
         families[code]={'parent':p,'bundles':bb,'ref':ref,'chip':chip,'evidence':evidence,
                         'reasons':reasons(p,bb,ref,chip)}
+    effective={}
+    if allow_colour_gaps:
+        for imt,cc in groups.items():
+            mapping=colour_group_chip_map([c for c in cc if not is_bundle(c)],families)
+            if mapping:
+                effective[imt]=mapping
     # Connected components encompass every current group touched by a family.
     links=defaultdict(set)
     for code,bb in bundles.items():
@@ -151,13 +189,13 @@ def prepare(snapshot, source):
         for imt in imts:
             core=[c for c in groups[imt] if not is_bundle(c)]
             cartridge_core=[c for c in core if families.get(base(c),{}).get('ref',{}).get('consumable_type') in CARTRIDGES]
-            chips={families[base(c)]['chip'] for c in cartridge_core}
+            chips={effective.get(imt,{}).get(base(c),families[base(c)]['chip']) for c in cartridge_core}
             if UNKNOWN in chips and len(chips)>1:
                 rr.append('Неизвестный чип рядом с известным: ручная выборка')
             if any(families.get(base(c),{}).get('ref',{}).get('consumable_type') in {'Фотобарабан','Фотобарабан + картридж'} for c in core) and len(chips)>1:
                 rr.append('В группе барабана разные чипы картриджей: ручная выборка')
             if any(families.get(base(c),{}).get('ref',{}).get('consumable_type')=='Комплект картриджей' for c in core):
-                all_chips={families[base(c)]['chip'] for c in core if base(c) in families and families[base(c)]['ref']['consumable_type'] in CARTRIDGES|{'Комплект картриджей'}}
+                all_chips={effective.get(imt,{}).get(base(c),families[base(c)]['chip']) for c in core if base(c) in families and families[base(c)]['ref'].get('consumable_type') in CARTRIDGES|{'Комплект картриджей'}}
                 if UNKNOWN in all_chips and len(all_chips)>1:
                     rr.append('У цветного набора и картриджей неодинаковая определённость чипа: ручная выборка')
         if rr:
@@ -181,7 +219,7 @@ def prepare(snapshot, source):
                 if len(printer_sets)!=1 or not next(iter(printer_sets)) or not all(families[base(c)]['bundles'] for c in cartridge_cards):
                     rr.append('Ресурс: нет точного совпадения принтеров или бандлов у всех родителей')
             for c in core:
-                f=families[base(c)]; typ=f['ref']['consumable_type']; chip=f['chip']
+                f=families[base(c)]; typ=f['ref']['consumable_type']; chip=effective.get(imt,{}).get(base(c),f['chip'])
                 if typ=='Тонер':
                     key=('family',base(c)); rules.add('заправочный тонер отдельно')
                 elif capacity:
@@ -227,6 +265,7 @@ def prepare(snapshot, source):
         anchor=next(c for c in cc if not is_bundle(c))
         plans.append({'id':min(imts),'anchor':anchor['nmID'],'url':f"https://www.wildberries.ru/catalog/{anchor['nmID']}/detail.aspx",
                       'title':anchor.get('title',''),'rules':sorted(rules),
+                      'chip_inference':{str(imt):effective[imt] for imt in imts if imt in effective},
                       'before_groups':{str(x):sorted(c['nmID'] for c in groups[x]) for x in sorted(imts)},
                       'before_cards':cc,'before_fingerprint':fingerprint(cc),'partitions':parts})
     census=Counter()
@@ -235,6 +274,7 @@ def prepare(snapshot, source):
         f=families.get(base(c),{}); ref=f.get('ref',{})
         census[(ref.get('consumable_type','?'),ref.get('raw',{}).get('assignment','?'),color(char(c,58854)))]+=1
     return {'account':'wb_acc1','prepared_at':now(),'catalog_read_at':snapshot['read_at'],
+            'colour_chip_inferences':{str(imt):mapping for imt,mapping in effective.items()},
             'operations':plans,'review':review,'families':len(families),'bundle_cards':sum(len(b) for b in bundles.values()),
             'census':[{'type':t,'assignment':a,'color':co,'count':v} for (t,a,co),v in sorted(census.items())]}
 
