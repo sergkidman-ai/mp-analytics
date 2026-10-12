@@ -147,6 +147,22 @@ OZON_BODY_ALERT = [
      "суммирование скидок"),
 ]
 
+# WB иногда выносит в заголовок тему, а тарифную цифру/дату оставляет в теле.
+# Берём только изменение тарифа/комиссии или стоимости логистики/хранения, где
+# в том же предложении есть и действие изменения, и конкретная ставка/сумма.
+WB_BODY_ALERT = [
+    (r"(?:тариф\w*|комисси\w*|ставк\w*)[^.!?]{0,100}"
+     r"(?:измен\w*|сниз\w*|повыс\w*|станет|составит|увелич\w*|уменьш\w*)[^.!?]{0,50}"
+     r"\d+(?:[,.]\d+)?\s*(?:%|п\.?\s*п\.?|₽|руб)", "изменение тарифа/комиссии"),
+    (r"(?:тариф\w*|комисси\w*|ставк\w*)[^.!?]{0,100}"
+     r"\d+(?:[,.]\d+)?\s*(?:%|п\.?\s*п\.?|₽|руб)[^.!?]{0,60}"
+     r"(?:измен\w*|сниз\w*|повыс\w*|станет|составит|увелич\w*|уменьш\w*)",
+     "изменение тарифа/комиссии"),
+    (r"(?:логистик\w*|хранени\w*|эквайринг)[^.!?]{0,120}"
+     r"(?:измен\w*|сниз\w*|повыс\w*|станет|составит|увелич\w*|уменьш\w*|стоить)"
+     r"[^.!?]{0,60}\d+\s*(?:₽|руб|%)", "изменение стоимости услуги"),
+]
+
 
 def classify(title, body="", platform=None):
     """-> (importance, сработавшее правило); для Ozon проверяем и текст."""
@@ -159,6 +175,14 @@ def classify(title, body="", platform=None):
         for pat, name in OZON_BODY_ALERT:
             if re.search(pat, b):
                 return "alert", name + " (в тексте)"
+    elif platform == "wb":
+        b = (body or "").lower()
+        # Сначала отсекаем типовые операционные заголовки: в их тексте могут
+        # встречаться тарифы, хотя само уведомление не сообщает об изменении.
+        if not re.search(NOISE, t):
+            for pat, name in WB_BODY_ALERT:
+                if re.search(pat, b):
+                    return "alert", name + " (в тексте)"
     # Операционный заголовок закрывает вопрос — в тело таких писем лезть нельзя.
     if re.search(NOISE, t):
         return "info", "операционка"
@@ -332,7 +356,7 @@ def collect_wb(dry=False, days=90):
             continue
         title = (n.get("header") or "").strip()[:200]
         body = _strip_html(n.get("content"))
-        imp, rule = classify(title, body)
+        imp, rule = classify(title, body, platform="wb")
         try:
             # Python 3.10 does not accept the UTC suffix Z returned by WB.
             when = datetime.fromisoformat(n["date"].replace("Z", "+00:00"))
@@ -344,7 +368,7 @@ def collect_wb(dry=False, days=90):
         types = ", ".join(t.get("name", "") for t in (n.get("types") or []))[:100]
         row = {"account": WB_ACCOUNT, "message_id": mid, "chat_id": None,
                "chat_type": types, "created_at": when, "title": title,
-               "body": body[:4000], "importance": imp, "matched": rule}
+               "body": body, "importance": imp, "matched": rule}
         fresh.append(row)
         if not dry:
             db.execute("""
@@ -743,6 +767,25 @@ def reclassify(platform=None):
           f"снято с дневника: {len(stale)}")
 
 
+def reclassify_body(platform, days=90):
+    """Поднять только новые body-alert указанной площадки за окно; старые правила не трогать."""
+    rows = db.query("""SELECT platform, account, message_id, title, body FROM mp_notices
+                       WHERE platform = %s AND created_at >= current_date - %s::int""",
+                    (platform, days))
+    changed = 0
+    for r in rows:
+        imp, rule = classify(r["title"] or "", r["body"] or "", platform=platform)
+        if imp != "alert" or "(в тексте)" not in rule:
+            continue
+        n = db.query("""UPDATE mp_notices SET importance='alert', matched=%s
+                        WHERE platform=%s AND account=%s AND message_id=%s
+                          AND importance <> 'alert'
+                        RETURNING message_id""",
+                     (rule, r["platform"], r["account"], r["message_id"]))
+        changed += len(n)
+    print(f"body-alerts: {changed} из {len(rows)} сообщений {platform}")
+
+
 def tg(text):
     if not TG_TOKEN:
         return "нет TG_PRC_BOT_TOKEN"
@@ -782,6 +825,8 @@ def main(argv=None):
     ap.add_argument("--diary-days", type=int, default=14,
                     help="за сколько дней тревоги заводить в дневник (сырьё копится глубже)")
     ap.add_argument("--reclassify", action="store_true", help="пересчитать важность по сырью")
+    ap.add_argument("--reclassify-body", action="store_true",
+                    help="поднять только новые тревоги, найденные в тексте")
     ap.add_argument("--close-pauses", action="store_true",
                     help="погасить паузы складов, закрытые следующей новостью")
     ap.add_argument("--wh-damage", action="store_true",
@@ -797,6 +842,12 @@ def main(argv=None):
 
     if args.reclassify:
         reclassify(platform=args.platform)
+        return 0
+
+    if args.reclassify_body:
+        if not args.platform:
+            ap.error("--reclassify-body требует --platform")
+        reclassify_body(args.platform, days=args.days)
         return 0
 
     if args.close_pauses:

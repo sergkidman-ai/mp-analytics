@@ -43,6 +43,16 @@ class WbNewsDatesTest(unittest.TestCase):
             self.assertEqual(mp_news.collect_wb(dry=False),[])
             execute.assert_not_called()
 
+    def test_full_news_body_is_saved_past_old_4000_char_cap(self):
+        content='Полный текст новости. ' * 260
+        news={'id':2,'date':'2026-09-28T13:17:26Z','header':'Изменение','content':content,'types':[]}
+        with patch.object(mp_news,'wb_news',return_value=[news]), \
+             patch.object(mp_news.db,'query',return_value=[]), \
+             patch.object(mp_news.db,'execute'):
+            out=mp_news.collect_wb(dry=False,days=44)
+        self.assertEqual(out[0]['body'],mp_news._strip_html(content))
+        self.assertGreater(len(out[0]['body']),4000)
+
 
 if __name__=='__main__':
     unittest.main()
