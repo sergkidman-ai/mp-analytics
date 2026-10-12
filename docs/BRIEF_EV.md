@@ -318,3 +318,33 @@ ev-diary-stock` (имя ветки историческое — задача п�
 
 - Вывоз остатков с Яндекс.Маркета (FBY), 22.08 — задача снята Натальей, разведка и блокер
   `403 API_DISABLED` по кампании 21589415: `docs/handoff/archive/ev_ya_fby_2026-08-22.md`.
+
+
+### wb4 — кнопка Сделано и ежечасные повторы Наталии, 12.10
+- Прямая задача пользователя: каждая новая автоакция WB — кнопка «Сделано»,
+  повтор каждый час до нажатия Наталией; закрытие одной не закрывает остальные.
+- Worktree .claude/worktrees/ev-wb-promo-ack, ветка ev/wb-promo-ack от06d8877,
+  поток ev. Runtime установлен; публикация ev/wb-promo-ack в origin/main
+  выполняется по прямой команде пользователя от12.10.
+- ops/wb_promo_watch.py использует новый ops/wb_promo_ack.py. Миграция514 применена:
+  wb_promo_task (дедуп имя/даты, accounts/promo_refs, recipient, send_count, done_at/by),
+  prc_promo_callback_cursor (durable offset). Только успешный sendMessage считается отправкой.
+- Адресат TG_PRC_NATALIA_ID, проверен getChat: Natalie @Pro_natalya; бот @ds_prc_bot.
+  Generic lists не используются для новой логики. Нажатие разрешено только получателю
+  в его private chat; повторные/старые кнопки идемпотентны, done сохраняется до UI-вызовов.
+- Новый ops/prc_promo_callbacks.py, unit ops/prc-promo-callbacks.service установлен,
+  enabled/active. Один getUpdates consumer, advisory lock, только callback_query;
+  webhook отсутствует, других pollers этого токена в проекте не найдено. Секреты не логируются.
+- Первое уведомление: прежний cron06:41UTC (09:41МСК), накануне старта. Добавлен
+  cron41 * * * * --remind-only: повтор даже после старта/окончания до done.
+  API календаря не нужен для повторов. Row locks SKIP LOCKED + hour bucket не дают
+  дубля при совпадении двух cron в06:41. Backup cron в logs/wb_promo_ack_cron_before_2026-10-12.txt.
+- Сегодняшнее уже отправленное уведомление3020, оба кабинета, старт13.10:
+  «Большая распродажа: обновление цен» перенесено в task#1, send_count0, doneNULL.
+  Следующий повтор с кнопкой12:41МСК; иных исторических уведомлений не переносили.
+  Внеплановых/тестовых сообщений Наталии не отправляли.
+- 15тестов PASS (PostgreSQL integration в отдельной временной schema, удалена):
+  две акции/два кабинета, успешная отправка и отказ Telegram, повтор по часам,
+  чужой user, ack при отказе UI, идемпотентность, cursor, concurrent sender, dry.
+- Следующий шаг: проверить реальную отправку12:41 и закрытие кнопкой после нажатия
+  Наталией. Не нажимать вместо неё и не объявлять end-to-end нажатие проверенным.
