@@ -18,6 +18,7 @@ FILES = {
     'glue-core-manual-2026-10-12': 'mkt_wb_core_manual_2026-10-12.html',
     'glue-examples-2026-10-12': 'mkt_wb_glue_examples_2026-10-12.html',
     'wb-budgets-2026-10-12': 'mkt_wb_budgets_2026-10-12.html',
+    'wb-budget-topup-2026-10-12': 'mkt_wb_budget_topup_2026-10-12.html',
 }
 router = APIRouter()
 
