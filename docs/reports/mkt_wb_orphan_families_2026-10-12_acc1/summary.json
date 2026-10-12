@@ -1,0 +1,1293 @@
+{
+  "account": "wb_acc1",
+  "checked_at": "2026-10-12T12:59:43.405476+00:00",
+  "families": 16,
+  "active_tail_families": 15,
+  "primary_in_trash_families": 3,
+  "active_bundles": 42,
+  "active_children": 23,
+  "active_positive_fbs_cards": 10,
+  "active_zero_fbs_cards": 49,
+  "active_unknown_fbs_cards": 6,
+  "inactive_positive_fbs_cards": 3,
+  "errors": {},
+  "rows": [
+    {
+      "code": "1032",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 199566622,
+          "vendor_code": "10321",
+          "title": "Картридж для Panasonic KX-MB1507",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 4,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 199566650,
+          "vendor_code": "10322",
+          "title": "Картридж для Panasonic KX-MB1530",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 4,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": 0.0,
+          "fbo_snapshot_at": "2026-09-03 02:11:38.818199+00:00"
+        },
+        {
+          "nm_id": 439970908,
+          "vendor_code": "10323",
+          "title": "Картридж для Panasonic KX-MB1536",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 4,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 199566604,
+          "vendor_code": "10324",
+          "title": "Картридж для Panasonic KX-MB1537",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 4,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": 1.0,
+          "fbo_snapshot_at": "None"
+        },
+        {
+          "nm_id": 327898986,
+          "vendor_code": "10325",
+          "title": "Картридж для Panasonic KX-MB1500",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 4,
+          "fbo_live_quantity": 0,
+          "fbo_snapshot_quantity": 0.0,
+          "fbo_snapshot_at": "None"
+        },
+        {
+          "nm_id": 199566606,
+          "vendor_code": "10326",
+          "title": "Картридж для Panasonic KX-MB1520",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 4,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": 0.0,
+          "fbo_snapshot_at": "None"
+        },
+        {
+          "nm_id": 1002607820,
+          "vendor_code": "10328",
+          "title": "Картридж для Panasonic KX-MB1510",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 4,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1704690420,
+          "vendor_code": "1032X10",
+          "title": "Комплект картриджей KX-FAT410A 10 шт для Panasonic",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 5,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1704683452,
+          "vendor_code": "1032X2",
+          "title": "Комплект картриджей KX-FAT410A 2 шт для Panasonic KX-MB1537",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 7,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1704685954,
+          "vendor_code": "1032X6",
+          "title": "Комплект картриджей KX-FAT410A 6 шт для Panasonic KX-MB1537",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 6,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"КПД\"(ВТТ)",
+          "store": "Удаленный склад",
+          "stock": "129.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"КОМПАНИЯ ПРОФИЛАЙН\" (Закрыто)",
+          "store": "Удаленный склад",
+          "stock": "455.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"КОМПАНИЯ ПРОФИЛАЙН\" (Закрыто)",
+          "store": "Удаленный склад",
+          "stock": "7.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ИП Яхин Рустам Ильфирович (Спринт)",
+          "store": "Удаленный склад",
+          "stock": "4.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"КОМПАНИЯ БЛОССОМ\"",
+          "store": "Удаленный склад",
+          "stock": "28.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"ПОЗИТИВ\"",
+          "store": "Удаленный склад",
+          "stock": "100.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"КОМПАНИЯ ФЕРРЕТ\"",
+          "store": "Удаленный склад",
+          "stock": "112.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ИП Капшук Наталья Сергеевна",
+          "store": "Удаленный склад",
+          "stock": "50.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ТОНЕРОПТТОРГ (Изипринт) T2",
+          "store": "Озон",
+          "stock": "1.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"КОМПАНИЯ ПРОФИЛАЙН\" (Закрыто)",
+          "store": "Озон",
+          "stock": "1.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"КОЛОРТЕК РУС\"",
+          "store": "Озон",
+          "stock": "4.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"Солюшнс принт\" МСК",
+          "store": "Озон",
+          "stock": "3.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"ПОЗИТИВ\"",
+          "store": "Озон",
+          "stock": "2.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"ОДИССЕЙ\" WB",
+          "store": "Озон",
+          "stock": "5.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        },
+        {
+          "external_code": "1032",
+          "supplier": "ООО \"ПОЗИТИВ\"",
+          "store": "Звездный",
+          "stock": "4.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        }
+      ],
+      "tc_rows": [
+        {
+          "external_code": "1032",
+          "title": "KX-FAT410A",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "1719",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 207589492,
+          "vendor_code": "17191",
+          "title": "Картридж DS EcoSys M2040dn с чипом",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": null,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 207590988,
+          "vendor_code": "17192",
+          "title": "Картридж DS EcoSys M2540dn с чипом",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": null,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 207539789,
+          "vendor_code": "17193",
+          "title": "Картридж DS EcoSys M2640idw с чипом",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": null,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "1719",
+          "title": "TK-1170",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "2446",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1002932873,
+          "vendor_code": "24461",
+          "title": "Картридж для Lexmark X940",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1002932924,
+          "vendor_code": "24462",
+          "title": "Картридж для Lexmark X945",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1711253449,
+          "vendor_code": "2446X10",
+          "title": "Комплект картриджей X945X2KG 10 шт для Lexmark X940, X945",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1505377332,
+          "vendor_code": "2446X2",
+          "title": "Комплект картриджей X945X2KG 2 шт на 72000 стр. для Lexmark",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1711252178,
+          "vendor_code": "2446X6",
+          "title": "Комплект картриджей X945X2KG 6 шт для Lexmark X940, X945",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "2446",
+          "title": "X945X2KG",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "2525",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1002955935,
+          "vendor_code": "25251",
+          "title": "Картридж для Konica Minolta Magicolor 2200",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1002955969,
+          "vendor_code": "25252",
+          "title": "Картридж для Konica Minolta Magicolor 2210",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1711311263,
+          "vendor_code": "2525X10",
+          "title": "Комплект картриджей 4145403 10 шт для Konica Minolta",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": null,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1711300079,
+          "vendor_code": "2525X2",
+          "title": "Комплект картриджей 4145403 2 шт для Konica Minolta",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1711304673,
+          "vendor_code": "2525X6",
+          "title": "Комплект картриджей 4145403 6 шт для Konica Minolta",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "2525",
+          "title": "4145403",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "2811",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1517997843,
+          "vendor_code": "2811X10",
+          "title": "Комплект картриджей №46 10 шт на 15000 стр. для HP",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1480364047,
+          "vendor_code": "2811X2",
+          "title": "Комплект картриджей №46 (2 шт.) на 3000 страниц для HP",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1517993180,
+          "vendor_code": "2811X6",
+          "title": "Комплект картриджей №46 6 шт на 9000 стр. для HP",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "2811",
+          "title": "№46",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "3997",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1003382141,
+          "vendor_code": "39971",
+          "title": "Картридж для HP Designjet 4000",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1075139791,
+          "vendor_code": "39972",
+          "title": "Картридж для HP DesignJet 4500",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1518416186,
+          "vendor_code": "3997X10",
+          "title": "Комплект картриджей №90 10 шт на для HP DJ 4000, DJ 4500",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1518415997,
+          "vendor_code": "3997X2",
+          "title": "Комплект картриджей №90 2 шт на для HP DJ 4000, DJ 4500",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1518416051,
+          "vendor_code": "3997X6",
+          "title": "Комплект картриджей №90 6 шт на для HP DJ 4000, DJ 4500",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "3997",
+          "title": "№90",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "4007",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1003382149,
+          "vendor_code": "40071",
+          "title": "Картридж для HP DesignJet L25500",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1518420846,
+          "vendor_code": "4007X10",
+          "title": "Комплект картриджей №789 10 шт на для HP DJ L25500",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1505383740,
+          "vendor_code": "4007X2",
+          "title": "Комплект картриджей №789 2 шт на для HP DJ L25500",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1511010935,
+          "vendor_code": "4007X6",
+          "title": "Комплект картриджей №789 6 шт на для HP DJ L25500",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "4007",
+          "title": "№789",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "4257",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [
+        209731186
+      ],
+      "cards": [
+        {
+          "nm_id": 209731186,
+          "vendor_code": "4257",
+          "title": "Картридж S015329 для Epson FX-890, LQ-590 черный",
+          "kind": "основная",
+          "status": "не найдено в активных и корзине",
+          "trashed_at": null,
+          "fbs_quantity": null,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1511016454,
+          "vendor_code": "4257X10",
+          "title": "Комплект картриджей S015329 10 шт на 50000000 зн. для Epson",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1518485651,
+          "vendor_code": "4257X2",
+          "title": "Комплект картриджей S015329 2 шт на 10000000 зн. для Epson",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1518485569,
+          "vendor_code": "4257X6",
+          "title": "Комплект картриджей S015329 6 шт на 30000000 зн. для Epson",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "4257",
+          "title": "S015329",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "5772",
+      "primary_active": [],
+      "primary_in_trash": [
+        289963259
+      ],
+      "primary_history_ids": [
+        289963259
+      ],
+      "cards": [
+        {
+          "nm_id": 289963259,
+          "vendor_code": "5772",
+          "title": "Картридж TK-1160XL для Kyocera P2040dn, P2040dw черный",
+          "kind": "основная",
+          "status": "в корзине WB",
+          "trashed_at": "2026-09-24T13:36:15.903507Z",
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1721566987,
+          "vendor_code": "5772X10",
+          "title": "Комплект картриджей TK-1160XL 10 шт для Kyocera P2040dn",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1721566989,
+          "vendor_code": "5772X2",
+          "title": "Комплект картриджей TK-1160XL 2 шт для Kyocera P2040dn",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1721567088,
+          "vendor_code": "5772X6",
+          "title": "Комплект картриджей TK-1160XL 6 шт для Kyocera P2040dn",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "5772",
+          "title": "TK-1160XL",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "6121",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1186156018,
+          "vendor_code": "61211",
+          "title": "Тонер-картридж для Panasonic KX-FLM651",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1845059635,
+          "vendor_code": "61212",
+          "title": "Тонер-картридж для Panasonic KX-FL611",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1189185811,
+          "vendor_code": "61212del",
+          "title": "Тонер-картридж для Panasonic KX-FL611",
+          "kind": "дочерняя",
+          "status": "в корзине WB",
+          "trashed_at": "2026-10-06T06:12:27.926875Z",
+          "fbs_quantity": null,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1721806507,
+          "vendor_code": "6121X10",
+          "title": "Комплект тонер-картриджей KX-FAT83E 10 шт для Panasonic",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": null,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1722827845,
+          "vendor_code": "6121X2",
+          "title": "Комплект тонер-картриджей KX-FAT83E 2 шт для Panasonic",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1721806143,
+          "vendor_code": "6121X6",
+          "title": "Комплект тонер-картриджей KX-FAT83E 6 шт для Panasonic",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": null,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "6121",
+          "title": "KX-FAT83E",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "6185",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1079937296,
+          "vendor_code": "61851",
+          "title": "Картридж для Canon i-SENSYS MF440",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1079938134,
+          "vendor_code": "61852",
+          "title": "Картридж для Canon i-SENSYS LBP-228x",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1079937215,
+          "vendor_code": "61853",
+          "title": "Картридж для Canon i-SENSYS LBP-226dw",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1003684991,
+          "vendor_code": "61854",
+          "title": "Картридж для Canon i-SENSYS LBP-223dw",
+          "kind": "дочерняя",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1519245452,
+          "vendor_code": "6185X10",
+          "title": "Комплект картриджей 057 10 шт на 31000 стр. для Canon",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1480426495,
+          "vendor_code": "6185X2",
+          "title": "Комплект картриджей 057 2 шт на 6200 стр. для Canon MF 440",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1519245151,
+          "vendor_code": "6185X6",
+          "title": "Комплект картриджей 057 6 шт на 18600 стр. для Canon",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "6185",
+          "title": "057",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "6825",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1519473861,
+          "vendor_code": "6825X10",
+          "title": "Комплект картриджей TK-111A 10 шт на 15000 стр. для Bulat",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1519471821,
+          "vendor_code": "6825X2",
+          "title": "Комплект картриджей TK-111A 2 шт на 3000 стр. для Bulat",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1511074933,
+          "vendor_code": "6825X6",
+          "title": "Комплект картриджей TK-111A 6 шт на 9000 стр. для Bulat",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "6825",
+          "title": "TK-111A",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "6889",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1505406782,
+          "vendor_code": "6889X10",
+          "title": "Комплект картриджей TK-8345K 10 шт на 120000 стр.",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1519543011,
+          "vendor_code": "6889X2",
+          "title": "Комплект картриджей TK-8345K 2 шт на 24000 стр.",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1480440931,
+          "vendor_code": "6889X6",
+          "title": "Комплект картриджей TK-8345K 6 шт на 72000 стр.",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "6889",
+          "title": "TK-8345K",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "6902",
+      "primary_active": [],
+      "primary_in_trash": [],
+      "primary_history_ids": [],
+      "cards": [
+        {
+          "nm_id": 1519557875,
+          "vendor_code": "6902X10",
+          "title": "Комплект картриджей ML-1510 10 шт на 30000 стр. для Samsung",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1519547549,
+          "vendor_code": "6902X2",
+          "title": "Комплект картриджей ML-1510 2 шт на 6000 стр. для Samsung",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1519548514,
+          "vendor_code": "6902X6",
+          "title": "Комплект картриджей ML-1510 6 шт на 18000 стр. для Samsung",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "6902",
+          "title": "ML-1510",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "6938",
+      "primary_active": [],
+      "primary_in_trash": [
+        967526327
+      ],
+      "primary_history_ids": [
+        967526327
+      ],
+      "cards": [
+        {
+          "nm_id": 967526327,
+          "vendor_code": "6938",
+          "title": "Картридж CF244XL для HP LJ M15 M15a Pro, LJ M15 Pro черный",
+          "kind": "основная",
+          "status": "в корзине WB",
+          "trashed_at": "2026-09-24T13:42:18.562578Z",
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1511078420,
+          "vendor_code": "6938X10",
+          "title": "Комплект картриджей CF244XL 10 шт на 30000 стр. для HP",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1519571107,
+          "vendor_code": "6938X2",
+          "title": "Комплект картриджей CF244XL 2 шт на 6000 стр. для HP",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1480442225,
+          "vendor_code": "6938X6",
+          "title": "Комплект картриджей CF244XL 6 шт на 18000 стр. для HP",
+          "kind": "бандл",
+          "status": "в активном каталоге",
+          "trashed_at": null,
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [],
+      "tc_rows": [
+        {
+          "external_code": "6938",
+          "title": "CF244XL",
+          "gone_at": null
+        }
+      ]
+    },
+    {
+      "code": "7108",
+      "primary_active": [],
+      "primary_in_trash": [
+        1283853903
+      ],
+      "primary_history_ids": [
+        1283853903
+      ],
+      "cards": [
+        {
+          "nm_id": 1283853903,
+          "vendor_code": "7108",
+          "title": "Тонер TK1200 для Kyocera M2235dn, M2735dn, M2835dw черный",
+          "kind": "основная",
+          "status": "в корзине WB",
+          "trashed_at": "2026-09-24T14:04:44.265597Z",
+          "fbs_quantity": 0,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": 0.0,
+          "fbo_snapshot_at": "2026-09-28 02:16:04.231021+00:00"
+        },
+        {
+          "nm_id": 1519692605,
+          "vendor_code": "7108X10",
+          "title": "Комплект тонера TK1200 10 шт на 1250мл. для Kyocera P2335d",
+          "kind": "бандл",
+          "status": "в корзине WB",
+          "trashed_at": "2026-10-12T08:43:30.067729Z",
+          "fbs_quantity": 3,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1519691532,
+          "vendor_code": "7108X2",
+          "title": "Комплект тонера TK1200 2 шт на 250мл. для Kyocera M2235dn",
+          "kind": "бандл",
+          "status": "в корзине WB",
+          "trashed_at": "2026-10-12T08:45:58.553243Z",
+          "fbs_quantity": 4,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        },
+        {
+          "nm_id": 1519692044,
+          "vendor_code": "7108X6",
+          "title": "Комплект тонера TK1200 6 шт на 750мл. для Kyocera M2235dn",
+          "kind": "бандл",
+          "status": "в корзине WB",
+          "trashed_at": "2026-10-12T08:44:38.847405Z",
+          "fbs_quantity": 4,
+          "fbo_live_quantity": null,
+          "fbo_snapshot_quantity": null,
+          "fbo_snapshot_at": null
+        }
+      ],
+      "supplier_stock_rows": [
+        {
+          "external_code": "7108",
+          "supplier": "ООО \"КОМПАНИЯ ФЕРРЕТ\"",
+          "store": "Удаленный склад",
+          "stock": "36.0",
+          "reserve": "0.0",
+          "captured_at": "2026-10-12"
+        }
+      ],
+      "tc_rows": [
+        {
+          "external_code": "7108",
+          "title": "TK1200",
+          "gone_at": null
+        }
+      ]
+    }
+  ],
+  "marketplace_writes": 0
+}

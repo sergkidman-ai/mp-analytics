@@ -20,6 +20,9 @@ FILES = {
     'glue-missing-parents-2026-10-12': 'mkt_wb_missing_parent_cards_2026-10-12.html',
     'glue-reviewed-2026-10-12': 'mkt_wb_review_outcomes_2026-10-12.html',
     'glue-colour-chip-review-2026-10-12': 'mkt_wb_colour_chip_review_2026-10-12_acc1/index.html',
+    'glue-colour-applied-2026-10-12': 'mkt_wb_colour_chip_review_2026-10-12_acc1/approved_apply/index.html',
+    'glue-colour-set-details-2026-10-12': 'mkt_wb_colour_set_explanations_2026-10-12_acc1/index.html',
+    'glue-orphan-stock-2026-10-12': 'mkt_wb_orphan_families_2026-10-12_acc1/index.html',
     'wb-budgets-2026-10-12': 'mkt_wb_budgets_2026-10-12.html',
     'wb-budget-topup-2026-10-12': 'mkt_wb_budget_topup_2026-10-12.html',
 }

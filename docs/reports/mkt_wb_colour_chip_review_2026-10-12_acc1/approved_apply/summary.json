@@ -1,0 +1,12 @@
+{
+  "confirmed": 79,
+  "total": 79,
+  "finished": true,
+  "regroup_confirmed": 78,
+  "core_confirmed": 1,
+  "cards_confirmed": 628,
+  "checked_at": "2026-10-12T12:55:56.713025+00:00",
+  "remaining": [],
+  "stopped_at": null,
+  "reason": null
+}
