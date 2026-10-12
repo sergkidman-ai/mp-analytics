@@ -14,6 +14,10 @@ FILES = {
     'glue-regroup-2026-10-10': 'mkt_wb_bundle_regroup_2026-10-10_acc1/index.html',
     'glue-core-2026-10-10': 'mkt_wb_core_glue_2026-10-10_acc1/index.html',
     'glue-chips-2026-10-10': 'mkt_wb_chip_progress_2026-10-10.html',
+    'glue-manual-2026-10-12': 'mkt_wb_glue_manual_2026-10-12.html',
+    'glue-core-manual-2026-10-12': 'mkt_wb_core_manual_2026-10-12.html',
+    'glue-examples-2026-10-12': 'mkt_wb_glue_examples_2026-10-12.html',
+    'wb-budgets-2026-10-12': 'mkt_wb_budgets_2026-10-12.html',
 }
 router = APIRouter()
 
