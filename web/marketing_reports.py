@@ -23,6 +23,8 @@ FILES = {
     'glue-colour-applied-2026-10-12': 'mkt_wb_colour_chip_review_2026-10-12_acc1/approved_apply/index.html',
     'glue-colour-set-details-2026-10-12': 'mkt_wb_colour_set_explanations_2026-10-12_acc1/index.html',
     'glue-orphan-stock-2026-10-12': 'mkt_wb_orphan_families_2026-10-12_acc1/index.html',
+    'glue-status-2026-10-12': 'mkt_wb_glue_status_2026-10-12_acc1/index.html',
+    'glue-laser-gaps-2026-10-12': 'mkt_wb_glue_status_2026-10-12_acc1/laser_gaps/index.html',
     'wb-budgets-2026-10-12': 'mkt_wb_budgets_2026-10-12.html',
     'wb-budget-topup-2026-10-12': 'mkt_wb_budget_topup_2026-10-12.html',
 }

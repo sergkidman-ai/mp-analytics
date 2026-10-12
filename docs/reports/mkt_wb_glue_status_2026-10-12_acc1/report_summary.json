@@ -1,0 +1,82 @@
+{
+  "account": "wb_acc1",
+  "catalog_read_at": "2026-10-12T20:13:19.245785+00:00",
+  "verified_overlay_at": "2026-10-12T20:30:10.887891+00:00",
+  "created_at": "2026-10-12T20:55:49.448412+00:00",
+  "assortment_skus": 22330,
+  "bundle_cards": 7725,
+  "x2_with_parent": 2110,
+  "x2_without_parent": 452,
+  "x2_with_parent_by_type": {
+    "Одиночные лазерные картриджи": 774,
+    "Цветные лазерные картриджи": 525,
+    "Тонер-картриджи с фотобарабаном/набором": 325,
+    "Лента для принтера": 70,
+    "Струйные картриджи": 228,
+    "Картридж": 49,
+    "Фотобарабан": 64,
+    "Чернила": 25,
+    "Тонер": 50
+  },
+  "parents_all_bundles": 1186,
+  "cartridge_parents_all_bundles": 1003,
+  "full_by_type": {
+    "Одиночные лазерные картриджи": 772,
+    "Цветные лазерные картриджи": 28,
+    "Лента для принтера": 69,
+    "Струйные картриджи": 61,
+    "Тонер-картриджи с фотобарабаном/набором": 98,
+    "Фотобарабан": 64,
+    "Картридж": 44,
+    "Тонер": 50
+  },
+  "resource_split_parent_skus": 130,
+  "resource_split_operations": 60,
+  "x6_x10_only_groups": 922,
+  "x6_x10_only_bundle_skus": 1844,
+  "refill_kit_full": 0,
+  "toner_refill_full": 50,
+  "refill_kit_primary_skus": 61,
+  "refill_kit_parents_with_bundles": 0,
+  "printer_families": 1310,
+  "printer_families_with_leader": 220,
+  "printer_child_skus_moved": 0,
+  "new_wb_primary_cards": 38,
+  "new_tc_model_refs": 40,
+  "new_derivative_cards": {
+    "дочерние/другие": 21,
+    "бандлы": 6415
+  },
+  "advertising": {
+    "read_at": "2026-10-12T20:09:02.106476+00:00",
+    "campaigns": 93,
+    "all_nonarchive_skus": 14028,
+    "active_skus": 14028,
+    "active_cpc_skus": 14028,
+    "active_duplicate_skus": 9,
+    "outside_ad": 8302,
+    "coverage_pct": 62.82
+  },
+  "bundle_groups": 2970,
+  "bundle_skus_joined": 7165,
+  "bundle_sales_since_sep1": 1,
+  "bundle_orders_after_verified_glue": 0,
+  "unverifiable_order_time": 0,
+  "drums": {
+    "existing_pair_groups": 191,
+    "existing_pair_groups_without_kit": 86,
+    "existing_pair_groups_set_ambiguous": 1,
+    "tc_pair_cases_not_complete": 41,
+    "tc_pairs_missing_kit_card": 0,
+    "tc_pairs_missing_component_models": 17,
+    "current_groups_in_tc_gap_cases": 75,
+    "coloured_drum_group_exclusions": 80
+  },
+  "laser_creation": {
+    "qualified_families": 33,
+    "specific_single_models_missing": 10,
+    "new_sets_proposed": 30,
+    "manual_before_creation_families": 62
+  },
+  "laser_joins_confirmed": 6
+}

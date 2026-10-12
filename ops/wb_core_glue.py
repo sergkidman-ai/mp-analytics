@@ -54,7 +54,13 @@ def printers(card,ref):
     values=compatible_values(card,179078)
     if values: return ('wb',values)
     raw=(ref.get('raw') or {}).get('printer_models')
-    if isinstance(raw,list): values=tuple(sorted(set(normalized(x) for x in raw if x)))
+    if isinstance(raw,list):
+        names=[]
+        for item in raw:
+            if isinstance(item,str):names.append(item)
+            elif isinstance(item,dict) and item.get('title'):
+                names.append(str(item.get('brand') or '')+' '+str(item['title']))
+        values=tuple(sorted(set(normalized(x) for x in names if x)))
     elif isinstance(raw,str): values=tuple(sorted(set(normalized(x.strip()) for x in re.split('[;,\n]',raw) if x.strip())))
     else: values=()
     return ('tc',values)

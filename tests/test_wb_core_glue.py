@@ -16,6 +16,11 @@ def rec(nm,model,kind,col='черный',chip='чип не указан',printer
 
 
 class Safety(unittest.TestCase):
+    def test_tc_structured_printers_use_brand_and_title_not_dict_repr(self):
+        c={'characteristics':[]}
+        ref={'raw':{'printer_models':[{'brand':'Canon','title':'i-SENSYS LBP611'},'Canon LBP612']}}
+        self.assertEqual(printers(c,ref),('tc',('CANONISENSYSLBP611','CANONLBP612')))
+
     def test_restart_gap_releases_lock_and_keeps_waiting(self):
         with tempfile.TemporaryDirectory() as tmp:
             p=Path(tmp);state=p/'apply_results.json'
