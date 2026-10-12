@@ -17,6 +17,8 @@ FILES = {
     'glue-manual-2026-10-12': 'mkt_wb_glue_manual_2026-10-12.html',
     'glue-core-manual-2026-10-12': 'mkt_wb_core_manual_2026-10-12.html',
     'glue-examples-2026-10-12': 'mkt_wb_glue_examples_2026-10-12.html',
+    'glue-missing-parents-2026-10-12': 'mkt_wb_missing_parent_cards_2026-10-12.html',
+    'glue-reviewed-2026-10-12': 'mkt_wb_review_outcomes_2026-10-12.html',
     'wb-budgets-2026-10-12': 'mkt_wb_budgets_2026-10-12.html',
     'wb-budget-topup-2026-10-12': 'mkt_wb_budget_topup_2026-10-12.html',
 }

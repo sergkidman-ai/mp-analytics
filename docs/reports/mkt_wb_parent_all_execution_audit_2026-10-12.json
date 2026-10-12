@@ -1,0 +1,26 @@
+{
+  "stages": [
+    {
+      "stage": "mkt_wb_bundle_glue_singletons_2026-10-07_acc1",
+      "completed_operations": 393,
+      "bundle_links_checked": 1179
+    },
+    {
+      "stage": "mkt_wb_bundle_glue_laser_groups_2026-10-07_acc1",
+      "completed_operations": 561,
+      "bundle_links_checked": 2279
+    },
+    {
+      "stage": "mkt_wb_bundle_glue_groups_4_10_2026-10-08_acc1",
+      "completed_operations": 656,
+      "bundle_links_checked": 2779
+    },
+    {
+      "stage": "mkt_wb_bundle_regroup_2026-10-10_acc1",
+      "completed_operations": 992,
+      "bundle_links_checked": 4182
+    }
+  ],
+  "unique_bundles_checked": 7134,
+  "bad": []
+}

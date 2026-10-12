@@ -35,6 +35,11 @@ def save(path, obj):
 
 
 def base(card):
+    """Exact family code: 2446X2/X4/X6/X10 -> 2446, never parse the model name.
+
+    A printer child 24461 belongs to that family but is not the WB primary card
+    with vendorCode exactly 2446. Choosing a child is a separate reviewed step.
+    """
     code = card.get('vendorCode', '')
     return code[:4] if re.fullmatch(r'\d{4}',code) or is_bundle(card) else None
 
@@ -115,7 +120,9 @@ def prepare(snapshot, source):
     for code,bb in bundles.items():
         ff=families.get(code)
         if not ff:
-            review.append({'base':code,'reason':'Точный родитель не найден','cards':[c['nmID'] for c in bb]})
+            reason=(f'Код родителя {code} определён, но основная карточка WB с артикулом ровно {code} отсутствует'
+                    if not parents.get(code) else f'Код родителя {code} определён, но найдено несколько основных карточек WB')
+            review.append({'base':code,'reason':reason,'cards':[c['nmID'] for c in bb]})
             continue
         roots={c['imtID'] for c in [ff['parent'],*bb]}
         for imt in roots:

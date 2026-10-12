@@ -1,0 +1,1151 @@
+{
+  "snapshot_cards": [
+    {
+      "nmID": 1002932924,
+      "imtID": 1827601053,
+      "nmUUID": "019de342-0c82-7dd9-8a0f-3cb49f556879",
+      "subjectID": 1820,
+      "subjectName": "Картриджи для принтеров",
+      "vendorCode": "24462",
+      "brand": "Цифровой квадрат",
+      "title": "Картридж для Lexmark X945",
+      "description": " Картридж для Lexmark X945 - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  X945X2KG идеально подходит для лазерного принтера Лексмарк. Этот картридж совместим с такими моделями, как Lexmark X940, X945, что делает его универсальным выбором для вашего офиса или дома. Картридж имеет цвет черный, а его ресурс печати составляет  36000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает долговечность и надежность X945X2KG, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+      "video": "https://videonme-basket-12.wbbasket.ru/vol140/part100293/1002932924/hls/1440p/index.m3u8",
+      "needKiz": false,
+      "kizMarked": false,
+      "photos": [
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/big/1.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c246x328/1.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c516x688/1.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/hq/1.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/square/1.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/tm/1.webp"
+        },
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/big/2.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c246x328/2.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c516x688/2.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/hq/2.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/square/2.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/tm/2.webp"
+        },
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/big/3.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c246x328/3.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c516x688/3.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/hq/3.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/square/3.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/tm/3.webp"
+        },
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/big/4.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c246x328/4.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c516x688/4.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/hq/4.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/square/4.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/tm/4.webp"
+        },
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/big/5.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c246x328/5.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/c516x688/5.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/hq/5.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/square/5.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932924/images/tm/5.webp"
+        }
+      ],
+      "dimensions": {
+        "width": 37,
+        "height": 15,
+        "length": 20,
+        "weightBrutto": 1.17,
+        "isValid": true
+      },
+      "characteristics": [
+        {
+          "id": 15004139,
+          "name": "Код ТН ВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 5023,
+          "name": "Модель",
+          "value": [
+            "Картридж X945"
+          ]
+        },
+        {
+          "id": 15000001,
+          "name": "ТНВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 58867,
+          "name": "Тип картриджа",
+          "value": [
+            "для лазерного принтера"
+          ]
+        },
+        {
+          "id": 9623,
+          "name": "Гарантийный срок",
+          "value": [
+            "1 год"
+          ]
+        },
+        {
+          "id": 88963,
+          "name": "Максимальный ресурс",
+          "value": 36000
+        },
+        {
+          "id": 179078,
+          "name": "Совместимость картриджа",
+          "value": [
+            "Lexmark X945"
+          ]
+        },
+        {
+          "id": 58854,
+          "name": "Цвет картриджа/чернил",
+          "value": [
+            "Черный"
+          ]
+        },
+        {
+          "id": 160868,
+          "name": "Вид картриджа для принтера",
+          "value": [
+            "совместимый"
+          ]
+        },
+        {
+          "id": 378533,
+          "name": "Комплектация",
+          "value": [
+            "Картридж Lexmark X945"
+          ]
+        },
+        {
+          "id": 15001405,
+          "name": "Ставка НДС",
+          "value": [
+            "5"
+          ]
+        },
+        {
+          "id": 179792,
+          "name": "Количество предметов в упаковке",
+          "value": [
+            "1"
+          ]
+        },
+        {
+          "id": 14177451,
+          "name": "Страна производства",
+          "value": [
+            "Китай"
+          ]
+        }
+      ],
+      "sizes": [
+        {
+          "chrtID": 1499063566,
+          "techSize": "0",
+          "wbSize": "",
+          "skus": [
+            "DSDTI0024462",
+            "ORG2446ENGY2"
+          ]
+        }
+      ],
+      "createdAt": "2026-05-01T11:17:30.344964Z",
+      "updatedAt": "2026-09-20T06:57:45.207727Z",
+      "documents": {
+        "excludeDocuments": false
+      }
+    },
+    {
+      "nmID": 1505377332,
+      "imtID": 4070994962,
+      "nmUUID": "01a05f38-a6dd-72ff-b5ff-a468d5124cdd",
+      "subjectID": 1820,
+      "subjectName": "Картриджи для принтеров",
+      "vendorCode": "2446X2",
+      "brand": "Цифровой квадрат",
+      "title": "Комплект картриджей X945X2KG 2 шт на 72000 стр. для Lexmark",
+      "description": " Картридж X945X2KG для принтеров Lexmark - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Лексмарк. Картридж X945X2KG  совместим с такими моделями, как Lexmark X940, X945. Картридж X945X2KG  не требуется чип, что обеспечивает удобство в установке и использовании. Картридж для принтеров Lexmark 940, 945 имеет цвет черный, а его ресурс печати составляет  36000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+      "video": "https://videonme-basket-04.wbbasket.ru/vol36/part150537/1505377332/hls/1440p/index.m3u8",
+      "needKiz": false,
+      "kizMarked": false,
+      "photos": [
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/1.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/1.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/1.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/1.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/1.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/1.webp"
+        },
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/2.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/2.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/2.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/2.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/2.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/2.webp"
+        },
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/3.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/3.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/3.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/3.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/3.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/3.webp"
+        },
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/4.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/4.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/4.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/4.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/4.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/4.webp"
+        },
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/5.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/5.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/5.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/5.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/5.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/5.webp"
+        }
+      ],
+      "dimensions": {
+        "width": 37,
+        "height": 30,
+        "length": 20,
+        "weightBrutto": 2.23,
+        "isValid": true
+      },
+      "characteristics": [
+        {
+          "id": 378533,
+          "name": "Комплектация",
+          "value": [
+            "Картридж X945X2KG 2 шт."
+          ]
+        },
+        {
+          "id": 58854,
+          "name": "Цвет картриджа/чернил",
+          "value": [
+            "Черный"
+          ]
+        },
+        {
+          "id": 5023,
+          "name": "Модель",
+          "value": [
+            "X945X2KG"
+          ]
+        },
+        {
+          "id": 14177451,
+          "name": "Страна производства",
+          "value": [
+            "Китай"
+          ]
+        },
+        {
+          "id": 179078,
+          "name": "Совместимость картриджа",
+          "value": [
+            "Lexmark X940",
+            "Lexmark X945"
+          ]
+        },
+        {
+          "id": 15001405,
+          "name": "Ставка НДС",
+          "value": [
+            "5"
+          ]
+        },
+        {
+          "id": 9623,
+          "name": "Гарантийный срок",
+          "value": [
+            "1 год"
+          ]
+        },
+        {
+          "id": 15004139,
+          "name": "Код ТН ВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 179792,
+          "name": "Количество предметов в упаковке",
+          "value": [
+            "2"
+          ]
+        },
+        {
+          "id": 88963,
+          "name": "Максимальный ресурс",
+          "value": 36000
+        },
+        {
+          "id": 15000001,
+          "name": "ТНВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 58867,
+          "name": "Тип картриджа",
+          "value": [
+            "для лазерного принтера"
+          ]
+        },
+        {
+          "id": 160868,
+          "name": "Вид картриджа для принтера",
+          "value": [
+            "совместимый"
+          ]
+        }
+      ],
+      "sizes": [
+        {
+          "chrtID": 2276516974,
+          "techSize": "0",
+          "wbSize": "",
+          "skus": [
+            "DSKJW02446X2"
+          ]
+        }
+      ],
+      "createdAt": "2026-09-01T23:08:49.21934Z",
+      "updatedAt": "2026-09-20T13:53:52.374365Z",
+      "wholesale": {
+        "enabled": true,
+        "quantum": 2,
+        "minOrderQuantity": 0
+      },
+      "documents": {
+        "overallVerdict": {
+          "isFullyChecked": true,
+          "status": 2,
+          "reason": "",
+          "createdAt": "2026-09-03T18:08:19.196426+03:00"
+        },
+        "excludeDocuments": false
+      }
+    },
+    {
+      "nmID": 1002932873,
+      "imtID": 1827600966,
+      "nmUUID": "019de342-043a-7ee6-ba8e-42478738d1ce",
+      "subjectID": 1820,
+      "subjectName": "Картриджи для принтеров",
+      "vendorCode": "24461",
+      "brand": "Цифровой квадрат",
+      "title": "Картридж для Lexmark X940",
+      "description": " Картридж для Lexmark X940 - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  X945X2KG идеально подходит для лазерного принтера Лексмарк. Этот картридж совместим с такими моделями, как Lexmark X940, X945, что делает его универсальным выбором для вашего офиса или дома. Картридж имеет цвет черный, а его ресурс печати составляет  36000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает долговечность и надежность X945X2KG, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+      "video": "https://videonme-basket-08.wbbasket.ru/vol89/part100293/1002932873/hls/1440p/index.m3u8",
+      "needKiz": false,
+      "kizMarked": false,
+      "photos": [
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/big/1.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c246x328/1.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c516x688/1.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/hq/1.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/square/1.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/tm/1.webp"
+        },
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/big/2.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c246x328/2.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c516x688/2.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/hq/2.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/square/2.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/tm/2.webp"
+        },
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/big/3.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c246x328/3.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c516x688/3.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/hq/3.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/square/3.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/tm/3.webp"
+        },
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/big/4.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c246x328/4.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c516x688/4.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/hq/4.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/square/4.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/tm/4.webp"
+        },
+        {
+          "big": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/big/5.webp",
+          "c246x328": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c246x328/5.webp",
+          "c516x688": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/c516x688/5.webp",
+          "hq": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/hq/5.webp",
+          "square": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/square/5.webp",
+          "tm": "https://basket-41.wbbasket.ru/vol10029/part1002932/1002932873/images/tm/5.webp"
+        }
+      ],
+      "dimensions": {
+        "width": 37,
+        "height": 15,
+        "length": 20,
+        "weightBrutto": 1.17,
+        "isValid": true
+      },
+      "characteristics": [
+        {
+          "id": 15001405,
+          "name": "Ставка НДС",
+          "value": [
+            "5"
+          ]
+        },
+        {
+          "id": 160868,
+          "name": "Вид картриджа для принтера",
+          "value": [
+            "совместимый"
+          ]
+        },
+        {
+          "id": 9623,
+          "name": "Гарантийный срок",
+          "value": [
+            "1 год"
+          ]
+        },
+        {
+          "id": 15004139,
+          "name": "Код ТН ВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 88963,
+          "name": "Максимальный ресурс",
+          "value": 36000
+        },
+        {
+          "id": 378533,
+          "name": "Комплектация",
+          "value": [
+            "Картридж Lexmark X940"
+          ]
+        },
+        {
+          "id": 14177451,
+          "name": "Страна производства",
+          "value": [
+            "Китай"
+          ]
+        },
+        {
+          "id": 15000001,
+          "name": "ТНВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 58854,
+          "name": "Цвет картриджа/чернил",
+          "value": [
+            "Черный"
+          ]
+        },
+        {
+          "id": 179078,
+          "name": "Совместимость картриджа",
+          "value": [
+            "Lexmark X940"
+          ]
+        },
+        {
+          "id": 58867,
+          "name": "Тип картриджа",
+          "value": [
+            "для лазерного принтера"
+          ]
+        },
+        {
+          "id": 179792,
+          "name": "Количество предметов в упаковке",
+          "value": [
+            "1"
+          ]
+        },
+        {
+          "id": 5023,
+          "name": "Модель",
+          "value": [
+            "Картридж X940"
+          ]
+        }
+      ],
+      "sizes": [
+        {
+          "chrtID": 1499063515,
+          "techSize": "0",
+          "wbSize": "",
+          "skus": [
+            "DSMID0024461",
+            "ORG2446AFNI1"
+          ]
+        }
+      ],
+      "createdAt": "2026-05-01T11:17:28.561022Z",
+      "updatedAt": "2026-09-22T11:09:41.916383Z",
+      "documents": {
+        "excludeDocuments": false
+      }
+    },
+    {
+      "nmID": 1711252178,
+      "imtID": 4174040300,
+      "nmUUID": "01a0ceca-b938-7a1a-a30d-ce70e1fd77ad",
+      "subjectID": 1820,
+      "subjectName": "Картриджи для принтеров",
+      "vendorCode": "2446X6",
+      "brand": "Цифровой квадрат",
+      "title": "Комплект картриджей X945X2KG 6 шт для Lexmark X940, X945",
+      "description": " Картридж X945X2KG для принтеров Lexmark - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Лексмарк. Картридж X945X2KG  совместим с такими моделями, как Lexmark X940, X945. Картридж X945X2KG  не требуется чип, что обеспечивает удобство в установке и использовании. Картридж для принтеров Lexmark 940, 945 имеет цвет черный, а его ресурс печати составляет  36000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+      "video": "https://videonme-basket-09.wbbasket.ru/vol98/part171125/1711252178/hls/1440p/index.m3u8",
+      "needKiz": false,
+      "kizMarked": false,
+      "photos": [
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/big/1.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c246x328/1.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c516x688/1.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/hq/1.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/square/1.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/tm/1.webp"
+        },
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/big/2.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c246x328/2.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c516x688/2.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/hq/2.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/square/2.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/tm/2.webp"
+        },
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/big/3.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c246x328/3.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c516x688/3.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/hq/3.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/square/3.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/tm/3.webp"
+        },
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/big/4.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c246x328/4.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c516x688/4.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/hq/4.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/square/4.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/tm/4.webp"
+        },
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/big/5.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c246x328/5.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/c516x688/5.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/hq/5.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/square/5.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711252/1711252178/images/tm/5.webp"
+        }
+      ],
+      "dimensions": {
+        "width": 40,
+        "height": 45,
+        "length": 37,
+        "weightBrutto": 6.49,
+        "isValid": false
+      },
+      "characteristics": [
+        {
+          "id": 9623,
+          "name": "Гарантийный срок",
+          "value": [
+            "1 год"
+          ]
+        },
+        {
+          "id": 14177451,
+          "name": "Страна производства",
+          "value": [
+            "Китай"
+          ]
+        },
+        {
+          "id": 58867,
+          "name": "Тип картриджа",
+          "value": [
+            "для лазерного принтера"
+          ]
+        },
+        {
+          "id": 160868,
+          "name": "Вид картриджа для принтера",
+          "value": [
+            "совместимый"
+          ]
+        },
+        {
+          "id": 88963,
+          "name": "Максимальный ресурс",
+          "value": 36000
+        },
+        {
+          "id": 5023,
+          "name": "Модель",
+          "value": [
+            "X945X2KG"
+          ]
+        },
+        {
+          "id": 15001405,
+          "name": "Ставка НДС",
+          "value": [
+            "5"
+          ]
+        },
+        {
+          "id": 15004139,
+          "name": "Код ТН ВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 58854,
+          "name": "Цвет картриджа/чернил",
+          "value": [
+            "Черный"
+          ]
+        },
+        {
+          "id": 179792,
+          "name": "Количество предметов в упаковке",
+          "value": [
+            "6"
+          ]
+        },
+        {
+          "id": 378533,
+          "name": "Комплектация",
+          "value": [
+            "Картридж X945X2KG 6 шт."
+          ]
+        },
+        {
+          "id": 179078,
+          "name": "Совместимость картриджа",
+          "value": [
+            "Lexmark X940",
+            "Lexmark X945"
+          ]
+        },
+        {
+          "id": 15000001,
+          "name": "ТНВЭД",
+          "value": [
+            "8443999000"
+          ]
+        }
+      ],
+      "sizes": [
+        {
+          "chrtID": 2794689236,
+          "techSize": "0",
+          "wbSize": "",
+          "skus": [
+            "DSRQP02446X6"
+          ]
+        }
+      ],
+      "createdAt": "2026-09-23T15:03:13.924556Z",
+      "updatedAt": "2026-09-23T15:07:54.343891Z",
+      "wholesale": {
+        "enabled": true,
+        "quantum": 6,
+        "minOrderQuantity": 0
+      },
+      "documents": {
+        "excludeDocuments": false
+      }
+    },
+    {
+      "nmID": 1711253449,
+      "imtID": 4174040967,
+      "nmUUID": "01a0ceca-c17f-7271-b1fa-b70fb914843b",
+      "subjectID": 1820,
+      "subjectName": "Картриджи для принтеров",
+      "vendorCode": "2446X10",
+      "brand": "Цифровой квадрат",
+      "title": "Комплект картриджей X945X2KG 10 шт для Lexmark X940, X945",
+      "description": " Картридж X945X2KG для принтеров Lexmark - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Лексмарк. Картридж X945X2KG  совместим с такими моделями, как Lexmark X940, X945. Картридж X945X2KG  не требуется чип, что обеспечивает удобство в установке и использовании. Картридж для принтеров Lexmark 940, 945 имеет цвет черный, а его ресурс печати составляет  36000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+      "video": "https://videonme-basket-07.wbbasket.ru/vol73/part171125/1711253449/hls/1440p/index.m3u8",
+      "needKiz": false,
+      "kizMarked": false,
+      "photos": [
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/big/1.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c246x328/1.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c516x688/1.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/hq/1.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/square/1.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/tm/1.webp"
+        },
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/big/2.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c246x328/2.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c516x688/2.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/hq/2.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/square/2.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/tm/2.webp"
+        },
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/big/3.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c246x328/3.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c516x688/3.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/hq/3.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/square/3.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/tm/3.webp"
+        },
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/big/4.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c246x328/4.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c516x688/4.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/hq/4.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/square/4.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/tm/4.webp"
+        },
+        {
+          "big": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/big/5.webp",
+          "c246x328": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c246x328/5.webp",
+          "c516x688": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/c516x688/5.webp",
+          "hq": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/hq/5.webp",
+          "square": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/square/5.webp",
+          "tm": "https://basket-50.wbbasket.ru/vol17112/part1711253/1711253449/images/tm/5.webp"
+        }
+      ],
+      "dimensions": {
+        "width": 40,
+        "height": 75,
+        "length": 37,
+        "weightBrutto": 10.75,
+        "isValid": false
+      },
+      "characteristics": [
+        {
+          "id": 14177451,
+          "name": "Страна производства",
+          "value": [
+            "Китай"
+          ]
+        },
+        {
+          "id": 15000001,
+          "name": "ТНВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 58854,
+          "name": "Цвет картриджа/чернил",
+          "value": [
+            "Черный"
+          ]
+        },
+        {
+          "id": 15004139,
+          "name": "Код ТН ВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 58867,
+          "name": "Тип картриджа",
+          "value": [
+            "для лазерного принтера"
+          ]
+        },
+        {
+          "id": 160868,
+          "name": "Вид картриджа для принтера",
+          "value": [
+            "совместимый"
+          ]
+        },
+        {
+          "id": 378533,
+          "name": "Комплектация",
+          "value": [
+            "Картридж X945X2KG 10 шт."
+          ]
+        },
+        {
+          "id": 88963,
+          "name": "Максимальный ресурс",
+          "value": 36000
+        },
+        {
+          "id": 5023,
+          "name": "Модель",
+          "value": [
+            "X945X2KG"
+          ]
+        },
+        {
+          "id": 15001405,
+          "name": "Ставка НДС",
+          "value": [
+            "5"
+          ]
+        },
+        {
+          "id": 9623,
+          "name": "Гарантийный срок",
+          "value": [
+            "1 год"
+          ]
+        },
+        {
+          "id": 179792,
+          "name": "Количество предметов в упаковке",
+          "value": [
+            "10"
+          ]
+        },
+        {
+          "id": 179078,
+          "name": "Совместимость картриджа",
+          "value": [
+            "Lexmark X940",
+            "Lexmark X945"
+          ]
+        }
+      ],
+      "sizes": [
+        {
+          "chrtID": 2794691732,
+          "techSize": "0",
+          "wbSize": "",
+          "skus": [
+            "DSMSL2446X10"
+          ]
+        }
+      ],
+      "createdAt": "2026-09-23T15:03:18.083214Z",
+      "updatedAt": "2026-09-23T15:07:56.521746Z",
+      "wholesale": {
+        "enabled": true,
+        "quantum": 10,
+        "minOrderQuantity": 0
+      },
+      "documents": {
+        "excludeDocuments": false
+      }
+    }
+  ],
+  "wb_cards": [
+    {
+      "account": "wb_acc1",
+      "nm_id": 1002932873,
+      "vendor_code": "24461",
+      "title": "Картридж для Lexmark X940"
+    },
+    {
+      "account": "wb_acc1",
+      "nm_id": 1002932924,
+      "vendor_code": "24462",
+      "title": "Картридж для Lexmark X945"
+    },
+    {
+      "account": "wb_acc1",
+      "nm_id": 1505377332,
+      "vendor_code": "2446X2",
+      "title": "Комплект картриджей X945X2KG 2 шт на 72000 стр. для Lexmark"
+    },
+    {
+      "account": "wb_acc1",
+      "nm_id": 1711252178,
+      "vendor_code": "2446X6",
+      "title": "Комплект картриджей X945X2KG 6 шт для Lexmark X940, X945"
+    },
+    {
+      "account": "wb_acc1",
+      "nm_id": 1711253449,
+      "vendor_code": "2446X10",
+      "title": "Комплект картриджей X945X2KG 10 шт для Lexmark X940, X945"
+    }
+  ],
+  "raw_content_parent": [],
+  "tc_parent": [
+    {
+      "external_code": "2446",
+      "title": "X945X2KG",
+      "consumable_type": "Картридж",
+      "chip": null
+    }
+  ],
+  "live_bundle": [
+    {
+      "nmID": 1505377332,
+      "imtID": 4070994962,
+      "nmUUID": "01a05f38-a6dd-72ff-b5ff-a468d5124cdd",
+      "subjectID": 1820,
+      "subjectName": "Картриджи для принтеров",
+      "vendorCode": "2446X2",
+      "brand": "Цифровой квадрат",
+      "title": "Комплект картриджей X945X2KG 2 шт на 72000 стр. для Lexmark",
+      "description": " Картридж X945X2KG для принтеров Lexmark - это совместимый картридж, который обеспечивает надежную и качественную печать. С емкостью стандартная,  он идеально подходит для лазерного принтера Лексмарк. Картридж X945X2KG  совместим с такими моделями, как Lexmark X940, X945. Картридж X945X2KG  не требуется чип, что обеспечивает удобство в установке и использовании. Картридж для принтеров Lexmark 940, 945 имеет цвет черный, а его ресурс печати составляет  36000 страниц, что позволяет значительно сократить частоту замен и снизить эксплуатационные расходы. Гарантия на 365 дней подтверждает его долговечность и надежность, обеспечивая вам спокойствие и уверенность в качестве продукции.",
+      "video": "https://videonme-basket-04.wbbasket.ru/vol36/part150537/1505377332/hls/1440p/index.m3u8",
+      "needKiz": false,
+      "kizMarked": false,
+      "photos": [
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/1.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/1.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/1.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/1.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/1.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/1.webp"
+        },
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/2.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/2.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/2.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/2.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/2.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/2.webp"
+        },
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/3.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/3.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/3.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/3.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/3.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/3.webp"
+        },
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/4.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/4.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/4.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/4.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/4.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/4.webp"
+        },
+        {
+          "big": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/big/5.webp",
+          "c246x328": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c246x328/5.webp",
+          "c516x688": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/c516x688/5.webp",
+          "hq": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/hq/5.webp",
+          "square": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/square/5.webp",
+          "tm": "https://basket-48.wbbasket.ru/vol15053/part1505377/1505377332/images/tm/5.webp"
+        }
+      ],
+      "dimensions": {
+        "width": 37,
+        "height": 30,
+        "length": 20,
+        "weightBrutto": 2.23,
+        "isValid": true
+      },
+      "characteristics": [
+        {
+          "id": 15004139,
+          "name": "Код ТН ВЭД",
+          "value": [
+            "8443999000"
+          ]
+        },
+        {
+          "id": 88963,
+          "name": "Максимальный ресурс",
+          "value": 36000
+        },
+        {
+          "id": 179078,
+          "name": "Совместимость картриджа",
+          "value": [
+            "Lexmark X940",
+            "Lexmark X945"
+          ]
+        },
+        {
+          "id": 14177451,
+          "name": "Страна производства",
+          "value": [
+            "Китай"
+          ]
+        },
+        {
+          "id": 58867,
+          "name": "Тип картриджа",
+          "value": [
+            "для лазерного принтера"
+          ]
+        },
+        {
+          "id": 160868,
+          "name": "Вид картриджа для принтера",
+          "value": [
+            "совместимый"
+          ]
+        },
+        {
+          "id": 9623,
+          "name": "Гарантийный срок",
+          "value": [
+            "1 год"
+          ]
+        },
+        {
+          "id": 378533,
+          "name": "Комплектация",
+          "value": [
+            "Картридж X945X2KG 2 шт."
+          ]
+        },
+        {
+          "id": 5023,
+          "name": "Модель",
+          "value": [
+            "X945X2KG"
+          ]
+        },
+        {
+          "id": 15001405,
+          "name": "Ставка НДС",
+          "value": [
+            "5"
+          ]
+        },
+        {
+          "id": 58854,
+          "name": "Цвет картриджа/чернил",
+          "value": [
+            "Черный"
+          ]
+        },
+        {
+          "id": 179792,
+          "name": "Количество предметов в упаковке",
+          "value": [
+            "2"
+          ]
+        },
+        {
+          "id": 15000001,
+          "name": "ТНВЭД",
+          "value": [
+            "8443999000"
+          ]
+        }
+      ],
+      "sizes": [
+        {
+          "chrtID": 2276516974,
+          "techSize": "0",
+          "wbSize": "",
+          "skus": [
+            "DSKJW02446X2"
+          ]
+        }
+      ],
+      "createdAt": "2026-09-01T23:08:49.21934Z",
+      "updatedAt": "2026-09-20T13:53:52.374365Z",
+      "wholesale": {
+        "enabled": true,
+        "quantum": 2,
+        "minOrderQuantity": 0
+      },
+      "documents": {
+        "overallVerdict": {
+          "isFullyChecked": true,
+          "status": 2,
+          "reason": "",
+          "createdAt": "2026-09-03T18:08:19.196426+03:00"
+        },
+        "excludeDocuments": false
+      }
+    }
+  ],
+  "ref2446": {
+    "external_code": "2446",
+    "title": "X945X2KG",
+    "consumable_type": "Картридж",
+    "color": "BK",
+    "resource": 36000,
+    "chip": null,
+    "raw": {
+      "chip": null,
+      "depth": 200,
+      "title": "X945X2KG",
+      "width": 370,
+      "height": 150,
+      "weight": 1065,
+      "capacity": "Стандартная",
+      "ink_type": null,
+      "max_pages": 36000,
+      "volume_ml": null,
+      "assignment": "для лазерного принтера",
+      "ink_colors": [
+        "Черный"
+      ],
+      "originality": "совместимый",
+      "chromaticity": "Черно-белый",
+      "colors_count": 1,
+      "ribbon_width": null,
+      "united_title": "X945X2 DS",
+      "external_code": "2446",
+      "ribbon_lenght": null,
+      "similar_title": null,
+      "ved_eaes_code": "8443999000 - Части и принадлежности, прочие",
+      "firmware_limit": 0,
+      "max_characters": null,
+      "printer_models": [
+        {
+          "brand": "Lexmark",
+          "title": "X940"
+        },
+        {
+          "brand": "Lexmark",
+          "title": "X945"
+        }
+      ],
+      "consumable_type": "Картридж",
+      "additional_title": null,
+      "best_before_days": 1825,
+      "incoming_references": [],
+      "outgoing_references": [],
+      "printer_ribbon_types": [],
+      "printer_ribbon_features": []
+    }
+  }
+}
