@@ -125,13 +125,40 @@ BODY_ALERT = [
     (r"подключил[иа]\s+(вам|для|часть|некотор)", "автоподключение услуги"),
 ]
 
+# Ozon прячет условия, которые меняют деньги FBS, и факты начисления в тексте
+# сообщений с нейтральным заголовком. Это узкие признаки самого изменения, а не
+# поиск слова «тариф» по всему письму: последнее ловит рутинные возвраты и акты.
+# Проверяем весь сохранённый текст (до 4000 символов), а не первые 800: раздел FBS
+# может идти после вводного раздела FBO.
+OZON_BODY_ALERT = [
+    (r"снизим\s+тариф\s+за\s+продажу\s+на\s+\d+(?:[,.]\d+)?\s*п\.?\s*п\.?(?:\s|$)",
+     "снижение тарифа за продажу"),
+    (r"бонусы\s+на\s+продвижение\s+для\s+fbs[-\s]новинок[\s\S]{0,250}будем\s+начислять\s+бонусы",
+     "бонусы на продвижение FBS-новинок"),
+    (r"начислили\s+вам\s+[\d\s.,]+\s+бонусов\s+на\s+продвижение", "начисление бонусов на продвижение"),
+    (r"бонусы\s+на\s+продвижение\s+закончились", "закончились бонусы на продвижение"),
+    (r"отсрочк\w*\s+выплат[\s\S]{0,500}скидк\w*\s+на\s+тариф\s+за\s+продажу[\s\S]{0,100}станет\s+меньше",
+     "снижение скидки за отсрочку выплат"),
+    (r"штрафы\s+за\s+просрочк\w*\s+и\s+отмен\w*\s+вернутся", "штрафы FBS"),
+    (r"начн[её]м\s+отменять\s+рек\.?\s+слот", "условия отгрузки FBS"),
+    (r"\A[\s\S]{0,120}объявленн\w*\s+стоимост\w*[\s\S]{0,350}возмещени",
+     "возмещение по объявленной стоимости"),
+    (r"скидк\w*\s+с\s+продвижением[\s\S]{0,120}суммиру\w*\s+со\s+скидк\w*\s+от\s+ozon",
+     "суммирование скидок"),
+]
 
-def classify(title, body=""):
-    """-> (importance, сработавшее правило). Решает ЗАГОЛОВОК: Ozon пишет его внятно."""
+
+def classify(title, body="", platform=None):
+    """-> (importance, сработавшее правило); для Ozon проверяем и текст."""
     t = (title or "").lower()
     for pat, name in ALERT:
         if re.search(pat, t):
             return "alert", name
+    if platform == "ozon":
+        b = (body or "")[:4000].lower()
+        for pat, name in OZON_BODY_ALERT:
+            if re.search(pat, b):
+                return "alert", name + " (в тексте)"
     # Операционный заголовок закрывает вопрос — в тело таких писем лезть нельзя.
     if re.search(NOISE, t):
         return "info", "операционка"
@@ -218,7 +245,7 @@ def collect(account, dry=False, days=90):
                 continue
             text = "\n".join(m.get("data", []))
             title = title_of(text)
-            imp, rule = classify(title, text)
+            imp, rule = classify(title, text, platform="ozon")
             row = {"account": account, "message_id": mid, "chat_id": chat_id,
                    "chat_type": info.get("chat_type"), "created_at": when,
                    "title": title, "body": text[:4000], "importance": imp, "matched": rule}
@@ -687,12 +714,15 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
     return added
 
 
-def reclassify():
-    """Пересчёт важности по сырью — после правки правил, без похода в API."""
-    rows = db.query("SELECT platform, account, message_id, title, body FROM mp_notices")
+def reclassify(platform=None):
+    """Пересчёт важности по сырью одной площадки или всех, без похода в API."""
+    where = " WHERE platform = %s" if platform else ""
+    params = (platform,) if platform else None
+    rows = db.query("SELECT platform, account, message_id, title, body FROM mp_notices" + where,
+                    params)
     changed = 0
     for r in rows:
-        imp, rule = classify(r["title"] or "", r["body"] or "")
+        imp, rule = classify(r["title"] or "", r["body"] or "", platform=r["platform"])
         n = db.query("""UPDATE mp_notices SET importance=%s, matched=%s
                         WHERE platform=%s AND account=%s AND message_id=%s
                           AND (importance <> %s OR matched IS DISTINCT FROM %s)
@@ -702,7 +732,8 @@ def reclassify():
     # Правила поменялись — значит, часть уже заведённых событий больше не важна.
     # Оставить их в дневнике нельзя: он потеряет доверие, а вычищать руками никто не станет.
     stale = db.query("""SELECT platform, account, message_id, event_id FROM mp_notices
-                        WHERE event_id IS NOT NULL AND importance <> 'alert'""")
+                        WHERE event_id IS NOT NULL AND importance <> 'alert'"""
+                     + (" AND platform = %s" if platform else ""), params)
     for r in stale:
         biz_diary.delete(r["event_id"])
         db.execute("UPDATE mp_notices SET event_id = NULL WHERE platform=%s "
@@ -765,7 +796,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.reclassify:
-        reclassify()
+        reclassify(platform=args.platform)
         return 0
 
     if args.close_pauses:
