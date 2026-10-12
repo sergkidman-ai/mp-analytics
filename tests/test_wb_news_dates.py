@@ -48,10 +48,11 @@ class WbNewsDatesTest(unittest.TestCase):
         news={'id':2,'date':'2026-09-28T13:17:26Z','header':'Изменение','content':content,'types':[]}
         with patch.object(mp_news,'wb_news',return_value=[news]), \
              patch.object(mp_news.db,'query',return_value=[]), \
-             patch.object(mp_news.db,'execute'):
+             patch.object(mp_news.db,'execute') as execute:
             out=mp_news.collect_wb(dry=False,days=44)
         self.assertEqual(out[0]['body'],mp_news._strip_html(content))
         self.assertGreater(len(out[0]['body']),4000)
+        self.assertEqual(execute.call_args.args[1][5],out[0]['body'])
 
 
 if __name__=='__main__':

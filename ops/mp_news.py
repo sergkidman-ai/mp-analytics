@@ -163,6 +163,23 @@ WB_BODY_ALERT = [
      r"[^.!?]{0,60}\d+\s*(?:₽|руб|%)", "изменение стоимости услуги"),
 ]
 
+# У Маркета слово «договор» и «тариф» часто встречается в справочных постах без
+# изменения условий. Для Telegram берём только конкретное действие с деньгами.
+YA_BODY_ALERT = [
+    (r"(?:тариф\w*|комисси\w*|стоимост\w*|цен\w*|плат\w*|хранени\w*|логистик\w*)"
+     r"[^.!?]{0,140}(?:обнов\w*|измен\w*|введ\w*|отмен\w*|сниз\w*|повыс\w*|"
+     r"фиксир\w*|станет|состав\w*|установ\w*|начн\w*|будет|пересмотр\w*|отказ\w*)",
+     "изменение тарифа/стоимости услуги"),
+    (r"(?:обнов\w*|измен\w*|введ\w*|отмен\w*|сниз\w*|повыс\w*|фиксир\w*|"
+     r"станет|состав\w*|установ\w*|начн\w*|будет|пересмотр\w*|отказ\w*)"
+     r"[^.!?]{0,140}(?:тариф\w*|комисси\w*|стоимост\w*|цен\w*|плат\w*|"
+     r"хранени\w*|логистик\w*)", "изменение тарифа/стоимости услуги"),
+    (r"(?:обнов\w*|измен\w*|уточн\w*|добав\w*|закреп\w*|пересмотр\w*)"
+     r"[^.!?]{0,80}договор\w*|договор\w*[^.!?]{0,80}"
+     r"(?:обнов\w*|измен\w*|уточн\w*|добав\w*|закреп\w*|пересмотр\w*)",
+     "изменение условий договора"),
+]
+
 
 def classify(title, body="", platform=None):
     """-> (importance, сработавшее правило); для Ozon проверяем и текст."""
@@ -175,6 +192,18 @@ def classify(title, body="", platform=None):
         for pat, name in OZON_BODY_ALERT:
             if re.search(pat, b):
                 return "alert", name + " (в тексте)"
+    elif platform == "yandex":
+        # В публикациях Маркета факт изменения тарифа или договора часто стоит
+        # в середине поста, а заголовок описывает тему нейтрально.
+        b = (body or "").lower()
+        ya_noise = r"про отгрузки и работу с заказами|новостями о работе сервиса"
+        if not re.search(NOISE, t) and not re.search(ya_noise, t):
+            # Telegram uses line breaks as section boundaries. Do not let an unrelated
+            # tariff mention near the top combine with «будет» from a later section.
+            for part in re.split(r"[\n.!?]+", b):
+                for pat, name in YA_BODY_ALERT:
+                    if re.search(pat, part):
+                        return "alert", name + " (в тексте)"
     elif platform == "wb":
         b = (body or "").lower()
         # Сначала отсекаем типовые операционные заголовки: в их тексте могут
@@ -376,7 +405,7 @@ def collect_wb(dry=False, days=90):
                                         created_at, title, body, importance, matched)
                 VALUES ('wb',%s,%s,NULL,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (platform, account, message_id) DO NOTHING
-            """, (WB_ACCOUNT, mid, types, when, title, body[:4000], imp, rule))
+            """, (WB_ACCOUNT, mid, types, when, title, body, imp, rule))
     return fresh
 
 
