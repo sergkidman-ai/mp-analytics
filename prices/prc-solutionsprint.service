@@ -1,0 +1,14 @@
+[Unit]
+Description=Solutions Print cabinet: Moscow + SPb stock into MSK enters
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python -m prices.solutionsprint --apply
+TimeoutStartSec=2h
+UMask=0077
+StandardOutput=journal
+StandardError=journal
