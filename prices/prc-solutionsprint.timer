@@ -1,0 +1,15 @@
+[Unit]
+Description=Solutions Print prices: 08:07, 13:12, 18:17 Moscow daily
+
+[Timer]
+# Host is UTC; Moscow is UTC+3. User explicitly requested daytime card updates.
+OnCalendar=*-*-* 05:07:00
+OnCalendar=*-*-* 10:12:00
+OnCalendar=*-*-* 15:17:00
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=false
+Unit=prc-solutionsprint.service
+
+[Install]
+WantedBy=timers.target
