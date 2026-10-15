@@ -755,3 +755,44 @@ tests/test_wb_promo_bundle_floor.py; будущая загрузка — ops/wb_
   разбирать отмеченные привязки отдельно, не считать их ошибочными без проверки связей.
   Коммит/push/вливание в origin/main выполняются по прямой команде пользователя.
   Дополнительный ручной apply не запрашивался и не запускался.
+
+
+### wb4 — Ozon: переход API акций, 15.10
+- Пользователь передал копию статьи через Dropbox, затем прямо разрешил менять инструменты,
+  запускать и тестировать. UPD статьи14.10: отключение перенесено с13.10 на19.10;
+  в статье есть неоднозначность «до этой даты включительно» по старой семантике новых методов.
+- Worktree .claude/worktrees/mkt-ozon-actions-v2, ветка mkt/ozon-actions-v2 от92b5617.
+  Runtime установлен; публикация ветки mkt/ozon-actions-v2 в origin/main
+  выполняется по прямой команде пользователя от15.10.
+- Новый ops/ozon_actions.py: /v2/actions/products,candidates, Money amount/currency,
+  cursor last_id/limit100, flat responses, отдельные active/deactivated/rejected/warnings,
+  legacy response bridge. Неполная/повторная пагинация и неизвестная цена прерывают чтение.
+- Пол проверяется по marketplace_seller_price, не action_price-лимиту и не цене витрины.
+  Обновление через /v1/actions/products/update. STOCK_DISCOUNT/ELASTIC_BOOSTING:
+  снятие предельной ценой выше max_action_price/пола. Пока новая логика не включена,
+  price-exclusion отклоняется: переходный fallback на /v2/actions/products/deactivate.
+  PROMO_CODE — сразу v2/deactivate; неизвестные механики fail closed.
+- Обновлены ops/ozon_stock_action.py, ops/ozon_promo_guard.py, prices/mp_price_promo.py.
+  Результат upload не равен confirmed: проверяется реальная цена/отсутствие в акции.
+  Если принятый подъём не поднял реальную цену до пола — снятие и повторная сверка.
+  Стоковая лестница сохраняет фактическую принятую цену; никакая неуспешная/исключённая
+  позиция не запоминается как успешно добавленная. HTTP5xx чтения повторяются с backoff.
+- 32теста PASS: Money, cursor/ошибки пагинации, новые ответы/переход, типы акций,
+  реальная цена vs предел, ложный ACK, снятие после неудачного подъёма, сток/регионы,
+  сборщик цен с фактической wire-структурой v2 и действующие тесты бандлов.
+- Live preview: Цифровой6940позиций/6акций:4raise. Дисквер3849/6:2raise+16remove.
+- Live apply wave=api_v2_migration, --no-tg, без limit: Цифровой4confirmed remove,
+  Дисквер18confirmed remove; unconfirmed0. Все6initial raises приняты новым update,
+  но реальная цена не поднялась до пола — затем сняты. Ещё16Дисквера:10нет COGS,6пол>cap.
+  Все22снятия подтверждены перечиткой. Переходный v2/deactivate реально отработал.
+- Стоковый apply --allow-remove запущен: активных белых/региональных акций нет,
+  запись по ним не понадобилась; поведение проверено unit-тестами. Авто-add API
+  с отложенным auto_add_date проект не использует, новых таких задач не заводили.
+- Live prices.mp_price_promo --platform ozon завершён:2297строк upsert, Цифровой1632,
+  Дисквер665; unique action products6008/3616 (уменьшились на4/18).
+- Отчёт docs/reports/ozon_actions_v2_result_2026-10-15.json; полный applyCSV,
+  write_trace JSONL и request_counts JSON рядом, логи ozon_actions_v2_* в logs/.
+  Резервные исходники: logs/ozon_actions_v2_before_2026-10-15/. Расписание не менялось.
+- Следующий шаг: проверить плановый запуск с установленным адаптером и контроль после
+  переключения19.10. Новая post-cutover семантика исключения ценой протестирована
+  синтетически; реальный прогон15.10 подтвердил переходную схему новых endpoint-ов.
