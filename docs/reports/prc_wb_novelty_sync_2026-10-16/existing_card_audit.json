@@ -1,0 +1,11 @@
+[
+  {
+    "code": "6785t2",
+    "current": "Картридж 071H для Canon 5646C002 черный с чипом XL ресурс",
+    "expected": "Картридж 071H для Canon черный с чипом XL ресурс",
+    "status": "DIFF",
+    "reason": "",
+    "source_code": "6785",
+    "rules_version": "2026-10-15.2"
+  }
+]
