@@ -1,4 +1,4 @@
-# поток: ev — новости площадок: важное из официальных каналов в дневник и в бот
+# поток: ev — новости площадок: важное из официальных каналов в Пульт
 """Приёмник новостей маркетплейсов: Ozon (чаты ЛК) и WB (лента новостей).
 
 Зачем именно чаты: у Ozon нет API новостей, сайт закрыт антиботом, а почта до нас доносит
@@ -11,7 +11,7 @@
 `UNSPECIFIED`, и фильтр списка по типу сервер молча игнорирует (проверено 21.08.2026).
 
 Из 549 накопленных уведомлений важных ~15 %: остальное — «Курьер приехал за заказом»,
-«Как прошла отгрузка». Поэтому сырьё копим целиком (`mp_notices`), а в дневник и в бот
+«Как прошла отгрузка». Поэтому сырьё копим целиком (`mp_notices`), а в дневник Пульта
 пускаем только то, что прошло правила. Список правил менять безопасно: переклассификация
 идёт по сырью, без похода в API (`--reclassify`).
 
@@ -20,7 +20,10 @@
 а у токена Дисквэра нет нужной категории (404, см. память wb-token-scopes). Лента WB и есть
 тот самый «заранее»: и тарифы, и пожары на складах приходят в неё раньше, чем доедут до цифр.
 
-Запуск: ./venv/bin/python -m ops.mp_news              обе площадки, новое -> дневник + бот
+Новости площадок публикуем только в Пульте; Telegram отключён по решению пользователя
+15.10.2026. Другие уведомления ботов это решение не затрагивает.
+
+Запуск: ./venv/bin/python -m ops.mp_news              площадки, новое -> дневник Пульта
         ./venv/bin/python -m ops.mp_news --dry        показать, ничего не писать
         ./venv/bin/python -m ops.mp_news --reclassify пересчитать важность по сырью
         ./venv/bin/python -m ops.mp_news --platform wb --days 90 --diary-days 90 --diary-rule склад/ЧП
@@ -46,6 +49,9 @@ from core import db
 from collectors.ozon import _headers as ozon_headers
 from ops import biz_diary
 from ops import news_digest as digest
+from ops import ozon_major_news
+from ops import ozon_promotion_news
+from ops import wb_news_policy
 
 BASE = "https://api-seller.ozon.ru"
 ACCOUNTS = ("oz_acc1", "oz_acc2")
@@ -72,9 +78,6 @@ YA_BODY_MAX = 12000  # письмо о тарифах на 8 тыс. знако�
 
 SOURCE_OF = {"ozon": "ozon_chat", "wb": "wb_news", "yandex": "ya_mail"}
 AUTHOR_OF = {"ozon": "Ozon", "wb": "WB", "yandex": "Маркет"}
-
-NOTIFY_IDS = [x.strip() for x in os.getenv("TG_PRC_NOTIFY_ID", "1031321444").split(",") if x.strip()]
-TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
 
 # --- правила важности -------------------------------------------------------------------
 # ALERT — деньги: тариф, комиссия, договор, подписка и услуги, которые ПОДКЛЮЧАЮТ САМИ
@@ -147,10 +150,79 @@ OZON_BODY_ALERT = [
      "суммирование скидок"),
 ]
 
+# WB иногда выносит в заголовок тему, а тарифную цифру/дату оставляет в теле.
+# Берём только изменение тарифа/комиссии или стоимости логистики/хранения, где
+# в том же предложении есть и действие изменения, и конкретная ставка/сумма.
+WB_BODY_ALERT = [
+    (r"(?:тариф\w*|комисси\w*|ставк\w*)[^.!?]{0,100}"
+     r"(?:измен\w*|сниз\w*|повыс\w*|станет|составит|увелич\w*|уменьш\w*)[^.!?]{0,50}"
+     r"\d+(?:[,.]\d+)?\s*(?:%|п\.?\s*п\.?|₽|руб)", "изменение тарифа/комиссии"),
+    (r"(?:тариф\w*|комисси\w*|ставк\w*)[^.!?]{0,100}"
+     r"\d+(?:[,.]\d+)?\s*(?:%|п\.?\s*п\.?|₽|руб)[^.!?]{0,60}"
+     r"(?:измен\w*|сниз\w*|повыс\w*|станет|составит|увелич\w*|уменьш\w*)",
+     "изменение тарифа/комиссии"),
+    (r"(?:логистик\w*|хранени\w*|эквайринг)[^.!?]{0,120}"
+     r"(?:измен\w*|сниз\w*|повыс\w*|станет|составит|увелич\w*|уменьш\w*|стоить)"
+     r"[^.!?]{0,60}\d+\s*(?:₽|руб|%)", "изменение стоимости услуги"),
+]
 
-def classify(title, body="", platform=None):
+# У Маркета слово «договор» и «тариф» часто встречается в справочных постах без
+# изменения условий. Для Telegram берём только конкретное действие с деньгами.
+YA_BODY_ALERT = [
+    (r"(?:тариф\w*|комисси\w*|стоимост\w*|цен\w*|плат\w*|хранени\w*|логистик\w*)"
+     r"[^.!?]{0,140}(?:обнов\w*|измен\w*|введ\w*|отмен\w*|сниз\w*|повыс\w*|"
+     r"фиксир\w*|станет|состав\w*|установ\w*|начн\w*|будет|пересмотр\w*|отказ\w*)",
+     "изменение тарифа/стоимости услуги"),
+    (r"(?:обнов\w*|измен\w*|введ\w*|отмен\w*|сниз\w*|повыс\w*|фиксир\w*|"
+     r"станет|состав\w*|установ\w*|начн\w*|будет|пересмотр\w*|отказ\w*)"
+     r"[^.!?]{0,140}(?:тариф\w*|комисси\w*|стоимост\w*|цен\w*|плат\w*|"
+     r"хранени\w*|логистик\w*)", "изменение тарифа/стоимости услуги"),
+    (r"(?:обнов\w*|измен\w*|уточн\w*|добав\w*|закреп\w*|пересмотр\w*)"
+     r"[^.!?]{0,80}договор\w*|договор\w*[^.!?]{0,80}"
+     r"(?:обнов\w*|измен\w*|уточн\w*|добав\w*|закреп\w*|пересмотр\w*)",
+     "изменение условий договора"),
+]
+
+
+def wb_sc_relevance(title, body=""):
+    """Local SC news: only Veshki matters. None means a general/warehouse topic."""
+    t = re.sub(r'\s+', ' ', title or '').lower().replace('ё', 'е')
+    if not re.search(r'\bсц\b|сортировочн\w*\s+центр', t):
+        return None
+    # A mixed warehouse/SC incident may describe damaged stock, not an ordinary
+    # reception pause. Preserve the existing warehouse incident path.
+    if (re.search(r'\bсклад\w*\b', t)
+            and re.search(r'нештатн|пожар|возгоран|эваку|пострадал|поврежд', t + ' ' + (body or ''), re.I)):
+        return None
+    local = (re.search(r'(?:\bсц\b|сортировочн\w*\s+центр\w*)\s*[«"“]', t)
+             or re.search(r'временно|приостанов|не\s+принима|возобнов|снова\s+работ|'
+                          r'открыл|открыва|закрыл|закрыва|нов(?:ый|ые|ого)\s+сц|'
+                          r'режим\s+работ|график\s+работ|список\s+сц', t))
+    if not local:
+        return None
+    veshki = r'\bвешк(?:и|ах|ам|ами)\b'
+    if re.search(veshki, t):
+        return True
+    if re.search(r'[«"“][^»"”]+[»"”]', t):
+        return False  # A redirect to Veshki in the body does not make it the subject.
+    # A regional headline may list the affected SCs only in its body.
+    parts = re.split(r'(?<=[.!?])\s+|\n+', body or '')
+    return any(re.search(veshki, part.lower().replace('ё', 'е'))
+               and not re.search(r'перенаправ|можно\s+отгруз|отгрузить\s+на|вместо|ближайш', part, re.I)
+               for part in parts)
+
+
+def classify(title, body="", platform=None, chat_type=None):
     """-> (importance, сработавшее правило); для Ozon проверяем и текст."""
     t = (title or "").lower()
+    wb_selected = None
+    if platform == 'wb':
+        if wb_sc_relevance(title, body) is False:
+            return 'info', 'СЦ не Вешки'
+        t = re.sub(r'\s+', ' ', t)
+        wb_selected = wb_news_policy.reason(title, body, chat_type)
+        if wb_selected and wb_selected.startswith('рубрика WB:'):
+            return 'alert', wb_selected
     for pat, name in ALERT:
         if re.search(pat, t):
             return "alert", name
@@ -159,6 +231,28 @@ def classify(title, body="", platform=None):
         for pat, name in OZON_BODY_ALERT:
             if re.search(pat, b):
                 return "alert", name + " (в тексте)"
+    elif platform == "yandex":
+        # В публикациях Маркета факт изменения тарифа или договора часто стоит
+        # в середине поста, а заголовок описывает тему нейтрально.
+        b = (body or "").lower()
+        ya_noise = r"про отгрузки и работу с заказами|новостями о работе сервиса"
+        if not re.search(NOISE, t) and not re.search(ya_noise, t):
+            # Telegram uses line breaks as section boundaries. Do not let an unrelated
+            # tariff mention near the top combine with «будет» from a later section.
+            for part in re.split(r"[\n.!?]+", b):
+                for pat, name in YA_BODY_ALERT:
+                    if re.search(pat, part):
+                        return "alert", name + " (в тексте)"
+    elif platform == "wb":
+        b = (body or "").lower()
+        # Сначала отсекаем типовые операционные заголовки: в их тексте могут
+        # встречаться тарифы, хотя само уведомление не сообщает об изменении.
+        if not re.search(NOISE, t):
+            for pat, name in WB_BODY_ALERT:
+                if re.search(pat, b):
+                    return "alert", name + " (в тексте)"
+            if wb_selected:
+                return 'alert', wb_selected
     # Операционный заголовок закрывает вопрос — в тело таких писем лезть нельзя.
     if re.search(NOISE, t):
         return "info", "операционка"
@@ -245,10 +339,13 @@ def collect(account, dry=False, days=90):
                 continue
             text = "\n".join(m.get("data", []))
             title = title_of(text)
+            full_body = (ozon_major_news.is_selected("ozon", account, chat_id, info.get("chat_type"))
+                         or ozon_promotion_news.is_source("ozon", account, chat_id, title))
+            saved_body = text if full_body else text[:4000]
             imp, rule = classify(title, text, platform="ozon")
             row = {"account": account, "message_id": mid, "chat_id": chat_id,
                    "chat_type": info.get("chat_type"), "created_at": when,
-                   "title": title, "body": text[:4000], "importance": imp, "matched": rule}
+                   "title": title, "body": saved_body, "importance": imp, "matched": rule}
             fresh.append(row)
             if not dry:
                 db.execute("""
@@ -257,7 +354,7 @@ def collect(account, dry=False, days=90):
                     VALUES ('ozon',%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (platform, account, message_id) DO NOTHING
                 """, (account, mid, chat_id, info.get("chat_type"), when, title,
-                      text[:4000], imp, rule))
+                      saved_body, imp, rule))
     return fresh
 
 
@@ -332,17 +429,19 @@ def collect_wb(dry=False, days=90):
             continue
         title = (n.get("header") or "").strip()[:200]
         body = _strip_html(n.get("content"))
-        imp, rule = classify(title, body)
+        types = ", ".join(t.get("name", "") for t in (n.get("types") or []))[:100]
+        imp, rule = classify(title, body, platform="wb", chat_type=types)
         try:
-            when = datetime.fromisoformat(n["date"])
-        except (KeyError, ValueError):
+            # Python 3.10 does not accept the UTC suffix Z returned by WB.
+            when = datetime.fromisoformat(n["date"].replace("Z", "+00:00"))
+        except (KeyError, ValueError, TypeError, AttributeError) as exc:
+            print(f"WB: новость {mid} пропущена — некорректная дата ({type(exc).__name__})")
             continue
         # types приходит списком словарей [{"id":79,"name":"Товары"}] — кладём в chat_type
         # человеческие названия рубрик: по ним потом видно, какого рода была новость.
-        types = ", ".join(t.get("name", "") for t in (n.get("types") or []))[:100]
         row = {"account": WB_ACCOUNT, "message_id": mid, "chat_id": None,
                "chat_type": types, "created_at": when, "title": title,
-               "body": body[:4000], "importance": imp, "matched": rule}
+               "body": body, "importance": imp, "matched": rule}
         fresh.append(row)
         if not dry:
             db.execute("""
@@ -350,7 +449,7 @@ def collect_wb(dry=False, days=90):
                                         created_at, title, body, importance, matched)
                 VALUES ('wb',%s,%s,NULL,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (platform, account, message_id) DO NOTHING
-            """, (WB_ACCOUNT, mid, types, when, title, body[:4000], imp, rule))
+            """, (WB_ACCOUNT, mid, types, when, title, body, imp, rule))
     return fresh
 
 
@@ -613,6 +712,14 @@ def close_pauses(dry=False, window_hours=PAUSE_WINDOW_H):
     ours = our_warehouses()
     dropped = closed = alien = 0
     for p in pauses:
+        sc_scope = wb_sc_relevance(p['title'], p['body']) if p['platform'] == 'wb' else None
+        if sc_scope is False:
+            alien += 1
+            if not dry:
+                ev = db.query("SELECT id, mark, details FROM biz_events WHERE id=%s",
+                              (p['event_id'],)) if p['event_id'] else []
+                _drop_pause(p, ev, 'СЦ не Вешки')
+            continue
         names = _places(p["title"])
         if not names:
             continue
@@ -622,7 +729,7 @@ def close_pauses(dry=False, window_hours=PAUSE_WINDOW_H):
         hit = bool(ev and ev[0]["mark"])          # значок удара уже стоит — это наш убыток
         # Чужой склад: нашего товара там нет и поставок туда мы не возим. Не новость —
         # даже если склад стоит третий день (правило Сергея 23.08.2026).
-        if p["platform"] == "wb" and not damage and not hit \
+        if p["platform"] == "wb" and sc_scope is not True and not damage and not hit \
                 and not any(_wh_base(n) and _wh_base(n) in ours for n in names):
             alien += 1
             if not dry:
@@ -660,17 +767,33 @@ def _drop_pause(p, ev, why):
         biz_diary.delete(ev[0]["id"])
 
 
-def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
-    """Только ALERT из сырья -> дневник (kind='mp'). Идемпотентно по dedup_key.
+def to_diary(dry=False, since_days=14, platform=None, only_rule=None, major_only=False,
+             seller_api_only=False, section_only=None, message_ids=None):
+    """ALERT и выбранные рубрики Ozon «Главное» -> дневник. Идемпотентно по dedup_key.
 
     `only_rule` — добрать историю по ОДНОМУ правилу, не поднимая всё остальное: пожары на
     складах за июль нужны в дневнике задним числом, а июльские тарифы уже неактуальны.
 
-    Watch в дневник НЕ пускаем сознательно: за 90 дней его набирается столько же, сколько
-    тревог, и наши собственные решения — ради которых дневник и заводился — утонут в
-    «обновили методы Seller API». Watch лежит в `mp_notices` и поднимается запросом.
+    Watch вне выбранных рубрик остаются в `mp_notices` и поднимаются запросом.
     """
-    where, params = ["importance = 'alert'", "event_id IS NULL",
+    # User request 15.10: every selected Ozon «Главное» publication belongs on the
+    # homepage, regardless of money keywords. Importance/Telegram stay unchanged.
+    major = ozon_major_news.where_sql()
+    promotion = ozon_promotion_news.where_sql()
+    selected_sources = f"({major} OR {promotion})"
+    if section_only == 'promotion':
+        eligible = promotion
+    elif section_only:
+        eligible = ozon_major_news.where_sql(section_only)
+    elif major_only:
+        eligible = ozon_major_news.where_sql('major')
+    elif seller_api_only:
+        eligible = ozon_major_news.where_sql('seller-api')
+    else:
+        eligible = f"(importance = 'alert' OR {selected_sources})"
+    missing_event = (f"(event_id IS NULL OR ({selected_sources} AND NOT EXISTS "
+                     "(SELECT 1 FROM biz_events e WHERE e.id=mp_notices.event_id)))")
+    where, params = [eligible, missing_event,
                      "created_at >= current_date - %s::int"], [since_days]
     if platform:
         where.append("platform = %s")
@@ -678,12 +801,29 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
     if only_rule:
         where.append("matched = %s")
         params.append(only_rule)
+    if message_ids is not None:
+        where.append('message_id = ANY(%s)')
+        params.append(list(message_ids))
     rows = db.query(f"""SELECT platform, account, message_id, created_at::date AS d,
-                               title, body, matched, digest
+                               title, body, matched, digest, chat_id, chat_type, importance
                         FROM mp_notices WHERE {' AND '.join(where)}
                         ORDER BY created_at""", tuple(params))
     added = 0
+    planned_major = set()
     for r in rows:
+        if r['platform'] == 'wb' and wb_sc_relevance(r['title'], r['body']) is False:
+            continue
+        if ozon_promotion_news.is_source(r['platform'], r['account'], r['chat_id'], r['title']):
+            selection = ozon_promotion_news.analyze(r['title'], r['body'])
+            if selection:
+                added += int(ozon_promotion_news.publish(r, selection, dry=dry, planned=planned_major))
+                continue
+            # Existing monetary alerts keep their normal path in routine runs.
+            if section_only == 'promotion' or r.get('importance') != 'alert':
+                continue
+        if ozon_major_news.is_selected(r['platform'], r['account'], r['chat_id'], r['chat_type']):
+            added += int(ozon_major_news.publish(r, dry=dry, planned=planned_major))
+            continue
         if dry:
             added += 1
             continue
@@ -696,7 +836,8 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
             # Если выжимка уже посчитана — в дневник идёт она: человеку нужен денежный смысл
             # новости, а не три экрана текста площадки. Сырьё остаётся в mp_notices.
             details=(digest.render(r["digest"]) if r["digest"]
-                     else (r["body"] or "")[:1500] + (f"\n\nПравило: {r['matched']}"
+                     else ((r["body"] or "") if r['platform'] == 'wb' else (r["body"] or "")[:1500])
+                     + (f"\n\nПравило: {r['matched']}"
                                                      if r["matched"] else "")),
             # В `expect` у события площадки лежит рекомендация «что делать» — она есть только
             # там, где посчитана выжимка. Название правила туда не кладём: на главной оно
@@ -705,6 +846,11 @@ def to_diary(dry=False, since_days=14, platform=None, only_rule=None):
             source=SOURCE_OF.get(r["platform"], r["platform"]),
             author=AUTHOR_OF.get(r["platform"], r["platform"]),
             dedup_key=f"{r['platform']}:{r['account']}:{r['message_id']}")
+        if eid is None:
+            # A prior insertion/concurrent run can leave the source link empty.
+            # Reuse its natural key rather than clearing the link again.
+            eid = db.query('SELECT id FROM biz_events WHERE dedup_key=%s',
+                           (f"{r['platform']}:{r['account']}:{r['message_id']}",))[0]['id']
         db.execute("UPDATE mp_notices SET event_id = %s WHERE platform=%s "
                    "AND account=%s AND message_id=%s",
                    (eid, r["platform"], r["account"], r["message_id"]))
@@ -716,11 +862,12 @@ def reclassify(platform=None):
     """Пересчёт важности по сырью одной площадки или всех, без похода в API."""
     where = " WHERE platform = %s" if platform else ""
     params = (platform,) if platform else None
-    rows = db.query("SELECT platform, account, message_id, title, body FROM mp_notices" + where,
+    rows = db.query("SELECT platform, account, message_id, title, body, chat_type FROM mp_notices" + where,
                     params)
     changed = 0
     for r in rows:
-        imp, rule = classify(r["title"] or "", r["body"] or "", platform=r["platform"])
+        imp, rule = classify(r["title"] or "", r["body"] or "", platform=r["platform"],
+                             chat_type=r.get('chat_type'))
         n = db.query("""UPDATE mp_notices SET importance=%s, matched=%s
                         WHERE platform=%s AND account=%s AND message_id=%s
                           AND (importance <> %s OR matched IS DISTINCT FROM %s)
@@ -729,31 +876,47 @@ def reclassify(platform=None):
         changed += len(n)
     # Правила поменялись — значит, часть уже заведённых событий больше не важна.
     # Оставить их в дневнике нельзя: он потеряет доверие, а вычищать руками никто не станет.
-    stale = db.query("""SELECT platform, account, message_id, event_id FROM mp_notices
+    stale = db.query("""SELECT platform, account, message_id, event_id, chat_id, title, body FROM mp_notices
                         WHERE event_id IS NOT NULL AND importance <> 'alert'"""
+                     + " AND NOT " + ozon_major_news.where_sql()
                      + (" AND platform = %s" if platform else ""), params)
+    removed = 0
     for r in stale:
+        if (ozon_promotion_news.is_source(r['platform'], r['account'], r['chat_id'], r['title'])
+                and ozon_promotion_news.analyze(r['title'], r['body'])):
+            continue
         biz_diary.delete(r["event_id"])
         db.execute("UPDATE mp_notices SET event_id = NULL WHERE platform=%s "
                    "AND account=%s AND message_id=%s",
                    (r["platform"], r["account"], r["message_id"]))
+        removed += 1
     print(f"переклассифицировано: {changed} из {len(rows)}; "
-          f"снято с дневника: {len(stale)}")
+          f"снято с дневника: {removed}")
+
+
+def reclassify_body(platform, days=90):
+    """Поднять только новые body-alert указанной площадки за окно; старые правила не трогать."""
+    rows = db.query("""SELECT platform, account, message_id, title, body, chat_type FROM mp_notices
+                       WHERE platform = %s AND created_at >= current_date - %s::int""",
+                    (platform, days))
+    changed = 0
+    for r in rows:
+        imp, rule = classify(r["title"] or "", r["body"] or "", platform=platform,
+                             chat_type=r.get('chat_type'))
+        if imp != "alert" or "(в тексте)" not in rule:
+            continue
+        n = db.query("""UPDATE mp_notices SET importance='alert', matched=%s
+                        WHERE platform=%s AND account=%s AND message_id=%s
+                          AND importance <> 'alert'
+                        RETURNING message_id""",
+                     (rule, r["platform"], r["account"], r["message_id"]))
+        changed += len(n)
+    print(f"body-alerts: {changed} из {len(rows)} сообщений {platform}")
 
 
 def tg(text):
-    if not TG_TOKEN:
-        return "нет TG_PRC_BOT_TOKEN"
-    out = []
-    for chat in NOTIFY_IDS:
-        try:
-            r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                              data={"chat_id": chat, "text": text[:3900],
-                                    "disable_web_page_preview": "true"}, timeout=60)
-            out.append("ok" if r.ok else f"{r.status_code} {r.text[:100]}")
-        except Exception as exc:
-            out.append(f"{type(exc).__name__}: {exc}")
-    return "; ".join(out)
+    """Compatibility for old callers: news delivery to Telegram is disabled."""
+    return 'новости только в Пульте; Telegram отключён'
 
 
 def message(alerts):
@@ -775,11 +938,13 @@ def message(alerts):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Новости площадок -> дневник + бот")
     ap.add_argument("--dry", action="store_true", help="показать, ничего не писать")
-    ap.add_argument("--quiet", action="store_true", help="не слать телеграм")
+    ap.add_argument("--quiet", action="store_true", help="совместимость: новости всегда только в Пульте")
     ap.add_argument("--days", type=int, default=90, help="как глубоко брать историю")
     ap.add_argument("--diary-days", type=int, default=14,
                     help="за сколько дней тревоги заводить в дневник (сырьё копится глубже)")
     ap.add_argument("--reclassify", action="store_true", help="пересчитать важность по сырью")
+    ap.add_argument("--reclassify-body", action="store_true",
+                    help="поднять только новые тревоги, найденные в тексте")
     ap.add_argument("--close-pauses", action="store_true",
                     help="погасить паузы складов, закрытые следующей новостью")
     ap.add_argument("--wh-damage", action="store_true",
@@ -791,10 +956,27 @@ def main(argv=None):
                     help="считать выжимку по денежным новостям (ПЛАТНЫЕ запросы к модели)")
     ap.add_argument("--diary-only", action="store_true",
                     help="не ходить в API: поднять в дневник то, что уже лежит в сырье")
+    ap.add_argument("--major-updates-only", action="store_true",
+                    help="в дневник только рубрику Ozon «Крупные обновления»")
+    ap.add_argument("--seller-api-only", action="store_true",
+                    help="в дневник только уведомления Ozon Seller API")
+    ap.add_argument("--ozon-section", choices=tuple(ozon_major_news.SECTION_LABELS) + ('promotion',),
+                    help="добрать только выбранную рубрику Ozon")
     args = ap.parse_args(argv)
+    targeted = args.major_updates_only or args.seller_api_only or bool(args.ozon_section)
+    if sum(map(bool, (args.major_updates_only, args.seller_api_only, args.ozon_section))) > 1:
+        ap.error("Выберите только одну рубрику для добора")
+    if targeted and (not args.diary_only or args.platform != "ozon"):
+        ap.error("Добор рубрики требует --diary-only --platform ozon")
 
     if args.reclassify:
         reclassify(platform=args.platform)
+        return 0
+
+    if args.reclassify_body:
+        if not args.platform:
+            ap.error("--reclassify-body требует --platform")
+        reclassify_body(args.platform, days=args.days)
         return 0
 
     if args.close_pauses:
@@ -837,21 +1019,22 @@ def main(argv=None):
 
     # Сначала гасим паузы, закрытые следующей новостью, потом заводим события: иначе в ленту
     # успевает попасть остановка склада, которую тот же прогон уже видит закрытой.
-    close_pauses(dry=args.dry)
+    if not targeted:
+        close_pauses(dry=args.dry)
 
     added = to_diary(dry=args.dry, since_days=args.diary_days,
-                     platform=args.platform, only_rule=args.diary_rule)
+                     platform=args.platform, only_rule=args.diary_rule,
+                     major_only=args.major_updates_only,
+                     seller_api_only=args.seller_api_only,
+                     section_only=args.ozon_section)
     print(f"в дневник: {added}" + (" (сухой прогон)" if args.dry else ""))
-    if not args.dry:
+    if not args.dry and not targeted:
         # Значок удара считается по ВСЕЙ ленте разом: «первый раз на склад» видно только
         # в общей хронологии, событие в одиночку про это не знает.
         annotate_damage()
 
-    alerts = [r for r in fresh if r["importance"] == "alert"]
-    if alerts and not args.quiet and not args.dry:
-        print("телеграм: " + tg(message(alerts)))
-    elif alerts:
-        print(f"тревог: {len(alerts)} (не отправлено)")
+    if fresh:
+        print('новости публикуются только в Пульте; Telegram отключён')
     return 0
 
 

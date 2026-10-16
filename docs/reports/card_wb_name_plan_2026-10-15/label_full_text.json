@@ -1,0 +1,128 @@
+[
+  {
+    "pdf": "docs/reports/card_wb_name_plan_2026-10-15/labels/label_1.pdf",
+    "title": "Блок проявки A08ER70100 с фотобарабаном и девелопером Konica черный",
+    "chars": 67,
+    "lines": [
+      {
+        "top": "86",
+        "left": "20",
+        "width": "122",
+        "height": "12",
+        "font": "1",
+        "text": "Блок проявки A08ER70100 с"
+      },
+      {
+        "top": "97",
+        "left": "11",
+        "width": "141",
+        "height": "12",
+        "font": "1",
+        "text": "фотобарабаном и девелопером"
+      },
+      {
+        "top": "108",
+        "left": "49",
+        "width": "65",
+        "height": "12",
+        "font": "1",
+        "text": "Konica черный"
+      }
+    ],
+    "clipped_title_lines": [
+      "Konica черный"
+    ]
+  },
+  {
+    "pdf": "docs/reports/card_wb_name_plan_2026-10-15/labels/label_2.pdf",
+    "title": "Картридж 071H для Canon 5646C002 черный с чипом XL ресурс",
+    "chars": 57,
+    "lines": [
+      {
+        "top": "86",
+        "left": "23",
+        "width": "116",
+        "height": "12",
+        "font": "1",
+        "text": "Картридж 071H для Canon"
+      },
+      {
+        "top": "97",
+        "left": "17",
+        "width": "129",
+        "height": "12",
+        "font": "1",
+        "text": "5646C002 черный с чипом XL"
+      },
+      {
+        "top": "108",
+        "left": "67",
+        "width": "29",
+        "height": "12",
+        "font": "1",
+        "text": "ресурс"
+      }
+    ],
+    "clipped_title_lines": [
+      "ресурс"
+    ]
+  },
+  {
+    "pdf": "docs/reports/card_wb_name_plan_2026-10-15/labels/label_3.pdf",
+    "title": "Картридж 054HBK для Canon 3028C002 черный с чипом XL ресурс",
+    "chars": 59,
+    "lines": [
+      {
+        "top": "86",
+        "left": "18",
+        "width": "127",
+        "height": "12",
+        "font": "1",
+        "text": "Картридж 054HBK для Canon"
+      },
+      {
+        "top": "97",
+        "left": "17",
+        "width": "129",
+        "height": "12",
+        "font": "1",
+        "text": "3028C002 черный с чипом XL"
+      },
+      {
+        "top": "108",
+        "left": "67",
+        "width": "29",
+        "height": "12",
+        "font": "1",
+        "text": "ресурс"
+      }
+    ],
+    "clipped_title_lines": [
+      "ресурс"
+    ]
+  },
+  {
+    "pdf": "docs/reports/card_wb_name_plan_2026-10-15/labels/label_4.pdf",
+    "title": "Картридж CF543X для HP 203X пурпурный с чипом XL ресурс",
+    "chars": 55,
+    "lines": [
+      {
+        "top": "88",
+        "left": "15",
+        "width": "132",
+        "height": "12",
+        "font": "1",
+        "text": "Картридж CF543X для HP 203X"
+      },
+      {
+        "top": "99",
+        "left": "15",
+        "width": "132",
+        "height": "12",
+        "font": "1",
+        "text": "пурпурный с чипом XL ресурс"
+      }
+    ],
+    "clipped_title_lines": []
+  }
+]

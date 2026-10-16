@@ -1,0 +1,5 @@
+marketplace,account,seller_id,org,inn,orders_hybrid,order_sum_hybrid,orders_report_orderdt_win,fun_aug_orders_fullmonth,fun_sep_orders_1_14,buyouts_net_saledt,buyout_sum_net,sku_with_orders,active_cards,cards_total,sku_with_stock_in_window,orders_incl_cancel
+wb,wb_acc1,1334975,ООО Цифровой Квадрат,7807355364,679,2181118,340.0,589.0,361.0,447,1530188,428,14567,14567,4574,
+wb,wb_acc2,4382395,ООО Дисквэр,7811803918,531,1352449,233.0,369.0,314.0,267,773816,361,18850,18850,313,
+ozon,oz_acc1,,Премиум-Про (Цифровой Квадрат?),7807355364?,1584,12429505,,,,1118,8352601,636,26923,77414,7405,1760.0
+ozon,oz_acc2,,ООО Дисквэр,7811803918,357,1882212,,,,245,1254097,203,19238,19499,24,401.0

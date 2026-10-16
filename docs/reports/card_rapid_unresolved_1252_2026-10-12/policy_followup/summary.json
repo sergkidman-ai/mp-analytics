@@ -1,0 +1,58 @@
+{
+  "source_date": "2026-10-12 14:38:35",
+  "scope_old_cards": 88,
+  "unique_source_articles": 93,
+  "currently_positive": 93,
+  "positive_without_enter": [
+    {
+      "article": "SF-PGI2400XLY",
+      "current_stock": 2,
+      "source_name": "Картридж Canon PGI-2400XL MB4040/4140/5040/5140/5340/5440 Yellow SuperFine",
+      "ms_cards": [
+        {
+          "id": "009bb789-4212-11e8-9ff4-315000018176",
+          "external_code": "1490",
+          "name": "Картридж Canon PGI-2400XL MB4040/4140/5040/5140/5340/5440 Yellow SuperFine",
+          "archived": false,
+          "defective": false,
+          "positions": [],
+          "description_equals_api": true
+        }
+      ]
+    },
+    {
+      "article": "SF-T00S44A",
+      "current_stock": 1,
+      "source_name": "Чернила Epson T00S44A L1100/L3100/L5190 Yellow 7,5K SuperFine",
+      "ms_cards": [
+        {
+          "id": "7af2865d-e977-11ef-0a80-00c10049658e",
+          "external_code": "3848",
+          "name": "Чернила Epson T00S44A L1100/L3100/L5190 Yellow 7,5K SuperFine",
+          "archived": false,
+          "defective": false,
+          "positions": [],
+          "description_equals_api": true
+        }
+      ]
+    },
+    {
+      "article": "SFR-CL461XL",
+      "current_stock": 2,
+      "source_name": "Картридж Canon CL-461XL Pixma TS5340  Color SuperFine",
+      "ms_cards": [
+        {
+          "id": "eda53f3d-1848-11f0-0a80-0589008be8b3",
+          "external_code": "4745",
+          "name": "Картридж Canon CL-461XL Pixma TS5340  Color SuperFine",
+          "archived": false,
+          "defective": false,
+          "positions": [],
+          "description_equals_api": true
+        }
+      ]
+    }
+  ],
+  "exact_ms_missing": 0,
+  "with_equal_description": 93
+}

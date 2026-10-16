@@ -22,3 +22,170 @@
 {"ts": "2026-09-14T11:39:33", "account": "wb_acc1", "action": "start", "payload": {"id": 40161431}, "http": 200, "resp": ""}
 {"ts": "2026-09-14T11:39:47", "account": "wb_acc1", "action": "start", "payload": {"id": 40161442}, "http": 200, "resp": ""}
 {"ts": "2026-09-14T11:40:00", "account": "wb_acc1", "action": "start", "payload": {"id": 40161445}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:12:41", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35514926, "sum": 500, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:12:43", "account": "wb_acc2", "action": "start", "payload": {"id": 35514926}, "http": 400, "resp": "{\"error\":\"advertChangeStatusViaGRPC: Status Unchanged: advert has no budget to start\"}"}
+{"ts": "2026-09-18T13:12:45", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35502200, "sum": 200, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:12:47", "account": "wb_acc2", "action": "start", "payload": {"id": 35502200}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:12:48", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35509256, "sum": 500, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:12:50", "account": "wb_acc2", "action": "start", "payload": {"id": 35509256}, "http": 400, "resp": "{\"error\":\"advertChangeStatusViaGRPC: Status Unchanged: advert has no budget to start\"}"}
+{"ts": "2026-09-18T13:12:52", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35501509, "sum": 600, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:12:53", "account": "wb_acc2", "action": "start", "payload": {"id": 35501509}, "http": 400, "resp": "{\"error\":\"advertChangeStatusViaGRPC: Status Unchanged: advert has no budget to start\"}"}
+{"ts": "2026-09-18T13:12:55", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35509529, "sum": 800, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:12:57", "account": "wb_acc2", "action": "start", "payload": {"id": 35509529}, "http": 400, "resp": "{\"error\":\"advertChangeStatusViaGRPC: Status Unchanged: advert has no budget to start\"}"}
+{"ts": "2026-09-18T13:12:58", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35503784, "sum": 400, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:13:00", "account": "wb_acc2", "action": "start", "payload": {"id": 35503784}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:13:02", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35513872, "sum": 300, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:13:03", "account": "wb_acc2", "action": "start", "payload": {"id": 35513872}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:13:05", "account": "wb_acc2", "action": "deposit", "payload": {"id": 36463324, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:13:07", "account": "wb_acc2", "action": "start", "payload": {"id": 36463324}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:13:09", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36877433, "sum": 200, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:13:11", "account": "wb_acc1", "action": "start", "payload": {"id": 36877433}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:13:12", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35701344, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":5}"}
+{"ts": "2026-09-18T13:13:14", "account": "wb_acc1", "action": "start", "payload": {"id": 35701344}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:13:16", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35699064, "sum": 300, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:13:18", "account": "wb_acc1", "action": "start", "payload": {"id": 35699064}, "http": 400, "resp": "{\"error\":\"advertChangeStatusViaGRPC: Status Unchanged: advert has no budget to start\"}"}
+{"ts": "2026-09-18T13:13:19", "account": "wb_acc1", "action": "deposit", "payload": {"id": 39087266, "sum": 2000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":2000}"}
+{"ts": "2026-09-18T13:13:21", "account": "wb_acc1", "action": "start", "payload": {"id": 39087266}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:13:23", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35703066, "sum": 500, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:13:24", "account": "wb_acc1", "action": "start", "payload": {"id": 35703066}, "http": 400, "resp": "{\"error\":\"advertChangeStatusViaGRPC: Status Unchanged: advert has no budget to start\"}"}
+{"ts": "2026-09-18T13:13:26", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35699026, "sum": 500, "type": 1, "return": true}, "http": 400, "resp": "{\"error\":\"Invalid Params: minimum deposit amount is 1000\"}"}
+{"ts": "2026-09-18T13:13:28", "account": "wb_acc1", "action": "start", "payload": {"id": 35699026}, "http": 400, "resp": "{\"error\":\"advertChangeStatusViaGRPC: Status Unchanged: advert has no budget to start\"}"}
+{"ts": "2026-09-18T13:18:47", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35514926, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:18:49", "account": "wb_acc2", "action": "start", "payload": {"id": 35514926}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:18:50", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35502200, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1035}"}
+{"ts": "2026-09-18T13:18:52", "account": "wb_acc2", "action": "start", "payload": {"id": 35502200}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:18:54", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35509256, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:18:56", "account": "wb_acc2", "action": "start", "payload": {"id": 35509256}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:18:58", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35501509, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:18:59", "account": "wb_acc2", "action": "start", "payload": {"id": 35501509}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:19:01", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35509529, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:19:03", "account": "wb_acc2", "action": "start", "payload": {"id": 35509529}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:19:05", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35503784, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1029}"}
+{"ts": "2026-09-18T13:19:07", "account": "wb_acc2", "action": "start", "payload": {"id": 35503784}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:19:08", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35513872, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1003}"}
+{"ts": "2026-09-18T13:19:10", "account": "wb_acc2", "action": "start", "payload": {"id": 35513872}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:19:12", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36877433, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1030}"}
+{"ts": "2026-09-18T13:19:14", "account": "wb_acc1", "action": "start", "payload": {"id": 36877433}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:19:16", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35699064, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:19:17", "account": "wb_acc1", "action": "start", "payload": {"id": 35699064}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:19:19", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35703066, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:19:21", "account": "wb_acc1", "action": "start", "payload": {"id": 35703066}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:19:23", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35699026, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":0}"}
+{"ts": "2026-09-18T13:19:25", "account": "wb_acc1", "action": "start", "payload": {"id": 35699026}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:37:56", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35697894, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:37:58", "account": "wb_acc1", "action": "start", "payload": {"id": 35697894}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:37:59", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35698187, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:38:01", "account": "wb_acc1", "action": "start", "payload": {"id": 35698187}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:38:03", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35698366, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:38:05", "account": "wb_acc1", "action": "start", "payload": {"id": 35698366}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T13:38:06", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35706004, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-18T13:38:08", "account": "wb_acc1", "action": "start", "payload": {"id": 35706004}, "http": 200, "resp": ""}
+{"ts": "2026-09-18T14:09:29", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36879576, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1055}"}
+{"ts": "2026-09-18T14:09:30", "account": "wb_acc1", "action": "start", "payload": {"id": 36879576}, "http": 200, "resp": ""}
+{"ts": "2026-09-21T19:37:38", "account": "wb_acc2", "action": "deposit", "payload": {"id": 36462624, "sum": 1200, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1220}"}
+{"ts": "2026-09-21T19:37:39", "account": "wb_acc2", "action": "start", "payload": {"id": 36462624}, "http": 200, "resp": ""}
+{"ts": "2026-09-21T19:37:41", "account": "wb_acc2", "action": "deposit", "payload": {"id": 36460596, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1058}"}
+{"ts": "2026-09-21T19:37:43", "account": "wb_acc2", "action": "start", "payload": {"id": 36460596}, "http": 200, "resp": ""}
+{"ts": "2026-09-21T19:37:45", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35698099, "sum": 1400, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1469}"}
+{"ts": "2026-09-21T19:37:46", "account": "wb_acc1", "action": "start", "payload": {"id": 35698099}, "http": 200, "resp": ""}
+{"ts": "2026-09-21T19:52:58", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35704140, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":39}"}
+{"ts": "2026-09-21T19:53:00", "account": "wb_acc1", "action": "start", "payload": {"id": 35704140}, "http": 200, "resp": ""}
+{"ts": "2026-09-21T19:53:02", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36873563, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1039}"}
+{"ts": "2026-09-21T19:53:04", "account": "wb_acc1", "action": "start", "payload": {"id": 36873563}, "http": 200, "resp": ""}
+{"ts": "2026-09-21T19:53:06", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35506296, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-09-21T19:53:08", "account": "wb_acc2", "action": "start", "payload": {"id": 35506296}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:30:37", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36874000, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T12:30:53", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36879576, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":0}"}
+{"ts": "2026-10-02T12:31:10", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36873788, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1049}"}
+{"ts": "2026-10-02T12:31:26", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35698882, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T12:31:43", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35700300, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T12:31:59", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35278992, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T12:32:16", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35705677, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T12:32:32", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36879647, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T12:32:49", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35698510, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T12:33:05", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35503146, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":11}"}
+{"ts": "2026-10-02T12:33:22", "account": "wb_acc2", "action": "deposit", "payload": {"id": 36459301, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T12:33:39", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35502978, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T12:36:21", "account": "wb_acc1", "action": "start", "payload": {"id": 36874000}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:36:35", "account": "wb_acc1", "action": "start", "payload": {"id": 36879576}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:36:48", "account": "wb_acc1", "action": "start", "payload": {"id": 35698882}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:37:01", "account": "wb_acc1", "action": "start", "payload": {"id": 35700300}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:37:14", "account": "wb_acc1", "action": "start", "payload": {"id": 35278992}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:37:27", "account": "wb_acc1", "action": "start", "payload": {"id": 35705677}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:37:40", "account": "wb_acc1", "action": "start", "payload": {"id": 36879647}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:37:54", "account": "wb_acc1", "action": "start", "payload": {"id": 35698510}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:38:07", "account": "wb_acc2", "action": "start", "payload": {"id": 36459301}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T12:38:20", "account": "wb_acc2", "action": "start", "payload": {"id": 35502978}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T13:22:50", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35282079, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1050}"}
+{"ts": "2026-10-02T13:23:07", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35498671, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1037}"}
+{"ts": "2026-10-02T13:23:23", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35507605, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1040}"}
+{"ts": "2026-10-02T13:23:39", "account": "wb_acc2", "action": "deposit", "payload": {"id": 36460888, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1046}"}
+{"ts": "2026-10-02T13:41:26", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35698453, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1020}"}
+{"ts": "2026-10-02T13:41:42", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35277054, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":0}"}
+{"ts": "2026-10-02T13:41:59", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35277369, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":0}"}
+{"ts": "2026-10-02T13:42:15", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35282447, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T13:42:31", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35701146, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T13:42:48", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36873622, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T13:43:04", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35500111, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T13:43:21", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35502769, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-02T13:43:37", "account": "wb_acc1", "action": "start", "payload": {"id": 35277054}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T13:43:50", "account": "wb_acc1", "action": "start", "payload": {"id": 35277369}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T13:44:04", "account": "wb_acc1", "action": "start", "payload": {"id": 35282447}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T13:44:17", "account": "wb_acc1", "action": "start", "payload": {"id": 35701146}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T13:44:30", "account": "wb_acc1", "action": "start", "payload": {"id": 36873622}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T13:44:43", "account": "wb_acc2", "action": "start", "payload": {"id": 35500111}, "http": 200, "resp": ""}
+{"ts": "2026-10-02T13:44:56", "account": "wb_acc2", "action": "start", "payload": {"id": 35502769}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T08:56:15", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35281617, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:17", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35697894, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:20", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35697951, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:22", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35698099, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:24", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35699129, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:27", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35701344, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:29", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35703547, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:32", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35706311, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:34", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36873660, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:37", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36873861, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:39", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36877686, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:41", "account": "wb_acc1", "action": "deposit", "payload": {"id": 36879576, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:44", "account": "wb_acc1", "action": "deposit", "payload": {"id": 39087266, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:46", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35700392, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1043}"}
+{"ts": "2026-10-12T08:56:48", "account": "wb_acc1", "action": "deposit", "payload": {"id": 35704972, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1048}"}
+{"ts": "2026-10-12T08:56:51", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35497479, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:53", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35497916, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:56", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35498462, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:56:58", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35501683, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:57:01", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35505238, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:57:03", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35505545, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:57:06", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35509833, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:57:08", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35510132, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:57:11", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35513180, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:57:13", "account": "wb_acc2", "action": "deposit", "payload": {"id": 36462624, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:57:16", "account": "wb_acc2", "action": "deposit", "payload": {"id": 36463324, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1000}"}
+{"ts": "2026-10-12T08:57:18", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35514511, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1027}"}
+{"ts": "2026-10-12T08:57:21", "account": "wb_acc2", "action": "deposit", "payload": {"id": 35514220, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1030}"}
+{"ts": "2026-10-12T08:57:23", "account": "wb_acc2", "action": "deposit", "payload": {"id": 36459894, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1037}"}
+{"ts": "2026-10-12T08:57:26", "account": "wb_acc2", "action": "deposit", "payload": {"id": 36459075, "sum": 1000, "type": 1, "return": true}, "http": 200, "resp": "{\"total\":1043}"}
+{"ts": "2026-10-12T09:10:16", "account": "wb_acc1", "action": "start", "payload": {"id": 35281617}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:18", "account": "wb_acc1", "action": "start", "payload": {"id": 35697894}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:21", "account": "wb_acc1", "action": "start", "payload": {"id": 35697951}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:23", "account": "wb_acc1", "action": "start", "payload": {"id": 35698099}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:25", "account": "wb_acc1", "action": "start", "payload": {"id": 35699129}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:28", "account": "wb_acc1", "action": "start", "payload": {"id": 35701344}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:30", "account": "wb_acc1", "action": "start", "payload": {"id": 35703547}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:33", "account": "wb_acc1", "action": "start", "payload": {"id": 35706311}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:35", "account": "wb_acc1", "action": "start", "payload": {"id": 36873660}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:38", "account": "wb_acc1", "action": "start", "payload": {"id": 36873861}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:40", "account": "wb_acc1", "action": "start", "payload": {"id": 36877686}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:42", "account": "wb_acc1", "action": "start", "payload": {"id": 36879576}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:45", "account": "wb_acc1", "action": "start", "payload": {"id": 39087266}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:47", "account": "wb_acc2", "action": "start", "payload": {"id": 35497479}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:50", "account": "wb_acc2", "action": "start", "payload": {"id": 35497916}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:52", "account": "wb_acc2", "action": "start", "payload": {"id": 35498462}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:54", "account": "wb_acc2", "action": "start", "payload": {"id": 35501683}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:57", "account": "wb_acc2", "action": "start", "payload": {"id": 35505238}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:10:59", "account": "wb_acc2", "action": "start", "payload": {"id": 35505545}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:11:02", "account": "wb_acc2", "action": "start", "payload": {"id": 35509833}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:11:04", "account": "wb_acc2", "action": "start", "payload": {"id": 35510132}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:11:06", "account": "wb_acc2", "action": "start", "payload": {"id": 35513180}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:11:09", "account": "wb_acc2", "action": "start", "payload": {"id": 36462624}, "http": 200, "resp": ""}
+{"ts": "2026-10-12T09:11:11", "account": "wb_acc2", "action": "start", "payload": {"id": 36463324}, "http": 200, "resp": ""}

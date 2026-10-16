@@ -1,0 +1,23 @@
+{
+  "status": "paused_for_weight_audit",
+  "cards": 364,
+  "fields": 1092,
+  "plan_sha256": "f70035299c386b52825a2de1e9b33dd592ee070c9e5a931bc1b1c4ffd548a6cd",
+  "preflight": {
+    "ready": 364
+  },
+  "start_msk": "2026-10-15 23:20",
+  "cutoff_msk": "2026-10-16 05:00",
+  "batch_size": 50,
+  "pause_seconds": 60,
+  "canary_cards": 200,
+  "canary_pause_seconds": 600,
+  "writes": 0,
+  "verified": 0,
+  "skipped": 0,
+  "already_desired": 0,
+  "notification_mode": "request_scoped_exact_TC_prefix_no_subscription_mutations",
+  "scheduled": false,
+  "paused_at_utc": "2026-10-15T12:34:50.997238+00:00",
+  "reason": "User requested weight audit and combined dimensions/weight plan before proceeding"
+}

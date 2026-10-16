@@ -23,7 +23,7 @@ from collections import defaultdict
 from threading import Lock
 
 from fastapi import APIRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -97,7 +97,21 @@ def _order_counts(since):
 
 @router.get("/turnover")
 def page():
-    return FileResponse(STATIC / "turnover.html")
+    return FileResponse(STATIC / "turnover.html", headers={"Cache-Control": "no-cache"})
+
+
+@router.get("/turnover/royalty")
+def royalty_page():
+    # Dedicated address opens the royalty panel even before JavaScript runs.
+    html = (STATIC / "turnover.html").read_text(encoding="utf-8")
+    html = html.replace('<title>Обороты</title>', '<title>Обороты по торговым маркам</title>')
+    html = html.replace('<h1>🧮 Обороты</h1>', '<h1>Обороты по торговым маркам</h1>')
+    html = html.replace('id="premium" role="tabpanel"', 'id="premium" hidden role="tabpanel"')
+    html = html.replace('id="premium-note"', 'id="premium-note" hidden')
+    html = html.replace('aria-labelledby="royalty-tab" hidden', 'aria-labelledby="royalty-tab"')
+    html = html.replace('href="/turnover" class="cur"', 'href="/turnover"')
+    html = html.replace('href="/turnover/royalty"', 'href="/turnover/royalty" class="cur"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 _TURNOVER_CACHE = {}
@@ -171,3 +185,165 @@ def _calculate_turnover(months: int = 6):
     return {"months": out, "orgs": ORGS, "platforms": PLATFORMS,
             "ozon_pending": pending,
             "wb_last_day": wb_last.isoformat() if wb_last else None}
+
+
+# Royalty scope approved 05.10.2026: all WB/Market, selected trademark on Ozon.
+_ROYALTY_START = dt.date(2026, 7, 1)
+_ROYALTY_BRANDS = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Dsquare"}
+_ROYALTY_RATES_DIGITAL = [
+    {"range": "до 5 000 000 рублей", "percent": "2,25"},
+    {"range": "от 5 000 000 до 10 000 000 рублей", "percent": "2,15"},
+    {"range": "от 10 000 000 до 20 000 000 рублей", "percent": "2,0"},
+    {"range": "от 20 000 000 до 30 000 000 рублей", "percent": "1,75"},
+    {"range": "свыше 30 000 000 рублей", "percent": "1,5"},
+]
+_ROYALTY_CACHE = {}
+_ROYALTY_LOCK = Lock()
+
+
+def _royalty_ozon(since):
+    # One classification per offer prevents multiplying realization rows on joins.
+    return db.query("""with brands as (
+        select account, offer_id,
+          array_agg(distinct v->>'value') filter (
+            where nullif(trim(v->>'value'), '') is not null) labels
+        from raw_ozon_attributes
+        cross join lateral jsonb_array_elements(payload->'attributes') a
+        cross join lateral jsonb_array_elements(a->'values') v
+        where a->>'id' = '85' group by account, offer_id
+      ), classified as (
+        select r.account, to_char(make_date(year, month, 1), 'YYYY-MM') ym,
+          case when cardinality(b.labels) = 1 then b.labels[1] else null end brand,
+          coalesce((item->'delivery_commission'->>'amount')::numeric, 0) sales,
+          coalesce((item->'return_commission'->>'amount')::numeric, 0) rets
+        from raw_ozon_realization r
+        cross join lateral jsonb_array_elements(r.payload->'rows') item
+        left join brands b on b.account = r.account
+          and b.offer_id = item->'item'->>'offer_id'
+        where make_date(year, month, 1) >= %s
+      ) select account, ym, brand, sum(sales) sales, sum(rets) rets,
+          count(*) row_count from classified group by account, ym, brand""", (since,))
+
+
+def _royalty_months(today):
+    cursor = _ROYALTY_START
+    while cursor <= today.replace(day=1):
+        yield cursor.strftime("%Y-%m")
+        cursor = (cursor.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+
+
+
+def _digital_royalty(base):
+    """One rate applies to the whole month's reported gross trademark sales."""
+    from decimal import Decimal, ROUND_HALF_UP
+    if base is None:
+        return {"rate_percent": None, "amount": None}
+    value = Decimal(str(base))
+    if value < 0:
+        raise ValueError("Royalty gross sales cannot be negative")
+    if value < Decimal("5000000"):
+        rate = Decimal("2.25")
+    elif value < Decimal("10000000"):
+        rate = Decimal("2.15")
+    elif value < Decimal("20000000"):
+        rate = Decimal("2.0")
+    elif value <= Decimal("30000000"):
+        rate = Decimal("1.75")
+    else:
+        rate = Decimal("1.5")
+    amount = (value * rate / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return {"rate_percent": float(rate), "amount": float(amount)}
+
+
+def _assemble_royalty(today, source_rows, coverage):
+    from decimal import Decimal
+
+    def cell(sales=0, rets=0):
+        sales, rets = Decimal(str(sales)), Decimal(str(rets))
+        return {"base": float(round(sales, 2)), "sales": float(round(sales, 2)), "rets": float(round(rets, 2)),
+                "net": float(round(sales - rets, 2))}
+
+    cells, excluded, unknown = {}, {}, {}
+    for platform, rows in source_rows:
+        for r in rows:
+            org = ACC_ORG.get(r["account"])
+            if org not in ORGS:
+                continue
+            key = (r["ym"], platform, org)
+            if platform == "ozon":
+                cells.setdefault(key, cell())
+                brand = r["brand"]
+                if brand is None:
+                    unknown[key] = cell(r["sales"], r["rets"])
+                    unknown[key]["rows"] = r["row_count"]
+                    continue
+                if brand != _ROYALTY_BRANDS.get(r["account"]):
+                    bucket = excluded.setdefault(key, {"sales": Decimal(0), "rets": Decimal(0)})
+                    for field in ("sales", "rets"):
+                        bucket[field] += Decimal(str(r[field]))
+                    continue
+            cells[key] = cell(r["sales"], r["rets"])
+
+    months = []
+    for ym in _royalty_months(today):
+        orgs = {}
+        for org in ORGS:
+            platforms = {p: cells.get((ym, p, org)) for p in PLATFORMS}
+            unknown_cell = unknown.get((ym, "ozon", org), cell())
+            excluded_cell = excluded.get((ym, "ozon", org), {})
+            present = [c for c in platforms.values() if c is not None]
+            totals = {field: float(round(sum(Decimal(str(c[field])) for c in present), 2)) if present else None
+                      for field in ("sales", "rets", "net")}
+            orgs[org] = {"platforms": platforms, "base": totals["sales"], **totals,
+                         "wb_last_day": next((c["last_day"] for c in coverage
+                            if ACC_ORG.get(c["account"]) == org and c["ym"] == ym), None),
+                         "ozon_unclassified": unknown_cell,
+                         "ozon_excluded": cell(excluded_cell.get("sales", 0), excluded_cell.get("rets", 0))}
+        digital = orgs["7807355364"]
+        royalty = _digital_royalty(digital["base"])
+        month_end = (dt.date.fromisoformat(ym + "-01").replace(day=28)
+                     + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        reasons = []
+        if any(c is None for c in digital["platforms"].values()):
+            reasons.append("Нет данных одной или нескольких площадок")
+        if digital["wb_last_day"] is None or digital["wb_last_day"] < month_end.isoformat():
+            reasons.append("Данные ВБ не доходят до конца месяца")
+        if digital["ozon_unclassified"].get("rows", 0):
+            reasons.append("Есть строки Ozon без подтверждённого бренда")
+        royalty.update(preliminary=bool(reasons), reasons=reasons)
+        digital["royalty"] = royalty
+        orgs["7811803918"]["royalty"] = None
+        months.append({"ym": ym, "orgs": orgs})
+    from decimal import Decimal
+    calculated = [m for m in months if m["orgs"]["7807355364"]["royalty"]["amount"] is not None]
+    total = float(sum((Decimal(str(m["orgs"]["7807355364"]["royalty"]["amount"]))
+                      for m in calculated), Decimal(0))) if calculated else None
+    return {"months": months, "orgs": ORGS, "platforms": PLATFORMS,
+            "trademarks": {"7807355364": "Цифровой квадрат", "7811803918": "Dsquare"},
+            "since": _ROYALTY_START.isoformat(), "coverage": coverage,
+            "basis": "sales_before_returns",
+            "royalty_rates": {"7807355364": _ROYALTY_RATES_DIGITAL},
+            "royalty_period": "month", "royalty_method": "single_rate_on_whole_base",
+            "digital_royalty_total": {"amount": total,
+                "months": [m["ym"] for m in calculated],
+                "preliminary": any(m["orgs"]["7807355364"]["royalty"]["preliminary"] for m in calculated)},
+            "refresh_policy": "daily"}
+
+
+@router.get("/api/turnover/royalty")
+def royalty_turnover():
+    today = dt.datetime.now(dt.timezone.utc).date()
+    with _ROYALTY_LOCK:
+        if _ROYALTY_CACHE.get("day") == today:
+            return _ROYALTY_CACHE["result"]
+        coverage = db.query("""select account,
+          to_char((payload->>'rr_dt')::date, 'YYYY-MM') ym,
+          max((payload->>'rr_dt')::date)::text last_day
+          from raw_wb_report where (payload->>'rr_dt')::date >= %s
+          group by account, ym""", (_ROYALTY_START,))
+        result = _assemble_royalty(today, [
+            ("wb", _wb(_ROYALTY_START)), ("ozon", _royalty_ozon(_ROYALTY_START)),
+            ("yandex", _yandex(_ROYALTY_START))], coverage)
+        result["calculated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        _ROYALTY_CACHE.update(day=today, result=result)
+        return result

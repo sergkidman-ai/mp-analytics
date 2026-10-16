@@ -1,0 +1,14 @@
+{
+  "status": "superseded_by_user_choice_of_api_supplier",
+  "authorized_scope": "One test card of Odyssey only",
+  "source_price_date": "2026-10-14",
+  "source_price_barcode_fields_found": false,
+  "existing_ean13_cards": [
+    "0851/AT-TN2375",
+    "0852/AT-DR2335"
+  ],
+  "question": "Need external code/article and supplier EAN13 or filename containing it",
+  "writes": 0,
+  "mass_ean13_task_remains_cancelled": true,
+  "replacement_report": "docs/reports/card_supplier_ean13_single_test_2026-10-14"
+}

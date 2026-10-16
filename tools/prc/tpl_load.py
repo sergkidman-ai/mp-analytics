@@ -4,7 +4,7 @@ sys.path.insert(0, "/opt/mp-analytics")
 from dotenv import load_dotenv; load_dotenv("/opt/mp-analytics/.env")
 import openpyxl
 from core import ms_api
-from prices.ms_import import create_in_ms, wb_name
+from prices.ms_import import create_in_ms, prepare_wb_import
 
 ap = argparse.ArgumentParser()
 ap.add_argument("src")
@@ -29,10 +29,10 @@ for r in range(2, ws.max_row + 1):
         continue
     # Пустой «Код» = новый внешний код, его назначает Сергей. Ключ такой строки в --over — "".
     rec.update(OVER.get(rec["Код"] or "", {}))
-    rec["Доп. поле: Название WB"], _ = wb_name(rec["Доп. поле: Название WB"])
     recs.append(rec)
 
 recs = [r for r in recs if not a.only or r["Код"] in a.only]
+prepare_wb_import(recs)
 for r in recs:
     print(f"  {r['Код']:9} вн.{r['Внешний код']:5} {str(r['Артикул']):24} вес {r['Вес']} | {r['Штрихкод Code128']} | "
           f"связь {r['Доп. поле: Связь']} | {r['Закупочная цена']} ₽ | WB: {r['Доп. поле: Название WB']}")

@@ -1,0 +1,14 @@
+[Unit]
+Description=Authorized supplier EAN13 append to MS, night 2026-10-13
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python tools/card_supplier_ean13_apply.py --apply
+TimeoutStartSec=5h
+StandardOutput=journal
+StandardError=journal
+

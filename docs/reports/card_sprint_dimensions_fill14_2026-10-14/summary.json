@@ -1,0 +1,10 @@
+{
+  "status": "complete",
+  "cards": 14,
+  "fields_per_card": 3,
+  "write_attempts": 14,
+  "writes_http200": 14,
+  "verified": 14,
+  "at": "2026-10-14T14:52:30.524292+00:00",
+  "completed_at": "2026-10-14T14:53:01.010624+00:00"
+}

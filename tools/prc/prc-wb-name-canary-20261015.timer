@@ -1,0 +1,11 @@
+[Unit]
+Description=WB-name pilot, October 15 2026 at 21:00 MSK
+
+[Timer]
+OnCalendar=2026-10-15 18:00:00 UTC
+AccuracySec=1s
+Persistent=false
+Unit=prc-wb-name-canary-20261015.service
+
+[Install]
+WantedBy=timers.target

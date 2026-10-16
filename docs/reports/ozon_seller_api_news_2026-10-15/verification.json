@@ -1,0 +1,34 @@
+{
+  "major": {
+    "source_rows": 185,
+    "linked_events": 96,
+    "missing": 0,
+    "repeat_additions": 0
+  },
+  "seller-api": {
+    "source_rows": 68,
+    "linked_events": 38,
+    "missing": 0,
+    "repeat_additions": 0
+  },
+  "content": {
+    "source_rows": 15,
+    "linked_events": 8,
+    "missing": 0,
+    "repeat_additions": 0
+  },
+  "fbs": {
+    "source_rows": 27,
+    "linked_events": 20,
+    "missing": 0,
+    "repeat_additions": 0
+  },
+  "finance": {
+    "source_rows": 12,
+    "linked_events": 12,
+    "missing": 0,
+    "repeat_additions": 0
+  },
+  "preserved_events": 103,
+  "api_verified": true
+}

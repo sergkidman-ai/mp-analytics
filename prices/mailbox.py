@@ -12,6 +12,8 @@ import base64
 import email
 import imaplib
 import re
+import ssl
+import time
 from email.header import decode_header, make_header
 from email.utils import parsedate_to_datetime
 
@@ -20,6 +22,8 @@ from dotenv import load_dotenv
 load_dotenv(os.getenv("MP_ENV_PATH", "/opt/mp-analytics/.env"))
 
 PRICE_EXT = (".xlsx", ".xls", ".csv")
+CONNECT_TIMEOUT = 30
+CONNECT_RETRY_DELAYS = (2, 5)
 
 
 def imap_utf7(name):
@@ -48,9 +52,28 @@ def _hdr(value):
 
 
 def connect():
-    box = imaplib.IMAP4_SSL(os.getenv("MAIL_HOST"))
-    box.login(os.getenv("MAIL_USER"), os.getenv("MAIL_PASS"))
-    return box
+    """Повторяем только установление соединения и вход, до чтения/изменения писем."""
+    for attempt in range(len(CONNECT_RETRY_DELAYS) + 1):
+        box = None
+        try:
+            box = imaplib.IMAP4_SSL(os.getenv("MAIL_HOST"), timeout=CONNECT_TIMEOUT)
+            box.login(os.getenv("MAIL_USER"), os.getenv("MAIL_PASS"))
+        except Exception as exc:
+            if box is not None:
+                try:
+                    box.shutdown()
+                except Exception:
+                    pass
+            # Ошибку пароля (IMAP4.error) и проверку сертификата повторять бессмысленно.
+            retryable = (isinstance(exc, (OSError, imaplib.IMAP4.abort))
+                         and not isinstance(exc, ssl.SSLCertVerificationError))
+            if not retryable or attempt == len(CONNECT_RETRY_DELAYS):
+                raise
+            time.sleep(CONNECT_RETRY_DELAYS[attempt])
+        else:
+            if attempt:
+                print(f"IMAP: соединение восстановлено с попытки {attempt + 1}")
+            return box
 
 
 def mark_seen(folder, imap_uid):

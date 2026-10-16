@@ -1,0 +1,11 @@
+{
+  "scope": 23,
+  "counts": {
+    "ALREADY_BOTH_FILLED": 23
+  },
+  "both_values": "8443999000",
+  "missing_fields": 0,
+  "write_requests": 0,
+  "written": 0,
+  "live_recheck": true
+}

@@ -1,53 +1,35 @@
 #!/usr/bin/env python3
 # поток: mkt
-"""Сторож автоакций WB: сразу после старта акции вывести из неё убыточные товары.
+"""Сторож автоакций WB: поднять цену ниже экономического пола.
 
-ЗАЧЕМ. Перед автоакцией мы считаем, кто в неё проходит по текущим закупочным ценам, и
-грузим решение в ЛК. ВБ всё равно ночью срезает цены отдельным карточкам вплоть до −92 %.
-Этот скрипт запускается сразу после старта акции, находит товары, которые продаются ниже
-нашего пола, и поднимает им цену до пола — тем самым выводя их из акции.
+Пол применяется к discountedPrice Prices API — после скидки продавца, до СПП:
+    floor_net = max(300 ₽ × кратность, 10 % себестоимости полного комплекта)
+    floor_price = (cogs + floor_net) / (1 − retention)
 
-ПОЛ (правило Сергея, 10.09.2026):
-    floor_net   = max(300 ₽ × кратность; 10 % от себестоимости бандла)
-    floor_price = (floor_net + cogs) / (1 − retention)
-    retention   — доля удержаний МП от оборота со страницы «Отчёты МП» за последний месяц.
-Пол применяется к цене ПОСЛЕ акционной скидки, но ДО СПП (`discountedPrice` Prices API):
-именно она — база комиссии и знаменатель retention (см. `retention()` в price_quarantine.py).
+Себестоимость: собственный достаточный остаток с проверкой аномально низкой цены,
+иначе минимальная закупочная доступного поставщика (порог >=4 шт.). Универсальные
+модели связаны явно; для наборов проверяется весь состав, для бандлов — кратность.
+Частичная стоимость набора не используется.
 
-СЕБЕСТОИМОСТЬ — две ветки, по остатку в МойСклад:
-  • есть остаток на наших складах «Звездный»/«Дисквер» → себестоимость закупленного
-    (`supplier_stock.cost_seb`, средневзвешенная по этим складам);
-  • остаток только на «Удаленный склад» (склад поставщика) → минимальная цена среди
-    поставщиков: прайсы `prc_price_row`, цена ТК и `supplier_stock.buy_price` — что дешевле.
-Фолбэк — FIFO из `mkt_margin_control.fifo_cogs_u`. Нет себестоимости — товар выводим
-из акции возвратом к доакционной цене (решение Сергея: «выводим»).
+Контроль пола без baseline: все типы карточек с участием по выгрузке действующей
+акции и ценой в пределах плана, а также ранее подтверждённым подъёмом до пола.
+Известные смешанные наборы со скидкой проверяются при действующем календаре.
+Прочие карточки проверяются при падении цены >5 % относительно baseline.
+Ночной baseline — снимок текущей цены; он может уже содержать акционную скидку.
+Сам по себе снимок не доказывает безопасность цены или участие в автоакции.
+Подъём подтверждается перечиткой цены, но не подтверждает исключение из всех акций.
 
-ПОЧЕМУ НЕ СПРАШИВАЕМ У ВБ, КТО В АКЦИИ. `/api/v1/calendar/promotions/nomenclatures`
-отдаёт плановую цену `planPrice` только для акций `type=regular`; на `type=auto`
-(наш случай) он отвечает 422 — проверено живьём 10.09.2026 на 7 акциях. Поэтому
-максимально допустимой ценой участия считаем ту цену, которую ВБ выставил сам на старте:
-автоакция и есть механизм доведения карточки до плановой цены. Отсюда правило:
-цена ВБ ≥ нашего пола → не трогаем (мы уже в акции по максимально дорогой допустимой цене);
-цена ВБ < пола → ставим пол, товар из акции выпадает. «Минус 1 ₽» тут не нужен: цену
-назначил сам ВБ, мы её не превышаем.
+Последний этап: независимый read-only аудит всех оставшихся скидок продавца >50 %,
+с новой перечиткой цен и расчётом из первичных остатков, прайсов, связей и составов.
+Замечания сохраняются в JSON и сводке; аудит цены не отправляет.
 
-ВОЛНЫ. ВБ доводит скидки не мгновенно и может вернуть товар в акцию, поэтому прогон
-идёт трижды: T+15 мин, T+2 ч, T+8 ч (`--wave start|h2|h8`). Доакционную цену фиксируем
-на первой волне в `wb_promo_guard_log` — из `wb_price` её потом не взять, коллектор в
-09:20 перезапишет снимок акционными ценами.
-
-КАРАНТИН. Резкий подъём цены ВБ может отправить в карантин (втрое ниже прежней —
-известный порог на снижение). `ops/price_quarantine.py` этому не мешает и не откатывает:
-цель он берёт из самой карточки карантина, то есть из нашей же новой цены, и лестницей
-дотолкает её вверх. Отдельной синхронизации не нужно.
-
-    ./venv/bin/python -m ops.wb_promo_guard --dry               # что бы сделал (по умолчанию)
-    ./venv/bin/python -m ops.wb_promo_guard --dry --limit 20    # первый безопасный взгляд
+    ./venv/bin/python -m ops.wb_promo_guard --dry
     ./venv/bin/python -m ops.wb_promo_guard --apply --wave start
-    ./venv/bin/python -m ops.wb_promo_guard --apply --acc wb_acc2 --no-tg
+    ./venv/bin/python -m ops.wb_promo_guard --baseline
 """
 import argparse
 import csv
+import json
 import math
 import os
 import re
@@ -435,6 +417,15 @@ def cogs_map(acc, goods=None):
             # артикул и есть код с кратностью. Остальные 55 — обычные коды.
             raw = (r["vendor_code"] or "").strip()
 
+        # Состав отгрузки может содержать компоненты набора. Shipment-мост выбирает
+        # один из них по количеству, поэтому для известного набора идентичность берём
+        # из текущего артикула карточки, а не из выбранного компонента отгрузки.
+        live_vendor = goods[int(r["nm_id"])][3] if goods and int(r["nm_id"]) in goods else r["vendor_code"]
+        set_code = norm_code(live_vendor)
+        mapped_raw = raw
+        if set_code in sets_:
+            raw = set_code
+
         # БАНДЛ: 4248X10 — это 10 штук товара 4248 в одной упаковке, 0025X6 — шесть штук 0025.
         # Себестоимость карточки = себестоимость единицы × кратность. Без множителя пол
         # считался бы по одной штуке и был бы занижен в 6-10 раз. Шаблон якорный
@@ -448,13 +439,14 @@ def cogs_map(acc, goods=None):
         # 3443). Действие то же, что при отсутствии себестоимости, но причина другая.
         rec = {"cogs": None, "source": None, "branch": ("none" if code else "unmapped"),
                "external_code": raw or None, "vendor_code": r["vendor_code"],
-               "n_comp": 0, "bundle": mult, "code_from": ("vendor_code" if from_vc else "external_code")}
+               "n_comp": 0, "is_set": code in sets_, "mapped_external_code": mapped_raw or None,
+               "bundle": mult, "code_from": ("vendor_code" if from_vc else "external_code")}
         if code:
             self_rec = stock.get(code) or {}
             comps = sets_.get(code) or {code: 1}
             rec["n_comp"] = len(comps)
 
-            if len(comps) == 1:                          # обычный товар, не набор
+            if not rec["is_set"]:                       # обычный товар, не набор
                 price, src, branch = unit_cost(code, links, stock, need=mult)
                 rec.update(cogs=price, source=src, branch=branch)
                 if mult > 1 and price:
@@ -470,7 +462,10 @@ def cogs_map(acc, goods=None):
             # компонентам остаётся фолбэком, когда своей цены нет (таких наборов 33).
             # Считать наборы только по компонентам — значит занизить пол и продавать в минус:
             # 6528 — 19 353 ₽ своя цена против 8 874 ₽ по частям, пол расходится вдвое.
-            if self_rec.get("qty_own", 0) >= mult and self_rec.get("cost_own"):
+            set_market = [float(p) for p in (self_rec.get("supplier_min"), self_rec.get("tc_price")) if p]
+            own_set_valid = (self_rec.get("cost_own") and
+                             (not set_market or float(self_rec["cost_own"]) >= OWN_COST_MIN_SHARE * min(set_market)))
+            if self_rec.get("qty_own", 0) >= mult and own_set_valid:
                 rec.update(cogs=self_rec["cost_own"], source="set_own_stock", branch="own")
                 if mult > 1:
                     rec["cogs"], rec["source"] = float(rec["cogs"]) * mult, f"set_own_stock_x{mult}"
@@ -492,7 +487,11 @@ def cogs_map(acc, goods=None):
                 rec["branch"] = "own" if "own" in branches else "remote"
                 own_price = self_rec.get("tc_price") or self_rec.get("supplier_min")
                 if own_price:
-                    rec.update(cogs=float(own_price), source="set_own_price")
+                    # Полная закупочная комплекта и сумма доступных компонентов —
+                    # два независимых основания. Не занижаем цену более дешёвой строкой.
+                    use_components = not gap and total > float(own_price)
+                    rec.update(cogs=max(float(own_price), total) if not gap else float(own_price),
+                               source="set_components" if use_components else "set_own_price")
                 elif not gap:
                     rec.update(cogs=total, source="set_components")
         if mult > 1 and rec.get("cogs"):
@@ -610,13 +609,54 @@ def min_net(cogs, quantity=1):
     return max(MIN_NET * max(1, int(quantity)), MIN_NET_PCT * float(cogs))
 
 
-def decide(acc, goods, cogs, prepromo, ret, touched_only=True):
+def floor_controlled_bundles(acc, goods, cogs, today=None, active_promo_names=()):
+    """Контролируемые карточки всех типов, независимо от baseline.
+
+    Источник участия: выгрузка действующей акции и цена в её пределах. Это
+    подтверждение по снимку, не гарантия текущего membership API.
+
+    Участник действующей акции по выгрузке + цена в пределах плана, либо ранее
+    подтверждённый подъём до пола. Флаг выгрузки — снимок, не текущий статус API.
+    """
+    bundles = {int(nm) for nm, c in cogs.items()
+               if c.get("cogs")
+               and nm in goods and goods[nm][2] > 0}
+    if not bundles:
+        return {}
+    today = today or datetime.now(MSK).date()
+    controlled = {}
+    def name_key(name):
+        return re.sub(r"[\W_]+", " ", (name or "").lower().replace("ё", "е")).strip()
+    active_names = {name_key(name) for name in active_promo_names if name}
+    # Наборы со скидкой контролируем и без выгрузки: низкий baseline не доказывает
+    # безопасность. Состав подтверждён set_cost, активный календарь нужен для области.
+    if active_names:
+        controlled.update({nm: "известный набор со скидкой при действующих акциях"
+                           for nm in bundles if cogs[nm].get("is_set") and goods[nm][1] > 0})
+    for r in db.query("""SELECT nm_id, plan_price, promo_name FROM wb_promo_plan_price
+                         WHERE account = %s AND nm_id = ANY(%s) AND in_promo
+                           AND plan_price > 0
+                           AND (valid_from IS NULL OR valid_from <= %s)
+                           AND (valid_to IS NULL OR valid_to >= %s)""",
+                      (acc, sorted(bundles), today, today)):
+        nm = int(r["nm_id"])
+        if (name_key(r["promo_name"]) in active_names
+                and goods[nm][2] <= float(r["plan_price"]) + 1):
+            controlled[nm] = "участник по выгрузке и цене"
+    for r in db.query("""SELECT DISTINCT nm_id FROM wb_promo_guard_log
+                         WHERE account = %s AND nm_id = ANY(%s)
+                           AND status = 'confirmed' AND floor_price IS NOT NULL""",
+                      (acc, sorted(bundles))):
+        controlled[int(r["nm_id"])] = "пол ранее подтверждён сторожем"
+    return controlled
+
+
+def decide(acc, goods, cogs, prepromo, ret, touched_only=True, floor_controlled=None):
     """Решение по каждому nm_id. → список словарей-строк журнала.
 
-    touched_only=True (по умолчанию и в кроне) — трогаем ТОЛЬКО те карточки, которым цену
-    уронила акция: текущая цена ниже доакционной. Без этого ограничения сторож начинает
-    поднимать цену всему, что стоит ниже пола (10.09.2026 — 3367 карточек), а это уже не
-    «вывести из акции», а переоценка каталога. Снять ограничение можно только руками: --all.
+    Карточки из floor_controlled проверяются по актуальному полу при низком baseline,
+    снижении меньше DROP_EPS или росте себестоимости. Прочие карточки сохраняют прежний
+    режим; глобальная переоценка возможна только с --all.
     """
     rows = []
     for nm, (base, disc, cur, vendor) in goods.items():
@@ -633,7 +673,9 @@ def decide(acc, goods, cogs, prepromo, ret, touched_only=True):
                "target_price": None, "send_price": None, "send_disc": None,
                "status": "skip", "reason": "", "err": None, "price_after": None}
 
-        if touched_only and not touched:
+        control = (floor_controlled or {}).get(nm)
+        enforce_floor = bool(control and c.get("cogs"))
+        if touched_only and not touched and not enforce_floor:
             row["reason"] = ("акция цену не трогала" if pre else "нет доакционного снимка")
             rows.append(row)
             continue
@@ -658,6 +700,8 @@ def decide(acc, goods, cogs, prepromo, ret, touched_only=True):
             row["send_price"], row["send_disc"] = raise_plan(base, target)
             row["status"] = "todo"
             row["reason"] = f"ниже пола на {floor_price - cur:.0f} ₽, чистая {row['net_before']:.0f} ₽"
+            if enforce_floor and not touched:
+                row["reason"] += f"; контроль пола без baseline: {control}"
         else:
             # Себестоимости нет — считать пол не из чего. Выводим из акции возвратом
             # к доакционной цене, но только если цена реально просела: иначе снесли бы
@@ -810,6 +854,7 @@ def main():
         return baseline(accounts)
     stamp = datetime.now(MSK).strftime("%Y-%m-%d_%H%M")
     all_rows, summary, alarms = [], [], []
+    audit_context = {}
 
     for acc in accounts:
         ret = RETENTION[acc]
@@ -818,6 +863,7 @@ def main():
         cycle_start = promo_start or datetime.now(MSK).replace(hour=0, minute=0, second=0, microsecond=0)
         goods = fetch_goods(acc)
         cogs = cogs_map(acc, goods)
+        audit_context[acc] = {"cogs": cogs, "mps": {}, "rows": []}
         # Доступность решает остаток, который мы САМИ передаём на ВБ, а не штуки на складе
         # поставщика. Правило Сергея от 12.09.2026 на примере 5801/5368: на Удаленном складе
         # они есть, но поставщик временно не отгружает — остаток обнулили, продавать нечего.
@@ -827,6 +873,7 @@ def main():
         # активности в неё не попадают. Поэтому «нет в выдаче» ≠ «нет остатка»: выводим только
         # тех, кто В ВЫДАЧЕ ЕСТЬ и остаток по ним нулевой. Иначе снесли бы полкаталога.
         mps = mp_stock(acc)
+        audit_context[acc]["mps"] = mps if len(mps) >= MP_MIN_CARDS else {}
         if len(mps) >= MP_MIN_CARDS:
             n_out = 0
             for nm, c in cogs.items():
@@ -851,7 +898,10 @@ def main():
             alarms.append(msg)
             continue
         pre = prepromo_map(acc, cycle_start)
-        rows = decide(acc, goods, cogs, pre, ret, touched_only=not a.all)
+        controlled = floor_controlled_bundles(acc, goods, cogs,
+                                              active_promo_names=[p[1] for p in promos])
+        rows = decide(acc, goods, cogs, pre, ret, touched_only=not a.all,
+                      floor_controlled=controlled)
         pid = ",".join(str(p[0]) for p in promos)
         for r in rows:
             r["wave"], r["promo_ids"] = a.wave, pid
@@ -899,9 +949,31 @@ def main():
         summary.append((acc, len(goods), len(todo), len(loss), ok_n,
                         sum(1 for r in todo if r["status"] == "error")))
         all_rows += rows
+        audit_context[acc]["rows"] = rows
 
     save(all_rows)
 
+    # Отдельный последний этап: свежая цена и независимый расчёт из первичных строк.
+    # Ошибка аудита не скрывает результат уже отправленных исправлений.
+    from ops.wb_promo_discount_audit import audit_account
+    for acc, ctx in audit_context.items():
+        try:
+            final_goods = fetch_goods(acc)
+            result = audit_account(acc, final_goods, ctx["cogs"], ctx["rows"], ctx["mps"])
+            audit_path = f"{REPORTS}/wb_discount_audit_{stamp}_{acc}.json"
+            with open(audit_path, "w", encoding="utf-8") as audit_file:
+                json.dump(result, audit_file, ensure_ascii=False, indent=2, default=str)
+            lines_msg = (f"Аудит скидок >50% {ACC_NAME[acc]}: {result['checked']} карточек, "
+                         f"замечаний {result['flagged']}; "
+                         f"ниже пола {result.get('finding_counts', {}).get('below_floor', 0)}, "
+                         f"без себестоимости {result.get('finding_counts', {}).get('cost_unresolved', 0)}; "
+                         f"{audit_path}")
+            alarms.append(lines_msg)
+            print(lines_msg, flush=True)
+        except Exception as exc:
+            msg = f"АУДИТ СКИДОК НЕ ЗАВЕРШЁН {acc}: {type(exc).__name__}: {str(exc)[:160]}"
+            alarms.append(msg)
+            print(msg, flush=True)
     # Полный разбор — файлом; в чат и в ТГ идёт только сводка (правило экономии контекста).
     path = f"{REPORTS}/wb_promo_guard_{stamp}.csv"
     changed = [r for r in all_rows if r["status"] in ("todo", "dry", "sent", "confirmed", "error")]

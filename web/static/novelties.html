@@ -207,6 +207,7 @@
     <div class="navgroup">Деньги</div>
     <a href="/cashflow">💰 Кэшфлоу</a>
     <a href="/turnover">🧮 Оборот для премии</a>
+    <a href="/turnover/royalty">Обороты по торговым маркам</a>
     <div class="navgroup">Отчёты</div>
     <a href="/reports">📋 Отчёты МП</a>
   </nav>
@@ -570,9 +571,11 @@
   карточек — но перед записью пробегитесь глазами.</p>
   <p>Поле <b>«карточек из этой позиции»</b>: если строка поставщика на самом деле набор из нескольких
   наших товаров, поставьте нужное число — окно достроит столько карточек, коды и связь пересчитаются.</p>
-  <p>Красным окно пишет, что не сошлось: например «строка не сведена с моделью каталога ТК; в названии
-  поставщика не видно типа/модели/бренда — “Название WB” заполнить вручную». Такие места дозаполняйте
-  руками прямо в окне.</p>
+  <p>«Название WB» рассчитывается по общей формуле с проверкой длины и размещения на этикетке.
+  Если исходных данных не хватает, раскройте «Уточнить характеристики для Названия WB», заполните
+  недостающие характеристики, укажите источник подтверждения и нажмите «Пересчитать».
+  Уже известные характеристики исправляйте в исходном каталоге или прайсе. Не подставляйте модель
+  принтера вместо модели расходника; отсутствие цвета или чипа не означает конкретное значение.</p>
   <ul>
     <li><b>Проба</b> — сухой прогон: показывает, что будет записано, и <b>не пишет ничего</b>.
       Делайте пробу всегда.</li>
@@ -725,6 +728,16 @@
       <p style="margin:6px 0"><label>тип расходника: <select id="mskind"></select></label>
         <label style="margin-left:12px">тип техники: <select id="msprinter"></select></label>
         <span class="muted" id="msseries"></span></p>
+      <details id="mswbdetails">
+        <summary>Уточнить характеристики для Названия WB</summary>
+        <p class="note">Заполняйте только недостающие сведения из подтверждённого источника.
+          Для наборов указывайте модель всего набора. Масса/объём — содержимого, а не упаковки.</p>
+        <div class="grid" id="mswbfacts"></div>
+        <label class="f"><span>Источник подтверждения (ссылка или документ поставщика)</span>
+          <input id="mswbevidence"></label>
+      </details>
+      <p><button id="mswbrecalc">Пересчитать Название WB</button>
+        <span class="mswarn" id="mswbstatus"></span></p>
       <div id="mscards"></div>
       <p class="mslog" id="mslog"></p>
     </div>
@@ -1019,7 +1032,7 @@ async function toBlacklist(ids, msg){
 // показывает, что уйдёт в МС, и только «Создать» пишет. Коды не резервируются — занятость
 // перепроверяется на создании.
 let MS = {id: null, cards: [], folders: [], main: 0, msg: null};
-const KEEP = ["name", "description", "folder", "weight", "buy_price", "wb", "code128", "supplier_code"];
+const KEEP = ["name", "description", "folder", "weight", "buy_price", "code128", "supplier_code"];
 
 function msCardHtml(c, i){
   const opts = MS.folders.map(f =>
@@ -1039,7 +1052,8 @@ function msCardHtml(c, i){
         <option value="">— выбрать —</option>${opts}</select></label>
       ${fld("f-weight", "Вес, кг", c.weight)}
       ${fld("f-price", "Закупочная цена, ₽", c.buy_price)}
-      ${fld("f-wb", "Название WB", c.wb, "w2")}
+      <label class="f w2"><span>Название WB · до ${MS.wbMaxChars || 55} знаков · по формуле</span>
+        <input class="f-wb" value="${esc(c.wb)}" readonly></label>
       ${fld("f-bc", "Штрихкод Code128", c.code128)}
       ${fld("f-sup", "Код поставщика", c.supplier_code)}
       ${fld("f-link", "Связь", c.link, "w4")}
@@ -1067,7 +1081,17 @@ async function msLoad(n, keep){
   const d = await (await fetch(
     `/api/novelties/ms-form?id=${MS.id}&n=${n}&ext=${encodeURIComponent(MS.ext || "")}`)).json();
   if (!d.ok){ $("#mslog").textContent = d.error; return false; }
+  if (!d.wb_source){
+    $("#mslog").textContent = "Не удалось получить расчёт Названия WB. Обновите страницу.";
+    $("#msdry").disabled = $("#msgo").disabled = true;
+    return false;
+  }
   MS.folders = d.folders;
+  MS.wbSourceCode = d.wb_source_code || "";
+  MS.wbMaxChars = d.wb_max_chars || 55;
+  MS.wbOptions = d.wb_fact_options || {};
+  MS.wbSource = d.wb_source;
+  if (!keep){ MS.wbFacts = {}; MS.wbEvidence = ""; }
   // Коды, артикул и связь всегда берём свежие с сервера: они зависят от числа карточек.
   // Остальное у всех карточек одинаковое, поэтому добавленная карточка берёт правки первой,
   // а не откатывается к прайсовым значениям.
@@ -1099,8 +1123,62 @@ async function msLoad(n, keep){
   msSeries();
   $("#msnote").textContent = "внешние коды и связь пересчитываются при смене числа";
   msRender();
+  msWbRenderFacts();
+  if (keep && Object.keys(MS.wbFacts || {}).length) await msWbRecalculate();
+  else msWbApply(d.wb_source);
   return true;
 }
+
+function msWbRenderFacts(){
+  const labels = {kind:"Тип расходника", model:"Модель расходника / набора", brand:"Бренд принтера",
+    color:"Цвет (несколько — через /)", chip:"Чип", capacity:"Ресурс", content:"Содержимое, г / мл"};
+  $("#mswbfacts").innerHTML = Object.entries(labels).map(([key, label]) => {
+    const options = (MS.wbOptions[key] || []).map(v => `<option value="${esc(v)}">`).join("");
+    return `<label class="f w2"><span>${label}</span><input data-wbfact="${key}"
+      value="${esc((MS.wbFacts || {})[key] || "")}" list="mswb-${key}">
+      <datalist id="mswb-${key}">${options}</datalist></label>`;
+  }).join("");
+  $("#mswbevidence").value = MS.wbEvidence || "";
+  const dirty = () => {
+    MS.wbFacts = Object.fromEntries([...$("#mswbfacts").querySelectorAll("input")]
+      .map(el => [el.dataset.wbfact, el.value.trim()]).filter(([, value]) => value));
+    MS.wbEvidence = $("#mswbevidence").value.trim();
+    MS.wbDirty = true;
+    $("#mswbstatus").textContent = "Характеристики изменены — нажмите «Пересчитать»";
+    $("#msdry").disabled = $("#msgo").disabled = true;
+  };
+  $("#mswbfacts").querySelectorAll("input").forEach(el => { el.oninput = dirty; });
+  $("#mswbevidence").oninput = dirty;
+}
+
+function msWbApply(source){
+  MS.cards = msCollect().map(card => ({...card, wb: source.name || ""}));
+  MS.wbSource = source;
+  MS.wbDirty = false;
+  $("#mswbstatus").textContent = source.reason || (source.name ? "Название рассчитано" : "Нет исходных данных");
+  $("#msdry").disabled = $("#msgo").disabled = !source.name;
+  msRender();
+}
+
+async function msWbRecalculate(){
+  const current = MS;
+  const request = JSON.stringify({id: MS.id, source_code: MS.wbSourceCode || "",
+    facts: MS.wbFacts || {}, evidence: MS.wbEvidence || ""});
+  $("#msdry").disabled = $("#msgo").disabled = true;
+  $("#mswbstatus").textContent = "Пересчитываем…";
+  try {
+    const out = await (await fetch("/api/novelties/wb-name-preview", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:request})).json();
+    // Do not apply an old response to another dialog or newly edited facts.
+    if (MS !== current || request !== JSON.stringify({id: MS.id, source_code: MS.wbSourceCode || "",
+      facts: MS.wbFacts || {}, evidence: MS.wbEvidence || ""})) return;
+    if (!out.ok) throw new Error(out.error || "Не удалось пересчитать название");
+    msWbApply(out.wb_source);
+  } catch (error) {
+    if (MS === current) $("#mswbstatus").textContent = error.message;
+  }
+}
+$("#mswbrecalc").onclick = msWbRecalculate;
 
 // Серия пересчитывается на сервере при пробе и записи; здесь — только показ текущей
 // догадки, чтобы человек видел результат до нажатия «Создать».
@@ -1114,8 +1192,15 @@ async function msSeries(){
 }
 
 async function msSend(dry){
+  if (MS.wbDirty || !MS.wbSource?.name){
+    $("#mslog").textContent = "Сначала пересчитайте Название WB по исходным характеристикам";
+    return;
+  }
   $("#mslog").textContent = dry ? "проба…" : "создаём в МойСкладе…";
   const body = {id: MS.id, cards: msCollect(), main_index: MS.main, dry,
+                wb_source_code: MS.wbSourceCode || "",
+                wb_source_token: MS.wbSource.token, wb_rules_version: MS.wbSource.rules_version,
+                wb_facts: MS.wbFacts || {}, wb_evidence: MS.wbEvidence || "",
                 printer: $("#msprinter").value, kind: $("#mskind").value};
   const out = await (await fetch("/api/novelties/ms-create", {method: "POST",
     headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)})).json();

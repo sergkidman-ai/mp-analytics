@@ -1,0 +1,16 @@
+{
+  "since": "2026-08-01",
+  "selected_sources": 148,
+  "required_rubric_sources": 86,
+  "missing_required_sources": 0,
+  "new_events": 134,
+  "previous_events_preserved": 267,
+  "source_bodies_and_dates_preserved": true,
+  "unrelated_refs_unchanged": true,
+  "other_sc_selected": 0,
+  "new_full_bodies": 131,
+  "new_events_with_existing_digest": 3,
+  "api_passed": true,
+  "repeat": 0,
+  "telegram_sent": false
+}

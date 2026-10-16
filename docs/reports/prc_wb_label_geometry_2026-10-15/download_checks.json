@@ -1,0 +1,24 @@
+{
+  "local": [
+    {
+      "file": "preview.pdf",
+      "http": 200,
+      "bytes": 324400,
+      "content_type": "application/pdf"
+    },
+    {
+      "file": "changes.xlsx",
+      "http": 200,
+      "bytes": 6411,
+      "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    },
+    {
+      "file": "report.txt",
+      "http": 200,
+      "bytes": 10651,
+      "content_type": "text/plain; charset=utf-8"
+    }
+  ],
+  "external": "401: existing Basic auth preserved",
+  "unknown_file": 404
+}

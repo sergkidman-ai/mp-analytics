@@ -1,0 +1,31 @@
+{
+  "at_utc": "2026-10-14T15:14:39.209447+00:00",
+  "scope": "all_active_rapid",
+  "suppliers": {
+    "rapid": {
+      "active_ms_cards": 6106,
+      "matched_source_cards": 4772,
+      "cards_with_all_three_ms_fields_empty": 5692,
+      "cards_with_any_ms_dimension_empty": 5692,
+      "source_three_dimensions": 1427,
+      "source_coverage_pct": 23.37,
+      "source_dimensions_and_empty_ms": 1018,
+      "ready_to_fill": 1016,
+      "statuses": {
+        "FILL_EMPTY": 1016,
+        "NO_THREE_DIMENSIONS": 3345,
+        "SOURCE_UNMATCHED": 1334,
+        "ALREADY_EQUAL": 409,
+        "EXCLUDED_BLACKLIST": 1,
+        "SUPPLIER_DIMENSIONS_SUSPECT_REVIEW": 1
+      }
+    }
+  },
+  "source_dates": {
+    "rapid": "2026-10-14 17:53:35",
+    "bulat": "2026-10-14 04:30",
+    "profiline": "2026-10-14 18:00"
+  },
+  "external_writes": 0,
+  "database_writes": 0
+}

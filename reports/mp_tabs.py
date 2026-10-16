@@ -11,6 +11,7 @@ TABS = [
     ("ya",  "🟡 Яндекс Маркет", "/reports/yandex"),
     ("fts", "🛃 Отчёты ФТС",    "/reports/fts"),
     ("upd", "📄 УПД по выкупам", "/reports/upd"),
+    ("kudir", "📒 КУДиР", "/reports/kudir"),
 ]
 
 

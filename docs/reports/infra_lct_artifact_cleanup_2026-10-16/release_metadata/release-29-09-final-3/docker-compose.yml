@@ -1,0 +1,70 @@
+# ИИ-инспектор — запуск в Docker (T-142, docs/DEPLOY.md). Работает без сети: модели распознавания и шрифты — в образе.
+#
+#   docker compose up -d --build                         # сервис на CPU, без языковой модели (кнопка ИИ скрыта)
+#   docker compose --profile llm up -d inspector-llm     # вместо inspector: с языковой моделью (каталог с хоста)
+#   docker compose --profile gpu up -d inspector-gpu     # вместо inspector: распознавание на GPU, откат на CPU
+#
+# Профильные сервисы занимают тот же порт (INSPECTOR_PORT, по умолчанию 3100) — запускать ОДИН из трёх (перед сменой:
+# docker compose down).
+# ./data/dataset — документы объектов (корень FOLDER_ROOTS); ./data/work — рабочие каталоги (очередь, кэш, решения
+# инспектора, журнал аудита) — переживают перезапуск. Вход (необязательно): в .env рядом с этим файлом —
+# SESSION_SECRET и пароль основной учётной записи inspector (INSPECTOR_PASSWORD или INSPECTOR_PASSWORD_HASH); учётная
+# запись expert — EXPERT_PASSWORD_HASH (sha256 пароля, hex; работает только вместе с основной). Хеш:
+#   printf '%s' 'пароль' | sha256sum | cut -d' ' -f1
+# Проверка живости — GET /api/v1/health (healthcheck ниже; `docker compose ps` показывает healthy).
+services:
+  inspector:
+    build:
+      context: .
+      target: cpu
+      # T-152: тег выпуска в GET /api/v1/health — RELEASE_TAG=$(git describe --tags --exact-match) docker compose build
+      args:
+        RELEASE_TAG: ${RELEASE_TAG:-}
+    image: ai-inspector:cpu
+    ports:
+      - "${INSPECTOR_PORT:-3100}:3100"
+    volumes:
+      - ./data/dataset:/data/dataset
+      - ./data/work:/data/work
+    environment:
+      WATCHDOG_MINUTES: "15"
+      INSPECTOR_PASSWORD: ${INSPECTOR_PASSWORD:-}
+      INSPECTOR_PASSWORD_HASH: ${INSPECTOR_PASSWORD_HASH:-}
+      EXPERT_PASSWORD_HASH: ${EXPERT_PASSWORD_HASH:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/api/v1/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+
+  # Языковая модель (T-124, подсказка инспектору; 4,7 ГБ) — не в образе: llama.cpp (llama-server) и веса GGUF
+  # подключаются каталогом LLM_DIR только для чтения. Раскладка LLM_DIR: llama.cpp/llama-b11001/llama-server (+ .so),
+  # llm/qwen2.5-7b-instruct-q4_k_m-0000{1,2}-of-00002.gguf. Нужна свободная память ≥ 6,5 ГБ (иначе кнопка скрыта).
+  inspector-llm:
+    extends: inspector
+    profiles: ["llm"]
+    volumes:
+      - ${LLM_DIR:-./models}/llama.cpp:/srv/app/.tools/llama.cpp:ro
+      - ${LLM_DIR:-./models}/llm:/srv/app/.tools/llm:ro
+
+  # Распознавание на GPU: образ цели gpu (onnxruntime-gpu, CUDA 12 / cuDNN 9 из pip). Нужен NVIDIA Container Toolkit на
+  # хосте. Нет GPU или CUDA не поднялась — распознавание идёт на CPU (предупреждение в журнале), сервис работает.
+  inspector-gpu:
+    extends: inspector
+    profiles: ["gpu"]
+    build:
+      context: .
+      target: gpu
+    image: ai-inspector:gpu
+    environment:
+      OCR_USE_CUDA: "1"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

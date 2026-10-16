@@ -49,6 +49,7 @@
   .grp .t{margin-left:auto;font-size:15px;font-weight:700}
   .chip{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:20px;padding:2px 9px}
   .set{color:var(--acc)}
+  @media(max-width:700px){body{display:block}header{width:100%;height:auto;position:static;border-right:0;border-bottom:1px solid var(--line)}header .lvlnav{display:flex;flex-direction:row;flex-wrap:wrap}header .navgroup{display:none}main{padding:16px}.big{grid-template-columns:1fr}.wl .sum{margin-left:0}}
 </style>
 </head>
 <body>
@@ -64,6 +65,7 @@
     <div class="navgroup">Деньги</div>
     <a href="/cashflow">💰 Кэшфлоу</a>
     <a href="/turnover">🧮 Оборот для премии</a>
+    <a href="/turnover/royalty">Обороты по торговым маркам</a>
     <div class="navgroup">Отчёты</div>
     <a href="/reports">📋 Отчёты МП</a>
   </nav>
@@ -75,81 +77,45 @@
     <a href="/warehouse/novelties">✨ Новинки</a>
     <a href="/warehouse/loss" class="cur">🔥 Пострадавшие склады ВБ</a>
   </nav>
-  <p class="note" style="margin-top:0">Наш товар на складах ВБ, по которым были удары, — на дату
-  удара. Остаток берём из наших ежедневных снимков остатков, себестоимость — <b>по цене приёмки
-  МойСклада, ближайшей к дате удара и не позже неё</b>. Карточка-набор считается по составу:
-  цена = сумма приёмок компонентов. Цифра для претензии — колонка «по приёмке»; колонка
-  «витрина» показана для сверки вторым методом.</p>
+  <h1 style="font-size:22px">Пострадавшие товары ВБ</h1>
+  <p class="note" style="margin-top:0">Официальные отчёты ВБ об утраченном товаре — Цифровой квадрат и Дисквэр.
+  Количество указано в единицах ВБ: набор считается одной единицей. Себестоимость — фактическая по самым поздним подходящим отгрузкам МС до 15.07.2026 включительно (МСК).</p>
   <div class="big" id="big"></div>
-  <div id="groups"></div>
+  <p class="note" id="coverage"></p>
+  <p class="note">При возврате на склад ВБ товар обезличивается. Найденные отгрузки — кандидаты для определения
+  себестоимости; они не доказывают движение конкретной утраченной единицы. Каждая отгрузка используется один раз. Между складами с одинаковым товаром распределение условное — по названию склада. Непокрытые единицы в денежный итог не включены.</p>
+  <div id="groups"><p>Загрузка…</p></div>
   <p class="note" id="foot"></p>
 </main>
 <script>
-const rub = v => (v == null ? '—' : Math.round(v).toLocaleString('ru-RU') + ' ₽');
-const dmy = s => s ? s.split('-').reverse().slice(0, 2).join('.') : '—';
-const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-
-function itemRows(w) {
-  return w.items.map(i => `<tr>
-    <td class="name">${esc(i.vendor_code || i.nm_id)}</td>
-    <td>${esc(i.account.replace('wb_', ''))}</td>
-    <td>${i.qty}</td>
-    <td>${i.components ? i.components + (i.components > 1 ? ' шт' : '') : '—'}</td>
-    <td>${i.unit_cost == null ? '<span class="muted">приёмки нет</span>' : rub(i.unit_cost)}</td>
-    <td class="muted">${dmy(i.supply_date)}</td>
-    <td>${i.cost_total == null ? '—' : rub(i.cost_total)}</td>
-    <td class="muted">${i.vitrina_u == null ? '—' : rub(i.vitrina_u) + (i.vitrina_src ? ' · ' + esc(i.vitrina_src) : '')}</td>
-  </tr>`).join('');
+const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rub = v => v==null?'—':Number(v).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
+const account = a => a==='wb_acc1'?'Цифровой квадрат':'Дисквэр';
+const bom = b => Object.entries(b || {}).map(([c,q])=>esc(c)+' × '+esc(q)).join(', ') || '—';
+const labels={candidate:'Отмена при получении / дефект / возврат',returned_to_seller:'Есть возврат в МС — исключена',early_cancel_or_seller_cancel:'Ранняя отмена / отмена продавца — исключена',sold_without_return:'Продано, возврат не найден',status_unresolved:'Статус требует проверки'};
+function whCard(w){return `<details class="wl"><summary><span class="nm">${esc(w.warehouse)} · ${account(w.account)}</span><span class="muted">${w.qty} шт · рассчитано ${w.costed_qty}</span><span class="sum">${w.costed_qty?rub(w.known_cost_rub):'Не рассчитано'}</span></summary>
+<p style="padding:0 16px"><a style="color:var(--acc)" target="_blank" rel="noopener" href="/api/warehouse/loss/document/${w.document_id}">Открыть официальный PDF</a> <span class="muted">· дата в шапке ${esc(w.header_date)} (оферта)</span>${w.costed_qty<w.qty?'<br><span class="warn">Неполный итог: без себестоимости '+(w.qty-w.costed_qty)+' шт.</span>':''}</p>
+<div style="overflow:auto"><table><thead><tr><th>Артикул продавца / WB</th><th>Шт ВБ</th><th>Состав ТК</th><th>Рассчитано</th><th>Себестоимость</th><th>Отгрузки</th></tr></thead><tbody>${w.items.map(i=>`<tr><td>${esc(i.vendor_code)}<br><span class="muted">${i.nm_id} · стр. ${i.pages.join(', ')}</span></td><td>${i.qty}</td><td style="white-space:normal">${i.mapping_error?'<span class="warn">'+esc(i.mapping_error)+'</span>':bom(i.bom)}</td><td class="${i.cost?.complete?'':'warn'}">${i.cost?i.cost.costed_qty+' / '+i.qty:'—'}</td><td>${i.cost?.costed_qty?rub(i.cost.known_cost_rub):'—'}${i.cost && !i.cost.complete?'<br><small class="warn">'+(i.qty-i.cost.costed_qty)+' шт без расчёта</small>':''}</td><td><button type="button" style="cursor:pointer;background:transparent;color:var(--acc);border:1px solid var(--line);padding:6px" onclick="showEvidence(this,'${w.document_id}',${i.nm_id})">Показать</button></td></tr>`).join('')}</tbody></table></div></details>`;}
+function evidenceRow(e){return `<details style="margin:8px"><summary style="cursor:pointer" class="${e.selected?'pos':'muted'}">${e.selected?'Выбрана · ':''}${esc(e.order_id)} · ${esc(e.moment.slice(0,10))}${e.selected?' · '+rub(e.cost_rub):' · '+esc(labels[e.eligibility]||e.eligibility)}${!e.composition_ok?' · состав требует проверки':''}</summary><p><a style="color:var(--acc)" target="_blank" rel="noopener" href="https://online.moysklad.ru/app/#demand/edit?id=${encodeURIComponent(e.demand_id)}">Отгрузка МС</a> · ${e.match_basis==='same_nm'?'Совпадение артикула WB':'Совпадение состава через связи ТК'}<br>Статус WB: ${esc(e.wb_status||'не получен')} · продавца: ${esc(e.supplier_status||'не получен')}<br>Фактически отгружено: ${e.positions.map(p=>esc(p.external_code)+' × '+esc(p.qty)).join(', ')}${e.selected?'<br>Себестоимость всей отгрузки (одна единица ВБ): '+rub(e.cost_rub):''}<br>Операции отчётов WB: ${esc(e.operations.join(', ')||'не найдены')}<br>${e.errors.map(esc).join('; ')}</p></details>`;}
+async function showEvidence(button,doc,nm){
+ const row=button.closest('tr');if(row.nextElementSibling?.dataset.evidence){row.nextElementSibling.remove();return;}
+ button.disabled=true;
+ try{
+ const response=await fetch(`/api/warehouse/loss/item/${doc}/${nm}`);if(!response.ok)throw Error('Не удалось загрузить отгрузки');const d=await response.json();const tr=document.createElement('tr');tr.dataset.evidence='1';
+ const chosen=d.evidence.filter(e=>e.selected).sort((a,b)=>b.moment.localeCompare(a.moment));
+ const other=d.evidence.filter(e=>!e.selected);
+ const note=d.cost?`Рассчитано ${d.cost.costed_qty} из ${d.qty} шт: ${d.cost.costed_qty?rub(d.cost.known_cost_rub):'—'}. ${d.cost.unmatched_qty?'Без подходящей свободной отгрузки: '+d.cost.unmatched_qty+' шт.':''}`:'Расчёт ожидается.';
+ tr.innerHTML=`<td colspan="6" style="text-align:left;white-space:normal"><p>${note}</p>${chosen.map(evidenceRow).join('')}${other.length?'<details style="margin:12px 8px"><summary style="cursor:pointer">Остальные проверенные отгрузки: '+other.length+'</summary>'+other.map(evidenceRow).join('')+'</details>':''}${!d.evidence.length?'<p class="muted">Подходящие документы в проверенной истории не найдены.</p>':''}</td>`;row.after(tr);
+ }catch(e){alert(e.message);}finally{button.disabled=false;}
 }
-
-function whCard(w) {
-  const gap = w.snap_how && w.snap_how !== 'день удара'
-    ? `<span class="chip">снимок ${dmy(w.snap_date)} · ${esc(w.snap_how)}</span>`
-    : `<span class="chip">снимок в день удара</span>`;
-  const nop = w.no_price_qty
-    ? `<span class="chip warn">без цены приёмки ${w.no_price_qty} шт</span>` : '';
-  return `<details class="wl">
-    <summary>
-      <span class="nm">${esc(w.label)}</span>
-      <span class="muted">удар ${dmy(w.hit_date)}</span>
-      ${gap}${nop}
-      <span class="muted">${w.qty} шт</span>
-      <span class="sum">${rub(w.cost)}</span>
-    </summary>
-    <table>
-      <thead><tr><th>Артикул</th><th>Акк.</th><th>Шт</th><th>В карточке</th>
-        <th>Цена приёмки</th><th>Дата приёмки</th><th>Сумма</th><th>Витрина, ₽/шт</th></tr></thead>
-      <tbody>${itemRows(w)}</tbody>
-    </table>
-  </details>`;
-}
-
-(async () => {
-  const d = await (await fetch('/api/warehouse/loss')).json();
-  if (!d.groups.length) {
-    document.getElementById('groups').innerHTML =
-      '<p class="note">Витрина пуста — не считалcя <code>ops/wb_lost_stock.py</code>.</p>';
-    return;
-  }
-  const lost = d.groups.find(g => g.status === 'lost') || {qty: 0, cost: 0};
-  const dmg = d.groups.find(g => g.status === 'damaged') || {qty: 0, cost: 0};
-  document.getElementById('big').innerHTML = `
-    <div class="bi"><div class="l">🔥 Уничтожено</div><div class="v neg">${rub(lost.cost)}</div>
-      <div class="d muted">${lost.qty} шт на ${lost.warehouses ? lost.warehouses.length : 0} складах</div></div>
-    <div class="bi"><div class="l">💥 Под риском (повреждённые склады)</div><div class="v warn">${rub(dmg.cost)}</div>
-      <div class="d muted">${dmg.qty} шт на ${dmg.warehouses ? dmg.warehouses.length : 0} складах</div></div>
-    <div class="bi"><div class="l">Всего под претензию</div><div class="v">${rub(d.total.cost)}</div>
-      <div class="d muted">${d.total.qty} шт · сверка вторым методом ${rub(d.total.vitrina)}</div></div>`;
-  document.getElementById('groups').innerHTML = d.groups.map(g => `
-    <div class="grp"><h2>${g.icon} ${esc(g.title)}</h2>
-      <span class="muted">${g.qty} шт</span><span class="t">${rub(g.cost)}</span></div>
-    <p class="note" style="margin:0 0 6px">${esc(g.note)}</p>
-    ${g.warehouses.map(whCard).join('')}`).join('');
-  document.getElementById('foot').textContent =
-    'Посчитано ' + (d.built_at || '').slice(0, 16).replace('T', ' ') +
-    '. Пересчёт — ops/wb_lost_stock.py, подробный разбор — docs/reports/wb_lost_warehouses_2026-08-21.md. ' +
-    'Снимок остатков — данные ВБ по нашему аккаунту, а не акт о наличии: претензию подавать по «Отчёту по остаткам» ВБ.';
-})();
+(async()=>{try{
+ const response=await fetch('/api/warehouse/loss');if(!response.ok)throw Error('Ошибка загрузки отчётов');const d=await response.json();
+ const costed=d.costs.reduce((n,a)=>n+a.summary.costed_qty,0),amount=d.costs.reduce((n,a)=>n+Number(a.summary.known_cost_rub),0);
+ document.getElementById('big').innerHTML=`<div class="bi"><div class="l">По официальным отчётам</div><div class="v">${d.total.qty} <small>шт ВБ</small></div><div class="d muted">${d.total.rows} строк · ${d.total.documents} отчётов</div></div><div class="bi"><div class="l">Себестоимость рассчитанной части</div><div class="v">${rub(amount)}</div><div class="d muted">${costed} из ${d.total.qty} шт · без расчёта ${d.total.qty-costed} шт</div></div>`+d.costs.map(a=>`<div class="bi"><div class="l">${account(a.account)}</div><div class="v">${rub(a.summary.known_cost_rub)}</div><div class="d muted">${a.summary.costed_qty} из ${a.summary.qty} шт · без расчёта ${a.summary.qty-a.summary.costed_qty}</div></div>`).join('');
+ document.getElementById('coverage').textContent='Недостающие официальные отчёты из прежнего списка складов: '+['wb_acc1','wb_acc2'].map(a=>account(a)+' — '+(d.missing_reports.filter(r=>r.account===a).map(r=>r.warehouse).join(', ')||'нет')).join('; ')+'. Старые оценки остатков в итог не включены.';
+ document.getElementById('groups').innerHTML=d.warehouses.map(whCard).join('')||'<p>Официальные отчёты ещё не загружены.</p>';
+ document.getElementById('foot').textContent=d.analysis.map(a=>account(a.account)+': '+a.history_note).join(' ')+' Расчёт обновлён: '+d.costs.map(a=>account(a.account)+' '+a.built_at.slice(0,16).replace('T',' ')).join('; ')+'.';
+ }catch(e){document.getElementById('groups').textContent=e.message;}})();
 </script>
 </body>
 </html>

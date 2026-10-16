@@ -1,0 +1,16 @@
+{
+  "at_utc": "2026-10-11T19:37:38.685693+00:00",
+  "authenticated": true,
+  "verification": "logout link present, password form absent",
+  "requested": 3,
+  "parsed": 3,
+  "errors": 0,
+  "positive_stock_cards": 2,
+  "unknown_stock_cards": 0,
+  "properties_with_chip": 0,
+  "color_present": 3,
+  "resource_present": 3,
+  "type_present": 3,
+  "ms_writes": 0,
+  "db_writes": 0
+}

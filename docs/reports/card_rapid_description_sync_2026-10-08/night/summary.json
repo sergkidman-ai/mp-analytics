@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-08T22:35:26.368113+03:00",
+  "supplier_cards": 6106,
+  "catalogue_items": 8135,
+  "changes": 578,
+  "skipped": {
+    "already_equal": 4193,
+    "article_missing_or_ambiguous": 1335
+  },
+  "changes_with_zero_free_stock": 237,
+  "supplier_stock_filter": false,
+  "archive_excluded": true,
+  "write_fields": [
+    "description"
+  ],
+  "mapping": "supplier group + unique article after case/whitespace normalization",
+  "max_changes": 4000,
+  "writes": 578,
+  "explicit_daytime_authorization": true,
+  "verified": 578,
+  "status": "complete",
+  "resume_count": 1
+}

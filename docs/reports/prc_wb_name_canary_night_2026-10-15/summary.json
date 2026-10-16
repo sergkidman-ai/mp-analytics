@@ -1,0 +1,15 @@
+{
+  "status": "scheduled_ready",
+  "cards": 200,
+  "attempted": 0,
+  "verified": 0,
+  "skipped": 0,
+  "already_desired": 0,
+  "ms_writes_at_preparation": 0,
+  "start_msk": "2026-10-17 01:30",
+  "other_dimensions_weight_msk": "2026-10-17 01:30",
+  "write_cutoff_msk": "2026-10-17 03:00",
+  "hard_stop_msk": "2026-10-17 03:30",
+  "timer_enabled": true,
+  "recovery_report": "docs/reports/infra_ms_recovery_2026-10-16"
+}

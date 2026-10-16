@@ -33,11 +33,16 @@ from web.diary_api import router as diary_router  # noqa: E402  дневник �
 from web.warehouse_loss_api import router as wh_loss_router  # noqa: E402  пострадавшие склады (ev)
 from web.cashflow_api import router as cashflow_router  # noqa: E402  кэшфлоу (cf)
 from web.turnover_api import router as turnover_router  # noqa: E402
+from web.kudir_api import router as kudir_router  # поток: fin
 
 app.include_router(diary_router)
 app.include_router(wh_loss_router)
 app.include_router(cashflow_router)
 app.include_router(turnover_router)
+app.include_router(kudir_router)
+
+from web.shipment_guard_api import router as shipment_guard_router  # поток: fin
+app.include_router(shipment_guard_router)
 
 
 # ── Ограниченный доступ: сотрудник раздела «Новинки» (поток prc) ───────────────
@@ -923,27 +928,25 @@ ACC_ORG_NAMES = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Ди�
 
 
 def _mp_money(org=""):
-    """«Наши деньги на МП» — последний снимок остатков лицевых счетов площадок (cf/mp_balance).
+    """Official balances plus overdue WB payouts tracked in the cashflow view.
 
-    Не период, а «на сегодня»: сколько уже заработано, но ещё лежит у площадки. Цифры
-    официальные (Ozon cash-flow-statement, баланс ЛК WB, взаимозачёт Маркета), поэтому
-    у площадки без доступа (WB Дисквэр — нет токена со скоупом «Финансы») строки НЕТ:
-    фронт показывает её в сноске, а не подмешивает оценку в сумму."""
-    rows = db.query("""select b.platform, b.account, b.balance::float balance, b.day, b.source
+    Keep the balance and debt separate in the response; add the debt once to both
+    the WB tile and the marketplace total. Cashflow owns payout reconciliation.
+    """
+    from web.mp_money import compose_mp_money
+    rows = db.query("""select b.platform, b.account, b.balance, b.day, b.source
                          from cf_mp_balance b
                          join (select account, max(day) d from cf_mp_balance group by 1) l
                            on l.account = b.account and l.d = b.day
                         where (%s = '' or b.org_inn = %s)""", (org, org))
-    if not rows:
-        return None
-    by = {}
-    for r in rows:
-        by[r["platform"]] = round(by.get(r["platform"], 0) + r["balance"], 2)
-    have = {r["account"] for r in rows}
-    missing = [a for a, o in _CF_ACC_ORG.items() if a not in have and (not org or o == org)]
-    return {"total": round(sum(by.values()), 2), **by,
-            "as_of": max(r["day"] for r in rows).isoformat(),
-            "missing": missing}
+    overdue = db.query("""select distinct on (org_inn, ref)
+                           org_inn, day, amount, ref
+                         from cf_line
+                        where kind='plan' and category='mp_wb' and source='mp_forecast'
+                          and note like '%%просрочено%%' and amount > 0
+                          and (%s = '' or org_inn = %s)
+                        order by org_inn, ref, day desc, id desc""", (org, org))
+    return compose_mp_money(rows, overdue, _CF_ACC_ORG, org)
 
 
 @app.get("/api/business")
@@ -3558,6 +3561,8 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     следующим свободным: иначе на один товар в каталоге появится второй код.
     """
     from prices import ms_import
+    from prices.wb_label import MAX_CHARS, RULES_VERSION
+    from prices.wb_source import fact_options
     from prices.profiles import get_identity
     found = db.query("""SELECT id, supplier_key, article, name, brand, price_rub, link,
                                decision, ms_code
@@ -3590,7 +3595,8 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     # «брать как у родни» отменено 16.08.2026, а диалог писался 11.08 и остался на старом.
     # Каталог ТК модели не знает (у новинки его часто и нет) — формула не отменяется, сырьё
     # берётся из названия поставщика; замечание скажет человеку сверить.
-    wb, wb_note = ms_import.wb_compose(tk_ext, row["name"])
+    wb_source = ms_import.wb_details(tk_ext, row["name"])
+    wb, wb_note = wb_source["name"], wb_source["reason"]
     if wb_note:
         warn.append(wb_note)
     tk_pages = db.query("""SELECT resource FROM prc_tc_model
@@ -3667,6 +3673,10 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
                     "заводить не нужно, строку — в чёрный список")
     return {"ok": True, "id": row["id"], "supplier": profile.title,
             "article": row["article"], "name": row["name"], "n": n,
+            "wb_source_code": tk_ext,
+            "wb_source": wb_source,
+            "wb_fact_options": fact_options(),
+            "wb_max_chars": MAX_CHARS, "wb_rules_version": RULES_VERSION,
             "kind": kind, "kinds": series_mod.kinds(),
             "printers": series_mod.PRINTERS, "printer": printer,
             "series": series_value or "", "series_why": series_why,
@@ -3715,6 +3725,31 @@ class MsCreate(BaseModel):
     # «Серии нет» как выбора не существует: товар, которому серия не положена (фотобумага,
     # лампы, кассеты), мы не заводим вовсе — он уходит в ЧС (решение Сергея 18.09.2026).
     kind: str = ""
+    wb_source_code: str = ""
+    wb_rules_version: str = ""
+    wb_source_token: str = ""
+    wb_facts: dict[str, str] | None = None
+    wb_evidence: str = ""
+
+
+class WbNamePreview(BaseModel):
+    id: int
+    source_code: str = ""
+    facts: dict[str, str] | None = None
+    evidence: str = ""
+
+
+@app.post("/api/novelties/wb-name-preview")
+def novelties_wb_name_preview(payload: WbNamePreview):
+    """Recalculate from original supplier data and confirmed facts; never writes."""
+    from prices import ms_import
+    rows = db.query("SELECT name, ms_code FROM prc_novelty WHERE id = %s", (payload.id,))
+    if not rows:
+        return {"ok": False, "error": "строки не найдено"}
+    row = rows[0]
+    source_code = payload.source_code.strip() or (row.get("ms_code") or "")[:4]
+    source = ms_import.wb_details(source_code, row["name"], payload.facts, payload.evidence)
+    return {"ok": True, "wb_source": source}
 
 
 @app.post("/api/novelties/ms-create")
@@ -3728,7 +3763,7 @@ def novelties_ms_create(payload: MsCreate):
     from prices import ms_import
     from prices import series as series_mod
     from prices.profiles import get_identity
-    found = db.query("SELECT id, supplier_key, article, name FROM prc_novelty WHERE id = %s",
+    found = db.query("SELECT id, supplier_key, article, name, ms_code FROM prc_novelty WHERE id = %s",
                      (payload.id,))
     if not found:
         return {"ok": False, "error": "строки не найдено"}
@@ -3738,6 +3773,18 @@ def novelties_ms_create(payload: MsCreate):
         return {"ok": False, "error": f"карточек должно быть от 1 до {MS_CARDS_MAX}"}
     if not 0 <= payload.main_index < len(cards):
         return {"ok": False, "error": "не указана главная карточка"}
+    # Recheck the final formula server-side, including stale dialogs/manual text.
+    # The model source may differ from the newly allocated external code.
+    wb_source = payload.wb_source_code.strip() or (row.get("ms_code") or "")[:4]
+    wb_errors = ms_import.wb_record_errors([
+        {"Код": c.code, "_wb_source_code": wb_source, "_wb_price_name": row["name"],
+         "_wb_rules_version": getattr(payload, "wb_rules_version", ""),
+         "_wb_source_token": getattr(payload, "wb_source_token", ""),
+         "_wb_facts": getattr(payload, "wb_facts", None),
+         "_wb_evidence": getattr(payload, "wb_evidence", ""),
+         "Доп. поле: Название WB": c.wb} for c in cards])
+    if wb_errors:
+        return {"ok": False, "error": "; ".join(wb_errors[:6]), "errors": wb_errors}
     profile = get_identity(row["supplier_key"])
     folders = _ms_folders()
 
@@ -3807,6 +3854,12 @@ def novelties_ms_create(payload: MsCreate):
             "Страна": ms_import.COUNTRY,
             "Доп. поле: Гарантия/ Срок службы": ms_import.WARRANTY,
             "Доп. поле: Название WB": (c.wb or "").strip(),
+            "_wb_source_code": wb_source,
+            "_wb_price_name": row["name"],
+            "_wb_rules_version": payload.wb_rules_version,
+            "_wb_source_token": payload.wb_source_token,
+            "_wb_facts": payload.wb_facts,
+            "_wb_evidence": payload.wb_evidence,
             "Штрихкод Code128": (c.code128 or "").strip(),
             "Доп. поле: Связь": (c.link or "").strip(),
             "Серия": series_value or "",
@@ -3817,6 +3870,8 @@ def novelties_ms_create(payload: MsCreate):
     try:
         created, skipped = ms_import.create_in_ms(records, profile.supplier_ids[0],
                                                   dry=payload.dry, log=lines.append)
+    except ValueError as exc:
+        return {"ok": False, "error": f"Проверка карточки: {exc}", "log": lines}
     except Exception as exc:                       # МС ответил ошибкой на середине пачки
         return {"ok": False, "error": f"МойСклад: {type(exc).__name__}: {exc}", "log": lines}
     series_line = (f"серия {series_value} — {series_why}" if series_value
@@ -3943,6 +3998,8 @@ def novelties_twin_create(payload: TwinCreate):
         created, skipped = ms_import.create_in_ms([rec], profile.supplier_ids[0],
                                                   dry=payload.dry, log=lines.append,
                                                   own=own_ids(profile))
+    except ValueError as exc:
+        return {"ok": False, "error": f"Проверка карточки: {exc}", "log": lines}
     except Exception as exc:                       # МС ответил ошибкой — показать её человеку
         return {"ok": False, "error": f"МойСклад: {type(exc).__name__}: {exc}", "log": lines}
     if payload.dry:
@@ -4040,6 +4097,46 @@ def _ya_business(period: str = ""):
             "returns": mp["returns_cnt"] or r.get("returns_orders"),
             "returns_sum": round(r.get("rs") or 0), "cogs_cov_pct": r.get("cov"),
             "margin_pct": mp["margin_pct"], "gross": True}
+
+
+@app.get("/download/wb-name/{filename}")
+def download_wb_name_result(filename: str):
+    """Поток prc: только фиксированные результаты проверки Названия WB."""
+    if filename == "status.txt":
+        import json
+        path = BASE_DIR / "docs/reports/prc_wb_name_canary_night_2026-10-15/summary.json"
+        if not path.is_file():
+            return Response(status_code=404)
+        data = json.loads(path.read_text())
+        status = {"scheduled_ready": "Назначено, ожидает запуска", "running": "Выполняется",
+                  "canary_pause": "Пауза 10 минут перед итоговой проверкой",
+                  "pilot_complete_no_continuation": "Пробная партия завершена, продолжение выключено",
+                  "stopped_requires_audit": "Остановлено, требуется проверка"}.get(data.get("status"), data.get("status", ""))
+        lines = ["Название WB — пробная партия", "Статус: " + status,
+                 "Запуск: " + data.get("start_msk", "") + " МСК",
+                 "Карточек в партии: " + str(data.get("cards", 0)),
+                 "Попыток записи: " + str(data.get("attempted", 0)),
+                 "Подтверждено перечиткой МС: " + str(data.get("verified", 0)),
+                 "Пропущено из-за изменений: " + str(data.get("skipped", 0)),
+                 "Уже совпадали: " + str(data.get("already_desired", 0)),
+                 "Отсечка новых запросов: " + data.get("write_cutoff_msk", "") + " МСК",
+                 "Жёсткий стоп процесса: " + data.get("hard_stop_msk", "") + " МСК",
+                 "Запись размеров и веса: " + data.get("other_dimensions_weight_msk", "") + " МСК",
+                 "Остальная очередь автоматически не запускается."]
+        return Response("\n".join(lines) + "\n", media_type="text/plain",
+                        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+    files = {
+        "preview.pdf": ("label_geometry_preview.pdf", "application/pdf"),
+        "changes.xlsx": ("geometry_changes.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        "report.txt": ("README.md", "text/plain; charset=utf-8"),
+        "canary.xlsx": ("canary_preflight.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    }
+    if filename not in files:
+        return Response(status_code=404)
+    source, media_type = files[filename]
+    path = BASE_DIR / "docs/reports/prc_wb_label_geometry_2026-10-15" / source
+    headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
+    return FileResponse(path, media_type=media_type, filename=filename, headers=headers)
 
 
 @app.get("/download/ms-zero-cogs.csv")

@@ -1,0 +1,15 @@
+{
+  "status": "complete",
+  "started_at": "2026-10-12T09:18:36.394452+00:00",
+  "finished_at": "2026-10-12T09:18:42.977355+00:00",
+  "total": 21,
+  "states": {
+    "archive": 9,
+    "trash": 9,
+    "absent": 3
+  },
+  "still_active": [],
+  "identity_changed": [],
+  "marketplace_writes": 0,
+  "database_writes": 0
+}

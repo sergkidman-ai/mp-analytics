@@ -1,0 +1,10 @@
+{
+  "ignored_source_rows": 343,
+  "remaining_ignored_alerts": 0,
+  "remaining_ignored_event_refs": 0,
+  "unchanged_other_events": 266,
+  "unchanged_other_notice_refs": true,
+  "veshki_source_rows_preserved": 3,
+  "api_passed": true,
+  "telegram_sent": false
+}

@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-10-05T09:28:01.517404+00:00",
+  "source_csv_sha256": {
+    "wb_acc1_missing_both.csv": "e0f7401b943c1535d07b939239ea01efb2b9e6726acdff739e0f1103b475ba37",
+    "wb_acc2_missing_both.csv": "dbbe75a51d361a91f3252fdc772e0a184f7296ab433ecdc80b9176bd400ededf"
+  },
+  "total": 16592,
+  "statuses": {
+    "DICTIONARY_MATCH": 16360,
+    "NO_SOURCE": 23,
+    "REVIEW": 209
+  },
+  "accounts": {
+    "wb_acc1": {
+      "DICTIONARY_MATCH": 3753,
+      "NO_SOURCE": 23,
+      "REVIEW": 88
+    },
+    "wb_acc2": {
+      "DICTIONARY_MATCH": 12607,
+      "REVIEW": 121
+    }
+  },
+  "dictionary_read_at": {
+    "1820": "2026-10-05T09:22:08.593758+00:00",
+    "1907": "2026-10-05T09:22:10.216604+00:00"
+  },
+  "bulk_cards_refreshed": false,
+  "tk_codes_refreshed": false,
+  "marketplace_writes": 0,
+  "db_access": false,
+  "pilot": {
+    "sent": false,
+    "endpoint": "POST https://content-api.wildberries.ru/content/v2/cards/update",
+    "account": "wb_acc1",
+    "nmID": 1472365191,
+    "source_read_at": "2026-10-05T09:22:12.357674+00:00",
+    "added_characteristics": [
+      {
+        "id": 15000001,
+        "value": [
+          "8443999000"
+        ]
+      },
+      {
+        "id": 15004139,
+        "value": [
+          "8443999000"
+        ]
+      }
+    ],
+    "existing_characteristic_values_preserved": true,
+    "other_editable_values_preserved": true,
+    "wholesale_schema_pending": true,
+    "execution_authorized": false,
+    "execution_requirements": [
+      "Прямая команда пользователя",
+      "Проверка физического товара и источника кода",
+      "Свежая перечитка карточки: оба поля пусты, идентичность и прочие поля совпадают",
+      "Подтверждение актуального контракта wholesale перед отправкой полного запроса",
+      "Перечитка после отправки: коды появились, остальные значения сохранились"
+    ]
+  },
+  "api_documentation": "https://dev.wildberries.ru/en/openapi/work-with-products"
+}

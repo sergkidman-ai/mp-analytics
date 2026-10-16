@@ -1,0 +1,14 @@
+[Unit]
+Description=Solutions Print authorized MS description update, night 2026-10-13
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python tools/card_solutionsprint_resolved_apply.py --apply
+TimeoutStartSec=5h
+StandardOutput=journal
+StandardError=journal
+

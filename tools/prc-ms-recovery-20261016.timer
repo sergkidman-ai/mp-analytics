@@ -1,0 +1,12 @@
+[Unit]
+Description=Recover missed MS work on 17 October at 01:30 Moscow
+
+[Timer]
+OnCalendar=2026-10-16 22:30:00 UTC
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=false
+Unit=prc-ms-recovery-20261016.service
+
+[Install]
+WantedBy=timers.target

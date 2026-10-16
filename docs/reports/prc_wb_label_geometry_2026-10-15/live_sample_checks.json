@@ -1,0 +1,56 @@
+[
+  {
+    "ms_id": "3575a621-1593-11ee-0a80-001e002cd0a5",
+    "code": "2931bs",
+    "identity_same": true,
+    "old_value_unchanged": true,
+    "new_formula_same": true,
+    "chars": 45,
+    "ms_writes": 0
+  },
+  {
+    "ms_id": "07d9231f-36bf-11ef-0a80-0bea000bb28a",
+    "code": "2372sl",
+    "identity_same": true,
+    "old_value_unchanged": true,
+    "new_formula_same": true,
+    "chars": 42,
+    "ms_writes": 0
+  },
+  {
+    "ms_id": "32630270-306a-11ee-0a80-014e00039ee8",
+    "code": "2372bs",
+    "identity_same": true,
+    "old_value_unchanged": true,
+    "new_formula_same": true,
+    "chars": 42,
+    "ms_writes": 0
+  },
+  {
+    "ms_id": "71546e78-4c2b-11ef-0a80-1625008c61b1",
+    "code": "2372hb",
+    "identity_same": true,
+    "old_value_unchanged": true,
+    "new_formula_same": true,
+    "chars": 42,
+    "ms_writes": 0
+  },
+  {
+    "ms_id": "af3eef26-ef4d-11ed-0a80-10ac00842cf4",
+    "code": "2372cs",
+    "identity_same": true,
+    "old_value_unchanged": true,
+    "new_formula_same": true,
+    "chars": 42,
+    "ms_writes": 0
+  },
+  {
+    "ms_id": "eb552a30-7b40-11ea-0a80-05b000096c69",
+    "code": "2372nv",
+    "identity_same": true,
+    "old_value_unchanged": true,
+    "new_formula_same": true,
+    "chars": 42,
+    "ms_writes": 0
+  }
+]

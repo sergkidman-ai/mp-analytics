@@ -1,0 +1,90 @@
+{
+  "status": "PAUSED_FOR_WEIGHT_AUDIT",
+  "policy": "own supplier source only; NO comparison by external code and NO percentage threshold",
+  "suppliers": {
+    "Кактус": {
+      "active_cards": 4321,
+      "with_source": 3067,
+      "fill": 145,
+      "fill_stock": 108,
+      "replace": 0,
+      "replace_stock": 0,
+      "same_box": 2857,
+      "same_at_stored_precision": 11,
+      "hold": 1308,
+      "reason_counts": {
+        "DAMAGED_CARD": 1,
+        "NO_EXPLICIT_DIRECT_SOURCE": 1254,
+        "AMBIGUOUS_OWN_SOURCE": 51,
+        "REVIEWED_OWN_SOURCE_DEFECT": 2
+      }
+    },
+    "Сакура": {
+      "active_cards": 1871,
+      "with_source": 1769,
+      "fill": 215,
+      "fill_stock": 172,
+      "replace": 0,
+      "replace_stock": 0,
+      "same_box": 1532,
+      "same_at_stored_precision": 0,
+      "hold": 124,
+      "reason_counts": {
+        "NO_EXPLICIT_DIRECT_SOURCE": 102,
+        "REVIEWED_OWN_SOURCE_DEFECT": 15,
+        "AMBIGUOUS_OWN_SOURCE": 5,
+        "BLACKLIST": 2,
+        "DAMAGED_CARD": 2
+      }
+    },
+    "Изипринт": {
+      "active_cards": 1920,
+      "with_source": 1804,
+      "fill": 4,
+      "fill_stock": 3,
+      "replace": 0,
+      "replace_stock": 0,
+      "same_box": 1779,
+      "same_at_stored_precision": 0,
+      "hold": 137,
+      "reason_counts": {
+        "NO_EXPLICIT_DIRECT_SOURCE": 116,
+        "DAMAGED_CARD": 17,
+        "BLACKLIST": 4,
+        "REVIEWED_OWN_SOURCE_DEFECT": 1
+      }
+    },
+    "Рапид / Суперфайн": {
+      "active_cards": 6106,
+      "with_source": 1428,
+      "fill": 0,
+      "fill_stock": 0,
+      "replace": 0,
+      "replace_stock": 0,
+      "same_box": 672,
+      "same_at_stored_precision": 0,
+      "hold": 5434,
+      "reason_counts": {
+        "NO_EXPLICIT_DIRECT_SOURCE": 4678,
+        "RAPID_ORIGINALS_PREVIOUSLY_EXCLUDED": 3455,
+        "DAMAGED_CARD": 2,
+        "BLACKLIST": 6,
+        "IMPLAUSIBLE_CONSUMABLE_SIZE_OVER_150CM": 2,
+        "IMPLAUSIBLE_CARTRIDGE_SIDE_UNDER_1CM": 1,
+        "KNOWN_SUSPECT_3065": 1
+      }
+    }
+  },
+  "fill_cards": 364,
+  "replace_cards": 0,
+  "all_change_cards": 364,
+  "scope_question": "replacement policy asked; no material replacement candidates remain in this wave",
+  "outlier_review_pending": false,
+  "writes": 0,
+  "scheduled": false,
+  "fields": 1092,
+  "stock_cards": 283,
+  "no_stock_cards": 81,
+  "precision_only_noops": 11,
+  "night_report": "docs/reports/card_dimensions_own_source_night_2026-10-15"
+}

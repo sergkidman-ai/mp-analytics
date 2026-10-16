@@ -1,0 +1,48 @@
+{
+  "built_at": "2026-10-05T13:56:48.048939+00:00",
+  "scope": "saved WB catalogs, excluding retired 23; fresh available after snapshots overlay",
+  "sources": [
+    {
+      "account": "wb_acc1",
+      "path": "backups/wb_bundle_plan_2026-10-04/wb_acc1_active.json",
+      "read_at": "2026-10-04T17:53:53.319623+00:00",
+      "cards": 22349,
+      "fresh_overlay_observations": 2083
+    },
+    {
+      "account": "wb_acc2",
+      "path": "backups/wb_bundle_plan_2026-10-04/wb_acc2_active.json",
+      "read_at": "2026-10-04T17:53:55.622997+00:00",
+      "cards": 22157,
+      "fresh_overlay_observations": 120
+    }
+  ],
+  "wb_total": 44483,
+  "wb_filled": 0,
+  "wb_empty": 44483,
+  "wb_codes": {},
+  "wb_tc_mapping_unresolved": 21644,
+  "tc_active_models": 6735,
+  "tc_type_counts": {
+    "Картридж": 4494,
+    "Фотобарабан": 425,
+    "Комплект картриджей": 797,
+    "Тонер-картридж": 240,
+    "Лента для принтера": 223,
+    "Сервисный комплект": 7,
+    "Комплект фотобарабанов": 43,
+    "Чернила": 118,
+    "Комплект чернил": 27,
+    "Заправочный комплект": 63,
+    "Тонер": 86,
+    "Блок проявки": 36,
+    "Печатающая головка": 17,
+    "Фотобарабан + картридж": 145,
+    "Бункер отработанного тонера": 13,
+    "Блок переноса": 1
+  },
+  "tc_export_has_okpd2": false,
+  "wb_field": 15004292,
+  "external_writes": 0,
+  "db_writes": 0
+}

@@ -1,0 +1,10 @@
+{
+  "reportId": "1e635367-ce11-43f7-b9a7-3ac9229abff8",
+  "estimatedGenerationTime": 100000,
+  "requested_at": "2026-10-16T06:54:13.629877+00:00",
+  "request": {
+    "businessId": 879051,
+    "dateTimeFrom": "2026-09-01T00:00:00+03:00",
+    "dateTimeTo": "2026-09-30T23:59:59+03:00"
+  }
+}

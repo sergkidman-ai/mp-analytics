@@ -1,0 +1,250 @@
+{
+  "status": "READ_ONLY_NO_WRITE_PLAN_AUTHORIZED",
+  "at_utc": "2026-10-15T13:04:55.859858+00:00",
+  "ms_snapshot": "2026-10-15 11:43 MSK; use fresh readback for 1380 cards when available",
+  "fresh_ms_scope": {
+    "count": 1380,
+    "collected_at_utc": "2026-10-15T12:40:56.504436+00:00",
+    "scope": "Frozen previous Rapid 1016 plus paused dimensions 364",
+    "MS_writes": 0
+  },
+  "accept_supplier_gross_or_net_by_user": true,
+  "user_confirmed_weight_units": {
+    "at_utc": "2026-10-15T13:04:37.621093+00:00",
+    "user_instruction": "это все значения в кг.",
+    "confirmed_suppliers": [
+      "Изипринт",
+      "Рапид / Суперфайн"
+    ],
+    "weight_units": "кг",
+    "basis": "User manual confirmation after six representative source examples per supplier",
+    "no_conversion_needed": true,
+    "writes_authorized": false,
+    "unlabelled_sakura_sheets_not_part_of_examples": true
+  },
+  "ms_weight_units": "kg is local integration convention (prices/ms_import.py); API defines Float without explicit units",
+  "comparison_note": "Source headers plus explicit user unit confirmations; gross/net accepted for all suppliers. Candidates are not authorized writes.",
+  "all_active": {
+    "Кактус": {
+      "cards": 4321,
+      "stock": 2326,
+      "ms_weight_filled": 4272,
+      "ms_weight_empty": 49,
+      "source_has_positive": 3007,
+      "source_unique_numeric": 2997,
+      "source_confirmed_kg": 2997,
+      "source_confirmed_package_weight": 2997,
+      "comparison": {
+        "NUMERIC_EQUAL": 2423,
+        "NO_ARTICLE_MATCH": 1049,
+        "NUMERIC_DIFFERENT": 567,
+        "MS_WEIGHT_EMPTY": 7,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 265,
+        "AMBIGUOUS_SOURCE_WEIGHT": 10
+      },
+      "decision": {
+        "NO_CHANGE": 2422,
+        "REVIEW": 1325,
+        "CANDIDATE_REPLACE": 567,
+        "CANDIDATE_FILL": 7
+      },
+      "hold_reasons": {
+        "DAMAGED": 1,
+        "NO_ARTICLE_MATCH": 1049,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 265,
+        "AMBIGUOUS_SOURCE_WEIGHT": 10
+      }
+    },
+    "Сакура": {
+      "cards": 1871,
+      "stock": 1364,
+      "ms_weight_filled": 1867,
+      "ms_weight_empty": 4,
+      "source_has_positive": 1761,
+      "source_unique_numeric": 1756,
+      "source_confirmed_kg": 1627,
+      "source_confirmed_package_weight": 336,
+      "comparison": {
+        "NUMERIC_EQUAL": 1544,
+        "NO_ARTICLE_MATCH": 71,
+        "NUMERIC_DIFFERENT": 211,
+        "AMBIGUOUS_SOURCE_WEIGHT": 5,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 39,
+        "MS_WEIGHT_EMPTY": 1
+      },
+      "decision": {
+        "NO_CHANGE": 1415,
+        "REVIEW": 246,
+        "CANDIDATE_REPLACE": 209,
+        "CANDIDATE_FILL": 1
+      },
+      "hold_reasons": {
+        "NO_ARTICLE_MATCH": 71,
+        "AMBIGUOUS_SOURCE_WEIGHT": 5,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 39,
+        "SOURCE_UNITS_UNCONFIRMED": 129,
+        "BLACKLIST": 2,
+        "DAMAGED": 2
+      }
+    },
+    "Изипринт": {
+      "cards": 1920,
+      "stock": 1151,
+      "ms_weight_filled": 1917,
+      "ms_weight_empty": 3,
+      "source_has_positive": 1844,
+      "source_unique_numeric": 1844,
+      "source_confirmed_kg": 1844,
+      "source_confirmed_package_weight": 0,
+      "comparison": {
+        "NUMERIC_EQUAL": 1813,
+        "NO_ARTICLE_MATCH": 75,
+        "NUMERIC_DIFFERENT": 31,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 1
+      },
+      "decision": {
+        "NO_CHANGE": 1793,
+        "REVIEW": 98,
+        "CANDIDATE_REPLACE": 29
+      },
+      "hold_reasons": {
+        "NO_ARTICLE_MATCH": 75,
+        "DAMAGED": 17,
+        "BLACKLIST": 4,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 1,
+        "KNOWN_SUSPECT_WEIGHT_6243_0_048KG_FOR_4X100ML": 1
+      }
+    },
+    "Рапид / Суперфайн": {
+      "cards": 6106,
+      "stock": 1439,
+      "ms_weight_filled": 2852,
+      "ms_weight_empty": 3254,
+      "source_has_positive": 2066,
+      "source_unique_numeric": 2066,
+      "source_confirmed_kg": 2066,
+      "source_confirmed_package_weight": 0,
+      "comparison": {
+        "NUMERIC_DIFFERENT": 1551,
+        "NUMERIC_EQUAL": 507,
+        "NO_ARTICLE_MATCH": 1327,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 2713,
+        "MS_WEIGHT_EMPTY": 8
+      },
+      "decision": {
+        "CANDIDATE_REPLACE": 1547,
+        "NO_CHANGE": 503,
+        "REVIEW": 4053,
+        "CANDIDATE_FILL": 3
+      },
+      "hold_reasons": {
+        "NO_ARTICLE_MATCH": 1327,
+        "RAPID_ORIGINALS_EXCLUDED": 3455,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 2713,
+        "DAMAGED": 2,
+        "BLACKLIST": 6
+      }
+    }
+  },
+  "planned_364": {
+    "Кактус": {
+      "cards": 145,
+      "stock": 108,
+      "ms_weight_filled": 139,
+      "ms_weight_empty": 6,
+      "source_has_positive": 144,
+      "source_unique_numeric": 144,
+      "source_confirmed_kg": 144,
+      "source_confirmed_package_weight": 144,
+      "comparison": {
+        "NUMERIC_DIFFERENT": 135,
+        "MS_WEIGHT_EMPTY": 6,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 1,
+        "NUMERIC_EQUAL": 3
+      },
+      "decision": {
+        "CANDIDATE_REPLACE": 135,
+        "CANDIDATE_FILL": 6,
+        "REVIEW": 1,
+        "NO_CHANGE": 3
+      },
+      "hold_reasons": {
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 1
+      }
+    },
+    "Сакура": {
+      "cards": 215,
+      "stock": 172,
+      "ms_weight_filled": 214,
+      "ms_weight_empty": 1,
+      "source_has_positive": 211,
+      "source_unique_numeric": 211,
+      "source_confirmed_kg": 211,
+      "source_confirmed_package_weight": 0,
+      "comparison": {
+        "NUMERIC_DIFFERENT": 194,
+        "NUMERIC_EQUAL": 16,
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 4,
+        "MS_WEIGHT_EMPTY": 1
+      },
+      "decision": {
+        "CANDIDATE_REPLACE": 194,
+        "NO_CHANGE": 16,
+        "REVIEW": 4,
+        "CANDIDATE_FILL": 1
+      },
+      "hold_reasons": {
+        "SOURCE_WEIGHT_MISSING_OR_INVALID": 4
+      }
+    },
+    "Изипринт": {
+      "cards": 4,
+      "stock": 3,
+      "ms_weight_filled": 4,
+      "ms_weight_empty": 0,
+      "source_has_positive": 4,
+      "source_unique_numeric": 4,
+      "source_confirmed_kg": 4,
+      "source_confirmed_package_weight": 0,
+      "comparison": {
+        "NUMERIC_DIFFERENT": 3,
+        "NUMERIC_EQUAL": 1
+      },
+      "decision": {
+        "CANDIDATE_REPLACE": 3,
+        "NO_CHANGE": 1
+      },
+      "hold_reasons": {}
+    }
+  },
+  "rapid_written_1016": {
+    "cards": 1016,
+    "stock": 135,
+    "ms_weight_filled": 278,
+    "ms_weight_empty": 738,
+    "source_has_positive": 258,
+    "source_unique_numeric": 258,
+    "source_confirmed_kg": 258,
+    "source_confirmed_package_weight": 0,
+    "comparison": {
+      "NUMERIC_DIFFERENT": 239,
+      "SOURCE_WEIGHT_MISSING_OR_INVALID": 755,
+      "NO_ARTICLE_MATCH": 3,
+      "NUMERIC_EQUAL": 18,
+      "MS_WEIGHT_EMPTY": 1
+    },
+    "decision": {
+      "CANDIDATE_REPLACE": 239,
+      "REVIEW": 758,
+      "NO_CHANGE": 18,
+      "CANDIDATE_FILL": 1
+    },
+    "hold_reasons": {
+      "SOURCE_WEIGHT_MISSING_OR_INVALID": 755,
+      "RAPID_ORIGINALS_EXCLUDED": 750,
+      "NO_ARTICLE_MATCH": 3
+    }
+  },
+  "writes": 0,
+  "night_dimensions_364": "timer stopped and disabled; authorization revoked pending combined plan"
+}

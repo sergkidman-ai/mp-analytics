@@ -1,0 +1,19 @@
+marketplace,account,marketplace_id,sku,title,pack_qty,pack_src,price,discounted_price,club_price,market_price,price_captured,rating,feedback_rating,orders_30d,buyouts_30d,stock_days,fbs_mode,stock_mp_now,active,note
+wb,wb_acc1,181081324,0002,"Картридж Q2612A для HP LJ 1010, LJ 1012, LJ 1015 черный",1.0,single,2505.0,2154.3,2154.3,1576.0,2026-09-14 13:20:13.714951+00:00,8.0,5.0,0.0,0.0,30.0,FBW(stock),1.0,True,
+ozon,oz_acc2,1822591480,0002XYLCOWCT,"Картридж DS Q2612A для принтеров HP LaserJet 1010, LJ-1012, LJ1015, LJ 1018, LJ 1020, LJ1022, LJ 3015, LJ 3020 черный",1.0,single,,,,,,,,0.0,0.0,0.0,FBS(assumed),,True,
+wb,wb_acc2,313183708,0002XYLCOWCT,"Картридж DS Q2612A для HP LJ 1010, LJ 1012, LJ 1015 черный",,,,,,,,,,1.0,,0.0,,,True,other Q2612A card
+wb,wb_acc1,181095467,0037,"Картридж Q2612X для HP LJ 1010, LJ 1012, LJ 1015 черный",,,,,,,,,,0.0,,30.0,,,True,other Q2612A card
+wb,wb_acc2,1554059180,0002X12MOYB4,Комплект картриджей Q2612A 12 шт на 24000 стр. для HP,,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+wb,wb_acc1,850428565,6856,"Картридж Q2612XL для HP LJ 1010, LJ 1012, LJ 1015 черный",,,,,,,,,,0.0,,30.0,,,True,other Q2612A card
+wb,wb_acc2,1553230150,0002X3TAN6V6,Комплект картриджей Q2612A 3 шт на 6000 стр. для HP LJ 3015,,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+wb,wb_acc2,1553231751,0002X6XSB2EJ,Комплект картриджей Q2612A 6 шт на 12000 стр. для HP,,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+wb,wb_acc2,1540472470,7134OK1MU8FO,Тонер DS Q2612/Q5949/CE505/C7115/Q6511/Q7516/C4092 для Canon,,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+wb,wb_acc1,1286385285,7134,Тонер Q2612/Q5949/CE505/C7115/Q6511/Q7516/C4092 для Canon,,,,,,,,,,0.0,,28.0,,,True,other Q2612A card
+ozon,oz_acc1,5155973872,0002X6,"Комплект картриджей Q2612A (6 шт.) на 12000 страниц для принтеров HP LaserJet 1010, LJ-1012, LJ1015, LJ 1018, LJ 1020, LJ1022, LJ 3015, LJ 3020",,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+ozon,oz_acc1,5155955829,0002X2,"Комплект картриджей Q2612A (2 шт.) на 4000 страниц для принтеров HP LaserJet 1010, LJ-1012, LJ1015, LJ 1018, LJ 1020, LJ1022, LJ 3015, LJ 3020",,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+ozon,oz_acc2,3574072363,6856THDLZLHT,"Картридж DS Q2612XL для принтеров HP LaserJet 1010, LJ-1012, LJ1015, LJ 1018, LJ 1020, LJ1022, LJ 3015, LJ 3020 черный",,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+ozon,oz_acc2,1822597464,0037Q2LS2HWM,"Картридж DS Q2612X для принтеров HP LaserJet 1010, LJ-1012, LJ1015, LJ 1018, LJ 1020, LJ1022, LJ 3015, LJ 3020 черный",,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+ozon,oz_acc2,5731009980,7134OK1MU8FO,"Тонер DS Q2612/Q5949/CE505/C7115/Q6511/Q7516/C4092 для принтеров Canon i-SENSYS LBP-1120, LBP1210, LJ 1000, LJ 1010, LJ-1012 черный",,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+ozon,oz_acc2,5740942038,0002X6XSB2EJ,"Комплект картриджей Q2612A (6 шт) на 12000 страниц для принтеров HP LaserJet 1010, LJ-1012, LJ1015, LJ 1018, LJ 1020, LJ1022, LJ 3015, LJ 3020",,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+ozon,oz_acc2,5740941565,0002X9MTWIOW,"Комплект картриджей Q2612A (9 шт) на 18000 страниц для принтеров HP LaserJet 1010, LJ-1012, LJ1015, LJ 1018, LJ 1020, LJ1022, LJ 3015, LJ 3020",,,,,,,,,,0.0,,0.0,,,True,other Q2612A card
+ozon,oz_acc2,5746234716,0037X9CTFLI8,"Комплект картриджей Q2612X (9 шт) на 31500 страниц для принтеров HP LaserJet 1010, LJ-1012, LJ1015, LJ 1018, LJ 1020, LJ1022, LJ 3015, LJ 3020",,,,,,,,,,0.0,,0.0,,,True,other Q2612A card

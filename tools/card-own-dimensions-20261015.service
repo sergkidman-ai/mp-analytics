@@ -1,0 +1,13 @@
+[Unit]
+Description=Authorized 364 own-supplier MS package dimensions, October 15-16
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python tools/card_dimensions_own_source_night.py --apply
+TimeoutStartSec=5h
+StandardOutput=journal
+StandardError=journal

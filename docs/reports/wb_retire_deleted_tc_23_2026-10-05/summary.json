@@ -1,0 +1,17 @@
+{
+  "account": "wb_acc1",
+  "source": "23 no_source cards; user states deleted in TK",
+  "explicit_user_authorization": "Zero WB stocks and transfer all 23 to trash",
+  "verification_at": "2026-10-05T10:49:26.479082+00:00",
+  "cards_in_trash": 23,
+  "cards_active": 0,
+  "fbs_positive_cells": 0,
+  "fbs_unknown_cells": 0,
+  "fbo_report_at": "2026-10-05T10:47:55.723085+00:00",
+  "fbo_quantity": 0,
+  "in_way_quantity": 0,
+  "tnved_writes": 0,
+  "category_writes": 0,
+  "permanent_deletions": 0,
+  "mutation_requests": 2
+}

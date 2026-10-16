@@ -1,0 +1,51 @@
+{
+  "status": "complete_read_only",
+  "at": "2026-10-12T12:27:24.785827+00:00",
+  "feed": {
+    "fetched_at": "2026-10-12T12:15:05.398678+00:00",
+    "feed_date": "2026-10-12 04:30",
+    "last_modified": "Mon, 12 Oct 2026 01:34:13 GMT",
+    "offers": 21194,
+    "positive": 11196,
+    "positive_tags": {
+      "name": 11196,
+      "vendorCode": 22392,
+      "url": 11196,
+      "currencyId": 11196,
+      "categoryId": 11196,
+      "price": 11196,
+      "vendor": 11196,
+      "description": 11196,
+      "count": 11196,
+      "ean13": 11196,
+      "price_default": 11196,
+      "oldprice": 256
+    }
+  },
+  "active_supplier_cards": 4192,
+  "current_positive_ms_cards": 2691,
+  "represented_source_offers": 2688,
+  "outside_current_positive_scope": 1491,
+  "current_enter_documents": 28,
+  "positive_cards_in_enter": 2546,
+  "historical_duplicate_aliases_excluded": 10,
+  "statuses": {
+    "ALREADY_EQUAL": 1574,
+    "EXCLUDED_DEFECTIVE_MS_CARD": 3,
+    "CHIP_INFORMATION_CHANGE_REQUIRES_REVIEW": 2,
+    "POSSIBLY_TRUNCATED_TITLE": 18,
+    "NO_SAFE_TITLE_BOUNDARY": 116,
+    "PUBLISHED_NAME_EQUAL_FULL_TITLE_UNVERIFIED": 843,
+    "EXCLUDED_BLACKLIST": 17,
+    "SAFE_DESCRIPTION_DIFFERENCE": 12,
+    "EMPTY_SOURCE_DESCRIPTION": 99,
+    "EXCLUDED_ORIGINAL": 4,
+    "AMBIGUOUS_CURRENT_FEED_ARTICLE": 3
+  },
+  "positive_source_offers_without_current_ms_match": 8508,
+  "write_fields_if_later_authorized": [
+    "description"
+  ],
+  "external_writes": 0,
+  "database_writes": 0
+}

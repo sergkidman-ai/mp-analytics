@@ -1,0 +1,11 @@
+{
+  "source_rows": 185,
+  "missing_diary_events": 0,
+  "unique_publications": 93,
+  "linked_events": 96,
+  "max_body_chars": 7370,
+  "importance_unchanged": true,
+  "existing_events_unchanged": true,
+  "all_major_rows_accessible_via_home_api": true,
+  "new_common_events": 91
+}

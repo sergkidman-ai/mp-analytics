@@ -1,0 +1,22 @@
+{
+  "status": "cancelled_by_user",
+  "at": "2026-10-13T16:11:59.053767+03:00",
+  "authorized_candidates": 3637,
+  "changes": 3637,
+  "writes": 0,
+  "verified": 0,
+  "plan_sha256": "6625c3b737833f0b300e266d6f871ad13987781b1c4b84d18dc727f8b4229cbe",
+  "start_msk": "2026-10-14 00:30",
+  "cutoff_msk": "2026-10-14 05:00",
+  "write_fields": [
+    "barcodes"
+  ],
+  "preserve_existing_barcodes": true,
+  "batch_size": 50,
+  "pause_seconds": 60,
+  "canary_count": 200,
+  "canary_pause_seconds": 600,
+  "cancelled_at_utc": "2026-10-13T13:20:00.512062+00:00",
+  "reason": "Пользователь снял задачу: ранее была сложность при добавлении нового штрихкода",
+  "timer_enabled": false
+}

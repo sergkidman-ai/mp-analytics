@@ -1,0 +1,133 @@
+{
+  "account": "ya_acc1",
+  "month": "2026-09",
+  "calendar_closed": true,
+  "accounting_provisional": true,
+  "price_usable": true,
+  "status": "verified_payments_pending_closure",
+  "source": "stats/orders_calendar_payments",
+  "monthly_record": {
+    "fee": "300404.77",
+    "delivery": "169458.83",
+    "transfer": "48700.08",
+    "promotion": "33208.95",
+    "agency": "61.08",
+    "other_fee": "765.00",
+    "subscription_cost": "6990.00",
+    "netting": "1447408.45",
+    "netting_fee": "1146587.62",
+    "netting_delivery": "72806.04",
+    "netting_promotion": "228014.79",
+    "boost_sales": "26122.47",
+    "boost_shows": "676.48",
+    "shelf": "0",
+    "netting_boost_sales": "202353.73",
+    "netting_boost_shows": "25661.06",
+    "netting_shelf": "0",
+    "reviews_cost": "6410.00",
+    "ad_contract": "0.00",
+    "revenue": "1547854.00",
+    "returns_sum": "173828.00"
+  },
+  "received_at": "2026-10-16T06:54:12.932976+00:00",
+  "coverage": {
+    "source": "stats/orders_calendar_payments",
+    "dateFrom": "2025-11-01",
+    "dateTo": "2026-10-16",
+    "campaigns": [
+      "148691041",
+      "87623061",
+      "99559900",
+      "149178498",
+      "66831595",
+      "148690992",
+      "22536936"
+    ],
+    "pages": {
+      "148691041": {
+        "pages": 16,
+        "complete": true
+      },
+      "87623061": {
+        "pages": 25,
+        "complete": true
+      },
+      "99559900": {
+        "pages": 6,
+        "complete": true
+      },
+      "149178498": {
+        "pages": 1,
+        "complete": true
+      },
+      "66831595": {
+        "pages": 2,
+        "complete": true
+      },
+      "148690992": {
+        "pages": 1,
+        "complete": true
+      },
+      "22536936": {
+        "pages": 1,
+        "complete": true
+      }
+    },
+    "received_at": "2026-10-16T06:54:12.932976+00:00",
+    "orders": 4867,
+    "complete": true,
+    "missing_historical_orders": []
+  },
+  "services": {
+    "status": "DONE",
+    "received_at": "2026-10-16T06:54:17.560914+00:00",
+    "request": {
+      "businessId": 879051,
+      "dateTimeFrom": "2026-09-01T00:00:00+03:00",
+      "dateTimeTo": "2026-09-30T23:59:59+03:00"
+    },
+    "report_id": "1e635367-ce11-43f7-b9a7-3ac9229abff8",
+    "generated_at": "2026-10-16T06:54:16.122194Z",
+    "generation_requested_at": "2026-10-16T06:54:13.617482Z",
+    "seed_request_unverified": false,
+    "sha256": "d74900b688810fc665a8b83ea3ded509941389686ed8b0f62a75c472c06dac6c"
+  },
+  "closure": {
+    "status": "PROCESSING",
+    "request": {
+      "campaignId": 148691041,
+      "monthOfYear": {
+        "year": 2026,
+        "month": 9
+      },
+      "contractType": "INCOME"
+    },
+    "report_id": "88a80337-7383-4ee0-ad41-27f6359fbbd8"
+  },
+  "reconciliation": {
+    "closure_rows": 546,
+    "payments_rows": 592,
+    "unmatched_closure": 0,
+    "additional_payments": 46,
+    "missing": []
+  },
+  "lines": {
+    "fee": "1446992.39",
+    "delivery": "242264.87",
+    "transfer": "48700.08",
+    "promotion": "261223.74",
+    "agency": "61.08",
+    "other_fee": "765.00",
+    "subscription_cost": "6990.00",
+    "revenue": "1547854.00",
+    "netting": "1447408.45",
+    "returns_sum": "173828.00"
+  },
+  "turnover": "2995262.45",
+  "expenses": "2006997.16",
+  "cogs": "467045.21",
+  "profit_before_opex_tax": "347392.08",
+  "retention": "0.6700571964904110489549922412",
+  "keep": "0.3299428035095889510450077588",
+  "version": "e8fd2e3c6446ae8c9617d21240912eb5a06e5e1a811b484ee62c8d9438f986d2"
+}

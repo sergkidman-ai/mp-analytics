@@ -1,0 +1,38 @@
+{
+  "at_utc": "2026-10-13T12:36:46.218720+00:00",
+  "live_receipt_documents": 73,
+  "scoped_cards": 6763,
+  "statuses": {
+    "NO_SUPPLIER_EAN13_AVAILABLE": 3076,
+    "SUPPLIER_EAN13_MISSING": 3637,
+    "SUPPLIER_EAN13_ALREADY_PRESENT": 50
+  },
+  "by_supplier": {
+    "bulat": {
+      "NO_SUPPLIER_EAN13_AVAILABLE": 1205,
+      "SUPPLIER_EAN13_MISSING": 1313,
+      "SUPPLIER_EAN13_ALREADY_PRESENT": 1
+    },
+    "profiline": {
+      "SUPPLIER_EAN13_MISSING": 1373,
+      "SUPPLIER_EAN13_ALREADY_PRESENT": 41
+    },
+    "rapid": {
+      "NO_SUPPLIER_EAN13_AVAILABLE": 449,
+      "SUPPLIER_EAN13_MISSING": 951,
+      "SUPPLIER_EAN13_ALREADY_PRESENT": 8
+    },
+    "solutionsprint": {
+      "NO_SUPPLIER_EAN13_AVAILABLE": 1422
+    }
+  },
+  "ms_cards_with_ean8": 6692,
+  "ms_cards_with_code128": 6613,
+  "ms_cards_with_ean13": 65,
+  "existing_ean13_invalid": 0,
+  "new_receipt_cards_outside_previous_scope": 0,
+  "preview_additions": 3637,
+  "external_writes": 0,
+  "database_writes": 0,
+  "archived_receipt_cards_excluded": 3
+}

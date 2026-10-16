@@ -1,0 +1,22 @@
+{
+  "status": "complete",
+  "at": "2026-10-13T23:45:36.122078+03:00",
+  "changes": 378,
+  "authorized_candidates": 384,
+  "already_desired": 2,
+  "writes": 378,
+  "verified": 378,
+  "plan_sha256": "fdcb6c141d18dbfa3c76237aa1d57ef6ff3ecf80744ad93ddab63cf6914466d7",
+  "start_msk": "2026-10-13 23:20",
+  "cutoff_msk": "2026-10-14 05:00",
+  "write_fields": [
+    "description"
+  ],
+  "max_batch": 50,
+  "pause_seconds": 60,
+  "canary": {
+    "count": 200,
+    "pause_seconds": 600
+  },
+  "skipped_stock": 4
+}

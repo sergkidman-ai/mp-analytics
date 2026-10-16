@@ -1,0 +1,161 @@
+marketplace,marketplace_id,query,metric,period,in_sample
+wb,253913048,canon mf651cw картриджи цветные,orders=0;open_card=12;freq=6,2026-08-05..2026-08-10(daily sums),True
+wb,253913048,картридж canon 067,orders=0;open_card=12;freq=24,2026-08-04..2026-08-10(daily sums),True
+wb,253913048,картридж на принтер лазерныйцветной канон,orders=0;open_card=12;freq=6,2026-08-04..2026-08-10(daily sums),True
+wb,253913048,067h,orders=0;open_card=6;freq=59,2026-08-04..2026-08-10(daily sums),True
+wb,253913048,"canon 067 bk черный (1 400 стр), canon 067 hbk (3 100 стр), canon 067 y / m / c желтый / пурпурный / голубой (1 250 стр), canon 067h m y / m / c желтый / пурпурный / голубой (2 400 стр).",orders=0;open_card=6;freq=6,2026-08-05..2026-08-10(daily sums),True
+wb,253913048,canon mf651cw картридж,orders=0;open_card=3;freq=6,2026-08-04..2026-08-10(daily sums),True
+wb,253913048,картридж для принтера canon 067h,orders=0;open_card=1;freq=1,2026-08-10..2026-08-10(daily sums),True
+wb,253913048,набор картриджей 067h,orders=0;open_card=1;freq=0,2026-08-10..2026-08-10(daily sums),True
+wb,253913048,253913048,orders=0;open_card=1;freq=1,2026-08-04..2026-08-10(daily sums),True
+wb,253913048,canon i-sensys lbp631cw картридж,orders=0;open_card=0;freq=0,2026-08-04..2026-08-08(daily sums),True
+wb,327898986,картридж для принтера panasonic kx-mb1500,orders=0;open_card=27;freq=109,2026-08-04..2026-08-10(daily sums),True
+wb,327898986,картридж panasonic kx-mb1500,orders=0;open_card=20;freq=80,2026-08-04..2026-08-10(daily sums),True
+wb,327898986,panasonic kx-mb1900 картридж,orders=0;open_card=14;freq=14,2026-08-04..2026-08-10(daily sums),True
+wb,327898986,kx-mb1500 картридж,orders=0;open_card=12;freq=12,2026-08-04..2026-08-10(daily sums),True
+wb,327898986,kx mb1500 картридж pnib1036q,orders=0;open_card=6;freq=0,2026-08-04..2026-08-10(daily sums),True
+wb,327898986,картридж для мфу panasonic kx-mb1500,orders=0;open_card=5;freq=12,2026-08-06..2026-08-10(daily sums),True
+wb,327898986,картридж kx-mb1500,orders=0;open_card=5;freq=10,2026-08-04..2026-08-10(daily sums),True
+wb,327898986,катридж для принтера panasonic kx mb1500,orders=0;open_card=4;freq=0,2026-08-07..2026-08-10(daily sums),True
+wb,327898986,кх-мв1500 катрижд для принтера панасоник,orders=0;open_card=4;freq=0,2026-08-04..2026-08-10(daily sums),True
+wb,327898986,panaspnic kx-mb1500 катртдж,orders=0;open_card=3;freq=3,2026-08-04..2026-08-10(daily sums),True
+wb,216422130,hp1020 картридж,orders=0;open_card=8;freq=18,2026-08-04..2026-08-10(daily sums),True
+wb,216422130,картридж для hp laserjet 1020,orders=0;open_card=8;freq=71,2026-08-05..2026-08-10(daily sums),True
+wb,216422130,картридж hp laserjet 1020,orders=0;open_card=6;freq=143,2026-08-04..2026-08-10(daily sums),True
+wb,216422130,картридж для принтера lj 1020,orders=0;open_card=5;freq=5,2026-08-05..2026-08-10(daily sums),True
+wb,216422130,laserjet 1020,orders=0;open_card=5;freq=15,2026-08-04..2026-08-10(daily sums),True
+wb,216422130,картридж для лазерного принтера,orders=0;open_card=4;freq=202,2026-08-04..2026-08-10(daily sums),True
+wb,216422130,картридж hp laserjet 1020 не чипированный,orders=0;open_card=4;freq=4,2026-08-04..2026-08-10(daily sums),True
+wb,216422130,картридж для принтера hp 1020,orders=0;open_card=3;freq=170,2026-08-04..2026-08-10(daily sums),True
+wb,216422130,hp laser 1188w картдж,orders=0;open_card=2;freq=2,2026-08-04..2026-08-10(daily sums),True
+wb,216422130,картриджи для принтера laserjet 1020,orders=0;open_card=2;freq=2,2026-08-04..2026-08-10(daily sums),True
+wb,181116509,картридж для принтера xerox phaser 6020,orders=0;open_card=2;freq=4,2026-08-06..2026-08-10(daily sums),True
+wb,181116509,катридж доя xerox phaser 6020,orders=0;open_card=2;freq=2,2026-08-05..2026-08-10(daily sums),True
+wb,967516933,картридж hp laser mfp 135a оригинал,orders=0;open_card=1;freq=1,2026-08-10..2026-08-10(daily sums),True
+wb,967516933,картридж для принтера hp laser mfp 135a,orders=0;open_card=1;freq=13,2026-08-05..2026-08-10(daily sums),True
+wb,967516933,кадридж на принтер hp laser mfp 135a,orders=0;open_card=1;freq=1,2026-08-10..2026-08-10(daily sums),True
+wb,967516933,картридж на принтер hp laser mfp 135a,orders=0;open_card=0;freq=0,2026-08-05..2026-08-05(daily sums),True
+wb,200165976,картридж для brother dcp-l25200wr,orders=0;open_card=1;freq=0,2026-08-05..2026-08-10(daily sums),True
+wb,200165976,картридж для принтера brother dcp-l2500dr,orders=0;open_card=0;freq=4,2026-08-05..2026-08-05(daily sums),True
+wb,192567968,tk5240,orders=0;open_card=0;freq=5,2026-08-05..2026-08-10(daily sums),True
+wb,261178783,катридж на hp w1520a,orders=0;open_card=1;freq=1,2026-08-10..2026-08-10(daily sums),True
+wb,326847167,картриджи к принтеру hp 2573,orders=7;open_card=32;freq=19,2026-08-04..2026-08-10(daily sums),True
+wb,326847167,картридж для принтера hp c4183,orders=0;open_card=18;freq=6,2026-08-04..2026-08-10(daily sums),True
+wb,326847167,картридж для принтера hp photosmart c3183,orders=0;open_card=12;freq=13,2026-08-04..2026-08-10(daily sums),True
+wb,326847167,картридж hp 136,orders=0;open_card=10;freq=1,2026-08-10..2026-08-10(daily sums),True
+wb,326847167,326847167,orders=0;open_card=10;freq=5,2026-08-06..2026-08-10(daily sums),True
+wb,326847167,hp photosmart c3183 картридж цветной,orders=0;open_card=6;freq=6,2026-08-04..2026-08-10(daily sums),True
+wb,326847167,картриджи для принтера hp deskjet d4163,orders=0;open_card=4;freq=32,2026-08-07..2026-08-10(daily sums),True
+wb,326847167,картриджи hp photosmart d5063,orders=0;open_card=4;freq=1,2026-08-10..2026-08-10(daily sums),True
+wb,326847167,картридж №136 для принтеров hp,orders=0;open_card=1;freq=2,2026-08-04..2026-08-10(daily sums),True
+wb,326847167,картридж цветной на принтер hp photosmart  s4183,orders=0;open_card=0;freq=0,2026-08-04..2026-08-04(daily sums),True
+wb,964953109,картридж hp laser mfp 137fnw,orders=6;open_card=12;freq=36,2026-08-05..2026-08-10(daily sums),False
+wb,964953109,картридж для принтера hp mfp 135w,orders=6;open_card=12;freq=6,2026-08-05..2026-08-10(daily sums),False
+wb,964953109,картридж hp laser mfp 135wr,orders=1;open_card=2;freq=3,2026-08-05..2026-08-10(daily sums),False
+wb,964953109,картридж для принтера hp lazer mfp135wr,orders=0;open_card=6;freq=6,2026-08-05..2026-08-10(daily sums),False
+wb,964953109,картридж для принтера hp laser mfp 135 wr,orders=0;open_card=6;freq=6,2026-08-05..2026-08-10(daily sums),False
+wb,964953109,картридж hp mfp 135w,orders=0;open_card=6;freq=6,2026-08-05..2026-08-10(daily sums),False
+wb,964953109,картридж для мфу hp 135w,orders=0;open_card=5;freq=5,2026-08-05..2026-08-10(daily sums),False
+wb,964953109,картридж для принтера hp laser mfp 135w,orders=0;open_card=4;freq=16,2026-08-08..2026-08-10(daily sums),False
+wb,964953109,картридж hp laser mfp 135w,orders=0;open_card=3;freq=20,2026-08-05..2026-08-10(daily sums),False
+wb,964953109,hp laserp1005,orders=0;open_card=3;freq=3,2026-08-08..2026-08-10(daily sums),False
+ozon,1760686645,принтер лазерный,orders=0;views=1289;searches=15620,2026-08-31..2026-09-07,True
+ozon,1760686645,набор для 3д принтера,orders=0;views=64;searches=164,2026-08-31..2026-09-07,True
+ozon,1760686645,набор для 3d принтера,orders=0;views=31;searches=35,2026-08-31..2026-09-07,True
+ozon,1760686645,принтер,orders=0;views=29;searches=24595,2026-08-31..2026-09-07,True
+ozon,1760686645,набор для 3д печати,orders=0;views=20;searches=50,2026-08-31..2026-09-07,True
+ozon,1760686645,hp,orders=0;views=9;searches=342,2026-08-31..2026-09-07,True
+ozon,1760686645,картриджи для принтера hp,orders=0;views=7;searches=46,2026-08-31..2026-09-07,True
+ozon,1760686645,картридж на принтер,orders=0;views=7;searches=83,2026-08-31..2026-09-07,True
+ozon,1760686645,картридж hp,orders=0;views=5;searches=172,2026-08-31..2026-09-07,True
+ozon,1760686645,картридж для принтера hp,orders=0;views=5;searches=223,2026-08-31..2026-09-07,True
+ozon,1719404303,ma,orders=0;views=20;searches=221,2026-08-31..2026-09-07,True
+ozon,1719404303,чип,orders=0;views=17;searches=299,2026-08-31..2026-09-07,True
+ozon,1719404303,kyocera ecosys pa3500cx,orders=0;views=16;searches=16,2026-08-31..2026-09-07,True
+ozon,1719404303,tk-5370k,orders=0;views=12;searches=11,2026-08-31..2026-09-07,True
+ozon,1719404303,картридж,orders=0;views=11;searches=2629,2026-08-31..2026-09-07,True
+ozon,1719404303,kyocera,orders=0;views=10;searches=141,2026-08-31..2026-09-07,True
+ozon,1719404303,картридж для принтера kyocera,orders=0;views=7;searches=14,2026-08-31..2026-09-07,True
+ozon,1719404303,комплект,orders=0;views=7;searches=5693,2026-08-31..2026-09-07,True
+ozon,1719404303,принтер с картриджем,orders=0;views=6;searches=10,2026-08-31..2026-09-07,True
+ozon,1719404303,tk-5490,orders=0;views=5;searches=11,2026-08-31..2026-09-07,True
+ozon,1003270627,pantum m6500,orders=0;views=8;searches=138,2026-08-31..2026-09-07,True
+ozon,1003270627,pantum m6500w,orders=0;views=8;searches=598,2026-08-31..2026-09-07,True
+ozon,1003270627,картридж для принтера pantum m6500w,orders=0;views=8;searches=619,2026-08-31..2026-09-07,True
+ozon,1003270627,tl-420x,orders=0;views=5;searches=41,2026-08-31..2026-09-07,True
+ozon,1003270627,картридж для принтера pantum m6500,orders=0;views=5;searches=87,2026-08-31..2026-09-07,True
+ozon,1003270627,принтер,orders=0;views=5;searches=12844,2026-08-31..2026-09-07,True
+ozon,1003270627,m6700dw,orders=0;views=4;searches=19,2026-08-31..2026-09-07,True
+ozon,1003270627,pantum m6700dw,orders=0;views=4;searches=48,2026-08-31..2026-09-07,True
+ozon,1003270627,тонер pantum,orders=0;views=3;searches=18,2026-08-31..2026-09-07,True
+ozon,1003270627,pantum m7100dn,orders=0;views=2;searches=13,2026-08-31..2026-09-07,True
+ozon,870872516,tk-8115,orders=0;views=16;searches=28,2026-08-31..2026-09-07,True
+ozon,870872516,kyocera ecosys m8124cidn,orders=0;views=14;searches=13,2026-08-31..2026-09-07,True
+ozon,870872516,tk-8110k,orders=0;views=14;searches=7,2026-08-31..2026-09-07,True
+ozon,870872516,tk-8110,orders=0;views=12;searches=21,2026-08-31..2026-09-07,True
+ozon,870872516,принтер,orders=0;views=10;searches=12372,2026-08-31..2026-09-07,True
+ozon,870872516,8115,orders=0;views=6;searches=7,2026-08-31..2026-09-07,True
+ozon,870872516,8124 kyocera,orders=0;views=4;searches=7,2026-08-31..2026-09-07,True
+ozon,870872516,tk-8115c,orders=0;views=4;searches=10,2026-08-31..2026-09-07,True
+ozon,870872516,tk-8115y,orders=0;views=4;searches=6,2026-08-31..2026-09-07,True
+ozon,870872516,kyocera,orders=0;views=3;searches=107,2026-08-31..2026-09-07,True
+ozon,1547263981,canon,orders=0;views=40;searches=1841,2026-08-31..2026-09-07,True
+ozon,1547263981,картридж для принтера цветной,orders=0;views=39;searches=55,2026-08-31..2026-09-07,True
+ozon,1547263981,067h картридж,orders=0;views=25;searches=30,2026-08-31..2026-09-07,True
+ozon,1547263981,картриджи для принтера canon,orders=0;views=25;searches=317,2026-08-31..2026-09-07,True
+ozon,1547263981,принтер,orders=0;views=24;searches=23516,2026-08-31..2026-09-07,True
+ozon,1547263981,чип,orders=0;views=23;searches=407,2026-08-31..2026-09-07,True
+ozon,1547263981,цветной картридж для принтера,orders=0;views=21;searches=34,2026-08-31..2026-09-07,True
+ozon,1547263981,canon i-sensys lbp633cdw,orders=0;views=16;searches=30,2026-08-31..2026-09-07,True
+ozon,1547263981,набор для,orders=0;views=13;searches=1129,2026-08-31..2026-09-07,True
+ozon,1547263981,картридж,orders=0;views=6;searches=4265,2026-08-31..2026-09-07,True
+ozon,863431676,картридж для принтера hp laserjet,orders=0;views=21;searches=139,2026-08-31..2026-09-07,True
+ozon,863431676,ce740a,orders=0;views=18;searches=19,2026-08-31..2026-09-07,True
+ozon,863431676,725 картридж,orders=0;views=9;searches=80,2026-08-31..2026-09-07,True
+ozon,863431676,ce310a картридж,orders=0;views=6;searches=18,2026-08-31..2026-09-07,True
+ozon,863431676,ce742a,orders=0;views=5;searches=5,2026-08-31..2026-09-07,True
+ozon,863431676,ce741a,orders=0;views=4;searches=5,2026-08-31..2026-09-07,True
+ozon,863431676,картридж ce310a,orders=0;views=3;searches=5,2026-08-31..2026-09-07,True
+ozon,863431676,ce740a картридж,orders=0;views=2;searches=4,2026-08-31..2026-09-07,True
+ozon,863431676,hp 12a,orders=0;views=2;searches=5,2026-08-31..2026-09-07,True
+ozon,863431676,hpa,orders=0;views=2;searches=4,2026-08-31..2026-09-07,True
+ozon,2698165223,tk-5450,orders=0;views=8;searches=21,2026-08-31..2026-09-07,True
+ozon,2698165223,ma2600cfx,orders=0;views=7;searches=11,2026-08-31..2026-09-07,True
+ozon,2698165223,kyocera ecosys ma2600cwfx,orders=0;views=4;searches=12,2026-08-31..2026-09-07,True
+ozon,2698165223,kyocera ecosys ma2600cfx,orders=0;views=3;searches=8,2026-08-31..2026-09-07,True
+ozon,2698165223,kyocera ecosys ma2600cwfx картридж,orders=0;views=3;searches=3,2026-08-31..2026-09-07,True
+ozon,2698165223,3ds,orders=0;views=2;searches=33,2026-08-31..2026-09-07,True
+ozon,2698165223,kyocera ma2600cwfx,orders=0;views=2;searches=2,2026-08-31..2026-09-07,True
+ozon,2698165223,tk-5450c,orders=0;views=2;searches=4,2026-08-31..2026-09-07,True
+ozon,2698165223,тонер для принтера ecosys ma 2600,orders=0;views=2;searches=2,2026-08-31..2026-09-07,True
+ozon,2698165223,hb-tk-5450m,orders=0;views=1;searches=1,2026-08-31..2026-09-07,True
+ozon,4451990235,xerox 3100 картридж,orders=0;views=5;searches=7,2026-08-31..2026-09-07,True
+ozon,4451990235,картридж xerox phaser 3100mfp,orders=0;views=5;searches=5,2026-08-31..2026-09-07,True
+ozon,4451990235,phaser 3100 mfp картридж,orders=0;views=4;searches=5,2026-08-31..2026-09-07,True
+ozon,4451990235,картридж xerox 3100,orders=0;views=4;searches=5,2026-08-31..2026-09-07,True
+ozon,4451990235,106r01379,orders=0;views=3;searches=5,2026-08-31..2026-09-07,True
+ozon,4451990235,картридж для принтера xerox phaser 3100 mfp,orders=0;views=3;searches=3,2026-08-31..2026-09-07,True
+ozon,4451990235,106r01379 картридж,orders=0;views=2;searches=3,2026-08-31..2026-09-07,True
+ozon,4451990235,phaser 3100,orders=0;views=2;searches=3,2026-08-31..2026-09-07,True
+ozon,4451990235,картридж 106r01379,orders=0;views=2;searches=3,2026-08-31..2026-09-07,True
+ozon,4451990235,xerox 3119 картридж,orders=0;views=1;searches=4,2026-08-31..2026-09-07,True
+ozon,2681828516,w2300x,orders=1;views=7;searches=8,2026-08-31..2026-09-07,True
+ozon,2681828516,принтер лазерный,orders=0;views=91;searches=13462,2026-08-31..2026-09-07,True
+ozon,2681828516,w2300a,orders=0;views=4;searches=6,2026-08-31..2026-09-07,True
+ozon,2681828516,hp color laserjet pro mfp 4303dw,orders=0;views=3;searches=3,2026-08-31..2026-09-07,True
+ozon,2681828516,набор для 3д печати,orders=0;views=3;searches=24,2026-08-31..2026-09-07,True
+ozon,2681828516,принтер,orders=0;views=3;searches=19309,2026-08-31..2026-09-07,True
+ozon,2681828516,hp color laserjet pro 4303dw,orders=0;views=2;searches=3,2026-08-31..2026-09-07,True
+ozon,2681828516,набор для 3d принтера,orders=0;views=2;searches=10,2026-08-31..2026-09-07,True
+ozon,2681828516,3-d принтер,orders=0;views=1;searches=4,2026-08-31..2026-09-07,True
+ozon,2681828516,3д принтер,orders=0;views=1;searches=2862,2026-08-31..2026-09-07,True
+ozon,653303752,картридж для panasonic kx mb1500,orders=1;views=10;searches=10,2026-08-31..2026-09-07,True
+ozon,653303752,panasonic,orders=0;views=119;searches=726,2026-08-31..2026-09-07,True
+ozon,653303752,kxtx,orders=0;views=44;searches=27,2026-08-31..2026-09-07,True
+ozon,653303752,картридж для принтера panasonic kx mb1500,orders=0;views=40;searches=39,2026-08-31..2026-09-07,True
+ozon,653303752,mb,orders=0;views=23;searches=68,2026-08-31..2026-09-07,True
+ozon,653303752,картридж для принтера панасоник kx-mb1500,orders=0;views=20;searches=19,2026-08-31..2026-09-07,True
+ozon,653303752,картридж панасоник kx-mb1500,orders=0;views=17;searches=17,2026-08-31..2026-09-07,True
+ozon,653303752,panasonic kx-mb1500 картридж,orders=0;views=16;searches=12,2026-08-31..2026-09-07,True
+ozon,653303752,картридж panasonic kx-mb1500,orders=0;views=14;searches=15,2026-08-31..2026-09-07,True
+ozon,653303752,kx-mb1500 картридж,orders=0;views=13;searches=14,2026-08-31..2026-09-07,True

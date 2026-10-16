@@ -370,7 +370,9 @@ def parse_pdf_ferret(text):
     arts = re.findall(r"\b(?:CSP?|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", text)
     rows = []
     # код номенклатуры (2-я колонка) бывает буквенно-цифровым (напр. S24199174609), не только \d+
-    for m in re.finditer(r"^\s*(\d+)\s+([0-9A-Za-z]+)\s+.*?(\d+,\d{2})\s+(\d+)\s+шт\s+(\d+,\d{2})\s*$", text, re.M):
+    # В счёте 6949 у строки 3 в PDF-тексте нет «шт»: цена, количество и сумма
+    # сохранены. Допускаем пустую единицу, но не произвольный текст вместо неё.
+    for m in re.finditer(r"^\s*(\d+)\s+([0-9A-Za-z]+)\s+.*?(\d+,\d{2})\s+(\d+)\s+(?:шт\s+)?(\d+,\d{2})\s*$", text, re.M):
         num, kod, price, qty, summ = m.groups()
         rows.append((int(num), float(qty), _num(price), _num(summ)))
     if len(arts) != len(rows):

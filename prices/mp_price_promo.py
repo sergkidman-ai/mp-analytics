@@ -15,7 +15,7 @@
          акции `dp-calendar-api /api/v1/calendar/promotions` + `/promotions/nomenclatures`,
          цена покупателя (с СПП) — публичная карточка `card.wb.ru/cards/v4/detail`.
 - Ozon   цены  `/v5/product/info/prices` (`marketing_price` = цена покупателя),
-         акции `/v1/actions` (наши) + `/v1/actions/products`.
+         акции `/v1/actions` (наши) + `/v2/actions/products`.
 - Маркет акции `/businesses/{id}/promos` + `/promos/offers`; цены Маркета тут не снимаем —
          они уже есть в витрине цен потока prc.
 
@@ -46,7 +46,7 @@ WB_PROMO_NMS = WB_PROMOS + "/nomenclatures"
 WB_CARD = "https://card.wb.ru/cards/v4/detail"
 OZ_PRICES = "https://api-seller.ozon.ru/v5/product/info/prices"
 OZ_ACTIONS = "https://api-seller.ozon.ru/v1/actions"
-OZ_ACTION_PRODUCTS = "https://api-seller.ozon.ru/v1/actions/products"
+OZ_ACTION_PRODUCTS = "https://api-seller.ozon.ru/v2/actions/products"
 YA_BASE = "https://api.partner.market.yandex.ru"
 WB_TOKEN = {"wb_acc1": "WB_TOKEN_PRICES_ACC1", "wb_acc2": "WB_TOKEN_PRICES_ACC2"}
 YA_ENV = {"ya_acc1": ("YANDEX_API_KEY_ACC1", "YANDEX_BUSINESS_ID_ACC1")}
@@ -183,23 +183,13 @@ def ozon_snapshot(account, items, day):
     acts = [a for a in (ra.json().get("result") or []) if a.get("is_participating")] \
         if ra.status_code == 200 else []
     for a in acts:
-        last_id, guard = "", 0
-        while guard < 50:      # last_id — СТРОКА, на первой странице не передаём (число → 400)
-            guard += 1
-            body = {"action_id": a["id"], "limit": 1000}
-            if last_id:
-                body["last_id"] = last_id
-            rp = _get(OZ_ACTION_PRODUCTS, method="post", headers=h, json=body)
-            if rp.status_code != 200:
-                break
-            res = rp.json().get("result") or {}
-            for p in res.get("products") or []:
-                promos[str(p.get("id"))].append(a["title"])
-            nxt = str(res.get("last_id") or "")
-            if nxt in ("", "0") or nxt == last_id:
-                break
-            last_id = nxt
-            time.sleep(0.3)
+        from ops.ozon_actions import products as action_products
+        def request_action(acc, method, path, body):
+            response = _get("https://api-seller.ozon.ru"+path, method="post", headers=h, json=body)
+            response.raise_for_status()
+            return response.json()
+        for p in action_products(request_action, account, a["id"]):
+            promos[str(p["id"])].append(a["title"])
 
     rows = []
     for sku, g in prices.items():

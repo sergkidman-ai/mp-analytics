@@ -1,0 +1,2 @@
+-- поток: fin; read-only
+select account,coalesce(sum((payload->>'retail_amount')::numeric) filter(where payload->>'doc_type_name'='Продажа'),0) sales,coalesce(sum((payload->>'retail_amount')::numeric) filter(where payload->>'doc_type_name'='Возврат'),0) returns,count(distinct (payload->>'rr_dt')::date) days,min((payload->>'rr_dt')::date)::text first_date,max((payload->>'rr_dt')::date)::text last_date from raw_wb_report where (payload->>'rr_dt')::date between '2026-01-01' and '2026-10-11' group by 1 order by 1;

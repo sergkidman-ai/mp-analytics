@@ -1,0 +1,34 @@
+{
+  "at_utc": "2026-10-14T14:47:41.985991+00:00",
+  "ms_snapshot_at_utc": "2026-10-14T14:38:29.144089+00:00",
+  "scope": "receipts",
+  "active_ms_cards": 848,
+  "archived_excluded": 0,
+  "unique_supplier_codes": 848,
+  "source_statuses": {
+    "READ_OK": 848
+  },
+  "cards_with_valid_supplier_dimensions": 848,
+  "coverage_pct": 100.0,
+  "cards_without_suspect_dimension_flag": 846,
+  "coverage_without_suspect_pct": 99.76,
+  "statuses": {
+    "ALREADY_EQUAL": 832,
+    "FILL_ALL_THREE": 14,
+    "SUPPLIER_DIMENSIONS_SUSPECT_REVIEW": 2
+  },
+  "preview_rows": 14,
+  "fill_empty_draft_rows": 14,
+  "ms_dimension_fields": {
+    "Длина, см.": "a883238f-6012-11ed-0a80-0225000bddc2",
+    "Ширина, см.": "00c43da1-4f03-11ee-0a80-082e001b3a61",
+    "Высота, см.": "187a0c24-4f03-11ee-0a80-01f1001b6bd8"
+  },
+  "supplier_axes_explicitly_labelled": false,
+  "axis_mapping": "Supplier first/second/third -> MS length/width/height; no sorting",
+  "axis_mapping_matches_existing_cards": 832,
+  "external_writes": 0,
+  "missing_receipt_profiles": [
+    "s_print_spb"
+  ]
+}

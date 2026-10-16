@@ -1,0 +1,11 @@
+[Unit]
+Description=Independent recovery of TC product UPDATE subscription at 05:01 MSK
+
+[Timer]
+OnCalendar=2026-10-15 02:01:00 UTC
+Persistent=true
+AccuracySec=1s
+Unit=card-rapid-dimensions-restore-20261015.service
+
+[Install]
+WantedBy=timers.target

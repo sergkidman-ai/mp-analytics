@@ -1,0 +1,15 @@
+[Unit]
+Description=Telegram PRC bot - WB promotion completion buttons
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.prc_promo_callbacks
+Restart=always
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target

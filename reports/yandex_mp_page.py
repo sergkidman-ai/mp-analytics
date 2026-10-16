@@ -337,6 +337,16 @@ def _atomic_write(path, text):
 def render(hist=None):
     """Собрать reports_yandex.html из hist JSON (по умолчанию из HIST_PATH), записать атомарно. → путь."""
     data = hist if hist is not None else json.loads(HIST_PATH.read_text(encoding="utf-8"))
+    evidence = data.get('finance_basis') or {}
+    finance_note = ''
+    if evidence:
+        from html import escape
+        key = max(evidence); basis = evidence[key]
+        source = 'подтверждённые календарные платежи' if basis.get('source') == 'stats/orders_calendar_payments' else 'сверенные закрывающие документы'
+        if not basis.get('price_usable'): source = 'полнота финансовой базы не подтверждена'
+        accounting = 'сверка с закрывающими документами ожидается' if basis.get('accounting_provisional') else 'сверка завершена'
+        report_state = 'месяц закрыт в Пульте; ' if basis.get('report_closed') else ''
+        finance_note = f'<p class="sub">База Маркета за {escape(key)}: {report_state}{source}; {accounting}.</p>'
     N = len(data["months"])
     _C.update({"data": data, "M": data["months"], "N": N, "base": list(range(N)),
            "K": data.get("period_keys", [])})
@@ -361,6 +371,7 @@ def render(hist=None):
   </div>
   <p class="eyebrow">Отчёты МП · Яндекс Маркет</p>
   <h1>Яндекс Маркет — сводный отчёт по месяцам</h1>
+  {finance_note}
   <details class="howto"><summary>Как читать этот отчёт</summary><p class="sub">{SUB}</p></details>
   <div class="tlegend">
     <span><span class="sw" style="background:var(--pos-s)"></span>выше среднего — хорошо</span>

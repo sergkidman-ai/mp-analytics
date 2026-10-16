@@ -1,0 +1,48 @@
+{
+  "source": "stats/orders_calendar_payments",
+  "dateFrom": "2025-11-01",
+  "dateTo": "2026-10-16",
+  "campaigns": [
+    "148691041",
+    "87623061",
+    "99559900",
+    "149178498",
+    "66831595",
+    "148690992",
+    "22536936"
+  ],
+  "pages": {
+    "148691041": {
+      "pages": 16,
+      "complete": true
+    },
+    "87623061": {
+      "pages": 25,
+      "complete": true
+    },
+    "99559900": {
+      "pages": 6,
+      "complete": true
+    },
+    "149178498": {
+      "pages": 1,
+      "complete": true
+    },
+    "66831595": {
+      "pages": 2,
+      "complete": true
+    },
+    "148690992": {
+      "pages": 1,
+      "complete": true
+    },
+    "22536936": {
+      "pages": 1,
+      "complete": true
+    }
+  },
+  "received_at": "2026-10-16T06:54:12.932976+00:00",
+  "orders": 4867,
+  "complete": true,
+  "missing_historical_orders": []
+}

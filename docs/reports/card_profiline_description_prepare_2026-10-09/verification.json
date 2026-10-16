@@ -1,0 +1,16 @@
+{
+  "active_cards_accounted": 3835,
+  "unique_plan_ids": 623,
+  "zero_stock_included": 289,
+  "all_targets_equal_exact_source_name": true,
+  "all_matches_unique": true,
+  "chip_change_holds": 0,
+  "synthetic_checks": [
+    "zero stock included",
+    "duplicate held",
+    "archived excluded",
+    "chip loss held",
+    "whitespace equality skipped"
+  ],
+  "external_writes": 0
+}

@@ -1,0 +1,13 @@
+[Unit]
+Description=Authorized combined MS dimensions and weight, 605 cards
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python tools/card_dimensions_weight_night.py --apply
+TimeoutStartSec=5h
+StandardOutput=journal
+StandardError=journal

@@ -1,0 +1,22 @@
+{
+  "checked_at_utc": "2026-10-16T07:06:50.741278+00:00",
+  "disk": {
+    "total": 228742840320,
+    "used": 204751577088,
+    "free": 23974486016
+  },
+  "top_level_du_bytes": {
+    "/srv": 106585198592,
+    "/tmp": 26872799232,
+    "/opt": 26425925632,
+    "/var": 22279991296,
+    "/root": 5633417216,
+    "/usr": 3648679936,
+    "/home": 1247084544
+  },
+  "du_sample_at_utc": "2026-10-16T06:55:02Z",
+  "running_lct_release": "release-29-09-final-4",
+  "no_deletions_performed": true,
+  "open_deleted_files_bytes_approx": 183920230.4,
+  "warning": "Allocated directory sizes, shared Docker layers and hardlinks must not be summed as guaranteed reclamation."
+}

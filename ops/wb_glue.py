@@ -11,8 +11,9 @@
        {"targetIMT": <imtID группы-приёмника>, "nmIDs": [nm, ...]}  — перенести позиции в группу (≤30)
        {"nmIDs": [nm]}                                              — отклеить в новую отдельную группу
   Склеивать можно только позиции одного предмета (у нас все в 1820 «Картриджи для принтеров»).
-ПРОВЕРКА. Ответу контура не верим: после записи читаем публичный card.wb.ru (поле root = imtID)
-и печатаем, у кого группа совпала. Каждое действие пишется в журнал с прежним imtID каждой позиции —
+ПРОВЕРКА. Ответу переноса не верим: до и после записи читаем Content API (imtID)
+и печатаем, у кого группа совпала. Публичная витрина проверяется отдельно, когда доступна.
+Каждое действие пишется в журнал с прежним imtID каждой позиции —
 откат = moveNm обратно.
 
 По умолчанию DRY-RUN. Запись в ВБ — только с --apply и только по прямой команде Сергея (инвариант 6).
@@ -33,17 +34,19 @@ import requests
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from collectors.wb import _content_token  # noqa: E402
+from ops.wb_bundle_plan import fetch_catalog  # noqa: E402
 
 MOVE = "https://content-api.wildberries.ru/content/v2/cards/moveNm"
-V4 = "https://card.wb.ru/cards/v4/detail"
 JOURNAL = BASE_DIR / "docs" / "reports" / "mkt_glue_journal.jsonl"
 
 
-def live(nms):
-    r = requests.get(V4, params={"appType": 1, "curr": "rub", "dest": -1257786, "spp": 30,
-                                 "nm": ";".join(map(str, nms))}, timeout=40)
-    return {int(p["id"]): {"root": p.get("root"), "name": p.get("name"), "subj": p.get("subjectId")}
-            for p in r.json().get("products") or []}
+def live(nms, account):
+    result = {}
+    for nm in dict.fromkeys(nms):
+        for card in fetch_catalog(account, text_search=nm):
+            if card.get("nmID") == nm:
+                result[nm] = {"root": card.get("imtID"), "name": card.get("title"), "subj": card.get("subjectID")}
+    return result
 
 
 def note(entry):
@@ -51,6 +54,12 @@ def note(entry):
     with open(JOURNAL, "a", encoding="utf-8") as f:
         f.write(json.dumps({"ts": datetime.datetime.now().isoformat(timespec="seconds"), **entry},
                            ensure_ascii=False) + "\n")
+
+
+def check_move_response(response):
+    response.raise_for_status()
+    if response.content and response.json().get("error"):
+        raise RuntimeError("WB rejected card grouping; inspect the move journal")
 
 
 def main():
@@ -61,10 +70,14 @@ def main():
     ap.add_argument("--undo", type=int, nargs="*", help="отклеить эти nm_id в отдельные группы")
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args()
+    if not a.undo and (not a.target or not a.nm):
+        ap.error("required: --target and at least one --nm")
+    if not a.undo and a.target in a.nm:
+        ap.error("target must not be listed among moved cards")
     H = {"Authorization": _content_token(a.account), "Content-Type": "application/json"}
 
     if a.undo:
-        before = live(a.undo)
+        before = live(a.undo, a.account)
         body = {"nmIDs": a.undo}
         print("ОТКЛЕИТЬ:", {n: (before.get(n) or {}).get("root") for n in a.undo}, "тело:", body)
         if not a.apply:
@@ -72,15 +85,17 @@ def main():
         r = requests.post(MOVE, headers=H, json=body, timeout=60)
         note({"account": a.account, "action": "undo", "before": {str(k): v for k, v in before.items()},
               "body": body, "http": r.status_code, "resp": r.text[:300]})
-        print("HTTP", r.status_code, r.text[:200]); return
+        print("HTTP", r.status_code, r.text[:200])
+        check_move_response(r)
+        return
 
     ids = [a.target] + a.nm
-    before = live(ids)
+    before = live(ids, a.account)
     for n in ids:
         b = before.get(n) or {}
         print(f"  {n}: группа {b.get('root')} · предмет {b.get('subj')} · {(b.get('name') or '')[:70]}")
     if len(before) != len(ids):
-        sys.exit("витрина ответила не по всем позициям — не клеим")
+        sys.exit("Content API ответил не по всем позициям — не клеим")
     if len({b["subj"] for b in before.values()}) != 1:
         sys.exit("разные предметы — ВБ не склеит")
     target_imt = before[a.target]["root"]
@@ -92,13 +107,16 @@ def main():
     note({"account": a.account, "action": "glue", "target": a.target, "before": {str(k): v for k, v in before.items()},
           "body": body, "http": r.status_code, "resp": r.text[:300]})
     print("HTTP", r.status_code, r.text[:200])
+    check_move_response(r)
     for _ in range(6):
         time.sleep(20)
-        after = live(ids)
+        after = live(ids, a.account)
         ok = [n for n in a.nm if (after.get(n) or {}).get("root") == target_imt]
-        print(f"  витрина: в группе {target_imt} {len(ok)} из {len(a.nm)}")
+        print(f"  Content API: в группе {target_imt} {len(ok)} из {len(a.nm)}")
         if len(ok) == len(a.nm):
             break
+    if len(ok) != len(a.nm):
+        sys.exit("перенос не подтвержден Content API по всем позициям; проверить журнал и группы")
     print(f"https://www.wildberries.ru/catalog/{a.target}/detail.aspx")
 
 

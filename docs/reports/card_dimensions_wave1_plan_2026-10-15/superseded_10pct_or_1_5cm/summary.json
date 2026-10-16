@@ -1,0 +1,81 @@
+{
+  "status": "PROPOSAL_NOT_AUTHORIZED",
+  "source_snapshot": "2026-10-15 11:43 MSK",
+  "supplier_summary": {
+    "Кактус": {
+      "empty_cards": 1429,
+      "with_direct_source": 177,
+      "proposed": 45,
+      "proposed_stock": 30,
+      "hold": 1384,
+      "reason_counts": {
+        "NO_EXPLICIT_DIRECT_SOURCE": 1252,
+        "FIRST_WAVE_SIZE_REVIEW": 7,
+        "SET_PACKAGE_SEPARATE_REVIEW": 18,
+        "CROSS_SUPPLIER_SOURCE_CONFLICT": 86,
+        "CROSS_SUPPLIER_MS_CONFLICT": 99,
+        "AMBIGUOUS_SOURCE_DIMENSIONS": 30
+      },
+      "proposed_without_peers": 32
+    },
+    "Сакура": {
+      "empty_cards": 334,
+      "with_direct_source": 232,
+      "proposed": 32,
+      "proposed_stock": 23,
+      "hold": 302,
+      "reason_counts": {
+        "NO_EXPLICIT_DIRECT_SOURCE": 102,
+        "FIRST_WAVE_SIZE_REVIEW": 20,
+        "CROSS_SUPPLIER_SOURCE_CONFLICT": 175,
+        "CROSS_SUPPLIER_MS_CONFLICT": 190,
+        "AMBIGUOUS_SOURCE_DIMENSIONS": 2,
+        "SET_PACKAGE_SEPARATE_REVIEW": 11
+      },
+      "proposed_without_peers": 16
+    },
+    "Изипринт": {
+      "empty_cards": 119,
+      "with_direct_source": 5,
+      "proposed": 1,
+      "proposed_stock": 1,
+      "hold": 118,
+      "reason_counts": {
+        "NO_EXPLICIT_DIRECT_SOURCE": 114,
+        "CROSS_SUPPLIER_SOURCE_CONFLICT": 3,
+        "CROSS_SUPPLIER_MS_CONFLICT": 3,
+        "FIRST_WAVE_SIZE_REVIEW": 2,
+        "SET_PACKAGE_SEPARATE_REVIEW": 11,
+        "BLACKLIST": 1
+      },
+      "proposed_without_peers": 0
+    },
+    "Рапид / Суперфайн": {
+      "empty_cards": 4676,
+      "with_direct_source": 6,
+      "proposed": 0,
+      "proposed_stock": 0,
+      "hold": 4676,
+      "reason_counts": {
+        "NO_EXPLICIT_DIRECT_SOURCE": 4670,
+        "RAPID_ORIGINALS_PREVIOUSLY_EXCLUDED": 2703,
+        "DAMAGED_CARD": 1,
+        "SET_PACKAGE_SEPARATE_REVIEW": 53,
+        "BLACKLIST": 5,
+        "FIRST_WAVE_SIZE_REVIEW": 2,
+        "KNOWN_SUSPECT_3065": 1,
+        "CROSS_SUPPLIER_SOURCE_CONFLICT": 1,
+        "CROSS_SUPPLIER_MS_CONFLICT": 1
+      },
+      "proposed_without_peers": 0
+    }
+  },
+  "cards": 78,
+  "fields": 234,
+  "stock_cards": 54,
+  "comparison_rule": "sorted physical sides; strong if any abs difference > 1.5cm AND >10% of smaller side",
+  "first_wave_review_boundaries": "hold min<1cm, max>100cm, volume>25L; conservative proposal, not physical diagnosis",
+  "scope": "all active cards in 4 selected supplier groups with empty dimensions, independent of stock",
+  "writes": 0,
+  "scheduled": false
+}

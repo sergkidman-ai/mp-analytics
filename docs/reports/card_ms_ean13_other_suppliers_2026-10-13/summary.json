@@ -1,0 +1,38 @@
+{
+  "at_utc": "2026-10-13T13:11:49.069135+00:00",
+  "suppliers": {
+    "Одиссей": {
+      "current_receipt_documents": 13,
+      "active_cards": 1214,
+      "with_ean13": 2,
+      "with_valid_ean13": 2,
+      "without_ean13": 1212,
+      "archived_excluded": 0
+    },
+    "Сакура": {
+      "current_receipt_documents": 14,
+      "active_cards": 1371,
+      "with_ean13": 60,
+      "with_valid_ean13": 60,
+      "without_ean13": 1311,
+      "archived_excluded": 0
+    },
+    "Кактус": {
+      "current_receipt_documents": 23,
+      "active_cards": 2277,
+      "with_ean13": 46,
+      "with_valid_ean13": 46,
+      "without_ean13": 2231,
+      "archived_excluded": 0
+    },
+    "Изипринт": {
+      "current_receipt_documents": 11,
+      "active_cards": 1067,
+      "with_ean13": 41,
+      "with_valid_ean13": 41,
+      "without_ean13": 1026,
+      "archived_excluded": 0
+    }
+  },
+  "external_writes": 0
+}

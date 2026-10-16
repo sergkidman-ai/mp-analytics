@@ -10,7 +10,7 @@ ops/ozon_stock_action.py («Распродажа стока», «Акция дл
 лестница с тем же полом (решение Сергея 16.09.2026: белые пропускаем).
 
 Решения Сергея 16.09.2026 (себестоимость — цепочкой сторожа ВБ, см. cost_map):
-  пол   = (себест + max(300 ₽, 10 % себеста)) / доля выручки, что остаётся нам
+  пол   = (себест + max(300 ₽ × кратность, 10 % полного себеста)) / доля выручки, что остаётся нам
           (формула ВБ-сторожа, общая с лестницей — ozon_stock_action.floor_price);
   ход   = цена в акции ниже пола → ПОДНЯТЬ action_price до пола, если пол не выше потолка
           акции (товар остаётся в акции, видимость сохраняется); иначе СНЯТЬ поштучно;
@@ -57,9 +57,11 @@ def snapshot(account):
                          "product_id": int(p["id"]),
                          "action_price": float(p.get("action_price") or 0),
                          "max_price": float(p.get("max_action_price") or 0),
-                         "stock": int(p.get("stock") or 0), "min_stock": int(p.get("min_stock") or 0)})
+                         "stock": int(p.get("stock") or 0), "min_stock": int(p.get("min_stock") or 0),
+                         "action_type": a.get("action_type"), "action_price_limit": p.get("action_price_limit")})
     pid2 = oz.offer_of(account, sorted({r["product_id"] for r in rows})) if rows else {}
-    cogs = cost_map(sorted({v[0] for v in pid2.values() if v[0]}))
+    quantities = {off: oz.bundle_quantity(off, name) for off, name in pid2.values() if off}
+    cogs = cost_map(sorted(quantities), quantities=quantities)
     for r in rows:
         r["offer_id"], r["name"] = pid2.get(r["product_id"], (None, ""))
         r["cogs"], r["cogs_source"] = cogs.get(r["offer_id"], (None, "НЕТ")) if r["offer_id"] else (None, "нет offer_id")
@@ -67,7 +69,7 @@ def snapshot(account):
     return rows, acts, keep, keep_src
 
 
-def cost_map(offers):
+def cost_map(offers, quantities=None):
     """{offer_id: (себест, источник)} — ЦЕПОЧКА СТОРОЖА ВБ (решение Сергея 16.09.2026:
     площадки считают одинаково). Себестоимость есть, только если товар СЕЙЧАС где-то есть:
       свой склад (Звёздный/Дисквер) хватает на кратность → средневзвешенный cost_seb;
@@ -88,6 +90,10 @@ def cost_map(offers):
         mult, m = 1, re.match(r"^(\d{4})[Xх](\d{1,2})$", raw, re.I)
         if m:
             mult = int(m.group(2))
+        if quantities is not None:
+            # Ozon передаёт проверенную кратность с полным названием карточки.
+            # Другие площадки без этого аргумента сохраняют свой прежний расчёт.
+            mult = max(1, int(quantities.get(off, 1)))
         code = w.norm_code(raw)
         if not code:
             out[off] = (None, "нет кода")
@@ -134,7 +140,8 @@ def decide(r):
     if r["cogs"] is None:
         r["mode"], r["reason"] = "remove", f"себестоимость не найдена ({r['cogs_source']})"
         return r
-    floor = oz.floor_price(float(r["cogs"]), r["keep_ratio"])
+    r["bundle_qty"] = oz.bundle_quantity(r.get("offer_id"), r.get("name"))
+    floor = oz.floor_price(float(r["cogs"]), r["keep_ratio"], r["bundle_qty"])
     r["floor_price"] = round(floor, 2)
     if r["action_price"] >= floor - PRICE_EPS:
         r["mode"], r["reason"] = "ok", "проходит по полу"
@@ -161,42 +168,59 @@ def _cut(rows, limit):
 
 
 def push(account, rows):
-    """Подъём через activate (он же переустанавливает цену), снятие — deactivate.
-    Отказ в подъёме → снимаем в том же прогоне."""
+    """New Money update; removal respects action mechanics. Verify separately."""
     for aid in sorted({r["action_id"] for r in rows if r["mode"] in ("raise", "remove")}):
         part = [r for r in rows if r["action_id"] == aid]
         up = [r for r in part if r["mode"] == "raise"]
         if up:
-            prods = []
+            try:
+                result = oz.update_products(account, aid,
+                    [{"product_id": r["product_id"], "action_price": r["new_price"],
+                      "stock": max(r["stock"], r["min_stock"])} for r in up])
+            except Exception as exc:
+                for r in up:
+                    r["status"], r["note"] = "error", f"update failed: {type(exc).__name__}: {exc}"
+                result = None
             for r in up:
-                item = {"product_id": r["product_id"], "action_price": r["new_price"]}
-                st = max(r["stock"], r["min_stock"])
-                if st > 0:                               # лимит остатка в акции не меняем
-                    item["stock"] = st
-                prods.append(item)
-            res = oz._req(account, "POST", "/v1/actions/products/activate",
-                          {"action_id": aid, "products": prods}).get("result", {})
-            ok_ids = {int(x) for x in (res.get("product_ids") or [])}
-            rej = {int(x.get("product_id")): x.get("reason") for x in (res.get("rejected") or [])}
-            for r in up:
-                if r["product_id"] in ok_ids:
+                if result is None:
+                    continue
+                pid = r["product_id"]
+                r["note"] = str(result['warnings']) if result['warnings'] else None
+                if pid in result["inactive"]:
+                    r["mode"], r["status"] = "remove", "sent"
+                    r["reason"] += " → update исключил товар"
+                elif pid in result["active"]:
                     r["status"] = "sent"
                 else:
-                    r["note"] = f"подъём отклонён: {rej.get(r['product_id'], 'нет в ответе')}"
+                    r["note"] = f"подъём отклонён: {result['rejected'].get(pid, 'нет в ответе')}"
                     r["mode"], r["new_price"] = "remove", None
                     r["reason"] += " → отказ площадки, снимаем"
-        rm = [r for r in part if r["mode"] == "remove"]
+        rm = [r for r in part if r["mode"] == "remove" and r.get("status") != "sent"]
         if rm:
-            res = oz._req(account, "POST", "/v1/actions/products/deactivate",
-                          {"action_id": aid, "product_ids": [r["product_id"] for r in rm]}).get("result", {})
-            ok_ids = {int(x) for x in (res.get("product_ids") or [])}
-            rej = {int(x.get("product_id")): x.get("reason") for x in (res.get("rejected") or [])}
-            for r in rm:
-                if r["product_id"] in ok_ids:
-                    r["status"] = "sent"
-                else:
-                    r["status"] = "error"
-                    r["note"] = ((r.get("note") or "") + f" · снять не вышло: {rej.get(r['product_id'], 'нет в ответе')}").strip(" ·")
+            try:
+                result = oz.remove_products(account, {"id":aid,"action_type":part[0].get("action_type")},rm)
+                for r in rm:
+                    r["status"] = "sent" if r["product_id"] in result["inactive"] else "error"
+                    if result.get("warnings"):
+                        r["note"] = ((r.get("note") or "") + "; " + str(result["warnings"])).strip("; ")
+                    if r["status"] == "error":
+                        r["note"] = f"снятие не принято: {result['rejected'].get(r['product_id'], 'нет в ответе')}"
+            except Exception as exc:
+                for r in rm:
+                    r["status"], r["note"] = "error", f"снять не удалось: {type(exc).__name__}: {exc}"
+
+
+def execute(account, rows):
+    push(account, rows)
+    verify(account, rows)
+    failed = [r for r in rows if r["mode"] == "raise" and r.get("status") == "error"
+              and r.get("verification_failed")]
+    for r in failed:
+        r["mode"], r["status"] = "remove", "retry"
+        r["reason"] += " → фактическая цена после update ниже пола, снимаем"
+    if failed:
+        push(account,failed)
+        verify(account,failed)
 
 
 def verify(account, rows):
@@ -217,12 +241,16 @@ def verify(account, rows):
             if r["action_id"] != aid:
                 continue
             pid = r["product_id"]
+            if r["mode"] == "raise" and pid not in now:
+                r["mode"] = "remove"
+                r["reason"] += " → перечитка подтвердила отсутствие в акции"
             if r["mode"] == "remove":
                 good = pid not in now
             else:
                 good = pid in now and now[pid] >= r["new_price"] - PRICE_EPS
             r["status"] = "confirmed" if good else "error"
             if not good:
+                r["verification_failed"] = r["mode"] == "raise"
                 r["note"] = ((r.get("note") or "") + f" · сверка: в акции цена {now.get(pid, 'нет')}").strip(" ·")
 
 
@@ -295,8 +323,7 @@ def main():
             for r in rows:
                 if r["mode"] in ("ok", "ok_deferred"):
                     r["status"] = "skip"
-            push(acc, rows)
-            verify(acc, rows)
+            execute(acc, rows)
         if not a.no_log:
             save(rows, a.wave)
         txt = summary(acc, rows, acts, keep, keep_src, a.apply)

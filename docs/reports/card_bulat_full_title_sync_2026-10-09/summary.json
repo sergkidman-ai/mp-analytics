@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-09T21:33:39.339962+03:00",
+  "feed_date": "2026-10-09 04:30",
+  "feed_sha256": "cadde861cd19708b587d7b02292ce5a91b5a46027cdb7666261f59597dc04b2f",
+  "active_supplier_cards": 4192,
+  "changes": 744,
+  "statuses": {
+    "NO_SAFE_TITLE_BOUNDARY": 1430,
+    "ALREADY_EQUAL": 1555,
+    "UPDATE": 742,
+    "EXISTING_CHIP_INFORMATION_CHANGE": 13,
+    "POSSIBLY_TRUNCATED_TITLE": 85,
+    "NO_UNIQUE_FEED_MATCH": 224,
+    "EMPTY_SOURCE_DESCRIPTION": 141,
+    "UPDATE_APPROVED": 2
+  },
+  "held_codes": [],
+  "approved_codes": [
+    "3779",
+    "5777"
+  ],
+  "changes_with_zero_stock": 253,
+  "stock_filter": false,
+  "source": "safe title before prose in feed description plus approved titles",
+  "writes": 744,
+  "verified": 744,
+  "status": "complete",
+  "authorized_start": "2026-10-09 21:00 MSK",
+  "write_fields": [
+    "description"
+  ],
+  "explicit_time_authorization": "User requested 21:00 MSK"
+}

@@ -1,0 +1,15 @@
+{
+  "status": "complete",
+  "at": "2026-10-12T23:25:20.555802+03:00",
+  "source_feed_date": "2026-10-12 04:30",
+  "feed_sha256": "b3dc1bc6381371aa1ef710b206151ad2ef4f8a07bedd275669440b99fc340155",
+  "changes": 165,
+  "write_fields": [
+    "description"
+  ],
+  "max_batch": 50,
+  "min_batch_pause_seconds": 60,
+  "night_window_msk": "23:00-05:00",
+  "writes": 165,
+  "verified": 165
+}

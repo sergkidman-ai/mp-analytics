@@ -1,0 +1,5198 @@
+"""web/app.py — дашборд «Пульт бизнеса» (BI маркетплейсов).
+
+FastAPI: читает Postgres (данные обновляются run_daily.py 2×/день), отдаёт JSON-API + фронт.
+Drill-down: большие цифры → SKU → (позже категории/заказы). Фильтры: площадка/аккаунт/период.
+За хостовым nginx с basic-auth (bi.metaverseworld.ru). Локально: 127.0.0.1:8090.
+
+Запуск:  ./venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8090
+"""
+import base64
+import contextlib
+import io
+import os
+import re
+import sys
+import pathlib
+
+import requests
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
+from pydantic import BaseModel
+
+BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR))
+from core import db  # noqa: E402
+from cf.mp_forecast import ACC_ORG as _CF_ACC_ORG  # noqa: E402
+import collectors.bank_txn_store as txn_store  # noqa: E402  правила разметки выписки (поток inv)
+import collectors.bank_file_import as bank_file_import  # noqa: E402  выписка файлом (банки без API)
+
+app = FastAPI(title="Пульт бизнеса")
+STATIC = BASE_DIR / "web" / "static"
+
+from web.diary_api import router as diary_router  # noqa: E402  дневник событий (поток ev)
+from web.warehouse_loss_api import router as wh_loss_router  # noqa: E402  пострадавшие склады (ev)
+from web.cashflow_api import router as cashflow_router  # noqa: E402  кэшфлоу (cf)
+from web.turnover_api import router as turnover_router  # noqa: E402
+from web.kudir_api import router as kudir_router  # поток: fin
+
+app.include_router(diary_router)
+app.include_router(wh_loss_router)
+app.include_router(cashflow_router)
+app.include_router(turnover_router)
+app.include_router(kudir_router)
+
+from web.shipment_guard_api import router as shipment_guard_router  # поток: fin
+app.include_router(shipment_guard_router)
+
+
+# ── Ограниченный доступ: сотрудник раздела «Новинки» (поток prc) ───────────────
+# Пароли в Пульте раздаёт nginx basic-auth. У оператора Новинок свой файл
+# .htpasswd-novelties, привязанный только к путям раздела, — остальное он не пройдёт.
+# Здесь вторая линия: nginx проксирует имя вошедшего заголовком X-Pult-User, и
+# приложение само отбивает всё, что к Новинкам не относится. Одной опечатки в конфиге
+# nginx хватило бы, чтобы открыть финансы, поэтому проверка дублируется в коде.
+NOVELTY_ONLY_USERS = {u.strip() for u in
+                      os.getenv("PULT_NOVELTY_USERS", "novelty").split(",") if u.strip()}
+
+# Что оператору можно: страница раздела, картинки инструкции и API всех её подвкладок
+# (разбор, чёрный список, несопоставленное, «Запуск на МП» — он под префиксом /api/novelties).
+NOVELTY_ALLOW_EXACT = {"/warehouse/novelties"}
+NOVELTY_ALLOW_PREFIX = ("/warehouse/novelties/img/", "/api/novelties", "/api/blacklist",
+                        "/api/unlinked")
+# Платное внутри разрешённого префикса: «Спросить сеть» тратит деньги на веб-запросы,
+# решение о трате остаётся за владельцем — оператору закрыто и здесь, и в интерфейсе.
+NOVELTY_DENY_PREFIX = ("/api/novelties/research",)
+
+
+def is_novelty_operator(request: Request) -> bool:
+    """Вошедший — сотрудник с доступом только в «Новинки»? Имя даёт nginx."""
+    return (request.headers.get("X-Pult-User") or "").strip() in NOVELTY_ONLY_USERS
+
+
+@app.middleware("http")
+async def novelty_scope_guard(request: Request, call_next):
+    if is_novelty_operator(request):
+        path = request.url.path.rstrip("/") or "/"
+        allowed = path in NOVELTY_ALLOW_EXACT or path.startswith(NOVELTY_ALLOW_PREFIX)
+        if not allowed or path.startswith(NOVELTY_DENY_PREFIX):
+            return JSONResponse({"detail": "Доступ только к разделу «Новинки»"}, status_code=403)
+    return await call_next(request)
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    # Без no-cache браузер держит главную из своего кэша и после деплоя показывает старую
+    # вёрстку (23.08.2026: правки в ленте событий не были видны, пока не нажали Ctrl+F5).
+    # Страница собирается за миллисекунды и данные всё равно тянет запросами — кэшировать нечего.
+    return HTMLResponse((STATIC / "home.html").read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-cache, must-revalidate"})
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    return (STATIC / "index.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/meta")
+def meta():
+    """Доступные срезы для фильтров (площадка/аккаунт/период)."""
+    rows = db.query("""SELECT DISTINCT platform, account,
+        period_from::text period_from, period_to::text period_to
+        FROM margin_by_sku ORDER BY 1,2,3""")
+    return {"slices": rows}
+
+
+def _where(platform, account, period, extra=None):
+    w, p = [], []
+    if platform:
+        w.append("platform=%s"); p.append(platform)
+    if account:
+        w.append("account=%s"); p.append(account)
+    if period:
+        w.append("period_from=%s"); p.append(period)
+    if extra:
+        w.append(extra)
+    return (" WHERE " + " AND ".join(w)) if w else "", p
+
+
+def _summary_one(platform, account, period):
+    """Сводные цифры по одному срезу (используется и для текущего, и для прошлого периода)."""
+    w, p = _where(platform, account, period)
+    r = db.query(f"""SELECT count(*) n_sku,
+        coalesce(sum(qty),0)::float qty,
+        coalesce(sum(revenue_buyer),0)::float revenue,
+        coalesce(sum(cogs),0)::float cogs,
+        coalesce(sum(commission),0)::float commission,
+        coalesce(sum(logistics),0)::float logistics,
+        coalesce(sum(net_profit),0)::float net,
+        coalesce(sum(net_profit) FILTER (WHERE (qty>0 OR revenue_buyer>0) AND article<>'0'),0)::float net_activity,
+        coalesce(sum(CASE WHEN net_profit<0 AND qty>0 AND article<>'0' THEN 1 ELSE 0 END),0) loss_count,
+        coalesce(sum(net_profit) FILTER (WHERE net_profit<0 AND qty>0 AND article<>'0'),0)::float loss_sum,
+        coalesce(sum(qty) FILTER (WHERE net_profit<0 AND qty>0 AND article<>'0'),0)::float loss_qty,
+        coalesce(sum(returns_sum),0)::float returns_sum
+        FROM margin_by_sku{w}""", p)[0]
+    r["margin_pct"] = round(r["net"] / r["revenue"] * 100, 1) if r["revenue"] else None
+    r["commission_pct"] = round(r["commission"] / r["revenue"] * 100, 1) if r["revenue"] else None
+    r["net_other"] = round(r["net"] - r["net_activity"], 2)
+    w2, p2 = _where(platform, account, period)
+    own = db.query(f"""SELECT coalesce(sum(our_price*qty),0)::float own_revenue,
+        coalesce(sum(revenue_wb),0)::float revenue_wb
+        FROM sales{w2 + (' AND ' if w2 else ' WHERE ')}qty>0 AND our_price IS NOT NULL""", p2)[0]
+    r["own_revenue"] = own["own_revenue"]
+    r["revenue_wb"] = round(own["revenue_wb"], 2) or None   # «Вайлдберриз реализовал Товар» (после СПП, цена ВБ)
+    r["margin_wb"] = round(r["net"] / own["revenue_wb"] * 100, 1) if own["revenue_wb"] else None  # маржа от цены ВБ
+    r["margin_own"] = round(r["net"] / own["own_revenue"] * 100, 1) if own["own_revenue"] else None
+    # СПП (эффективная) = (наша цена − цена ВБ/реализовал) / наша цена
+    r["spp_pct"] = round((r["revenue"] - own["revenue_wb"]) / r["revenue"] * 100, 1) \
+        if r["revenue"] and own["revenue_wb"] else None
+    # расходы из сырого отчёта WB по типу удержания: реклама / отзывы / хранение / прочее.
+    # Это «нераспределённые» (без привязки к nm_id) — уже вычтены из net, показываем отдельно.
+    # Пустой account = агрегат обоих ВБ-юрлиц.
+    rw, rp = (["account=%s"], [account]) if account else (["account=ANY(%s)"], [["wb_acc1", "wb_acc2"]])
+    if period:
+        rw.append("period_from=%s"); rp.append(period)
+    adv = db.query(f"""SELECT
+        coalesce(sum((payload->>'deduction')::numeric)
+            FILTER (WHERE payload->>'bonus_type_name' ILIKE '%%WB Продвижение%%'),0)::float adv_spend,
+        coalesce(sum((payload->>'deduction')::numeric)
+            FILTER (WHERE payload->>'bonus_type_name' ILIKE 'Списание за отзыв%%'),0)::float reviews_spend,
+        coalesce(sum((payload->>'storage_fee')::numeric),0)::float storage_all,
+        coalesce(sum((payload->>'deduction')::numeric),0)::float ded_all,
+        coalesce(sum((payload->>'quantity')::numeric)
+            FILTER (WHERE payload->>'supplier_oper_name'='Возврат'),0)::float ret_qty
+        FROM raw_wb_report WHERE {' AND '.join(rw)}""", rp)[0]
+    r["adv_spend"] = adv["adv_spend"]
+    r["reviews_spend"] = adv["reviews_spend"]
+    r["storage_all"] = adv["storage_all"]
+    r["other_ded"] = round(adv["ded_all"] - adv["adv_spend"] - adv["reviews_spend"], 2)
+    r["adv_pct"] = round(adv["adv_spend"] / r["revenue"] * 100, 1) if r["revenue"] else None
+    r["returns_qty"] = adv["ret_qty"]
+    # нераспределённые = удержания WB без привязки к товару (хранение + реклама + отзывы + прочее)
+    r["unalloc"] = round(adv["storage_all"] + adv["ded_all"], 2)
+    return r
+
+
+def _prev_period(platform, account, period):
+    """Предыдущий доступный период (max period_from < выбранного) по тому же срезу."""
+    if not period:
+        return None
+    w, p = ["period_from < %s"], [period]
+    if platform:
+        w.append("platform=%s"); p.append(platform)
+    if account:
+        w.append("account=%s"); p.append(account)
+    row = db.query(f"""SELECT max(period_from)::text pf FROM margin_by_sku
+        WHERE {' AND '.join(w)}""", p)
+    return row[0]["pf"] if row and row[0]["pf"] else None
+
+
+def _mp_five(platform, account, period):
+    """Пятёрка «Отчётов МП» за месяц: оборот (наша цена) → к перечислению → себестоимость →
+    чистая → маржа. `account` пуст — обе фирмы площадки. None, если месяца в отчётах нет.
+
+    Это единая форма для главной и всех трёх вкладок МП (решение Сергея 21.09.2026): витрины
+    площадок считают своё вторым путём и с отчётом расходятся, поэтому верхние баннеры везде
+    берутся отсюда, а витринная детализация стоит отдельным рядом и подписана источником."""
+    d = _mpn.account(platform, account, period) if account else _mpn.month(platform, period)
+    if not d:
+        return None
+    return {k: d.get(k) for k in ("oborot", "payout", "cogs", "net", "margin_pct", "cogs_pct",
+                                  "orders", "returns_cnt", "itog")}
+
+
+@app.get("/api/summary")
+def summary(platform: str = "", account: str = "", period: str = ""):
+    """Большие цифры + сравнение с прошлым периодом (рост/падение маржи, COGS, прибыли).
+
+    `mp` — верхняя пятёрка с вкладки «Отчёты МП» (эталон месяца); остальные поля — витрина
+    `margin_by_sku`, площадочная детализация (СПП, комиссия, логистика, реклама, убыточные SKU)."""
+    r = _summary_one(platform, account, period)
+    r["mp"] = _mp_five(platform or "wb", account, period)
+    prev_p = _prev_period(platform, account, period)
+    if prev_p:
+        pr = _summary_one(platform, account, prev_p)
+        r["prev_period"] = prev_p
+        # абсолютная и относительная динамика по ключевым метрикам
+        r["delta"] = {}
+        for k in ("net", "revenue", "revenue_wb", "cogs", "own_revenue", "qty", "margin_pct",
+                  "margin_wb", "margin_own", "adv_spend", "commission_pct", "returns_sum",
+                  "logistics", "spp_pct"):
+            cur, old = r.get(k), pr.get(k)
+            if cur is None or old is None:
+                r["delta"][k] = None
+                continue
+            d = {"abs": round(cur - old, 2)}
+            # %-изменение: для маржи (уже в %) даём разницу в п.п., для денег — относит. рост
+            d["pct"] = None if not old else round((cur - old) / abs(old) * 100, 1)
+            r["delta"][k] = d
+    else:
+        r["prev_period"] = None
+        r["delta"] = None
+    return r
+
+
+# Колонка → SQL-выражение для сортировки (любая колонка, asc/desc).
+SKU_SORT = {
+    "nm_id": "m.article", "vendor_code": "c.vendor_code", "title": "c.title",
+    "qty": "m.qty", "revenue_buyer": "m.revenue_buyer", "cogs": "m.cogs",
+    "net_profit": "m.net_profit", "margin_pct": "m.margin_pct", "margin_own": "margin_own",
+}
+
+
+def _wb_pricing(account, period):
+    """{nm_id: {price_before, price_after, discount_pct, spp_pct}} из raw_wb_report (по продажам).
+    price_before = retail_price (до скидки), price_after = retail_price_withdisc (после нашей скидки)."""
+    accts = [account] if account else ["wb_acc1", "wb_acc2"]
+    rows = db.query("""SELECT payload->>'nm_id' nm,
+        avg(nullif((payload->>'retail_price')::numeric,0)) before,
+        avg(nullif((payload->>'retail_price_withdisc_rub')::numeric,0)) after,
+        avg(nullif((payload->>'ppvz_spp_prc')::numeric,0)) spp
+        FROM raw_wb_report WHERE account=ANY(%s) AND period_from=%s
+          AND payload->>'supplier_oper_name'='Продажа' GROUP BY 1""", (accts, period))
+    out = {}
+    for r in rows:
+        if not r["nm"]:
+            continue
+        b, a = float(r["before"] or 0), float(r["after"] or 0)
+        out[r["nm"]] = {"price_before": round(b, 2), "price_after": round(a, 2),
+                        "discount_pct": round((b - a) / b * 100, 1) if b else 0,
+                        "spp_pct": round(float(r["spp"] or 0), 1)}
+    return out
+
+
+@app.get("/api/sku")
+def sku(platform: str = "", account: str = "", period: str = "",
+        problem: bool = False, sort: str = "revenue_buyer", order: str = "desc",
+        q: str = "", limit: int = 300):
+    """SKU-уровень: артикул WB (nm_id) + наш артикул (vendorCode) + полное название.
+
+    Артефакты (nm=0, строки без продаж) убраны. revenue_buyer = цена ПОКУПАТЕЛЯ (после СПП).
+    Две маржи: margin_pct = от цены продажи ВБ; margin_own = от НАШЕЙ цены (до СПП).
+    problem=true → убыточные + price_up_pct: на сколько % поднять НАШУ цену, чтобы выйти
+    на +10% маржи (от цены ВБ). keep-ratio 0.61: СПП ~29% + комиссия ~14%."""
+    conds, p = [], []
+    if platform:
+        conds.append("m.platform=%s"); p.append(platform)
+    if account:
+        conds.append("m.account=%s"); p.append(account)
+    if period:
+        conds.append("m.period_from=%s"); p.append(period)
+    conds.append("m.article<>'0'")
+    conds.append("m.net_profit<0 AND m.qty>0" if problem else "(m.qty>0 OR m.revenue_buyer>0)")
+    if q:
+        conds.append("(m.article ILIKE %s OR c.vendor_code ILIKE %s OR c.title ILIKE %s)")
+        p += [f"%{q}%", f"%{q}%", f"%{q}%"]
+    where = " WHERE " + " AND ".join(conds)
+    sort_sql = SKU_SORT.get(sort, "m.revenue_buyer")
+    order = "DESC" if order.lower() == "desc" else "ASC"
+    rows = db.query(f"""
+        SELECT m.article nm_id, c.vendor_code, c.title,
+            m.qty::float, s.our_price::float,
+            m.revenue_buyer::float, m.cogs::float, m.logistics::float,
+            m.net_profit::float, round(m.margin_pct,1)::float margin_pct,
+            CASE WHEN s.our_price>0 AND m.qty>0
+                 THEN round(m.net_profit/(s.our_price*m.qty)*100, 1) END::float margin_own,
+            -- на сколько поднять НАШУ цену (доля), чтобы маржа от нашей цены достигла 0.25:
+            -- x = (0.25 − net/own_rev) / 0.36  (0.36 = keep-ratio 0.61 − цель 0.25)
+            CASE WHEN m.qty>0 AND s.our_price>0
+                  AND m.net_profit/(s.our_price*m.qty) < 0.25
+                 THEN ceil((0.25 - m.net_profit/(s.our_price*m.qty)) / 0.36 * 100)
+                 ELSE NULL END::float price_up_pct,
+            round(c.volume_l,2)::float volume_l,
+            round((c.weight_kg/NULLIF(c.volume_l,0))::numeric,3)::float density,
+            CASE WHEN c.dims_valid=false OR c.volume_l IS NULL OR c.weight_kg IS NULL THEN 'невалидные'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) < {DENS_LOW} THEN 'крупн./лёгкий'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) > {DENS_HIGH} THEN 'тяжёлый/мелкий'
+                 ELSE NULL END dims_flag
+        FROM margin_by_sku m
+        LEFT JOIN wb_cards c ON c.account=m.account AND c.nm_id::text=m.article
+        LEFT JOIN sales s ON s.platform=m.platform AND s.account=m.account
+             AND s.period_from=m.period_from AND s.article=m.article
+        {where} ORDER BY {sort_sql} {order} NULLS LAST LIMIT %s""", p + [limit])
+    if problem and rows:
+        streak = _loss_streak(platform, account, period, [r["nm_id"] for r in rows])
+        for r in rows:
+            r["loss_months"] = streak.get(r["nm_id"], 1)
+    if (platform == "wb" or not platform) and rows:        # цены/скидки/СПП по ВБ
+        pr = _wb_pricing(account, period)
+        for r in rows:
+            x = pr.get(r["nm_id"])
+            if x:
+                r["price_before"], r["discount_pct"], r["spp_pct"] = (
+                    x["price_before"], x["discount_pct"], x["spp_pct"])
+    return {"rows": rows, "count": len(rows)}
+
+
+# ── Операционные расходы: ручной снапшот (история) и факт из банковской выписки ──────────
+# Решение Сергея 03.08.2026: с августа-2026 итог месяца считается ТОЛЬКО из размеченной
+# выписки (см. /opex/statements и миграцию 209). Июль и раньше живут на прежнем ручном
+# снапшоте таблицы `opex` — пересчитывать историю нечем, выписка в БД начинается с 01.08.
+OPEX_FACT_SINCE = "2026-08-01"
+ORG_NAMES = {"7807355364": "Цифровой Квадрат", "7811803918": "Дисквэр"}
+ORG_ORDER = ["7807355364", "7811803918"]
+# Юрлицо → его аккаунты площадок (чтобы «чистая после расходов» считалась по своей фирме,
+# а не по бизнесу целиком): решение Сергея 04.08.2026 — общего разреза нигде не показываем.
+# Маркет торгует только под Цифровым Квадратом (аккаунт один, ya_acc1); у Дисквэра его нет —
+# ключ "ya" там None, и в «чистой фирмы» площадка не показывается вовсе.
+ORG_ACCOUNTS = {"7807355364": {"wb": "wb_acc1", "oz": "oz_acc1", "ya": "ya_acc1"},
+                "7811803918": {"wb": "wb_acc2", "oz": "oz_acc2", "ya": None}}
+
+
+def _ya_net(account, period):
+    """Чистая Маркета за месяц — ТОЙ ЖЕ формулой, что вкладка «Яндекс» (`/api/yandex/monthly`):
+    (выручка + субсидия) − COGS − расходы МП (комиссия, доставка, перевод, продвижение,
+    агентские, прочие, подписка). Источник — витрина `yandex_finance_monthly`.
+
+    Нет аккаунта у фирмы или нет строки за месяц → None, а не 0: ноль в «чистой фирмы»
+    неотличим от «месяц ещё не собран», и расхождение с вкладкой Маркета читалось бы как убыток."""
+    if not account:
+        return None
+    r = db.query("""SELECT ((coalesce(revenue,0) + coalesce(subsidy,0)) - coalesce(cogs,0)
+                            - (coalesce(fee,0) + coalesce(delivery,0) + coalesce(transfer,0)
+                               + coalesce(promotion,0) + coalesce(agency,0)
+                               + coalesce(other_fee,0) + coalesce(subscription_cost,0)))::float n
+        FROM yandex_finance_monthly WHERE account=%s AND month=%s""",
+        (account, _opex_month(period)))
+    return round(r[0]["n"], 2) if r else None
+
+
+def _opex_month(period):
+    """Период дашборда (1-е число месяца) → месяц раскладки расходов.
+    Принимает и короткую форму «YYYY-MM» — её отдаёт селект месяцев выписки."""
+    p = (period or "").strip()
+    if len(p) == 7:
+        p += "-01"
+    return p[:8] + "01" if len(p) >= 8 else ""
+
+
+def _opex_snapshot_total(period):
+    """Ручной снапшот: активный = последний effective_from ≤ месяца (НЕ сумма всех — иначе
+    двойной счёт при помесячном редактировании)."""
+    snap = db.query("SELECT max(effective_from)::text e FROM opex WHERE effective_from<=%s",
+                    (period,))[0]["e"]
+    if not snap:
+        return 0.0, None
+    t = db.query("SELECT coalesce(sum(amount),0)::float t FROM opex WHERE effective_from=%s",
+                 (snap,))[0]["t"]
+    return t, snap
+
+
+def _opex_is_fact(month):
+    """Считать месяц по факту выписки? Да — если месяц не раньше OPEX_FACT_SINCE, либо если
+    по нему уже есть размеченные платежи. Второе — плавный переход назад по истории: выписка
+    добрана с 01.01.2026, и месяц уезжает с ручного снапшота на факт ровно тогда, когда Сергей
+    его разметит (пока разметки нет — цифра истории не шевелится)."""
+    if month >= OPEX_FACT_SINCE:
+        return True
+    return db.query("SELECT EXISTS(SELECT 1 FROM opex_fact_month WHERE month=%s) e",
+                    (month,))[0]["e"]
+
+
+def _opex_total(period, org=""):
+    """Единая точка правды об итоге опер. расходов за месяц. Без `org` — по всему бизнесу
+    (обе фирмы), с `org` (ИНН) — по одному юрлицу: факт из размеченной выписки знает плательщика.
+
+    Ручной снапшот (июль-2026 и раньше) один на бизнес и по фирмам НЕ делится — там `org`
+    игнорируется, а вызывающий помечает цифру как общую (см. `_opex_org_split`)."""
+    m = _opex_month(period)
+    if not m or len(m) != 10:
+        return 0.0
+    if _opex_is_fact(m):
+        w, pr = ["month=%s"], [m]
+        if org:
+            w.append("org_inn=%s"); pr.append(org)
+        return db.query("SELECT coalesce(sum(amount),0)::float t FROM opex_fact_month "
+                        "WHERE " + " AND ".join(w), tuple(pr))[0]["t"]
+    return _opex_snapshot_total(period)[0]
+
+
+def _opex_org_split(period):
+    """Умеем ли делить опер. расходы месяца по юрлицам (факт по банку — да, снапшот — нет)."""
+    m = _opex_month(period)
+    return bool(m and len(m) == 10 and _opex_is_fact(m))
+
+
+def _opex_unassigned(month, org=""):
+    """Сколько расходных платежей месяца ещё без статьи — чтобы итог не выглядел готовым."""
+    w, p = ["t.direction='DEBIT'", "a.txn_id IS NULL",
+            "date_trunc('month', t.operation_date)::date=%s"], [month]
+    if org:
+        w.append("t.org_inn=%s")
+        p.append(org)
+    return db.query(f"""SELECT count(*)::int n, coalesce(sum(t.amount),0)::float s
+        FROM bank_txn t LEFT JOIN bank_txn_opex a ON a.txn_id=t.id
+        WHERE {' AND '.join(w)}""", tuple(p))[0]
+
+
+@app.get("/api/opex")
+def opex(period: str = "", org: str = ""):
+    """Операционные расходы ОДНОГО юрлица за месяц. Общего («обе фирмы вместе») разреза здесь
+    нет — решение Сергея 04.08.2026: у фирм разные банки, договоры и площадки, смешивать нечего.
+
+    Два источника:
+      source='fact'   — факт из размеченной выписки (с 08.2026 всегда; раньше — как только
+                        месяц размечен, см. _opex_is_fact);
+      source='manual' — прежний ручной снапшот; он один на бизнес и по фирмам НЕ делится,
+                        поэтому отдаётся с флагом org_split=false и показывается как есть.
+    Чистая фирмы = её WB-аккаунт (из margin) + её Ozon-аккаунт (к перечислению − COGS)
+    + её Маркет (`yandex_finance_monthly`, есть только у Цифрового Квадрата)."""
+    if not period:
+        return {"applies": False, "items": [], "total": 0}
+    month = _opex_month(period)
+    org = org if org in ORG_NAMES else ORG_ORDER[0]
+    orgs = [{"org_inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
+    acc = ORG_ACCOUNTS[org]
+
+    def _with_biz(payload, total, org_split=True):
+        # Чистая — с вкладки «Отчёты МП» (`reports.mp_numbers`), той же цифрой, что на главной
+        # и на вкладках площадок: витрины считали своё вторым путём и с отчётом расходились
+        # (ВБ −2 % оборота, Маркет — в 11 раз по чистой). Разрез фирмы — её аккаунты площадок;
+        # для общего снапшота (manual) — весь бизнес.
+        b = _mpn.business(period, org if org_split else "")
+        pl = b["platforms"]
+        wb_net = (pl.get("wb") or {}).get("net") or 0
+        oz_net = (pl.get("ozon") or {}).get("net") or 0
+        # Маркет только у Цифрового Квадрата: у Дисквэра площадки нет — показываем прочерк.
+        ya_net = (pl.get("yandex") or {}).get("net")
+        biz = b["total"]["net"]
+        payload.update({"wb_net": round(wb_net, 2), "oz_net": round(oz_net, 2), "ya_net": ya_net,
+                        "biz_net": round(biz, 2), "net_after": round(biz - total, 2),
+                        "total": round(total, 2), "period": period, "month": month,
+                        "org": org, "org_name": ORG_NAMES[org], "orgs": orgs,
+                        "org_split": org_split})
+        return payload
+
+    if _opex_is_fact(month):
+        items = db.query("""SELECT category_id, category, sum(amount)::float amount,
+                                   sum(txn_count)::int txn_count
+            FROM opex_fact_month WHERE month=%s AND org_inn=%s
+            GROUP BY 1,2 ORDER BY 3 DESC""", (month, org))
+        total = sum(i["amount"] for i in items)
+        return _with_biz({"applies": True, "source": "fact", "items": items,
+                          "unassigned": _opex_unassigned(month, org)}, total)
+
+    total, snap = _opex_snapshot_total(period)
+    if not snap:
+        return {"applies": False, "source": "manual", "items": [], "total": 0,
+                "period": period, "snapshot": None, "own": False,
+                "org": org, "org_name": ORG_NAMES[org], "orgs": orgs, "org_split": False}
+    items = db.query("""SELECT id, name, role, category, base::float, tax_pct::float, amount::float
+        FROM opex WHERE effective_from=%s ORDER BY category, amount DESC""", (snap,))
+    return _with_biz({"applies": True, "source": "manual", "snapshot": snap,
+                      "own": snap == month, "items": items,
+                      "fot": round(sum(i["amount"] for i in items if i["category"] == "salary"), 2),
+                      "rent": round(sum(i["amount"] for i in items if i["category"] == "rent"), 2),
+                      "tax": round(sum(i["amount"] for i in items if i["category"] == "tax"), 2),
+                      "headcount": sum(1 for i in items if i["category"] == "salary")},
+                     total, org_split=False)
+
+
+class OpexItem(BaseModel):
+    name: str = ""
+    role: str = ""
+    category: str = "salary"          # salary | rent | tax
+    base: float = 0
+    tax_pct: float = 0
+
+
+class OpexSave(BaseModel):
+    period: str
+    items: list[OpexItem] = []
+
+
+@app.post("/api/opex/save")
+def opex_save(payload: OpexSave):
+    """Заменить снапшот общебизнесовых расходов за месяц (effective_from = 1-е число месяца).
+    Месяц получает свой снапшот (перестаёт наследовать прошлый); следующие месяцы наследуют его.
+    amount = base*(1+tax_pct). Дубли по имени схлопываем (последний выигрывает)."""
+    eff = payload.period[:8] + "01"
+    seen = {}
+    for it in payload.items:
+        nm = (it.name or "").strip()
+        if nm:
+            seen[nm] = it
+    rows = [(eff, (it.category or "salary"), nm, (it.role or ""),
+             float(it.base or 0), float(it.tax_pct or 0),
+             round(float(it.base or 0) * (1 + float(it.tax_pct or 0)), 2))
+            for nm, it in seen.items()]
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM opex WHERE effective_from=%s", (eff,))
+            for r in rows:
+                cur.execute("""INSERT INTO opex(effective_from,category,name,role,base,tax_pct,amount)
+                    VALUES(%s,%s,%s,%s,%s,%s,%s)""", r)
+    return {"ok": True, "period": eff, "count": len(rows)}
+
+
+# ── Выписки: разметка платежей статьями опер. расходов (/opex/statements) ────────────────
+
+@app.get("/api/opex/categories")
+def opex_categories(all: int = 0):
+    """Справочник статей. all=1 — вместе с архивными (для показа старой разметки).
+
+    `in_opex=false` — статья РАЗМЕТКИ, но не операционный расход (закупка товара, перевод
+    между своими счетами, миграция 219): платёж перестаёт числиться неразобранным, а в факт
+    опер. расходов не попадает."""
+    where = "" if all else "WHERE NOT archived"
+    return {"items": db.query(f"SELECT id, name, sort, archived, in_opex FROM opex_category "
+                              f"{where} ORDER BY in_opex DESC, sort, name")}
+
+
+def _opex_spread(months: int) -> tuple[int, bool]:
+    """Поле «Мес.» знаковое: N месяцев вперёд от оплаты, −N — назад. → (|N|, назад?)."""
+    n = int(months or 1)
+    back = n < 0
+    return max(1, min(120, abs(n))), back
+
+
+def _opex_start_month(op_date, n: int, back: bool):
+    """Первый месяц разнесения. Вперёд — месяц оплаты (аренда, подписки). Назад — период
+    заканчивается месяцем ПЕРЕД платежом, start = месяц − N: УСН, уплаченный в июле за
+    II квартал, с N=3 ложится в апрель–июнь; налог за прошлый месяц — это N=1 назад."""
+    start = op_date.replace(day=1)
+    if back:
+        m = start.month - n
+        start = start.replace(year=start.year + (m - 1) // 12, month=(m - 1) % 12 + 1)
+    return start
+
+
+class OpexCategory(BaseModel):
+    id: int | None = None
+    name: str = ""
+    sort: int = 100
+    archived: bool | None = None           # None = не трогать
+
+
+@app.post("/api/opex/categories")
+def opex_category_save(payload: OpexCategory):
+    """Создать статью или переименовать/архивировать существующую. Имя уникально —
+    повтор возвращает уже имеющуюся статью, а не ошибку."""
+    name = (payload.name or "").strip()
+    if payload.id:
+        if name:
+            db.execute("UPDATE opex_category SET name=%s, sort=%s WHERE id=%s",
+                       (name, payload.sort, payload.id))
+        if payload.archived is not None:
+            db.execute("UPDATE opex_category SET archived=%s WHERE id=%s",
+                       (payload.archived, payload.id))
+        return {"ok": True, "id": payload.id}
+    if not name:
+        return {"ok": False, "error": "пустое имя статьи"}
+    row = db.query("""INSERT INTO opex_category (name, sort) VALUES (%s, %s)
+        ON CONFLICT (name) DO UPDATE SET archived=false RETURNING id""",
+        (name, payload.sort))[0]
+    return {"ok": True, "id": row["id"], "name": name}
+
+
+@app.get("/api/opex/statement")
+def opex_statement(org: str = "", month: str = "", only: str = "all", direction: str = "DEBIT",
+                   cat: str = "", bank: str = ""):
+    """Строки выписки ОДНОЙ фирмы за месяц + присвоенная статья.
+
+    org — ИНН организации (7807355364 Цифровой / 7811803918 Дисквэр); пусто → первая по списку.
+    Сводного разреза «обе фирмы» нет намеренно (решение Сергея 04.08.2026).
+    only='unassigned' — только платежи без статьи. direction='' — вместе с приходом.
+    cat — фильтр по статье внутри месяца: '' все, 'none' без статьи, число = id статьи.
+    bank — фильтр по банку ('' все, 'alfa'|'sber'|'ozon'): у Цифрового два счёта, Альфа и
+    Озон Банк, и сверять выписку удобнее по одному банку за раз. В отличие от `cat` этот
+    фильтр сужает и итоги внизу, и разрез по статьям — он выбирает СЧЁТ, а не подмножество
+    строк внутри счёта."""
+    org = org if org in ORG_NAMES else ORG_ORDER[0]
+    if not month:
+        month = db.query("SELECT coalesce(max(date_trunc('month', operation_date))::text, '') m "
+                         "FROM bank_txn WHERE org_inn=%s", (org,))[0]["m"][:10]
+    if not month:
+        return {"month": None, "org": org, "orgs": [], "items": [], "totals": {}}
+    month = _opex_month(month)      # принимает и «2026-08», и «2026-08-01»
+    # Банк подставляется в три запроса — держим его отдельным куском условия
+    bank = bank if bank.isalpha() else ""
+    bw = " AND t.bank = %s" if bank else ""
+    bp = [bank] if bank else []
+    w, p = ["date_trunc('month', t.operation_date)::date = %s", "t.org_inn = %s"], [month, org]
+    if bank:
+        w.append("t.bank = %s")
+        p.append(bank)
+    if direction:
+        w.append("t.direction = %s")
+        p.append(direction)
+    if only == "unassigned" or cat == "none":
+        w.append("a.txn_id IS NULL")
+    elif cat.isdigit():
+        w.append("a.category_id = %s")
+        p.append(int(cat))
+    items = db.query(f"""
+        SELECT t.id, t.bank, t.org_inn, t.operation_date::text, t.direction, t.amount::float,
+               t.document_number, t.purpose, t.cp_name, t.cp_inn,
+               a.category_id, c.name AS category, a.spread_months, a.start_month::text, a.source,
+               -- направление разнесения не храним отдельно: оно уже видно по start_month
+               (a.start_month < date_trunc('month', t.operation_date)::date) AS spread_back,
+               -- ТОЛЬКО EXISTS: обычный JOIN размножал строку выписки по числу правил
+               -- контрагента (у ПАО Сбербанк их 8 — платёж показывался 8 раз)
+               EXISTS (SELECT 1 FROM opex_rule r
+                       WHERE coalesce(t.cp_inn,'') <> '' AND r.cp_inn = t.cp_inn) AS has_rule
+        FROM bank_txn t
+        LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
+        LEFT JOIN opex_category c ON c.id = a.category_id
+        WHERE {' AND '.join(w)}
+        ORDER BY t.operation_date DESC, t.id DESC""", tuple(p))
+    # Итог месяца — всегда по ВСЕМ расходам фирмы за месяц, независимо от фильтров экрана:
+    # иначе при «только без статьи» строка внизу показывала бы «размечено 0 из 0».
+    tot = db.query(f"""
+        SELECT count(*)::int n,
+               count(*) FILTER (WHERE a.txn_id IS NOT NULL)::int n_done,
+               coalesce(sum(t.amount),0)::float total,
+               -- «В расходах месяца» — только статьи с in_opex: закупка товара и переводы
+               -- между своими счетами размечены, но операционным расходом не являются (219)
+               coalesce(sum(t.amount) FILTER (WHERE c.in_opex),0)::float done,
+               coalesce(sum(t.amount) FILTER (WHERE c.in_opex IS FALSE),0)::float outside,
+               count(*) FILTER (WHERE c.in_opex IS FALSE)::int n_outside,
+               coalesce(sum(t.amount) FILTER (WHERE a.txn_id IS NULL),0)::float todo
+        FROM bank_txn t
+        LEFT JOIN bank_txn_opex a ON a.txn_id = t.id
+        LEFT JOIN opex_category c ON c.id = a.category_id
+        WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
+          AND t.direction='DEBIT'{bw}""", tuple([month, org] + bp))[0]
+    # Разрез месяца по статьям — из него собирается селект фильтра (со счётчиком у каждой
+    # статьи). Считается по ВСЕМ расходам месяца, а не по отфильтрованной выдаче: иначе после
+    # выбора статьи в списке осталась бы она одна и вернуться было бы некуда.
+    by_cat = db.query(f"""
+        SELECT c.id AS category_id, c.name AS category, c.in_opex, count(*)::int n,
+               coalesce(sum(t.amount),0)::float amount
+        FROM bank_txn t
+        JOIN bank_txn_opex a ON a.txn_id = t.id
+        JOIN opex_category c ON c.id = a.category_id
+        WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
+          AND t.direction='DEBIT'{bw}
+        GROUP BY 1, 2, 3 ORDER BY in_opex DESC, 5 DESC""", tuple([month, org] + bp))
+    # Список банков месяца — считается БЕЗ фильтра по банку, иначе в селекте оставался бы
+    # выбранный банк и вернуться к «всем» было бы некуда.
+    by_bank = db.query("""
+        SELECT t.bank, count(*)::int n, coalesce(sum(t.amount),0)::float amount
+        FROM bank_txn t
+        WHERE date_trunc('month', t.operation_date)::date=%s AND t.org_inn=%s
+          AND t.direction='DEBIT'
+        GROUP BY 1 ORDER BY 3 DESC""", (month, org))
+    orgs = [{"org_inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
+    seen = {r["org_inn"]: r for r in db.query(
+        """SELECT org_inn, min(operation_date)::text d0, max(operation_date)::text d1,
+                  count(*)::int n FROM bank_txn GROUP BY 1""")}
+    for o in orgs:
+        o.update({k: v for k, v in seen.get(o["org_inn"], {"n": 0}).items() if k != "org_inn"})
+    months = [r["m"] for r in db.query(
+        "SELECT DISTINCT date_trunc('month', operation_date)::date::text m "
+        "FROM bank_txn WHERE org_inn=%s ORDER BY 1 DESC", (org,))]
+    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "only": only, "cat": cat,
+            "bank": bank, "items": items, "totals": tot, "by_cat": by_cat, "by_bank": by_bank,
+            "orgs": orgs, "months": months}
+
+
+class OpexAssign(BaseModel):
+    txn_id: int
+    category_id: int | None = None        # null = снять статью (вернуть в нераспределённые)
+    spread_months: int = 1
+    remember: bool = False                # запомнить контрагента → правило на будущее
+    apply_existing: bool = True           # доразметить прочие платежи этого же контрагента
+    purpose_like: str | None = None       # фрагмент назначения: правило только на такие платежи
+    amount_min: float | None = None       # диапазон суммы [min, max): правило только на такие
+    amount_max: float | None = None       # платежи (ЕНП Казначейства делится порогом 40 000 ₽)
+
+
+@app.post("/api/opex/statement/assign")
+def opex_assign(payload: OpexAssign):
+    """Присвоить платежу статью (или снять). При remember — запомнить правило по ИНН
+    контрагента (фолбэк по имени, если ИНН пуст) и разом доразметить остальные
+    неразмеченные платежи того же контрагента: иначе правило заработало бы только
+    со следующей выписки.
+
+    `purpose_like` сужает правило до платежей с этим фрагментом в назначении — нужно там,
+    где контрагент один на разнородные платежи (карточные покупки и комиссии идут от банка)."""
+    txn = db.query("SELECT id, cp_inn, cp_name, operation_date, direction FROM bank_txn WHERE id=%s",
+                   (payload.txn_id,))
+    if not txn:
+        return {"ok": False, "error": "платёж не найден"}
+    txn = txn[0]
+    if txn["direction"] != "DEBIT":
+        return {"ok": False, "error": "статья присваивается только расходу"}
+    n, back = _opex_spread(payload.spread_months)
+
+    if not payload.category_id:
+        db.execute("DELETE FROM bank_txn_opex WHERE txn_id=%s", (payload.txn_id,))
+        return {"ok": True, "assigned": 0, "rule": False}
+
+    start = _opex_start_month(txn["operation_date"], n, back)
+    db.execute("""INSERT INTO bank_txn_opex (txn_id, category_id, spread_months, start_month, source)
+        VALUES (%s,%s,%s,%s,'manual')
+        ON CONFLICT (txn_id) DO UPDATE SET category_id=EXCLUDED.category_id,
+            spread_months=EXCLUDED.spread_months, start_month=EXCLUDED.start_month,
+            source='manual', updated_at=now()""",
+        (payload.txn_id, payload.category_id, n, start))
+
+    ruled = 0
+    if payload.remember:
+        inn = (txn["cp_inn"] or "").strip()
+        key = "" if inn else txn_store.name_key(txn["cp_name"])
+        frag = (payload.purpose_like or "").strip() or None
+        lo, hi = payload.amount_min, payload.amount_max
+        if lo is not None and hi is not None and lo >= hi:
+            return {"ok": False, "error": "нижняя граница суммы не меньше верхней"}
+        if inn:
+            db.execute("""INSERT INTO opex_rule (cp_inn, purpose_like, amount_min, amount_max,
+                                                 category_id, spread_months, spread_back)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (cp_inn, (coalesce(lower(purpose_like),'')),
+                             (coalesce(amount_min,-1)), (coalesce(amount_max,-1)))
+                    WHERE coalesce(cp_inn,'') <> ''
+                DO UPDATE SET category_id=EXCLUDED.category_id,
+                              spread_months=EXCLUDED.spread_months,
+                              spread_back=EXCLUDED.spread_back, updated_at=now()""",
+                (inn, frag, lo, hi, payload.category_id, n, back))
+        elif key:
+            db.execute("""INSERT INTO opex_rule (cp_name_key, purpose_like, amount_min, amount_max,
+                                                 category_id, spread_months, spread_back)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (cp_name_key, (coalesce(lower(purpose_like),'')),
+                             (coalesce(amount_min,-1)), (coalesce(amount_max,-1)))
+                    WHERE coalesce(cp_name_key,'') <> ''
+                DO UPDATE SET category_id=EXCLUDED.category_id,
+                              spread_months=EXCLUDED.spread_months,
+                              spread_back=EXCLUDED.spread_back, updated_at=now()""",
+                (key, frag, lo, hi, payload.category_id, n, back))
+        if (inn or key) and payload.apply_existing:
+            # Новое правило может перебивать старую АВТОразметку (у Казначейства платежи уже
+            # висели на «Налоги ФОТ», а правило с порогом отправляет крупные в «Налоги и взносы»).
+            # Снимаем расхождения с текущим победителем и размечаем заново; ручное не трогаем.
+            db.execute("""DELETE FROM bank_txn_opex a USING opex_rule_match m
+                WHERE m.txn_id = a.txn_id AND a.source = 'rule'
+                  AND m.category_id <> a.category_id""")
+            ruled = txn_store.apply_rules()          # доразметить уже лежащее в БД
+    return {"ok": True, "assigned": 1, "rule": bool(payload.remember), "ruled_existing": ruled}
+
+
+class OpexImport(BaseModel):
+    org: str                              # ИНН нашей фирмы, чья это выписка
+    bank: str = "ozon"                    # метка банка в bank_txn
+    filename: str = ""
+    content_b64: str = ""                 # файл целиком, base64 (multipart не ставим ради него)
+    account: str | None = None            # наш счёт, если в файле его нет (CSV/XLSX)
+    since: str = ""                       # не грузить операции раньше этой даты
+    dry: bool = False                     # только разбор, без записи — проверка формата
+
+
+@app.post("/api/opex/statement/import")
+def opex_statement_import(payload: OpexImport):
+    """Ручная загрузка выписки файлом — для банков без API (Озон Банк: счета есть
+    у обеих фирм, API нет вовсе). Разбор в `collectors/bank_file_import`, запись —
+    в тот же `bank_txn`, что у Альфы и Сбера, поэтому правила и экран разметки
+    работают без изменений. Повторная загрузка того же файла дублей не создаёт
+    (натуральный ключ — хеш реквизитов операции)."""
+    if payload.org not in ORG_NAMES:
+        return {"ok": False, "error": "неизвестная организация"}
+    bank = re.sub(r"[^a-z0-9_]+", "", (payload.bank or "ozon").lower())[:16] or "ozon"
+    try:
+        data = base64.b64decode(payload.content_b64 or "", validate=False)
+    except Exception:                                            # noqa: BLE001
+        return {"ok": False, "error": "файл не читается (ошибка base64)"}
+    if not data:
+        return {"ok": False, "error": "пустой файл"}
+    try:
+        res = bank_file_import.import_bytes(
+            data, payload.filename or "statement.txt", bank, payload.org,
+            account=(payload.account or "").strip() or None,
+            since=(payload.since or "").strip() or None, dry=payload.dry)
+    except Exception as e:                                       # noqa: BLE001
+        # Разбор чужого формата — самое хрупкое место: отдаём человеку текст ошибки
+        # (в нём перечислены заголовки файла), а не пятисотку.
+        return {"ok": False, "error": str(e)[:400]}
+    return {"ok": True, **res}
+
+
+@app.get("/api/opex/rules")
+def opex_rules():
+    """Запомненные правила разметки: контрагент (+ необязательный фрагмент назначения) → статья.
+    `n_auto` — сколько платежей сейчас размечено автоматически по этому правилу."""
+    return {"items": db.query("""
+        SELECT r.id, r.cp_inn, r.cp_name_key, r.purpose_like, r.spread_months, r.spread_back,
+               r.amount_min::float AS amount_min, r.amount_max::float AS amount_max,
+               r.category_id, c.name AS category,
+               coalesce(k.cp_name, '') AS cp_name,
+               coalesce(x.n, 0)::int AS n_auto, coalesce(x.s, 0)::float AS s_auto
+        FROM opex_rule r
+        JOIN opex_category c ON c.id = r.category_id
+        -- живое имя контрагента: в правиле хранится только ИНН/ключ имени
+        LEFT JOIN LATERAL (
+            SELECT t.cp_name FROM bank_txn t
+            WHERE (coalesce(r.cp_inn,'') <> '' AND t.cp_inn = r.cp_inn)
+               OR (coalesce(r.cp_inn,'') =  '' AND r.cp_name_key =
+                   regexp_replace(lower(coalesce(t.cp_name,'')), '[^0-9a-zа-яё]+', '', 'g'))
+            ORDER BY t.operation_date DESC LIMIT 1) k ON TRUE
+        -- считаем только платежи, где ЭТО правило победило: иначе платёж, подходящий
+        -- и под общее правило контрагента, и под уточнённое, попадал бы в оба счётчика
+        LEFT JOIN LATERAL (
+            SELECT count(*) n, sum(t.amount) s
+            FROM opex_rule_match m
+            JOIN bank_txn t ON t.id = m.txn_id
+            JOIN bank_txn_opex a ON a.txn_id = m.txn_id AND a.source = 'rule'
+            WHERE m.rule_id = r.id) x ON TRUE
+        ORDER BY c.name, coalesce(k.cp_name, r.cp_inn, r.cp_name_key)""")}
+
+
+class OpexRuleDelete(BaseModel):
+    rule_id: int
+    drop_auto: bool = True                # снять авторазметку, проставленную этим правилом
+
+
+@app.post("/api/opex/rules/delete")
+def opex_rule_delete(payload: OpexRuleDelete):
+    """Удалить правило. По умолчанию снимает и авторазметку (`source='rule'`), которую оно
+    проставило, — иначе ошибочно размеченные платежи остались бы висеть в статье. Ручную
+    разметку не трогаем никогда; после удаления прогоняем остальные правила заново, чтобы
+    платежи подхватило более точное правило, если оно есть."""
+    if not db.query("SELECT 1 FROM opex_rule WHERE id=%s", (payload.rule_id,)):
+        return {"ok": False, "error": "правило не найдено"}
+    dropped = 0
+    if payload.drop_auto:
+        # Снимаем разметку только тех платежей, где победило именно это правило (и только
+        # автоматическую). Обязательно ДО удаления самого правила — вью считает по нему.
+        dropped = db.execute("""
+            DELETE FROM bank_txn_opex a USING opex_rule_match m
+            WHERE m.txn_id = a.txn_id AND m.rule_id = %s AND a.source = 'rule'""",
+            (payload.rule_id,))
+    db.execute("DELETE FROM opex_rule WHERE id=%s", (payload.rule_id,))
+    return {"ok": True, "dropped": dropped or 0, "reruled": txn_store.apply_rules()}
+
+
+@app.get("/api/opex/fact")
+def opex_fact(period: str = "", org: str = ""):
+    """Факт опер. расходов ОДНОЙ фирмы за месяц из размеченной выписки: по статьям
+    плюс сколько ещё не размечено (чтобы итог не выглядел готовым)."""
+    org = org if org in ORG_NAMES else ORG_ORDER[0]
+    month = _opex_month(period) if period else db.query(
+        "SELECT coalesce(max(month)::text,'') m FROM opex_fact_month")[0]["m"][:10]
+    if not month or len(month) != 10:
+        return {"month": None, "org": org, "items": [], "total": 0,
+                "unassigned": {"n": 0, "s": 0}, "months": []}
+    items = db.query("""SELECT category_id, category, sum(amount)::float amount,
+                                sum(txn_count)::int txn_count
+        FROM opex_fact_month WHERE month=%s AND org_inn=%s
+        GROUP BY 1,2 ORDER BY 3 DESC""", (month, org))
+    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "items": items,
+            "total": round(sum(i["amount"] for i in items), 2),
+            "unassigned": _opex_unassigned(month, org),
+            # месяцы, за которые вообще есть выписка — «Сводке» нужен свой список периодов:
+            # margin_by_sku за текущий месяц может ещё не существовать
+            "months": [r["m"] for r in db.query(
+                "SELECT DISTINCT date_trunc('month', operation_date)::date::text m "
+                "FROM bank_txn ORDER BY 1 DESC")]}
+
+
+def _purchases_month(period):
+    """Объём закупок за месяц — витрина `supplier_purchase_month`, тот же источник, что вкладка
+    «Поставщики»: приёмки МойСклада минус возвраты поставщику, суммы С НДС как в документах,
+    по дате документа. Текущий месяц пересчитывается ночным сбором, прошлые статичны."""
+    r = db.query("""SELECT coalesce(sum(supply_sum),0)::float s, coalesce(sum(return_sum),0)::float r,
+            coalesce(sum(supply_docs),0)::int d, max(updated_at)::text u
+        FROM supplier_purchase_month WHERE month=%s""", (period,))[0]
+    return {"supply": round(r["s"], 2), "returns": round(r["r"], 2),
+            "net": round((r["s"] or 0) - (r["r"] or 0), 2), "docs": r["d"], "updated": r["u"]}
+
+
+def _biz_for(period):
+    """Агрегат по ВСЕМ аккаунтам за период (через _summary_one на аккаунт) + разбивка."""
+    # Главная/бизнес-экран — только WB (его метрики WB-специфичны: СПП, наша цена, raw_wb_report).
+    # Ozon живёт на отдельной странице /ozon и в бизнес-агрегат WB не подмешивается.
+    accts = [r["account"] for r in db.query(
+        "SELECT DISTINCT account FROM margin_by_sku WHERE period_from=%s AND platform='wb' ORDER BY 1", (period,))]
+    per = [(a, _summary_one("", a, period)) for a in accts]
+    agg = {}
+    for k in ("revenue", "net", "cogs", "commission", "logistics", "qty", "own_revenue",
+              "revenue_wb", "adv_spend", "reviews_spend", "storage_all", "returns_sum",
+              "loss_count", "loss_sum", "loss_qty", "unalloc"):
+        agg[k] = sum((p.get(k) or 0) for _, p in per)
+    rev, own, wb_rev = agg["revenue"], agg["own_revenue"], agg["revenue_wb"]
+    agg["margin_pct"] = round(agg["net"] / rev * 100, 1) if rev else None
+    agg["margin_own"] = round(agg["net"] / own * 100, 1) if own else None
+    # СПП = (наша цена − «ВБ реализовал») / наша цена; revenue витрины = наша цена
+    agg["spp_pct"] = round((rev - wb_rev) / rev * 100, 1) if rev and wb_rev else None
+    agg["margin_wb"] = round(agg["net"] / wb_rev * 100, 1) if wb_rev else None
+    agg["cogs_pct"] = round(agg["cogs"] / rev * 100, 1) if rev else None
+    agg["commission_pct"] = round(agg["commission"] / rev * 100, 1) if rev else None
+    agg["logi_pct"] = round(agg["logistics"] / rev * 100, 1) if rev else None
+    agg["adv_pct"] = round(agg["adv_spend"] / rev * 100, 1) if rev else None
+    return agg, per
+
+
+# Аккаунт → как он называется в разбивке главной (юрлицо, под которым торгует площадка).
+ACC_ORG_NAMES = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр",
+                 "oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр",
+                 "ya_acc1": "Цифровой квадрат"}
+
+
+def _mp_money(org=""):
+    """Official balances plus overdue WB payouts tracked in the cashflow view.
+
+    Keep the balance and debt separate in the response; add the debt once to both
+    the WB tile and the marketplace total. Cashflow owns payout reconciliation.
+    """
+    from web.mp_money import compose_mp_money
+    rows = db.query("""select b.platform, b.account, b.balance, b.day, b.source
+                         from cf_mp_balance b
+                         join (select account, max(day) d from cf_mp_balance group by 1) l
+                           on l.account = b.account and l.d = b.day
+                        where (%s = '' or b.org_inn = %s)""", (org, org))
+    overdue = db.query("""select distinct on (org_inn, ref)
+                           org_inn, day, amount, ref
+                         from cf_line
+                        where kind='plan' and category='mp_wb' and source='mp_forecast'
+                          and note like '%%просрочено%%' and amount > 0
+                          and (%s = '' or org_inn = %s)
+                        order by org_inn, ref, day desc, id desc""", (org, org))
+    return compose_mp_money(rows, overdue, _CF_ACC_ORG, org)
+
+
+@app.get("/api/business")
+def business(period: str = "", org: str = ""):
+    """Главный экран: показатели за месяц + расходы + динамика к прошлому месяцу.
+
+    `org` — ИНН юрлица (пусто = весь бизнес, обе фирмы). Оба источника умеют юрлицо:
+    «Отчёты МП» — через аккаунты площадок, «Опер. расходы» — через плательщика в выписке,
+    поэтому переключатель на главной честно меняет ОБЕ половины «чистой после ФОТ»."""
+    if not period:
+        period = db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
+    org = org if org in ORG_NAMES else ""
+    cur, per = _biz_for(period)            # WB-разрез витрины: СПП, комиссия, реклама — для дельт
+    oz = _oz_summary("", period)           # Ozon-разрез транзакций: категории расходов, дельты
+    # ВЕРХНИЕ ПОКАЗАТЕЛИ — из «Отчётов МП» (`reports.mp_numbers`), а не вторым счётом:
+    # там месяц собран по форме площадки и сверен с ЛК. База единая — оборот по НАШЕЙ цене
+    # (ВБ own_price = до СПП, Ozon sales, Маркет выручка + зачёт).
+    mp = _mpn.business(period, org)
+    mp_wb, mp_oz, mp_ya = (mp["platforms"].get(k) for k in ("wb", "ozon", "yandex"))
+
+    def _tile(d, fallback=None):
+        if d:
+            return {"revenue": d["oborot"], "net": d["net"], "cogs": d["cogs"],
+                    "margin_pct": d["margin_pct"],
+                    # удержания площадки = комиссия + её услуги, без возвратов (у ВБ вместе с СПП)
+                    "hold": d["hold"], "hold_pct": d["hold_pct"]}
+        return fallback        # месяца ещё нет в отчётах — старый путь, только для всего бизнеса
+
+    cur["wb"] = _tile(mp_wb, None if org else
+                      {"revenue": round(cur.get("own_revenue") or 0, 2), "net": cur["net"],
+                       "cogs": cur.get("cogs"), "margin_pct": cur.get("margin_own")})
+    cur["ozon"] = _tile(mp_oz, None if org else
+                        {"revenue": oz["revenue"], "net": oz["net"], "cogs": oz["cogs"],
+                         "margin_pct": oz["margin_pct"]})
+    # Маркет: те же пять цифр + справочные счётчики (субсидия, возвраты) из витрины
+    ya = _ya_business(period) if mp_ya else None
+    if ya:                     # справочные счётчики витрины + удержания из «Отчётов МП»
+        ya = {**ya, "hold": mp_ya["hold"], "hold_pct": mp_ya["hold_pct"]}
+    cur["yandex"] = ya if (ya and not org) else _tile(mp_ya)
+    t_rev = sum((cur.get(k) or {}).get("revenue") or 0 for k in ("wb", "ozon", "yandex"))
+    t_net = sum((cur.get(k) or {}).get("net") or 0 for k in ("wb", "ozon", "yandex"))
+    t_cogs = sum((cur.get(k) or {}).get("cogs") or 0 for k in ("wb", "ozon", "yandex"))
+    t_hold = sum((cur.get(k) or {}).get("hold") or 0 for k in ("wb", "ozon", "yandex"))
+    # Учётная себестоимость (из таблицы расходов, Цифровой) за период — для сверки рядом
+    ca = db.query("SELECT coalesce(sum(cogs),0)::float c FROM cogs_actual WHERE month=%s", (period,))[0]["c"]
+    cur["total"] = {"revenue": round(t_rev, 2), "net": round(t_net, 2), "cogs": round(t_cogs, 2),
+                    "margin_pct": round(t_net / t_rev * 100, 1) if t_rev else None,
+                    "cogs_pct": round(t_cogs / t_rev * 100, 1) if t_rev else None,
+                    "hold": round(t_hold, 2) or None,
+                    "hold_pct": round(t_hold / t_rev * 100, 1) if t_rev and t_hold else None,
+                    "cogs_actual": round(ca, 2) if ca and not org else None,
+                    "with_market": bool(mp_ya)}
+    cur["mp_money"] = _mp_money(org)   # «Наши деньги на МП» — остатки лицевых счетов площадок
+    op = _opex_total(period, org)  # с 08.2026 — факт из размеченной выписки, раньше — ручной снапшот
+    cur["opex"] = round(op, 2)
+    # По юрлицам расходы делит только факт по банку; на ручном снапшоте цифра общая — честно
+    # говорим об этом фронту, чтобы «чистая после ФОТ» фирмы не выглядела точной.
+    cur["opex_org_split"] = _opex_org_split(period)
+    cur["net_after_opex"] = round(t_net - op, 2)       # после ФОТ — от ИТОГА выбранного среза
+    # Хвост неразмеченных платежей: без него итог опер. расходов на главной выглядит готовым,
+    # хотя на вкладке «Опер. расходы» рядом висит «ещё не разнесено».
+    om = _opex_month(period)
+    cur["opex_unassigned"] = _opex_unassigned(om, org) if om and len(om) == 10 else {"n": 0, "s": 0.0}
+    # Закупки юрлица не разделены (витрина `supplier_purchase_month` без ИНН) — при выборе
+    # фирмы цифра остаётся общей по бизнесу и помечена на главной.
+    cur["purchases"] = _purchases_month(period)        # объём закупок — вкладка «Поставщики»
+    cur["org"] = org
+    cur["org_name"] = ORG_NAMES.get(org)
+    cur["orgs"] = [{"inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER]
+    prev_p = _prev_period("", "", period)
+    if prev_p:
+        prv, _ = _biz_for(prev_p)
+        oz_prev = _oz_summary("", prev_p)
+        cur["prev_period"] = prev_p
+        cur["delta"] = {}
+        for k in ("net", "revenue", "cogs", "margin_pct", "margin_own", "spp_pct",
+                  "commission_pct", "adv_spend", "loss_count"):
+            c, o = cur.get(k), prv.get(k)
+            cur["delta"][k] = None if c is None or o is None else {
+                "abs": round(c - o, 2), "pct": (None if not o else round((c - o) / abs(o) * 100, 1))}
+        # дельты по ИТОГУ — прошлый месяц на ТОЙ ЖЕ базе «Отчётов МП», иначе стрелка меряла бы
+        # разницу методик, а не бизнеса
+        mp_prev = _mpn.business(prev_p, org)
+        p_rev, p_net = mp_prev["total"]["oborot"], mp_prev["total"]["net"]
+        if not p_rev and not org:   # месяца ещё нет в отчётах — старый путь, чтобы стрелка не пропала
+            ya_prev = _ya_business(prev_p)
+            p_rev = (prv.get("own_revenue") or 0) + oz_prev["revenue"] + (ya_prev["revenue"] if ya_prev else 0)
+            p_net = prv["net"] + oz_prev["net"] + (ya_prev["net"] if ya_prev else 0)
+        for k, c, o in (("total_revenue", t_rev, p_rev),
+                        ("total_net", t_net, p_net),
+                        ("total_margin", cur["total"]["margin_pct"],
+                         round(p_net / p_rev * 100, 1) if p_rev else None)):
+            cur["delta"][k] = None if c is None or o is None else {
+                "abs": round(c - o, 2), "pct": (None if not o else round((c - o) / abs(o) * 100, 1))}
+    else:
+        cur["prev_period"] = None
+        cur["delta"] = None
+    # Разбивка «площадка × юрлицо» — с той же базы «Отчётов МП», что и верхние цифры,
+    # иначе строки не складывались бы в итог над ними.
+    cur["accounts"] = []
+    for plat, label in (("wb", "ВБ"), ("ozon", "Ozon"), ("yandex", "Маркет")):
+        own = _mpn.ORG_ACCOUNTS.get(org, {}).get(plat) if org else None
+        if org and not own:            # у фирмы этой площадки нет (Маркет — только Цифровой)
+            continue
+        for a, v in ((_mpn.month(plat, period) or {}).get("accounts") or {}).items():
+            if (own and a != own) or not v["oborot"]:
+                continue
+            cur["accounts"].append({"account": a, "platform": label,
+                                    "name": ACC_ORG_NAMES.get(a, a), "revenue": v["oborot"],
+                                    "net": v["net"], "margin_pct": v["margin_pct"],
+                                    "margin_own": None})
+    cur["period"] = period
+    return cur
+
+
+@app.get("/api/trend")
+def trend():
+    """Помесячная динамика по всему бизнесу (оба ВБ) для графиков на главной + YTD-итоги."""
+    periods = [r["p"] for r in db.query(
+        "SELECT DISTINCT period_from::text p FROM margin_by_sku ORDER BY 1")]
+    months = []
+    for p in periods:
+        b, _ = _biz_for(p)
+        months.append({
+            "month": p, "revenue": b["revenue"], "net": b["net"], "qty": b["qty"],
+            "margin_pct": b["margin_pct"], "margin_own": b["margin_own"],
+            "cogs_pct": b["cogs_pct"], "commission_pct": b["commission_pct"],
+            "logi_pct": b["logi_pct"], "spp_pct": b["spp_pct"], "adv_pct": b["adv_pct"],
+        })
+    ytd = {k: round(sum(m[k] or 0 for m in months), 2) for k in ("revenue", "net", "qty")}
+    ytd["margin_pct"] = round(ytd["net"] / ytd["revenue"] * 100, 1) if ytd["revenue"] else None
+    return {"months": months, "ytd": ytd}
+
+
+@app.get("/api/advice")
+def advice(period: str = ""):
+    """Аналитический слой: приоритизированные советы из цифр (детерминированно, без ИИ-вызова).
+    Поверх этого можно подключить LLM для свободных вопросов — данные те же."""
+    if not period:
+        period = db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
+    b, _ = _biz_for(period)
+    prev_p = _prev_period("", "", period)
+    prv = _biz_for(prev_p)[0] if prev_p else None
+    tips = []
+
+    def tip(sev, title, text):
+        tips.append({"sev": sev, "title": title, "text": text})
+
+    # 1. Маржа от нашей цены vs цель 25%
+    if b["margin_own"] is not None and b["margin_own"] < 25:
+        need = db.query(f"""SELECT coalesce(sum(0.25*s.our_price*m.qty - m.net_profit),0)::float gap
+            FROM margin_by_sku m JOIN sales s ON s.platform=m.platform AND s.account=m.account
+              AND s.period_from=m.period_from AND s.article=m.article
+            WHERE m.period_from=%s AND m.qty>0 AND s.our_price>0
+              AND m.net_profit/(s.our_price*m.qty) < 0.25""", (period,))[0]["gap"]
+        tip("high", f"Маржа от нашей цены {b['margin_own']}% < цели 25%",
+            f"До цели не хватает ≈{need:,.0f} ₽ чистой. Поднять цены по блоку «🎯 Поднять цену первыми» "
+            f"(там позиции отсортированы по вкладу в недобор).")
+    # 2. СПП растёт
+    if prv and b["spp_pct"] and prv["spp_pct"] and b["spp_pct"] > prv["spp_pct"] + 0.5:
+        tip("warn", f"СПП выросла до {b['spp_pct']}% (было {prv['spp_pct']}%)",
+            "СПП несёт продавец: каждый +1₽ СПП = −0.84₽ нам. Поднять базовые цены примерно на размер "
+            "роста СПП, чтобы удержать маржу.")
+    # 3. Постоянные расходы / чистая после них
+    op = _opex_total(period)      # было: сумма ВСЕХ снапшотов ≤ месяца (двойной счёт) — теперь один источник
+    if op > 0:
+        after = b["net"] - op
+        burden = round(op / b["revenue"] * 100, 1) if b["revenue"] else None
+        if after < 0:
+            tip("high", f"Чистая после ФОТ+аренды отрицательна ({after:,.0f} ₽)",
+                f"Постоянные расходы {op:,.0f} ₽ ({burden}% выручки) превышают чистую с ВБ. "
+                f"Срочно: поднять маржу (цены) и/или нарастить оборот; проверить раздутый штат к обороту.")
+        else:
+            tip("info", f"Постоянные расходы {op:,.0f} ₽/мес ({burden}% выручки)",
+                f"Чистая бизнеса после ФОТ+аренды ≈{after:,.0f} ₽.")
+    # 4. Рост COGS (микс)
+    if prv and b["cogs_pct"] and prv["cogs_pct"] and b["cogs_pct"] > prv["cogs_pct"] + 3:
+        tip("warn", f"COGS вырос до {b['cogs_pct']}% выручки (было {prv['cogs_pct']}%)",
+            "Скорее всего дорогой микс (новые дорогие позиции). Проверить наценку на новинки — "
+            "цель 25% от нашей цены должна закладываться сразу при заводе карточки.")
+    # 5. Хронические убыточные (≥3 мес подряд)
+    chronic = db.query("""
+        WITH p AS (SELECT DISTINCT period_from FROM margin_by_sku WHERE period_from<=%s ORDER BY 1 DESC LIMIT 3)
+        SELECT count(*) n, coalesce(sum(last_net),0)::float s FROM (
+          SELECT account, article, count(*) k, max(net_profit) FILTER (WHERE period_from=%s)*1.0 last_net
+          FROM margin_by_sku WHERE period_from IN (SELECT period_from FROM p) AND net_profit<0 AND qty>0 AND article<>'0'
+          GROUP BY 1,2 HAVING count(*)>=3) t""", (period, period))[0]
+    if chronic["n"] and chronic["n"] > 0:
+        tip("warn", f"{chronic['n']} позиций убыточны ≥3 мес подряд",
+            "Это хронический убыточный хвост. Решение: вывести из ассортимента или поднять цену/исправить "
+            "габариты карточки (см. блоки «Убыточные» и «Подозрительные габариты»).")
+    # 6. Габариты среди убыточных
+    dims = db.query(f"""SELECT count(*) n FROM margin_by_sku m JOIN wb_cards c
+        ON c.account=m.account AND c.nm_id::text=m.article
+        WHERE m.period_from=%s AND m.net_profit<0 AND m.qty>0
+          AND (c.dims_valid=false OR c.volume_l IS NULL
+               OR c.weight_kg/NULLIF(c.volume_l,0) < {DENS_LOW}
+               OR c.weight_kg/NULLIF(c.volume_l,0) > {DENS_HIGH})""", (period,))[0]["n"]
+    if dims and dims > 0:
+        tip("info", f"{dims} убыточных позиций — из-за габаритов, а не цены",
+            "WB считает логистику по литрам. Перемерить/исправить Д×Ш×В в карточках — дешевле, чем поднимать цену.")
+    if not tips:
+        tip("info", "Ключевых проблем не видно", "Маржа у цели, расходы покрыты. Держать курс.")
+    return {"period": period, "tips": tips}
+
+
+@app.get("/api/uplift")
+def uplift(platform: str = "", account: str = "", period: str = "", target: float = 0.25, limit: int = 20):
+    """Какие позиции поднять в цене ПЕРВЫМИ, чтобы держать целевую маржу (по умолч. 25% от НАШЕЙ цены).
+    Ранжируем по ₽-вкладу (net_gap = цель·наша_выручка − net): сверху — кто сильнее всего тянет
+    месяц от цели (большая выручка × недобор маржи). Для подозрительных габаритов — пометка
+    (там сначала чинить карточку, а не цену)."""
+    conds, p = [], []
+    if platform:
+        conds.append("m.platform=%s"); p.append(platform)
+    if account:
+        conds.append("m.account=%s"); p.append(account)
+    if period:
+        conds.append("m.period_from=%s"); p.append(period)
+    conds += ["m.article<>'0'", "m.qty>0", "s.our_price>0"]
+    where = " WHERE " + " AND ".join(conds)
+    rows = db.query(f"""
+        SELECT m.article nm_id, c.vendor_code, c.title,
+            (s.our_price*m.qty)::float own_rev, m.qty::float,
+            round((m.net_profit/(s.our_price*m.qty)*100)::numeric,1)::float margin_own,
+            ({target}*s.our_price*m.qty - m.net_profit)::float net_gap,
+            ceil(({target} - m.net_profit/(s.our_price*m.qty)) / (0.61-{target}) * 100)::float price_up_pct,
+            CASE WHEN c.dims_valid=false OR c.volume_l IS NULL THEN 'невалидные'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) < {DENS_LOW} THEN 'крупн./лёгкий'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) > {DENS_HIGH} THEN 'тяжёлый/мелкий'
+                 ELSE NULL END dims_flag
+        FROM margin_by_sku m
+        LEFT JOIN wb_cards c ON c.account=m.account AND c.nm_id::text=m.article
+        LEFT JOIN sales s ON s.platform=m.platform AND s.account=m.account
+             AND s.period_from=m.period_from AND s.article=m.article
+        {where} AND m.net_profit/(s.our_price*m.qty) < {target}
+        ORDER BY net_gap DESC NULLS LAST LIMIT %s""", p + [limit])
+    return {"rows": rows, "target": target, "count": len(rows)}
+
+
+@app.get("/api/weekly")
+def weekly(platform: str = "", account: str = "", period: str = "", rolling: int = 0):
+    """Разбивка по неделям (по дате реализации rr_dt). COGS на неделю — из себест/ед × недельные
+    количества. opmargin = (к перечислению − логистика − COGS)/выр (без накладных: реклама/хранение
+    лумпи); net% — с накладными. rolling>0 — скользящие последние N недель через все месяцы
+    (себест/ед — глобальная, т.к. replacement-cost стабилен); иначе — недели выбранного месяца."""
+    accts = [account] if account else ["wb_acc1", "wb_acc2"]   # пусто = оба ВБ
+    if rolling and rolling > 0:
+        # глобальная себест/ед по nm (стабильна) + все периоды; берём последние N недель
+        rows = db.query("""
+            WITH cpu AS (SELECT article, sum(cogs)/sum(qty) u FROM margin_by_sku
+                WHERE account=ANY(%s) AND qty>0 AND cogs>0 GROUP BY article),
+            r AS (SELECT date_trunc('week',(payload->>'rr_dt')::date)::date wk,
+                payload->>'nm_id' nm, payload->>'supplier_oper_name' op,
+                coalesce((payload->>'quantity')::numeric,0) q, coalesce((payload->>'retail_amount')::numeric,0) ra,
+                coalesce((payload->>'ppvz_for_pay')::numeric,0) pay, coalesce((payload->>'delivery_rub')::numeric,0) del,
+                coalesce((payload->>'storage_fee')::numeric,0) stor, coalesce((payload->>'acceptance')::numeric,0) acc,
+                coalesce((payload->>'deduction')::numeric,0) ded, coalesce((payload->>'penalty')::numeric,0) pen
+                FROM raw_wb_report WHERE account=ANY(%s))
+            SELECT wk,
+                sum(CASE WHEN op='Продажа' THEN ra WHEN op='Возврат' THEN -ra ELSE 0 END)::float rev,
+                sum(pay)::float topay, sum(del)::float logi,
+                (sum(stor)+sum(acc)+sum(ded)+sum(pen))::float overhead,
+                sum(CASE WHEN op='Продажа' THEN q WHEN op='Возврат' THEN -q ELSE 0 END)::float qty,
+                sum(CASE WHEN op='Продажа' THEN q*coalesce(c.u,0)
+                         WHEN op='Возврат' THEN -q*coalesce(c.u,0) ELSE 0 END)::float cogs
+            FROM r LEFT JOIN cpu c ON c.article=r.nm GROUP BY wk ORDER BY wk DESC LIMIT %s""",
+            (accts, accts, rolling))
+        rows = list(reversed(rows))
+    elif not period:
+        return {"rows": []}
+    else:
+        rows = db.query("""
+        WITH cpu AS (SELECT article, sum(cogs)/sum(qty) u FROM margin_by_sku
+            WHERE account=ANY(%s) AND period_from=%s AND qty>0 AND cogs>0 GROUP BY article),
+        r AS (SELECT date_trunc('week',(payload->>'rr_dt')::date)::date wk,
+            payload->>'nm_id' nm, payload->>'supplier_oper_name' op,
+            coalesce((payload->>'quantity')::numeric,0) q, coalesce((payload->>'retail_amount')::numeric,0) ra,
+            coalesce((payload->>'ppvz_for_pay')::numeric,0) pay, coalesce((payload->>'delivery_rub')::numeric,0) del,
+            coalesce((payload->>'storage_fee')::numeric,0) stor, coalesce((payload->>'acceptance')::numeric,0) acc,
+            coalesce((payload->>'deduction')::numeric,0) ded, coalesce((payload->>'penalty')::numeric,0) pen
+            FROM raw_wb_report WHERE account=ANY(%s) AND period_from=%s)
+        SELECT wk,
+            sum(CASE WHEN op='Продажа' THEN ra WHEN op='Возврат' THEN -ra ELSE 0 END)::float rev,
+            sum(pay)::float topay, sum(del)::float logi,
+            (sum(stor)+sum(acc)+sum(ded)+sum(pen))::float overhead,
+            sum(CASE WHEN op='Продажа' THEN q WHEN op='Возврат' THEN -q ELSE 0 END)::float qty,
+            sum(CASE WHEN op='Продажа' THEN q*coalesce(c.u,0)
+                     WHEN op='Возврат' THEN -q*coalesce(c.u,0) ELSE 0 END)::float cogs
+        FROM r LEFT JOIN cpu c ON c.article=r.nm GROUP BY wk ORDER BY wk""",
+        (accts, period, accts, period))
+    ad = _weekly_adspend("wb", accts, period if not rolling else None)
+    out = []
+    for x in rows:
+        rev = x["rev"] or 0
+        if rev < 1000:
+            continue
+        adv = round(ad.get(x["wk"], 0))
+        out.append({
+            "wk": x["wk"], "rev": rev, "qty": x["qty"],
+            "cogs_pct": round(x["cogs"] / rev * 100, 1),
+            "logi_pct": round(x["logi"] / rev * 100, 1),
+            "ad": adv, "ad_pct": round(adv / rev * 100, 1),
+            "opmargin": round((x["topay"] - x["logi"] - x["cogs"]) / rev * 100, 1),
+            "net_pct": round((x["topay"] - x["logi"] - x["cogs"] - x["overhead"]) / rev * 100, 1),
+        })
+    return {"rows": out}
+
+
+def _weekly_adspend(platform, accts, period=None):
+    """{wk(date): расход рекламы за неделю} из ad_spend_daily (неделя date_trunc как в отчётах)."""
+    cond = "platform=%s AND account=ANY(%s)"
+    params = [platform, accts]
+    if period:
+        cond += " AND date >= %s AND date < (%s::date + interval '1 month')"
+        params += [period, period]
+    rows = db.query(f"""SELECT date_trunc('week',date)::date wk, sum(spend)::float ad
+        FROM ad_spend_daily WHERE {cond} GROUP BY 1""", params)
+    return {r["wk"]: r["ad"] for r in rows}
+
+
+def _loss_streak(platform, account, period, articles):
+    """Сколько периодов подряд (заканчивая выбранным) позиция убыточна. Нужны загруженные
+    прошлые месяцы; считаем число ведущих убыточных периодов в порядке от текущего назад."""
+    if not period or not articles:
+        return {}
+    w, p = ["period_from <= %s", "article = ANY(%s)"], [period, list(articles)]
+    if platform:
+        w.append("platform=%s"); p.append(platform)
+    if account:
+        w.append("account=%s"); p.append(account)
+    hist = db.query(f"""SELECT article, period_from::text pf,
+        (net_profit<0 AND qty>0) loss FROM margin_by_sku
+        WHERE {' AND '.join(w)} ORDER BY article, period_from DESC""", p)
+    by = {}
+    for h in hist:
+        by.setdefault(h["article"], []).append(h["loss"])
+    out = {}
+    for art, flags in by.items():
+        n = 0
+        for f in flags:          # от текущего периода назад, считаем ведущие True
+            if f:
+                n += 1
+            else:
+                break
+        out[art] = n
+    return out
+
+
+@app.get("/api/stocks")
+def stocks(account: str = ""):
+    """Проблемные точки по остаткам WB (FBO): что лежит + возвраты в пути. Пусто = оба ВБ."""
+    accts = [account] if account else ["wb_acc1", "wb_acc2"]
+    cap = db.query("SELECT max(captured_at)::text m FROM wb_stocks")[0]["m"]
+    if not cap:
+        return {"captured_at": None, "total": {}, "by_subject": []}
+    by = db.query("""SELECT subject, sum(quantity)::float qty,
+        sum(in_way_from_client)::float returns
+        FROM wb_stocks WHERE account=ANY(%s) AND captured_at=%s GROUP BY 1 ORDER BY 2 DESC""",
+                  (accts, cap))
+    # nm считаем по строкам с остатком: с 07.08.2026 у SKU без остатка есть строка «(в пути)»
+    # с quantity = 0, и без фильтра «SKU в наличии» включало бы уехавший к покупателям товар.
+    tot = db.query("""SELECT sum(quantity)::float qty, sum(quantity_full)::float full,
+        sum(in_way_from_client)::float returns,
+        count(DISTINCT nm_id) FILTER (WHERE quantity > 0) nm
+        FROM wb_stocks WHERE account=ANY(%s) AND captured_at=%s""", (accts, cap))[0]
+    # стоимость остатков на ФБО по себестоимости: остаток × себест/ед (из margin, последний период)
+    val = db.query("""
+        WITH cost AS (
+            SELECT DISTINCT ON (article) article, cogs/qty AS unit_cost
+            FROM margin_by_sku WHERE account=ANY(%s) AND qty>0 AND cogs>0
+            ORDER BY article, period_from DESC)
+        SELECT coalesce(sum(st.quantity*c.unit_cost),0)::float fbo_value,
+               count(DISTINCT st.nm_id) FILTER (WHERE c.unit_cost IS NOT NULL) nm_valued,
+               count(DISTINCT st.nm_id) nm_total
+        FROM wb_stocks st LEFT JOIN cost c ON c.article=st.nm_id::text
+        WHERE st.account=ANY(%s) AND st.captured_at=%s AND st.quantity>0""",
+                   (accts, accts, cap))[0]
+    return {"captured_at": cap, "total": tot, "by_subject": by,
+            "fbo_value": val["fbo_value"], "fbo_nm_valued": val["nm_valued"],
+            "fbo_nm_total": val["nm_total"]}
+
+
+# Пороги плотности (кг/л) для подозрительных карточек. Медиана ≈0.14, p05≈0.04, p95≈0.61.
+DENS_LOW, DENS_HIGH = 0.05, 0.7
+
+
+@app.get("/api/anomalies")
+def anomalies(account: str = "", limit: int = 50):
+    """Подозрительные габариты карточек WB. WB считает логистику по объёму (литры),
+    поэтому ошибки в Д×Ш×В бьют по марже. Флаги:
+      • «крупн./лёгкий» (плотность < 0.05 кг/л) — раздут объём, лишние литры логистики;
+      • «тяжёлый/мелкий» (> 0.7 кг/л) — занижены габариты (часто опечатка, напр. длина 1 см);
+      • «невалидные» — WB пометил dims как невалидные.
+    Показываем только продаваемые позиции, сортируем по объёму продаж (где больнее)."""
+    rows = db.query("""
+        SELECT c.nm_id::text nm_id, c.vendor_code, c.title,
+            c.length_cm::float, c.width_cm::float, c.height_cm::float,
+            c.weight_kg::float, round(c.volume_l,2)::float volume_l,
+            round((c.weight_kg/NULLIF(c.volume_l,0))::numeric,3)::float density,
+            c.dims_valid, m.qty::float qty_sold, m.logistics::float logistics,
+            m.net_profit::float net_profit,
+            CASE WHEN c.dims_valid=false OR c.volume_l IS NULL OR c.weight_kg IS NULL THEN 'невалидные'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) < %s THEN 'крупн./лёгкий'
+                 WHEN c.weight_kg/NULLIF(c.volume_l,0) > %s THEN 'тяжёлый/мелкий'
+                 ELSE NULL END flag
+        FROM wb_cards c
+        JOIN margin_by_sku m ON m.account=c.account AND m.article=c.nm_id::text AND m.qty>0
+        WHERE c.account=ANY(%s)
+          AND (c.dims_valid=false OR c.volume_l IS NULL OR c.weight_kg IS NULL
+               OR c.weight_kg/NULLIF(c.volume_l,0) < %s
+               OR c.weight_kg/NULLIF(c.volume_l,0) > %s)
+        ORDER BY m.qty DESC NULLS LAST, m.logistics DESC LIMIT %s""",
+        (DENS_LOW, DENS_HIGH, ([account] if account else ["wb_acc1", "wb_acc2"]), DENS_LOW, DENS_HIGH, limit))
+    return {"rows": rows, "count": len(rows), "median_density": 0.137}
+
+
+# =========================================================================
+# OZON — отдельный контур. У Ozon нет понятий WB (СПП/наша цена/габариты),
+# а расходы раскладываются в Python (categorize_operation), не в SQL.
+# Данные: raw_ozon_transaction (расходы по статьям) + margin_by_sku
+# (platform='ozon') для COGS/маржи по SKU. WB-экраны это не затрагивает.
+# =========================================================================
+import datetime as _dt  # noqa: E402
+from collections import defaultdict as _dd  # noqa: E402
+from collectors.ozon import categorize_operation, CATEGORIES  # noqa: E402
+from collectors.ozon_realization import sales_split as _oz_realization_split  # noqa: E402
+import reports.ozon_mp_report as _ozmp  # noqa: E402
+import reports.wb_mp_report as _wbmp  # noqa: E402
+import reports.yandex_mp_report as _yamp  # noqa: E402
+import reports.mp_numbers as _mpn  # noqa: E402  числовой фасад «Отчётов МП» для главной
+
+OZ_NAMES = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр"}
+OZ_RU = {"revenue": "Выручка", "commission": "Комиссия", "advertising": "Реклама/продвиж.",
+         "logistics": "Логистика", "returns": "Возвраты", "penalties": "Штрафы",
+         "acquiring": "Эквайринг", "storage": "Склад/обработка", "subscription": "Подписка",
+         "partners": "Партнёрские", "points": "Баллы/Звёздные", "compensation": "Компенсации",
+         "fbo": "FBO склад", "other": "Прочее"}
+# управляемость статьи: green — режется решением, yellow — частично, red — фикс площадки
+OZ_CTRL = {"advertising": "green", "penalties": "green", "subscription": "green",
+           "points": "green", "logistics": "yellow", "returns": "yellow", "storage": "yellow",
+           "partners": "yellow", "fbo": "yellow", "other": "yellow",
+           "commission": "red", "acquiring": "red", "compensation": "red"}
+
+
+def _oz_last_period():
+    r = db.query("SELECT max(period_from)::text p FROM margin_by_sku WHERE platform='ozon'")
+    return r[0]["p"] if r and r[0]["p"] else None
+
+
+def _oz_month(period):
+    """period 'YYYY-MM-01' → (first, last) ISO месяца."""
+    f = _dt.date.fromisoformat(period)
+    nxt = (f.replace(day=28) + _dt.timedelta(days=4)).replace(day=1)
+    return f.isoformat(), (nxt - _dt.timedelta(days=1)).isoformat()
+
+
+def _oz_ops(account, df, dt):
+    """payload-строки raw_ozon_transaction за период по operation_date (account опц.)."""
+    cond = "(payload->>'operation_date')::date BETWEEN %s AND %s"
+    p = [df, dt]
+    if account:
+        cond += " AND account=%s"; p.append(account)
+    return [r["payload"] for r in db.query(
+        f"SELECT payload FROM raw_ozon_transaction WHERE {cond}", p)]
+
+
+def _oz_aggregate(ops):
+    """Σ по статьям (categorize_operation), оверхед (ops без items[]), выручка по схеме FBO/FBS."""
+    cats = {c: 0.0 for c in CATEGORIES}
+    overhead, schema_rev = 0.0, {}
+    for op in ops:
+        cc = categorize_operation(op)
+        for c, v in cc.items():
+            cats[c] += v
+        if not op.get("items"):
+            overhead += sum(cc.values())
+        sch = ((op.get("posting") or {}).get("delivery_schema") or "—").upper()
+        schema_rev[sch] = schema_rev.get(sch, 0.0) + cc["revenue"]
+    return cats, overhead, schema_rev
+
+
+def _oz_cogs(account, period):
+    w, p = ["platform='ozon'", "period_from=%s"], [period]
+    if account:
+        w.append("account=%s"); p.append(account)
+    return db.query(f"SELECT coalesce(sum(cogs),0)::float c FROM margin_by_sku WHERE {' AND '.join(w)}", p)[0]["c"]
+
+
+def _oz_summary(account, period):
+    df, dt = _oz_month(period)
+    cats, overhead, schema_rev = _oz_aggregate(_oz_ops(account, df, dt))
+    to_payout = sum(cats.values())
+    cogs = _oz_cogs(account, period)
+    rev = cats["revenue"]
+    net = to_payout - cogs
+    return {
+        "revenue": round(rev, 2), "to_payout": round(to_payout, 2), "cogs": round(cogs, 2),
+        "overhead": round(overhead, 2), "net": round(net, 2),
+        "margin_pct": round(net / rev * 100, 1) if rev else None,
+        "cogs_pct": round(cogs / rev * 100, 1) if rev else None,
+        "cats": {c: round(cats[c], 2) for c in CATEGORIES},
+        "schema_rev": {k: round(v, 2) for k, v in schema_rev.items()},
+    }
+
+
+@app.get("/ozon", response_class=HTMLResponse)
+def ozon_page():
+    return (STATIC / "ozon.html").read_text(encoding="utf-8")
+
+
+@app.get("/reports", response_class=HTMLResponse)
+def reports_page():
+    return (STATIC / "reports.html").read_text(encoding="utf-8")
+
+
+@app.get("/reports/wb", response_class=HTMLResponse)
+def reports_wb_page():
+    return (STATIC / "reports_wb.html").read_text(encoding="utf-8")
+
+
+@app.get("/reports/yandex", response_class=HTMLResponse)
+def reports_yandex_page():
+    return (STATIC / "reports_yandex.html").read_text(encoding="utf-8")
+
+
+from datetime import date as _date, datetime as _datetime, timezone as _tz  # noqa: E402
+from urllib.parse import quote as _quote  # noqa: E402
+
+
+@app.get("/reports/fts", response_class=HTMLResponse)
+def reports_fts_page(period: str | None = None):
+    """Подраздел «Отчёты ФТС». Без period отдаём статику (её перерисовывает run_daily),
+    с period — строим на лету: архивные месяцы смотрят редко, держать файл на каждый незачем."""
+    if not period:
+        return (STATIC / "reports_fts.html").read_text(encoding="utf-8")
+    import reports.fts_page as _fts
+    return _fts.html_for(_fts_period(period))
+
+
+def _fts_period(period: str):
+    try:
+        return _date(int(period[:4]), int(period[5:7]), 1)
+    except (ValueError, IndexError):
+        raise HTTPException(status_code=400, detail="период задаётся как YYYY-MM")
+
+
+@app.get("/reports/fts/form/{period}/{country}.xml")
+def reports_fts_form(period: str, country: str):
+    """Готовая статформа для загрузки в ЛК ФТС — одна страна, один отчётный месяц.
+
+    Генерируем на лету, а не отдаём файл с диска: состав отправлений может измениться
+    (пересобрали отчёт Ozon, отметили что-то сданным) вплоть до момента подачи."""
+    import reports.fts_form as _form
+    per = _fts_period(period)
+    try:
+        xml = _form.make_xml(per, country.upper())
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    name = _form.filename(per, country.upper())
+    return Response(content=xml, media_type="application/xml",
+                    headers={"Content-Disposition":
+                             f"attachment; filename*=UTF-8''{_quote(name)}"})
+
+
+class FtsStatus(BaseModel):
+    period: str
+    platform: str = "ozon"
+    account: str
+    posting_number: str
+    filed: bool = True
+
+
+@app.post("/api/fts/status")
+def fts_status(payload: FtsStatus):
+    """Отметить отправление сданным в ФТС (или вернуть в «к сдаче») — кнопкой в дашборде.
+    Автоматически этот факт узнать неоткуда: подача происходит в ЛК ФТС руками."""
+    per = _fts_period(payload.period)
+    db.upsert("fts_posting_status", [{
+        "period": per, "platform": payload.platform, "account": payload.account,
+        "posting_number": payload.posting_number,
+        "status": "filed" if payload.filed else "due",
+        "filed_at": _datetime.now(_tz.utc) if payload.filed else None,
+    }], conflict_cols=["period", "platform", "account", "posting_number"])
+    import reports.fts_page as _fts
+    _fts.render(per)
+    return {"ok": True, "status": "filed" if payload.filed else "due"}
+
+
+@app.get("/reports/upd", response_class=HTMLResponse)
+def reports_upd_page():
+    """Подраздел «УПД по выкупам ВБ»."""
+    return (STATIC / "reports_upd.html").read_text(encoding="utf-8")
+
+
+@app.get("/reports/upd/file/{account}/{number}.xml")
+def reports_upd_file(account: str, number: str):
+    """УПД по уведомлению о выкупе — готовый XML для загрузки в Диадок.
+
+    Генерируем на лету: реквизиты организации могут поменяться, а документ выставляется
+    в момент скачивания."""
+    import reports.upd_form as _upd
+    try:
+        name, data = _upd.make_upd(account, number)
+    except RuntimeError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return Response(content=data, media_type="application/xml",
+                    headers={"Content-Disposition":
+                             f"attachment; filename*=UTF-8''{_quote(name)}"})
+
+
+class UpdStatus(BaseModel):
+    account: str
+    doc_number: str
+    made: bool = True
+
+
+@app.post("/api/upd/status")
+def upd_status(payload: UpdStatus):
+    """Отметить, что УПД по уведомлению выгружен в Диадок (или вернуть в «к выгрузке»)."""
+    done = payload.made
+    db.execute("""UPDATE wb_redeem_notice SET upd_status=%s, upd_made_at=%s
+                   WHERE account=%s AND doc_number=%s""",
+               ("made" if done else "due", _datetime.now(_tz.utc) if done else None,
+                payload.account, payload.doc_number))
+    import reports.upd_page as _upd_page
+    _upd_page.render()
+    return {"ok": True, "status": "made" if done else "due"}
+
+
+@app.get("/reports/wb-clearance", response_class=HTMLResponse)
+def reports_wb_clearance_page():
+    return (STATIC / "reports_wb_clearance.html").read_text(encoding="utf-8")
+
+
+@app.get("/reports/cost", response_class=HTMLResponse)
+def reports_cost_page():
+    """Раздел «Себестоимость» — сводка по отчётам-месяцам (себест по отгрузкам, Яндекс.Маркет)."""
+    import reports.ya_cogs_page as _yc
+    return _yc.overview_html("ya_acc1")
+
+
+# Ozon-подтабы регистрируются ДО /reports/cost/{ym}: иначе «ozon» съест шаблон месяца.
+@app.get("/reports/cost/ozon/{acc}", response_class=HTMLResponse)
+def reports_cost_ozon_page(acc: str):
+    """Себестоимость Ozon по месяцам, отдельная таблица на юрлицо (acc1 — Цифровой, acc2 — Дисквэр)."""
+    import reports.oz_cogs_page as _oc
+    if acc not in _oc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица Ozon")
+    return _oc.overview_html(acc)
+
+
+@app.get("/reports/cost/ozon/{acc}/{ym}", response_class=HTMLResponse)
+def reports_cost_ozon_detail(acc: str, ym: str):
+    """Провал внутрь месяца Ozon: себестоимость по отправлениям (YYYY-MM)."""
+    import reports.oz_cogs_page as _oc
+    if acc not in _oc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица Ozon")
+    return _oc.detail_html(acc, ym)
+
+
+@app.get("/reports/cost/wb/{acc}", response_class=HTMLResponse)
+def reports_cost_wb_page(acc: str):
+    """Себестоимость WB по месяцам, отдельная таблица на юрлицо (acc1 — Цифровой, acc2 — Дисквэр)."""
+    import reports.wb_cogs_page as _wc
+    if acc not in _wc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица WB")
+    return _wc.overview_html(acc)
+
+
+@app.get("/reports/cost/wb/{acc}/{ym}", response_class=HTMLResponse)
+def reports_cost_wb_detail(acc: str, ym: str):
+    """Провал внутрь месяца WB: себестоимость по сборочным заданиям (YYYY-MM)."""
+    import reports.wb_cogs_page as _wc
+    if acc not in _wc.ACCOUNTS:
+        raise HTTPException(status_code=404, detail="нет такого юрлица WB")
+    return _wc.detail_html(acc, ym)
+
+
+@app.get("/reports/cost/{ym}", response_class=HTMLResponse)
+def reports_cost_detail(ym: str):
+    """Провал внутрь отчёта: себестоимость по заказам месяца ym (YYYY-MM)."""
+    import reports.ya_cogs_page as _yc
+    return _yc.detail_html("ya_acc1", ym)
+
+
+class ClearanceItem(BaseModel):
+    account: str
+    nm_id: int
+
+
+class ClearanceItems(BaseModel):
+    items: list[ClearanceItem] = []
+
+
+@app.post("/api/wb/clearance/dismiss")
+def wb_clearance_dismiss(payload: ClearanceItems):
+    """Сотрудник закрывает позиции распродажи (остаток ВБ=0, цену подняли) — прячем из таблицы.
+    Пишем в wb_clearance_dismissed (переживает ежедневный перезалив файла), затем перегенерируем страницу."""
+    rows = [{"account": it.account, "nm_id": int(it.nm_id)} for it in payload.items if it.account and it.nm_id]
+    if rows:
+        db.upsert("wb_clearance_dismissed", rows, conflict_cols=["account", "nm_id"])
+        import reports.wb_clearance_page as _clr
+        _clr.render()
+    return {"ok": True, "closed": len(rows)}
+
+
+@app.post("/api/wb/clearance/restore")
+def wb_clearance_restore(payload: ClearanceItems):
+    """Вернуть ошибочно закрытую позицию обратно в слежение."""
+    n = 0
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            for it in payload.items:
+                if it.account and it.nm_id:
+                    cur.execute("DELETE FROM wb_clearance_dismissed WHERE account=%s AND nm_id=%s",
+                                (it.account, int(it.nm_id)))
+                    n += 1
+    import reports.wb_clearance_page as _clr
+    _clr.render()
+    return {"ok": True, "restored": n}
+
+
+# ── Ручной себест Маркета (раздел «Себестоимость», поток rev) ───────────────────
+class YaCostManual(BaseModel):
+    account: str = "ya_acc1"
+    demand_name: str
+    cogs: float
+    note: str | None = None
+    author: str | None = None
+
+
+class YaCostReset(BaseModel):
+    account: str = "ya_acc1"
+    demand_name: str
+
+
+@app.post("/api/ya-cost/manual")
+def ya_cost_manual(p: YaCostManual):
+    """Сотрудник вручную задаёт себест отгрузки (там, где FIFO=0 и импутация пуста).
+    Пишем в устойчивую ya_cogs_manual (переживает перезапуск коллектора) + сразу правим кэш."""
+    nm = (p.demand_name or "").strip()
+    if not nm:
+        return {"ok": False, "error": "demand_name пуст"}
+    cogs = round(float(p.cogs or 0), 2)
+    db.upsert("ya_cogs_manual", [{
+        "account": p.account, "demand_name": nm, "cogs": cogs,
+        "note": (p.note or None), "author": (p.author or None)}],
+        conflict_cols=["account", "demand_name"])
+    db.execute("UPDATE ya_cogs_demand SET cogs=%s, method='manual' "
+               "WHERE account=%s AND demand_name=%s", (cogs, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs}
+
+
+@app.post("/api/ya-cost/reset")
+def ya_cost_reset(p: YaCostReset):
+    """Убрать ручной себест и пересчитать ОДНУ отгрузку через FIFO/импутацию (откат)."""
+    nm = (p.demand_name or "").strip()
+    db.execute("DELETE FROM ya_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
+    row = db.query("SELECT demand_id, demand_date FROM ya_cogs_demand WHERE account=%s AND demand_name=%s",
+                   (p.account, nm))
+    if not row or not row[0]["demand_id"]:
+        return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
+    from collectors import ms_demand_cogs as MDC
+    from collectors.ya_cogs_demand import _cost_seb_map
+    from reports import fifo_fallback
+    cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
+    if cogs > 0:
+        method = "ms_fifo"
+    else:
+        # своего FIFO у документа нет → FIFO ТЕХ ЖЕ товаров МС на дату отгрузки;
+        # cost_seb (средняя по остатку из карточки) — только аварийный хвост
+        cogs, method = fifo_fallback.load().impute(pos, row[0]["demand_date"])
+        if not cogs:
+            cost_seb = _cost_seb_map()
+            cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+            method = "need_manual"   # FIFO нет нигде → ждёт ручного ввода
+        cogs = round(cogs, 2)
+    db.execute("UPDATE ya_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
+               (cogs, method, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
+
+
+class YaCostMonth(BaseModel):
+    account: str = "ya_acc1"
+    ym: str                       # YYYY-MM
+    closed_by: str | None = None
+
+
+@app.post("/api/ya-cost/freeze")
+def ya_cost_freeze(p: YaCostMonth):
+    """Закрыть месяц себеста: человек проверил → себест финальный, коллектор его не пересобирает.
+    Гейт: нельзя закрыть, пока есть реальные продажи с 0 себеста (сначала заполнить вручную)."""
+    ym1 = p.ym[:7] + "-01"
+    zero = db.query("""
+        SELECT demand_name, coalesce(our_sum,0)::float our_sum FROM ya_cogs_demand
+        WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
+          AND coalesce(cogs,0)=0 AND status IN ('done','return_defect')
+        ORDER BY demand_name LIMIT 50""", (p.account, p.ym[:7]))
+    if zero:
+        return {"ok": False, "reason": "zero_cogs", "zero": zero,
+                "msg": f"Нельзя закрыть {p.ym}: {len(zero)} заказ(ов) без себеста — заполните вручную."}
+    db.upsert("ya_cogs_frozen", [{"account": p.account, "ym": ym1,
+                                  "closed_by": (p.closed_by or "сотрудник")}],
+              conflict_cols=["account", "ym"])
+    return {"ok": True, "ym": p.ym[:7], "closed": True}
+
+
+@app.post("/api/ya-cost/unfreeze")
+def ya_cost_unfreeze(p: YaCostMonth):
+    """Разморозить месяц — следующий прогон коллектора соберёт его заново из МС."""
+    db.execute("DELETE FROM ya_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
+    return {"ok": True, "ym": p.ym[:7], "closed": False}
+
+
+# ── Ручной себест Ozon (раздел «Себестоимость» → подтабы юрлиц, поток fin) ──────
+# Полное зеркало ya-cost, но по своим таблицам oz_cogs_* и с обязательным account:
+# юрлица Ozon (oz_acc1 Цифровой / oz_acc2 Дисквэр) не смешиваются нигде, включая закрытие месяца.
+class OzCostManual(BaseModel):
+    account: str
+    demand_name: str
+    cogs: float
+    note: str | None = None
+    author: str | None = None
+
+
+class OzCostReset(BaseModel):
+    account: str
+    demand_name: str
+
+
+class OzCostMonth(BaseModel):
+    account: str
+    ym: str                       # YYYY-MM
+    closed_by: str | None = None
+
+
+OZ_COST_ACCOUNTS = ("oz_acc1", "oz_acc2")
+
+
+@app.post("/api/oz-cost/manual")
+def oz_cost_manual(p: OzCostManual):
+    """Сотрудник вручную задаёт себест отгрузки Ozon (там, где FIFO=0 и импутация пуста).
+    Пишем в устойчивую oz_cogs_manual (переживает перезапуск коллектора) + сразу правим кэш."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо Ozon"}
+    if not nm:
+        return {"ok": False, "error": "demand_name пуст"}
+    cogs = round(float(p.cogs or 0), 2)
+    db.upsert("oz_cogs_manual", [{
+        "account": p.account, "demand_name": nm, "cogs": cogs,
+        "note": (p.note or None), "author": (p.author or None)}],
+        conflict_cols=["account", "demand_name"])
+    db.execute("UPDATE oz_cogs_demand SET cogs=%s, method='manual' "
+               "WHERE account=%s AND demand_name=%s", (cogs, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs}
+
+
+@app.post("/api/oz-cost/reset")
+def oz_cost_reset(p: OzCostReset):
+    """Убрать ручной себест и пересчитать ОДНУ отгрузку через FIFO/импутацию (откат)."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо Ozon"}
+    db.execute("DELETE FROM oz_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
+    row = db.query("SELECT demand_id, demand_date FROM oz_cogs_demand WHERE account=%s AND demand_name=%s",
+                   (p.account, nm))
+    if not row or not row[0]["demand_id"]:
+        return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
+    from collectors import ms_demand_cogs as MDC
+    from collectors.oz_cogs_demand import _cost_seb_map
+    from reports import fifo_fallback
+    cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
+    if cogs > 0:
+        method = "ms_fifo"
+    else:
+        # своего FIFO у документа нет → FIFO ТЕХ ЖЕ товаров МС на дату отгрузки;
+        # cost_seb (средняя по остатку из карточки) — только аварийный хвост
+        cogs, method = fifo_fallback.load().impute(pos, row[0]["demand_date"])
+        if not cogs:
+            cost_seb = _cost_seb_map()
+            cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+            method = "need_manual"   # FIFO нет нигде → ждёт ручного ввода
+        cogs = round(cogs, 2)
+    db.execute("UPDATE oz_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
+               (cogs, method, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
+
+
+@app.post("/api/oz-cost/freeze")
+def oz_cost_freeze(p: OzCostMonth):
+    """Закрыть месяц себеста Ozon по ОДНОМУ юрлицу: человек проверил → себест финальный.
+    Гейт: нельзя закрыть, пока есть реальные продажи с 0 себеста (сначала заполнить вручную)."""
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо Ozon"}
+    ym1 = p.ym[:7] + "-01"
+    zero = db.query("""
+        SELECT demand_name, coalesce(our_sum,0)::float our_sum FROM oz_cogs_demand
+        WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
+          AND coalesce(cogs,0)=0 AND status IN ('done','return_defect')
+        ORDER BY demand_name LIMIT 50""", (p.account, p.ym[:7]))
+    if zero:
+        return {"ok": False, "reason": "zero_cogs", "zero": zero,
+                "msg": f"Нельзя закрыть {p.ym}: {len(zero)} отправлени(й) без себеста — заполните вручную."}
+    db.upsert("oz_cogs_frozen", [{"account": p.account, "ym": ym1,
+                                  "closed_by": (p.closed_by or "сотрудник")}],
+              conflict_cols=["account", "ym"])
+    return {"ok": True, "ym": p.ym[:7], "closed": True}
+
+
+@app.post("/api/oz-cost/unfreeze")
+def oz_cost_unfreeze(p: OzCostMonth):
+    """Разморозить месяц Ozon — следующий прогон коллектора соберёт его заново из МС."""
+    if p.account not in OZ_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо Ozon"}
+    db.execute("DELETE FROM oz_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
+    return {"ok": True, "ym": p.ym[:7], "closed": False}
+
+
+# ── Ручной себест WB (раздел «Себестоимость» → подтабы юрлиц, поток fin) ───────
+# Зеркало oz-cost по таблицам wb_cogs_*; юрлица (wb_acc1 Цифровой / wb_acc2 Дисквэр) не смешиваются.
+class WbCostManual(BaseModel):
+    account: str
+    demand_name: str              # № сборочного задания = имя отгрузки в МС
+    cogs: float
+    note: str | None = None
+    author: str | None = None
+
+
+class WbCostReset(BaseModel):
+    account: str
+    demand_name: str
+
+
+class WbCostMonth(BaseModel):
+    account: str
+    ym: str                       # YYYY-MM
+    closed_by: str | None = None
+
+
+WB_COST_ACCOUNTS = ("wb_acc1", "wb_acc2")
+
+
+@app.post("/api/wb-cost/manual")
+def wb_cost_manual(p: WbCostManual):
+    """Сотрудник вручную задаёт себест отгрузки WB (там, где FIFO=0 и импутация пуста).
+    Пишем в устойчивую wb_cogs_manual (переживает перезапуск коллектора) + сразу правим кэш."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо WB"}
+    if not nm:
+        return {"ok": False, "error": "demand_name пуст"}
+    cogs = round(float(p.cogs or 0), 2)
+    db.upsert("wb_cogs_manual", [{
+        "account": p.account, "demand_name": nm, "cogs": cogs,
+        "note": (p.note or None), "author": (p.author or None)}],
+        conflict_cols=["account", "demand_name"])
+    db.execute("UPDATE wb_cogs_demand SET cogs=%s, method='manual' "
+               "WHERE account=%s AND demand_name=%s", (cogs, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs}
+
+
+@app.post("/api/wb-cost/reset")
+def wb_cost_reset(p: WbCostReset):
+    """Убрать ручной себест и пересчитать ОДНУ отгрузку через FIFO/импутацию (откат)."""
+    nm = (p.demand_name or "").strip()
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "error": "неизвестное юрлицо WB"}
+    db.execute("DELETE FROM wb_cogs_manual WHERE account=%s AND demand_name=%s", (p.account, nm))
+    row = db.query("SELECT demand_id, demand_date FROM wb_cogs_demand WHERE account=%s AND demand_name=%s",
+                   (p.account, nm))
+    if not row or not row[0]["demand_id"]:
+        return {"ok": True, "demand_name": nm, "cogs": None, "note": "нет demand_id для пересчёта"}
+    from collectors import ms_demand_cogs as MDC
+    from collectors.wb_cogs_demand import _cost_seb_map
+    from reports import fifo_fallback
+    cogs, qty, pos = MDC.byoperation_cogs(row[0]["demand_id"])
+    if cogs > 0:
+        method = "ms_fifo"
+    else:
+        # своего FIFO у документа нет → FIFO ТЕХ ЖЕ товаров МС на дату отгрузки;
+        # cost_seb (средняя по остатку из карточки) — только аварийный хвост
+        cogs, method = fifo_fallback.load().impute(pos, row[0]["demand_date"])
+        if not cogs:
+            cost_seb = _cost_seb_map()
+            cogs = round(sum(cost_seb.get(x["ms_id"], 0) * x["qty"] for x in pos), 2)
+            method = "need_manual"   # FIFO нет нигде → ждёт ручного ввода
+        cogs = round(cogs, 2)
+    db.execute("UPDATE wb_cogs_demand SET cogs=%s, method=%s WHERE account=%s AND demand_name=%s",
+               (cogs, method, p.account, nm))
+    return {"ok": True, "demand_name": nm, "cogs": cogs, "method": method}
+
+
+@app.post("/api/wb-cost/freeze")
+def wb_cost_freeze(p: WbCostMonth):
+    """Закрыть месяц себеста WB по ОДНОМУ юрлицу: человек проверил → себест финальный.
+    Гейт: нельзя закрыть, пока есть реальные продажи/убытки с 0 себеста (сначала заполнить)."""
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо WB"}
+    ym1 = p.ym[:7] + "-01"
+    zero = db.query("""
+        SELECT demand_name, coalesce(our_sum,0)::float our_sum FROM wb_cogs_demand
+        WHERE account=%s AND to_char(ym,'YYYY-MM')=%s
+          AND coalesce(cogs,0)=0 AND status IN ('done','return_defect','return_wb')
+        ORDER BY demand_name LIMIT 50""", (p.account, p.ym[:7]))
+    if zero:
+        return {"ok": False, "reason": "zero_cogs", "zero": zero,
+                "msg": f"Нельзя закрыть {p.ym}: {len(zero)} отгрузок(и) без себеста — заполните вручную."}
+    db.upsert("wb_cogs_frozen", [{"account": p.account, "ym": ym1,
+                                  "closed_by": (p.closed_by or "сотрудник")}],
+              conflict_cols=["account", "ym"])
+    return {"ok": True, "ym": p.ym[:7], "closed": True}
+
+
+@app.post("/api/wb-cost/unfreeze")
+def wb_cost_unfreeze(p: WbCostMonth):
+    """Разморозить месяц WB — следующий прогон коллектора соберёт его заново из МС."""
+    if p.account not in WB_COST_ACCOUNTS:
+        return {"ok": False, "msg": "неизвестное юрлицо WB"}
+    db.execute("DELETE FROM wb_cogs_frozen WHERE account=%s AND ym=%s", (p.account, p.ym[:7] + "-01"))
+    return {"ok": True, "ym": p.ym[:7], "closed": False}
+
+
+@app.get("/api/yandex/cost-tasks")
+def ya_cost_tasks(account: str = "ya_acc1"):
+    """Задачи проверки для дашборда Маркета: заказы с 0 себеста + невыкупы без возврата в МС."""
+    zero = db.query("""
+        SELECT demand_name, to_char(ym,'YYYY-MM') ym, coalesce(our_sum,0)::float our_sum
+        FROM ya_cogs_demand
+        WHERE account=%s AND coalesce(cogs,0)=0 AND status IN ('done','return_defect')
+        ORDER BY ym DESC, demand_name LIMIT 50
+    """, (account,))
+    zero_n = db.query("""SELECT count(*) n FROM ya_cogs_demand
+        WHERE account=%s AND coalesce(cogs,0)=0 AND status IN ('done','return_defect')""",
+        (account,))[0]["n"]
+    unred = db.query("""
+        SELECT demand_name, to_char(ym,'YYYY-MM') ym, coalesce(our_sum,0)::float our_sum
+        FROM ya_cogs_demand WHERE account=%s AND status='unredeemed'
+        ORDER BY ym DESC, demand_name LIMIT 50
+    """, (account,))
+    unred_n = db.query("SELECT count(*) n FROM ya_cogs_demand WHERE account=%s AND status='unredeemed'",
+                       (account,))[0]["n"]
+    return {"ok": True,
+            "zero_cogs": {"count": zero_n, "items": zero},
+            "unredeemed_no_return": {"count": unred_n, "items": unred}}
+
+
+@app.get("/opex", response_class=HTMLResponse)
+def opex_page():
+    return (STATIC / "opex.html").read_text(encoding="utf-8")
+
+
+@app.get("/opex/statements", response_class=HTMLResponse)
+def opex_statements_page():
+    return (STATIC / "opex_statements.html").read_text(encoding="utf-8")
+
+
+@app.get("/sites", response_class=HTMLResponse)
+def sites_page():
+    return (STATIC / "sites.html").read_text(encoding="utf-8")
+
+
+@app.get("/suppliers", response_class=HTMLResponse)
+def suppliers_page():
+    return (STATIC / "suppliers.html").read_text(encoding="utf-8")
+
+
+# ── График оплаты поставщикам (поток: inv) ──────────────────────────────────
+@app.get("/suppliers/payment-terms", response_class=HTMLResponse)
+def suppliers_payment_terms_page():
+    return (STATIC / "supplier_payment_terms.html").read_text(encoding="utf-8")
+
+
+# Наши юрлица-плательщики. Разрез введён миграцией 207: у одного поставщика свои условия
+# оплаты для каждого юрлица (Одиссей, Блоссом, КПД расходятся — docs/reports/diskver_payment_terms.md).
+ORGS = [
+    {"inn": "7807355364", "name": "ООО «Цифровой Квадрат»", "short": "Цифровой Квадрат", "bank": "Альфа"},
+    {"inn": "7811803918", "name": "ООО «ДИСКВЭР»", "short": "Дисквэр", "bank": "Сбер"},
+]
+ORG_INNS = {o["inn"] for o in ORGS}
+
+
+@app.get("/api/orgs")
+def orgs_list():
+    return {"items": ORGS}
+
+
+@app.get("/sber/callback", response_class=HTMLResponse)
+def sber_oauth_callback(code: str = "", state: str = "", error: str = "",
+                        error_description: str = ""):
+    """Возврат из браузерного входа в СберБизнес ID: код → пара токенов.
+
+    Адрес зарегистрирован в ЛК Сбера как redirect_uri, менять его нельзя без правки в банке.
+    Код одноразовый и живёт минуты: меняем его на токены сразу здесь, чтобы человеку не
+    пришлось входить повторно. Ни код, ни токены на страницу не выводим — только результат.
+    """
+    def page(title, body, ok=True):
+        color = "#0a7" if ok else "#c33"
+        return HTMLResponse(
+            f'<meta charset="utf-8"><title>СберБизнес API</title>'
+            f'<div style="font:16px/1.5 system-ui;padding:40px;max-width:640px">'
+            f'<h2 style="color:{color}">{title}</h2><p>{body}</p></div>',
+            status_code=200 if ok else 400)
+
+    if error:
+        return page("Банк отказал в авторизации",
+                    f"{error}: {error_description or 'без пояснения'}. "
+                    "Повторите вход по ссылке из бота.", ok=False)
+    if not code:
+        return page("Нет кода авторизации",
+                    "Банк не передал параметр <code>code</code>. Откройте ссылку для входа заново.",
+                    ok=False)
+    try:
+        sys.path.insert(0, str(BASE_DIR))
+        from collectors import sber_auth
+        t = sber_auth.exchange_code(code)
+    except Exception as e:
+        return page("Обмен кода на токен не удался", f"{type(e).__name__}: {e}", ok=False)
+    return page("Готово — доступ к СберБизнес API получен",
+                "Токены сохранены на сервере. Больше входить в браузере не нужно: "
+                "дальше обновление происходит автоматически. Это окно можно закрыть."
+                + (f"<br><small>state: {state}</small>" if state else ""))
+
+
+@app.get("/api/suppliers/payment-terms")
+def suppliers_payment_terms_list(org: str | None = None):
+    """Условия оплаты. org — ИНН нашего юрлица; без него отдаём оба (режим «Все»)."""
+    where, params = "", ()
+    if org:
+        where, params = "WHERE org_inn = %s", (org,)
+    rows = db.query(f"""SELECT org_inn, inn, name, method, deferral_days,
+        payment_cap::float payment_cap,
+        advance_amount::float advance_amount, balance_threshold::float balance_threshold,
+        ms_agent_id, vat_rate, delivery_days, active
+        FROM supplier_payment_terms {where} ORDER BY org_inn, name""", params)
+    # Группа поставщика: настройки-свойства поставщика (срок доставки) бот ищет по ГРУППЕ,
+    # а не по ИНН из счёта — юрлица меняются. Показываем группу, чтобы было видно,
+    # на какие ещё юрлица подействует строка.
+    try:
+        from invoice_bot import supplier_groups as SG      # ленивый импорт: контур счетов
+        for r in rows:
+            g = sorted(SG.groups_of_inn(r["inn"]))
+            r["group"] = g[0] if len(g) == 1 else (", ".join(g) or None)
+    except Exception:
+        pass
+    return {"items": rows}
+
+
+class SupplierPaymentTerm(BaseModel):
+    org_inn: str = "7807355364"    # чьи это условия: наше юрлицо-плательщик
+    inn: str
+    name: str = ""
+    method: str
+    deferral_days: int | None = None
+    payment_cap: float | None = None      # потолок платежа, ₽; None = вся сумма задолженности
+    advance_amount: float | None = None
+    balance_threshold: float | None = None
+    vat_rate: int | None = None           # ставка НДС, %: 22 / 0 = не облагается / None = не задано
+    delivery_days: int = 1                # срок доставки в РАБОЧИХ днях: 1 = приёмка завтра, 2 = послезавтра
+    active: bool = True
+
+
+@app.post("/api/suppliers/payment-terms/save")
+def suppliers_payment_terms_save(p: SupplierPaymentTerm):
+    inn = (p.inn or "").strip()
+    org = (p.org_inn or "").strip()
+    if not inn or not re.fullmatch(r"\d{10,12}", inn):
+        return {"ok": False, "error": "inn должен быть 10-12 цифр"}
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
+    if p.method not in ("deferred", "prepayment_per_order", "prepayment_balance"):
+        return {"ok": False, "error": "неизвестный method"}
+    if p.vat_rate is not None and not 0 <= p.vat_rate <= 100:
+        return {"ok": False, "error": "ставка НДС вне 0…100"}
+    if not 1 <= (p.delivery_days or 1) <= 30:
+        return {"ok": False, "error": "срок доставки вне 1…30 рабочих дней"}
+    import datetime
+    db.upsert("supplier_payment_terms", [{
+        "org_inn": org,
+        "inn": inn, "name": (p.name or inn).strip(), "method": p.method,
+        "deferral_days": p.deferral_days, "payment_cap": p.payment_cap,
+        "advance_amount": p.advance_amount, "vat_rate": p.vat_rate,
+        "balance_threshold": p.balance_threshold, "active": p.active,
+        "delivery_days": p.delivery_days or 1,
+        "updated_at": datetime.datetime.now(),
+    }], conflict_cols=["org_inn", "inn"])
+    return {"ok": True, "inn": inn, "org_inn": org}
+
+
+@app.post("/api/suppliers/payment-terms/delete")
+def suppliers_payment_terms_delete(p: dict):
+    """Удаление поставщика из графика. Нужен, потому что кнопка «✕» в таблице иначе убирала
+    строку только с экрана — после перезагрузки условие возвращалось из БД."""
+    inn = (p.get("inn") or "").strip()
+    org = (p.get("org_inn") or "").strip()
+    if not inn or not re.fullmatch(r"\d{10,12}", inn):
+        return {"ok": False, "error": "inn должен быть 10-12 цифр"}
+    # org обязателен: без него удаление снесло бы условия ОБОИХ юрлиц по этому поставщику.
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
+    db.execute("DELETE FROM supplier_payment_terms WHERE org_inn = %s AND inn = %s", (org, inn))
+    return {"ok": True, "inn": inn, "org_inn": org}
+
+
+# ── Баланс аванса поставщика (метод prepayment_balance, поток: inv) ─────────
+@app.get("/api/suppliers/advance-balance")
+def suppliers_advance_balance(org: str | None = None, inn: str | None = None):
+    """Сколько НАШИХ денег ещё лежит у поставщика: Σ неизрасходованных остатков его авансовых
+    платежей в МС + поправка последней сверки (`supplier_balance_adjust`, миграция 217).
+
+    Ровно это число — гейт черновика аванса (`po_payment_watch.process_prepayment_balance`),
+    поэтому считаем его тем же кодом, а не вторым SQL: расхождение расчёта на экране и в
+    поллере хуже отсутствия колонки.
+
+    Отдельным запросом, а НЕ полем в `/payment-terms`: на каждого поставщика уходит пара
+    страниц в МС (секунды), таблица условий должна открываться мгновенно."""
+    where, params = "WHERE method = 'prepayment_balance' AND active", ()
+    if org:
+        where, params = where + " AND org_inn = %s", (org,)
+    if inn:
+        where, params = where + " AND inn = %s", params + (inn,)
+    rows = db.query(f"""SELECT org_inn, inn, name, balance_threshold::float balance_threshold,
+        ms_agent_id FROM supplier_payment_terms {where} ORDER BY org_inn, name""", params)
+    try:
+        sys.path.insert(0, str(BASE_DIR))
+        from invoice_bot import po_payment_watch as W
+    except Exception as e:
+        return {"items": [], "error": f"{type(e).__name__}: {e}"}
+    out = []
+    for r in rows:
+        item = {"org_inn": r["org_inn"], "inn": r["inn"], "name": r["name"],
+                "threshold": r["balance_threshold"]}
+        try:
+            W.set_org(r["org_inn"])
+            bal, adv, delta = W._advance_balance(r["inn"], r["ms_agent_id"])
+            item.update(balance=bal, adjust=delta,
+                        computed=None if bal is None else round(bal - delta, 2),
+                        advances=[{"name": a.get("name"),
+                                   "moment": (a.get("moment") or "")[:10],
+                                   "left": round(W.alfa_link.unlinked_sum(a) / 100, 2)}
+                                  for a in adv])
+        except Exception as e:
+            item["error"] = f"{type(e).__name__}: {e}"
+        out.append(item)
+    return {"items": out}
+
+
+@app.post("/api/suppliers/advance-balance/adjust")
+def suppliers_advance_balance_adjust(p: dict):
+    """Сверка с поставщиком: человек вводит, сколько у него ЧИСЛИТСЯ за нами, — храним разрыв.
+
+    Пишем ДЕЛЬТУ (`stated − computed`), а не абсолютное число: расчётная часть продолжает жить
+    (новые авансы и приёмки её двигают), поправка держит разрыв до следующей сверки. Строки не
+    правим и не удаляем — это журнал сверок, в расчёт идёт последняя по `checked_at`.
+    `reset: true` — снять поправку (пишем нулевую дельту, история остаётся)."""
+    org = (p.get("org_inn") or "").strip()
+    inn = (p.get("inn") or "").strip()
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
+    if not re.fullmatch(r"\d{10,12}", inn):
+        return {"ok": False, "error": "inn должен быть 10-12 цифр"}
+    sys.path.insert(0, str(BASE_DIR))
+    from invoice_bot import po_payment_watch as W
+    row = db.query("""SELECT ms_agent_id FROM supplier_payment_terms
+                      WHERE org_inn = %s AND inn = %s""", (org, inn))
+    if not row:
+        return {"ok": False, "error": "поставщик не найден в графике оплаты"}
+    W.set_org(org)
+    bal, _adv, delta = W._advance_balance(inn, row[0]["ms_agent_id"])
+    if bal is None:
+        return {"ok": False, "error": "контрагент не найден в МойСклад"}
+    computed = round(bal - delta, 2)          # расчёт БЕЗ действующей поправки
+    if p.get("reset"):
+        stated, new_delta = computed, 0.0
+    else:
+        try:
+            stated = round(float(str(p.get("stated")).replace(",", ".").replace(" ", "")), 2)
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "не разобрал сумму сверки"}
+        new_delta = round(stated - computed, 2)
+    db.execute("""INSERT INTO supplier_balance_adjust(org_inn, inn, computed, stated, delta, author, note)
+                  VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+               (org, inn, computed, stated, new_delta,
+                (p.get("author") or "web").strip()[:64], (p.get("note") or "").strip()[:500]))
+    return {"ok": True, "computed": computed, "stated": stated, "delta": new_delta,
+            "balance": round(computed + new_delta, 2)}
+
+
+@app.get("/api/suppliers/payment-terms/queue")
+def suppliers_payment_terms_queue(org: str | None = None):
+    # name — из условий оплаты по ИНН: в таблице показываем контрагента, а не голый ИНН.
+    # JOIN по (org_inn, inn) — по одному inn задвоил бы строки очереди (миграция 207).
+    # Песочницу не показываем: это следы отладки контура, к деньгам отношения не имеют.
+    where, params = "", ()
+    if org:
+        where, params = "AND q.org_inn = %s", (org,)
+    rows = db.query(f"""SELECT q.id, q.org_inn, q.inn, t.name, q.kind, q.amount::float amount,
+        q.covers_po_ids, q.status, q.alfa_external_id, q.note, q.created_at::text created_at
+        FROM payment_draft_queue q
+        LEFT JOIN supplier_payment_terms t USING (org_inn, inn)
+        WHERE q.status <> 'sent_sandbox' {where}
+        ORDER BY q.created_at DESC LIMIT 100""", params)
+    # Заказы, у которых срок оплаты уже наступил, а товар не приехал. Платить по ним нечего
+    # (гейт приёмки), но молчать об этом нельзя: со стороны поставщика это выглядит просрочкой,
+    # и разбираться надо не с платежами, а с поставкой. В очереди их не видно — там черновики,
+    # а такой заказ черновика как раз и НЕ получил.
+    where2 = "AND s.org_inn = %s" if org else ""
+    overdue = db.query(f"""SELECT s.org_inn, s.inn, t.name, s.order_date::text order_date,
+        s.due_date::text due_date, s.amount::float amount,
+        (current_date - s.due_date)::int days_late
+        FROM po_payment_status s
+        LEFT JOIN supplier_payment_terms t USING (org_inn, inn)
+        WHERE s.status = 'waiting_receipt' AND s.due_date <= current_date {where2}
+        ORDER BY s.due_date, s.order_date""", params)
+    return {"items": rows, "no_receipt": overdue}
+
+
+@app.post("/api/suppliers/payment-terms/queue/send")
+def suppliers_payment_terms_queue_send(p: dict):
+    """Ручная отправка ОДНОГО черновика платёжки в банк его юрлица (кнопка «в банк» в очереди).
+
+    Платёжка уходит НЕПОДПИСАННОЙ: банк кладёт её в «на подпись», подписывает человек в вебе
+    банка. Автоподписания нет и не будет (запрет потока inv).
+
+    Почему кнопка ручная, а не автопрогон: очередь наполняется поллером по условиям оплаты, и
+    отправлять из неё деньги должен человек, посмотрев на конкретную строку. Заодно это
+    единственный предохранитель против артефактов очереди (напр. авансы Дисквэра, посчитанные
+    от нулевого баланса) — без клика ни один черновик в банк не уйдёт.
+
+    Разрез по юрлицу: банк выбирает диспетчер по `payment_draft_queue.org_inn`. Здесь — первый
+    из трёх рубежей против кросс-банка: сверяем юрлицо из запроса с тем, что в БД (расходятся
+    только если у пользователя открыта устаревшая таблица)."""
+    org = (p.get("org_inn") or "").strip()
+    try:
+        draft_id = int(p.get("id"))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "не передан id черновика"}
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
+    if os.getenv("WEB_PAYMENT_SEND") != "1":
+        return {"ok": False, "error": "ручная отправка платёжек из дашборда выключена "
+                                      "(WEB_PAYMENT_SEND=1 в .env)"}
+    row = db.query("SELECT org_inn, status FROM payment_draft_queue WHERE id = %s", (draft_id,))
+    if not row:
+        return {"ok": False, "error": f"черновик {draft_id} не найден"}
+    if row[0]["status"] != "planned":
+        return {"ok": False, "error": f"черновик {draft_id} уже в статусе '{row[0]['status']}'"}
+    if row[0]["org_inn"] != org:
+        return {"ok": False, "error": "таблица устарела: юрлицо черновика изменилось, обнови страницу"}
+    try:
+        from invoice_bot import payment_send          # ленивый импорт: банковский контур
+        res = payment_send.send_draft(draft_id, actor="web")
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    return {"ok": bool(res.get("ok")), "id": draft_id, "status": res.get("status"),
+            "external_id": res.get("external_id"), "bank": res.get("bank"),
+            "error": res.get("error")}
+
+
+@app.post("/api/suppliers/payment-terms/prepay-now")
+def suppliers_prepay_now(p: dict):
+    """Кнопка «заказ → в банк» у поставщика с предоплатой по счёту: спросить МойСклад про его
+    новые заказы, поставить по ним черновики и сразу отправить их в банк своего юрлица.
+
+    Это тот же вечерний прогон (крон 17:00 МСК: `po_payment_watch --methods prepayment_per_order`
+    → `payment_autosend --kinds prepayment_order`), но по ОДНОМУ поставщику и по требованию:
+    заказ приходит днём, а ждать вечера нельзя.
+
+    Платёжка уходит НЕПОДПИСАННОЙ — в банке появляется черновик, подписывает человек в вебе
+    банка. Автоподписания нет и не будет (запрет потока inv).
+
+    Только `prepayment_per_order`. У отсрочки платёж собирается ОДНОЙ пачкой за день (кнопка
+    раздробила бы её на несколько платёжек), у авансового баланса сумма считается от остатка
+    аванса — там «отправить сейчас» ломает логику метода.
+
+    Уже стоявшие в очереди черновики этого поставщика (`planned`) тоже уходят: кнопка обещает
+    «оплатить заказ», а не «оплатить только что найденный заказ»."""
+    org = (p.get("org_inn") or "").strip()
+    inn = (p.get("inn") or "").strip()
+    if org not in ORG_INNS:
+        return {"ok": False, "error": f"неизвестное юрлицо-плательщик: {org}"}
+    if not inn.isdigit():
+        return {"ok": False, "error": "не передан ИНН поставщика"}
+    if os.getenv("WEB_PAYMENT_SEND") != "1":
+        return {"ok": False, "error": "ручная отправка платёжек из дашборда выключена "
+                                      "(WEB_PAYMENT_SEND=1 в .env)"}
+    t = db.query("""SELECT name, method, active FROM supplier_payment_terms
+                    WHERE org_inn=%s AND inn=%s""", (org, inn))
+    if not t:
+        return {"ok": False, "error": "у этого юрлица нет условий оплаты по этому поставщику"}
+    if not t[0]["active"]:
+        return {"ok": False, "error": f"поставщик {t[0]['name']} выключен в условиях оплаты"}
+    if t[0]["method"] != "prepayment_per_order":
+        return {"ok": False, "error": "кнопка только для предоплаты по счёту; "
+                                      f"у {t[0]['name']} метод «{t[0]['method']}»"}
+    log = ""
+    try:
+        # Ленивый импорт: банковский контур и МойСклад не нужны остальному дашборду.
+        from invoice_bot import po_payment_watch as watch, payment_send
+        watch.set_org(org)                     # BUYER_INN — глобал модуля, гейт по юрлицу
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):  # поллер разговаривает print'ом — отдаём в UI
+            watch.run(only_inn=inn, methods={"prepayment_per_order"})
+        log = buf.getvalue().strip()
+    except Exception as e:                     # noqa: BLE001
+        return {"ok": False, "error": f"опрос МойСклада: {type(e).__name__}: {e}"}
+    drafts = db.query("""SELECT id, amount::float amount FROM payment_draft_queue
+        WHERE org_inn=%s AND inn=%s AND kind='prepayment_order' AND status='planned'
+        ORDER BY id""", (org, inn))
+    sent, failed = [], []
+    for d in drafts:
+        try:
+            res = payment_send.send_draft(d["id"], actor="web")
+        except Exception as e:                 # noqa: BLE001
+            res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        row = {"id": d["id"], "amount": d["amount"], "status": res.get("status"),
+               "external_id": res.get("external_id"), "bank": res.get("bank")}
+        (sent if res.get("ok") else failed).append(
+            row if res.get("ok") else dict(row, error=res.get("error")))
+    return {"ok": True, "name": t[0]["name"], "log": log,
+            "found": len(drafts), "sent": sent, "failed": failed}
+
+
+@app.get("/stale", response_class=HTMLResponse)
+def stale_page():
+    return (STATIC / "stale.html").read_text(encoding="utf-8")
+
+
+@app.get("/brak", response_class=HTMLResponse)
+def brak_page():
+    return (STATIC / "brak.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/brak")
+def brak():
+    """Брак/возвраты: что чаще всего возвращают (ВБ по nm: доля возвратов) + склад «Брак».
+    Высокая доля возвратов по модели → сигнал не закупать (и у какого поставщика)."""
+    period = db.query("SELECT max(period_from)::text p FROM margin_by_sku WHERE platform='wb'")
+    period = period[0]["p"] if period and period[0]["p"] else None
+    # ВБ: продажи vs возвраты по nm (за всё, что загружено)
+    wb = db.query("""
+        WITH agg AS (SELECT payload->>'nm_id' nm,
+            sum(CASE WHEN payload->>'supplier_oper_name'='Продажа' THEN (payload->>'quantity')::numeric ELSE 0 END) sales,
+            sum(CASE WHEN payload->>'supplier_oper_name'='Возврат' THEN (payload->>'quantity')::numeric ELSE 0 END) ret
+            FROM raw_wb_report GROUP BY 1)
+        SELECT a.nm, c.title, c.vendor_code, a.sales::float sales, a.ret::float ret,
+            round((a.ret/nullif(a.sales+a.ret,0)*100)::numeric,1)::float rate
+        FROM agg a LEFT JOIN wb_cards c ON c.nm_id::text=a.nm
+        WHERE a.ret>0 AND (a.sales+a.ret)>=5 ORDER BY rate DESC, a.ret DESC LIMIT 60""")
+    # поставщик по нашему артикулу (vendor_code) из supplier_stock
+    cap = db.query("SELECT max(captured_at)::text c FROM supplier_stock")[0]["c"]
+    supmap = {}
+    if cap:
+        for r in db.query("""SELECT DISTINCT ON (key) key, supplier FROM (
+                SELECT article key, supplier FROM supplier_stock WHERE captured_at=%s AND supplier IS NOT NULL
+                UNION ALL
+                SELECT external_code key, supplier FROM supplier_stock WHERE captured_at=%s AND supplier IS NOT NULL
+            ) t WHERE key IS NOT NULL AND key<>'' ORDER BY key""", (cap, cap)):
+            supmap[r["key"]] = r["supplier"]
+    for r in wb:
+        r["supplier"] = supmap.get(r.get("vendor_code"))
+    # склад «Брак»
+    brak_store = []
+    if cap:
+        brak_store = db.query("""SELECT name, supplier, stock::float,
+            round((stock*cost_seb)::numeric,0)::float val
+            FROM supplier_stock WHERE captured_at=%s AND store='Брак' AND stock>0
+            ORDER BY stock*cost_seb DESC NULLS LAST""", (cap,))
+    return {"wb_returns": wb, "brak_store": brak_store, "captured": cap}
+
+
+OUR_STORES = ["Кантемировская", "Дисквер", "Звездный"]   # наши физические склады
+
+# Профильные товары (печать) для Залежей — whitelist по названию: оставляем картриджи/тонер/
+# чернила/фотобарабаны и т.п., отсекаем расходку (короба, БОПП-пакеты, скотч, бумага, папки…).
+CORE_KEYWORDS = ["картридж", "тонер", "чернил", "фотобарабан", "drum", "драм",
+                 "девелопер", "блок проявки", "печатающ", "тонер-картридж", "ribbon",
+                 "ic-", "tc-", "фотовал", "ракель"]
+CORE_LIKE = [f"%{k}%" for k in CORE_KEYWORDS]
+
+
+def _colored(nm):
+    n = (nm or "").lower()
+    return any(c in n for c in ("cyan", "magenta", "yellow", "голуб", "пурпур", "жёлт",
+                                "желт", "циан", "маджент", "purpur"))
+
+
+_SUP_ORG = re.compile(r"\b(ооо|оао|зао|пао|ао|ип|чп|тд)\b")
+_SUP_SUFFIX = re.compile(r"\b(oem|wb|вб|мск|москва|спб|spb|t2|опт|ozon|озон|new|нью|рус)\b")
+
+
+def _canon_supplier(name):
+    """Канонический ключ имени поставщика — чтобы слить дубли (ООО «X» OEM / «X» МСК / «X» (Закрыто))."""
+    s = (name or "").lower()
+    s = re.sub(r"\(.*?\)", " ", s)            # убрать (Закрыто)/(Изипринт)/(поставщик)
+    for ch in "«»\"'`":
+        s = s.replace(ch, " ")
+    s = _SUP_ORG.sub(" ", s)
+    s = _SUP_SUFFIX.sub(" ", s)
+    s = re.sub(r"[^a-zа-я0-9 ]", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+@app.get("/api/suppliers")
+def suppliers(q: str = "", limit: int = 200):
+    """Поставщики (арбитраж): остатки на их «Удалённом складе», дубли имён слиты по каноническому
+    ключу (отображаем вариант с наибольшим движением), дата последней закупки из приёмок МС.
+    Спящие (закрытые / без закупок и без движения) в выдачу не идут."""
+    cap = db.query("SELECT max(captured_at)::text c FROM supplier_stock")[0]["c"]
+    if not cap:
+        return {"captured": None, "supplier_count": 0, "suppliers": [],
+                "totals": {}, "stores": []}
+    raw = db.query("""SELECT coalesce(supplier,'— не указан') s, count(DISTINCT ms_id) n,
+        sum(CASE WHEN coalesce(sold_30d,0)>0 THEN 1 ELSE 0 END) moving,
+        round(sum(stock*cost_seb)::numeric,0)::float val
+        FROM supplier_stock WHERE captured_at=%s AND store='Удаленный склад' AND stock>0
+        GROUP BY 1""", (cap,))
+    today = _dt.date.today()
+    # даты последних закупок: канон-ключ -> самая свежая приёмка
+    lp = {}
+    for r in db.query("SELECT supplier, last_supply FROM supplier_last_purchase"):
+        k = _canon_supplier(r["supplier"])
+        if k and r["last_supply"] and (k not in lp or r["last_supply"] > lp[k]):
+            lp[k] = r["last_supply"]
+    # слияние дублей по канон-ключу
+    merged = {}
+    for r in raw:
+        name = r["s"]
+        k = _canon_supplier(name) or name.lower()
+        m = merged.setdefault(k, {"key": k, "names": [], "n": 0, "moving": 0, "val": 0.0, "closed": False})
+        m["names"].append((name, r["moving"] or 0, r["n"] or 0))
+        m["n"] += r["n"] or 0
+        m["moving"] += r["moving"] or 0
+        m["val"] += r["val"] or 0
+        if "закрыт" in (name or "").lower():
+            m["closed"] = True
+    rows = []
+    for k, m in merged.items():
+        disp = sorted(m["names"], key=lambda x: (-x[1], -x[2]))[0][0]   # имя с макс. движением
+        unspecified = (k == "" or disp.strip().startswith("— не"))
+        last = lp.get(k)
+        days = (today - last).days if last else None
+        # кандидат на удаление: закрыт, ИЛИ давно не закупались И товар не движется
+        dormant = (not unspecified) and (
+            m["closed"] or ((days is None or days > 90) and m["moving"] == 0))
+        rows.append({"supplier": disp, "variants": len(m["names"]), "n": m["n"],
+                     "moving": m["moving"], "val": round(m["val"]),
+                     "last_supply": last.isoformat() if last else None,
+                     "days_since": days, "closed": m["closed"], "dormant": dormant})
+    rows.sort(key=lambda x: -(x["val"] or 0))
+    # спящие (закрыты / давно не закупались и товар не движется) из выдачи исключены:
+    # таблица «Спящие поставщики» со страницы убрана 08.09.2026 как неинформативная
+    active = [r for r in rows if not r["dormant"]]
+    if q:
+        ql = q.lower()
+        active = [r for r in active if ql in r["supplier"].lower()]
+    totals = {"frozen": round(sum(r["val"] or 0 for r in rows)), "suppliers": len(rows)}
+    stores = db.query("""SELECT store, count(DISTINCT ms_id) n, round(sum(stock*cost_seb)::numeric,0)::float val
+        FROM supplier_stock WHERE captured_at=%s AND store IN ('Удаленный склад','Транзит') AND stock>0
+        GROUP BY 1 ORDER BY val DESC NULLS LAST""", (cap,))
+    return {"captured": cap, "supplier_count": len(rows), "totals": totals,
+            "suppliers": active[:limit], "stores": stores}
+
+
+@app.get("/api/suppliers/purchases")
+def supplier_purchases_month():
+    """Сумма закупки по ГРУППЕ поставщика помесячно (витрина supplier_purchase_month).
+
+    Источник — приёмки и возвраты поставщику МойСклада, собирает
+    collectors/supplier_purchase_month.py ночью: прошлые месяцы статичны, пересчитывается
+    только текущий. Запросов к МС отсюда нет — чистое чтение витрины."""
+    rows = db.query("""SELECT month::text m, grp, supply_sum::float s, return_sum::float r,
+        supply_docs sd, return_docs rd, in_group FROM supplier_purchase_month ORDER BY month""")
+    upd = db.query("SELECT max(updated_at)::text u FROM supplier_purchase_month")[0]["u"]
+    months = sorted({r["m"] for r in rows})
+    groups = {}
+    for r in rows:
+        g = groups.setdefault(r["grp"], {"grp": r["grp"], "in_group": r["in_group"],
+                                         "by": {}, "supply": 0.0, "ret": 0.0, "docs": 0})
+        g["by"][r["m"]] = {"s": round(r["s"]), "r": round(r["r"]), "d": r["sd"] + r["rd"]}
+        g["supply"] += r["s"]
+        g["ret"] += r["r"]
+        g["docs"] += r["sd"]
+        g["in_group"] = g["in_group"] and r["in_group"]
+    out = []
+    for g in groups.values():
+        g["supply"], g["ret"] = round(g["supply"]), round(g["ret"])
+        g["net"] = g["supply"] - g["ret"]
+        out.append(g)
+    out.sort(key=lambda x: -x["net"])
+    totals = {"supply": sum(g["supply"] for g in out), "ret": sum(g["ret"] for g in out),
+              "docs": sum(g["docs"] for g in out),
+              "by": {m: {"s": sum(g["by"].get(m, {}).get("s", 0) for g in out),
+                         "r": sum(g["by"].get(m, {}).get("r", 0) for g in out)} for m in months}}
+    totals["net"] = totals["supply"] - totals["ret"]
+    cur = _dt.date.today().replace(day=1).isoformat()
+    return {"months": months, "groups": out, "totals": totals, "updated": upd, "current": cur}
+
+
+@app.get("/api/stale")
+def stale(limit: int = 200):
+    """Наши залежи: товары на НАШИХ складах, лежащие >3 мес — кандидаты на распродажу/поиск пары."""
+    cap = db.query("SELECT max(captured_at)::text c FROM supplier_stock")[0]["c"]
+    if not cap:
+        return {"captured": None, "rows": [], "totals": {}}
+    rows = db.query("""SELECT name, supplier, store, stock::float,
+        round(stock_days::numeric)::int stock_days, round((stock*cost_seb)::numeric,0)::float stock_value
+        FROM supplier_stock WHERE captured_at=%s AND store=ANY(%s) AND stock>0 AND stock_days>=90
+          AND lower(name) LIKE ANY(%s)
+        ORDER BY stock*cost_seb DESC NULLS LAST LIMIT %s""", (cap, OUR_STORES, CORE_LIKE, limit))
+    for r in rows:
+        r["colored"] = _colored(r["name"])
+    tot = db.query("""SELECT count(*) n, round(sum(stock*cost_seb)::numeric,0)::float value
+        FROM supplier_stock WHERE captured_at=%s AND store=ANY(%s) AND stock>0 AND stock_days>=90
+          AND lower(name) LIKE ANY(%s)""",
+        (cap, OUR_STORES, CORE_LIKE))[0]
+    tot["colored_n"] = sum(1 for r in rows if r["colored"])
+    return {"captured": cap, "rows": rows, "totals": tot}
+
+
+def _wh_ss_source(stores, cap, prev):
+    """Срез по складам supplier_stock (наши/Озон): штук + ₽ по складам, итог, дельта к prev."""
+    cur = db.query("""SELECT store, sum(stock)::float units, count(DISTINCT ms_id) n,
+        round(sum(stock*cost_seb)::numeric,0)::float val
+        FROM supplier_stock WHERE captured_at=%s AND store=ANY(%s) AND stock>0
+        GROUP BY store ORDER BY val DESC NULLS LAST""", (cap, stores))
+    units = round(sum(r["units"] or 0 for r in cur), 1)
+    val = round(sum(r["val"] or 0 for r in cur))
+    d_units = d_val = None
+    if prev:
+        pv = db.query("""SELECT sum(stock)::float units, round(sum(stock*cost_seb)::numeric,0)::float val
+            FROM supplier_stock WHERE captured_at=%s AND store=ANY(%s) AND stock>0""", (prev, stores))[0]
+        d_units = round(units - (pv["units"] or 0), 1)
+        d_val = round(val - (pv["val"] or 0))
+    return {"stores": cur, "units": units, "val": val, "d_units": d_units, "d_val": d_val}
+
+
+def _wh_history(stores, days=7):
+    return db.query("""SELECT captured_at::text d, sum(stock)::float units
+        FROM supplier_stock WHERE store=ANY(%s) AND stock>0
+        GROUP BY captured_at ORDER BY captured_at DESC LIMIT %s""", (stores, days))
+
+
+def _wh_ozon_fbo():
+    """Озон ФБО по аккаунтам из ozon_fbo_stock (Ozon API, free_to_sell) + дельта к прошлому снимку.
+    Разрез по юрлицам (Цифровой/Дисквэр), как ВБ ФБО."""
+    ocap = db.query("SELECT max(captured_at)::text c FROM ozon_fbo_stock")[0]["c"]
+    res = {"accounts": [], "units": 0, "reserved": 0, "d_units": None, "captured": ocap}
+    if not ocap:
+        return res
+    oprev = db.query("SELECT max(captured_at)::text c FROM ozon_fbo_stock WHERE captured_at<%s", (ocap,))[0]["c"]
+    res["accounts"] = db.query("""SELECT account, sum(free_to_sell)::float units,
+        sum(reserved)::float reserved, count(DISTINCT sku) n
+        FROM ozon_fbo_stock WHERE captured_at=%s GROUP BY account ORDER BY account""", (ocap,))
+    res["units"] = round(sum(a["units"] or 0 for a in res["accounts"]), 1)
+    res["reserved"] = round(sum(a["reserved"] or 0 for a in res["accounts"]), 1)
+    if oprev:
+        pv = db.query("SELECT sum(free_to_sell)::float u FROM ozon_fbo_stock WHERE captured_at=%s", (oprev,))[0]["u"]
+        res["d_units"] = round(res["units"] - (pv or 0), 1)
+    return res
+
+
+def _wh_history_ozon(days=7):
+    return db.query("""SELECT captured_at::text d, sum(free_to_sell)::float units
+        FROM ozon_fbo_stock GROUP BY captured_at ORDER BY captured_at DESC LIMIT %s""", (days,))
+
+
+@app.get("/warehouse", response_class=HTMLResponse)
+def warehouse_page():
+    return (STATIC / "warehouse.html").read_text(encoding="utf-8")
+
+
+@app.get("/warehouse/novelties", response_class=HTMLResponse)
+def novelties_page(request: Request):
+    html = (STATIC / "novelties.html").read_text(encoding="utf-8")
+    if is_novelty_operator(request):
+        # Чужие пункты меню вели бы оператора в 401, а платная разведка ему закрыта:
+        # страница прячет и то, и другое по этому флагу.
+        flag = ('<script>window.PULT_ROLE="novelty";'
+                'document.documentElement.classList.add("role-novelty");</script>\n</head>')
+        html = html.replace("</head>", flag, 1)
+    return html
+
+
+@app.get("/warehouse/novelties/img/{name}")
+def novelties_img(name: str):
+    """Скриншоты для подтаба «📘 Инструкция» раздела «Новинки» (поток prc).
+
+    Общего mount статики у приложения нет — страницы отдаются поимённо, поэтому картинкам
+    нужен свой узкий роут: только .jpg, только из web/static/img/novelties, имя без путей.
+    """
+    if not re.fullmatch(r"[a-z0-9_]+\.jpg", name):
+        raise HTTPException(404, "нет такой картинки")
+    path = STATIC / "img" / "novelties" / name
+    if not path.exists():
+        raise HTTPException(404, "нет такой картинки")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+# Новинки поставщиков (поток prc): строки прайса, которых нет в МС по артикулу, и найденные
+# сверкой по признакам варианты нашего каталога. Человек подтверждает вариант, вписывает код
+# руками или помечает строку как новую модель.
+NOVELTY_COLORS = {"BK": "чёрный", "C": "голубой", "M": "пурпурный", "Y": "жёлтый",
+                  "BKM": "чёрный матовый", "GY": "серый", "LC": "светло-голубой",
+                  "LM": "светло-пурпурный", "R": "красный", "B": "синий", "G": "зелёный"}
+NOVELTY_CHIPS = {"chip": "с чипом", "chip_free": "с чипом без счётчика", "nochip": "без чипа"}
+
+
+NOVELTY_KINDS = {"toner": "тонер", "ink": "чернила", "cartridge": "картридж",
+                 "cleaning": "промывка", "refillable": "перезаправляемый"}
+
+
+def _novelty_view(row, prefix=""):
+    """Признаки строки словами — одинаково для новинки и для варианта каталога."""
+    return {"color": NOVELTY_COLORS.get(row[prefix + "color"], ""),
+            "measure": float(row[prefix + "measure"]) if row[prefix + "measure"] else None,
+            "chip": NOVELTY_CHIPS.get(row[prefix + "chip"], "не указан")}
+
+
+def _novelty_models(rows):
+    """{id строки: [модель с разведкой, …]} — одним запросом на всю таблицу.
+
+    Решение принимается ПО МОДЕЛИ картриджа, а не по строке прайса: один флакон тонера
+    закрывает пять моделей, и на каждую нужен свой ответ. Разведка (`prc_model_research`)
+    подтягивается из кэша — сама по себе она платная и здесь не запускается.
+
+    `new_printers` — принтеры, которых сеть нашла, а в нашем названии их нет: ровно то,
+    что стоит дописать в карточку.
+    """
+    from prices import research
+    per_row = {r["id"]: research.models_of(r) for r in rows}
+    found = research.cached([m for models in per_row.values() for m in models])
+    out = {}
+    for row in rows:
+        known = research.norm_model(f'{row["name"]} {row.get("ms_name") or ""}')
+        items = []
+        for label in per_row[row["id"]]:
+            rec = found.get(research.norm_model(label))
+            item = {"model": label, "research": None}
+            if rec:
+                printers = rec["printers"] or []
+                item["research"] = {
+                    "cartridge": rec["cartridge"], "ru": rec["ru"],
+                    "popularity": rec["popularity"],
+                    "resource_pages": rec["resource_pages"],
+                    "refill": (f'{float(rec["refill_amount"]):g} {rec["refill_unit"]}'
+                               if rec["refill_amount"] is not None else None),
+                    "printers": printers,
+                    "new_printers": [p for p in printers
+                                     if research.norm_model(p) not in known],
+                    "weight_kg": (float(rec["weight_kg"])
+                                  if rec.get("weight_kg") is not None else None),
+                    "pack_cm": ([float(rec["pack_l_cm"]), float(rec["pack_w_cm"]),
+                                 float(rec["pack_h_cm"])]
+                                if rec.get("pack_l_cm") is not None else None),
+                    "pack_source": rec.get("pack_source"),
+                    "verdict": rec["verdict"], "why": rec["why"],
+                    "confidence": rec["confidence"], "sources": rec["sources"] or [],
+                    "asked_at": rec["asked_at"].strftime("%d.%m.%Y"),
+                }
+            items.append(item)
+        out[row["id"]] = items
+    return out
+
+
+# Остаток к строке новинки — ТОЛЬКО из ПОСЛЕДНЕГО удачного прайса поставщика. Раньше брали
+# последнюю строку по любому прайсу: позиция, выбывшая из наличия, тащила за собой остаток
+# месячной давности и висела в работе. Нет строки в свежем прайсе или пришла без числа —
+# у поставщика её нет. Неразобранная строка без остатка человеку не работа: карточку
+# заводить не под что; из списка её убираем, но не удаляем — вернётся в прайс с остатком,
+# вернётся и в работу.
+#
+# Правило живёт в `prices.catalog`, а не здесь: по нему же считает сводку сторож почты
+# (`ops.prc_price_watch`). Пока условий было два, сводка обещала всю очередь `pending`
+# и звала разбирать работу, которой на вкладке нет (Сакура 13.08.2026: 411 против 1).
+from prices.catalog import NOVELTY_STOCK, IN_STOCK  # noqa: E402
+from prices import catalog  # noqa: E402
+from prices import enter_add  # noqa: E402  добор карточки в оприходование
+
+
+@app.get("/api/novelties")
+def novelties_api(supplier: str = "", status: str = "", no_stock: bool = False):
+    """Новинки с вариантами. status: pending | matched | exists | new | partial | skip | всё.
+
+    `exists` строка получает сама: артикул поставщика точно совпал с карточкой МС, товар
+    у нас есть — оприходование его просто не нашло. Разбирать нечего, но кнопка «вернуть»
+    на месте: артикул мог случайно совпасть с карточкой другого поставщика.
+
+    `partial` — неполный набор: в прайсе есть не все цвета серии, брать в продажу рано.
+    Это не отказ, а полка ожидания: цвета доедут следующим прайсом — строка вернётся в работу.
+    """
+    where, params = ["1=1"], []
+    if supplier:
+        where.append("n.supplier_key = %s")
+        params.append(supplier)
+    if status:
+        where.append("n.decision = %s")
+        params.append(status)
+    if not no_stock:
+        where.append(IN_STOCK)
+    rows = db.query(f"""
+        SELECT n.id, n.supplier_key, n.article, n.name, n.kind, n.color, n.measure, n.chip,
+               n.brand, n.price_rub, n.decision, n.ms_code, n.ms_name, n.link,
+               n.decided_at::text, n.last_seen::text, n.confirmed_at IS NOT NULL AS confirmed,
+               s.qty, s.stock_raw
+          FROM prc_novelty n
+          {NOVELTY_STOCK}
+         WHERE {' AND '.join(where)}
+         ORDER BY n.decision <> 'pending', n.name
+    """, tuple(params))
+    # Флаги сверки (`*_ok`) отдаём как есть: true — признак подтвердился, false —
+    # противоречит, null — в названии карточки его нет. Человеку в таблице нужны все три
+    # состояния: «не написано» и «не совпало» — разные новости.
+    # Вариант — это ТОВАР, а не коробка конкретного поставщика: подмешиваем название из
+    # каталога ТК (первоисточник) и число живых карточек МС под тем же внешним кодом.
+    # Считаем по живому МС, а не по слепку решения: карточку могли завести уже после разбора.
+    cands = db.query("""
+        SELECT c.novelty_id, c.rank, c.ms_id, c.ms_code, c.ms_name, c.color, c.measure, c.chip,
+               c.shared_code, c.verdict, c.brand, c.kind, c.model_ok, c.kind_ok, c.brand_ok,
+               c.color_ok, c.resource_ok, c.chip_ok, c.score, c.source, c.external_code,
+               c.feat_src, t.title AS tc_title, coalesce(p.cards, 0) AS cards,
+               t.consumable_type, t.raw->'ink_colors' AS ink_colors
+          FROM prc_novelty_candidate c
+          LEFT JOIN prc_tc_model t ON t.external_code = c.external_code AND t.gone_at IS NULL
+          LEFT JOIN (SELECT external_code, count(*) cards FROM ms_product
+                      WHERE NOT archived GROUP BY external_code) p
+                 ON p.external_code = c.external_code
+         -- Карточка МС без кода вариантом быть не может: код — это то, чем строка
+         -- закрывается, и «Это он» на такой отвечает «нужен код товара». В списке она
+         -- только занимала место («• без кода — …», 290 подсказок на 167 строк, 26.08.2026).
+         -- Товар каталога ТК без карточки (`source='tc'`) остаётся: его внешний код
+         -- уносит в «➕ В МС» кнопка, и заводить карточку надо именно под ним.
+         WHERE c.ms_code IS NOT NULL OR c.source = 'tc'
+         ORDER BY c.novelty_id, c.rank
+    """)
+    sets = catalog.load_sets()
+    row_kind = {r["id"]: r["kind"] for r in rows}
+    by_novelty = {}
+    for c in cands:
+        # Многоцветный набор помечаем прямо в подсказке: модель у набора и у одиночного
+        # цвета совпадает, а цвет у набора в ТК не заполнен — в сетке сверки вставал первый
+        # цвет из названия карточки МС, и набор выглядел обычным чёрным картриджем.
+        marks = catalog.set_info(c["external_code"], sets, c["consumable_type"],
+                                 f"{c['tc_title'] or ''} {c['ms_name'] or ''}", c["ink_colors"])
+        marks.update(catalog.type_view(c["consumable_type"], c["kind"], row_kind.get(c["novelty_id"])))
+        by_novelty.setdefault(c["novelty_id"], []).append(
+            dict(c, **marks, **_novelty_view(c), price_rub=None))
+    models = _novelty_models(rows)
+    out = []
+    for r in rows:
+        out.append(dict(r, **_novelty_view(r),
+                        price_rub=float(r["price_rub"]) if r["price_rub"] else None,
+                        candidates=by_novelty.get(r["id"], []),
+                        models=models.get(r["id"], [])))
+    # Плитки считаем по тому же правилу, что и таблицу, иначе цифра «не разобрано» обещает
+    # работу, которой в списке нет. Сколько строк спрятал остаток — отдаём отдельно.
+    counts = db.query(f"""
+        SELECT n.decision, count(*) n, count(*) FILTER (WHERE {IN_STOCK}) shown
+          FROM prc_novelty n
+          {NOVELTY_STOCK}
+         WHERE %s = '' OR n.supplier_key = %s
+         GROUP BY n.decision""", (supplier, supplier))
+    suppliers = [r["supplier_key"] for r in
+                 db.query("SELECT DISTINCT supplier_key FROM prc_novelty ORDER BY 1")]
+    hidden = sum(c["n"] - c["shown"] for c in counts)
+    return {"rows": out, "suppliers": suppliers, "hidden_no_stock": 0 if no_stock else hidden,
+            "counts": {c["decision"]: (c["n"] if no_stock else c["shown"]) for c in counts}}
+
+
+@app.get("/api/novelties/waiting")
+def novelties_waiting():
+    """Полка ожидания и найденные соседи по серии — напоминание «а не собрался ли комплект».
+
+    Строку `partial` человек отложил до полного набора, и сама она о себе не напомнит.
+    Сверяем полку с последним прайсом каждого поставщика, чёрным списком и остальной полкой:
+    пришёл `PFI121M` — покажем, что рядом лежат другие `PFI121`. Сосед из ЧС комплект
+    ЗАКРЫВАЕТ и возвращается в работу вместе со строкой (`revive`); не закрывает только
+    отсеянное по сути товара — флакон на 500 г флаконом и останется.
+    """
+    from prices import waiting
+    on_shelf = waiting.shelf()
+    matches = waiting.find(on_shelf, waiting.pool())
+    return {"shelf": len(on_shelf), "rows": [
+        {"id": m["id"], "article": m["article"], "name": m["name"],
+         "supplier_key": m["supplier_key"], "missing": m["missing"], "dead": m["dead"],
+         "verdict": waiting.verdict(m), "revive": len(m["revive"]),
+         "ready": waiting.ready(m),   # комплект полон — только такие можно возвращать в работу
+         "siblings": [{"article": s["article"], "name": s.get("name") or "",
+                       "where": waiting.SOURCE_NAMES[s["source"]] + (
+                           "" if s["source"] != "blacklist" else
+                           " — вернём вместе со строкой" if s.get("can_revive") else
+                           " — в прайсах не встречался, останется в ЧС"),
+                       "black": s["source"] == "blacklist"} for s in m["siblings"]]}
+        for m in matches]}
+
+
+class NoveltyRevive(BaseModel):
+    id: int
+
+
+@app.post("/api/novelties/revive")
+def novelties_revive(payload: NoveltyRevive):
+    """Вернуть ждущую строку в работу вместе с её соседями из чёрного списка.
+
+    Обычная кнопка «вернуть» только снимает решение со строки. Здесь работы больше: сосед
+    из ЧС в новинках отсутствует — он отсеялся до сверки с каталогом, — поэтому его снимаем
+    с ЧС и заводим как новинку. Иначе пара разъедется: строка в разборе, её вторая половина
+    по-прежнему невидима.
+    """
+    from prices import waiting
+    return waiting.revive(payload.id)
+
+
+class NoveltyDecision(BaseModel):
+    ids: list[int]
+    decision: str                          # matched | exists | new | partial | skip | pending
+    ms_code: str = ""
+    link: str = ""                               # «Связь»: номера ДРУГИХ наших товаров
+
+
+class NoveltyLink(BaseModel):
+    ids: list[int]
+    link: str
+
+
+def _find_goods(code):
+    """Карточка по коду товара. Человек мыслит товаром («6058»), а код карточки — с суффиксом
+    поставщика (6058sk, 6058hb): принимаем обе формы и берём самую короткую карточку товара.
+
+    Внешний код смотрим тоже: номер товара живёт именно там (у 1179msk/1179spb/1179dsk он
+    один — «1179»), и карточка с нестандартным суффиксом иначе не нашлась бы.
+    """
+    found = db.query("""SELECT ms_id, code, name, external_code FROM ms_product
+                         WHERE NOT archived AND (upper(code) = upper(%s)
+                            OR code ~* ('^' || %s || '[a-z]*$')
+                            OR upper(external_code) = upper(%s))
+                         ORDER BY code IS NULL, length(code), code LIMIT 1""", (code, code, code))
+    return found[0] if found else None
+
+
+def _novelty_link(raw):
+    """«Связь» -> (нормализованная строка, ошибка).
+
+    Универсальная модель подходит нескольким нашим товарам (CET141644 — это и TN-328M/4310,
+    и TN-626M/6827), и таких может быть больше двух. Пишем ровно как одноимённое доп.поле МС:
+    номер товара четырьмя цифрами с ведущими нулями, разделитель «;», без пробелов.
+    Разделители на входе принимаем любые — человек напишет и «4310, 6827».
+    """
+    parts = [p for p in re.split(r"[^0-9A-Za-zА-Яа-я]+", raw or "") if p]
+    out = []
+    for part in parts:
+        # Ограничитель Сергея 26.08: номер товара четырёхзначный, пятая цифра — всегда описка.
+        if len(part) > 4:
+            return None, (f"«{part}» — {len(part)} знаков: номер товара четырёхзначный, "
+                          f"код карточки с суффиксом сюда не пишем")
+        item = _find_goods(part)
+        if not item or not item["code"]:
+            return None, f"кода «{part}» нет в каталоге МС"
+        # Номер берём из ВНЕШНЕГО кода, а не из кода карточки: код бывает пятизначным
+        # («07867q» у товара 0786 — суффикс поставщика стоит после лишней цифры), и `^\d+`
+        # уносил в «Связь» номер несуществующего товара (4 строки на 26.08.2026).
+        ext = (item.get("external_code") or "").strip()
+        num = (ext.zfill(4) if re.fullmatch(r"\d{1,4}", ext)
+               else (re.match(r"^\d+", item["code"]) or [part])[0].zfill(4))
+        if num not in out:                       # один и тот же товар дважды не пишем
+            out.append(num)
+    return ";".join(out), None
+
+
+@app.get("/api/novelties/launch")
+def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
+    """Отчёт «Запуск на МП»: как скоро заведённая модель доезжает до продажи на витринах.
+
+    Единица — ВНЕШНИЙ КОД (модель), а не карточка МС: карточек на коде столько, сколько
+    брендов-поставщиков, а карточка на витрине одна. Данные готовит ежедневный трекер
+    `collectors/launch_track.py`, здесь только выборка и арифметика.
+
+    `days` — окно когорты по дате заведения (0 = все известные), `gaps` — показать только
+    модели, которых нет хотя бы на одной витрине, `supplier` — фильтр по поставщику.
+    """
+    import datetime
+    from collectors.launch_track import SHOWCASES
+    from prices import sup_group
+    keys = [k for k, _ in SHOWCASES]
+    today = datetime.date.today()
+    since = today - datetime.timedelta(days=days) if days else datetime.date(2026, 6, 14)
+
+    # Две таблицы страницы — «свежие» (окно фильтра) и «прошлых месяцев» (заведены больше
+    # недели назад и хотя бы одной витрины до сих пор нет) — рисуются одинаково, поэтому
+    # и собираются одним набором: остаток, продажи и витрины считаются по объединению кодов.
+    rows = db.query("""SELECT external_code, ms_created, ms_name, supplier_key, cards, archived
+                         FROM prc_launch
+                        WHERE ms_created IS NOT NULL AND ms_created >= %s
+                        ORDER BY ms_created DESC, external_code""", (since,))
+    old_rows = db.query("""
+        SELECT l.external_code, l.ms_created, l.ms_name, l.supplier_key, l.cards, l.archived
+          FROM prc_launch l JOIN prc_launch_mp p USING (external_code)
+         WHERE l.ms_created IS NOT NULL AND l.ms_created <= %s AND NOT l.archived
+         GROUP BY 1, 2, 3, 4, 5, 6 HAVING count(*) FILTER (WHERE p.state = 'none') > 0
+         ORDER BY l.ms_created DESC, l.external_code""", (today - datetime.timedelta(days=7),))
+    codes = sorted({r["external_code"] for r in rows} | {r["external_code"] for r in old_rows})
+    mp = {}
+    for m in db.query("""SELECT external_code, showcase, state, card_at, selling_at, seeded, offer, note
+                           FROM prc_launch_mp WHERE external_code = ANY(%s)""", (codes or [""],)):
+        mp.setdefault(m["external_code"], {})[m["showcase"]] = m
+
+    # Остаток и продажи новинки. Остаток — последний срез МС (без склада «Брак»: там товар
+    # не продаётся); продажи — отгрузки МойСклада, а это ЕДИНСТВЕННЫЙ факт, общий для всех
+    # пяти витрин: площадочные витрины маржи покрывают только Ozon и ВБ, Яндекса в них нет.
+    # Выручки по позиции МС не хранит, поэтому в отчёте штуки, а не рубли.
+    # Поставщик берётся оттуда, где он вообще есть. Ключ разбора новинок знает только те
+    # коды, что заводились через вкладку (24 из 163 — остальные заводят руками в МС или
+    # внешним загрузчиком), поэтому вторым источником идёт название контрагента из витрины
+    # остатков: она покрывает почти всё, что реально лежит на складе.
+    stock = {r["ext"]: r for r in db.query("""
+        SELECT external_code ext, sum(stock) st, sum(in_transit) tr,
+               min(supplier) FILTER (WHERE supplier IS NOT NULL) supplier
+          FROM supplier_stock
+         WHERE captured_at = (SELECT max(captured_at) FROM supplier_stock)
+           AND store <> 'Брак' AND external_code = ANY(%s)
+         GROUP BY 1""", (codes or [""],))}
+    sold = {r["ext"]: r for r in db.query("""
+        SELECT p.external_code ext, min(d.moment)::date first_sale, sum(pos.qty) qty
+          FROM ms_demand_pos pos
+          JOIN ms_demand_cogs d USING (demand_id)
+          JOIN ms_product p ON p.ms_id = pos.ms_id
+         WHERE p.external_code = ANY(%s)
+         GROUP BY 1""", (codes or [""],))}
+
+    def cell(r, m):
+        """Клетка витрины: состояние, причина и сколько дней от заведения до продажи."""
+        if not m:
+            return {"state": "none", "note": "", "days": None, "about": False, "offer": None}
+        days_ = None
+        about = False                      # «≤ N дней»: переход мы не видели, карточка уже была
+        if m["selling_at"] and r["ms_created"]:
+            days_ = (m["selling_at"] - r["ms_created"]).days
+        elif m["state"] == "selling" and m["seeded"] and r["ms_created"]:
+            days_, about = (today - r["ms_created"]).days, True
+        return {"state": m["state"], "note": m["note"] or "", "days": days_,
+                "about": about, "offer": m["offer"]}
+
+    def group(r):
+        """Группа поставщика: разнобой имён (ключ прайса, юрлицо из остатков) — к справочнику."""
+        st = stock.get(r["external_code"]) or {}
+        return sup_group.group_of(r["supplier_key"] or st.get("supplier"))
+
+    def make(r):
+        st, sl = stock.get(r["external_code"]), sold.get(r["external_code"])
+        cells = {k: cell(r, (mp.get(r["external_code"]) or {}).get(k)) for k in keys}
+        return {"ext": r["external_code"], "created": str(r["ms_created"]),
+                "name": r["ms_name"], "supplier": group(r), "cards": r["cards"],
+                "archived": r["archived"], "mp": cells,
+                "days_old": (today - r["ms_created"]).days,
+                "stock": int(st["st"] or 0) if st else 0,
+                "transit": int(st["tr"] or 0) if st else 0,
+                "sold": float(sl["qty"] or 0) if sl else 0,
+                "first_sale": str(sl["first_sale"]) if sl and sl["first_sale"] else None,
+                "sale_days": (sl["first_sale"] - r["ms_created"]).days
+                             if sl and sl["first_sale"] else None}
+
+    out, funnel = [], {k: {"none": 0, "card": 0, "selling": 0} for k in keys}
+    for r in rows:
+        row = make(r)
+        for k in keys:
+            funnel[k][row["mp"][k]["state"]] += 1
+        if supplier and row["supplier"] != supplier:
+            continue
+        if gaps and all(c["state"] == "selling" for c in row["mp"].values()):
+            continue
+        out.append(row)
+    older = [make(r) for r in old_rows]
+    if supplier:
+        older = [r for r in older if r["supplier"] == supplier]
+
+    months = {m["m"]: {"m": m["m"], "models": m["c"], "cards": 0, "any": m["a"], "all": m["b"]}
+              for m in db.query("""
+        SELECT to_char(l.ms_created, 'YYYY-MM') m, count(*) c,
+               count(*) FILTER (WHERE s.any_sell) a, count(*) FILTER (WHERE s.all_sell) b
+          FROM prc_launch l
+          LEFT JOIN (SELECT external_code, bool_or(state = 'selling') any_sell,
+                            bool_and(state = 'selling') all_sell
+                       FROM prc_launch_mp GROUP BY 1) s USING (external_code)
+         WHERE l.ms_created IS NOT NULL GROUP BY 1""")}
+    for c in db.query("""SELECT to_char(f, 'YYYY-MM') m, count(*) c FROM (
+                           SELECT p.ms_id, min(r.loaded_at)::date f
+                             FROM ms_product p JOIN raw_moysklad_product r ON r.ms_id = p.ms_id
+                            WHERE p.external_code ~ '^[0-9]{4}$' GROUP BY 1) t
+                         WHERE f > '2026-06-13' GROUP BY 1"""):
+        months.setdefault(c["m"], {"m": c["m"], "models": 0, "cards": 0, "any": 0, "all": 0})
+        months[c["m"]]["cards"] = c["c"]
+
+    # Кто вообще приносит новинки и как далеко они доезжают — по ГРУППАМ справочника, иначе
+    # один поставщик рассыпается на «kaktus_msk» и «ООО КОМПАНИЯ ФЕРРЕТ». Считаем в питоне:
+    # перевод имени в группу живёт в справочнике, а не в SQL.
+    agg = {}
+    for r in db.query("""
+        SELECT l.supplier_key, st.supplier, s.any_sell, s.all_sell, s.miss
+          FROM prc_launch l
+          LEFT JOIN (SELECT external_code, bool_or(state = 'selling') any_sell,
+                            bool_and(state = 'selling') all_sell,
+                            count(*) FILTER (WHERE state = 'none') miss
+                       FROM prc_launch_mp GROUP BY 1) s USING (external_code)
+          LEFT JOIN (SELECT external_code,
+                            min(supplier) FILTER (WHERE supplier IS NOT NULL) supplier
+                       FROM supplier_stock
+                      WHERE captured_at = (SELECT max(captured_at) FROM supplier_stock)
+                      GROUP BY 1) st USING (external_code)
+         WHERE l.ms_created IS NOT NULL"""):
+        g = sup_group.group_of(r["supplier_key"] or r["supplier"]) or "—"
+        a = agg.setdefault(g, {"supplier": g, "models": 0, "full": 0, "any": 0, "miss": 0})
+        a["models"] += 1
+        a["full"] += 1 if r["all_sell"] else 0
+        a["any"] += 1 if r["any_sell"] else 0
+        a["miss"] += r["miss"] or 0
+    sup = sorted(agg.values(), key=lambda a: -a["models"])
+    for a in sup:
+        a["avg_miss"] = round(a.pop("miss") / a["models"], 1)
+
+    head = db.query("""SELECT count(*) FILTER (WHERE ms_created = %s) today,
+                              count(*) FILTER (WHERE ms_created >= %s) d30,
+                              count(*) FILTER (WHERE ms_created IS NOT NULL) known
+                         FROM prc_launch""", (today, today - datetime.timedelta(days=30)))[0]
+    sla = db.query("""SELECT percentile_cont(0.5) WITHIN GROUP (
+                          ORDER BY (selling_at - l.ms_created)) med, count(*) n
+                        FROM prc_launch_mp p JOIN prc_launch l USING (external_code)
+                       WHERE p.selling_at IS NOT NULL AND l.ms_created IS NOT NULL""")[0]
+    stale = db.query("""SELECT max(updated_at) u FROM prc_launch""")[0]["u"]
+    return {"showcases": [{"key": k, "title": t} for k, t in SHOWCASES],
+            "today": head["today"], "d30": head["d30"], "known": head["known"],
+            "cohort": len(rows), "shown": len(out), "funnel": funnel,
+            "median_days": float(sla["med"]) if sla["med"] is not None else None,
+            "median_n": sla["n"], "months": sorted(months.values(), key=lambda x: x["m"]),
+            "older": older[:600], "older_total": len(older),
+            "suppliers": sup,
+            "updated": stale.isoformat(timespec="minutes") if stale else None,
+            "rows": out[:600]}
+
+@app.get("/api/novelties/probe")
+def novelties_probe(id: int, code: str):
+    """Сверка строки с товаром, код которого человек ВПЕЧАТАЛ руками. Ничего не пишет.
+
+    Заказ Сергея 26.08: «когда для товара нет никаких совпадений, я ввожу код вручную —
+    можно по этому коду подгружать данные в таблицу для сравнения». Сетка та же и считается
+    тем же `catalog.compare`, что и у подобранных вариантов, — иначе это была бы вторая,
+    расходящаяся правда о том, тот ли это товар.
+    """
+    rows = db.query("""SELECT name, article, chip FROM prc_novelty WHERE id = %s""", (id,))
+    if not rows:
+        return {"ok": False, "error": f"строки #{id} нет"}
+    cand, error = catalog.probe(dict(rows[0]), code)
+    if error:
+        return {"ok": False, "error": error}
+    return {"ok": True, "candidate": dict(cand, **_novelty_view(cand), price_rub=None)}
+
+
+def _enter_after_create(created, log):
+    """Свежие карточки — сразу позицией в АКТУАЛЬНОЕ оприходование поставщика.
+
+    Раньше это был отдельный ручной запуск `tools/prc/enter_new.py`, про который человек
+    вспоминал не всегда: карточка есть, а остатка поставщика на ней нет. Теперь один шаг.
+
+    Падение добора не отменяет созданную карточку — она уже в МС; говорим об этом строкой
+    в ответе, чтобы человек положил позицию руками, а не думал, что кнопка не сработала.
+    """
+    if not created:
+        return None
+    try:
+        _lines, plan, skip, where = enter_add.add_cards(
+            enter_add.by_ids([ms_id for ms_id, _c, _a in created], log=log), dry=False, log=log)
+    except Exception as exc:
+        log(f"  добор в оприходование не вышел: {type(exc).__name__}: {exc}")
+        return f"карточка создана, но позиция в приход НЕ легла ({type(exc).__name__}) — руками"
+    told = [f"{p['code']} → {where.get(p['code'])}, {p['qty']:.0f} шт × {p['price']:.2f} ₽"
+            for p in plan] + [f"{s['code']}: {s['why']}" for s in skip]
+    for t in told:
+        log(f"  {t}")
+    return "; ".join(told) or None
+
+
+@app.post("/api/novelties/decide")
+def novelties_decide(payload: NoveltyDecision):
+    """Записать решение по строкам. Для matched код обязателен и должен быть в каталоге."""
+    if payload.decision not in ("matched", "exists", "new", "partial", "skip", "pending"):
+        return {"ok": False, "error": "неизвестное решение"}
+    code, item = payload.ms_code.strip(), None
+    if payload.decision in ("matched", "exists"):
+        if not code:
+            return {"ok": False, "error": "нужен код товара"}
+        item = _find_goods(code)
+        if not item:
+            # Человек вводит номер товара руками, поэтому отказ должен говорить, что делать:
+            # молчаливое «нет в каталоге» он читает как «кнопка не работает».
+            return {"ok": False, "error": f"кода «{code}» нет в каталоге МС: не нашлось ни "
+                    f"карточки с кодом {code}*, ни товара с внешним кодом {code}. Проверьте "
+                    f"номер или заведите карточку кнопкой «➕ В МС»"}
+        if not item["code"]:
+            # Внешний код есть, а карточки с кодом под ним нет: записать решение нечем
+            # (`ms_code` — ключ для прайсов), поэтому отказываем явно, а не молча пишем NULL.
+            return {"ok": False, "error": f"у товара {code} нет ни одной карточки МС с кодом — "
+                    f"заведите карточку кнопкой «➕ В МС»"}
+    link, error = _novelty_link(payload.link)
+    if error:
+        return {"ok": False, "error": f"связь: {error}"}
+    # Решение `exists` руками = «я проверил, карточка та». Пометка нужна предохранителю
+    # в prices/catalog.save(): без неё следующий прайс снова вернёт строку в «Неразобранное».
+    confirmed = {"exists": "now()", "pending": "null"}.get(payload.decision, "confirmed_at")
+    for novelty_id in payload.ids:
+        db.execute(f"""UPDATE prc_novelty
+                         SET decision = %s, ms_code = %s, ms_id = %s, ms_name = %s,
+                             link = coalesce(%s, link), decided_at = now(),
+                             confirmed_at = {confirmed}
+                       WHERE id = %s""",
+                   (payload.decision,
+                    item["code"] if item else None,
+                    item["ms_id"] if item else None,
+                    item["name"] if item else None,
+                    link or None,
+                    novelty_id))
+    return {"ok": True, "n": len(payload.ids), "link": link,
+            "ms_code": item["code"] if item else None,
+            "ms_name": item["name"] if item else None}
+
+
+@app.post("/api/novelties/enter-today")
+def novelties_enter_today():
+    """Добрать в оприходования ВСЕ карточки наших поставщиков, заведённые сегодня.
+
+    Страховка на карточки, заведённые руками прямо в МойСкладе (мимо вкладки): кнопкам
+    выше добор уже не нужен. Пишет позиции сразу — сухого режима у кнопки нет, потому что
+    сухой прогон живёт отдельной командой `tools/prc/enter_new.py --day`.
+    """
+    day = str(_dt.date.today())
+    try:
+        out, plan, skip = enter_add.report(day=day, dry=False, log=lambda *_: None)
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    return {"ok": True, "n": len(plan), "skipped": len(skip), "report": out,
+            "rows": [f"{p['code']} → {p['qty']:.0f} шт × {p['price']:.2f} ₽" for p in plan[:10]]}
+
+
+@app.post("/api/novelties/link")
+def novelties_link(payload: NoveltyLink):
+    """Проставить «Связь», не трогая решение: универсальность вскрывается и потом.
+
+    Пустая строка стирает связь — это осознанное «связей нет», а не «поле не заполняли».
+    """
+    link, error = _novelty_link(payload.link)
+    if error:
+        return {"ok": False, "error": error}
+    for novelty_id in payload.ids:
+        db.execute("UPDATE prc_novelty SET link = %s WHERE id = %s", (link or None, novelty_id))
+    return {"ok": True, "n": len(payload.ids), "link": link}
+
+
+class NoveltyIds(BaseModel):
+    ids: list[int]
+    confirm: bool = False
+
+
+def _novelty_rows(ids):
+    if not ids:
+        return []
+    return db.query("""SELECT n.id, n.article, n.name, n.kind, n.decision, n.ms_name,
+                              (b.article IS NOT NULL) AS in_blacklist
+                         FROM prc_novelty n
+                         LEFT JOIN prc_blacklist b ON upper(b.article) = upper(n.article)
+                        WHERE n.id = ANY(%s)""", (list(ids),))
+
+
+# Правило Сергея 09.08: в сеть идём ТОЛЬКО под заведение карточки — по моделям строки,
+# которой присваиваем новый внешний код (`decision='new'`). Всё остальное платить не за что:
+# `matched`/`exists` уже лежат в МС, `partial` ждёт цвета на полке и карточку пока не получает,
+# `pending` ещё не разобран человеком, ЧС мы вообще не берём. Гейт серверный: интерфейс
+# кнопку прячет, но запрос мимо интерфейса всё равно упрётся сюда.
+def _research_split(rows):
+    ok, skipped = [], []
+    for r in rows:
+        if r["in_blacklist"]:
+            skipped.append({"article": r["article"], "why": "в чёрном списке — не берём"})
+        elif r["decision"] == "new":
+            ok.append(r)
+        else:
+            skipped.append({"article": r["article"], "why": {
+                "matched": "уже сопоставлена с нашей карточкой — новый код не заводим",
+                "exists": "уже в МС по артикулу",
+                "partial": "полка ожидания: карточку заведём, когда доедут цвета",
+                "skip": "не берём",
+            }.get(r["decision"], "сначала пометьте строку NEW — сеть спрашиваем "
+                                 "только под заведение карточки")})
+    return ok, skipped
+
+
+@app.get("/api/novelties/research/estimate")
+def novelties_research_estimate(ids: str = "", force: bool = False):
+    """Смета разведки. Денег НЕ тратит: считается арифметикой по числу моделей вне кэша."""
+    from prices import research
+    rows, skipped = _research_split(
+        _novelty_rows([int(x) for x in ids.split(",") if x.strip().isdigit()]))
+    est = research.estimate(rows, force=force)
+    # «Все модели уже разведаны» — неправда, когда моделей не было вовсе: строки отсеял гейт.
+    text = (research.estimate_text(est) if est["rows"] else
+            "Спрашивать нечего: сеть идёт только по строкам NEW — тем, которым заводим "
+            "карточку с новым внешним кодом.")
+    return {"ok": True, "estimate": est, "skipped": skipped, "text": text}
+
+
+@app.post("/api/novelties/research")
+def novelties_research(payload: NoveltyIds):
+    """Спросить сеть о моделях выбранных строк. ПЛАТНО — только с `confirm`.
+
+    Без подтверждения возвращаем ту же смету и `ok: false`: интерфейс показывает её человеку
+    и ждёт нажатия «Запустить». Гейт стоит и в `research.ask()` — на случай, если запрос
+    придёт мимо интерфейса.
+    """
+    from prices import research
+    rows, skipped = _research_split(_novelty_rows(payload.ids))
+    if not rows:
+        return {"ok": False, "error": "нечего спрашивать: сеть идёт только по строкам NEW — "
+                                      "тем, которым заводим карточку с новым внешним кодом",
+                "skipped": skipped}
+    try:
+        out = research.ask(rows, confirm=payload.confirm)
+    except research.NeedsConsent as need:
+        return {"ok": False, "need_confirm": True, "estimate": need.estimate,
+                "skipped": skipped, "text": research.estimate_text(need.estimate)}
+    return {"ok": True, "asked": len(out["estimate"]["to_ask"]),
+            "asked_rows": len(out["estimate"]["plan"]), "spent_usd": out["spent_usd"],
+            "errors": out["errors"], "skipped": skipped}
+
+
+@app.post("/api/novelties/blacklist")
+def novelties_blacklist(payload: NoveltyIds):
+    """Артикул в чёрный список: следующие прайсы этой строкой больше не беспокоят.
+
+    До сих пор пути в ЧС из интерфейса не было вовсе — `CS-TKY4-100` пришлось заносить
+    скриптом. Строке ставим `skip`: она разобрана, но повод виден («в ЧС»).
+    """
+    from prices import blacklist
+    rows = _novelty_rows(payload.ids)
+    if not rows:
+        return {"ok": False, "error": "строки не найдены"}
+    _, added = blacklist.add([r["article"] for r in rows], source="ui",
+                             note="из разбора новинок")
+    db.execute("""UPDATE prc_novelty SET decision = 'skip', decided_at = now()
+                   WHERE id = ANY(%s)""", (list(payload.ids),))
+    return {"ok": True, "n": len(rows), "added": added}
+
+
+# --- чёрный список: что забраковали и что из этого лежит у поставщиков ------------------
+# Отдельный подтаб «Новинок». Смысл: ЧС — не приговор навсегда. Позиция могла попасть туда
+# ошибкой или подешеветь, а остаток у поставщика показывает, есть ли вообще о чём говорить.
+# Цена: у строки, снятой чёрным списком, `price_rub` пустой — до пересчёта валюты она не
+# доходит. Считаем её здесь курсом самой загрузки (у рублёвых прайсов курс = 1).
+BLACKLIST_STOCK = """
+    WITH last AS (
+        SELECT DISTINCT ON (supplier_key) supplier_key, id, rate
+          FROM prc_price_load WHERE status = 'ok'
+         ORDER BY supplier_key, load_date DESC, id DESC),
+    pres AS (
+        SELECT DISTINCT ON (upper(r.article), l.supplier_key)
+               upper(r.article) article_norm, l.supplier_key, r.name, r.qty, r.stock_raw,
+               coalesce(r.price_rub, round(r.price_src * coalesce(l.rate, 1), 2)) price_rub
+          FROM last l JOIN prc_price_row r ON r.load_id = l.id
+         ORDER BY upper(r.article), l.supplier_key, r.qty DESC NULLS LAST)
+"""
+
+
+@app.get("/api/blacklist")
+def blacklist_api(supplier: str = ""):
+    """Чёрный список с остатками по СВЕЖИМ прайсам. supplier: ключ, «none» — нет ни в одном.
+
+    Одна запись ЧС даёт столько строк, у скольких поставщиков она сейчас в прайсе: один и тот
+    же артикул продают несколько, и решение «вернуть» зависит от того, у кого он лежит и почём.
+    Записи, которых нет ни в одном свежем прайсе, отдаём одной строкой без остатка.
+    """
+    rows = db.query(f"""
+        {BLACKLIST_STOCK}
+        SELECT b.article, b.article_norm, b.source, b.note, b.added_at::date::text added,
+               p.supplier_key, p.name, p.qty, p.stock_raw, p.price_rub
+          FROM prc_blacklist b
+          LEFT JOIN pres p ON p.article_norm = b.article_norm
+         WHERE %s = '' OR (%s = 'none' AND p.supplier_key IS NULL) OR p.supplier_key = %s
+         ORDER BY p.supplier_key NULLS LAST, coalesce(p.qty, 0) DESC, b.article
+    """, (supplier, supplier, supplier))
+    counts = db.query(f"""
+        {BLACKLIST_STOCK}
+        SELECT coalesce(p.supplier_key, 'none') supplier_key, count(*) n,
+               count(*) FILTER (WHERE coalesce(p.qty, 0) > 0) with_stock
+          FROM prc_blacklist b
+          LEFT JOIN pres p ON p.article_norm = b.article_norm
+         GROUP BY 1 ORDER BY 1""")
+    total = db.query("SELECT count(*) n FROM prc_blacklist")[0]["n"]
+    from prices.profiles import PROFILES
+    return {"rows": [dict(r, qty=float(r["qty"]) if r["qty"] is not None else None,
+                          price_rub=float(r["price_rub"]) if r["price_rub"] else None)
+                     for r in rows],
+            "total": total,
+            "counts": {c["supplier_key"]: {"n": c["n"], "with_stock": c["with_stock"]}
+                       for c in counts},
+            "titles": {k: p.title for k, p in PROFILES.items()}}
+
+
+class BlacklistArticles(BaseModel):
+    articles: list[str]
+
+
+@app.post("/api/blacklist/remove")
+def blacklist_remove(payload: BlacklistArticles):
+    """Снять артикулы с чёрного списка.
+
+    Карточку это не заводит и решения не меняет: строка просто перестанет отсеиваться, и в
+    следующем прайсе поставщика позиция снова придёт в «Новинки» на разбор. Бренд, забракованный
+    ПРАВИЛОМ (`blacklist.BRAND_RULES`, напр. «ТУ» у Одиссея), удалением из таблицы не вернуть —
+    правило переставит причину снова, о чём и предупреждаем.
+    """
+    from prices import blacklist
+    arts = [a.strip() for a in payload.articles if a and a.strip()]
+    if not arts:
+        return {"ok": False, "error": "не переданы артикулы"}
+    keys = [blacklist.norm(a) for a in arts]
+    gone = db.query("DELETE FROM prc_blacklist WHERE article_norm = ANY(%s) RETURNING article",
+                    (keys,))
+    ruled = sorted({a for a in arts
+                    for key in blacklist.BRAND_RULES
+                    if blacklist.in_rules(a, key)})
+    return {"ok": True, "n": len(gone), "ruled": ruled}
+
+
+# --- новинка -> карточки в МойСкладе ---------------------------------------------------
+# Строка `matched` доезжает до карточки сама (`ms_import.build`: всё о товаре берётся у родни
+# по внешнему коду). У новинки родни нет — поля заполняет человек, а мы подставляем черновик.
+_MS_FOLDERS = {}                       # папки МС правят раз в год, тянуть их на каждый диалог незачем
+MS_CARDS_MAX = 10                      # больше десятка наших товаров на одну строку прайса не бывает
+
+
+def _ms_folders(refresh=False):
+    from prices import ms_import
+    if refresh or not _MS_FOLDERS:
+        _MS_FOLDERS.clear()
+        _MS_FOLDERS.update(ms_import._folders())
+    return _MS_FOLDERS
+
+
+def _folder_guess(brand, folders):
+    """Папка бренда принтера: «Kyocera» -> «Картриджи/Картриджи Kyocera Mita». Не нашли — пусто."""
+    from prices.ms_import import GROUP_PREFIX
+    first = re.split(r"[,/]", brand or "")[0].strip().lower()
+    if not first:
+        return ""
+    hits = [p for p in folders
+            if p.startswith(GROUP_PREFIX) and first in p.rsplit("/", 1)[-1].lower()]
+    return min(hits, key=len) if hits else ""
+
+
+class UnlinkedDecision(BaseModel):
+    ids: list[str]                                   # ms_id безкодовых карточек
+    decision: str                                    # matched | new | skip | pending
+    target: str = ""                                 # код нашей карточки (внешний 4-значный)
+    note: str = ""
+
+
+@app.get("/api/unlinked")
+def unlinked_api(supplier: str = "", status: str = ""):
+    """Карточки из оприходований, у которых нет нашего внешнего кода («Несопоставлено»).
+
+    Почему отдельная таблица, а не `prc_novelty`: новинка — это строка ПРАЙСА, которой нет
+    карточки; здесь наоборот — карточка есть и лежит в оприходовании, нет только нашего
+    4-значного кода, поэтому остаток видит МС и дальше в ТК не уходит. Плюс у Булата, ВТТ,
+    Рамис и Блоссома прайс к нам вообще не приходит (грузит внешний загрузчик) — строки
+    `prc_price_row` для них не существует, и остаток берём из позиций самого оприходования.
+
+    Решение человека здесь ничего в МС не пишет: это разбор, запись — отдельным «ок».
+    """
+    where, params = ["1=1"], []
+    if supplier:
+        where.append("u.supplier_key = %s")
+        params.append(supplier)
+    if status:
+        where.append("u.decision = %s")
+        params.append(status)
+    rows = db.query(f"""
+        SELECT u.ms_id, u.ms_code, u.article, u.name, u.supplier_key, u.ext_raw, u.archived,
+               u.category, u.qty, u.docs, u.doc_name, u.doc_date::text, u.store,
+               u.decision, u.target_ms_id, u.target_code, u.target_name,
+               u.decided_at::text, u.last_seen::text, u.note
+          FROM prc_unlinked u
+         WHERE {' AND '.join(where)}
+         ORDER BY u.decision <> 'pending', u.supplier_key, u.name
+    """, tuple(params))
+    cands = db.query("""
+        SELECT c.ms_id, c.rank, c.cand_ms_id, c.cand_code, c.external_code, c.cand_name,
+               c.color, c.measure, c.chip, c.brand, c.kind, c.shared_code, c.verdict,
+               c.model_ok, c.kind_ok, c.brand_ok, c.color_ok, c.resource_ok, c.chip_ok,
+               c.score, c.by_article, c.feat_src,
+               t.title AS tc_title, coalesce(p.cards, 0) AS cards
+          FROM prc_unlinked_candidate c
+          LEFT JOIN prc_tc_model t ON t.external_code = c.external_code AND t.gone_at IS NULL
+          LEFT JOIN (SELECT external_code, count(*) cards FROM ms_product
+                      WHERE NOT archived GROUP BY external_code) p
+                 ON p.external_code = c.external_code
+         ORDER BY c.ms_id, c.rank
+    """)
+    by_card = {}
+    for c in cands:
+        by_card.setdefault(c["ms_id"], []).append(dict(c, **_novelty_view(c)))
+    out = [dict(r, qty=float(r["qty"]) if r["qty"] is not None else None,
+                candidates=by_card.get(r["ms_id"], []))
+           for r in rows]
+    counts = db.query("""SELECT decision, count(*) n FROM prc_unlinked
+                          WHERE %s = '' OR supplier_key = %s
+                          GROUP BY decision""", (supplier, supplier))
+    suppliers = [r["supplier_key"] for r in
+                 db.query("SELECT DISTINCT supplier_key FROM prc_unlinked ORDER BY 1")]
+    return {"rows": out, "suppliers": suppliers,
+            "counts": {c["decision"]: c["n"] for c in counts}}
+
+
+@app.post("/api/unlinked/decide")
+def unlinked_decide(payload: UnlinkedDecision):
+    """Записать решение по безкодовым карточкам.
+
+    «Свести» (decision=matched) — единственное решение, которое ПИШЕТ в МойСклад: карточке
+    поставщика проставляется наш 4-значный внешний код, внутренний код с аббревиатурой бренда
+    (если правило аббревиатуры известно) и доп. поле «Название WB» по формуле каталога ТК
+    (`tools/prc/wb_fill.compose`), а следом `tools/prc/unlink_fill` добирает описание, группу,
+    поставщика, вес, единицу измерения и штрихкод code128 — карточка обязана уйти полной по
+    всем 11 полям (решение Сергея 18.08.2026). Карточка остаётся той же — оприходования и остатки целы,
+    остаток начинает уходить в TheCartridge. Остальные решения (new/skip/pending) — только
+    пометка строки, в МС ничего не идёт.
+    """
+    if payload.decision not in ("matched", "new", "skip", "pending"):
+        return {"ok": False, "error": "неизвестное решение"}
+    item = None
+    if payload.decision == "matched":
+        code = payload.target.strip()
+        if not code:
+            return {"ok": False, "error": "нужен код нашей карточки"}
+        item = _find_goods(code)
+        if not item:
+            return {"ok": False, "error": f"кода «{code}» нет в каталоге МС: не нашлось ни "
+                    f"карточки с кодом {code}*, ни товара с внешним кодом {code}"}
+        # Пишем НАШ 4-значный внешний код, а не code карточки: code несёт суффикс поставщика
+        # (6058sk), а сводим мы с товаром, который у этого кода один на всех поставщиков.
+        ext = db.query("SELECT external_code FROM ms_product WHERE ms_id = %s",
+                       (item["ms_id"],))
+        item = dict(item, external_code=(ext[0]["external_code"] if ext else None))
+        # Свести можно только с товаром, у которого есть НАШ 4-значный внешний код: именно его
+        # мы проставляем безкодовой карточке. Иначе решение сохранится, а запись молча не
+        # состоится — человек уйдёт с вкладки в уверенности, что карточка сведена.
+        if not re.fullmatch(r"\d{4}", (item["external_code"] or "")):
+            return {"ok": False, "error": f"у карточки «{item['code']}» нет нашего 4-значного "
+                    f"внешнего кода — сводить не с чем"}
+    for ms_id in payload.ids:
+        db.execute("""UPDATE prc_unlinked
+                         SET decision = %s, target_ms_id = %s, target_code = %s,
+                             target_name = %s, note = coalesce(nullif(%s, ''), note),
+                             decided_at = now()
+                       WHERE ms_id = %s""",
+                   (payload.decision,
+                    item["ms_id"] if item else None,
+                    (item["external_code"] or item["code"]) if item else None,
+                    item["name"] if item else None,
+                    payload.note, ms_id))
+    written, why = 0, ""
+    if payload.decision == "matched":
+        from prices import unlink_apply
+        try:
+            todo, drop = unlink_apply.plan(payload.ids)
+            written = unlink_apply.apply(todo, dry=False, log=lambda *a: None)
+            why = unlink_apply.note(todo, drop)
+            if drop:
+                why += " | " + "; ".join(f"{d['article']}: {d['why']}" for d in drop[:3])
+            # Карточка обязана уйти полной (правило Сергея 18.08.2026: 11 полей) — сразу за
+            # кодом добираем описание, группу, поставщика, вес, ед. изм. и code128.
+            if written:
+                from tools.prc import unlink_fill
+                try:
+                    f_todo, f_drop = unlink_fill.plan(payload.ids)
+                    unlink_fill.apply(f_todo, dry=False, log=lambda *a: None)
+                    tail = unlink_fill.note(f_todo, f_drop)
+                    if tail:
+                        why += " | " + tail
+                except Exception as exc:
+                    why += f" | дозаполнение не прошло: {exc}"
+        except Exception as exc:                     # МС недоступен/отказал — решение уже в БД
+            why = f"в МойСклад не записано: {exc}"
+    return {"ok": True, "n": len(payload.ids), "written": written, "why": why,
+            "target_code": (item["external_code"] or item["code"]) if item else None,
+            "target_name": item["name"] if item else None}
+
+
+def _ms_free(field, value):
+    """Код/внешний код свободен? Спрашиваем и слепок, и живой МС (слепок суточной давности)."""
+    from core import ms_api
+    column = {"code": "code", "externalCode": "external_code"}[field]
+    if db.query(f"SELECT 1 FROM ms_product WHERE upper({column}) = upper(%s) LIMIT 1", (value,)):
+        return False
+    return not ms_api.get("/entity/product", {"filter": f"{field}={value}", "limit": 1}).get("rows")
+
+
+@app.get("/api/novelties/ms-form")
+def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
+    """Черновик карточек для строки новинки: N блоков полей + список папок МС.
+
+    Ничего не создаёт и не резервирует: коды подставлены на момент открытия диалога,
+    занятость перепроверяется при создании.
+
+    `ext` — внешний код из каталога ТК, если строка совпала с моделью, которая у нас ЗАВЕДЕНА,
+    а карточки поставщика в МС ещё нет. Тогда первая карточка идёт под ЭТИМ кодом, а не под
+    следующим свободным: иначе на один товар в каталоге появится второй код.
+    """
+    from prices import ms_import
+    from prices.profiles import get_identity
+    found = db.query("""SELECT id, supplier_key, article, name, brand, price_rub, link,
+                               decision, ms_code
+                          FROM prc_novelty WHERE id = %s""", (id,))
+    if not found:
+        return {"ok": False, "error": "строки не найдено"}
+    row = found[0]
+    n = max(1, min(int(n or 1), MS_CARDS_MAX))
+    try:
+        profile = get_identity(row["supplier_key"])
+        abbr = ms_import.suffix(row["article"], row["supplier_key"], row["name"])
+    except (KeyError, ValueError) as exc:
+        return {"ok": False, "error": f"поставщик {row['supplier_key']}: {exc}"}
+
+    warn = []
+    weight, source = ms_import.weight_from_dims(
+        [row["article"]], only=ms_import.DIMS_SUPPLIER.get(profile.key))
+    if not weight:
+        weight, source = ms_import.weight_from_dims([row["article"]])
+    if not weight:
+        warn.append("веса нет ни в прайсе поставщика, ни у других поставщиков — заполнить руками")
+    # Ресурс из названия поставщика против ресурса МОДЕЛИ в каталоге ТК — та же сверка и тот же
+    # допуск, что в черновике карточки поставщика (`ms_import.build`): один вопрос — один ответ.
+    # Эталон берём по коду ТК ДО того, как его отберёт занятость/длина: код может смениться,
+    # а модель, с которой человек сопоставил строку, — нет. Родня здесь не эталон: у нового
+    # товара её либо нет вовсе, либо это чужие комплектации под тем же кодом.
+    from prices.catalog import RESOURCE_TOLERANCE, close, model_conflict, model_dict
+    tk_ext = str(ext or "").strip() or (row["ms_code"] or "")[:4]
+    # «Название WB» — поле ФОРМУЛЫ (правило 41), а не пересказ названия поставщика: правило
+    # «брать как у родни» отменено 16.08.2026, а диалог писался 11.08 и остался на старом.
+    # Каталог ТК модели не знает (у новинки его часто и нет) — формула не отменяется, сырьё
+    # берётся из названия поставщика; замечание скажет человеку сверить.
+    wb, wb_note = ms_import.wb_compose(tk_ext, row["name"])
+    if wb_note:
+        warn.append(wb_note)
+    tk_pages = db.query("""SELECT resource FROM prc_tc_model
+                            WHERE gone_at IS NULL AND resource IS NOT NULL AND external_code = %s""",
+                        (tk_ext,)) if tk_ext else []
+    pages = ms_import.name_resource(row["name"])
+    if tk_pages and close(pages, tk_pages[0]["resource"]) is False:
+        warn.append(f"ресурс в названии поставщика {pages} против {tk_pages[0]['resource']} в ТК "
+                    f"(допуск {RESOURCE_TOLERANCE:.0%}) — проверить, та ли модель")
+    # И сама модель картриджа: ресурс у соседних моделей часто одинаков, а заголовок модели
+    # в ТК — это ровно тот товар, под код которого заводим карточку.
+    if tk_ext:
+        model_diff = model_conflict(row["name"], tk_ext, *model_dict())
+        if model_diff:
+            warn.append(f"модель в названии поставщика {model_diff[0]} против {model_diff[1]} "
+                        f"у кода {tk_ext} в ТК — проверить, тот ли код")
+    # Двойник ЭТОГО ЖЕ бренда на том же внешнем коде может уже существовать: строка сопоставлена
+    # с карточкой `2137at` (Аквамарин), а Cet на этот же товар заведён как `2137ce`. Код занят,
+    # значит черновик уедет на СЛЕДУЮЩИЙ свободный внешний код — и в каталоге появится второй
+    # номер на один картридж. Случай Сергея 29.08.2026, строка #10224 `CET8996MR`.
+    twin_ext = (row["ms_code"] or "")[:4]
+    twin = db.query("SELECT code, article FROM ms_product WHERE upper(code) = upper(%s) LIMIT 1",
+                    (f"{twin_ext}{abbr}",)) if twin_ext else []
+    if twin:
+        warn.append(f"карточка этого бренда на код {twin_ext} уже есть — {twin[0]['code']} "
+                    f"({twin[0]['article']}); новая уедет на ДРУГОЙ внешний код, то есть станет "
+                    f"вторым номером каталога на один товар. Скорее всего строку надо закрыть "
+                    f"на существующую карточку, а не заводить новую")
+    folders = _ms_folders()
+    folder = _folder_guess(row["brand"], folders)
+    if not folder:
+        warn.append(f"папка по бренду «{row['brand'] or '—'}» не угадалась — выбрать руками")
+    ext = str(ext or "").strip()
+    # Внешний код — РОВНО 4 цифры (правило 24): на них стоят маски Code128, пятизначный код
+    # из каталога ТК ломает карточку. Занятым считаем и АРХИВНЫЙ код: карточку возвращают
+    # из архива, и коды столкнулись бы (та же грабля, что увела нумерацию на 9999/10000).
+    if ext and not (ext.isdigit() and len(ext) == 4):
+        warn.append(f"код {ext} из каталога ТК не 4-значный — берём следующий свободный")
+        ext = ""
+    if ext and db.query("SELECT 1 FROM ms_product WHERE external_code = %s LIMIT 1", (ext,)):
+        warn.append(f"код {ext} из каталога ТК уже занят карточкой в МС — берём следующий свободный")
+        ext = ""
+    codes = ms_import.next_external_codes(n - 1 if ext else n)
+    if ext:
+        codes = [ext] + codes
+        warn.append(f"первый внешний код {ext} взят из каталога ТК: товар там уже заведён")
+    numbers = [c.zfill(4) for c in codes]
+    cards = []
+    for i, ext in enumerate(codes):
+        others = [x for x in numbers if x != ext.zfill(4)]
+        cards.append({
+            "external_code": ext, "code": f"{ext}{abbr}",
+            # Все поля одинаковы у всех карточек группы (решение 11.08): человек правит уже
+            # заполненное, а не заполняет с нуля. Уникальны только коды и артикул — артикул
+            # у МС ключ, две карточки с одним артикулом он не пропустит (потому и у главной).
+            "article": row["article"] if i == 0 else "",
+            "name": row["name"], "description": row["name"],
+            # числа отдаём строками: обратно они приходят из полей ввода, тоже строками
+            "folder": folder, "weight": str(weight or ""),
+            "buy_price": str(row["price_rub"]) if row["price_rub"] is not None else "",
+            "wb": wb, "code128": "",
+            "supplier_code": row["article"],
+            "link": ";".join(others) if others else (row["link"] or ""),
+        })
+    # Серия для инфографики ТК: тип расходника берём как в «Названии WB», тип техники
+    # угадываем и показываем оператору списком — каталог ТК нового кода ещё не знает.
+    from prices import series as series_mod
+    kind = series_mod.kind_of(row["name"], tk_ext)
+    printer = series_mod.guess_printer(row["name"], kind)
+    series_value, series_why = series_mod.series(kind, printer, row["price_rub"])
+    if not kind:
+        warn.append("тип расходника из названия не читается — выберите его списком. Если товара "
+                    "в списке нет (фотобумага, бумага, лампы, кассеты), это не наш ассортимент: "
+                    "заводить не нужно, строку — в чёрный список")
+    return {"ok": True, "id": row["id"], "supplier": profile.title,
+            "article": row["article"], "name": row["name"], "n": n,
+            "kind": kind, "kinds": series_mod.kinds(),
+            "printers": series_mod.PRINTERS, "printer": printer,
+            "series": series_value or "", "series_why": series_why,
+            "weight_source": source or "", "warn": warn,
+            "folders": sorted(p for p in folders if p.startswith(ms_import.GROUP_PREFIX)),
+            "cards": cards}
+
+
+@app.get("/api/novelties/series")
+def novelties_series(kind: str = "", printer: str = "", price: str = ""):
+    """Какая серия выйдет при этих типе расходника, типе техники и цене. Ничего не пишет.
+
+    Нужен форме: оператор меняет тип техники и сразу видит результат, а не узнаёт его из
+    ответа после «Создать».
+    """
+    from prices import series as series_mod
+    value, why = series_mod.series(kind, printer, price)
+    return {"ok": True, "series": value or "", "why": why}
+
+
+class MsCard(BaseModel):
+    external_code: str
+    code: str
+    article: str = ""
+    name: str
+    description: str = ""
+    folder: str
+    weight: str = ""
+    buy_price: str = ""
+    wb: str = ""
+    code128: str = ""
+    supplier_code: str = ""
+    link: str = ""
+
+
+class MsCreate(BaseModel):
+    id: int
+    cards: list[MsCard]
+    main_index: int = 0
+    dry: bool = True
+    # Тип техники и тип расходника для серии (`prices/series.py`): каталог ТК нового кода
+    # ещё не знает, поэтому оба значения выбирает оператор — в форме они подставлены
+    # догадкой. Пустой `kind` — считаем сами, как в форме.
+    printer: str = ""
+    # Пусто — оператор тип не выбрал; тогда пробуем определить сами, а не вышло — отказ.
+    # «Серии нет» как выбора не существует: товар, которому серия не положена (фотобумага,
+    # лампы, кассеты), мы не заводим вовсе — он уходит в ЧС (решение Сергея 18.09.2026).
+    kind: str = ""
+
+
+@app.post("/api/novelties/ms-create")
+def novelties_ms_create(payload: MsCreate):
+    """Создать карточки МС по строке новинки. `dry` — показать, что ушло бы, ничего не писать.
+
+    Атомарности нет: МС создаёт по одной карточке. Оборвались на середине — уже созданные
+    остаются, ответ перечисляет что создано и на чём встали. Повтор безопасен: занятые коды
+    отсекает проверка.
+    """
+    from prices import ms_import
+    from prices import series as series_mod
+    from prices.profiles import get_identity
+    found = db.query("SELECT id, supplier_key, article, name FROM prc_novelty WHERE id = %s",
+                     (payload.id,))
+    if not found:
+        return {"ok": False, "error": "строки не найдено"}
+    row = found[0]
+    cards = payload.cards
+    if not 1 <= len(cards) <= MS_CARDS_MAX:
+        return {"ok": False, "error": f"карточек должно быть от 1 до {MS_CARDS_MAX}"}
+    if not 0 <= payload.main_index < len(cards):
+        return {"ok": False, "error": "не указана главная карточка"}
+    profile = get_identity(row["supplier_key"])
+    folders = _ms_folders()
+
+    errors, seen = [], set()
+    for i, c in enumerate(cards):
+        tag = c.code or c.external_code or f"карточка {i + 1}"
+        article = (c.article or "").strip()
+        if i == payload.main_index and not article:
+            errors.append(f"{tag}: у главной карточки должен быть артикул поставщика")
+        if i != payload.main_index and article:
+            errors.append(f"{tag}: артикул ставится только на главную карточку")
+        if not (c.name or "").strip():
+            errors.append(f"{tag}: пустое наименование")
+        if not re.fullmatch(r"\d{4}", (c.external_code or "").strip()):
+            errors.append(f"{tag}: внешний код — четыре цифры")
+        if not (c.code or "").strip():
+            errors.append(f"{tag}: пустой код")
+        if c.folder not in folders:
+            errors.append(f"{tag}: папки «{c.folder}» нет в МС")
+        for field, value in (("Вес", c.weight), ("Закупочная цена", c.buy_price)):
+            if str(value).strip():
+                try:
+                    float(str(value).replace(",", "."))
+                except ValueError:
+                    errors.append(f"{tag}: {field} «{value}» — не число")
+        for key in (("ec", c.external_code), ("code", c.code)):
+            if key in seen:
+                errors.append(f"{tag}: {key[1]} повторяется в этом же диалоге")
+            seen.add(key)
+        if re.fullmatch(r"\d{4}", (c.external_code or "").strip()) and not _ms_free("externalCode", c.external_code):
+            errors.append(f"{tag}: внешний код {c.external_code} уже занят")
+        if (c.code or "").strip() and not _ms_free("code", c.code):
+            errors.append(f"{tag}: код {c.code} уже занят")
+    if errors:
+        return {"ok": False, "error": "; ".join(errors[:6]), "errors": errors}
+
+    def number(value):
+        return str(value).replace(",", ".").strip()
+
+    # Серия — свойство НОВОГО внешнего кода: считаем один раз на диалог, по типу расходника
+    # и закупочной цене главной карточки. Карточкам под уже существующим кодом («Это он»)
+    # серию не ставим вовсе (решение Сергея 18.09.2026), поэтому здесь и только здесь.
+    main_card = cards[payload.main_index]
+    kind = (payload.kind or "").strip() or series_mod.kind_of(row["name"],
+                                                              main_card.external_code)
+    series_value, series_why = series_mod.series(kind, payload.printer, main_card.buy_price)
+    # Без серии карточка нового кода не создаётся: ТК не соберёт по ней инфографику, а
+    # «потом дозаполним» здесь не работает — серия ставится один раз, при заведении.
+    if not series_value:
+        return {"ok": False, "series_why": series_why,
+                "error": f"серия не определилась ({series_why}) — карточка не создана. "
+                         f"Выберите тип расходника и тип техники. Если товара нет в списке "
+                         f"типов, это не наш ассортимент: такую строку заводить не нужно, "
+                         f"ей место в чёрном списке"}
+
+    def rec(i, c):
+        return {
+            "Группы": c.folder, "Код": c.code.strip(), "Внешний код": c.external_code.strip(),
+            "Наименование": c.name.strip(), "Описание": (c.description or c.name).strip(),
+            "Артикул": c.article.strip() if i == payload.main_index else "",
+            "Доп. поле: Код поставщика": (c.supplier_code or "").strip(),
+            "Единица измерения": ms_import.UOM,
+            "Закупочная цена": number(c.buy_price) if str(c.buy_price).strip() else "",
+            "НДС": ms_import.VAT,
+            "Поставщик": ms_import.MS_SUPPLIER.get(profile.key, profile.title),
+            "Вес": number(c.weight) if str(c.weight).strip() else "",
+            "Страна": ms_import.COUNTRY,
+            "Доп. поле: Гарантия/ Срок службы": ms_import.WARRANTY,
+            "Доп. поле: Название WB": (c.wb or "").strip(),
+            "Штрихкод Code128": (c.code128 or "").strip(),
+            "Доп. поле: Связь": (c.link or "").strip(),
+            "Серия": series_value or "",
+        }
+
+    records = [rec(i, c) for i, c in enumerate(cards)]
+    lines = []
+    try:
+        created, skipped = ms_import.create_in_ms(records, profile.supplier_ids[0],
+                                                  dry=payload.dry, log=lines.append)
+    except Exception as exc:                       # МС ответил ошибкой на середине пачки
+        return {"ok": False, "error": f"МойСклад: {type(exc).__name__}: {exc}", "log": lines}
+    series_line = (f"серия {series_value} — {series_why}" if series_value
+                   else f"серия НЕ будет заполнена: {series_why}")
+    if payload.dry:
+        return {"ok": True, "dry": True, "log": lines, "n": len(records),
+                "kind": kind, "series": series_value or "", "series_why": series_line,
+                "entered": enter_add.preview(
+                    profile.key, records[payload.main_index]["Артикул"] or "")}
+
+    main = cards[payload.main_index]
+    made = {code: ms_id for ms_id, code, _ in created}
+    # Карточка создана — строка больше не работа: помечаем `exists` («товар в МС есть»), иначе
+    # заведённая позиция вечно висела бы среди новых моделей. В `link` — номера всех карточек.
+    if made.get(main.code.strip()):
+        db.execute("""UPDATE prc_novelty
+                         SET decision = 'exists', ms_code = %s, ms_id = %s, ms_name = %s,
+                             link = %s, decided_at = now()
+                       WHERE id = %s""",
+                   (main.code.strip(), made[main.code.strip()], main.name.strip(),
+                    ";".join(c.external_code.strip().zfill(4) for c in cards) or None,
+                    payload.id))
+    entered = _enter_after_create(created, lines.append)
+    return {"ok": True, "dry": False, "log": lines, "created": len(created),
+            "skipped": [f"{a}: {why}" for a, why in skipped],
+            "ms_code": main.code.strip() if made.get(main.code.strip()) else None,
+            "kind": kind, "series": series_value or "", "series_why": series_line,
+            "entered": entered}
+
+
+# --- «Это он»: карточка ПОСТАВЩИКА под уже существующим внешним кодом --------------------
+# Это другая операция, чем «➕ В МС». Там заводится НОВЫЙ внешний код (нового товара у нас
+# нет вообще). Здесь внешний код у нас уже есть, нет только карточки ЭТОГО поставщика с его
+# артикулом — без неё его прайс не даст остатка: оприходование ищет строго по артикулу.
+# Поля берём у родни того же внешнего кода (`prices/ms_import.build`), а не у человека.
+TWIN_FIELDS = ("Код", "Внешний код", "Наименование", "Артикул", "Группы", "Поставщик",
+               "Вес", "Закупочная цена", "Штрихкод Code128", "Доп. поле: Название WB",
+               "Доп. поле: Связь")
+
+
+# Поля, которые человек правит прямо в диалоге. Остальные наследуются у родни и правке не
+# подлежат: они описывают ТОВАР, а не поставку, и должны совпадать у всех карточек кода.
+TWIN_EDIT = ("Вес", "Штрихкод Code128")
+
+
+class TwinCreate(BaseModel):
+    id: int
+    dry: bool = True
+    weight: str = ""
+    code128: str = ""
+
+
+def _twin_draft(novelty_id):
+    """(строка новинки, черновик карточки, замечания, ошибка)."""
+    from prices import ms_import
+    found = db.query("""SELECT id, supplier_key, article, name, decision, ms_code
+                          FROM prc_novelty WHERE id = %s""", (novelty_id,))
+    if not found:
+        return None, None, [], "строки не найдено"
+    row = found[0]
+    if not row["ms_code"]:
+        return row, None, [], "у строки нет кода нашего товара — сначала «Это он»"
+    # Решение может быть уже закрыто (`exists`) — тогда карточку заводить не из чего.
+    # Сборка черновика падает на незнакомом бренде (нет правила аббревиатуры кода) и на кривом
+    # прайсе. Голое исключение здесь = HTTP 500, `fetch().json()` в браузере ломается ДО
+    # открытия модалки, а решение «сопоставлено» уже записано — человек видит только то, что
+    # строка молча уехала в «Сопоставлено». Поэтому причину возвращаем текстом.
+    try:
+        records, notes = ms_import.build(row["supplier_key"], (row["decision"],), ids=[novelty_id])
+    except (KeyError, ValueError) as exc:
+        return row, None, [], f"черновик карточки не собрался: {exc}"
+    if not records:
+        why = "; ".join(n[2][0] for n in notes) if notes else \
+            f"строка со статусом «{row['decision']}» карточку не заводит"
+        return row, None, [], why
+    flags = [f for n in notes if n[0] == novelty_id for f in n[2]]
+    return row, records[0], flags, None
+
+
+@app.get("/api/novelties/twin-form")
+def novelties_twin_form(id: int):
+    """Черновик карточки поставщика: что именно уйдёт в МС по кнопке «Это он»."""
+    row, rec, flags, error = _twin_draft(id)
+    if error:
+        return {"ok": False, "error": error}
+    return {"ok": True, "supplier": row["supplier_key"], "article": row["article"],
+            "name": row["name"], "warn": flags, "editable": list(TWIN_EDIT),
+            "fields": [[f, str(rec.get(f) or "")] for f in TWIN_FIELDS]}
+
+
+@app.post("/api/novelties/twin-create")
+def novelties_twin_create(payload: TwinCreate):
+    """Завести карточку поставщика под сопоставленным внешним кодом. `dry` — только показать.
+
+    Смысл кнопки: код у нас есть, а карточки ИМЕННО ЭТОГО поставщика с его артикулом нет —
+    поэтому дублем считаем только карточку своей группы (`own=own_ids`), чужая создание не
+    блокирует. Повтор кнопки безопасен: своя карточка уже есть → строка уйдёт в пропуски.
+    """
+    from prices import ms_import
+    from prices.profiles import get_identity
+    from prices.supplier_group import own_ids
+    row, rec, flags, error = _twin_draft(payload.id)
+    if error:
+        return {"ok": False, "error": error}
+    # Правка человека сильнее черновика: вес у родни бывает пустым или нулевым, а карточка
+    # без веса неполная (правило Сергея 18.08.2026 — 11 обязательных полей). Штрихкод сюда же:
+    # если и у родни, и на карточке Озона его нет, вписать его больше негде.
+    weight = (payload.weight or "").strip().replace(",", ".")
+    if weight:
+        try:
+            if float(weight) <= 0:
+                raise ValueError
+        except ValueError:
+            return {"ok": False, "error": f"вес «{payload.weight}» — не положительное число"}
+        rec["Вес"] = float(weight)
+    if (payload.code128 or "").strip():
+        rec["Штрихкод Code128"] = payload.code128.strip()
+    if not payload.dry and not rec.get("Вес"):
+        return {"ok": False, "error": "вес пустой — карточка уйдёт неполной; впишите вес "
+                                      "в поле «Вес» (реальный, с сайта производителя)"}
+    profile = get_identity(row["supplier_key"])
+    lines = []
+    try:
+        created, skipped = ms_import.create_in_ms([rec], profile.supplier_ids[0],
+                                                  dry=payload.dry, log=lines.append,
+                                                  own=own_ids(profile))
+    except Exception as exc:                       # МС ответил ошибкой — показать её человеку
+        return {"ok": False, "error": f"МойСклад: {type(exc).__name__}: {exc}", "log": lines}
+    if payload.dry:
+        return {"ok": True, "dry": True, "log": lines, "warn": flags,
+                "entered": enter_add.preview(profile.key, rec["Артикул"] or row["article"])}
+    made = ms_import.mark_created([rec], created)
+    ms_code = rec["Код"] if created else None
+    # Карточку могли завести раньше — руками в МС или прошлым нажатием этой же кнопки. Тогда
+    # `create_in_ms` её пропускает, `created` пуст, закрывать строку было нечем, и она висела
+    # в «Сопоставлено» работой, которой нет (случай Сергея 28.08.2026: SF-E16 скопировали в МС
+    # руками, кнопка ответила «карточка не создана» и строка осталась). Закрываем тем же
+    # `mark_existing`, что и пакетный прогон `ms_import`: только карточкой ИЗ ГРУППЫ ЮРЛИЦ
+    # этого поставщика — чужая карточка с тем же артикулом остатка нам не даст.
+    was = 0
+    if not created and any("уже есть" in why for _a, why in skipped):
+        was, _foreign = ms_import.mark_existing([rec], profile, log=lines.append)
+        if was:
+            ms_code = db.query("SELECT ms_code c FROM prc_novelty WHERE id = %s",
+                               (payload.id,))[0]["c"]
+            lines.append(f"  карточка уже была — строку закрыл на {ms_code}")
+    entered = _enter_after_create(created, lines.append)
+    return {"ok": True, "dry": False, "log": lines, "created": len(created),
+            "marked": made + was, "existed": was,
+            "skipped": [f"{a}: {why}" for a, why in skipped], "warn": flags,
+            "ms_code": ms_code, "entered": entered}
+
+
+@app.get("/api/warehouse")
+def warehouse_api():
+    """Наш сток: наши склады + Озон ФБО (supplier_stock) + ВБ ФБО (wb_stocks), с дневной дельтой.
+    Плюс дефицит наших складов (что кончается) и динамика штук по дням."""
+    cap = db.query("SELECT max(captured_at)::text c FROM supplier_stock")[0]["c"]
+    if not cap:
+        return {"captured": None}
+    prev = db.query("SELECT max(captured_at)::text c FROM supplier_stock WHERE captured_at<%s", (cap,))[0]["c"]
+    our = _wh_ss_source(OUR_STORES, cap, prev)
+    ozon_fbo = _wh_ozon_fbo()
+    # ВБ ФБО — из wb_stocks (своя дата снимка), по аккаунтам + итог, дельта к предыдущему дню
+    wcap = db.query("SELECT max(captured_at)::text c FROM wb_stocks")[0]["c"]
+    wb_fbo = {"accounts": [], "units": 0, "d_units": None, "captured": wcap}
+    if wcap:
+        wprev = db.query("SELECT max(captured_at)::text c FROM wb_stocks WHERE captured_at<%s", (wcap,))[0]["c"]
+        accs = db.query("""SELECT account, sum(quantity_full)::float units,
+            count(DISTINCT nm_id) FILTER (WHERE quantity > 0) n
+            FROM wb_stocks WHERE captured_at=%s GROUP BY account ORDER BY account""", (wcap,))
+        wb_fbo["accounts"] = accs
+        wb_fbo["units"] = round(sum(a["units"] or 0 for a in accs), 1)
+        if wprev:
+            pv = db.query("SELECT sum(quantity_full)::float u FROM wb_stocks WHERE captured_at=%s", (wprev,))[0]["u"]
+            wb_fbo["d_units"] = round(wb_fbo["units"] - (pv or 0), 1)
+    # дефицит наших складов (что кончается): наш сток / скорость продаж
+    deficit = db.query("""SELECT name, supplier, sum(stock)::float stock, max(in_transit)::float in_transit,
+        max(sold_30d)::float sold_30d,
+        round((sum(stock)/nullif(max(sold_30d)/30.0,0))::numeric,1)::float days_left
+        FROM supplier_stock WHERE captured_at=%s AND store=ANY(%s) AND stock>0 AND sold_30d>0
+        GROUP BY ms_id, name, supplier
+        HAVING sum(stock)/nullif(max(sold_30d)/30.0,0) <= 25
+        ORDER BY days_left ASC LIMIT 80""", (cap, OUR_STORES))
+    return {"captured": cap, "prev": prev, "our": our, "ozon_fbo": ozon_fbo, "wb_fbo": wb_fbo,
+            "deficit": deficit, "history_our": _wh_history(OUR_STORES),
+            "history_ozon": _wh_history_ozon()}
+
+
+# --- Яндекс.Маркет (raw_yandex_order; выручка = payment+subsidy без отменённых) ---
+YA_PAY = "(payload->'prices'->'payment'->>'value')::numeric"
+YA_SUB = "coalesce((payload->'prices'->'subsidy'->>'value')::numeric,0)"
+YA_REV = f"({YA_PAY} + {YA_SUB})"
+YA_OK = "payload->>'status'<>'CANCELLED'"
+
+
+def _ya_dow(ds):
+    d = _dt.date.fromisoformat(ds[:10])
+    return (d - _dt.timedelta(days=d.weekday()))
+
+
+def _ya_business(period: str = ""):
+    """Маркет для агрегата главной — ЦИФРЫ ВКЛАДКИ «Отчёты МП · Яндекс» за выбранный месяц
+    (`reports.mp_numbers`), плюс справочные счётчики из витрины `yandex_finance_monthly`.
+
+    Раньше здесь была своя формула: выручка = payment + subsidy, а вычитались только денежные
+    части услуг (`fee+delivery+transfer+promotion+agency+other_fee+subscription_cost`), без
+    зачёта баллами, без бустов/полок/отзывов и без возвратов. Она завышала чистую по Маркету
+    в 4–10 раз (июль-2026: 1 141 347 против 115 955 в отчёте) и текла в ИТОГ по бизнесу.
+    Оборот теперь — «наша цена» = выручка + зачёт, как на вкладке и как у ВБ и Ozon."""
+    mp = _mpn.month("yandex", period)
+    if not mp:
+        return None
+    q = db.query("""SELECT subsidy::float s, orders, returns_orders, returns_sum::float rs,
+            cogs_cov_pct::float cov
+        FROM yandex_finance_monthly WHERE account='ya_acc1' AND month=%s""", (period or None,))
+    r = q[0] if q else {}
+    return {"revenue": round(mp["oborot"]), "orders": mp["orders"] or r.get("orders"),
+            "cogs": round(mp["cogs"]), "mp_cost": round(mp["itog"]), "net": round(mp["net"]),
+            "payout": round(mp["payout"]), "subsidy": round(r.get("s") or 0),
+            "returns": mp["returns_cnt"] or r.get("returns_orders"),
+            "returns_sum": round(r.get("rs") or 0), "cogs_cov_pct": r.get("cov"),
+            "margin_pct": mp["margin_pct"], "gross": True}
+
+
+@app.get("/download/ms-zero-cogs.csv")
+def download_zero_cogs():
+    """Список отгрузок МС с нулевой себестоимостью — для ручной правки в МойСклад."""
+    return FileResponse(BASE_DIR / "docs" / "ms_zero_cogs_demands.csv",
+                        media_type="text/csv", filename="ms_zero_cogs_demands.csv")
+
+
+@app.get("/download/wb-price-econ.csv")
+def download_price_econ():
+    """Рост цен май→сейчас по SKU + юнит-экономика (чистая/шт и чистая/нед до и после)."""
+    return FileResponse(BASE_DIR / "docs" / "wb_price_change_unit_econ.csv",
+                        media_type="text/csv", filename="wb_price_change_unit_econ.csv")
+
+
+@app.get("/market", response_class=HTMLResponse)
+def market_page():
+    return (STATIC / "yandex.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/yandex/summary")
+def yandex_summary():
+    """Сводка Маркета за собранное окно (~30 дней). Выручка = payment+subsidy без отменённых."""
+    if not db.query("SELECT 1 FROM raw_yandex_order WHERE account='ya_acc1' LIMIT 1"):
+        return {"ok": False, "revenue": 0, "orders": 0}
+    t = db.query(f"""SELECT
+        sum(case when {YA_OK} then {YA_REV} else 0 end)::float revenue,
+        sum(case when {YA_OK} then {YA_PAY} else 0 end)::float payment,
+        sum(case when {YA_OK} then {YA_SUB} else 0 end)::float subsidy,
+        count(*) filter(where {YA_OK}) orders,
+        count(*) filter(where payload->>'status'='CANCELLED') cancelled,
+        sum(case when payload->>'status'='CANCELLED' then {YA_REV} else 0 end)::float cancelled_sum,
+        min((payload->>'creationDate')) mn, max((payload->>'creationDate')) mx
+        FROM raw_yandex_order WHERE account='ya_acc1'""")[0]
+    by_store = db.query(f"""SELECT payload->>'campaignId' store,
+        count(*) filter(where {YA_OK}) orders, sum(case when {YA_OK} then {YA_REV} else 0 end)::float revenue
+        FROM raw_yandex_order WHERE account='ya_acc1' GROUP BY 1 ORDER BY 3 DESC NULLS LAST""")
+    by_status = db.query(f"""SELECT payload->>'status' status, count(*) n,
+        sum({YA_REV})::float revenue FROM raw_yandex_order WHERE account='ya_acc1'
+        GROUP BY 1 ORDER BY 2 DESC""")
+    # COGS: offerId→products.external_code→cost_seb. Покрытие = выручка позиций с известной себест.
+    c = db.query(f"""SELECT
+        sum((it->'count')::numeric * coalesce(yc.cost_per_unit,0))::float cogs,
+        sum(case when yc.cost_per_unit>0 then (it->'prices'->'payment'->>'value')::numeric
+              + coalesce((it->'prices'->'subsidy'->>'value')::numeric,0) else 0 end)::float rev_matched
+        FROM raw_yandex_order o, jsonb_array_elements(o.payload->'items') it
+        LEFT JOIN yandex_cost yc ON yc.offer = it->>'offerId'
+        WHERE o.account='ya_acc1' AND o.payload->>'status'<>'CANCELLED'""")[0]
+    # Итоги — из yandex_finance_monthly (вся история, единое окно: выручка/расходы/COGS за одни месяцы)
+    f = db.query("""SELECT sum(revenue+subsidy)::float rev, sum(revenue)::float pay,
+        sum(subsidy)::float sub, sum(orders) orders, sum(cogs)::float cogs,
+        sum(fee+delivery+transfer+promotion+agency+other_fee+subscription_cost)::float mp,
+        round(avg(cogs_cov_pct)) cov, min(month)::text mn, max(month)::text mx
+        FROM yandex_finance_monthly WHERE account='ya_acc1'""")[0]
+    rev = f["rev"] or (t["revenue"] or 0)
+    cogs = round(f["cogs"] or 0)
+    mp_cost = round(f["mp"] or 0)                      # комиссия+логистика+эквайринг+буст+прочее
+    gross = round(rev - cogs)                          # валовая = выручка − COGS
+    net = round(rev - cogs - mp_cost)                  # НАСТОЯЩАЯ чистая
+    return {"ok": True, "revenue": round(rev), "payment": round(f["pay"] or 0),
+            "subsidy": round(f["sub"] or 0), "orders": f["orders"] or t["orders"],
+            "cancelled": t["cancelled"], "cancelled_sum": round(t["cancelled_sum"] or 0),
+            "cogs": cogs, "cogs_coverage": f["cov"], "gross": gross,
+            "gross_margin_pct": round(gross / rev * 100, 1) if rev else None,
+            "mp_cost": mp_cost, "net": net,
+            "net_margin_pct": round(net / rev * 100, 1) if rev else None,
+            "since": (f["mn"] or "")[:10], "until": (f["mx"] or "")[:10],
+            "stores": by_store, "by_status": by_status}
+
+
+@app.get("/api/yandex/weekly")
+def yandex_weekly():
+    """Маркет по неделям (Пн-старт): заказы + выручка (payment+subsidy, без отмен)."""
+    rows = db.query(f"""SELECT (payload->>'creationDate') cd, payload->>'status' st, {YA_REV} rev
+        FROM raw_yandex_order WHERE account='ya_acc1'""")
+    agg = {}
+    for r in rows:
+        if not r["cd"] or r["st"] == "CANCELLED":
+            continue
+        ws = _ya_dow(r["cd"])
+        a = agg.setdefault(ws, {"orders": 0, "revenue": 0.0})
+        a["orders"] += 1
+        a["revenue"] += float(r["rev"] or 0)
+    out = [{"label": f"{w.strftime('%d.%m')}–{(w + _dt.timedelta(days=6)).strftime('%d.%m')}",
+            "orders": a["orders"], "revenue": round(a["revenue"])}
+           for w, a in sorted(agg.items())]
+    return {"rows": out}
+
+
+@app.get("/api/yandex/monthly")
+def yandex_monthly():
+    """Маркет помесячно (yandex_finance_monthly из stats/orders): выручка (возвраты вычтены),
+    субсидия, расходы МП по типам, возвраты, COGS (импутация) и чистая."""
+    rows = db.query("""SELECT to_char(month,'YYYY-MM') ym, revenue::float rev, subsidy::float subsidy,
+        orders, returns_orders, returns_sum::float rs,
+        coalesce(unredeemed_orders,0) unr, coalesce(unredeemed_cost,0)::float unr_cost,
+        fee::float fee, delivery::float delivery, transfer::float transfer,
+        promotion::float promotion, (agency+other_fee+subscription_cost)::float other,
+        cogs::float cogs, cogs_cov_pct::float cov
+        FROM yandex_finance_monthly WHERE account='ya_acc1' ORDER BY month""")
+    out = []
+    for r in rows:
+        rev = round((r["rev"] or 0) + (r["subsidy"] or 0))
+        mp = round((r["fee"] or 0) + (r["delivery"] or 0) + (r["transfer"] or 0)
+                   + (r["promotion"] or 0) + (r["other"] or 0))
+        net = rev - round(r["cogs"] or 0) - mp
+        mp = _mp_five("yandex", "", r["ym"] + "-01")
+        out.append({"mp": mp, "month": r["ym"], "revenue": round(r["rev"] or 0),
+                    "subsidy": round(r["subsidy"] or 0), "orders": r["orders"],
+                    "returns_orders": r["returns_orders"], "returns_sum": round(r["rs"] or 0),
+                    "unredeemed_orders": r["unr"], "unredeemed_cost": round(r["unr_cost"]),
+                    "fee": round(r["fee"] or 0), "delivery": round(r["delivery"] or 0),
+                    "transfer": round(r["transfer"] or 0), "promotion": round(r["promotion"] or 0),
+                    "other": round(r["other"] or 0), "mp_cost": mp,
+                    "cogs": round(r["cogs"] or 0), "cogs_cov_pct": r["cov"],
+                    "net": net, "margin_pct": round(net / rev * 100, 1) if rev else None})
+    return {"rows": out}
+
+
+@app.get("/api/yandex/sku")
+def yandex_sku(limit: int = 60):
+    """Топ товаров Маркета по выручке + COGS/маржа (offerId→products.external_code→cost_seb).
+    Маржа валовая: (выручка − COGS)/выручка; комиссия/логистика Маркета — следующим шагом."""
+    rows = db.query(f"""
+        SELECT it->>'offerId' offer, max(it->>'offerName') name, max(yc.cost_per_unit)::float cost,
+            sum((it->'count')::numeric)::float qty,
+            sum(((it->'prices'->'payment'->>'value')::numeric
+               + coalesce((it->'prices'->'subsidy'->>'value')::numeric,0)))::float revenue
+        FROM raw_yandex_order, jsonb_array_elements(payload->'items') it
+        LEFT JOIN yandex_cost yc ON yc.offer = it->>'offerId'
+        WHERE account='ya_acc1' AND {YA_OK}
+        GROUP BY 1 ORDER BY 5 DESC NULLS LAST LIMIT %s""", (limit,))
+    for r in rows:
+        if r["cost"] and r["qty"]:
+            r["cogs"] = round(r["cost"] * r["qty"])
+            r["gross"] = round((r["revenue"] or 0) - r["cogs"])
+            r["margin_pct"] = round(r["gross"] / r["revenue"] * 100, 1) if r["revenue"] else None
+        else:
+            r["cogs"] = r["gross"] = r["margin_pct"] = None
+    return {"rows": rows}
+
+
+# --- Продажи с собственных сайтов (МойСклад, поле «Проект») ---
+MS_API = "https://api.moysklad.ru/api/remap/1.2"
+SITE_PROJECTS = {"Digitalsquare": "919ca5eb-61e5-11eb-0a80-07d50002b5bb",
+                 "Kartridge.org": "04d8b84e-8785-11e6-7a69-971100007175",
+                 "Алиэкспресс": "c0268424-713e-11ed-0a80-07080005d83b"}
+_MS_STATE_TYPES = {}
+
+
+def _ms_get(path, **params):
+    tok = os.getenv("MOYSKLAD_TOKEN")
+    r = requests.get(f"{MS_API}/{path}", headers={"Authorization": f"Bearer {tok}",
+                     "Accept-Encoding": "gzip"}, params=params, timeout=60)
+    r.raise_for_status()
+    return r.json()
+
+
+def _ms_state_types():
+    global _MS_STATE_TYPES
+    if not _MS_STATE_TYPES:
+        meta = _ms_get("entity/customerorder/metadata")
+        _MS_STATE_TYPES = {s["name"]: s.get("stateType") for s in meta.get("states", [])}
+    return _MS_STATE_TYPES
+
+
+def _classify_state(name, stype):
+    n = name or ""
+    if n.startswith("Отмен") or stype == "Unsuccessful":
+        return "cancelled"
+    if n in ("Доставлен", "Оплачен") or stype == "Successful":
+        return "fulfilled"
+    return "pending"
+
+
+@app.get("/api/sites")
+def sites(period: str = ""):
+    """Продажи с сайтов из МС по полю «Проект» (Digitalsquare/Kartridge.org/Алиэкспресс):
+    выполнено (доход), отменено (+причина), в работе. По статусам заказов МС."""
+    period = period or db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
+    df, dt = _oz_month(period)
+    stypes = _ms_state_types()
+    projects = []
+    for name, pid in SITE_PROJECTS.items():
+        href = f"{MS_API}/entity/project/{pid}"
+        by, off = {}, 0
+        while True:
+            j = _ms_get("entity/customerorder",
+                        filter=f"project={href};moment>={df} 00:00:00;moment<={dt} 23:59:59",
+                        expand="state", limit=100, offset=off)
+            rows = j.get("rows", [])
+            for o in rows:
+                st = (o.get("state") or {}).get("name", "(без статуса)")
+                rec = by.setdefault(st, [0, 0.0])
+                rec[0] += 1
+                rec[1] += (o.get("sum", 0) or 0) / 100
+            off += len(rows)
+            if off >= j.get("meta", {}).get("size", 0) or not rows:
+                break
+        cats = {"fulfilled": [0, 0.0], "cancelled": [0, 0.0], "pending": [0, 0.0]}
+        reasons = []
+        for st, (n, s) in by.items():
+            c = _classify_state(st, stypes.get(st))
+            cats[c][0] += n
+            cats[c][1] += s
+            if c == "cancelled":
+                reasons.append({"reason": st, "count": n, "sum": round(s, 2)})
+        reasons.sort(key=lambda x: -x["sum"])
+        projects.append({
+            "project": name, "orders": sum(v[0] for v in by.values()),
+            "fulfilled": round(cats["fulfilled"][1], 2), "fulfilled_n": cats["fulfilled"][0],
+            "cancelled": round(cats["cancelled"][1], 2), "cancelled_n": cats["cancelled"][0],
+            "pending": round(cats["pending"][1], 2), "pending_n": cats["pending"][0],
+            "reasons": reasons})
+    return {"period": period, "projects": projects,
+            "income": round(sum(p["fulfilled"] for p in projects), 2),
+            "cancelled": round(sum(p["cancelled"] for p in projects), 2),
+            "cancelled_n": sum(p["cancelled_n"] for p in projects),
+            "pending": round(sum(p["pending"] for p in projects), 2)}
+
+
+@app.get("/api/ozon/summary")
+def ozon_summary(account: str = "", period: str = ""):
+    """Большие цифры Ozon + разбивка по аккаунтам + дельта к прошлому месяцу."""
+    period = period or _oz_last_period()
+    if not period:
+        return {"period": None, "revenue": 0, "net": 0, "accounts": []}
+    cur = _oz_summary(account, period)
+    cur["period"] = period
+    accts = [r["account"] for r in db.query("SELECT DISTINCT account FROM raw_ozon_transaction ORDER BY 1")]
+    cur["accounts"] = []
+    for a in accts:
+        s = _oz_summary(a, period)
+        cur["accounts"].append({"account": a, "name": OZ_NAMES.get(a, a),
+            "revenue": s["revenue"], "net": s["net"], "margin_pct": s["margin_pct"]})
+    prev_p = _prev_period("ozon", account, period)
+    if prev_p:
+        pr = _oz_summary(account, prev_p)
+        cur["prev_period"] = prev_p
+        cur["delta"] = {}
+        for k in ("revenue", "net", "cogs", "margin_pct"):
+            c, o = cur.get(k), pr.get(k)
+            cur["delta"][k] = None if c is None or o is None else {
+                "abs": round(c - o, 2), "pct": (None if not o else round((c - o) / abs(o) * 100, 1))}
+    else:
+        cur["prev_period"] = None; cur["delta"] = None
+    return cur
+
+
+@app.get("/api/ozon/expenses")
+def ozon_expenses_api(account: str = "", period: str = ""):
+    """Статьи расходов (₽ + % выручки + управляемость) + доли FBO/FBS."""
+    period = period or _oz_last_period()
+    if not period:
+        return {"period": None, "items": [], "schemas": []}
+    s = _oz_summary(account, period)
+    rev = s["revenue"] or 1
+    items = []
+    for c in CATEGORIES:
+        if c == "revenue":
+            continue
+        v = s["cats"][c]
+        if abs(v) < 1:
+            continue
+        items.append({"key": c, "name": OZ_RU[c], "amount": round(v, 2),
+                      "pct": round(abs(v) / rev * 100, 1), "control": OZ_CTRL.get(c, "yellow")})
+    items.sort(key=lambda x: x["amount"])   # крупнейшие расходы (отрицательные) — вверх
+    total_sch = sum(s["schema_rev"].values()) or 1
+    schemas = [{"schema": k, "revenue": v, "pct": round(v / total_sch * 100, 1)}
+               for k, v in sorted(s["schema_rev"].items(), key=lambda x: -x[1]) if abs(v) >= 1]
+    # Сплит строки «Продажи» из отчёта о реализации Ozon (/v2/finance/realization) — точно как в ЛК:
+    # Выручка + Баллы за скидки + Программы партнёров. None, если отчёт за месяц ещё не собран.
+    split = None
+    if re.match(r"^\d{4}-\d{2}", period or ""):
+        split = _oz_realization_split(account or None, int(period[:4]), int(period[5:7]))
+    return {"period": period, "revenue": s["revenue"], "overhead": s["overhead"],
+            "items": items, "schemas": schemas, "sales_split": split}
+
+
+@app.get("/api/ozon/mp-current")
+def ozon_mp_current():
+    """Живой ТЕКУЩИЙ месяц (вне статического снапшота) + прогноз на конец месяца — для
+    вкладки «Отчёты МП». Готовые к вставке ячейки {jul,fc}: {txt, cls} по строкам Баланса
+    + операционным показателям. См. reports/ozon_mp_report."""
+    return _ozmp.current_report()
+
+
+@app.get("/api/wb/mp-current")
+def wb_mp_current():
+    """Живой ТЕКУЩИЙ месяц WB (вне статического снапшота) + прогноз на конец месяца — для
+    вкладки «Отчёты МП · WB». Готовые к вставке ячейки {cur,fc}: {txt, cls} по строкам
+    Финансового отчёта ВБ + операционным показателям. См. reports/wb_mp_report."""
+    return _wbmp.current_report()
+
+
+@app.get("/api/mp-cogs/detail", response_class=HTMLResponse)
+def mp_cogs_detail(platform: str, account: str, ym: str):
+    """Провал в строку «Себестоимость» отчётов МП: HTML-фрагмент со списком отгрузок, которые
+    ЭТОТ отчёт оплатил (что продано/сторнировано, себест, способ, статус). См.
+    reports/mp_cogs_drill."""
+    from reports import mp_cogs_drill as _drill
+    return _drill.fragment_html(platform, account, ym)
+
+
+@app.get("/api/yandex/mp-current")
+def yandex_mp_current():
+    """Живой ТЕКУЩИЙ месяц Яндекс.Маркета (вне статического снапшота) + прогноз на конец месяца —
+    для вкладки «Отчёты МП · Яндекс». Готовые ячейки {cur,fc}: {txt, cls} по строкам витрины ЯМ.
+    Живой месяц структурно занижает маржу (order-based COGS vs лаг доставки) — прогноз проецирует
+    полный месяц по юнит-экономике закрытых месяцев. См. reports/yandex_mp_report."""
+    return _yamp.current_report()
+
+
+OZ_SKU_SORT = {"revenue_buyer": "m.revenue_buyer", "net_profit": "m.net_profit",
+               "margin_pct": "m.margin_pct", "cogs": "m.cogs"}
+
+
+def _ozon_pricing(account, df, dt):
+    """{sku: {sale_price, old_price, discount_pct}} из постингов (financial_data).
+    products[] и financial_data.products[] совмещаем по позиции (ORDINALITY)."""
+    accts = [account] if account else ["oz_acc1", "oz_acc2"]
+    rows = db.query("""
+        SELECT pr.prod->>'sku' sku,
+            sum(coalesce((f.fd->>'quantity')::numeric,(pr.prod->>'quantity')::numeric,0)) qty,
+            sum(coalesce((f.fd->>'price')::numeric,(pr.prod->>'price')::numeric,0)
+                *coalesce((f.fd->>'quantity')::numeric,(pr.prod->>'quantity')::numeric,1)) rev,
+            sum(coalesce((f.fd->>'old_price')::numeric,(f.fd->>'price')::numeric,(pr.prod->>'price')::numeric,0)
+                *coalesce((f.fd->>'quantity')::numeric,(pr.prod->>'quantity')::numeric,1)) oldrev
+        FROM raw_ozon_posting po
+          JOIN LATERAL jsonb_array_elements(po.payload->'products') WITH ORDINALITY AS pr(prod, idx) ON true
+          LEFT JOIN LATERAL jsonb_array_elements(po.payload->'financial_data'->'products')
+              WITH ORDINALITY AS f(fd, fidx) ON f.fidx = pr.idx
+        WHERE po.account = ANY(%s) AND po.in_process_at::date BETWEEN %s AND %s
+        GROUP BY 1""", (accts, df, dt))
+    out = {}
+    for r in rows:
+        q = float(r["qty"] or 0)
+        if q <= 0 or not r["sku"]:
+            continue
+        sp, op = float(r["rev"] or 0) / q, float(r["oldrev"] or 0) / q
+        out[r["sku"]] = {"sale_price": round(sp, 2), "old_price": round(op, 2),
+                         "discount_pct": round((op - sp) / op * 100, 1) if op else 0}
+    return out
+
+
+@app.get("/api/ozon/promos")
+def ozon_promos(account: str = "", period: str = ""):
+    """Акции Ozon из постингов: по каждой акции — units/выручка/скидка; и SKU, которые плохо
+    отрабатывают (большая скидка при низкой/отрицательной марже)."""
+    period = period or _oz_last_period()
+    if not period:
+        return {"actions": [], "bad": []}
+    df, dt = _oz_month(period)
+    accts = [account] if account else ["oz_acc1", "oz_acc2"]
+    # по акциям (товар может быть в нескольких акциях — считаем под каждой)
+    arows = db.query("""
+        SELECT a.act act, sum(coalesce((f.fd->>'quantity')::numeric,1)) units,
+            sum((f.fd->>'price')::numeric*coalesce((f.fd->>'quantity')::numeric,1)) rev,
+            sum(((f.fd->>'old_price')::numeric-(f.fd->>'price')::numeric)
+                *coalesce((f.fd->>'quantity')::numeric,1)) disc,
+            count(DISTINCT f.fd->>'product_id') skus
+        FROM raw_ozon_posting po
+          JOIN LATERAL jsonb_array_elements(po.payload->'financial_data'->'products') AS f(fd) ON true
+          JOIN LATERAL jsonb_array_elements_text(f.fd->'actions') AS a(act) ON true
+        WHERE po.account=ANY(%s) AND po.in_process_at::date BETWEEN %s AND %s
+        GROUP BY a.act ORDER BY rev DESC""", (accts, df, dt))
+    actions = []
+    for r in arows:
+        rev, disc = float(r["rev"] or 0), float(r["disc"] or 0)
+        actions.append({"action": r["act"], "units": round(float(r["units"] or 0)),
+                        "revenue": round(rev, 2), "discount": round(disc, 2), "skus": r["skus"],
+                        "discount_pct": round(disc / (rev + disc) * 100, 1) if (rev + disc) else 0})
+    # SKU, плохо отрабатывающие в акциях: скидка из постингов + маржа из витрины
+    pricing = _ozon_pricing(account, df, dt)
+    marg = {r["article"]: r for r in db.query(
+        """SELECT article, margin_pct::float, net_profit::float, revenue_buyer::float
+           FROM margin_by_sku WHERE platform='ozon' AND period_from=%s
+             AND account=ANY(%s) AND revenue_buyer>0""", (period, accts))}
+    names = _l3_names("ozon", account, list(pricing.keys())) if pricing else {}
+    bad = []
+    for sku, pr in pricing.items():
+        if pr["discount_pct"] < 10:
+            continue
+        mr = marg.get(sku) or {}
+        bad.append({"sku": sku, "title": names.get(sku), "discount_pct": pr["discount_pct"],
+                    "sale_price": pr["sale_price"], "old_price": pr["old_price"],
+                    "margin_pct": mr.get("margin_pct"), "revenue": mr.get("revenue_buyer")})
+    bad.sort(key=lambda x: (x["margin_pct"] if x["margin_pct"] is not None else 0, -x["discount_pct"]))
+    return {"period": period, "actions": actions, "bad": bad[:30],
+            "total_discount": round(sum(a["discount"] for a in actions), 2)}
+
+
+@app.get("/api/ozon/ratings")
+def ozon_ratings(account: str = "", threshold: float = 4.3, min_reviews: int = 3, limit: int = 150):
+    """SKU Ozon с низким звёздным рейтингом (<threshold, ≥min_reviews отзывов — отсечь шум).
+    Архивные карточки (ozon_product.is_archived) исключаем; имя берём из каталога Ozon (а не из
+    отгрузок), чтобы живые карточки без продаж тоже были с названием. Сорт по числу отзывов."""
+    accts = [account] if account else ["oz_acc1", "oz_acc2"]
+    rows = db.query("""SELECT g.sku, g.avg_rating::float, g.reviews_count, g.r1, g.r2, g.r3, g.r4, g.r5,
+            p.name title
+        FROM ozon_rating g
+        LEFT JOIN ozon_product p ON p.account=g.account AND p.sku=g.sku
+        WHERE g.account=ANY(%s) AND g.avg_rating < %s AND g.reviews_count >= %s
+          AND COALESCE(p.is_archived, false) = false
+        ORDER BY g.reviews_count DESC, g.avg_rating ASC LIMIT %s""",
+        (accts, threshold, min_reviews, limit))
+    # запасной источник имени — из отгрузок, для sku вне каталога
+    miss = [r["sku"] for r in rows if not r.get("title")]
+    if miss:
+        nm = {x["a"]: x["title"] for x in db.query(
+            """SELECT DISTINCT ON (it->>'sku') it->>'sku' a, it->>'name' title
+               FROM raw_ozon_transaction, jsonb_array_elements(payload->'items') it
+               WHERE it->>'sku'=ANY(%s) ORDER BY it->>'sku'""", (miss,))}
+        for r in rows:
+            if not r.get("title"):
+                r["title"] = nm.get(r["sku"])
+    return {"rows": rows, "count": len(rows), "threshold": threshold}
+
+
+@app.get("/api/ozon/ads")
+def ozon_ads_api(account: str = "oz_acc1", period: str = ""):
+    """Реклама Ozon Performance по кампаниям: расход, выручка с рекламы, ДРР, тип оплаты.
+    ДРР кампании = расход/выручка-в-продвижении; общий ДРР = расход/вся выручка Ozon."""
+    period = period or db.query(
+        "SELECT max(period)::text p FROM ozon_ads WHERE account=%s", (account,))[0]["p"]
+    if not period:
+        return {"period": None, "campaigns": [], "totals": {}}
+    rows = db.query("""SELECT campaign_id, title, pay_model, adv_type, state,
+        spend::float, views, clicks, ad_revenue::float, sold::float
+        FROM ozon_ads WHERE account=%s AND period=%s
+        ORDER BY spend DESC NULLS LAST""", (account, period))
+    for r in rows:
+        r["drr"] = round(r["spend"] / r["ad_revenue"] * 100, 1) if r["ad_revenue"] else None
+    spend = round(sum(r["spend"] or 0 for r in rows))
+    ad_rev = round(sum(r["ad_revenue"] or 0 for r in rows))
+    by_model = {}
+    for r in rows:
+        m = by_model.setdefault(r["pay_model"], {"spend": 0.0, "ad_revenue": 0.0, "n": 0})
+        m["spend"] += r["spend"] or 0
+        m["ad_revenue"] += r["ad_revenue"] or 0
+        m["n"] += 1
+    for m in by_model.values():
+        m["spend"] = round(m["spend"])
+        m["ad_revenue"] = round(m["ad_revenue"])
+        m["drr"] = round(m["spend"] / m["ad_revenue"] * 100, 1) if m["ad_revenue"] else None
+    oz_rev = (_oz_summary(account, period) or {}).get("revenue") or 0
+    totals = {"spend": spend, "ad_revenue": ad_rev,
+              "drr": round(spend / ad_rev * 100, 1) if ad_rev else None,
+              "drr_of_total": round(spend / oz_rev * 100, 1) if oz_rev else None,
+              "ozon_revenue": round(oz_rev), "by_model": by_model, "campaigns": len(rows)}
+    return {"period": period, "campaigns": rows, "totals": totals}
+
+
+@app.get("/api/ozon/bids")
+def ozon_bids_api(account: str = "oz_acc1"):
+    """Ставки Ozon по SKU (последний снимок) + дельта к предыдущему дню. Для вкладки «Ставки»."""
+    cap = db.query("SELECT max(captured_at)::text c FROM ozon_bids WHERE account=%s", (account,))[0]["c"]
+    if not cap:
+        return {"captured": None, "rows": [], "campaigns": []}
+    prev = db.query("SELECT max(captured_at)::text c FROM ozon_bids WHERE account=%s AND captured_at<%s",
+                    (account, cap))[0]["c"]
+    rows = db.query("""SELECT campaign_id, campaign_title, adv_type, sku, title,
+        bid::float, target_cir::float FROM ozon_bids
+        WHERE account=%s AND captured_at=%s ORDER BY campaign_title, title""", (account, cap))
+    if prev:
+        pm = {(r["campaign_id"], r["sku"]): r["bid"] for r in db.query(
+            "SELECT campaign_id, sku, bid::float FROM ozon_bids WHERE account=%s AND captured_at=%s",
+            (account, prev))}
+        for r in rows:
+            pb = pm.get((r["campaign_id"], r["sku"]))
+            r["bid_delta"] = round(r["bid"] - pb, 2) if pb is not None else None
+    camps = sorted({(r["campaign_id"], r["campaign_title"]) for r in rows})
+    return {"captured": cap, "account": account, "rows": rows,
+            "campaigns": [{"id": c[0], "title": c[1]} for c in camps]}
+
+
+class BidSet(BaseModel):
+    account: str = "oz_acc1"
+    campaign_id: str
+    sku: str
+    bid: float   # рубли
+
+
+@app.post("/api/ozon/bids/set")
+def ozon_bid_set(payload: BidSet):
+    """Записать ставку SKU в живую кампанию Ozon (Performance). bid в рублях → микрорубли."""
+    from collectors.ozon_ads import _token, PERF, has_creds
+    if not has_creds(payload.account):
+        return {"ok": False, "error": "нет Performance-кредов у аккаунта"}
+    if not (0 < payload.bid <= 100000):
+        return {"ok": False, "error": "ставка вне допустимого диапазона"}
+    micro = int(round(payload.bid * 1_000_000))
+    H = {"Authorization": f"Bearer {_token(payload.account)}", "Content-Type": "application/json"}
+    r = requests.post(f"{PERF}/api/client/campaign/{payload.campaign_id}/products", headers=H,
+                      json={"bids": [{"sku": payload.sku, "bid": micro}]}, timeout=40)
+    if r.status_code != 200:
+        return {"ok": False, "error": f"Ozon HTTP {r.status_code}: {r.text[:160]}"}
+    db.execute("""UPDATE ozon_bids SET bid=%s WHERE account=%s AND campaign_id=%s AND sku=%s
+        AND captured_at=current_date""", (payload.bid, payload.account, payload.campaign_id, payload.sku))
+    return {"ok": True, "bid": payload.bid}
+
+
+# --- Ozon: задача «вывоз со склада FBO» — список кандидатов + отметка «заявка оформлена» ---
+# Данные из ozon_removal_candidates (сборка недельная, вторник — reports/ozon_removal_candidates).
+# Отметки галочкой пишутся в ozon_removal_submitted — тот же реестр, что у Telegram-бота
+# (/oformleno). Так дашборд и бот держат единое состояние «что уже отправлено на вывоз».
+@app.get("/api/ozon/removal")
+def ozon_removal():
+    from reports.ozon_removal_candidates import _short_name, RULE_TXT, ACC_LABEL
+    rd = db.query("SELECT max(run_date)::text d FROM ozon_removal_candidates")[0]["d"]
+    if not rd:
+        return {"run_date": None, "accounts": [], "pending": 0, "done": 0}
+    rows = db.query("""SELECT c.account, c.warehouse, c.offer_id, c.qty, c.name, c.color,
+            c.days_without_sales, c.rules, (s.offer_id IS NOT NULL) AS done
+        FROM ozon_removal_candidates c
+        LEFT JOIN ozon_removal_submitted s
+          ON s.account=c.account AND s.offer_id=c.offer_id AND s.warehouse=c.warehouse
+        WHERE c.run_date=%s AND c.rules<>'W'
+        ORDER BY c.account, c.warehouse, c.offer_id""", (rd,))
+    accs = {}
+    for r in rows:
+        a = accs.setdefault(r["account"], {"account": r["account"],
+                                           "name": ACC_LABEL.get(r["account"], r["account"]),
+                                           "warehouses": {}})
+        wh = a["warehouses"].setdefault(r["warehouse"], [])
+        wh.append({"offer_id": r["offer_id"], "qty": r["qty"], "name": _short_name(r["name"]),
+                   "color": r["color"], "dws": r["days_without_sales"], "done": r["done"],
+                   "reasons": [RULE_TXT.get(t, t) for t in r["rules"].split(",")]})
+    out = [{"account": a["account"], "name": a["name"],
+            "warehouses": [{"warehouse": w, "items": items} for w, items in a["warehouses"].items()]}
+           for a in accs.values()]
+    pending = sum(1 for r in rows if not r["done"])
+    done = sum(1 for r in rows if r["done"])
+    return {"run_date": rd, "accounts": out, "pending": pending, "done": done,
+            "qty_pending": sum(r["qty"] for r in rows if not r["done"])}
+
+
+class RemovalMark(BaseModel):
+    account: str
+    offer_id: str
+    warehouse: str
+    done: bool
+
+
+@app.post("/api/ozon/removal/mark")
+def ozon_removal_mark(payload: RemovalMark):
+    """Отметить/снять «заявка на вывоз оформлена» по позиции (account, offer_id, warehouse)."""
+    if payload.done:
+        r = db.query("""SELECT sku, qty, name FROM ozon_removal_candidates
+            WHERE account=%s AND offer_id=%s AND warehouse=%s
+            ORDER BY run_date DESC LIMIT 1""", (payload.account, payload.offer_id, payload.warehouse))
+        if not r:
+            return {"ok": False, "error": "позиция не найдена в текущем списке"}
+        import datetime as _dt
+        db.upsert("ozon_removal_submitted", [{
+            "account": payload.account, "offer_id": payload.offer_id, "warehouse": payload.warehouse,
+            "sku": r[0]["sku"], "qty": r[0]["qty"], "name": r[0]["name"],
+            "submitted_at": _dt.date.today()}],
+            conflict_cols=["account", "offer_id", "warehouse"],
+            update_cols=["sku", "qty", "name", "submitted_at"])
+    else:
+        db.execute("DELETE FROM ozon_removal_submitted WHERE account=%s AND offer_id=%s AND warehouse=%s",
+                   (payload.account, payload.offer_id, payload.warehouse))
+    return {"ok": True, "done": payload.done}
+
+
+WB_ADV_TYPE = {4: "Каталог", 5: "Карточка", 6: "Поиск", 7: "Главная", 8: "Авто", 9: "Аукцион"}
+
+
+@app.get("/api/wb/ads")
+def wb_ads_api(account: str = "wb_acc1", period: str = ""):
+    """Реклама WB «Продвижение» по кампаниям: расход, выручка, ДРР, тип."""
+    period = period or db.query(
+        "SELECT max(period)::text p FROM wb_ads WHERE account=%s", (account,))[0]["p"]
+    if not period:
+        return {"period": None, "campaigns": [], "totals": {}}
+    rows = db.query("""SELECT advert_id, name, adv_type, status, spend::float, views, clicks,
+        orders, revenue::float, ctr::float, cpc::float FROM wb_ads
+        WHERE account=%s AND period=%s ORDER BY spend DESC NULLS LAST""", (account, period))
+    for r in rows:
+        r["type_name"] = WB_ADV_TYPE.get(r["adv_type"], str(r["adv_type"]))
+        r["drr"] = round(r["spend"] / r["revenue"] * 100, 1) if r["revenue"] else None
+    spend = round(sum(r["spend"] or 0 for r in rows))
+    rev = round(sum(r["revenue"] or 0 for r in rows))
+    totals = {"spend": spend, "revenue": rev,
+              "orders": sum(r["orders"] or 0 for r in rows),
+              "clicks": sum(r["clicks"] or 0 for r in rows),
+              "drr": round(spend / rev * 100, 1) if rev else None,
+              "campaigns": len(rows)}
+    return {"period": period, "campaigns": rows, "totals": totals}
+
+
+@app.get("/api/wb/promo")
+def wb_promo(account: str = "", period: str = "", min_disc: float = 15, limit: int = 120):
+    """Акции/скидки/СПП WB: где большая скидка или СПП съедают маржу — кандидаты поднять цену
+    / вывести из акций. Цены/скидки/СПП из raw_wb_report (_wb_pricing), маржа из margin_by_sku."""
+    period = period or db.query(
+        "SELECT max(period_from)::text p FROM margin_by_sku WHERE platform='wb'")[0]["p"]
+    if not period:
+        return {"period": None, "rows": [], "totals": {}}
+    accts = [account] if account else ["wb_acc1", "wb_acc2"]
+    rows = db.query("""
+        SELECT m.article nm_id, c.title, c.vendor_code, m.qty::float,
+            m.revenue_buyer::float, m.net_profit::float, s.our_price::float,
+            CASE WHEN s.our_price>0 AND m.qty>0
+                 THEN round(m.net_profit/(s.our_price*m.qty)*100,1) END::float margin_own
+        FROM margin_by_sku m
+        LEFT JOIN wb_cards c ON c.account=m.account AND c.nm_id::text=m.article
+        LEFT JOIN sales s ON s.platform=m.platform AND s.account=m.account
+             AND s.period_from=m.period_from AND s.article=m.article
+        WHERE m.platform='wb' AND m.account=ANY(%s) AND m.period_from=%s
+          AND m.article<>'0' AND m.qty>0 AND m.revenue_buyer>0""", (accts, period))
+    pr = _wb_pricing(account, period)
+    for r in rows:
+        x = pr.get(r["nm_id"]) or {}
+        r["price_before"] = x.get("price_before")
+        r["price_after"] = x.get("price_after")
+        r["discount_pct"] = x.get("discount_pct", 0)
+        r["spp_pct"] = x.get("spp_pct", 0)
+    rev = sum(r["revenue_buyer"] or 0 for r in rows)
+    wavg = lambda key: (round(sum((r[key] or 0) * (r["revenue_buyer"] or 0) for r in rows) / rev, 1)
+                        if rev else 0)
+    for r in rows:
+        r["spp_rub"] = round((r["revenue_buyer"] or 0) * (r["spp_pct"] or 0) / 100)
+    spp_rub = sum(r["spp_rub"] for r in rows)
+    # на ВБ скидка продавца ≈0, теряем на СПП → проблемные = низкая маржа, сорт по ₽ СПП (где больнее).
+    # (если у позиции есть и ручная скидка ≥min_disc — тоже сюда)
+    bad = sorted([r for r in rows if r["margin_own"] is not None and r["margin_own"] < 10
+                  and ((r["spp_pct"] or 0) >= 20 or (r["discount_pct"] or 0) >= min_disc)],
+                 key=lambda r: -r["spp_rub"])
+    totals = {"revenue": round(rev), "avg_discount": wavg("discount_pct"),
+              "avg_spp": wavg("spp_pct"), "spp_rub": round(spp_rub),
+              "bad_count": len(bad), "bad_revenue": round(sum(r["revenue_buyer"] or 0 for r in bad)),
+              "skus": len(rows)}
+    return {"period": period, "rows": bad[:limit], "totals": totals}
+
+
+WB_FUNNEL_SORT = {
+    "open": "open_count", "cart": "cart_count", "orders": "order_count",
+    "order_sum": "order_sum", "buyout_pct": "buyout_pct",
+    "cart_to_order": "cart_to_order_pct", "rating": "feedback_rating",
+    "traffic_delta": "(open_count - past_open_count)"}
+
+
+def _wb_funnel_period():
+    r = db.query("SELECT max(period) p FROM wb_funnel")
+    return r[0]["p"].isoformat() if r and r[0]["p"] else None
+
+
+@app.get("/api/wb/funnel")
+def wb_funnel(account: str = "", period: str = "", sort: str = "order_sum",
+              order: str = "desc", problem: bool = False, low_rating: bool = False,
+              limit: int = 300):
+    """Воронка WB (трафик/клики/конверсии/рейтинг карточки) из wb_funnel.
+    problem    = трафик есть, а продаж нет (≥30 переходов и 0 заказов) — сливаем показы.
+    low_rating = рейтинг карточки по отзывам <4.3.
+    Возвращает строки + агрегат с динамикой трафика (open vs прошлый период)."""
+    period = period or _wb_funnel_period()
+    if not period:
+        return {"rows": [], "count": 0, "agg": {}}
+    accts = [account] if account else ["wb_acc1", "wb_acc2"]
+    conds, p = ["account=ANY(%s)", "period=%s"], [accts, period]
+    if problem:
+        conds.append("open_count >= 30 AND order_count = 0")
+    if low_rating:
+        conds.append("feedback_rating > 0 AND feedback_rating < 4.3")
+    sort_sql = WB_FUNNEL_SORT.get(sort, "order_sum")
+    order = "DESC" if order.lower() == "desc" else "ASC"
+    where = " AND ".join(conds)
+    rows = db.query(f"""
+        SELECT nm_id, account, title, vendor_code, brand, subject_name,
+            product_rating::float, feedback_rating::float,
+            open_count, cart_count, order_count, order_sum::float,
+            buyout_count, buyout_sum::float,
+            add_to_cart_pct::float, cart_to_order_pct::float, buyout_pct::float,
+            share_order_pct::float, stock_wb, stock_mp,
+            past_open_count, past_order_sum::float,
+            (open_count - past_open_count) AS open_delta
+        FROM wb_funnel WHERE {where}
+        ORDER BY {sort_sql} {order} NULLS LAST LIMIT %s""", p + [limit])
+    agg = db.query(f"""
+        SELECT count(*) n,
+            COALESCE(sum(open_count),0) open_cur, COALESCE(sum(past_open_count),0) open_past,
+            COALESCE(sum(cart_count),0) cart, COALESCE(sum(order_count),0) orders,
+            COALESCE(sum(order_sum),0)::float order_sum,
+            COALESCE(sum(buyout_count),0) buyouts,
+            COALESCE(sum(case when feedback_rating>0 and feedback_rating<4.3 then 1 else 0 end),0) low_rated
+        FROM wb_funnel WHERE account=ANY(%s) AND period=%s""", (accts, period))[0]
+    oc, op = agg["open_cur"], agg["open_past"]
+    agg["open_delta_pct"] = round((oc - op) / op * 100, 1) if op else None
+    agg["cart_conv"] = round(agg["cart"] / oc * 100, 1) if oc else 0
+    agg["order_conv"] = round(agg["orders"] / agg["cart"] * 100, 1) if agg["cart"] else 0
+    agg["buyout_conv"] = round(agg["buyouts"] / agg["orders"] * 100, 1) if agg["orders"] else 0
+    return {"rows": rows, "count": len(rows), "agg": agg, "period": period}
+
+
+@app.get("/api/ozon/sku")
+def ozon_sku(account: str = "", period: str = "", problem: bool = False,
+             sort: str = "revenue_buyer", order: str = "desc", q: str = "", limit: int = 300):
+    """SKU-уровень Ozon из margin_by_sku (без wb_cards/sales). Имя товара — из items[] сырья."""
+    period = period or _oz_last_period()
+    if not period:
+        return {"rows": [], "count": 0}
+    conds, p = ["m.platform='ozon'", "m.period_from=%s", "m.article<>'0'"], [period]
+    if account:
+        conds.append("m.account=%s"); p.append(account)
+    conds.append("m.net_profit<0 AND m.revenue_buyer>0" if problem else "m.revenue_buyer>0")
+    if q:
+        conds.append("m.article ILIKE %s"); p.append(f"%{q}%")
+    sort_sql = OZ_SKU_SORT.get(sort, "m.revenue_buyer")
+    order = "DESC" if order.lower() == "desc" else "ASC"
+    rows = db.query(f"""
+        SELECT m.article sku, m.account, m.revenue_buyer::float, m.cogs::float,
+            m.commission::float, m.logistics::float, m.net_profit::float,
+            round(m.margin_pct,1)::float margin_pct
+        FROM margin_by_sku m WHERE {' AND '.join(conds)}
+        ORDER BY {sort_sql} {order} NULLS LAST LIMIT %s""", p + [limit])
+    skus = [r["sku"] for r in rows]
+    if skus:
+        nm = {x["sku"]: x["name"] for x in db.query(
+            """SELECT DISTINCT ON (it->>'sku') it->>'sku' sku, it->>'name' name
+               FROM raw_ozon_transaction, jsonb_array_elements(payload->'items') it
+               WHERE it->>'sku' = ANY(%s) ORDER BY it->>'sku'""", (skus,))}
+        for r in rows:
+            r["title"] = nm.get(r["sku"])
+        pricing = _ozon_pricing(account, *_oz_month(period))   # цены из постингов
+        for r in rows:
+            pr = pricing.get(r["sku"])
+            if pr:
+                r["sale_price"], r["old_price"], r["discount_pct"] = (
+                    pr["sale_price"], pr["old_price"], pr["discount_pct"])
+    return {"rows": rows, "count": len(rows)}
+
+
+@app.get("/api/ozon/weekly")
+def ozon_weekly(account: str = "", period: str = ""):
+    """Недели Пн–Вс месяца: выручка/к перечислению; чистая — оценка (месячный COGS по доле выручки)."""
+    period = period or _oz_last_period()
+    if not period:
+        return {"rows": []}
+    df, dt = _oz_month(period)
+    accts = [account] if account else ["oz_acc1", "oz_acc2"]
+    ad = _weekly_adspend("ozon", accts, period)
+    by = _dd(list)
+    for op in _oz_ops(account, df, dt):
+        d = _dt.date.fromisoformat((op.get("operation_date") or "")[:10])
+        by[d - _dt.timedelta(days=d.weekday())].append(op)
+    out = []
+    for ws in sorted(by):
+        cats, _, _ = _oz_aggregate(by[ws])
+        rev = round(cats["revenue"], 2)
+        adv = round(ad.get(ws, 0))
+        out.append({"label": f"{ws.strftime('%d.%m')}–{(ws + _dt.timedelta(days=6)).strftime('%d.%m')}",
+                    "revenue": rev, "to_payout": round(sum(cats.values()), 2),
+                    "ad": adv, "ad_pct": round(adv / rev * 100, 1) if rev else 0})
+    cogs_m = _oz_cogs(account, period)
+    rev_m = sum(w["revenue"] for w in out) or 1
+    for w in out:
+        w["net"] = round(w["to_payout"] - cogs_m * (w["revenue"] / rev_m), 2)
+    return {"rows": out}
+
+
+@app.get("/api/ozon/breakdown")
+def ozon_breakdown(account: str = "", period: str = ""):
+    """ВСЕ доходы/расходы по «сырым» типам операций Ozon (operation_type_name).
+    Σ всех строк = к перечислению (то, что Ozon реально перевёл). Ничего не агрегируем/прячем."""
+    period = period or _oz_last_period()
+    if not period:
+        return {"income": [], "expense": []}
+    df, dt = _oz_month(period)
+    cond = "(payload->>'operation_date')::date BETWEEN %s AND %s"
+    p = [df, dt]
+    if account:
+        cond += " AND account=%s"; p.append(account)
+    rows = db.query(f"""
+        SELECT coalesce(payload->>'operation_type_name', payload->>'operation_type') name,
+            sum((payload->>'amount')::numeric)::float amt, count(*) n
+        FROM raw_ozon_transaction WHERE {cond} GROUP BY 1 ORDER BY 2""", p)
+    income = sorted([r for r in rows if r["amt"] and r["amt"] > 0], key=lambda x: -x["amt"])
+    expense = [r for r in rows if r["amt"] and r["amt"] < 0]   # уже по возрастанию (крупнейший расход первым)
+    return {"period": period,
+            "income": income, "expense": expense,
+            "income_total": round(sum(r["amt"] for r in income), 2),
+            "expense_total": round(sum(r["amt"] for r in expense), 2),
+            "to_payout": round(sum(r["amt"] for r in rows if r["amt"]), 2)}
+
+
+# =========================================================================
+# СИГНАЛЫ / РЕКОМЕНДАЦИИ — бизнес-уровень (главный экран). Цель-якорь:
+# 5 млн чистой после ФОТ = здоровый бизнес. Считаются из агрегатов WB+Ozon,
+# штата (opex), тренда объёма заказов, управляемых расходов и убыточных SKU.
+# =========================================================================
+HEALTHY_AFTER_OPEX = 5_000_000
+
+
+def _order_volume():
+    """{period_from 'YYYY-MM-01': единицы заказов} — WB (qty из margin) + Ozon (записи items в продажах)."""
+    out = {}
+    for r in db.query("""SELECT period_from::text p, coalesce(sum(qty),0)::float u
+                         FROM margin_by_sku WHERE platform='wb' GROUP BY 1"""):
+        out[r["p"]] = out.get(r["p"], 0) + (r["u"] or 0)
+    for r in db.query("""SELECT to_char((payload->>'operation_date')::date,'YYYY-MM-01') p,
+        coalesce(sum(jsonb_array_length(coalesce(payload->'items','[]'::jsonb)))
+                 FILTER (WHERE (payload->>'accruals_for_sale')::numeric>0),0)::float u
+        FROM raw_ozon_transaction GROUP BY 1"""):
+        if r["p"]:
+            out[r["p"]] = out.get(r["p"], 0) + (r["u"] or 0)
+    return out
+
+
+ACC_NAME = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр",
+            "oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр"}
+
+
+def _wb_acct_metrics(period):
+    out = {}
+    for a in ("wb_acc1", "wb_acc2"):
+        s = _summary_one("wb", a, period)
+        rev = s.get("own_revenue") or 0                 # ВБ — по нашей цене
+        out[a] = {"name": ACC_NAME[a], "revenue": rev, "net": s["net"], "cogs": s.get("cogs") or 0,
+                  "margin": (s["net"] / rev * 100) if rev else None,
+                  "cogs_pct": ((s.get("cogs") or 0) / rev * 100) if rev else None}
+    return out
+
+
+def _oz_acct_metrics(period):
+    out = {}
+    for a in ("oz_acc1", "oz_acc2"):
+        s = _oz_summary(a, period)
+        rev = s["revenue"]
+        out[a] = {"name": ACC_NAME[a], "revenue": rev, "net": s["net"], "cogs": s["cogs"],
+                  "margin": s["margin_pct"],
+                  "cogs_pct": (s["cogs"] / rev * 100) if rev else None}
+    return out
+
+
+def _compare_accounts(metrics, tip, label):
+    """Сравнить юрлица внутри площадки: пометить отстающее по марже и по себестоимости."""
+    mv = [x for x in metrics.values() if x["revenue"] > 0 and x["margin"] is not None]
+    if len(mv) >= 2:
+        mv.sort(key=lambda x: x["margin"])
+        lo, hi = mv[0], mv[-1]
+        if hi["margin"] - lo["margin"] >= 5:
+            tip("warn", f"{label}: у «{lo['name']}» маржа {lo['margin']:.1f}% против {hi['margin']:.1f}% "
+                        f"у «{hi['name']}» — отстаёт",
+                "Разобрать у отстающего юрлица: цены, закуп, микс. Подтянуть к лучшему — иначе не выйдем на целевой уровень.")
+    cv = [x for x in metrics.values() if x["revenue"] > 0 and x["cogs_pct"] is not None]
+    if len(cv) >= 2:
+        cv.sort(key=lambda x: x["cogs_pct"])
+        if cv[-1]["cogs_pct"] - cv[0]["cogs_pct"] >= 5:
+            w = cv[-1]
+            tip("warn", f"{label}: себестоимость у «{w['name']}» {w['cogs_pct']:.0f}% выручки — выше остальных",
+                "Дорогой закуп/микс. Проверить закупочные цены и наценку — высокий COGS режет маржу, цель недостижима.")
+
+
+def _mp_metrics(scope, period):
+    if scope == "wb":
+        s = _summary_one("wb", "", period)
+        rev = s.get("own_revenue") or 0
+        return {"revenue": rev, "margin": s.get("margin_own"),
+                "cogs_pct": ((s.get("cogs") or 0) / rev * 100) if rev else None}
+    s = _oz_summary("", period)
+    rev = s["revenue"]
+    return {"revenue": rev, "margin": s["margin_pct"],
+            "cogs_pct": (s["cogs"] / rev * 100) if rev else None}
+
+
+_RU_MON = ["", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+
+
+def _compare_period(scope, period, tip):
+    """Сравнить площадку с прошлым месяцем — маржа и себестоимость (устойчивы к неполному месяцу)."""
+    prev_p = _prev_period(scope, "", period)
+    if not prev_p:
+        return
+    cm, pm = _mp_metrics(scope, period), _mp_metrics(scope, prev_p)
+    ml = _RU_MON[int(prev_p[5:7])]
+    if cm["margin"] is not None and pm["margin"] is not None:
+        d = cm["margin"] - pm["margin"]
+        if d <= -2:
+            tip("warn", f"Маржа упала {pm['margin']:.1f}%→{cm['margin']:.1f}% к {ml} — принять меры",
+                "Причины: рост COGS/закупки, рост рекламы, демпинг. (Текущий месяц может быть неполным.)")
+        elif d >= 2:
+            tip("good", f"Маржа выросла {pm['margin']:.1f}%→{cm['margin']:.1f}% к {ml}",
+                "Положительный тренд — закрепить, что сработало.")
+    if cm["cogs_pct"] is not None and pm["cogs_pct"] is not None and cm["cogs_pct"] - pm["cogs_pct"] >= 3:
+        tip("warn", f"Себестоимость выросла {pm['cogs_pct']:.0f}%→{cm['cogs_pct']:.0f}% выручки к {ml}",
+            "Дорогой микс/закупка. Проверить наценку на новинки — закладывать целевую маржу сразу.")
+
+
+@app.get("/api/weekly_business")
+def weekly_business(period: str = ""):
+    """Недельная динамика бизнеса (ВБ + Ozon): недели, ПЕРЕСЕКАЮЩИЕ выбранный месяц, каждая
+    склеена ЦЕЛИКОМ — граничная неделя не режется по границе месяца (хвосты соседних месяцев
+    включаются). Чистая = к перечислению − логистика − COGS − накладные. Таблица главного экрана."""
+    period = period or db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
+    df, dt = _oz_month(period)
+    d0, d1 = _dt.date.fromisoformat(df), _dt.date.fromisoformat(dt)
+    wk_start = d0 - _dt.timedelta(days=d0.weekday())                          # пн недели с 1-м числом
+    wk_end = d1 - _dt.timedelta(days=d1.weekday()) + _dt.timedelta(days=6)    # вс последней недели
+    wk = {}  # wkdate -> {"rev":, "net":}
+
+    def add(k, rev, net):
+        d = wk.setdefault(k, {"rev": 0.0, "net": 0.0})
+        d["rev"] += rev or 0
+        d["net"] += net or 0
+
+    # WB: по rr_dt в границах склеенных недель, БЕЗ фильтра месяца загрузки (rrd_id уникален,
+    # соседние окна сбора не дублируются). cpu — последняя по nm (replacement стабилен,
+    # как в /api/weekly rolling); витрина margin_by_sku теперь на модели формирования.
+    for r in db.query("""
+        WITH cpu AS (SELECT DISTINCT ON (article) article, cogs/nullif(qty,0) u
+            FROM margin_by_sku WHERE platform='wb' AND qty>0 AND cogs>0
+            ORDER BY article, period_from DESC),
+        r AS (SELECT date_trunc('week',(payload->>'rr_dt')::date)::date::text wk,
+            payload->>'nm_id' nm, payload->>'supplier_oper_name' op,
+            coalesce((payload->>'quantity')::numeric,0) q, coalesce((payload->>'retail_amount')::numeric,0) ra,
+            coalesce((payload->>'ppvz_for_pay')::numeric,0) pay, coalesce((payload->>'delivery_rub')::numeric,0) del,
+            coalesce((payload->>'storage_fee')::numeric,0)+coalesce((payload->>'acceptance')::numeric,0)
+              +coalesce((payload->>'deduction')::numeric,0)+coalesce((payload->>'penalty')::numeric,0) ov
+            FROM raw_wb_report WHERE (payload->>'rr_dt')::date BETWEEN %s AND %s)
+        SELECT wk,
+            sum(CASE WHEN op='Продажа' THEN ra WHEN op='Возврат' THEN -ra ELSE 0 END)::float rev,
+            (sum(pay)-sum(del)-sum(ov)
+             -sum(CASE WHEN op='Продажа' THEN q*coalesce(c.u,0)
+                       WHEN op='Возврат' THEN -q*coalesce(c.u,0) ELSE 0 END))::float net
+        FROM r LEFT JOIN cpu c ON c.article=r.nm WHERE wk IS NOT NULL GROUP BY wk""",
+                       (wk_start.isoformat(), wk_end.isoformat())):
+        add(r["wk"], r["rev"], r["net"])
+
+    # Ozon: operation_date в границах склеенных недель. COGS месячный → на неделю по доле
+    # выручки недели В ЭТОМ месяце (граничная неделя получает доли из ОБОИХ месяцев).
+    span_from = wk_start.replace(day=1)
+    span_to = _oz_month(wk_end.replace(day=1).isoformat())[1]
+    ozw = db.query("""SELECT date_trunc('week',(payload->>'operation_date')::date)::date::text wk,
+        date_trunc('month',(payload->>'operation_date')::date)::date::text mm,
+        coalesce(sum((payload->>'accruals_for_sale')::numeric),0)::float rev,
+        coalesce(sum((payload->>'amount')::numeric),0)::float topay
+        FROM raw_ozon_transaction WHERE (payload->>'operation_date')::date BETWEEN %s AND %s
+        AND payload->>'operation_date' IS NOT NULL GROUP BY 1,2""", (span_from.isoformat(), span_to))
+    mm_rev = {}
+    for r in ozw:
+        mm_rev[r["mm"]] = mm_rev.get(r["mm"], 0.0) + (r["rev"] or 0)
+    mm_cogs = {mm: _oz_cogs("", mm) for mm in mm_rev}
+    for r in ozw:
+        if r["wk"] and wk_start.isoformat() <= r["wk"] <= wk_end.isoformat():
+            share = (r["rev"] or 0) / (mm_rev.get(r["mm"]) or 1)
+            add(r["wk"], r["rev"], (r["topay"] or 0) - mm_cogs.get(r["mm"], 0.0) * share)
+
+    # Расход на рекламу по неделям (ВБ + Озон, оба юрлица) — тоже склеенными неделями
+    adw = {}
+    for pl in ("wb", "ozon"):
+        accs = [r["account"] for r in db.query(
+            "SELECT DISTINCT account FROM ad_spend_daily WHERE platform=%s", (pl,))]
+        if not accs:
+            continue
+        for w, ad in _weekly_adspend(pl, accs).items():
+            key = w.isoformat() if hasattr(w, "isoformat") else str(w)
+            adw[key] = adw.get(key, 0) + (ad or 0)
+
+    rows = []
+    for k in sorted(wk):
+        if not (wk_start.isoformat() <= k <= wk_end.isoformat()):
+            continue
+        rev, net = wk[k]["rev"], wk[k]["net"]
+        if rev < 1:
+            continue
+        ad = round(adw.get(k, 0), 2)
+        rows.append({"wk": k, "rev": round(rev, 2), "net": round(net, 2),
+                     "margin": round(net / rev * 100, 1) if rev else None,
+                     "ad": ad, "net_after_ad": round(net - ad, 2)})
+    return {"rows": rows}
+
+
+def _l3_names(plat, account, articles):
+    if plat == "wb":
+        rows = db.query("SELECT nm_id::text a, title FROM wb_cards WHERE account=%s AND nm_id::text=ANY(%s)",
+                        (account, articles))
+        return {r["a"]: r["title"] for r in rows}
+    rows = db.query("""SELECT DISTINCT ON (it->>'sku') it->>'sku' a, it->>'name' title
+        FROM raw_ozon_transaction, jsonb_array_elements(payload->'items') it
+        WHERE it->>'sku'=ANY(%s) ORDER BY it->>'sku'""", (articles,))
+    return {r["a"]: r["title"] for r in rows}
+
+
+@app.get("/api/signals")
+def signals(period: str = "", scope: str = "", account: str = ""):
+    """Рекомендации по СЛОЯМ. L1 (scope='') — стратегия всего бизнеса. L2 (scope=wb|ozon, без
+    account) — сравнение юрлиц + тренд + рычаги МП. L3 (scope+account) — точечные SKU-проблемы
+    этого юрлица (убыточные/габариты/скидки). Каждый слой — своё, без дублирования."""
+    period = period or db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
+    tips = []
+
+    def tip(sev, title, text):
+        tips.append({"sev": sev, "title": title, "text": text})
+
+    def m(v):
+        return f"{round(v):,}".replace(",", " ") + " ₽"
+
+    # --- L3: КОНКРЕТНОЕ ЮРЛИЦО — точечные SKU-проблемы (НЕ дублируем L2) ---
+    if scope in ("wb", "ozon") and account:
+        loss = db.query("""SELECT article, net_profit::float net FROM margin_by_sku
+            WHERE platform=%s AND account=%s AND period_from=%s
+              AND net_profit<0 AND revenue_buyer>0 AND article<>'0'
+            ORDER BY net_profit ASC LIMIT 5""", (scope, account, period))
+        if loss:
+            names = _l3_names(scope, account, [r["article"] for r in loss])
+            lst = "; ".join(f"{(names.get(r['article']) or r['article'])[:22]} ({m(r['net'])})" for r in loss[:3])
+            tip("high", f"Топ убыточных: {lst}",
+                "В минусе после комиссий — поднять цену или вывести (полный список ниже).")
+        if scope == "wb":
+            an = db.query(f"""SELECT count(*) n FROM wb_cards c
+                JOIN margin_by_sku msk ON msk.account=c.account AND msk.article=c.nm_id::text AND msk.qty>0
+                WHERE c.account=%s AND msk.period_from=%s
+                  AND (c.dims_valid=false OR c.volume_l IS NULL OR c.weight_kg IS NULL
+                       OR c.weight_kg/NULLIF(c.volume_l,0) < %s OR c.weight_kg/NULLIF(c.volume_l,0) > %s)""",
+                (account, period, DENS_LOW, DENS_HIGH))[0]["n"]
+            if an:
+                tip("info", f"{an} SKU с подозрительными габаритами",
+                    "Перемерить Д×Ш×В — дешевле, чем поднимать цену (список «Габариты» ниже).")
+            hi = sum(1 for v in _wb_pricing(account, period).values() if v["spp_pct"] >= 30)
+            if hi:
+                tip("info", f"{hi} SKU с СПП ≥30%",
+                    "Большая скидка площадки за наш счёт — поднять базовую цену, чтобы удержать маржу.")
+        else:
+            hi = sum(1 for v in _ozon_pricing(account, *_oz_month(period)).values() if v["discount_pct"] >= 20)
+            if hi:
+                tip("info", f"{hi} SKU продаются со скидкой ≥20%",
+                    "Акции/скидки съедают цену — проверить, оправдан ли объём, иначе вывести из акций.")
+        return {"period": period, "scope": scope, "account": account, "level": "l3",
+                "tips": tips or [{"sev": "good", "title": "Точечных проблем по юрлицу не видно",
+                                  "text": "Убыточных/габаритных позиций мало."}]}
+
+    biz = business(period)
+    ox = {"total": _opex_total(period)}   # уровневый отчёт — по бизнесу целиком
+    t = biz.get("total", {})
+    after = biz.get("net_after_opex")
+    margin = t.get("margin_pct")
+    dl = biz.get("delta") or {}
+    vol, months = {}, []
+
+    def _loss(plat):
+        return db.query("""SELECT count(*) n, coalesce(sum(net_profit),0)::float s FROM margin_by_sku
+            WHERE platform=%s AND period_from=%s AND net_profit<0 AND revenue_buyer>0 AND article<>'0'""",
+            (plat, period))[0]
+
+    # --- L2 УРОВЕНЬ ПЛОЩАДКИ: сравнение юрлиц + тренд + рычаги (без SKU-деталей) ---
+    if scope == "wb":
+        _compare_accounts(_wb_acct_metrics(period), tip, "ВБ")
+        _compare_period("wb", period, tip)
+        lf = _loss("wb")
+        if lf["n"] >= 3:
+            tip("info", f"Всего {lf['n']} убыточных SKU по ВБ (минус {m(abs(lf['s']))})",
+                "Выбери юрлицо (Цифровой/Дисквэр) — покажу топ именно по нему.")
+    elif scope == "ozon":
+        _compare_accounts(_oz_acct_metrics(period), tip, "Ozon")
+        _compare_period("ozon", period, tip)
+        ozc = _oz_summary("", period)["cats"]
+        oz_rev = (biz.get("ozon", {}) or {}).get("revenue") or 1
+        adv, pen = -ozc.get("advertising", 0), -ozc.get("penalties", 0)
+        if adv and adv / oz_rev > 0.06:
+            tip("warn", f"Реклама {m(adv)} = {adv / oz_rev * 100:.0f}% выручки",
+                "Управляемо — резать кампании с минусовым ДРР.")
+        if pen and pen / oz_rev > 0.01:
+            tip("warn", f"Штрафы {m(pen)} — операционные потери",
+                "Слот/просрочка/индекс ошибок — устранимо настройкой склада и отгрузок.")
+        lf = _loss("ozon")
+        if lf["n"] >= 3:
+            tip("info", f"Всего {lf['n']} убыточных SKU по Ozon (минус {m(abs(lf['s']))})",
+                "Выбери юрлицо — покажу топ именно по нему.")
+        return {"period": period, "scope": scope, "tips": tips or [
+            {"sev": "good", "title": "Проблем по Ozon не видно", "text": "Метрики юрлиц близки, расходы под контролем."}]}
+
+    # --- ГЛОБАЛЬНО (главный экран) ---
+    if scope == "wb":
+        return {"period": period, "scope": scope, "tips": tips or [
+            {"sev": "good", "title": "Проблем по ВБ не видно", "text": "Метрики юрлиц близки."}]}
+
+    # 1. ЦЕЛЬ — 5 млн чистой после ФОТ
+    if after is not None:
+        if after >= HEALTHY_AFTER_OPEX:
+            tip("good", f"🎯 Цель достигнута: чистая после ФОТ {m(after)} ≥ 5 млн",
+                "Бизнес здоров и силён — можно рекомендовать премии команде.")
+        else:
+            tip("high", f"До цели 5 млн чистой после ФОТ не хватает {m(HEALTHY_AFTER_OPEX - after)} "
+                        f"(сейчас {m(after)})",
+                "Рычаги: ① поднять маржу (цены/ассортимент), ② нарастить оборот, ③ урезать постоянные расходы.")
+
+    # 1b. ПОТЕНЦИАЛ к чистой — сколько вернём, устранив неэффективности
+    loss_gain = -(db.query("""SELECT coalesce(sum(net_profit),0)::float s FROM margin_by_sku
+        WHERE period_from=%s AND net_profit<0 AND revenue_buyer>0 AND article<>'0'""", (period,))[0]["s"])
+    pen_gain = -_oz_summary("", period)["cats"].get("penalties", 0)
+    vol = _order_volume()
+    months = sorted(vol)
+    cur_v = vol.get(period, 0)
+    peak = max(vol.values()) if vol else 0
+    packers = [i for i in (ox.get("items") or [])
+               if "упаков" in ((i.get("role") or "") + (i.get("name") or "")).lower()]
+    npk = len(packers)
+    avg_sal = (sum(i["amount"] for i in packers) / npk) if npk else 0
+    excess = round(npk * (1 - cur_v / peak)) if (npk and peak and cur_v < peak) else 0
+    pack_gain = max(0, excess) * avg_sal
+    potential = loss_gain + pen_gain + pack_gain
+    if potential > 1000:
+        parts = []
+        if loss_gain > 1:
+            parts.append(f"убыточные SKU +{m(loss_gain)}")
+        if pen_gain > 1:
+            parts.append(f"штрафы Ozon +{m(pen_gain)}")
+        if pack_gain > 1:
+            parts.append(f"упаковка −{excess} чел +{m(pack_gain)}")
+        tip("good", f"💰 Потенциал +{m(potential)}/мес к чистой — если устранить неэффективности",
+            "; ".join(parts) + ". Это «быстрые деньги»; основной разрыв до 5 млн закрывается ростом оборота (реклама/ассортимент).")
+
+    # 2. ПРОБЛЕМНАЯ ЗОНА: маржа ВБ vs Ozon
+    wbm, ozm = (biz.get("wb", {}) or {}).get("margin_pct"), (biz.get("ozon", {}) or {}).get("margin_pct")
+    if wbm is not None and ozm is not None and abs(wbm - ozm) >= 5:
+        worse, wv, better, bv = ("Wildberries", wbm, "Ozon", ozm) if wbm < ozm else ("Ozon", ozm, "Wildberries", wbm)
+        tip("warn", f"Маржа {worse} {wv:.1f}% заметно ниже {better} ({bv:.1f}%) — обратить внимание",
+            f"Изучить {worse}: цены, комиссия/логистика, COGS. Разобрать на странице площадки (сравнение юрлиц там же).")
+
+    # 3. УПАКОВЩИКИ vs ОБЪЁМ ЗАКАЗОВ
+    vol = _order_volume()
+    months = sorted(vol)
+    cur_v = vol.get(period, 0)
+    prev_v = vol.get(months[months.index(period) - 1]) if period in months and months.index(period) > 0 else None
+    packers = [i for i in (ox.get("items") or [])
+               if "упаков" in ((i.get("role") or "") + (i.get("name") or "")).lower()]
+    npk = len(packers)
+    if npk and cur_v and prev_v and cur_v < prev_v * 0.85:
+        tip("warn", f"Заказы упали {int(prev_v)}→{int(cur_v)} ед, упаковщиков {npk} (нагрузка {cur_v / npk:.0f} ед/чел)",
+            "Объём падает при том же штате упаковки → сократить упаковщиков ИЛИ нарастить заказы. "
+            "Внеси штат прошлых месяцев в расходы — появится тренд «заказы на упаковщика».")
+
+    # 4. ДОЛЯ ПОСТОЯННЫХ РАСХОДОВ
+    rev = t.get("revenue")
+    if rev and ox.get("total") and ox["total"] / rev * 100 > 12:
+        tip("warn", f"Постоянные расходы {ox['total'] / rev * 100:.0f}% выручки ({m(ox['total'])})",
+            "Высокая доля — при падении оборота ФОТ+аренда быстро съедают прибыль. Держать штат под нагрузку.")
+
+    # 5. ПАДЕНИЕ маржи к прошлому месяцу
+    if margin is not None and dl.get("total_margin") and (dl["total_margin"].get("abs") or 0) <= -2:
+        tip("warn", f"Маржа бизнеса упала на {abs(dl['total_margin']['abs'])} п.п. (до {margin}%) — принять меры",
+            "Причины: рост COGS, рост рекламы, демпинг. Разобрать по площадкам.")
+
+    if not tips:
+        tip("good", "Явных проблем не видно", "Метрики в норме. Держать курс к цели 5 млн после ФОТ.")
+
+    return {"period": period, "scope": scope, "tips": tips,
+            "volume": [{"month": mo, "units": round(vol[mo])} for mo in months],
+            "after_opex": after, "target": HEALTHY_AFTER_OPEX,
+            "to_target": round(max(0, HEALTHY_AFTER_OPEX - (after or 0)), 2)}

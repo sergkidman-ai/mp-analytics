@@ -92,7 +92,8 @@ class ModelTest(unittest.TestCase):
 class RenderTest(unittest.TestCase):
     def data(self, **kw):
         d = {"gaps": [], "mismatch": [], "titles": [], "titles_note": None,
-             "symptoms": [], "skipped_refill": 3, "colors": []}
+             "symptoms": [], "skipped_refill": 3, "colors": [],
+             "fam_claims": [], "fam_questions": []}
         d.update(kw)
         return d
 
@@ -101,13 +102,17 @@ class RenderTest(unittest.TestCase):
         self.assertIn("после заправки", md)
         self.assertIn("**3**", md)
 
-    def test_цвет_показан_долей_а_не_только_числом(self):
-        md = fd.render_purchase(self.data(colors=[
-            {"color": "мажента", "n": 4, "base": 6, "articles": ["0960", "5243"],
-             "texts": [{"article": "0960", "rating": 2, "text": "пурпурный пустой"}]}]),
+    def test_семейство_показывает_общий_симптом_разных_артикулов(self):
+        md = fd.render_purchase(self.data(fam_claims=[
+            {"family": "069H", "symptom": "полосит", "n": 4, "articles": ["0960", "5243"],
+             "codes": ["CRG-069H"],
+             "texts": [{"article": "0960", "platform": "wb", "kind": "review",
+                        "rating": 2, "text": "пурпурный пустой"}]}]),
             7, "2026-09-11")
-        self.assertIn("4 из 6", md)
-        self.assertIn("67 %", md)
+        self.assertIn("069H — полосит ×4", md)
+        self.assertIn("0960, 5243", md)
+        self.assertIn("CRG-069H", md)
+        self.assertIn("пурпурный пустой", md)
 
     def test_пустые_списки_говорят_об_этом_прямо(self):
         # молчащий файл должен читаться как «за окно таких артикулов нет», а не как сбой сборки
@@ -185,6 +190,7 @@ class PdfTest(unittest.TestCase):
                           "links": [{"platform": "wb", "article": "3815IBBCHMW5",
                                      "url": "https://www.wildberries.ru/catalog/1/detail.aspx"}]}],
                 "mismatch": [], "titles": [], "titles_note": None,
+                "fam_claims": [], "fam_questions": [],
                 "symptoms": [{"article": "5764", "symptom": "не подошёл", "n": 2, "stars": [1],
                               "product": "Чернила DS", "links": [],
                               "texts": [{"platform": "wb", "kind": "review", "rating": 1,

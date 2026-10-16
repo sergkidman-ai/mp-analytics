@@ -1,0 +1,69 @@
+{
+  "at_utc": "2026-10-14T15:07:06.181908+00:00",
+  "suppliers": {
+    "rapid": {
+      "current_receipt_cards": 1406,
+      "matched_source_cards": 1406,
+      "cards_with_all_three_ms_fields_empty": 1081,
+      "cards_with_any_ms_dimension_empty": 1081,
+      "source_three_dimensions": 448,
+      "source_coverage_pct": 31.86,
+      "source_dimensions_and_empty_ms": 123,
+      "ready_to_fill": 122,
+      "statuses": {
+        "NO_THREE_DIMENSIONS": 958,
+        "FILL_EMPTY": 122,
+        "ALREADY_EQUAL": 325,
+        "SUPPLIER_DIMENSIONS_SUSPECT_REVIEW": 1
+      }
+    },
+    "bulat": {
+      "current_receipt_cards": 2653,
+      "matched_source_cards": 2653,
+      "cards_with_all_three_ms_fields_empty": 2653,
+      "cards_with_any_ms_dimension_empty": 2653,
+      "source_three_dimensions": 0,
+      "source_coverage_pct": 0.0,
+      "source_dimensions_and_empty_ms": 0,
+      "ready_to_fill": 0,
+      "statuses": {
+        "NO_THREE_DIMENSIONS": 2651,
+        "RIBBON_SIZE_NOT_PACKAGE_DIMENSIONS": 2
+      }
+    },
+    "profiline": {
+      "current_receipt_cards": 1371,
+      "matched_source_cards": 1371,
+      "cards_with_all_three_ms_fields_empty": 1371,
+      "cards_with_any_ms_dimension_empty": 1371,
+      "source_three_dimensions": 515,
+      "source_coverage_pct": 37.56,
+      "source_dimensions_and_empty_ms": 515,
+      "ready_to_fill": 0,
+      "statuses": {
+        "PROFILINE_DIMENSIONS_NOT_APPROVED": 515,
+        "NO_PACK_DIMENSIONS": 856
+      }
+    },
+    "easy_print": {
+      "current_receipt_cards": 1061,
+      "matched_source_cards": 0,
+      "cards_with_all_three_ms_fields_empty": 65,
+      "cards_with_any_ms_dimension_empty": 65,
+      "source_three_dimensions": 0,
+      "source_coverage_pct": null,
+      "source_dimensions_and_empty_ms": 0,
+      "ready_to_fill": 0,
+      "statuses": {
+        "CATALOGUE_UNAVAILABLE": 1061
+      }
+    }
+  },
+  "source_dates": {
+    "rapid": "2026-10-14 17:53:35",
+    "bulat": "2026-10-14 04:30",
+    "profiline": "2026-10-14 18:00"
+  },
+  "external_writes": 0,
+  "database_writes": 0
+}

@@ -1,0 +1,28 @@
+{
+  "fetched_at": "2026-10-12T12:44:48.393753+03:00",
+  "source_date": "2026-10-12 12:29:25",
+  "source_items": 8139,
+  "scope_cards": 1335,
+  "external_writes": 0,
+  "status": "complete_read_only",
+  "cards_checked_live_ms": 1335,
+  "in_stock_confirmed": 44,
+  "zero_free_stock_confirmed": 39,
+  "unresolved": 1252,
+  "matching_methods": {
+    "UNRESOLVED": 1252,
+    "UNIQUE_FULL_DESCRIPTION": 82,
+    "UNIQUE_FULL_NAME": 1
+  },
+  "exact_article_matches_in_scope": 0,
+  "positive_descriptions_already_match": 44,
+  "database_writes": 0,
+  "current_enter_crosscheck": {
+    "reviewed": 44,
+    "exact_article_cards_exist": 18,
+    "already_in_current_enter_via_exact_article": 15,
+    "same_external_code_already_in_enter": 12,
+    "further_review_required": 29,
+    "interpretation": "1335 are specific MS entities without unique article matches, not 1335 unmatched supplier products. Other current MS cards may already represent and receipt the same product."
+  }
+}

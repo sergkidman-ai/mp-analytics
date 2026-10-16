@@ -1,0 +1,79 @@
+[
+  {
+    "pdf": "label_1",
+    "text": "Блок проявки A08ER70100 с",
+    "font_width_pt": 122.031,
+    "reported_width_rounded_pt": 122.0,
+    "error_pt": 0.03100000000000591
+  },
+  {
+    "pdf": "label_1",
+    "text": "фотобарабаном и девелопером",
+    "font_width_pt": 141.12,
+    "reported_width_rounded_pt": 141.0,
+    "error_pt": 0.12000000000000455
+  },
+  {
+    "pdf": "label_1",
+    "text": "Konica черный",
+    "font_width_pt": 65.259,
+    "reported_width_rounded_pt": 65.0,
+    "error_pt": 0.25900000000000034
+  },
+  {
+    "pdf": "label_2",
+    "text": "Картридж 071H для Canon",
+    "font_width_pt": 115.632,
+    "reported_width_rounded_pt": 116.0,
+    "error_pt": -0.367999999999995
+  },
+  {
+    "pdf": "label_2",
+    "text": "5646C002 черный с чипом XL",
+    "font_width_pt": 129.123,
+    "reported_width_rounded_pt": 129.0,
+    "error_pt": 0.12299999999999045
+  },
+  {
+    "pdf": "label_2",
+    "text": "ресурс",
+    "font_width_pt": 29.376,
+    "reported_width_rounded_pt": 29.0,
+    "error_pt": 0.3760000000000012
+  },
+  {
+    "pdf": "label_3",
+    "text": "Картридж 054HBK для Canon",
+    "font_width_pt": 127.053,
+    "reported_width_rounded_pt": 127.0,
+    "error_pt": 0.05299999999999727
+  },
+  {
+    "pdf": "label_3",
+    "text": "3028C002 черный с чипом XL",
+    "font_width_pt": 129.123,
+    "reported_width_rounded_pt": 129.0,
+    "error_pt": 0.12299999999999045
+  },
+  {
+    "pdf": "label_3",
+    "text": "ресурс",
+    "font_width_pt": 29.376,
+    "reported_width_rounded_pt": 29.0,
+    "error_pt": 0.3760000000000012
+  },
+  {
+    "pdf": "label_4",
+    "text": "Картридж CF543X для HP 203X",
+    "font_width_pt": 132.462,
+    "reported_width_rounded_pt": 132.0,
+    "error_pt": 0.4619999999999891
+  },
+  {
+    "pdf": "label_4",
+    "text": "пурпурный с чипом XL ресурс",
+    "font_width_pt": 132.129,
+    "reported_width_rounded_pt": 132.0,
+    "error_pt": 0.12899999999999068
+  }
+]

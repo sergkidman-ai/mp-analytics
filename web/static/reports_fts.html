@@ -143,8 +143,6 @@ table.fts td.nm{white-space:normal;max-width:280px;overflow-wrap:anywhere}
     <a href="/stale">🧊 Залежи</a>
     <a href="/brak">♻️ Брак/возвраты</a>
     <a href="/opex">💼 Опер. расходы</a>
-    <div class="navgroup">Деньги</div>
-    <a href="/cashflow">💰 Кэшфлоу</a>
     <div class="navgroup">Отчёты</div>
     <a href="/reports" class="cur">📋 Отчёты МП</a>
     <a href="/reports/cost">💰 Себестоимость</a>
@@ -164,6 +162,7 @@ table.fts td.nm{white-space:normal;max-width:280px;overflow-wrap:anywhere}
     <a class="rtab" href="/reports/yandex">🟡 Яндекс Маркет</a>
     <a class="rtab cur">🛃 Отчёты ФТС</a>
     <a class="rtab" href="/reports/upd">📄 УПД по выкупам</a>
+    <a class="rtab" href="/reports/kudir">📒 КУДиР</a>
   </div>
   <p class="eyebrow">Отчёты МП · Отчёты ФТС</p>
   <h1>Статформы ФТС по продажам в ЕАЭС</h1>
@@ -175,18 +174,18 @@ table.fts td.nm{white-space:normal;max-width:280px;overflow-wrap:anywhere}
   приёмка позиции до даты отгрузки). Одна форма — одна страна, товары схлопнуты
   по ТН ВЭД, номеру ГТД и стране происхождения.</p>
   <div class="perbar">Отчётный месяц:
-    <a class="cur">08.2026</a>
+    <a class="cur">09.2026</a>
+    <a href="/reports/fts?period=2026-08">08.2026</a>
     <a href="/reports/fts?period=2026-07">07.2026</a>
     <a href="/reports/fts?period=2026-06">06.2026</a>
     <a href="/reports/fts?period=2026-05">05.2026</a>
     <a href="/reports/fts?period=2026-04">04.2026</a>
-    <a href="/reports/fts?period=2026-03">03.2026</a>
   </div>
   <div class="fts-cards">
-    <div class="fts-kc"><div class="l">Отправлений в ЕАЭС</div><div class="v">22</div></div>
-    <div class="fts-kc done"><div class="l">Выкупил маркетплейс</div><div class="v">21</div></div>
+    <div class="fts-kc"><div class="l">Отправлений в ЕАЭС</div><div class="v">29</div></div>
+    <div class="fts-kc done"><div class="l">Выкупил маркетплейс</div><div class="v">29</div></div>
     <div class="fts-kc due"><div class="l">К сдаче нами</div><div class="v">0</div></div>
-    <div class="fts-kc done"><div class="l">Сдано</div><div class="v">1</div></div>
+    <div class="fts-kc done"><div class="l">Сдано</div><div class="v">0</div></div>
   </div>
 
   <h2 style="font-size:17px;margin:18px 0 4px">Формы по странам</h2>
@@ -194,206 +193,67 @@ table.fts td.nm{white-space:normal;max-width:280px;overflow-wrap:anywhere}
     <thead><tr><th>Страна</th><th>Отправлений</th><th>К сдаче</th><th>Стоимость</th>
     <th>Город получателя</th><th>Форма для ЛК ФТС</th></tr></thead>
     <tbody>
-      <tr>
-        <td><b>Казахстан</b> <span class="sub">(KZ)</span></td>
-        <td class="n">1</td>
-        <td class="n">0</td>
-        <td class="n">13 138,11 ₽</td>
-        <td>Алматы</td>
-        <td><span class="sub">всё сдано</span></td>
-      </tr>
+      <tr><td colspan="6" class="sub">за месяц нет отправлений к сдаче</td></tr>
     </tbody>
   </table>
   <p class="sub" style="margin-top:8px">Город получателя подставляется в форму: для Казахстана —
   кластер доставки с наибольшей суммой, для остальных стран кластер Ozon совпадает со страной,
   поэтому ставится столица.</p>
 
-  <h2 style="font-size:17px;margin:22px 0 4px">Отправления за 08.2026</h2>
+  <h2 style="font-size:17px;margin:22px 0 4px">Отправления за 09.2026</h2>
   <table class="fts">
     <thead><tr><th>Отправление</th><th>Доставлено</th><th>Страна</th><th>Оплачено</th>
     <th>В рублях</th><th>Вес нетто</th><th>ТН ВЭД / ГТД</th><th>Статус</th><th></th></tr></thead>
     <tbody>
       <tr>
-        <td>0157014773-0009-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
-        <td>01.08.2026</td>
-        <td>KZ <span class="sub">Алматы</span></td>
-        <td class="n">78 473,00 KZT</td>
-        <td class="n">13 138,11 ₽</td>
-        <td class="n">1755 г</td>
-        <td class="nm">8443999000 / 10228020/030226/5014219</td>
-        <td><span class="st filed">сдано</span></td>
-        <td><button class="btn-mark" onclick="ftsMark(this,'2026-08','ozon','oz_acc2','0157014773-0009-1',false)">вернуть в «к сдаче»</button></td>
-      </tr>
-      <tr>
-        <td>78433599-0035-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>02.08.2026</td>
-        <td>KZ <span class="sub">Алматы</span></td>
-        <td class="n">33 278,00 KZT</td>
-        <td class="n">—</td>
-        <td class="n">3200 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>0239786786-0041-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>03.08.2026</td>
+        <td>0249036881-0015-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>01.09.2026</td>
         <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">16,94 BYN</td>
+        <td class="n">93,08 BYN</td>
         <td class="n">—</td>
-        <td class="n">100 г</td>
+        <td class="n">1200 г</td>
         <td class="nm">—</td>
         <td><span class="st buy">выкупил МП</span></td>
         <td><span class="sub">—</span></td>
       </tr>
       <tr>
-        <td>0169628766-0008-2<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>05.08.2026</td>
-        <td>KZ <span class="sub">Астана</span></td>
-        <td class="n">65 090,00 KZT</td>
-        <td class="n">—</td>
-        <td class="n">2700 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>0159241493-0519-3<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>08.08.2026</td>
+        <td>0104775197-0434-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
+        <td>06.09.2026</td>
         <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">131,87 BYN</td>
+        <td class="n">11,57 BYN</td>
         <td class="n">—</td>
-        <td class="n">931 г</td>
+        <td class="n">135 г</td>
         <td class="nm">—</td>
         <td><span class="st buy">выкупил МП</span></td>
         <td><span class="sub">—</span></td>
       </tr>
       <tr>
-        <td>41214429-0173-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>16.08.2026</td>
+        <td>0247760249-0001-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>06.09.2026</td>
         <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">318,27 BYN</td>
+        <td class="n">9,70 BYN</td>
         <td class="n">—</td>
-        <td class="n">2421 г</td>
+        <td class="n">50 г</td>
         <td class="nm">—</td>
         <td><span class="st buy">выкупил МП</span></td>
         <td><span class="sub">—</span></td>
       </tr>
       <tr>
-        <td>0140534465-0015-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>17.08.2026</td>
+        <td>38736642-0034-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>07.09.2026</td>
+        <td>AM <span class="sub">Армения</span></td>
+        <td class="n">4 180,00 RUB</td>
+        <td class="n">—</td>
+        <td class="n">0 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>67357566-0204-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>07.09.2026</td>
         <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">424,10 BYN</td>
-        <td class="n">—</td>
-        <td class="n">1755 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>06935664-0019-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>17.08.2026</td>
-        <td>KZ <span class="sub">Астана</span></td>
-        <td class="n">52 309,00 KZT</td>
-        <td class="n">—</td>
-        <td class="n">1360 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>0131566429-0078-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>19.08.2026</td>
-        <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">99,89 BYN</td>
-        <td class="n">—</td>
-        <td class="n">1000 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>03344016-0211-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
-        <td>20.08.2026</td>
-        <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">77,30 BYN</td>
-        <td class="n">—</td>
-        <td class="n">1000 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>0131491970-0066-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
-        <td>21.08.2026</td>
-        <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">83,63 BYN</td>
-        <td class="n">—</td>
-        <td class="n">1000 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>0152875983-0013-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>21.08.2026</td>
-        <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">115,79 BYN</td>
-        <td class="n">—</td>
-        <td class="n">2600 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>56700781-0260-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>21.08.2026</td>
-        <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">84,24 BYN</td>
-        <td class="n">—</td>
-        <td class="n">2100 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>0210223988-0043-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>24.08.2026</td>
-        <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">7,82 BYN</td>
-        <td class="n">—</td>
-        <td class="n">60 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>0210223988-0043-3<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>24.08.2026</td>
-        <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">50,42 BYN</td>
-        <td class="n">—</td>
-        <td class="n">360 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>18984589-0314-1<div class="sub">Ozon · Дисквэр · FBO</div></td>
-        <td>24.08.2026</td>
-        <td>KZ <span class="sub">Астана</span></td>
-        <td class="n">33 550,00 KZT</td>
-        <td class="n">—</td>
-        <td class="n">650 г</td>
-        <td class="nm">—</td>
-        <td><span class="st buy">выкупил МП</span></td>
-        <td><span class="sub">—</span></td>
-      </tr>
-      <tr>
-        <td>67357566-0195-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>24.08.2026</td>
-        <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">383,62 BYN</td>
+        <td class="n">342,13 BYN</td>
         <td class="n">—</td>
         <td class="n">4200 г</td>
         <td class="nm">—</td>
@@ -401,56 +261,265 @@ table.fts td.nm{white-space:normal;max-width:280px;overflow-wrap:anywhere}
         <td><span class="sub">—</span></td>
       </tr>
       <tr>
-        <td>67357566-0196-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>24.08.2026</td>
+        <td>71401042-0070-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
+        <td>07.09.2026</td>
         <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">118,35 BYN</td>
+        <td class="n">49,96 BYN</td>
         <td class="n">—</td>
-        <td class="n">1127 г</td>
+        <td class="n">800 г</td>
         <td class="nm">—</td>
         <td><span class="st buy">выкупил МП</span></td>
         <td><span class="sub">—</span></td>
       </tr>
       <tr>
-        <td>88439766-0118-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>24.08.2026</td>
+        <td>94348306-0021-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>07.09.2026</td>
         <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">356,52 BYN</td>
+        <td class="n">38,49 BYN</td>
         <td class="n">—</td>
-        <td class="n">1035 г</td>
+        <td class="n">400 г</td>
         <td class="nm">—</td>
         <td><span class="st buy">выкупил МП</span></td>
         <td><span class="sub">—</span></td>
       </tr>
       <tr>
-        <td>68016776-0073-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>27.08.2026</td>
+        <td>0145375983-0138-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>10.09.2026</td>
         <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">153,01 BYN</td>
+        <td class="n">22,93 BYN</td>
         <td class="n">—</td>
-        <td class="n">1067 г</td>
+        <td class="n">50 г</td>
         <td class="nm">—</td>
         <td><span class="st buy">выкупил МП</span></td>
         <td><span class="sub">—</span></td>
       </tr>
       <tr>
-        <td>0223379499-0454-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>28.08.2026</td>
+        <td>0161839349-0003-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>11.09.2026</td>
         <td>KZ <span class="sub">Астана</span></td>
-        <td class="n">10 056,00 KZT</td>
+        <td class="n">38 035,00 KZT</td>
         <td class="n">—</td>
-        <td class="n">900 г</td>
+        <td class="n">2421 г</td>
         <td class="nm">—</td>
         <td><span class="st buy">выкупил МП</span></td>
         <td><span class="sub">—</span></td>
       </tr>
       <tr>
-        <td>0213127705-0005-1<div class="sub">Ozon · Цифровой · FBS</div></td>
-        <td>29.08.2026</td>
+        <td>76122750-0069-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
+        <td>11.09.2026</td>
         <td>BY <span class="sub">Беларусь</span></td>
-        <td class="n">128,36 BYN</td>
+        <td class="n">296,82 BYN</td>
         <td class="n">—</td>
-        <td class="n">190 г</td>
+        <td class="n">800 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0125329635-0118-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>16.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">238,54 BYN</td>
+        <td class="n">—</td>
+        <td class="n">2000 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>58839965-0027-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>17.09.2026</td>
+        <td>KZ <span class="sub">Астана</span></td>
+        <td class="n">22 948,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">3050 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0145011329-0237-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>19.09.2026</td>
+        <td>KZ <span class="sub">Астана</span></td>
+        <td class="n">15 959,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">721 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0140297004-0010-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>20.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">24,69 BYN</td>
+        <td class="n">—</td>
+        <td class="n">65 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0196265986-0170-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>20.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">42,75 BYN</td>
+        <td class="n">—</td>
+        <td class="n">374 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0195538825-0015-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>21.09.2026</td>
+        <td>KG <span class="sub">Кыргызстан</span></td>
+        <td class="n">6 848,00 RUB</td>
+        <td class="n">—</td>
+        <td class="n">800 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0144352631-0073-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>22.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">407,55 BYN</td>
+        <td class="n">—</td>
+        <td class="n">2884 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0147575941-0011-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>22.09.2026</td>
+        <td>KZ <span class="sub">Астана</span></td>
+        <td class="n">25 445,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">3050 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>64705680-0048-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
+        <td>22.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">50,25 BYN</td>
+        <td class="n">—</td>
+        <td class="n">500 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0144875558-0001-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>26.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">61,99 BYN</td>
+        <td class="n">—</td>
+        <td class="n">222 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0240728334-0006-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
+        <td>26.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">45,06 BYN</td>
+        <td class="n">—</td>
+        <td class="n">800 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0212398107-0025-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>27.09.2026</td>
+        <td>KZ <span class="sub">Алматы</span></td>
+        <td class="n">12 655,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">850 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>63811640-0023-1<div class="sub">Ozon · Дисквэр · FBS</div></td>
+        <td>27.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">311,14 BYN</td>
+        <td class="n">—</td>
+        <td class="n">2840 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0136190063-0032-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>28.09.2026</td>
+        <td>KZ <span class="sub">Астана</span></td>
+        <td class="n">2 693,00 KZT</td>
+        <td class="n">—</td>
+        <td class="n">612 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0245826894-0003-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>28.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">142,32 BYN</td>
+        <td class="n">—</td>
+        <td class="n">931 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>80906890-0013-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>28.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">51,62 BYN</td>
+        <td class="n">—</td>
+        <td class="n">1000 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>79389542-0048-2<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>29.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">13,08 BYN</td>
+        <td class="n">—</td>
+        <td class="n">80 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>0204425719-0002-2<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>30.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">103,10 BYN</td>
+        <td class="n">—</td>
+        <td class="n">257 г</td>
+        <td class="nm">—</td>
+        <td><span class="st buy">выкупил МП</span></td>
+        <td><span class="sub">—</span></td>
+      </tr>
+      <tr>
+        <td>34040731-0041-1<div class="sub">Ozon · Цифровой · FBS</div></td>
+        <td>30.09.2026</td>
+        <td>BY <span class="sub">Беларусь</span></td>
+        <td class="n">22,87 BYN</td>
+        <td class="n">—</td>
+        <td class="n">240 г</td>
         <td class="nm">—</td>
         <td><span class="st buy">выкупил МП</span></td>
         <td><span class="sub">—</span></td>

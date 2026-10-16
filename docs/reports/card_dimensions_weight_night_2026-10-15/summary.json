@@ -1,0 +1,26 @@
+{
+  "status": "scheduled_ready",
+  "cards": 605,
+  "dimension_cards": 364,
+  "weight_cards": 580,
+  "dimension_fields": 1092,
+  "total_changed_fields": 1672,
+  "plan_sha256": "170f8c21ca9d09b8271fb055cae714406e6e4832a9540de26b49cc293f58ef78",
+  "writes": 0,
+  "verified": 0,
+  "start_msk": "2026-10-17 01:30",
+  "cutoff_msk": "2026-10-16 05:00",
+  "min_free_bytes": 33554432,
+  "preflight": {
+    "ready": 605
+  },
+  "skipped": 0,
+  "already_desired": 0,
+  "scheduled": true,
+  "error_type": "RuntimeError",
+  "hard_stop_msk": "2026-10-17 03:30",
+  "write_cutoff_msk": "2026-10-17 03:00",
+  "attempted": 0,
+  "recovery_report": "docs/reports/infra_ms_recovery_2026-10-16",
+  "other_dimensions_weight_msk": "2026-10-17 01:30"
+}

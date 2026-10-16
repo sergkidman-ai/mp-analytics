@@ -1,0 +1,39 @@
+{
+  "at_utc": "2026-10-11T19:57:35.274341+00:00",
+  "active_ms_cards": 2270,
+  "unique_valid_supplier_codes": 1740,
+  "card_statuses": {
+    "CONTENT_DIFFERENCE": 1205,
+    "EXACT": 680,
+    "NO_SITE_CODE_MATCH": 377,
+    "WHITESPACE_ONLY": 4,
+    "INVALID_ARTICLE": 4
+  },
+  "by_group": {
+    "Спринт": {
+      "CONTENT_DIFFERENCE": 183,
+      "EXACT": 326,
+      "NO_SITE_CODE_MATCH": 16,
+      "WHITESPACE_ONLY": 2
+    },
+    "Спринт МСК": {
+      "EXACT": 354,
+      "CONTENT_DIFFERENCE": 1022,
+      "NO_SITE_CODE_MATCH": 361,
+      "INVALID_ARTICLE": 4,
+      "WHITESPACE_ONLY": 2
+    }
+  },
+  "source_pages": 374,
+  "description_content_changes": 1205,
+  "supplier_stock_filter": false,
+  "external_writes": 0,
+  "database_writes": 0,
+  "status": "complete_read_only",
+  "matching_descriptions_including_whitespace": 684,
+  "unmatched_cards": 381,
+  "existing_chip_information_review_cards": 11,
+  "listing_full_title_verification_count": 12,
+  "unmatched_unique_codes_searched": 362,
+  "ms_snapshot_utc": "2026-10-11T19:42:41.053836+00:00"
+}

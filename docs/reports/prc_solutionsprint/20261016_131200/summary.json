@@ -1,0 +1,20 @@
+{
+  "status": "complete",
+  "load_id": 1336,
+  "source_rows": 1541,
+  "ready": 863,
+  "skipped": 678,
+  "reasons": {
+    "no_stock": 483,
+    "blacklisted": 7,
+    "composite_code": 184,
+    "set_incomplete": 1,
+    "archived": 2,
+    "defective": 1
+  },
+  "new_docs": 9,
+  "old_docs": 9,
+  "card_updates": 10,
+  "total_quantity": 166128.44,
+  "sum_rub": "97529784.28"
+}

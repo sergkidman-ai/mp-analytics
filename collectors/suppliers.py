@@ -117,6 +117,7 @@ def main(captured=None, with_suppliers=True):
         print(f"  поставщики перенесены из последнего снимка: {len(sup)} товаров", flush=True)
     turn = fetch_turnover()
     print(f"  оборачиваемость: {len(turn)} товаров с продажами/30д", flush=True)
+    fresh = {}
     stores = {s["name"]: s["meta"]["href"] for s in _ms("entity/store", limit=100).get("rows", [])}
     recs = []
     for sname, shref in stores.items():
@@ -139,10 +140,29 @@ def main(captured=None, with_suppliers=True):
                 "sold_30d": turn.get(ms_id),
             })
             cnt += 1
+            fresh.setdefault(sname, []).append(ms_id)
         print(f"  {sname}: {cnt} позиций с остатком", flush=True)
     n = db.upsert("supplier_stock", recs, conflict_cols=["captured_at", "ms_id", "store"])
     print(f"Записано в supplier_stock: {n}", flush=True)
 
+    # Правило Сергея от 11.09.2026: снимок за дату пересобирается ПОЛНОСТЬЮ, а не только
+    # дополняется. upsert умеет обновить и добавить, но не удалить — позиции, ушедшие в ноль
+    # между прогонами (за 11.09 таких было 146), иначе остаются в снимке со старым остатком
+    # и читаются витринами и промо-сторожем как «в наличии». Чистим ПОСЛЕ вставки и только
+    # по тем складам, которые реально пересобрали: если прогон упал на середине, дыры в
+    # снимке не образуется.
+    dead = 0
+    for sname, ids in fresh.items():
+        dead += db.execute("""DELETE FROM supplier_stock
+                              WHERE captured_at = %s AND store = %s AND NOT (ms_id = ANY(%s))""",
+                           (captured, sname, ids)) or 0
+    print(f"Удалено устаревших строк снимка: {dead}", flush=True)
+
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--light", action="store_true",
+                    help="поставщика/закупочную не тянуть из МС, перенести из последнего снимка")
+    a = ap.parse_args()
+    main(with_suppliers=not a.light)

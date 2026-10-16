@@ -1,0 +1,10 @@
+[Unit]
+Description=Restore only owned TC product UPDATE subscription after Rapid dimensions run
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python tools/card_rapid_dimensions_night.py --restore-webhook
+TimeoutStartSec=10min

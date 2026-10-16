@@ -1,0 +1,23 @@
+{
+  "status": "scheduled_ready",
+  "cards": 802,
+  "wb_cards": 200,
+  "dimension_cards": 605,
+  "overlap": 3,
+  "attempted": 0,
+  "verified": 0,
+  "skipped": 0,
+  "already_desired": 0,
+  "wb_attempted": 0,
+  "wb_verified": 0,
+  "wb_skipped": 0,
+  "wb_already_desired": 0,
+  "dimension_attempted": 0,
+  "dimension_verified": 0,
+  "dimension_skipped": 0,
+  "dimension_already_desired": 0,
+  "start_msk": "2026-10-17 01:30",
+  "hard_stop_msk": "2026-10-17 03:30",
+  "preflight_ready": 802,
+  "preflight_hold": 0
+}

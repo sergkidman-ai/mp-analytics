@@ -1,0 +1,12 @@
+[Unit]
+Description=One-off Bulat descriptions update 2026-10-09 21:00 MSK
+
+[Timer]
+# Server timezone UTC: 18:00 UTC = 21:00 MSK.
+OnCalendar=2026-10-09 18:00:00
+AccuracySec=1s
+Persistent=false
+Unit=card-bulat-full-title-20261009.service
+
+[Install]
+WantedBy=timers.target

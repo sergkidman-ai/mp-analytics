@@ -1,0 +1,16 @@
+[Unit]
+Description=Authorized WB-name pilot, exactly 200 MS cards at 21:00 MSK
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/mp-analytics/docs/reports/prc_wb_name_canary_night_2026-10-15/authorization.json
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python tools/prc/wb_name_canary.py --apply
+TimeoutStartSec=45min
+TimeoutStopSec=30s
+Restart=no
+StandardOutput=journal
+StandardError=journal

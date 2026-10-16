@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-05T12:57:59.822386+00:00",
+  "latest_user_instruction": "6451–6454 already in inks; keep Diskver unchanged; its other issue on hold",
+  "wb_acc1_current_subjects": {
+    "6450": 1907,
+    "6451": 1907,
+    "6452": 1907,
+    "6453": 1907,
+    "6454": 1907
+  },
+  "cards_requiring_transfer_now": 0,
+  "wb_acc2_on_hold": {
+    "vendorCode": "4434UU1ZP70G",
+    "nmID": 323184683,
+    "read_or_written_in_this_check": false
+  },
+  "writes": 0,
+  "historical_initial_scope": "initial_summary.json and initial_transfer_plan.csv",
+  "current_scope": "Only 6450 could require transfer; live read confirms it already in 1907"
+}

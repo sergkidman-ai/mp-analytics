@@ -432,21 +432,28 @@ def _fold_order(o, fin, agg, comm_types, cost):
                 f["qty_cov"] += q
 
 
-def _write_finance(fin, agg, since):
+def _write_finance(fin, agg, since, until=None, preview=False):
     """Аггрегатная фаза: fin/agg → yandex_monthly + yandex_finance_monthly.
     Общая для collect (live) и recompute (из сырья). Расходы/реклама — из
     raw_yandex_services; выручка/возвраты — из raw_yandex_closure (фолбэк на stats/orders).
     Возвращает список записанных помесячных строк (frecs)."""
+    from collectors import yandex_finance_basis as basis_source
+    fin = {mo:f.copy() for mo,f in fin.items() if mo >= since and (until is None or mo <= until)}
+    agg = {mo:f for mo,f in agg.items() if mo >= since and (until is None or mo <= until)}
     recs = [{"account": ACCOUNT, "month": mo, "revenue": round(v["revenue"], 2),
              "subsidy": round(v["subsidy"], 2), "orders": v["orders"]}
             for mo, v in sorted(agg.items())]
-    if recs:
+    if recs and not preview:
         db.upsert("yandex_monthly", recs, conflict_cols=["account", "month"],
                   update_cols=["revenue", "subsidy", "orders"])
     # COGS: приоритет — ФАКТ из МС-заказов Маркета за месяц; фолбэк — карта по SKU с импутацией
     ms_fact = {}
     try:
-        ms_fact = _ms_cogs_monthly(since)
+        if preview:
+            ms_fact = {r['month'].isoformat(): r['cogs'] for r in db.query(
+                'SELECT month,cogs FROM yandex_finance_monthly WHERE account=%s', (ACCOUNT,))}
+        else:
+            ms_fact = _ms_cogs_monthly(since)
     except Exception as e:  # МС недоступен — работаем по карте
         print(f"  [ya monthly] МС-факт себеста недоступен: {e}", flush=True)
     # Реклама, приоритет источника:
@@ -503,10 +510,14 @@ def _write_finance(fin, agg, since):
         s = svc.get(mo[:7]) or {}
         # Выручка/возвраты — из closure-отчёта (истина ЛК). Гросс-поступления от покупателей
         # (не нетто по заказу) и возвраты как отдельная строка; фолбэк — значения stats/orders.
-        # Признак полноты месяца — наличие распознанной выручки (payments): коллектор пишет
-        # только полные снапшоты, а пустой/битый месяц (revenue=0) НЕ должен занулять stats.
+        # Legacy closure is display-only unless verified evidence exists. Nonzero revenue
+        # does not establish completeness; trading reads an explicitly activated basis.
         c = clo.get(mo[:7])
-        if c and c["revenue"]:
+        evidence = basis_source.verified_month(mo[:7])
+        if evidence:
+            f['revenue'] = basis_source.money(evidence['monthly_record']['revenue'])
+            f['returns_sum'] = basis_source.money(evidence['monthly_record']['returns_sum'])
+        elif c and c["revenue"]:
             f["revenue"] = c["revenue"]
             f["returns_sum"] = c["returns"]     # положительный модуль (как в stats-конвенции)
         # Расходные — из отчёта услуг (истина), НЕ из stats/orders commissions[] (иначе задвоение).
@@ -563,7 +574,11 @@ def _write_finance(fin, agg, since):
                       "cogs": round(fact, 2) if fact is not None else map_cogs,
                       "cogs_cov_pct": 100.0 if fact is not None else (
                           round(f["qty_cov"] / f["qty"] * 100, 1) if f["qty"] else 0)})
-    if frecs:
+    for record in frecs:
+        evidence = basis_source.verified_month(record['month'][:7])
+        if evidence:
+            record.update({k:basis_source.money(v) for k,v in evidence['monthly_record'].items()})
+    if frecs and not preview:
         db.upsert("yandex_finance_monthly", frecs, conflict_cols=["account", "month"],
                   update_cols=["revenue", "subsidy", "orders", "returns_orders", "returns_sum",
                                "fee", "delivery", "transfer", "promotion", "agency", "other_fee",
@@ -572,7 +587,8 @@ def _write_finance(fin, agg, since):
                                "netting", "netting_fee", "netting_delivery", "netting_promotion",
                                "netting_boost_sales", "netting_boost_shows", "netting_shelf",
                                "unredeemed_orders", "unredeemed_cost", "cogs", "cogs_cov_pct"])
-        db.execute("UPDATE yandex_finance_monthly SET updated_at=now() WHERE account=%s", (ACCOUNT,))
+        db.execute("UPDATE yandex_finance_monthly SET updated_at=now() WHERE account=%s AND month=ANY(%s::date[])",
+                   (ACCOUNT, [r['month'] for r in frecs]))
     for r in frecs:
         mp = (r["fee"] + r["delivery"] + r["transfer"] + r["promotion"] + r["agency"]
               + r["other_fee"] + r["subscription_cost"])  # reviews_cost уже внутри promotion
@@ -586,7 +602,7 @@ def _write_finance(fin, agg, since):
     return frecs
 
 
-def recompute(since="2026-01-01"):
+def recompute(since="2026-01-01", until=None, preview=False):
     """ЛЁГКИЙ режим: пересобрать витрину из УЖЕ собранного сырья, БЕЗ обращения к API Яндекса.
     Заказы читаются из raw_yandex_stats_order (payload идентичен ответу API), расходы/реклама —
     из raw_yandex_services, выручка/возвраты — из raw_yandex_closure, буст — из yandex_boost_monthly.
@@ -616,7 +632,7 @@ def recompute(since="2026-01-01"):
         _fold_order(o, fin, agg, comm_types, cost)
         n += 1
     print(f"  пересчёт из сырья: {n} заказов (с {since})", flush=True)
-    frecs = _write_finance(fin, agg, since)
+    frecs = _write_finance(fin, agg, since, until=until, preview=preview)
     print(f"Яндекс.Маркет (лёгкий пересчёт): помесячно {len(frecs)} месяцев | "
           f"типы commissions: {dict(comm_types)}", flush=True)
     return frecs

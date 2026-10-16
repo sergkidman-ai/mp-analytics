@@ -1,0 +1,61 @@
+{
+  "at_utc": "2026-10-13T11:57:24.891515+00:00",
+  "suppliers": {
+    "rapid": {
+      "current_receipt_cards": 1408,
+      "archived_excluded": 0,
+      "matched_source_cards": 1408,
+      "with_nonempty_barcode": 961,
+      "with_valid_gtin": 959,
+      "with_valid_ean13": 959,
+      "multiple_tokens_cards": 0,
+      "token_format_counts": {
+        "GTIN13": 959,
+        "DIGITS_12_INVALID_CHECKSUM": 1,
+        "DIGITS_11_INVALID_CHECKSUM": 1
+      }
+    },
+    "bulat": {
+      "current_receipt_cards": 2519,
+      "archived_excluded": 0,
+      "matched_source_cards": 2519,
+      "with_nonempty_barcode": 1640,
+      "with_valid_gtin": 1314,
+      "with_valid_ean13": 1314,
+      "multiple_tokens_cards": 0,
+      "token_format_counts": {
+        "DIGITS_1_INVALID_CHECKSUM": 326,
+        "GTIN13": 1314
+      }
+    },
+    "profiline": {
+      "current_receipt_cards": 1414,
+      "archived_excluded": 0,
+      "matched_source_cards": 1414,
+      "with_nonempty_barcode": 1414,
+      "with_valid_gtin": 1414,
+      "with_valid_ean13": 1414,
+      "multiple_tokens_cards": 0,
+      "token_format_counts": {
+        "GTIN13": 1414
+      }
+    },
+    "solutionsprint": {
+      "current_receipt_cards": 1422,
+      "archived_excluded": 3,
+      "matched_source_cards": 1422,
+      "with_nonempty_barcode": 0,
+      "with_valid_gtin": 0,
+      "with_valid_ean13": 0,
+      "multiple_tokens_cards": 0,
+      "token_format_counts": {}
+    }
+  },
+  "external_writes": 0,
+  "database_writes": 0,
+  "quoted_ean_normalized_cards": 1,
+  "invalid_rapid_unrepairable_cards": 2,
+  "bulat_zero_placeholders": 326,
+  "sprint_pages_read": 890,
+  "easyprint_available": false
+}

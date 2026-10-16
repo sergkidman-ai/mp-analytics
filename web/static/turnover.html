@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Оборот для премии</title>
+<title>Обороты</title>
 <!-- поток: fin -->
 <style>
   :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
@@ -53,17 +53,35 @@
     <div class="navgroup">Деньги</div>
     <a href="/cashflow">💰 Кэшфлоу</a>
     <a href="/turnover" class="cur">🧮 Оборот для премии</a>
+    <a href="/turnover/royalty">Обороты по торговым маркам</a>
     <div class="navgroup">Отчёты</div>
     <a href="/reports">📋 Отчёты МП</a>
   </nav>
 </header>
 <main>
-  <div class="bar"><h1>🧮 Оборот для премии</h1>
+  <div class="bar"><h1>🧮 Обороты</h1>
     <span class="muted">деньги покупателя: столько реально заплатили за наш товар</span></div>
+  <div class="chart-modes" role="tablist" aria-label="Раздел оборотов">
+    <button id="premium-tab" role="tab" aria-controls="premium" aria-selected="true" class="cur" data-turnover-section="premium">Для премии</button>
+    <button id="royalty-tab" role="tab" aria-controls="royalty" aria-selected="false" data-turnover-section="royalty">По торговым маркам · роялти</button>
+  </div>
+  <section id="premium" role="tabpanel" aria-labelledby="premium-tab">
   <div id="alerts"></div>
   <div class="card chart"><div class="chart-modes" role="group" aria-label="Показатель графика"><button class="cur" data-metric="net">Оборот</button><button data-metric="avg_check">Средний чек</button><button data-metric="orders">Кол-во заказов</button></div><div id="chart"></div></div>
   <div id="body"></div>
-  <div class="note">
+  </section>
+  <section class="card" id="royalty" role="tabpanel" aria-labelledby="royalty-tab" hidden>
+    <h2 style="font-size:18px;margin-top:0">Обороты по торговой марке</h2>
+    <p class="muted">Цифровой квадрат — для Цифрового; Dsquare — для Дисквера. Оборот маркетплейсов для расчёта роялти с 01.07.2026.</p>
+    <div id="royalty-body">Загрузка…</div>
+    <div class="note">ВБ: «Вайлдберриз реализовал Товар»; Ozon: «Реализовано на сумму»; Маркет: «Получено от потребителей».
+      На ВБ и Маркете учитывается весь оборот фирмы, на Ozon — только выбранная торговая марка.
+      База роялти — продажи до возвратов. Возвраты базу не уменьшают и показаны справочно.
+      Комиссии, логистика и реклама не вычитаются. Все суммы берутся из отчётов площадок.
+      Бренд Ozon определяется по последнему сохранённому состоянию карточки; история изменений бренда не хранится.
+      Другие каналы продаж в этот расчёт не входят.</div>
+  </section>
+  <div class="note" id="premium-note">
     Считается по тем же показателям, что видны в кабинетах:
     <b>ВБ</b> — «Продажа» (цена после СПП), <b>Ozon</b> — «Реализовано на сумму»,
     <b>Маркет</b> — «Получено от потребителей». Возвраты вычитаются из месяца, когда прошли.
@@ -156,7 +174,62 @@ document.querySelectorAll('[data-metric]').forEach(button=>button.onclick=()=>{
   document.querySelectorAll('[data-metric]').forEach(b=>b.classList.toggle('cur',b===button));
   if(chartData)$('#chart').innerHTML=chart(chartData);
 });
+const royaltyRub=n=>n==null?"—":n.toLocaleString("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2})+" ₽";
+async function loadRoyalty(){
+  const target=$('#royalty-body');
+  try{
+    const response=await fetch('/api/turnover/royalty');
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const d=await response.json();
+    let h='<h3>Размер роялти · Цифровой квадрат</h3><div class="scroll"><table class="t"><thead><tr><th class="k">Оборот за месяц</th><th>Ставка</th></tr></thead><tbody>';
+    for(const rate of d.royalty_rates['7807355364'])h+=`<tr><td class="k">${rate.range}</td><td>${rate.percent}%</td></tr>`;
+    h+='</tbody></table></div><p class="note">Ставка выбирается по обороту каждого месяца и применяется ко всей базе месяца. Расчёт округляется до копеек. Для Дисквера ставка пока не задана.</p>';
+    const total=d.digital_royalty_total;
+    h+=`<p><b>Цифровой · роялти с 01.07.2026: ${royaltyRub(total.amount)}</b>${total.preliminary?' <span class="warn">Предварительный расчёт</span>':''}</p>`;
+    h+='<div class="note">Это начисленный размер роялти по доступным отчётам, без вычета ранее сделанных платежей. Другие каналы продаж не включены.</div>';
+    for(const [inn,name] of Object.entries(d.orgs)){
+      const isDigital=inn==='7807355364';
+      h+=`<h3>${name} · ${d.trademarks[inn]}</h3><div class="scroll"><table class="t"><thead><tr><th class="k">Месяц</th><th>ВБ · продажи</th><th>Ozon · продажи по ТЗ</th><th>Маркет · продажи</th><th>База роялти</th><th>Возвраты (справочно)</th><th>После возвратов (справочно)</th>${isDigital?'<th>Ставка</th><th>Роялти к уплате</th>':''}</tr></thead><tbody>`;
+      for(const m of d.months.slice().reverse()){
+        const o=m.orgs[inn];
+        h+=`<tr><td class="k">${mname(m.ym)}</td>`;
+        for(const p of ['wb','ozon','yandex'])h+=`<td>${o.platforms[p]===null?'Нет данных':royaltyRub(o.platforms[p].base)}</td>`;
+        h+=`<td><b>${royaltyRub(o.base)}</b></td><td>${royaltyRub(o.rets)}</td><td>${royaltyRub(o.net)}</td>${isDigital?`<td>${o.royalty.rate_percent==null?'—':o.royalty.rate_percent.toLocaleString('ru-RU')+'%'}</td><td><b>${royaltyRub(o.royalty.amount)}</b>${o.royalty.amount!=null&&o.royalty.preliminary?'<br><span class="warn">Предварительно</span>':''}</td>`:''}</tr>`;
+        const u=o.ozon_unclassified;
+        if(u.rows)h+=`<tr><td class="k warn" colspan="${isDigital?9:7}">Ozon: не определён бренд у ${u.rows} строк; ${royaltyRub(u.sales)} продаж не включены в базу роялти.</td></tr>`;
+        const monthEnd=new Date(Date.UTC(Number(m.ym.slice(0,4)),Number(m.ym.slice(5,7)),0)).toISOString().slice(0,10);
+        if(o.wb_last_day && o.wb_last_day<monthEnd)h+=`<tr><td class="k warn" colspan="${isDigital?9:7}">ВБ: данные месяца известны по ${o.wb_last_day}; база может быть неполной.</td></tr>`;
+        const missing=Object.entries(o.platforms).filter(([,v])=>v===null).map(([p])=>d.platforms[p]);
+        if(missing.length)h+=`<tr><td class="k warn" colspan="${isDigital?9:7}">База предварительная, включает только доступные данные; нет данных: ${missing.join(', ')}.</td></tr>`;
+      }
+      h+='</tbody></table></div>';
+    }
+    h+='<div class="note">Наличие дат границ месяца само по себе не гарантирует полноту отчётов.</div>';
+    h+=`<div class="note">Рассчитано ${new Date(d.calculated_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})} МСК. Пересчёт раз в сутки.</div>`;
+    target.innerHTML=h;
+  }catch(error){target.textContent='Не удалось загрузить оборот по торговым маркам. Обновите страницу.';}
+}
+function selectTurnoverSection(){
+  const royalty=window.location.hash==='#royalty'||(!window.location.hash&&window.location.pathname==='/turnover/royalty');
+  $('#premium').hidden=royalty;
+  $('#premium-note').hidden=royalty;
+  $('#royalty').hidden=!royalty;
+  document.querySelector('a[href="/turnover"]').classList.toggle('cur',!royalty);
+  document.querySelector('a[href="/turnover/royalty"]').classList.toggle('cur',royalty);
+  document.querySelectorAll('[data-turnover-section]').forEach(button=>{
+    const selected=(button.dataset.turnoverSection==='royalty')===royalty;
+    button.classList.toggle('cur',selected);
+    button.setAttribute('aria-selected',String(selected));
+  });
+}
+document.querySelectorAll('[data-turnover-section]').forEach(button=>button.onclick=()=>{
+  window.location.hash=button.dataset.turnoverSection==='royalty'?'#royalty':'#premium';
+  selectTurnoverSection();
+});
+window.addEventListener('hashchange',selectTurnoverSection);
+selectTurnoverSection();
 load();
+loadRoyalty();
 </script>
 </body>
 </html>

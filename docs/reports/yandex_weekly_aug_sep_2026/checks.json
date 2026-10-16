@@ -1,0 +1,19 @@
+{
+  "orders": [
+    {
+      "mo": "2026-08",
+      "created": 739,
+      "delivered": 602
+    },
+    {
+      "mo": "2026-09",
+      "created": 554,
+      "delivered": 438
+    }
+  ],
+  "guard_retention_current": 0.6953495011284289,
+  "full_month_retention": 0.6700368042873839,
+  "floor_overstatement_factor": 1.0830876592515144,
+  "cogs_matches_pult": true,
+  "payment_reconciliation": "Все 1337 сохранённых операций совпали по заказу, дате, виду и сумме; 46 новых операций 28–30 сентября"
+}

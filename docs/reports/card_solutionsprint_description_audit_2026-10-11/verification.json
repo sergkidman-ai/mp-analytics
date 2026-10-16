@@ -1,0 +1,15 @@
+{
+  "accounted_cards": 2270,
+  "unique_ms_ids": 2270,
+  "equal_or_whitespace_only": 684,
+  "different": 1205,
+  "no_confirmed_match": 381,
+  "catalogue_pages": 374,
+  "exact_code_searches": 362,
+  "full_detail_name_samples": 12,
+  "all_detail_names_equal_listings": true,
+  "unit_tests_passed": 10,
+  "supplier_stock_filter": false,
+  "external_writes": 0,
+  "database_writes": 0
+}

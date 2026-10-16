@@ -1,0 +1,16 @@
+{
+  "status": "preview",
+  "source_rows": 8007,
+  "ready": 712,
+  "skipped": 7295,
+  "reasons": {
+    "no_stock": 387,
+    "out_of_scope": 6904,
+    "blacklisted": 4
+  },
+  "new_docs": 8,
+  "old_docs": 8,
+  "card_updates": 18,
+  "total_quantity": 127087.44,
+  "sum_rub": "76330584.28"
+}

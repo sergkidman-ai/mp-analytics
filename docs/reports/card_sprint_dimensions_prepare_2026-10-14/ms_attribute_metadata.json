@@ -1,0 +1,286 @@
+{
+  "meta": {
+    "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes?limit=1000",
+    "type": "attributemetadata",
+    "mediaType": "application/json",
+    "size": 23,
+    "limit": 1000,
+    "offset": 0
+  },
+  "rows": [
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/efaefd7a-b130-11ea-0a80-0367000245f4",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "efaefd7a-b130-11ea-0a80-0367000245f4",
+      "name": "Код поставщика",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b5a757d4-85ca-11f1-0a80-184f000fc818",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "b5a757d4-85ca-11f1-0a80-184f000fc818",
+      "name": "последний ГТД",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/eb81d33e-30d0-11ec-0a80-0253000c3335",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "eb81d33e-30d0-11ec-0a80-0253000c3335",
+      "name": "EAN/UPC",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/785d91a6-5298-11ec-0a80-0949000f53fe",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "785d91a6-5298-11ec-0a80-0949000f53fe",
+      "name": "Ссылка",
+      "type": "link",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b24055cd-529a-11ec-0a80-08c60010c152",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "b24055cd-529a-11ec-0a80-08c60010c152",
+      "name": "Изображение",
+      "type": "link",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/078b5ec8-6011-11ed-0a80-062d000b3fd4",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "078b5ec8-6011-11ed-0a80-062d000b3fd4",
+      "name": "Изображение поставщика",
+      "type": "link",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/5631bdb3-6011-11ed-0a80-0225000b5855",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "5631bdb3-6011-11ed-0a80-0225000b5855",
+      "name": "Бренд",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "7d0494e8-70a6-11ed-0a80-065e005bf7dd",
+      "name": "Модель",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/8e479906-9bfe-11f1-0a80-06a70000d704",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "8e479906-9bfe-11f1-0a80-06a70000d704",
+      "name": "Доп. название модели",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/1121b62c-6013-11ed-0a80-0bf6000b8be0",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "1121b62c-6013-11ed-0a80-0bf6000b8be0",
+      "name": "Цвет",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a8832122-6012-11ed-0a80-0225000bddc1",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "a8832122-6012-11ed-0a80-0225000bddc1",
+      "name": "Чип",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/33207840-6019-11ed-0a80-0ed5000d3b5e",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "33207840-6019-11ed-0a80-0ed5000d3b5e",
+      "name": "Ресурс (поставщика)",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/46231e52-76f6-11ee-0a80-0282001a60b3",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "46231e52-76f6-11ee-0a80-0282001a60b3",
+      "name": "Название WB",
+      "type": "text",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/84ff57f8-536d-11ec-0a80-00200028b27e",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "84ff57f8-536d-11ec-0a80-00200028b27e",
+      "name": "Гарантия/ Срок службы",
+      "type": "long",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/a883238f-6012-11ed-0a80-0225000bddc2",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "a883238f-6012-11ed-0a80-0225000bddc2",
+      "name": "Длина, см.",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/00c43da1-4f03-11ee-0a80-082e001b3a61",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "00c43da1-4f03-11ee-0a80-082e001b3a61",
+      "name": "Ширина, см.",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "187a0c24-4f03-11ee-0a80-01f1001b6bd8",
+      "name": "Высота, см.",
+      "type": "string",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "e2efdaaa-6016-11ed-0a80-0310000c4c3d",
+      "name": "Стоп лист",
+      "type": "boolean",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661cbf9-1550-11f0-0a80-0b56001266d9",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "customEntityMeta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+        "type": "customentitymetadata",
+        "mediaType": "application/json"
+      },
+      "id": "b661cbf9-1550-11f0-0a80-0b56001266d9",
+      "name": "Ячейка СПБ",
+      "type": "customentity",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/b661ce3e-1550-11f0-0a80-0b56001266da",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "customEntityMeta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+        "type": "customentitymetadata",
+        "mediaType": "application/json"
+      },
+      "id": "b661ce3e-1550-11f0-0a80-0b56001266da",
+      "name": "Ячейка МСК",
+      "type": "customentity",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/6f582bb7-cc84-11f0-0a80-01540029300a",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "customEntityMeta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/a8a8d3c9-154f-11f0-0a80-175100129f7d",
+        "type": "customentitymetadata",
+        "mediaType": "application/json"
+      },
+      "id": "6f582bb7-cc84-11f0-0a80-01540029300a",
+      "name": "Ячейка Дубровка",
+      "type": "customentity",
+      "required": false
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/e5020d07-243d-11f1-0a80-19050008c201",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "id": "e5020d07-243d-11f1-0a80-19050008c201",
+      "name": "Связь",
+      "type": "string",
+      "required": false,
+      "description": "для универсальных моделей"
+    },
+    {
+      "meta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/entity/product/metadata/attributes/24a60006-b32c-11f1-0a80-01170006c175",
+        "type": "attributemetadata",
+        "mediaType": "application/json"
+      },
+      "customEntityMeta": {
+        "href": "https://api.moysklad.ru/api/remap/1.2/context/companysettings/metadata/customEntities/ff58f197-b328-11f1-0a80-0eab00068192",
+        "type": "customentitymetadata",
+        "mediaType": "application/json"
+      },
+      "id": "24a60006-b32c-11f1-0a80-01170006c175",
+      "name": "Серия",
+      "type": "customentity",
+      "required": false
+    }
+  ]
+}

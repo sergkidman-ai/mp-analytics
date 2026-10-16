@@ -1,0 +1,11 @@
+[Unit]
+Description=Send Natalia a Bulat description check task in one week
+
+[Timer]
+OnCalendar=2026-10-16 13:25:00
+AccuracySec=1min
+Persistent=true
+Unit=card-bulat-week-check-20261016.service
+
+[Install]
+WantedBy=timers.target

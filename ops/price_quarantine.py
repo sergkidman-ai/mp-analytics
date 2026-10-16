@@ -37,6 +37,7 @@ LOW_PRICE, Ozon — свыше ~50 %). Пока товар в карантине
 Запуск:  ./venv/bin/python ops/price_quarantine.py [--apply]
 """
 import os
+import fcntl
 import re
 import sys
 import csv
@@ -78,7 +79,7 @@ def _last_closed(d):
     for i in range(len(d["months"]) - 1, -1, -1):
         if not keys or keys[i] not in prov:
             return i
-    return len(d["months"]) - 1
+    raise RuntimeError("Нет закрытого пригодного месяца: все периоды provisional")
 
 
 def retention():
@@ -102,15 +103,22 @@ def retention():
         itog = L["to_pay"][i] - sum(L[k][i] for k in exp) + comp
         out[acc] = (ob - itog - retp) / ob
 
-    d = json.loads((HIST / "mp_yandex_hist.json").read_text())
-    i = _last_closed(d)
-    # promotion — РОДИТЕЛЬСКАЯ строка (бусты/полка/отзывы/реклама уже внутри неё): берём её,
-    # компоненты отдельно не складываем, иначе продвижение считается дважды.
-    exp = ["fee", "delivery", "transfer", "promotion", "agency", "other_fee", "subscription_cost"]
-    for acc, a in d["accounts"].items():
-        L = a["lines"]
-        out[acc] = sum(L[k][i] for k in exp) / (L["revenue"][i] + L["netting"][i])
+    # UI history is not an authorization to change Yandex prices.
+    from collectors.yandex_finance_basis import active_basis
+    try:
+        basis = active_basis()
+    except RuntimeError as exc:
+        print(str(exc), flush=True)  # WB/Ozon remain usable; Yandex is explicitly omitted.
+    else:
+        out['ya_acc1'] = float(basis['retention'])
     return out, month
+
+
+def yandex_retention():
+    """Exact Yandex rate and its own month; fail closed before API writes."""
+    from collectors.yandex_finance_basis import active_basis, D
+    basis = active_basis()
+    return D(str(basis['retention'])), basis['month']
 
 
 def ya_retention_bands():
@@ -128,9 +136,8 @@ def ya_retention_bands():
     Тонкому диапазону (n < YA_BAND_MIN_N) своей ставке не верим: берём БОЛЬШУЮ из своей
     и ближайшей плотной — ошибаться безопаснее в сторону завышенных удержаний.
     """
-    d = json.loads((HIST / "mp_yandex_hist.json").read_text())
-    keys = d.get("period_keys") or []
-    last_key = keys[_last_closed(d)] if keys else "9999-12"
+    from collectors.yandex_finance_basis import active_basis
+    last_key = active_basis()['month']
     rows = db.query("""
         WITH z AS (SELECT order_id AS o, SUM(amount) AS rev
                      FROM raw_yandex_closure
@@ -602,10 +609,38 @@ def targets_load():
 
 
 def targets_save(t):
-    with TARGETS.open("w", newline="", encoding="utf-8") as f:
+    # При прерывании старый журнал должен остаться целым.
+    temporary = TARGETS.with_suffix(".tmp")
+    with temporary.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=TG_COLS)
         w.writeheader()
         w.writerows(t.values())
+        f.flush()
+        os.fsync(f.fileno())
+    temporary.replace(TARGETS)
+
+
+def targets_refresh(tg, rows, day):
+    """Свежий карантин переоткрывает старый выпуск; СТОП ставит лестницу на паузу.
+
+    Завершённый эпизод не запрещает следующий, даже при той же цели.
+    wb_release сам перечитывает текущую цену и при достигнутой цели ничего
+    не отправляет. Цели незавершённых лестниц, исчезнувших из карантина
+    после первой ступени, сохраняются для продолжения.
+    """
+    for r in rows:
+        if r["platform"] != "wb":
+            continue
+        k = (r["account"], str(r["id"]))
+        if r["verdict"] == "ОК":
+            tg[k] = dict(account=r["account"], id=str(r["id"]),
+                         target=f"{r['price_new']:.0f}", status="в работе", updated=day)
+        elif k in tg:
+            # Старое одобрение не перекрывает свежий запрет по марже/данным.
+            tg[k]["status"] = "ПАУЗА: " + r["verdict"]
+            tg[k]["updated"] = day
+    return [v for v in tg.values()
+            if v["status"] != "ВЫПУЩЕН" and not v["status"].startswith("ПАУЗА:")]
 
 
 def apply_ok(rows, log=None):
@@ -624,13 +659,8 @@ def apply_ok(rows, log=None):
 
     day = datetime.date.today().isoformat()
     tg = targets_load()
-    for r in rows:                                        # новые «ОК» — в журнал целей
-        if r["platform"] == "wb" and r["verdict"] == "ОК":
-            k = (r["account"], str(r["id"]))
-            if tg.get(k, {}).get("status") != "ВЫПУЩЕН":
-                tg[k] = dict(account=r["account"], id=str(r["id"]),
-                             target=f"{r['price_new']:.0f}", status="в работе", updated=day)
-    work = [v for v in tg.values() if v["status"] != "ВЫПУЩЕН"]
+    work = targets_refresh(tg, rows, day)
+    targets_save(tg)                                      # вся очередь до первой записи цены
 
     res, state = {}, {"i": 0}                             # размер шага общий на весь прогон
     for v in work:
@@ -650,7 +680,7 @@ def apply_ok(rows, log=None):
 
 def build():
     ret, month = retention()
-    ya_bands = ya_retention_bands()
+    ya_bands = ya_retention_bands() if "ya_acc1" in ret else []
     cm = cost_map()
     wb_vc = {r["nm_id"]: r["vendor_code"] for r in db.query("SELECT nm_id, vendor_code FROM wb_price")}
     raw = []
@@ -672,7 +702,7 @@ def build():
             print(f"WB {acc}: без цены в карантине, пропущено {len(noprice)} "
                   f"({', '.join(str(x) for x in noprice[:5])}{'…' if len(noprice) > 5 else ''})")
 
-    ya_offers = ya_quarantine()
+    ya_offers = ya_quarantine() if "ya_acc1" in ret else []
     arch = ya_archived([o.get("offerId") for o in ya_offers if o.get("offerId")])
     if arch:
         print(f"Маркет: архивных офферов пропущено {len(arch)} ({', '.join(sorted(arch))})")
@@ -706,7 +736,7 @@ def build():
     return rows, month
 
 
-def main():
+def main_run():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true",
                     help="выпустить из карантина всё с вердиктом ОК (Маркет — confirm, WB — лестница)")
@@ -717,7 +747,10 @@ def main():
     out = BASE_DIR / "docs" / "reports" / f"quarantine_check_{day}.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()) if rows else
+                           ["platform", "account", "id", "code", "pack", "price_new",
+                            "price_old", "cogs", "cost_src", "retention_pct", "net",
+                            "floor", "verdict", "reason"])
         w.writeheader()
         w.writerows(rows)
 
@@ -746,6 +779,19 @@ def main():
                     w.writeheader()
                     w.writerows(log)
                 print(f"журнал выпуска: {lf.relative_to(BASE_DIR)}")
+
+
+def main():
+    # Ручной запуск и cron не должны одновременно вести одну лестницу/журнал.
+    lock_path = BASE_DIR / "backups" / "price_quarantine.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("Карантин цен: другой прогон уже работает, запуск пропущен")
+            return
+        main_run()
 
 
 if __name__ == "__main__":

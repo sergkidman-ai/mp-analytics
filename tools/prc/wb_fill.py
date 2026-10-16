@@ -19,7 +19,7 @@ TheCartridge (`prc_tc_model`, слепок ночного таймера) — т
              НЕ добавляем: на этикетке дважды одно и то же не пишем (решение Сергея 16.08);
   доп.назв.  `additional_title` (синоним кода, «05A»), тоже без «№». Не пишем вовсе, если
              это ПЕРЕЧЕНЬ (запятая внутри: у DK-6305 там восемь артикулов подряд) и если
-             без него название не влезает в 60 символов этикетки;
+             без него название превышает ориентир 50 знаков;
   цвет       `ink_colors` строчными, несколько цветов — через «/»; У НАБОРОВ ЦВЕТ НЕ ПИШЕМ
              (любой тип со словом «Комплект»: там цвет — это перечень содержимого);
   чип        `chip`: «С чипом» → «с чипом», «C чипом без счетчика» → «с чипом без счётчика»,
@@ -49,6 +49,7 @@ sys.path.insert(0, str(BASE_DIR))
 
 from core import db, ms_api                     # noqa: E402
 from prices.ms_import import ATTRS              # noqa: E402
+from prices.wb_label import Parts, Result, shorten, MAX_CHARS  # noqa: E402
 
 WB_ATTR = "Название WB"
 ATTR_ID, ATTR_TYPE = ATTRS[f"Доп. поле: {WB_ATTR}"]
@@ -83,9 +84,9 @@ COLOR_OK = {
 # он брутто с флаконом (у TK-1170 volume_ml 300 против weight 350). Единица — по типу.
 VOLUME_UNIT = {"Тонер": "г", "Чернила": "мл"}
 
-# Этикетка WB: до этой длины название читается целиком. Не влезло — снимаем доп. название
-# (самая необязательная часть: это синоним кода, а не сам код), дальше не режем.
-LABEL_LIMIT = 60
+# Общие правила этикетки: ориентир 50, жёсткий предел 55. Проверка двух строк
+# в исходном шаблоне остаётся отдельным обязательным этапом перед массовой записью.
+LABEL_LIMIT = MAX_CHARS
 
 # МС днём занят рабочими процессами — идём с паузой между страницами чтения и пачками записи.
 PAUSE = 1.0
@@ -108,57 +109,60 @@ def brand_of(tc):
     return BRAND_SHORT.get(top[0][0], top[0][0]), [b for b, _ in top]
 
 
-def compose(tc):
-    """(«Название WB», причина пустоты). Причина не пустая — значение НЕ пишем."""
+def compose_details(tc, price_name=""):
+    """One semantic formula plus shared label rules, including supplier XL."""
     kind = (tc.get("consumable_type") or "").strip()
     model = _clean(tc.get("title"))
     brand, brands = brand_of(tc)
     missing = [n for n, v in (("тип", kind), ("модель", model), ("бренд", brand)) if not v]
     if missing:
-        return "", f"в ТК нет {', '.join(missing)}"
+        return Result(reason=f"в ТК нет {', '.join(missing)}", issue="missing_source")
 
     parts = [TYPE_RENAME.get(kind, kind), model]
     if not re.search(rf"(?<![0-9A-Za-zА-Яа-я]){re.escape(brand)}(?![0-9A-Za-zА-Яа-я])",
                      model, re.IGNORECASE):
         parts += ["для", brand]
     extra = _clean(tc.get("additional_title"))
-    if extra and "," in extra:          # перечень артикулов, а не второе имя модели
+    if "," in extra:
         extra = ""
 
-    tail = []
-    if SET_MARK not in kind.lower():
+    colors = []
+    if not re.search(r"комплект|набор", kind, re.IGNORECASE):
         colors = [c.strip().lower() for c in (tc.get("ink_colors") or []) if c and c.strip()]
         unknown = [c for c in colors if c not in COLOR_OK]
         if unknown:
-            return "", f"цвет вне словаря: {'/'.join(unknown)}"
-        if colors:
-            tail.append("/".join(colors))
+            return Result(reason=f"цвет вне словаря: {'/'.join(unknown)}", issue="color")
 
     chip = (tc.get("chip") or "").strip()
-    if chip:
-        word = CHIP_WORD.get(chip)
-        if not word:
-            return "", f"чип вне словаря: {chip}"
-        tail.append(word)
+    word = CHIP_WORD.get(chip, "")
+    if chip and not word:
+        return Result(reason=f"чип вне словаря: {chip}", issue="chip")
 
-    if (tc.get("capacity") or "").strip() == "Увеличенная":
-        tail.append("XL ресурс")
-
+    # Supplier XL must participate in shortening, not be appended afterwards.
+    source_xl = re.search(r"\bxl\b|увеличен", price_name or "", re.IGNORECASE)
+    enlarged = ((tc.get("capacity") or "").strip() == "Увеличенная"
+                or bool(source_xl and "XL" not in " ".join(parts + [extra]).upper()))
+    content = ""
     unit = VOLUME_UNIT.get(kind)
     if unit:
         vol = str(tc.get("volume_ml") or "").strip()
         if vol:
-            try:                                # в сырье ТК число приходит и «300», и «300.0»
-                vol = f"{float(vol):g}"
+            import math
+            try:
+                number = float(vol)
+                if not math.isfinite(number) or number <= 0:
+                    raise ValueError
             except ValueError:
-                vol = ""
-            if vol:
-                tail.append(f"{vol} {unit}")
+                return Result(reason="некорректная масса/объём содержимого в ТК", issue="content")
+            content = f"{number:g} {unit}"
+    return shorten(Parts(prefix=tuple(parts), extra=extra, colors=tuple(colors),
+                         chip=word, xl="XL ресурс" if enlarged else "", content=content))
 
-    name = " ".join(parts + ([extra] if extra else []) + tail)
-    if extra and len(name) > LABEL_LIMIT:      # не влезло в этикетку — снимаем доп. название
-        name = " ".join(parts + tail)
-    return name, ""
+
+def compose(tc, price_name=""):
+    """(Final WB name, reason). Same formula for novelties and catalogue updates."""
+    result = compose_details(tc, price_name)
+    return result.name, result.reason
 
 
 def tc_models():

@@ -1,0 +1,13 @@
+[Unit]
+Description=User task to Natalia: check Bulat/MS descriptions after a week
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python tools/card_bulat_description_week_reminder.py --send-due
+TimeoutStartSec=2min
+StandardOutput=journal
+StandardError=journal

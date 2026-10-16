@@ -49,9 +49,11 @@ def _api(method, data=None, files=None, tries=4):
                 time.sleep(min(wait, 30))
                 continue
             raise RuntimeError(f"{method}: {j.get('description')}")
-        except requests.RequestException:
+        except requests.RequestException as exc:
             if n == tries - 1:
-                raise
+                # requests exceptions contain the authenticated Bot API URL.
+                # Suppress their chained traceback before callers log failures.
+                raise RuntimeError(f"{method}: transport failure ({type(exc).__name__})") from None
             time.sleep(2 ** n)
     raise RuntimeError(f"{method}: не удалось за {tries} попыток")
 

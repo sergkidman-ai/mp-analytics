@@ -1,0 +1,11 @@
+[Unit]
+Description=Combined dimensions and weight, October 15 at 23:20 MSK
+
+[Timer]
+OnCalendar=2026-10-15 20:20:00 UTC
+AccuracySec=1s
+Persistent=false
+Unit=card-dimensions-weight-20261015.service
+
+[Install]
+WantedBy=timers.target

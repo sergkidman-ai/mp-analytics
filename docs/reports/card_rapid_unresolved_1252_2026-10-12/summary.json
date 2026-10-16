@@ -1,0 +1,35 @@
+{
+  "status": "complete_read_only",
+  "at": "2026-10-12T14:29:10.216954+03:00",
+  "scope": 1252,
+  "source": {
+    "fetched_at": "2026-10-12T14:15:23.938771+03:00",
+    "source_date": "2026-10-12 14:05:25",
+    "source_items": 8139
+  },
+  "availability_counts": {
+    "MODEL_IN_STOCK": 338,
+    "NO_CURRENT_SOURCE_MATCH": 566,
+    "KNOWN_VARIANTS_ZERO_FREE": 41,
+    "SIMILAR_POSITIVE_NEEDS_REVIEW": 125,
+    "SIMILAR_ZERO_NEEDS_REVIEW": 182
+  },
+  "mapping_counts": {
+    "EXPLICIT_TC_LINK": 90,
+    "SAME_TC_CODE": 246,
+    "NONE": 873,
+    "KNOWN_TC_VARIANTS": 41,
+    "UNIQUE_FULL_NAME_OR_ARTICLE": 2
+  },
+  "in_stock_historical_cards": 338,
+  "in_stock_unique_external_codes": 214,
+  "in_stock_already_in_current_enter": 335,
+  "explicit_originals_excluded": 152,
+  "original_card_still_in_enter": 0,
+  "external_writes": 0,
+  "database_writes": 0,
+  "note": "Stock by active supplier cards or direct TC links is model availability, not proof the old article remains sold. Candidate-only matches and missing articles never establish zero stock; do not sum stock across historical duplicates.",
+  "positive_candidates_represented_in_current_enter": 77,
+  "positive_candidates_blacklisted": 1,
+  "positive_candidates_explicit_originals": 4
+}

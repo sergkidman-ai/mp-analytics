@@ -1,0 +1,16 @@
+{
+  "at_utc": "2026-10-11T19:33:20.611582+00:00",
+  "authenticated": false,
+  "verification": "public mode",
+  "requested": 1,
+  "parsed": 1,
+  "errors": 0,
+  "positive_stock_cards": 0,
+  "unknown_stock_cards": 0,
+  "properties_with_chip": 0,
+  "color_present": 1,
+  "resource_present": 1,
+  "type_present": 1,
+  "ms_writes": 0,
+  "db_writes": 0
+}

@@ -1,0 +1,13 @@
+[Unit]
+Description=One-night Rapid MS description refresh authorized 2026-10-08
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python tools/card_rapid_description_sync.py --apply
+TimeoutStartSec=2h40min
+StandardOutput=journal
+StandardError=journal

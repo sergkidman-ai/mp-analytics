@@ -32,6 +32,7 @@
 Отсюда ничего в МС не пишется.
 """
 import argparse
+import json
 import re
 from collections import Counter
 from datetime import date, datetime, timedelta
@@ -51,6 +52,14 @@ COLUMNS = [
     "Поставщик", "Вес", "Страна", "Доп. поле: Гарантия/ Срок службы",
     "Доп. поле: Название WB", "Штрихкод Code128", "Доп. поле: Связь", "Серия",
 ]
+WB_SOURCE_COLUMNS = {
+    "Источник WB: код модели": "_wb_source_code",
+    "Источник WB: имя поставщика": "_wb_price_name",
+    "Источник WB: характеристики": "_wb_facts",
+    "Источник WB: подтверждение": "_wb_evidence",
+    "Источник WB: версия правил": "_wb_rules_version",
+    "Источник WB: снимок": "_wb_source_token",
+}
 
 UOM = "шт"
 VAT = 22
@@ -452,7 +461,7 @@ KIND_SYNONYM = [
 ]
 
 
-def wb_from_price(price_name):
+def wb_from_price(price_name, partial=False):
     """Сырьё формулы из НАЗВАНИЯ ПОСТАВЩИКА — когда каталога ТК по коду нет вовсе.
 
     Не пересказ имени (это отменённое «как у родни») и не выдумка: тип, модель, бренд, цвет
@@ -461,13 +470,14 @@ def wb_from_price(price_name):
     честный источник. Чего в названии нет (чипа, цвета) — того и в поле не появится.
 
     Возвращает словарь формы каталога ТК либо None, если типа/модели/бренда не видно.
+    partial=True сохраняет известные факты для подтверждённого заполнения пробелов.
     """
     from prices import features
     name = re.sub(r"\s+", " ", price_name or "").strip()
     if not name:
         return None
     brands = features.brand(name)
-    if len(brands) != 1:                       # два бренда в имени — какой из них наш, неясно
+    if len(brands) > 1 or (not brands and not partial):
         return None
     head = name.split(",")[0]
     # Дефис границей слова НЕ считаем: иначе «Драм-картридж» и «Тонер-картридж» опознаются
@@ -482,21 +492,21 @@ def wb_from_price(price_name):
         # 04.09.2026), потому что перевод однозначен: «Драм-картридж»/«Драм-юнит» — это
         # «Фотобарабан», а «Блок фотобарабана в сборе с блоком проявки» — «Фотобарабан +
         # картридж». Всё прочее, чего нет в словаре ТК (фотобумага, ленты, лампы Сакуры),
-        # синонимом не считается: там типа в каталоге нет вовсе, и поле заполняет человек.
+        # синонимом не считается: нужен подтверждённый тип из словаря каталога.
         kind, rest = "", head
         for pattern, tk_kind in KIND_SYNONYM:
             if re.search(pattern, head, re.IGNORECASE):
                 kind = tk_kind
                 rest = re.sub(pattern, " ", head, flags=re.IGNORECASE)
                 break
-    if not kind:
+    if not kind and not partial:
         return None
     left = re.split(r"(?<![А-Яа-яA-Za-z])для(?![А-Яа-яA-Za-z])", rest, flags=re.IGNORECASE)[0]
     left_raw = left                            # до вырезания бренда — для хвостового правила
     for b in brands:                           # «Картридж Canon 054» -> модель «054»
         left = re.sub(rf"(?<![0-9A-Za-zА-Яа-я]){re.escape(b)}(?![0-9A-Za-zА-Яа-я])", " ", left,
                       flags=re.IGNORECASE)
-    model = re.sub(r"\s+", " ", left).strip(" ,;-")
+    model = re.sub(r"\s+", " ", left).strip(" ,;-") if kind else ""
     if not looks_like_model(model):
         # «Тонер-картридж для Xerox DocuColor 240/250, 006R01449, Black, 30K» — модель за
         # запятой: первый кусок с цифрой, который не ресурс и не цвет.
@@ -515,8 +525,8 @@ def wb_from_price(price_name):
         # пропускаем целым словом (иначе «HP-10Bk» превратится в огрызок «-10Bk»).
         # Правило страхующее: срабатывает ТОЛЬКО там, где иначе поле осталось бы пустым,
         # уже заполненные названия оно изменить не может. Цена — если поставщик пишет
-        # наоборот (расходник, затем принтер), в поле уедет модель принтера; поле в окне
-        # создания редактируемое, человек видит его до записи в МС.
+        # наоборот (расходник, затем принтер), требуется сверка исходной модели;
+        # произвольное редактирование готового Названия WB проверку не обходит.
         brand_words = {w.lower() for b in brands for w in re.split(r"[\s-]+", b) if w}
         for token in left_raw.split():
             token = token.strip(" ,;.")
@@ -527,49 +537,143 @@ def wb_from_price(price_name):
             if looks_like_model(token):
                 model = token
     if not model:
+        # Supplier order: «Картридж для Brother TN2355 HL L2320D/MFC L2700D».
+        # Only explicit consumable families are accepted after «для». A printer code
+        # (HL/MFC/DCP), page count or arbitrary last token cannot become the model.
+        after = re.split(r"\bдля\b", rest, maxsplit=1, flags=re.IGNORECASE)
+        families = {"Картридж": r"(?:TN|LC)", "Тонер-картридж": r"TN",
+                    "Фотобарабан": r"DR"}
+        if len(after) == 2 and brands == {"Brother"} and kind in families:
+            tail = re.sub(r"^\s*Brother\b", "", after[1], flags=re.IGNORECASE).strip()
+            pattern = rf"{families[kind]}-?\d+[A-Z0-9]*"
+            candidates = re.findall(rf"(?<![\w/-]){pattern}(?![\w/-])", tail, re.IGNORECASE)
+            if len(candidates) == 1 and re.match(rf"^{pattern}(?![\w/-])", tail, re.IGNORECASE):
+                model = candidates[0]
+    if not model and not partial:
         return None
     color = features.color(name)
     chip = features.chip(name)
-    return {"consumable_type": kind, "title": model, "additional_title": "",
-            "printer_models": [{"brand": next(iter(brands))}],
-            "ink_colors": [TC_COLOR_WORD[color]] if color in TC_COLOR_WORD else [],
-            "chip": {"chip": "С чипом", "nochip": "Без чипа"}.get(chip, ""),
-            "capacity": ""}
+    raw = {"consumable_type": kind, "title": model, "additional_title": "",
+           "printer_models": [{"brand": next(iter(brands))}] if brands else [],
+           "ink_colors": [TC_COLOR_WORD[color]] if color in TC_COLOR_WORD else [],
+           "chip": {"chip": "С чипом", "chip_free": "С чипом без счетчика",
+                    "nochip": "Без чипа"}.get(chip, ""),
+           "capacity": ""}
+    if kind in ("Тонер", "Чернила"):
+        from prices.novelty import volume
+        amount, unit = volume(name)
+        if amount and unit == ("г" if kind == "Тонер" else "мл"):
+            raw["volume_ml"] = amount
+    return raw
+
+
+def wb_details(external_code, price_name, facts=None, evidence=""):
+    """Resolve source facts once; all entry points use the same frozen formatter."""
+    from prices.wb_label import RULES_VERSION
+    from prices.wb_source import SOURCE_VERSION, fingerprint, merge_facts
+    from tools.prc.wb_fill import compose_details
+    source = dict(source_code=str(external_code or "").strip(), price_name=price_name or "",
+                  facts={k: str(v).strip() for k, v in (facts or {}).items() if v},
+                  evidence=str(evidence or "").strip(), rules_version=RULES_VERSION,
+                  source_version=SOURCE_VERSION, raw={}, name="", reason="", source_type="")
+    rows = query("SELECT raw FROM prc_tc_model WHERE external_code = %s AND gone_at IS NULL",
+                 (source["source_code"],))
+    raw, note = (rows[0]["raw"] if rows else {}), ""
+    if rows:
+        result = compose_details(raw, price_name)
+        source["source_type"] = "tc"
+        if not result.name and result.issue != "missing_source":
+            source.update(raw=raw, reason=result.reason)
+            source["token"] = fingerprint(source)
+            return source
+        if not result.name:
+            note = f"каталог ТК по коду {external_code}: {result.reason}"
+    else:
+        note = (f"каталога ТК по коду {external_code} нет" if external_code
+                else "строка не сведена с моделью каталога ТК")
+    if not rows or (not result.name and result.issue == "missing_source"):
+        parsed = wb_from_price(price_name, partial=True)
+        if parsed is not None:
+            # Incomplete TC facts remain authoritative; fallback may only fill gaps.
+            raw = {**parsed, **{k: v for k, v in raw.items() if v}}
+            source["source_type"] = "tc+supplier" if rows else "supplier"
+        elif not rows:
+            source.update(reason=f"{note}; исходные данные неоднозначны — сверить тип/модель/бренд")
+            source["token"] = fingerprint(source)
+            return source
+    try:
+        raw = merge_facts(raw, source["facts"], source["evidence"], tc_kinds() if facts else ())
+        result = compose_details(raw, price_name)
+        if facts:
+            source["source_type"] += "+confirmed"
+        source.update(raw=raw, name=result.name,
+                      reason=(result.reason + " — сверить исходные поля товара") if not result.name else
+                      (f"{note} — «Название WB» собрано формулой из названия поставщика; сверить модель и цвет"
+                       if note else ""))
+    except ValueError as exc:
+        source.update(raw=raw, reason=str(exc))
+    source["token"] = fingerprint(source)
+    return source
 
 
 def wb_compose(external_code, price_name):
-    """«Название WB» по формуле — единственный источник поля (правило 41).
+    """Compatibility tuple; no second formula or separate shortening rules."""
+    result = wb_details(external_code, price_name)
+    return result["name"], result["reason"] or None
 
-    Формула на проект ОДНА и живёт в `tools/prc/wb_fill.py:compose()`; здесь только сырьё
-    каталога ТК и признак XL из названия прайса (в каталоге ТК признак ПОСТАВКИ отсутствует).
-    Своей копии формулы у конвейера больше нет (21.08.2026): копия отставала — в ней не было
-    замены «Комплект …» → «Набор …», не бралось доп. название, бренд считался иначе, и у
-    наборов в хвост лез перечень цветов. Две реализации одного правила расходятся молча.
 
-    Каталог кода не знает или молчит о типе/модели/бренде — формула не отменяется, а меняет
-    источник: то же сырьё берётся из названия поставщика (`wb_from_price`), и поле возвращается
-    с замечанием «сверить». Пусто отдаём только если и там типа/модели/бренда не видно.
-    """
-    from tools.prc.wb_fill import compose      # импорт здесь: wb_fill тянет ATTRS из этого модуля
-    rows = query("SELECT raw FROM prc_tc_model WHERE external_code = %s AND gone_at IS NULL",
-                 (external_code,))
-    if rows:
-        name, why = compose(rows[0]["raw"])
-        note = (f"каталог ТК по коду {external_code}: {why}" if not name else None)
-    else:
-        name, note = "", (f"каталога ТК по коду {external_code} нет" if external_code
-                          else "строка не сведена с моделью каталога ТК")
-    if not name:
-        # Каталог молчит — собираем ту же формулу из названия поставщика (см. `wb_from_price`).
-        raw = wb_from_price(price_name)
-        name, why = compose(raw) if raw else ("", "в названии поставщика не видно типа/модели/бренда")
-        if not name:
-            return "", f"{note}; {why} — «Название WB» заполнить вручную"
-        note = (f"{note} — «Название WB» собрано формулой из названия поставщика, "
-                f"сверить модель и цвет")
-    if XL_RE.search(price_name or "") and "XL" not in name.upper():
-        name += " XL ресурс"                   # XL — признак поставки, он только в прайсе
-    return name, note
+def wb_record_errors(records):
+    """Validate all submitted WB names before creating even the first product."""
+    from prices.wb_label import validate
+    errors, cache = [], {}
+    for rec in records:
+        source = rec.get("_wb_source_code", rec.get("Внешний код", ""))
+        price_name = rec.get("_wb_price_name", rec.get("Наименование", ""))
+        facts, evidence = rec.get("_wb_facts"), rec.get("_wb_evidence", "")
+        from prices.wb_label import RULES_VERSION
+        if rec.get("_wb_rules_version") and rec["_wb_rules_version"] != RULES_VERSION:
+            errors.append(f"{rec.get('Код')}: правила Названия WB изменились — пересчитать черновик")
+            continue
+        key = (source, price_name, json.dumps(facts, sort_keys=True), evidence)
+        if key not in cache:
+            cache[key] = wb_details(source, price_name, facts, evidence)
+        details = cache[key]
+        if rec.get("_wb_source_token") and rec["_wb_source_token"] != details["token"]:
+            errors.append(f"{rec.get('Код')}: исходные данные Названия WB изменились — пересчитать черновик")
+            continue
+        expected, why = details["name"], details["reason"]
+        error = validate(rec.get("Доп. поле: Название WB"), expected, why)
+        if error:
+            errors.append(f"{rec.get('Код') or rec.get('Артикул') or 'карточка'}: {error}")
+        else:
+            rec["_wb_resolved"] = dict(details, card_name=rec.get("Наименование", price_name))
+    return errors
+
+
+def prepare_wb_import(records):
+    """Keep the original model source in Excel; validate the WHOLE workbook before APIs."""
+    for rec in records:
+        for column, key in WB_SOURCE_COLUMNS.items():
+            value = rec.get(column)
+            if key == "_wb_source_code" and column in rec:
+                # A blank source code explicitly means supplier-only. Excel restores
+                # an exported empty string as None; it must not become the NEW code.
+                rec[key] = str(value or "").strip()
+                continue
+            if value not in (None, ""):
+                rec[key] = json.loads(value) if key == "_wb_facts" and isinstance(value, str) else value
+        source = str(rec.get("_wb_source_code", rec.get("Внешний код", "")) or "").strip()
+        rec["_wb_source_code"] = source
+        rec.setdefault("_wb_price_name", rec.get("Наименование", ""))
+        if not rec.get("Доп. поле: Название WB"):
+            result = wb_details(source, rec["_wb_price_name"], rec.get("_wb_facts"),
+                                rec.get("_wb_evidence", ""))
+            rec["Доп. поле: Название WB"] = result["name"]
+    errors = wb_record_errors(records)
+    if errors:
+        raise ValueError("; ".join(errors[:6]))
+    return records
+
 
 UUID_EPOCH = datetime(1582, 10, 15)
 
@@ -790,7 +894,7 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None, ms_codes=N
         # Сергеем 21.08.2026). На родню по этому полю не смотрим вовсе: там ручные
         # значения старого образца, и наследование их же и размножало. Замечание
         # выводим единственное — когда формула НЕ дала названия: пустое поле на
-        # карточке недопустимо, его закрывает человек.
+        # карточке недопустимо: нужно уточнить исходные характеристики и пересчитать формулу.
         wb, wb_flag = wb_compose(ext, row["name"])
 
         # Вес у родни расходится — берём САМУЮ СВЕЖУЮ карточку внешнего кода (решение
@@ -894,6 +998,8 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None, ms_codes=N
             # Служебное поле (не колонка файла): по нему после создания карточки строка
             # новинок получает свой итог. `write_xlsx` идёт по COLUMNS, лишний ключ ей не мешает.
             "_novelty_id": row["id"],
+            "_wb_source_code": ext,
+            "_wb_price_name": row["name"],
             "Группы": path or "",
             "Код": f"{ext}{suffix(row['article'], profile.key, row['name'])}",
             "Внешний код": ext,
@@ -1029,6 +1135,10 @@ def create_in_ms(records, supplier_id, dry=True, log=print, own=None):
     загрузчик берёт (владельца она не называет), и вторая карточка задвоила бы остаток.
     Без `own` поведение прежнее: любой найденный артикул — дубль.
     """
+    records = list(records)
+    errors = wb_record_errors(records)
+    if errors:
+        raise ValueError("; ".join(errors[:6]))
     from core import ms_api
     folders, created, skipped = _folders(), [], []
     for rec in records:
@@ -1083,8 +1193,11 @@ def create_in_ms(records, supplier_id, dry=True, log=print, own=None):
         if dry:
             log(f"  [проба] {rec['Код']} {article} — {rec['Наименование'][:60]}")
             continue
+        from prices import wb_source
+        wb_source.prepare_record(rec, rec["_wb_resolved"])
         made = ms_api.post("/entity/product", body)
         created.append((made["id"], rec["Код"], article))
+        wb_source.mark_created(rec["Код"], made["id"])
         log(f"  создано {rec['Код']} {article} → {made['id']}")
     for article, why in skipped:
         log(f"  пропуск {article}: {why}")
@@ -1176,9 +1289,19 @@ def write_xlsx(records, path):
     wb = Workbook()
     sheet = wb.active
     sheet.title = "Товары"
-    sheet.append(COLUMNS)
+    columns = COLUMNS + list(WB_SOURCE_COLUMNS)
+    sheet.append(columns)
     for rec in records:
-        sheet.append([rec.get(col, "") for col in COLUMNS])
+        source = rec.get("_wb_resolved") or wb_details(
+            rec.get("_wb_source_code", rec.get("Внешний код", "")),
+            rec.get("_wb_price_name", rec.get("Наименование", "")),
+            rec.get("_wb_facts"), rec.get("_wb_evidence", ""))
+        metadata = {"_wb_source_code": source["source_code"], "_wb_price_name": source["price_name"],
+                    "_wb_facts": json.dumps(source["facts"], ensure_ascii=False),
+                    "_wb_evidence": source["evidence"], "_wb_rules_version": source["rules_version"],
+                    "_wb_source_token": source["token"]}
+        sheet.append([rec.get(col, "") for col in COLUMNS]
+                     + [metadata[key] for key in WB_SOURCE_COLUMNS.values()])
     for col, width in zip("ABCDEFGHIJKLMNOPQ", (28, 10, 12, 70, 70, 24, 24, 8, 14, 6, 26, 8, 10, 10, 46, 16, 10)):
         sheet.column_dimensions[col].width = width
     path.parent.mkdir(parents=True, exist_ok=True)

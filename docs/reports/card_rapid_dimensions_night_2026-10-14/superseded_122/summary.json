@@ -1,0 +1,16 @@
+{
+  "status": "prepared_not_scheduled",
+  "cards": 122,
+  "fields": 366,
+  "plan_sha256": "f894e20ce49711aae67262d5aac347caecdb63dd1e0ade9869d38e9b961c0ee6",
+  "proposed_start_msk": "2026-10-14 23:20",
+  "cutoff_msk": "2026-10-15 05:00",
+  "batch_size": 50,
+  "pause_seconds": 60,
+  "canary_cards": 50,
+  "canary_pause_seconds": 600,
+  "classification": "significant conservatively: full consumer inventory not established",
+  "webhook_suppression": false,
+  "writes": 0,
+  "verified": 0
+}

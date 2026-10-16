@@ -1,0 +1,22 @@
+{
+  "started_at": "2026-10-05T12:33:30.228652+00:00",
+  "finished_at": "2026-10-05T12:36:38.964649+00:00",
+  "total": 209,
+  "category_verdicts": {
+    "CATEGORY_CORRECT": 203,
+    "CATEGORY_MISMATCH": 6
+  },
+  "tc_type_counts": {
+    "Тонер": 167,
+    "Заправочный комплект": 36,
+    "Чернила": 4,
+    "Комплект чернил": 1,
+    "Картридж": 1
+  },
+  "still_missing_both": 209,
+  "tc_code_changed_from_saved": 0,
+  "rule": "Чернила и комплекты/наборы чернил → 1907; все остальные непустые типы ТК → 1820",
+  "rule_source": "Direct instruction from user, 05.10.2026",
+  "marketplace_writes": 0,
+  "db_writes": 0
+}

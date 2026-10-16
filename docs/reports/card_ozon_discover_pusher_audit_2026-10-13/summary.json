@@ -1,0 +1,33 @@
+{
+  "visibility_counts": {
+    "STATE_FAILED": 48,
+    "PARTIAL_APPROVED": 369
+  },
+  "classes": {
+    "W": 365,
+    "O": 4,
+    "A": 45,
+    "C": 3
+  },
+  "status_names": {
+    "Продается": 311,
+    "Готов к продаже": 91,
+    "Не продается": 15
+  },
+  "error_codes": {
+    "double_without_merger_offer": 404,
+    "SKU_VWC_IS_NOT_EDITABLE": 4,
+    "VARIANT_NOT_FOUND": 2,
+    "BR_hashtag_too_much_numbers": 1,
+    "FB_ORIGINAL": 3
+  },
+  "verdict": "Pusher runs but does not resolve current errors",
+  "attempts_2026_10_08_to_13": 120,
+  "unique_attempted_cards": 45,
+  "healed_at_logged_verification": 0,
+  "healed_at_delayed_live_recheck": 0,
+  "all_recent_tasks_status": "imported",
+  "current_gate_limit": 20,
+  "daily_limit": 500,
+  "next_step": "Investigate duplicate variant attributes and update history in TK; do not bypass sale-loss stop."
+}

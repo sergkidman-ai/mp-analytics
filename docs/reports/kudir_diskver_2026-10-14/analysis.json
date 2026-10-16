@@ -1,0 +1,161 @@
+{
+  "source": "20261014_141442_Natalie_Pro_natalya_КДР_2026_1_.xlsx",
+  "sha256": "87f1c37126ef241bc64aec23c33d59d10ed1f80d34568c07844501b935aa7f4c",
+  "org": "Дисквер",
+  "inn": "7811803918",
+  "year": 2026,
+  "object": "доходы, уменьшенные на величину расходов",
+  "identity_confirmed_in_title": true,
+  "quarters": [
+    {
+      "quarter": 1,
+      "rows": 173,
+      "income": "6345359.51",
+      "expense": "5163266.59",
+      "totals_status": "cached_excel_NAME_error; calculated_from_numeric_operation_cells",
+      "document_dates_min": "2026-01-01",
+      "document_dates_max": "2026-03-31"
+    },
+    {
+      "quarter": 2,
+      "rows": 124,
+      "income": "11746206.19",
+      "expense": "8275355.62",
+      "totals_status": "cached_excel_NAME_error; calculated_from_numeric_operation_cells",
+      "document_dates_min": "2026-04-01",
+      "document_dates_max": "2026-06-30"
+    },
+    {
+      "quarter": 3,
+      "rows": 221,
+      "income": "4577644.80",
+      "expense": "4300372.15",
+      "totals_status": "cached_excel_NAME_error; calculated_from_numeric_operation_cells",
+      "document_dates_min": "2026-07-01",
+      "document_dates_max": "2026-09-30"
+    },
+    {
+      "quarter": 4,
+      "rows": 28,
+      "income": "126023.06",
+      "expense": "372983.06",
+      "totals_status": "cached_excel_NAME_error; calculated_from_numeric_operation_cells",
+      "document_dates_min": "2026-10-01",
+      "document_dates_max": "2026-10-13"
+    }
+  ],
+  "monthly": [
+    {
+      "ym": "2026-01",
+      "book_income_all": "1518121.84",
+      "book_sales_unlabelled": "1514903.55",
+      "book_income_rows": 14
+    },
+    {
+      "ym": "2026-02",
+      "book_income_all": "2011811.99",
+      "book_sales_unlabelled": "2003360.89",
+      "book_income_rows": 18
+    },
+    {
+      "ym": "2026-03",
+      "book_income_all": "2815425.68",
+      "book_sales_unlabelled": "2803475.79",
+      "book_income_rows": 16
+    },
+    {
+      "ym": "2026-04",
+      "book_income_all": "3632773.35",
+      "book_sales_unlabelled": "3579896.31",
+      "book_income_rows": 8
+    },
+    {
+      "ym": "2026-05",
+      "book_income_all": "1690860.00",
+      "book_sales_unlabelled": "1690860.00",
+      "book_income_rows": 3
+    },
+    {
+      "ym": "2026-06",
+      "book_income_all": "6422572.84",
+      "book_sales_unlabelled": "6347572.84",
+      "book_income_rows": 7
+    },
+    {
+      "ym": "2026-07",
+      "book_income_all": "3864634.44",
+      "book_sales_unlabelled": "0",
+      "book_income_rows": 18
+    },
+    {
+      "ym": "2026-08",
+      "book_income_all": "85574.37",
+      "book_sales_unlabelled": "0",
+      "book_income_rows": 6
+    },
+    {
+      "ym": "2026-09",
+      "book_income_all": "627435.99",
+      "book_sales_unlabelled": "0",
+      "book_income_rows": 7
+    },
+    {
+      "ym": "2026-10",
+      "book_income_all": "126023.06",
+      "book_sales_unlabelled": "0",
+      "book_income_rows": 2
+    }
+  ],
+  "nine_months": {
+    "income": "22669210.50",
+    "expense": "17738994.36"
+  },
+  "findings": [
+    {
+      "title": "Итоги сверены вручную",
+      "details": "Пользователь вручную сверил итоги в исходном файле бухгалтера и подтвердил совпадение с суммами строк. Оригинал не изменён."
+    },
+    {
+      "title": "Разные источники и структура внутри года",
+      "details": "В I–II кварталах присутствуют строки Доходы от реализации товаров и услуг, Расходы на ведение бизнеса, а также Себестоимость ВБ в I квартале. В III–IV кварталах описания похожи преимущественно на назначения банковских платежей; общих месячных/недельных строк продаж нет. Это не доказывает полноту или неполноту дохода, но требует сверки правил/источников и закрытия периода."
+    },
+    {
+      "title": "Прямое совпадение с отчётами Пульта не установлено",
+      "details": "У 43 продажных строк нет указания площадки. Нельзя достоверно распределить их между WB и Ozon только по сумме; необходимо получить расшифровку бухгалтера/первичные отчёты. Выплаты на банк и оборот отчётов — разные базы."
+    },
+    {
+      "title": "Авансы поставщикам и расходы на товары",
+      "details": "Есть назначения Предоплата/Авансовый платеж в расходах. Нужно проверить фактическое назначение и связку оплаченная партия→реализованные товары; по тексту назначения одного платежа нельзя подтвердить налоговое признание или задвоение с себестоимостью."
+    },
+    {
+      "title": "IV квартал неполный",
+      "details": "Представлены октябрьские операции; не выдавать за закрытый IV квартал или годовой итог."
+    }
+  ],
+  "manual_verification": {
+    "org": "diskver",
+    "year": 2026,
+    "source_sha256": "87f1c37126ef241bc64aec23c33d59d10ed1f80d34568c07844501b935aa7f4c",
+    "confirmed_by": "user",
+    "confirmed_at": "2026-10-14T15:25:32.288373+00:00",
+    "basis": "Пользователь вручную сверил итоги в файле бухгалтера и подтвердил, что все сходится.",
+    "quarters": {
+      "1": {
+        "income": "6345359.51",
+        "expense": "5163266.59"
+      },
+      "2": {
+        "income": "11746206.19",
+        "expense": "8275355.62"
+      },
+      "3": {
+        "income": "4577644.80",
+        "expense": "4300372.15"
+      },
+      "4": {
+        "income": "126023.06",
+        "expense": "372983.06"
+      }
+    }
+  }
+}

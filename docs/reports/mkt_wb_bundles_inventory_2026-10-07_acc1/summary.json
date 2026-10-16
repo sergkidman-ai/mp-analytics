@@ -1,0 +1,43 @@
+{
+  "account": "wb_acc1",
+  "read_at": "2026-10-07T10:29:37.858730+00:00",
+  "generated_at": "2026-10-07T10:32:21.276725+00:00",
+  "active_cards": 22332,
+  "bundles": 7728,
+  "parent_families": 2579,
+  "types": {
+    "Лазерный картридж / тонер-картридж": 5051,
+    "Струйный картридж": 795,
+    "Другой картридж": 243,
+    "Фотобарабан": 886,
+    "Набор картриджей": 18,
+    "Набор картридж + фотобарабан": 0,
+    "Заправочный комплект": 0,
+    "Тонер для заправки": 156,
+    "Чернила": 79,
+    "Лента для принтера": 500,
+    "Тип требует проверки": 0
+  },
+  "quantities": {
+    "2": 2577,
+    "6": 2576,
+    "10": 2575
+  },
+  "group_states": {
+    "Отдельно от основной": 7655,
+    "Вместе с основной": 28,
+    "Основная не определена": 45
+  },
+  "single_in_group": 7694,
+  "bundles_grouped_with_other_bundles": 34,
+  "color_printing_line": 297,
+  "black_consumable": 7401,
+  "other_explicit_consumable_color": 0,
+  "consumable_color_unset": 327,
+  "type_unresolved": 0,
+  "rows_with_notes": 47,
+  "quantity_mismatches": 2,
+  "unmarked_quantity_candidates": 7,
+  "reference_latest": "2026-10-07 00:21:44.687614+00:00",
+  "marketplace_writes": 0
+}

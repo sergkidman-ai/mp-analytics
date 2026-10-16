@@ -1,0 +1,118 @@
+{
+  "supplier": "Изипринт",
+  "credential_source": "dropbox/20261014_183114_Natalie_Pro_natalya_Токен_Изипринт.txt",
+  "credential_env": "EASYPRINT_API_TOKEN",
+  "credential_format": "UUID",
+  "credential_value_saved_only_in_env": true,
+  "endpoint": "http://api.t2rus.ru:8081/api/ext/catalogue",
+  "method": "POST",
+  "catalogue_obtained": false,
+  "token_accepted_not_confirmed": true,
+  "checks": [
+    {
+      "request": "POST JSON token",
+      "status": 200,
+      "bytes": 2,
+      "content_type": "application/json; charset=utf-8",
+      "json_type": "list",
+      "items": 0,
+      "first_keys": []
+    },
+    {
+      "request": "POST query parameter token, JSON {}",
+      "status": 200,
+      "bytes": 2,
+      "content_type": "application/json; charset=utf-8",
+      "json_type": "list",
+      "items": 0,
+      "first_keys": []
+    },
+    {
+      "request": "POST JSON string token",
+      "status": 200,
+      "bytes": 64,
+      "content_type": "application/json; charset=utf-8",
+      "json_type": "list",
+      "items": 1,
+      "first_keys": [
+        "error"
+      ]
+    },
+    {
+      "request": "bearer_header",
+      "status": 200,
+      "bytes": 2,
+      "json_type": "list",
+      "items": 0,
+      "first_keys": []
+    },
+    {
+      "request": "token_header",
+      "status": 200,
+      "bytes": 2,
+      "json_type": "list",
+      "items": 0,
+      "first_keys": []
+    },
+    {
+      "request": "session_token_json",
+      "status": 200,
+      "bytes": 2,
+      "json_type": "list",
+      "items": 0,
+      "first_keys": []
+    }
+  ],
+  "json_string_body_response": "Возникла внтуренняя ошибка",
+  "next_step": "Request a working POST example specifying token location and required parameters",
+  "ms_writes": 0,
+  "get_with_token": {
+    "method": "GET",
+    "token_location": "query",
+    "status": 405,
+    "allow": "POST",
+    "body": "{\"Message\":\"The requested resource does not support http method 'GET'.\"}"
+  },
+  "additional_protocol_checks": [
+    {
+      "variant": "form_token",
+      "status": 200,
+      "bytes": 2,
+      "allow": null,
+      "json_type": "list",
+      "items": 0,
+      "first_keys": []
+    },
+    {
+      "variant": "authorization_raw_token",
+      "status": 200,
+      "bytes": 2,
+      "allow": null,
+      "json_type": "list",
+      "items": 0,
+      "first_keys": []
+    },
+    {
+      "variant": "plain_text_token",
+      "status": 415,
+      "bytes": 94,
+      "allow": null,
+      "json_type": "dict",
+      "keys": [
+        "Message"
+      ],
+      "message": "The request entity's media type 'text/plain' is not supported for this resource."
+    },
+    {
+      "variant": "pascal_case_Token_json",
+      "status": 200,
+      "bytes": 2,
+      "allow": null,
+      "json_type": "list",
+      "items": 0,
+      "first_keys": []
+    }
+  ],
+  "post_variants_checked": 10,
+  "exhaustive_protocol_search": false
+}

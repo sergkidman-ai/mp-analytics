@@ -1,0 +1,12 @@
+[Unit]
+Description=One-off Rapid description refresh: 2026-10-09 02:15 MSK
+
+[Timer]
+# Server time UTC. Single date, no automatic daily recurrence.
+OnCalendar=2026-10-08 23:15:00
+AccuracySec=1min
+Persistent=false
+Unit=card-rapid-description-20261008.service
+
+[Install]
+WantedBy=timers.target

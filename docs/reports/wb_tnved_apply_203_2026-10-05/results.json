@@ -1,0 +1,2032 @@
+{
+  "wb_acc1_1518162362": {
+    "account": "wb_acc1",
+    "nmID": 1518162362,
+    "vendorCode": "3259X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:13:31.279319+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_869106683": {
+    "account": "wb_acc2",
+    "nmID": 869106683,
+    "vendorCode": "32571HEJF9KH",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:13:44.089493+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc1_1518160327": {
+    "account": "wb_acc1",
+    "nmID": 1518160327,
+    "vendorCode": "3259X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:14:42.913041+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1518161214": {
+    "account": "wb_acc1",
+    "nmID": 1518161214,
+    "vendorCode": "3259X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:14:43.781950+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1510990924": {
+    "account": "wb_acc1",
+    "nmID": 1510990924,
+    "vendorCode": "3260X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:14:44.629479+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480371777": {
+    "account": "wb_acc1",
+    "nmID": 1480371777,
+    "vendorCode": "3260X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:14:50.363657+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1518877964": {
+    "account": "wb_acc1",
+    "nmID": 1518877964,
+    "vendorCode": "5292X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:14:51.248270+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480417466": {
+    "account": "wb_acc1",
+    "nmID": 1480417466,
+    "vendorCode": "5292X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:01.823511+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1511046637": {
+    "account": "wb_acc1",
+    "nmID": 1511046637,
+    "vendorCode": "5306X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:02.704023+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1518873565": {
+    "account": "wb_acc1",
+    "nmID": 1518873565,
+    "vendorCode": "5306X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:03.581483+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1518873868": {
+    "account": "wb_acc1",
+    "nmID": 1518873868,
+    "vendorCode": "5307X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:04.478395+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1518888894": {
+    "account": "wb_acc1",
+    "nmID": 1518888894,
+    "vendorCode": "5307X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:05.358671+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1518873579": {
+    "account": "wb_acc1",
+    "nmID": 1518873579,
+    "vendorCode": "5309X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:06.185181+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1518881069": {
+    "account": "wb_acc1",
+    "nmID": 1518881069,
+    "vendorCode": "5317X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:07.111637+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480417609": {
+    "account": "wb_acc1",
+    "nmID": 1480417609,
+    "vendorCode": "5317X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:07.972890+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_295953387": {
+    "account": "wb_acc1",
+    "nmID": 295953387,
+    "vendorCode": "5662",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:08.914943+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc1_980314672": {
+    "account": "wb_acc1",
+    "nmID": 980314672,
+    "vendorCode": "5692",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:09.741096+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc1_1519672758": {
+    "account": "wb_acc1",
+    "nmID": 1519672758,
+    "vendorCode": "7096X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:10.581970+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519672123": {
+    "account": "wb_acc1",
+    "nmID": 1519672123,
+    "vendorCode": "7096X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:11.415036+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1511082049": {
+    "account": "wb_acc1",
+    "nmID": 1511082049,
+    "vendorCode": "7097X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:12.343212+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480448297": {
+    "account": "wb_acc1",
+    "nmID": 1480448297,
+    "vendorCode": "7097X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:13.232484+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519675532": {
+    "account": "wb_acc1",
+    "nmID": 1519675532,
+    "vendorCode": "7098X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:44.094826+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519674601": {
+    "account": "wb_acc1",
+    "nmID": 1519674601,
+    "vendorCode": "7098X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:45.040921+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519680510": {
+    "account": "wb_acc1",
+    "nmID": 1519680510,
+    "vendorCode": "7099X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:45.865245+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519681443": {
+    "account": "wb_acc1",
+    "nmID": 1519681443,
+    "vendorCode": "7100X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:46.733615+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519681302": {
+    "account": "wb_acc1",
+    "nmID": 1519681302,
+    "vendorCode": "7100X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:47.592320+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1505408582": {
+    "account": "wb_acc1",
+    "nmID": 1505408582,
+    "vendorCode": "7101X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:48.453983+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519682109": {
+    "account": "wb_acc1",
+    "nmID": 1519682109,
+    "vendorCode": "7102X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:49.384712+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519683259": {
+    "account": "wb_acc1",
+    "nmID": 1519683259,
+    "vendorCode": "7103X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:50.258510+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1505408619": {
+    "account": "wb_acc1",
+    "nmID": 1505408619,
+    "vendorCode": "7104X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:51.124361+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1511082497": {
+    "account": "wb_acc1",
+    "nmID": 1511082497,
+    "vendorCode": "7104X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:52.042953+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519687034": {
+    "account": "wb_acc1",
+    "nmID": 1519687034,
+    "vendorCode": "7105X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:53.016930+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519689086": {
+    "account": "wb_acc1",
+    "nmID": 1519689086,
+    "vendorCode": "7106X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:53.883799+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519691599": {
+    "account": "wb_acc1",
+    "nmID": 1519691599,
+    "vendorCode": "7107X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:54.711278+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480450133": {
+    "account": "wb_acc1",
+    "nmID": 1480450133,
+    "vendorCode": "7107X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:55.595783+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519691532": {
+    "account": "wb_acc1",
+    "nmID": 1519691532,
+    "vendorCode": "7108X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:56.440029+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519692044": {
+    "account": "wb_acc1",
+    "nmID": 1519692044,
+    "vendorCode": "7108X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:57.374819+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519693335": {
+    "account": "wb_acc1",
+    "nmID": 1519693335,
+    "vendorCode": "7109X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:58.222761+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1505408710": {
+    "account": "wb_acc1",
+    "nmID": 1505408710,
+    "vendorCode": "7109X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:59.064024+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480450421": {
+    "account": "wb_acc1",
+    "nmID": 1480450421,
+    "vendorCode": "7110X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:15:59.902944+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1511082954": {
+    "account": "wb_acc1",
+    "nmID": 1511082954,
+    "vendorCode": "7110X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:00.815897+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519698099": {
+    "account": "wb_acc1",
+    "nmID": 1519698099,
+    "vendorCode": "7118X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:26.629882+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519703944": {
+    "account": "wb_acc1",
+    "nmID": 1519703944,
+    "vendorCode": "7120X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:27.544788+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1511083205": {
+    "account": "wb_acc1",
+    "nmID": 1511083205,
+    "vendorCode": "7120X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:28.367202+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480450692": {
+    "account": "wb_acc1",
+    "nmID": 1480450692,
+    "vendorCode": "7129X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:29.190928+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1505408878": {
+    "account": "wb_acc1",
+    "nmID": 1505408878,
+    "vendorCode": "7135X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:30.022998+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480451362": {
+    "account": "wb_acc1",
+    "nmID": 1480451362,
+    "vendorCode": "7136X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:35.779918+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519705390": {
+    "account": "wb_acc1",
+    "nmID": 1519705390,
+    "vendorCode": "7136X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:36.605187+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519706494": {
+    "account": "wb_acc1",
+    "nmID": 1519706494,
+    "vendorCode": "7137X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:37.472569+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519710357": {
+    "account": "wb_acc1",
+    "nmID": 1519710357,
+    "vendorCode": "7137X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:38.412040+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519710999": {
+    "account": "wb_acc1",
+    "nmID": 1519710999,
+    "vendorCode": "7138X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:39.253479+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480452245": {
+    "account": "wb_acc1",
+    "nmID": 1480452245,
+    "vendorCode": "7139X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:40.095922+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1505409600": {
+    "account": "wb_acc1",
+    "nmID": 1505409600,
+    "vendorCode": "7158X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:41.015755+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480453972": {
+    "account": "wb_acc1",
+    "nmID": 1480453972,
+    "vendorCode": "7161X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:41.981785+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519737837": {
+    "account": "wb_acc1",
+    "nmID": 1519737837,
+    "vendorCode": "7169X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:42.828269+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519740569": {
+    "account": "wb_acc1",
+    "nmID": 1519740569,
+    "vendorCode": "7170X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:43.689864+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1479749297": {
+    "account": "wb_acc1",
+    "nmID": 1479749297,
+    "vendorCode": "7171",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:44.528273+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc1_1519741935": {
+    "account": "wb_acc1",
+    "nmID": 1519741935,
+    "vendorCode": "7171X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:45.433081+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495478419": {
+    "account": "wb_acc1",
+    "nmID": 1495478419,
+    "vendorCode": "7171X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:46.539348+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1479757767": {
+    "account": "wb_acc1",
+    "nmID": 1479757767,
+    "vendorCode": "7172",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:47.473628+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc1_1519744268": {
+    "account": "wb_acc1",
+    "nmID": 1519744268,
+    "vendorCode": "7172X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:16:48.436653+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1505409598": {
+    "account": "wb_acc1",
+    "nmID": 1505409598,
+    "vendorCode": "7173X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:14.187982+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519744569": {
+    "account": "wb_acc1",
+    "nmID": 1519744569,
+    "vendorCode": "7173X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:15.172692+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1505409670": {
+    "account": "wb_acc1",
+    "nmID": 1505409670,
+    "vendorCode": "7174X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:25.898482+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1511084910": {
+    "account": "wb_acc1",
+    "nmID": 1511084910,
+    "vendorCode": "7174X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:26.749229+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495286384": {
+    "account": "wb_acc1",
+    "nmID": 1495286384,
+    "vendorCode": "7175",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:27.655683+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc1_1519751817": {
+    "account": "wb_acc1",
+    "nmID": 1519751817,
+    "vendorCode": "7175X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:28.482677+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519751678": {
+    "account": "wb_acc1",
+    "nmID": 1519751678,
+    "vendorCode": "7175X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:29.460180+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495384522": {
+    "account": "wb_acc1",
+    "nmID": 1495384522,
+    "vendorCode": "7180",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:30.366335+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc1_1495489614": {
+    "account": "wb_acc1",
+    "nmID": 1495489614,
+    "vendorCode": "7182X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:31.417675+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495488393": {
+    "account": "wb_acc1",
+    "nmID": 1495488393,
+    "vendorCode": "7182X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:32.346157+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495490487": {
+    "account": "wb_acc1",
+    "nmID": 1495490487,
+    "vendorCode": "7183X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:33.212941+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495490401": {
+    "account": "wb_acc1",
+    "nmID": 1495490401,
+    "vendorCode": "7183X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:34.081272+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495491547": {
+    "account": "wb_acc1",
+    "nmID": 1495491547,
+    "vendorCode": "7184X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:34.953461+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1480454042": {
+    "account": "wb_acc1",
+    "nmID": 1480454042,
+    "vendorCode": "7184X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:35.819886+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495384907": {
+    "account": "wb_acc1",
+    "nmID": 1495384907,
+    "vendorCode": "7185",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:36.764655+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc1_1495386522": {
+    "account": "wb_acc1",
+    "nmID": 1495386522,
+    "vendorCode": "7185X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:37.700208+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495386143": {
+    "account": "wb_acc1",
+    "nmID": 1495386143,
+    "vendorCode": "7185X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:38.603216+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495389583": {
+    "account": "wb_acc1",
+    "nmID": 1495389583,
+    "vendorCode": "7186X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:39.695835+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495389237": {
+    "account": "wb_acc1",
+    "nmID": 1495389237,
+    "vendorCode": "7186X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:40.586722+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519752285": {
+    "account": "wb_acc1",
+    "nmID": 1519752285,
+    "vendorCode": "7187X10",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:41.559985+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1519751385": {
+    "account": "wb_acc1",
+    "nmID": 1519751385,
+    "vendorCode": "7187X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:17:56.468841+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495424995": {
+    "account": "wb_acc1",
+    "nmID": 1495424995,
+    "vendorCode": "7188X2",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:07.048703+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc1_1495425262": {
+    "account": "wb_acc1",
+    "nmID": 1495425262,
+    "vendorCode": "7188X6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:07.971475+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_915935134": {
+    "account": "wb_acc2",
+    "nmID": 915935134,
+    "vendorCode": "32572WUBRDVF",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:47.324516+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915935232": {
+    "account": "wb_acc2",
+    "nmID": 915935232,
+    "vendorCode": "32573S1TIOVF",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:48.194935+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_324987285": {
+    "account": "wb_acc2",
+    "nmID": 324987285,
+    "vendorCode": "3257PVH9TSKH",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:49.061705+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1454626316": {
+    "account": "wb_acc2",
+    "nmID": 1454626316,
+    "vendorCode": "3258SCJN5XEI",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:50.003053+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_524078497": {
+    "account": "wb_acc2",
+    "nmID": 524078497,
+    "vendorCode": "3259JEIU8P88",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:55.740687+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1574357698": {
+    "account": "wb_acc2",
+    "nmID": 1574357698,
+    "vendorCode": "3260X12OLD4G",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:56.575288+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1574357078": {
+    "account": "wb_acc2",
+    "nmID": 1574357078,
+    "vendorCode": "3260X3D6JV31",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:57.423163+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1574357239": {
+    "account": "wb_acc2",
+    "nmID": 1574357239,
+    "vendorCode": "3260X6FG6HXC",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:58.266979+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1574357514": {
+    "account": "wb_acc2",
+    "nmID": 1574357514,
+    "vendorCode": "3260X9UC8F0R",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:18:59.207221+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_521166960": {
+    "account": "wb_acc2",
+    "nmID": 521166960,
+    "vendorCode": "3260YPYY2JBB",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:00.091886+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_923479220": {
+    "account": "wb_acc2",
+    "nmID": 923479220,
+    "vendorCode": "52921TWQ50NJ",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:00.930785+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_923479388": {
+    "account": "wb_acc2",
+    "nmID": 923479388,
+    "vendorCode": "52922PVUMFO3",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:01.794999+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_923479376": {
+    "account": "wb_acc2",
+    "nmID": 923479376,
+    "vendorCode": "52923E40U019",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:02.747185+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_323249106": {
+    "account": "wb_acc2",
+    "nmID": 323249106,
+    "vendorCode": "5292SVETV1QQ",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:03.571542+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1582661251": {
+    "account": "wb_acc2",
+    "nmID": 1582661251,
+    "vendorCode": "5292X12RCD3P",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:04.485516+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582661051": {
+    "account": "wb_acc2",
+    "nmID": 1582661051,
+    "vendorCode": "5292X3TR90RA",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:05.395046+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582661120": {
+    "account": "wb_acc2",
+    "nmID": 1582661120,
+    "vendorCode": "5292X6NAO25K",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:06.319344+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582661138": {
+    "account": "wb_acc2",
+    "nmID": 1582661138,
+    "vendorCode": "5292X9PG0SH4",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:07.171022+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_915854676": {
+    "account": "wb_acc2",
+    "nmID": 915854676,
+    "vendorCode": "53051PBNIH98",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:08.094840+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915854754": {
+    "account": "wb_acc2",
+    "nmID": 915854754,
+    "vendorCode": "53052K4IOAHD",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:33.981616+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915854807": {
+    "account": "wb_acc2",
+    "nmID": 915854807,
+    "vendorCode": "53053O4HG0U7",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:34.814997+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915854809": {
+    "account": "wb_acc2",
+    "nmID": 915854809,
+    "vendorCode": "53054STTQ84C",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:40.459082+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915854821": {
+    "account": "wb_acc2",
+    "nmID": 915854821,
+    "vendorCode": "53055S0NNJAH",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:41.289987+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_323292198": {
+    "account": "wb_acc2",
+    "nmID": 323292198,
+    "vendorCode": "5305IXJZFDO5",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:42.227574+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1582664499": {
+    "account": "wb_acc2",
+    "nmID": 1582664499,
+    "vendorCode": "5305X12WDJQV",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:43.088694+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582664404": {
+    "account": "wb_acc2",
+    "nmID": 1582664404,
+    "vendorCode": "5305X3NT803K",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:44.688614+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582664445": {
+    "account": "wb_acc2",
+    "nmID": 1582664445,
+    "vendorCode": "5305X6E2ZFNH",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:45.545337+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582664472": {
+    "account": "wb_acc2",
+    "nmID": 1582664472,
+    "vendorCode": "5305X9JJR8YE",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:46.469433+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_323292209": {
+    "account": "wb_acc2",
+    "nmID": 323292209,
+    "vendorCode": "5306I83EEFOU",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:47.380115+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1582664727": {
+    "account": "wb_acc2",
+    "nmID": 1582664727,
+    "vendorCode": "5306X12F58IS",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:48.228047+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582664673": {
+    "account": "wb_acc2",
+    "nmID": 1582664673,
+    "vendorCode": "5306X3N166VQ",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:49.077321+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582664709": {
+    "account": "wb_acc2",
+    "nmID": 1582664709,
+    "vendorCode": "5306X6DQNA08",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:49.936435+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582664724": {
+    "account": "wb_acc2",
+    "nmID": 1582664724,
+    "vendorCode": "5306X9H8FEZS",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:50.812026+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582666134": {
+    "account": "wb_acc2",
+    "nmID": 1582666134,
+    "vendorCode": "5307X12V6KLL",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:51.678966+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582665585": {
+    "account": "wb_acc2",
+    "nmID": 1582665585,
+    "vendorCode": "5307X3BEPVG6",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:52.693037+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582665695": {
+    "account": "wb_acc2",
+    "nmID": 1582665695,
+    "vendorCode": "5307X6DQG8CY",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:53.541605+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582665749": {
+    "account": "wb_acc2",
+    "nmID": 1582665749,
+    "vendorCode": "5307X9TJ39LA",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:54.456636+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_324993081": {
+    "account": "wb_acc2",
+    "nmID": 324993081,
+    "vendorCode": "5309AEW585GM",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:55.308019+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1582666915": {
+    "account": "wb_acc2",
+    "nmID": 1582666915,
+    "vendorCode": "5309X12T5E0G",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:19:56.224843+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582666824": {
+    "account": "wb_acc2",
+    "nmID": 1582666824,
+    "vendorCode": "5309X3EZ37U3",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:21.734819+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582666946": {
+    "account": "wb_acc2",
+    "nmID": 1582666946,
+    "vendorCode": "5309X6LIJ6NO",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:22.702650+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582666948": {
+    "account": "wb_acc2",
+    "nmID": 1582666948,
+    "vendorCode": "5309X9UJMPJ3",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:23.554816+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_915857906": {
+    "account": "wb_acc2",
+    "nmID": 915857906,
+    "vendorCode": "53141W0ZYRTH",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:24.444482+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_323270723": {
+    "account": "wb_acc2",
+    "nmID": 323270723,
+    "vendorCode": "5314H8PEN5Y3",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:25.380394+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_323270732": {
+    "account": "wb_acc2",
+    "nmID": 323270732,
+    "vendorCode": "5315RNUNF0RR",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:26.223475+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1582669927": {
+    "account": "wb_acc2",
+    "nmID": 1582669927,
+    "vendorCode": "5317X12KF2L8",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:27.061635+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582669833": {
+    "account": "wb_acc2",
+    "nmID": 1582669833,
+    "vendorCode": "5317X3F78E97",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:28.019572+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582669865": {
+    "account": "wb_acc2",
+    "nmID": 1582669865,
+    "vendorCode": "5317X6OMCOGN",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:28.976914+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1582669880": {
+    "account": "wb_acc2",
+    "nmID": 1582669880,
+    "vendorCode": "5317X9PGKFRT",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:29.814468+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": true
+  },
+  "wb_acc2_1005685424": {
+    "account": "wb_acc2",
+    "nmID": 1005685424,
+    "vendorCode": "5318TFL09798",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:30.709215+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_913009430": {
+    "account": "wb_acc2",
+    "nmID": 913009430,
+    "vendorCode": "56671UK38F11",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:31.699033+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_912739486": {
+    "account": "wb_acc2",
+    "nmID": 912739486,
+    "vendorCode": "56691SPSYX6Z",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:32.713615+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_912830009": {
+    "account": "wb_acc2",
+    "nmID": 912830009,
+    "vendorCode": "56692XQIOG48",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:33.594328+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915881488": {
+    "account": "wb_acc2",
+    "nmID": 915881488,
+    "vendorCode": "56693AKT5986",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:34.481386+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915881770": {
+    "account": "wb_acc2",
+    "nmID": 915881770,
+    "vendorCode": "56694PKF0ACN",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:35.401120+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915881794": {
+    "account": "wb_acc2",
+    "nmID": 915881794,
+    "vendorCode": "56695OGOTS71",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:36.237054+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915881761": {
+    "account": "wb_acc2",
+    "nmID": 915881761,
+    "vendorCode": "56696NCK7MMK",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:37.076814+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915881804": {
+    "account": "wb_acc2",
+    "nmID": 915881804,
+    "vendorCode": "56697RE97RSS",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:37.958862+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_912861438": {
+    "account": "wb_acc2",
+    "nmID": 912861438,
+    "vendorCode": "56751ACI1PPV",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:20:38.996831+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_912861530": {
+    "account": "wb_acc2",
+    "nmID": 912861530,
+    "vendorCode": "56752I92KEFD",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:14.711425+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_434721008": {
+    "account": "wb_acc2",
+    "nmID": 434721008,
+    "vendorCode": "5676V7QDNFOJ",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:15.591166+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_434720988": {
+    "account": "wb_acc2",
+    "nmID": 434720988,
+    "vendorCode": "5678B8HIDH4P",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:16.434887+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_434720902": {
+    "account": "wb_acc2",
+    "nmID": 434720902,
+    "vendorCode": "5680XXNUSLLE",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:17.294027+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_913090174": {
+    "account": "wb_acc2",
+    "nmID": 913090174,
+    "vendorCode": "56851DAABAKV",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:22.999314+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": false,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_868995489": {
+    "account": "wb_acc2",
+    "nmID": 868995489,
+    "vendorCode": "56871RGC1Y93",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:33.640861+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_552638408": {
+    "account": "wb_acc2",
+    "nmID": 552638408,
+    "vendorCode": "6730VQVB91MJ",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:34.561150+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915904516": {
+    "account": "wb_acc2",
+    "nmID": 915904516,
+    "vendorCode": "67321XT8JXQQ",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:35.523619+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915904716": {
+    "account": "wb_acc2",
+    "nmID": 915904716,
+    "vendorCode": "67322WGWAB2X",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:36.427236+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915904854": {
+    "account": "wb_acc2",
+    "nmID": 915904854,
+    "vendorCode": "67323EFP41ZX",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:37.271109+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915904909": {
+    "account": "wb_acc2",
+    "nmID": 915904909,
+    "vendorCode": "67324NQ0850N",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:38.144884+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_915904920": {
+    "account": "wb_acc2",
+    "nmID": 915904920,
+    "vendorCode": "67325RS3A43F",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:38.984044+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1283560557": {
+    "account": "wb_acc2",
+    "nmID": 1283560557,
+    "vendorCode": "7093KL9YGO20",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:39.859350+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1283561610": {
+    "account": "wb_acc2",
+    "nmID": 1283561610,
+    "vendorCode": "7094J1FGCN9M",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:40.721997+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1283564939": {
+    "account": "wb_acc2",
+    "nmID": 1283564939,
+    "vendorCode": "7096RYR4H4I0",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:41.718912+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1283566133": {
+    "account": "wb_acc2",
+    "nmID": 1283566133,
+    "vendorCode": "7097KIKO8411",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:42.635681+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1283567085": {
+    "account": "wb_acc2",
+    "nmID": 1283567085,
+    "vendorCode": "7098EDHR4906",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:43.465294+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1283568451": {
+    "account": "wb_acc2",
+    "nmID": 1283568451,
+    "vendorCode": "7099Y9GF1CEO",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:44.303356+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1283843266": {
+    "account": "wb_acc2",
+    "nmID": 1283843266,
+    "vendorCode": "7100DN73YN3G",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:45.217434+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1283844463": {
+    "account": "wb_acc2",
+    "nmID": 1283844463,
+    "vendorCode": "7101KZMZFIC5",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:21:46.057889+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1283845762": {
+    "account": "wb_acc2",
+    "nmID": 1283845762,
+    "vendorCode": "7102AWTTMO2P",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:17.053297+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540358159": {
+    "account": "wb_acc2",
+    "nmID": 1540358159,
+    "vendorCode": "7106DXQWBK3V",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:22.869477+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540367536": {
+    "account": "wb_acc2",
+    "nmID": 1540367536,
+    "vendorCode": "7109FHHSBZNQ",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:23.723024+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540372127": {
+    "account": "wb_acc2",
+    "nmID": 1540372127,
+    "vendorCode": "7110IN88XIDA",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:24.635080+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540379139": {
+    "account": "wb_acc2",
+    "nmID": 1540379139,
+    "vendorCode": "7111MHPJ8WXZ",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:25.507138+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540381026": {
+    "account": "wb_acc2",
+    "nmID": 1540381026,
+    "vendorCode": "7112OQOQGIUX",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:26.342641+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540388950": {
+    "account": "wb_acc2",
+    "nmID": 1540388950,
+    "vendorCode": "7114VEYF90V7",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:27.282526+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540403427": {
+    "account": "wb_acc2",
+    "nmID": 1540403427,
+    "vendorCode": "7115HI5KXA4L",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:28.186382+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540404308": {
+    "account": "wb_acc2",
+    "nmID": 1540404308,
+    "vendorCode": "7116UD2KE8KQ",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:29.087251+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540419942": {
+    "account": "wb_acc2",
+    "nmID": 1540419942,
+    "vendorCode": "7119O1ETX3WN",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:30.016851+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540421245": {
+    "account": "wb_acc2",
+    "nmID": 1540421245,
+    "vendorCode": "7121UVS7Y14P",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:30.869548+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540430101": {
+    "account": "wb_acc2",
+    "nmID": 1540430101,
+    "vendorCode": "7124OK8F9GU0",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:31.871492+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540442630": {
+    "account": "wb_acc2",
+    "nmID": 1540442630,
+    "vendorCode": "7125FLGPJYCP",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:32.727105+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540451118": {
+    "account": "wb_acc2",
+    "nmID": 1540451118,
+    "vendorCode": "7127FV4V1RBL",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:33.612267+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540457391": {
+    "account": "wb_acc2",
+    "nmID": 1540457391,
+    "vendorCode": "7128LUWLASI9",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:34.474574+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540458231": {
+    "account": "wb_acc2",
+    "nmID": 1540458231,
+    "vendorCode": "7129YQXDE16B",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:35.464570+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540464275": {
+    "account": "wb_acc2",
+    "nmID": 1540464275,
+    "vendorCode": "7130S1VN4B9F",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:36.325753+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540464983": {
+    "account": "wb_acc2",
+    "nmID": 1540464983,
+    "vendorCode": "7131HYACPBN8",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:37.314603+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540472470": {
+    "account": "wb_acc2",
+    "nmID": 1540472470,
+    "vendorCode": "7134OK1MU8FO",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:38.286007+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540480128": {
+    "account": "wb_acc2",
+    "nmID": 1540480128,
+    "vendorCode": "7136SFE533XH",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:22:39.207137+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540489964": {
+    "account": "wb_acc2",
+    "nmID": 1540489964,
+    "vendorCode": "7137Z2777SOB",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:23:59.008416+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540508841": {
+    "account": "wb_acc2",
+    "nmID": 1540508841,
+    "vendorCode": "7141E1GSRIYG",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:23:59.936543+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540515169": {
+    "account": "wb_acc2",
+    "nmID": 1540515169,
+    "vendorCode": "7142RF9KPFFF",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:00.760050+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540516204": {
+    "account": "wb_acc2",
+    "nmID": 1540516204,
+    "vendorCode": "7147OQKPE355",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:01.626621+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540521314": {
+    "account": "wb_acc2",
+    "nmID": 1540521314,
+    "vendorCode": "7148HYC35V19",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:02.569868+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540531613": {
+    "account": "wb_acc2",
+    "nmID": 1540531613,
+    "vendorCode": "7149CDKCF1O5",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:03.559246+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1588509937": {
+    "account": "wb_acc2",
+    "nmID": 1588509937,
+    "vendorCode": "7152OH5923I8",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:04.415780+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540533556": {
+    "account": "wb_acc2",
+    "nmID": 1540533556,
+    "vendorCode": "7153AOCDHMEI",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:05.282632+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540541157": {
+    "account": "wb_acc2",
+    "nmID": 1540541157,
+    "vendorCode": "7154V0902QMI",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:06.146312+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540551299": {
+    "account": "wb_acc2",
+    "nmID": 1540551299,
+    "vendorCode": "7155NEGHUVDF",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:07.018812+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540552652": {
+    "account": "wb_acc2",
+    "nmID": 1540552652,
+    "vendorCode": "7157ESFY2J3V",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:07.889579+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540557212": {
+    "account": "wb_acc2",
+    "nmID": 1540557212,
+    "vendorCode": "7158SN3SENQD",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:08.711869+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540563142": {
+    "account": "wb_acc2",
+    "nmID": 1540563142,
+    "vendorCode": "7159G4GFX9L9",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:09.569109+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540567804": {
+    "account": "wb_acc2",
+    "nmID": 1540567804,
+    "vendorCode": "7160KNJCM49S",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:10.416684+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540580279": {
+    "account": "wb_acc2",
+    "nmID": 1540580279,
+    "vendorCode": "7163J0HU8VOM",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:11.259112+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540596355": {
+    "account": "wb_acc2",
+    "nmID": 1540596355,
+    "vendorCode": "7174TY3W387E",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:12.732974+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540600119": {
+    "account": "wb_acc2",
+    "nmID": 1540600119,
+    "vendorCode": "7179XKEBW1JS",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:13.585717+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540601295": {
+    "account": "wb_acc2",
+    "nmID": 1540601295,
+    "vendorCode": "7180JQ78118I",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:14.433297+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1588552245": {
+    "account": "wb_acc2",
+    "nmID": 1588552245,
+    "vendorCode": "7181D3T5DY0T",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:15.277030+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  },
+  "wb_acc2_1540617224": {
+    "account": "wb_acc2",
+    "nmID": 1540617224,
+    "vendorCode": "7185J6YWIPJN",
+    "status": "VERIFIED",
+    "at": "2026-10-05T13:24:16.113194+00:00",
+    "other_values_preserved": true,
+    "document_validation_result_changed": true,
+    "wholesale_enabled": false
+  }
+}

@@ -1,0 +1,13 @@
+[Unit]
+Description=Bulat full titles to MS descriptions, authorized 2026-10-09 21:00 MSK
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python tools/card_bulat_full_title_sync.py --apply
+TimeoutStartSec=1h40min
+StandardOutput=journal
+StandardError=journal

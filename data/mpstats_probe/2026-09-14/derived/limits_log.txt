@@ -1,0 +1,10 @@
+10 {"available":225,"use":7,"available_wb_external":75,"use_wb_external":5,"available_ozon_external":75,"use_ozon_external":2,"available_ym_external":75,"use_ym_external":0}
+20 {"available":225,"use":11,"available_wb_external":75,"use_wb_external":7,"available_ozon_external":75,"use_ozon_external":4,"available_ym_external":75,"use_ym_external":0}
+30 {"available":225,"use":11,"available_wb_external":75,"use_wb_external":7,"available_ozon_external":75,"use_ozon_external":4,"available_ym_external":75,"use_ym_external":0}
+40 {"available":225,"use":32,"available_wb_external":75,"use_wb_external":27,"available_ozon_external":75,"use_ozon_external":5,"available_ym_external":75,"use_ym_external":0}
+50 {"available":225,"use":32,"available_wb_external":75,"use_wb_external":27,"available_ozon_external":75,"use_ozon_external":5,"available_ym_external":75,"use_ym_external":0}
+60 {"available":225,"use":32,"available_wb_external":75,"use_wb_external":27,"available_ozon_external":75,"use_ozon_external":5,"available_ym_external":75,"use_ym_external":0}
+70 {"available":225,"use":50,"available_wb_external":75,"use_wb_external":28,"available_ozon_external":75,"use_ozon_external":22,"available_ym_external":75,"use_ym_external":0}
+Mon Sep 14 07:07:00 PM UTC 2026 final: {"available":225,"use":55,"available_wb_external":75,"use_wb_external":33,"available_ozon_external":75,"use_ozon_external":22,"available_ym_external":75,"use_ym_external":0}
+80 {"available":225,"use":62,"available_wb_external":75,"use_wb_external":40,"available_ozon_external":75,"use_ozon_external":22,"available_ym_external":75,"use_ym_external":0}
+21:07 {"available":225,"use":72,"available_wb_external":75,"use_wb_external":40,"available_ozon_external":75,"use_ozon_external":28,"available_ym_external":75,"use_ym_external":4}

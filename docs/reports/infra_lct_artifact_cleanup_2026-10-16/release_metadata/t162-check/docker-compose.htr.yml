@@ -1,0 +1,22 @@
+# T-147: профиль `htr` — чтение рукописных отметок согласования («Согласовано», «Допускается») как подсказка к проверке
+# согласования (протокол, CLARIFICATION_REQUIRED; файл ответа не меняется). Дополнение к docker-compose.yml (T-142):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.htr.yml --profile htr up -d inspector-htr   # вместо inspector
+#
+# Без профиля сервис работает как раньше: переменной HTR_PYTHON нет — рукопись не читается.
+# HTR_MODELS — каталог с весами (раскладка: raxtemur__trocr-base-ru/{config.json, model.safetensors, …}), только чтение.
+# Чтение рукописи — десятки секунд на страницу на CPU; читаются только страницы доказательств расхождений без письма о
+# согласовании и страницы журнала АН (не больше 30 на объект).
+services:
+  inspector-htr:
+    extends:
+      file: docker-compose.yml
+      service: inspector
+    profiles: ["htr"]
+    build:
+      context: .
+      dockerfile: Dockerfile.htr
+      target: htr
+    image: ai-inspector:htr
+    volumes:
+      - ${HTR_MODELS:-./models/htr}:/srv/app/.tools/models/htr:ro

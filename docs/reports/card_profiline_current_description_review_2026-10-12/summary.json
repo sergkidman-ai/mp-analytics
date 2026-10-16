@@ -1,0 +1,37 @@
+{
+  "status": "read_only_complete",
+  "at_utc": "2026-10-12T19:07:55.702928+00:00",
+  "source_date": "2026-10-12 22:07",
+  "source_items": 8324,
+  "positive_moscow": 2985,
+  "positive_other": 3010,
+  "positive_either": 3010,
+  "active_supplier_cards": 3835,
+  "selected_positive_cards": 1660,
+  "statuses": {
+    "ALREADY_EQUAL": 1659,
+    "EXCLUDED_DEFECTIVE": 1
+  },
+  "outside_scope": {
+    "NO_EXACT_CURRENT_SOURCE": 494,
+    "EXACT_SOURCE_ZERO_STOCK": 1680
+  },
+  "current_receipt_documents": 16,
+  "current_receipt_positions": 1413,
+  "selected_cards_in_receipts": 1413,
+  "shadowed_historical_aliases": 1,
+  "unresolved_current_receipt_cards": 0,
+  "positive_source_without_selected_card": 1350,
+  "missing_source_categories": {
+    "8": 11,
+    "7": 909,
+    "6": 269,
+    "5": 17,
+    "4": 3,
+    "3": 47,
+    "2": 7,
+    "1": 87
+  },
+  "external_writes": 0,
+  "database_writes": 0
+}

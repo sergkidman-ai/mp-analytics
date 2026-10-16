@@ -1,0 +1,7 @@
+{
+  "rules_version": "2026-10-15.2",
+  "form_name_fits_sample_geometry": true,
+  "stale_name_rejected": true,
+  "request_dry": true,
+  "ms_writes": 0
+}

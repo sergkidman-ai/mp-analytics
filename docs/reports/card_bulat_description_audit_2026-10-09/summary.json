@@ -1,0 +1,36 @@
+{
+  "at": "2026-10-09T11:48:39.500827+00:00",
+  "feed_date": "2026-10-09 04:30",
+  "feed_sha256": "cadde861cd19708b587d7b02292ce5a91b5a46027cdb7666261f59597dc04b2f",
+  "feed_last_modified": "Fri, 09 Oct 2026 01:35:03 GMT",
+  "feed_total_offers": 21177,
+  "feed_positive_offers": 11122,
+  "positive_offers_without_name": 1418,
+  "active_ms_cards": 4192,
+  "card_statuses": {
+    "NO_POSITIVE_FEED_MATCH": 1514,
+    "CONTENT_DIFFERENCE": 1458,
+    "EXACT": 1128,
+    "EMPTY_FEED_NAME": 90,
+    "AMBIGUOUS_FEED_MATCH": 2
+  },
+  "compared_cards": 2586,
+  "compared_external_codes": 1905,
+  "exact_copy_candidates_if_using_feed_name": 1458,
+  "description_content_difference_cards": 1458,
+  "different_name_but_feed_description_starts_with_ms_description": 1119,
+  "chip_information_difference_cards": 11,
+  "chip_information_difference_external_codes": 11,
+  "chip_transition_counts": {
+    "с чипом -> не указан": 8,
+    "без чипа -> не указан": 1,
+    "не указан -> с чипом": 2
+  },
+  "matched_ms_names_equal_feed_normalized": 1012,
+  "matching_fields": {
+    "offer_id": 2578,
+    "vendorCode": 8
+  },
+  "external_writes": 0,
+  "database_writes": 0
+}

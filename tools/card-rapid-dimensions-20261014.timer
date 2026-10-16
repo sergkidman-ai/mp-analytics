@@ -1,0 +1,11 @@
+[Unit]
+Description=Prepared Rapid dimensions run, 23:20 MSK on 2026-10-14
+
+[Timer]
+OnCalendar=2026-10-14 20:20:00 UTC
+AccuracySec=1s
+Persistent=false
+Unit=card-rapid-dimensions-20261014.service
+
+[Install]
+WantedBy=timers.target

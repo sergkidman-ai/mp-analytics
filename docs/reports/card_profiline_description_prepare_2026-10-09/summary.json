@@ -1,0 +1,36 @@
+{
+  "at_utc": "2026-10-09T19:36:31.510348+00:00",
+  "source_date": "2026-10-09 22:36",
+  "source_sha256": "531022344d3362075955a8ef71e6794b767d08c62e81c25091ded22bdd09f265",
+  "source_items": 8333,
+  "active_supplier_cards": 3835,
+  "statuses": {
+    "NO_SOURCE_ARTICLE": 494,
+    "ALREADY_EQUAL_NORMALIZED": 2717,
+    "READY": 623,
+    "AMBIGUOUS_SOURCE_ARTICLE": 1
+  },
+  "ready_changes": 623,
+  "held_chip_changes": 0,
+  "total_description_deltas": 623,
+  "ready_with_zero_supplier_stock": 289,
+  "all_deltas_with_zero_supplier_stock": 289,
+  "stock_filter": false,
+  "archive_excluded": true,
+  "write_fields": [
+    "description"
+  ],
+  "writes": 623,
+  "database_writes": 0,
+  "status": "complete",
+  "mapping": "supplier group + unique vendorCode; case/whitespace normalization only",
+  "changes": 623,
+  "verified": 623,
+  "authorized_start": "User explicitly requested immediate update of 623 descriptions",
+  "at": "2026-10-11T22:00:59.862683+03:00",
+  "remaining_at_resume": 423,
+  "explicit_resume_authorization": "User: complete 423 now",
+  "completed_by_final_readback": true,
+  "executor_service_exit": 1,
+  "executor_stop_reason": "NBSP converted to ordinary space during MS readback"
+}

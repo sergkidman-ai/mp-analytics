@@ -1,0 +1,18 @@
+[Unit]
+Description=Pult recovery: approved 200 WB names and 605 dimension/weight cards, 802 unique IDs
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStartPre=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/tools/infra_ms_recovery_20261016.py --check
+ExecStart=/opt/mp-analytics/venv/bin/python -u /opt/mp-analytics/tools/infra_ms_recovery_20261016.py --apply
+TimeoutStartSec=2h
+TimeoutStopSec=30s
+Restart=no
+Nice=10
+MemoryHigh=512M
+MemoryMax=768M
+StandardOutput=journal
+StandardError=journal

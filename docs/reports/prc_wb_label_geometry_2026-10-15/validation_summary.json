@@ -1,0 +1,18 @@
+{
+  "rules_version": "2026-10-15.2",
+  "tests_passed": 44,
+  "formula_comparisons": 13470,
+  "formula_mismatches": 0,
+  "font_glyphs_matched": 61,
+  "audit_check": {
+    "rows": 45171,
+    "proposed": 37447,
+    "bad": 0
+  },
+  "sample_geometry_checked": true,
+  "original_template_checked": false,
+  "physical_print_checked": false,
+  "ms_writes": 0,
+  "new_schedules": 0,
+  "dashboard": "active"
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Rapid MS dimensions: authorized 1016-card night plan
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python tools/card_rapid_dimensions_night.py --apply
+ExecStopPost=/opt/mp-analytics/venv/bin/python tools/card_rapid_dimensions_night.py --restore-webhook
+TimeoutStartSec=5h
+StandardOutput=journal
+StandardError=journal

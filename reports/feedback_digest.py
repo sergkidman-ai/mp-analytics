@@ -29,12 +29,11 @@ import pathlib
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import db                                       # noqa: E402
 from reports import request_class as rc                   # noqa: E402
+from reports.sku_relations import code_of_title           # noqa: E402
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 OUT_ROOT = BASE_DIR / "docs" / "reports"
 MIN_HITS = 2            # «≥2 вопроса одного класса» и «≥2 претензии одного симптома»
-COLOR_DAYS = 30         # срез по цвету считается по 30 дням всегда, даже если окно дайджеста 7
-COLOR_MIN = 3
 
 
 # ── темы вопросов для контентщика ───────────────────────────────────────────────────────────
@@ -84,18 +83,11 @@ MISMATCH_RX = re.compile(
     r"фото\s+не\s+соответств|в\s+описании\s+(?:одно|друг)|прислали\s+не\s+т",
     re.I)
 
-# Цвета CMYK. Ключ — канонический цвет, значение — как покупатель его называет.
-COLORS = [
-    ("мажента", r"мажент|маджент|magenta|пурпур|малинов|розов"),
-    ("голубой", r"голуб\w*|cyan|циан|синий"),
-    ("жёлтый", r"ж[её]лт\w*|yellow"),
-    ("чёрный", r"ч[её]рн\w*|black|\bbk\b"),
-]
-
 # Модель принтера в вопросе. Кириллицу в начало НЕ пускаем: общий MODEL_RX движка её допускает,
 # и «На 3103fdw подойдет?» давал кандидата «На 3103fdw», а «нужен картридж 106R01158» —
 # «ртридж 106R01158». В заголовок карточки такое попасть не должно.
 MODEL_RX = re.compile(r"\b[A-Za-z]{1,12}[- ]?\d{2,5}[A-Za-z0-9\-]*|\b\d{3,5}[A-Za-z][A-Za-z0-9\-]*")
+
 
 # ─────────────────────── базовый артикул номенклатуры ───────────────────────
 # raw_feedback хранит ПЛОЩАДОЧНЫЙ код: у Дисквэра на ВБ это наш артикул с хвостом
@@ -241,6 +233,106 @@ def _group(rows, keyfn):
     return out
 
 
+# ─────────────────────── претензия: маркер дефекта и отрицание ───────────────────────
+# Отзыв на 4–5★ — это похвала, даже если в тексте мелькнуло слово из CLAIM_RX («заказывала на
+# замену», «вернусь за вторым»). Такие строки раздували списки закупщика чистым шумом. Правило
+# Сергея: 4★ и выше берём в претензии, ТОЛЬКО если в тексте есть прямой маркер дефекта товара —
+# и маркер, погашенный отрицанием («не полосит», «без ошибок»), маркером не считается.
+DEFECT_RX = re.compile(
+    r"ошибк|брак|бракован|дефект|неисправ|сломал|разбит|повреж|тр[еи]снут|течёт|течет|подтек|"
+    r"полос|мажет|мараем|бледн|пятн|развод|пуст(?:ой|ая|ые)|засох|засорил|"
+    r"не\s+работ|не\s+печат|не\s+вид|не\s+распозна|не\s+определя|не\s+подош|не\s+подход|"
+    r"зажёвыва|зажевыва|замин|не\s+захват|пересорт|недостач|не\s+хватает|не\s+доложил", re.I)
+
+
+def _defect_marker(t):
+    """Маркер дефекта, не погашенный отрицанием (логика та же, что у движка в request_class)."""
+    for m in DEFECT_RX.finditer(t or ""):
+        if rc._NEG_BEFORE_RX.search(t[:m.start()]):
+            continue
+        return m.group(0)
+    return None
+
+
+def is_claim(r, t):
+    """Претензия для дайджеста: определение движка плюс порог по звёздам."""
+    if (r.get("rating") or 0) >= 4 and not _defect_marker(t):
+        return False
+    return rc.is_claim_text(t, kind=r.get("kind"), rating=r.get("rating"))
+
+
+# ─────────────────────── семейство товаров ───────────────────────
+# Артикул слишком мелок для закупщика: 108/008 живёт в шести цветах и трёх наборах, и претензия
+# «не совпадают горлышки» приходит на разные артикулы одного и того же расходника — по артикулу
+# порог «≥2» не срабатывает никогда, а проблема системная и касается всей серии.
+# Семейство = код расходника по нашей конвенции названия (`sku_relations.code_of_title`:
+# сначала голова названия «Чернила DS 108/008 …», потом общий шаблон `card_facts._CODE_RX`),
+# приведённый к СЕРИИ: буквенный хвост ёмкости отбрасывается, чтобы 067H и 067, TL-420Е и
+# TL-420X лежали вместе. Составные коды («CF410A-CF413A») не трогаем — там хвост значащий.
+_FAM_TAIL_RX = re.compile(r"^([A-Z]{0,4}-?\d{2,5})[A-Z]{1,3}$")
+# «108/ 008» в названиях пишется и слитно, и с пробелом; латиница/кириллица в кодах смешаны
+# («TL-420Е» с русской Е) — из-за этого код вообще не читался.
+_CYR2LAT = str.maketrans("АВЕКМНОРСТУХ", "ABEKMHOPCTYX")
+
+
+def code_of(product_name):
+    """Название лота → полный код расходника ('' → None)."""
+    t = re.sub(r"\s+", " ", (product_name or "")).strip()
+    t = re.sub(r"\s*/\s*", "/", t)
+    # Транслитерация ТОЛЬКО в токенах с цифрой: иначе «Картриджи» превращается в «Kартриджи»
+    # и голова названия перестаёт читаться вовсе.
+    t = " ".join(w.translate(_CYR2LAT) if any(c.isdigit() for c in w) else w for w in t.split(" "))
+    code = code_of_title(t)
+    return code.upper() if code else None
+
+
+def family_of(product_name):
+    """Код расходника → СЕРИЯ: 067H и 067 в одном семействе, TL-420Е и TL-420X — тоже."""
+    code = code_of(product_name)
+    if not code:
+        return None
+    m = _FAM_TAIL_RX.match(code)
+    return m.group(1) if m else code
+
+
+def family_groups(days):
+    """Семейство × (симптом | тема вопроса), ≥2 за окно, через все площадки и аккаунты.
+
+    Претензии идут закупщику, вопросы — контентщику: и там и там сигнал один и тот же —
+    «дело не в этом артикуле, дело в серии»."""
+    claims, quests = {}, {}
+    for r in _rows(days):
+        t = _text(r)
+        fam = family_of(r.get("product_name"))
+        if not t or not fam:
+            continue
+        if is_claim(r, t) and not REFILLED_RX.search(t):
+            s = _first(SYMPTOMS, t)
+            if s:
+                claims.setdefault((fam, s), []).append(dict(r, _t=t))
+        elif r["kind"] == "question":
+            topic = _first(TOPICS, t)
+            if topic:
+                quests.setdefault((fam, topic), []).append(dict(r, _t=t))
+
+    def pack(g, label):
+        out = []
+        for (fam, key), rs in g.items():
+            arts = sorted({x["article"] for x in rs})
+            if len(rs) < MIN_HITS:
+                continue
+            out.append({"family": fam, label: key, "n": len(rs), "articles": arts,
+                        "codes": sorted({code_of(x.get("product_name")) or ""
+                                         for x in rs} - {""}),
+                        "links": _links(rs), "advice": ADVICE.get(key, "прямой ответ в карточке"),
+                        "texts": [{"article": x["article"], "platform": x["platform"],
+                                   "kind": x["kind"], "rating": x.get("rating"),
+                                   "text": _short(x["_t"], 200)} for x in rs[:8]]})
+        return sorted(out, key=lambda x: (-x["n"], x["family"]))
+
+    return pack(claims, "symptom"), pack(quests, "topic")
+
+
 # ─────────────────────────────── контентщику ───────────────────────────────
 def content_gaps(days):
     """Артикулы, по которым за окно пришло ≥2 вопроса одной темы. Такой вопрос — это дырка
@@ -351,7 +443,7 @@ def symptom_claims(days):
     # (5723M8LPHJEP, август 2026) в список закупщика не попал бы вовсе.
     for r in _rows(days):
         t = _text(r)
-        if not t or not rc.is_claim_text(t, kind=r["kind"], rating=r.get("rating")):
+        if not t or not is_claim(r, t):
             continue
         if REFILLED_RX.search(t):
             skipped_refill += 1
@@ -371,39 +463,6 @@ def symptom_claims(days):
                     "texts": [{"rating": r.get("rating"), "platform": r["platform"],
                                "kind": r["kind"], "text": _short(r["_t"], 220)} for r in rs]})
     return sorted(out, key=lambda x: (-x["n"], x["article"])), skipped_refill
-
-
-def color_alert(days=COLOR_DAYS):
-    """Один цвет в ≥3 претензиях по РАЗНЫМ артикулам за 30 дней — это уже не карточка и не
-    единичный брак, а партия или сам цвет у поставщика. Требование разных артикулов обязательно:
-    три жалобы на один артикул — это строка симптомов выше, а не системный сигнал по цвету."""
-    by, base = {}, {}
-    for r in _rows(days):
-        t = _text(r)
-        if not t:
-            continue
-        # Цвет ищем ТОЛЬКО в словах покупателя. Название карточки для этого не годится:
-        # у набора CMYK в названии есть все четыре цвета сразу, и любая претензия к набору
-        # разошлась бы по всем четырём — ровно тот мусор, из-за которого блок перестают читать.
-        c = _first(COLORS, t)
-        if not c:
-            continue
-        base[c] = base.get(c, 0) + 1          # знаменатель: сколько всего отзывов про этот цвет
-        if not rc.is_claim_text(t, kind=r["kind"], rating=r.get("rating")):
-            continue
-        if REFILLED_RX.search(t):
-            continue
-        by.setdefault(c, []).append(dict(r, _t=t))
-    out = []
-    for c, rs in by.items():
-        arts = sorted({r["article"] for r in rs})
-        if len(rs) >= COLOR_MIN and len(arts) >= 2:
-            out.append({"color": c, "n": len(rs), "articles": arts, "base": base.get(c, len(rs)),
-                        "texts": [{"article": r["article"], "rating": r.get("rating"),
-                                   "text": _short(r["_t"], 160)} for r in rs[:6]]})
-    # Сортируем по ДОЛЕ, а не по числу: чёрный будет в этом блоке всегда — его просто больше
-    # всего продаётся, и абсолютный счёт по нему ничего не говорит. Партию выдаёт доля.
-    return sorted(out, key=lambda x: (-(x["n"] / max(x["base"], 1)), -x["n"]))
 
 
 # ─────────────────────────────── рендер ───────────────────────────────
@@ -426,14 +485,25 @@ def render_content(data, days, day):
               f"*{g['product']}*" if g["product"] else "",
               f"**Что добавить:** {g['advice']}", ""]
         L += [f"- {t}" for t in g["texts"]] + [""]
-    L += ["## 2. Отзывы «на фото другое / не как в описании»", ""]
+    L += [f"## 2. Одно и то же спрашивают по всему семейству (≥{MIN_HITS} за окно)", "",
+          "Семейство — код расходника (серия), а не артикул: 108/008 живёт в шести цветах",
+          "и трёх наборах, и дырка в карточке у них общая.", ""]
+    if not data["fam_questions"]:
+        L += ["_За окно таких семейств нет._", ""]
+    for f in data["fam_questions"]:
+        L += [f"### {f['family']} — {f['topic']} ×{f['n']}",
+              f"Артикулы: {', '.join(f['articles'])}"
+              + (f" · коды: {', '.join(f['codes'])}" if f["codes"] else ""),
+              f"**Что добавить:** {ADVICE.get(f['topic'], 'прямой ответ в карточке')}", ""]
+        L += [f"- ({t['article']}) {t['text']}" for t in f["texts"]] + [""]
+    L += ["## 3. Отзывы «на фото другое / не как в описании»", ""]
     if not data["mismatch"]:
         L += ["_Нет._", ""]
     for m in data["mismatch"]:
         L += [f"- **{m['article']}** ({m['platform']}, {_stars(m['rating'])}) "
               f"{m['product']}: {m['text']}"]
     L += [""]
-    L += ["## 3. Модели принтера — кандидаты в заголовок", "",
+    L += ["## 4. Модели принтера — кандидаты в заголовок", "",
           "Спрошено покупателем, отвечено «да», ответ утверждён человеком, а в списке моделей",
           "карточки модели нет.", ""]
     if data["titles_note"]:
@@ -454,18 +524,19 @@ def render_purchase(data, days, day):
          "В список попадают только претензии (то же определение, что у движка модерации).",
          f"Претензий «после заправки» отсеяно: **{data['skipped_refill']}** — это не наш дефект.",
          ""]
-    if data["colors"]:
-        L += [f"## ⚠️ Срез по цвету (за {COLOR_DAYS} дн., разные артикулы)", ""]
-        for c in data["colors"]:
-            share = 100.0 * c["n"] / max(c["base"], 1)
-            L += [f"### {c['color']} — {c['n']} претензий на {len(c['articles'])} артикулах",
-                  f"Доля: {c['n']} из {c['base']} отзывов по этому цвету (**{share:.0f} %**) — "
-                  f"сравнивать надо именно доли: чёрного продаётся больше всех, и по числу "
-                  f"претензий он будет первым всегда.",
-                  f"Артикулы: {', '.join(c['articles'])}", ""]
-            L += [f"- {t['article']} ({_stars(t['rating'])}): {t['text']}" for t in c["texts"]]
-            L += [""]
-    L += [f"## Артикулы с повторяющимся симптомом (≥{MIN_HITS} за окно)", ""]
+    L += [f"## 1. Семейство товаров × симптом (≥{MIN_HITS} за окно)", "",
+          "Семейство — код расходника (серия), а не артикул: один и тот же дефект приходит",
+          "на разные цвета и наборы одной серии, и по артикулу порог не срабатывает никогда.", ""]
+    if not data["fam_claims"]:
+        L += ["_За окно таких семейств нет._", ""]
+    for f in data["fam_claims"]:
+        L += [f"### {f['family']} — {f['symptom']} ×{f['n']}",
+              f"Артикулы: {', '.join(f['articles'])}"
+              + (f" · коды: {', '.join(f['codes'])}" if f["codes"] else ""), ""]
+        L += [f"- ({t['article']}, {t['platform']}, "
+              + ("вопрос" if t["kind"] == "question" else _stars(t["rating"]))
+              + f") {t['text']}" for t in f["texts"]] + [""]
+    L += [f"## 2. Артикулы с повторяющимся симптомом (≥{MIN_HITS} за окно)", ""]
     if not data["symptoms"]:
         L += ["_За окно таких артикулов нет._", ""]
     for s in data["symptoms"]:
@@ -484,9 +555,11 @@ def build(days=14, day=None):
     day = day or dt.date.today().isoformat()
     titles, note = title_candidates(days)
     symptoms, skipped = symptom_claims(days)
+    fam_claims, fam_questions = family_groups(days)
     data = {"gaps": content_gaps(days), "mismatch": card_mismatch(days),
             "titles": titles, "titles_note": note,
-            "symptoms": symptoms, "skipped_refill": skipped, "colors": color_alert()}
+            "symptoms": symptoms, "skipped_refill": skipped,
+            "fam_claims": fam_claims, "fam_questions": fam_questions}
     data["content_md"] = render_content(data, days, day)
     data["purchase_md"] = render_purchase(data, days, day)
     data["day"] = day
@@ -512,12 +585,12 @@ def tg_text(data, files):
     n_cards = len({g["article"] for g in data["gaps"]} | {m["article"] for m in data["mismatch"]}
                   | {t["article"] for t in data["titles"]})
     n_arts = len({s["article"] for s in data["symptoms"]})
-    color = ("\n⚠️ Цвет: " + ", ".join(
-                f"{x['color']} {x['n']}/{x['base']}" for x in data["colors"])
-             if data["colors"] else "")
+    fam = (f"\nСемейства: {len(data['fam_claims'])} по симптому, "
+           f"{len(data['fam_questions'])} по вопросу"
+           if (data["fam_claims"] or data["fam_questions"]) else "")
     return (f"🗂 <b>Недельный дайджест по обращениям</b> ({data['day']}, окно {data['days']} дн.)\n\n"
             f"Контентщику: <b>{n_cards}</b> карточек\n"
-            f"Закупщику: <b>{n_arts}</b> артикулов{color}\n\n"
+            f"Закупщику: <b>{n_arts}</b> артикулов{fam}\n\n"
             f"Оба файла — вложением ниже.")
 
 

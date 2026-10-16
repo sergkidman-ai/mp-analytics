@@ -1,0 +1,16 @@
+{
+  "wave_unique_691": true,
+  "positive_stock_only_3088": true,
+  "fresh_price_qty_positive": true,
+  "excluded_names_not_used": true,
+  "family_unique_743": true,
+  "tc_set_read_errors": 0,
+  "sample_count": 18,
+  "sample_name_statuses": {
+    "DIFFERENT": 13,
+    "EXACT": 5
+  },
+  "sample_chip_class_mismatches": 1,
+  "external_writes": 0,
+  "database_writes": 0
+}

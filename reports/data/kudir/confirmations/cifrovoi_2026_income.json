@@ -1,0 +1,17 @@
+{
+  "org": "cifrovoi",
+  "year": 2026,
+  "quarter": 2,
+  "source_sha256": "04cb79db730137b6b58772eb35ac388ed0e388d6472ad7add441852892e77a0c",
+  "rows": [
+    322,
+    323,
+    324
+  ],
+  "income": "1288086.99",
+  "confirmed_by": "user",
+  "confirmed_at": "2026-10-15",
+  "status": "confirmed_omitted",
+  "accountant_plan": "will_include_in_annual_report",
+  "note": "Пользователь подтвердил: три доходные строки не учтены бухгалтером; бухгалтер учтёт их в годовом отчёте. В Пульте строки уже присутствуют, повторно суммы не добавляются."
+}

@@ -32,6 +32,18 @@ class OzonNewsBodyTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertEqual(classify(title, body, "ozon")[0], "alert")
 
+    def test_wb_checks_financial_change_late_in_full_body(self):
+        body = "Справочная информация. " * 130
+        body += "С 1 ноября стоимость хранения изменится и составит 25 ₽ за отправление."
+        self.assertEqual(classify("Изменения в работе склада", body, "wb"),
+                         ("alert", "изменение стоимости услуги (в тексте)"))
+
+    def test_wb_ignores_tariff_mention_in_operational_notice(self):
+        self.assertEqual(classify(
+            "У вас есть возвраты в точке выдачи",
+            "Заберите возвраты. Тариф хранения указан в справке.", "wb"
+        )[0], "info")
+
     def test_routine_notice_and_fbo_only_are_not_alerts(self):
         self.assertEqual(classify(
             "У вас есть возвраты в точке выдачи",
@@ -53,6 +65,20 @@ class OzonNewsBodyTests(unittest.TestCase):
         for call in query.call_args_list:
             self.assertIn("platform = %s", call.args[0])
             self.assertEqual(call.args[1], ("ozon",))
+
+    def test_body_reclassify_updates_only_body_matches(self):
+        rows = [
+            {"platform":"wb","account":"wb_acc1","message_id":"1",
+             "title":"Обновления склада","body":"С 1 ноября стоимость хранения изменится и составит 25 ₽."},
+            {"platform":"wb","account":"wb_acc1","message_id":"2",
+             "title":"Тарифы изменились","body":"Обычный текст."},
+        ]
+        with patch.object(mp_news.db, "query", side_effect=[rows, [{"message_id":"1"}]]) as query:
+            mp_news.reclassify_body("wb")
+        self.assertEqual(query.call_count, 2)
+        self.assertEqual(query.call_args_list[0].args[1], ("wb", 90))
+        self.assertEqual(query.call_args_list[1].args[1],
+                         ("изменение стоимости услуги (в тексте)", "wb", "wb_acc1", "1"))
 
 
 if __name__ == "__main__":

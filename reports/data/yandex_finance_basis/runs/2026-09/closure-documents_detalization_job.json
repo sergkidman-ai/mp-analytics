@@ -1,0 +1,13 @@
+{
+  "reportId": "88a80337-7383-4ee0-ad41-27f6359fbbd8",
+  "estimatedGenerationTime": 10000,
+  "requested_at": "2026-10-16T06:53:12.226847+00:00",
+  "request": {
+    "campaignId": 148691041,
+    "monthOfYear": {
+      "year": 2026,
+      "month": 9
+    },
+    "contractType": "INCOME"
+  }
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=One-off Solutions Print descriptions at 23:20 MSK on 2026-10-13
+
+[Timer]
+OnCalendar=2026-10-13 20:20:00 UTC
+AccuracySec=1s
+Persistent=false
+Unit=card-solutionsprint-resolved-20261013.service
+
+[Install]
+WantedBy=timers.target

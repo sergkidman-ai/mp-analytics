@@ -24,6 +24,14 @@
 что уже лежит в карточке — иначе первый же пуш ТК затрёт нашу правку, а мы получим войну
 двух систем за одно поле.
 
+Отдельное исключение, разрешённое 02.10.2026: --repair-models.
+Он сверяет блок совместимости и может перенести проверенные ссылки из здорового
+родителя того же картриджа. Плановый запуск разрешён 03.10.2026:
+--models-auto выбирает до 20 карточек кабинета с backoff 20 ч и пропуском
+needs_human. Без него запись только по явному --offers, не более 20 карточек.
+Обычный --apply без --offers для классов с W сначала вызывает этот режим
+под общим lock, затем обычный дожим. --skip-models отключает этот этап.
+
 Отправка на площадку по умолчанию ВЫКЛЮЧЕНА: без --apply это сухой прогон (план + причины
 пропусков). Так задумано, правило CLAUDE.md: запись на площадки — по прямой команде.
 
@@ -31,6 +39,8 @@
   ./venv/bin/python tools/ozon_card_push.py --apply            # реальная отправка (A и W)
   ./venv/bin/python tools/ozon_card_push.py --classes A --apply   # только «Ошибка»
   ./venv/bin/python tools/ozon_card_push.py --tk-report        # выгрузка класса C для ТК
+  ./venv/bin/python tools/ozon_card_push.py --repair-models --account oz_acc2 --limit 20
+                                                            # только план совместимости
 
 Предохранители (все включены всегда):
   * потолок попыток на карточку и backoff между ними — не долбим одну и ту же бесконечно;
@@ -338,10 +348,22 @@ if __name__ == "__main__":
                    help="файл со списком offer_id (по одному в строке) — точечный прогон")
     p.add_argument("--apply", action="store_true",
                    help="реально отправить на площадку (без флага — сухой прогон)")
+    p.add_argument("--repair-models", action="store_true",
+                   help="исправление совместимости: точечный --offers или плановый --models-auto")
+    p.add_argument("--models-auto", action="store_true",
+                   help="плановый подбор совместимости: без --offers, --limit не более 20")
+    p.add_argument("--skip-models", action="store_true",
+                   help="обычный --apply без плановой проверки совместимости")
+    p.add_argument("--plan-output", metavar="PATH",
+                   help="JSON-план тестового режима --repair-models")
     p.add_argument("--tk-report", metavar="PATH", nargs="?",
                    const="docs/reports/ozon_card_content_errors.csv",
                    help="выгрузить класс C для ТК и выйти")
     a = p.parse_args()
+    if a.models_auto and (not a.repair_models or a.offers or a.limit > 20 or a.tk_report):
+        p.error("--models-auto требует --repair-models, --limit 1..20 и отсутствие --offers/--tk-report")
+    if a.skip_models and a.repair_models:
+        p.error("--skip-models не совмещается с --repair-models")
     if a.tk_report:
         tk_report(a.tk_report)
     else:
@@ -357,4 +379,16 @@ if __name__ == "__main__":
         if a.offers:
             offers = [x.strip() for x in open(a.offers, encoding="utf-8") if x.strip()]
             print(f"точечный список: {len(offers)} offer_id из {a.offers}")
-        run(a.account, a.limit, a.apply, cls, offers)
+        if a.repair_models:
+            from tools.ozon_card_compat import run_models
+            if a.classes != "A,W":
+                p.error("--repair-models не совмещается с --classes")
+            run_models(a.account, a.limit, a.apply, offers, a.plan_output, auto=a.models_auto)
+        else:
+            if a.plan_output:
+                p.error("--plan-output требует --repair-models")
+            if a.apply and offers is None and "W" in cls and not a.skip_models:
+                from tools.ozon_card_compat import run_daily
+                run_daily(a.account, a.limit, cls)
+            else:
+                run(a.account, a.limit, a.apply, cls, offers)

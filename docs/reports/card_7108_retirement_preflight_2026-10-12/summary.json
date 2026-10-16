@@ -1,0 +1,74 @@
+{
+  "at": "2026-10-12T08:36:30.108797+00:00",
+  "status": "complete_read_only",
+  "total": 21,
+  "outside_archive_and_trash": 17,
+  "already_archived_or_trashed": 4,
+  "groups": [
+    {
+      "account": "oz_acc1",
+      "total": 4,
+      "active": 3,
+      "inactive": 1,
+      "codes": [
+        "7108",
+        "7108X10",
+        "7108X2",
+        "7108X6"
+      ]
+    },
+    {
+      "account": "oz_acc2",
+      "total": 5,
+      "active": 4,
+      "inactive": 1,
+      "codes": [
+        "7108NJAP1TJB",
+        "7108X12QT082",
+        "7108X3LJ32A0",
+        "7108X6VJ6DH8",
+        "7108X9YJHAZT"
+      ]
+    },
+    {
+      "account": "wb_acc1",
+      "total": 4,
+      "active": 3,
+      "inactive": 1,
+      "codes": [
+        "7108",
+        "7108X10",
+        "7108X2",
+        "7108X6"
+      ]
+    },
+    {
+      "account": "wb_acc2",
+      "total": 5,
+      "active": 4,
+      "inactive": 1,
+      "codes": [
+        "7108NJAP1TJB",
+        "7108X12QT082",
+        "7108X3LJ32A0",
+        "7108X6VJ6DH8",
+        "7108X9YJHAZT"
+      ]
+    },
+    {
+      "account": "ya_acc1",
+      "total": 3,
+      "active": 3,
+      "inactive": 0,
+      "codes": [
+        "7108X10",
+        "7108X2",
+        "7108X6"
+      ]
+    }
+  ],
+  "marketplace_writes": 0,
+  "database_writes": 0,
+  "ms_enter_update": "cactus_enter_completion.json",
+  "mapping": "exact 7108 prefix, all WB and Ozon cabinets plus shared Market business catalogue; full active/archive/trash traversals completed"
+}

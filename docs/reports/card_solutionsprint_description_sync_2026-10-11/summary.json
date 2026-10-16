@@ -1,0 +1,16 @@
+{
+  "changes": 1194,
+  "writes": 1194,
+  "verified": 1194,
+  "status": "complete",
+  "write_fields": [
+    "description"
+  ],
+  "supplier_stock_filter": false,
+  "source_audit": "docs/reports/card_solutionsprint_description_audit_2026-10-11",
+  "excluded_chip_review": 11,
+  "already_equal": 684,
+  "unmatched": 381,
+  "authorized_by": "User: update MS descriptions where mapping is certain and comparison has no issues",
+  "at": "2026-10-11T23:56:52.662560+03:00"
+}

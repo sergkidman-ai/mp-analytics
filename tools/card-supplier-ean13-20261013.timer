@@ -1,0 +1,11 @@
+[Unit]
+Description=One-off supplier EAN13 update at 00:30 MSK on 2026-10-14
+
+[Timer]
+OnCalendar=2026-10-13 21:30:00 UTC
+AccuracySec=1s
+Persistent=false
+Unit=card-supplier-ean13-20261013.service
+
+[Install]
+WantedBy=timers.target

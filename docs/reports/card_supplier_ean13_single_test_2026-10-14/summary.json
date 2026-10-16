@@ -1,0 +1,42 @@
+{
+  "at_utc": "2026-10-14T09:59:56.719776+00:00",
+  "status": "verified",
+  "id": "022987e0-5f7e-11ed-0a80-0915003c4346",
+  "external_code": "1967",
+  "article": "PL_C-EXV34_C",
+  "ean13": "4630058033307",
+  "http_status": 200,
+  "uncertain_request": false,
+  "write_attempts": 1,
+  "barcodes_before": [
+    {
+      "ean8": "20019747"
+    },
+    {
+      "code128": "DSRDV0001967"
+    }
+  ],
+  "barcodes_after": [
+    {
+      "ean8": "20019747"
+    },
+    {
+      "code128": "DSRDV0001967"
+    },
+    {
+      "ean13": "4630058033307"
+    }
+  ],
+  "existing_barcodes_preserved": true,
+  "other_fields_unchanged": {
+    "name": true,
+    "description": true,
+    "article": true,
+    "externalCode": true,
+    "code": true,
+    "supplier": true,
+    "weight": true,
+    "volume": true
+  },
+  "mass_task_reenabled": false
+}

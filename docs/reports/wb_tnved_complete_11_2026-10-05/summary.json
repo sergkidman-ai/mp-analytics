@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-05T19:33:17.320580+00:00",
+  "scope": 11,
+  "mode": "apply",
+  "counts": {
+    "VERIFIED": 11
+  },
+  "write_requests": 2,
+  "originally_filled_fields_preserved": true,
+  "all_other_content_preserved": true
+}

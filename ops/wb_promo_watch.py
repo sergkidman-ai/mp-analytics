@@ -15,7 +15,8 @@
 уехали бы на день назад и уведомление пришло бы в день начала акции.
 
 Дедуп в `wb_promo_notice`: у acc1 и acc2 календарь почти одинаковый, поэтому сообщение
-одно на акцию со списком аккаунтов, а отметка «уведомили» ставится каждому аккаунту.
+одно на акцию со списком аккаунтов. wb_promo_task хранит кнопку «Сделано» и
+ежечасные напоминания до подтверждения Наталией; callback принимает отдельный сервис.
 
     ./venv/bin/python -m ops.wb_promo_watch --list        # календарь на 45 дней
     ./venv/bin/python -m ops.wb_promo_watch --dry         # что бы отправил сегодня
@@ -108,76 +109,39 @@ def collect():
 # забивалась строками «— старт». Канал предупреждения один — телеграм накануне старта.
 
 
-def run(lead=1, dry=False, show_all=False):
-    today = datetime.now(MSK).date()
-    target = today + timedelta(days=lead)
-    rows, errors = collect()
-    for e in errors:
-        print("ОШИБКА ДОСТУПА:", e)
-    if not rows and errors:
-        # Молчать нельзя: «уведомлений нет» и «нас не пустили в API» — разные вещи.
-        if not dry:
-            tg("⚠️ Сторож автоакций WB не смог прочитать календарь:\n" + "\n".join(errors))
-        return
-
-    conn = db()
-    cur = conn.cursor()
-    fresh = {}          # promo_id -> (name, start, end, [accounts, которым ещё не слали])
-    for acc, p in rows:
-        pid, ptype = p.get("id"), (p.get("type") or "").lower()
-        start, end = msk_date(p.get("startDateTime")), msk_date(p.get("endDateTime"))
-        name = (p.get("name") or "").strip()
-        cur.execute("""INSERT INTO wb_promo_notice (account, promo_id, promo_type, name,
-                                                    starts_at, ends_at)
-                       VALUES (%s,%s,%s,%s,%s,%s)
-                       ON CONFLICT (account, promo_id) DO UPDATE
-                          SET name=EXCLUDED.name, starts_at=EXCLUDED.starts_at,
-                              ends_at=EXCLUDED.ends_at
-                       RETURNING notified_at""", (acc, pid, ptype, name,
-                                                  p.get("startDateTime"), p.get("endDateTime")))
-        already = cur.fetchone()[0]
-        if show_all:
-            print(f"  {acc} {pid:>5} {ptype:8s} {start:%d.%m}→{end:%d.%m} "
-                  f"{'уведомлено' if already else '':10s} {name[:60]}")
-        if ptype != "auto" or start != target or already:
-            continue
-        item = fresh.setdefault(pid, [name, start, end, []])
-        item[3].append(acc)
-    conn.commit()
-
+def run(lead=1, dry=False, show_all=False, remind_only=False):
+    from ops.wb_promo_ack import discover, send_due, api, recipient
+    rows, errors = ([], []) if remind_only else collect()
+    for error in errors:
+        print("ОШИБКА ДОСТУПА:", error)
     if show_all:
-        conn.close()
+        for acc, promo in rows:
+            print(acc, promo.get("id"), promo.get("type"),
+                  msk_date(promo.get("startDateTime")), (promo.get("name") or "")[:100])
         return
-
-    if not fresh:
-        print(f"сегодня {today:%d.%m}: автоакций со стартом {target:%d.%m} нет")
+    if not rows and errors and not dry:
+        try:
+            api("sendMessage", dict(chat_id=recipient(), text=
+                "⚠️ Сторож автоакций WB не смог прочитать календарь:\n" + "\n".join(errors)))
+        except RuntimeError:
+            print("Не удалось отправить ошибку календаря", flush=True)
+    conn = db()
+    try:
+        queued = discover(conn, rows, datetime.now(MSK).date()+timedelta(days=lead)) if rows else 0
+        # Persist newly discovered actions even if Telegram is temporarily unavailable.
+        if not dry:
+            conn.commit()
+        sent = send_due(conn, dry=dry)
+        if dry:
+            conn.rollback()
+        else:
+            conn.commit()
+        print(f"Автоакции WB: новых задач {queued}, отправлено уведомлений {sent}, dry={dry}", flush=True)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
         conn.close()
-        return
-
-    # Одна строка на акцию, без разбивки по аккаунтам: календарь acc1 и acc2 совпадает,
-    # а у одной и той же акции бывают разные id — для читателя это была бы пустая копия.
-    uniq = {}
-    for pid, (name, start, end, _accs) in fresh.items():
-        uniq.setdefault((AUTO_SUFFIX.sub("", name).strip(), start, end), None)
-    body = [f"📣 Завтра ({target:%d.%m}) стартует автоакция WB", ""]
-    for name, start, end in sorted(uniq, key=lambda k: (k[1], k[0])):
-        body.append(f"• {name}")
-        body.append(f"    {start:%d.%m} → {end:%d.%m}")
-    text = "\n".join(body)
-
-    if dry:
-        print("--- НЕ ОТПРАВЛЕНО (--dry) ---")
-        print(text)
-        conn.close()
-        return
-
-    print("telegram:", tg(text))
-    for pid, (name, start, end, accs) in fresh.items():
-        cur.execute("UPDATE wb_promo_notice SET notified_at=now() "
-                    "WHERE promo_id=%s AND account = ANY(%s)", (pid, accs))
-    conn.commit()
-    conn.close()
-    print(f"уведомлено об акциях: {len(fresh)}")
 
 
 def main(argv=None):
@@ -185,8 +149,9 @@ def main(argv=None):
     ap.add_argument("--lead", type=int, default=1, help="за сколько дней предупреждать (по умолч. 1)")
     ap.add_argument("--dry", action="store_true", help="показать сообщение, не отправлять")
     ap.add_argument("--list", action="store_true", help="весь календарь на 45 дней")
+    ap.add_argument("--remind-only", action="store_true", help="только повторить незакрытые уведомления")
     a = ap.parse_args(argv)
-    run(lead=a.lead, dry=a.dry, show_all=a.list)
+    run(lead=a.lead, dry=a.dry, show_all=a.list, remind_only=a.remind_only)
 
 
 if __name__ == "__main__":

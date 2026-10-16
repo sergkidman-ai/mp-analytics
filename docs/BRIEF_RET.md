@@ -1,4 +1,5 @@
 # BRIEF_RET — возвраты товара (что физически забрать с ПВЗ)
+- 16.10 infra-восстановление: returns-daily успешно повторён после подъёма PostgreSQL. В `returns_bot/tg.py` исключения requests после исчерпания прежних попыток заменены безопасным RuntimeError from None, чтобы токен Bot API не попадал в traceback. Повторы/offset/успешные ответы не изменены;3теста `test_returns_tg_transport_privacy.py` OK, returns-bot перезапущен/active, getMe200. Старые логи не переписывались. Отчёт `docs/reports/infra_pult_recovery_2026-10-16/report.txt`.
 
 > `ret` ≠ `rev`. Здесь **физика возврата** (коробка лежит в ПВЗ, её надо забрать).
 > Отзывы и вопросы покупателей — поток `rev`. Деньги возвратов и сторно COGS — поток `fin`.

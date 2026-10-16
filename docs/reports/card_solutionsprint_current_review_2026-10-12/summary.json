@@ -1,0 +1,54 @@
+{
+  "at_utc": "2026-10-12T19:41:13.827297+00:00",
+  "active_ms_cards": 3474,
+  "source_codes": 9895,
+  "statuses": {
+    "ALREADY_EQUAL": 1147,
+    "SOURCE_NOT_AVAILABLE": 516,
+    "SOURCE_UNDER_ORDER": 405,
+    "ZERO_RELEVANT_WAREHOUSE_STOCK": 223,
+    "NO_CURRENT_SOURCE_MATCH": 726,
+    "DESCRIPTION_DIFFERENCE": 438,
+    "EXCLUDED_BLACKLIST": 8,
+    "EXCLUDED_DEFECTIVE": 2,
+    "INVALID_ARTICLE": 7,
+    "EXCLUDED_KIND": 2
+  },
+  "positive_cards": 1597,
+  "current_receipt_documents": 16,
+  "current_receipt_positions": 1430,
+  "receipt_statuses": {
+    "ALREADY_EQUAL": 935,
+    "SOURCE_UNDER_ORDER": 101,
+    "ZERO_RELEVANT_WAREHOUSE_STOCK": 31,
+    "SOURCE_NOT_AVAILABLE": 10,
+    "EXCLUDED_BLACKLIST": 8,
+    "DESCRIPTION_DIFFERENCE": 340,
+    "EXCLUDED_KIND": 2
+  },
+  "receipt_ids_outside_scoped_cards": 3,
+  "unresolved_current_receipt_cards": 0,
+  "external_writes": 0,
+  "database_writes": 0,
+  "description_changes_stock_ge4": 384,
+  "description_changes_stock_1_to_3": 54,
+  "chip_review_stock_ge4": 9,
+  "chip_supported_stock_ge4": 6,
+  "chip_not_confirmed_stock_ge4": 3,
+  "changes_by_supplier": {
+    "Спринт": 2,
+    "Спринт МСК": 6,
+    "Спринт (ИП Яхин)": 429,
+    "Спринт (ИП Зельман)": 1
+  },
+  "source_stock_fractional_cards": [
+    {
+      "id": "854b03d6-a83a-11f0-0a80-1453004638b2",
+      "article": "SP350645_MSK",
+      "stock": 65.44
+    }
+  ],
+  "user_resolved_chip_cards": 3,
+  "unresolved_unconfirmed_chip_cards": 0,
+  "confirmed_chip_cards_needing_final_wording": 6
+}

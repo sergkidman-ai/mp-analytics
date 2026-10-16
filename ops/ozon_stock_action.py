@@ -61,6 +61,7 @@ STEPS = 4                           # снижений от потолка до 
 STEP_DAYS = 7                       # шаг раз в неделю
 REJECT_DAYS = 7                     # окно памяти по отказам площадки
 REJECT_TRIES = 3                    # столько отказов по цене — товар откладываем
+ACTION_VERIFY_WAIT = 30             # Ozon применяет участие/цену асинхронно
 FLAT_EPS = 0.05                     # ход меньше 5% потолка → лестницу не строим, стоим на потолке
 KEEP_FALLBACK = {"oz_acc1": 0.421, "oz_acc2": 0.459}   # доля, что остаётся после удержаний Ozon
 SERGEY_CHAT_ID = 1031321444         # только явный chat_id, см. память telegram-channels
@@ -85,8 +86,8 @@ def _req(account, method, path, body=None, tries=4):
     for i in range(tries):
         r = (requests.get(API + path, headers=H, timeout=90) if method == "GET"
              else requests.post(API + path, headers=H, json=body or {}, timeout=90))
-        if r.status_code == 429:
-            time.sleep(int(r.headers.get("Retry-After", "5")) + 1)
+        if r.status_code in (429, 500, 502, 503, 504) and i < tries - 1:
+            time.sleep(min(60, int(r.headers.get("Retry-After", str(2 ** i + 1)))) + 1)
             continue
         r.raise_for_status()
         return r.json()
@@ -108,29 +109,23 @@ def actions(account):
 
 
 def candidates(account, action_id):
-    """Кандидаты акции (пагинация)."""
-    out, offset = [], 0
-    while True:
-        res = _req(account, "POST", "/v1/actions/candidates",
-                   {"action_id": action_id, "limit": 100, "offset": offset}).get("result", {})
-        got = res.get("products", []) or []
-        out += got
-        offset += len(got)
-        if len(got) < 100 or offset >= (res.get("total") or 0):
-            return out
+    from ops.ozon_actions import products
+    return products(_req, account, action_id, candidates=True)
 
 
 def participants(account, action_id):
-    """Товары, уже заведённые в акцию."""
-    out, offset = [], 0
-    while True:
-        res = _req(account, "POST", "/v1/actions/products",
-                   {"action_id": action_id, "limit": 100, "offset": offset}).get("result", {})
-        got = res.get("products", []) or []
-        out += got
-        offset += len(got)
-        if len(got) < 100 or offset >= (res.get("total") or 0):
-            return out
+    from ops.ozon_actions import products
+    return products(_req, account, action_id)
+
+
+def update_products(account, action_id, rows):
+    from ops.ozon_actions import update
+    return update(_req, account, action_id, rows)
+
+
+def remove_products(account, action, rows):
+    from ops.ozon_actions import remove
+    return remove(_req, account, action, rows)
 
 
 def offer_of(account, product_ids):
@@ -140,7 +135,7 @@ def offer_of(account, product_ids):
     for k in range(0, len(ids), 100):
         for p in _req(account, "POST", "/v3/product/info/list",
                       {"product_id": ids[k:k + 100]}).get("items", []):
-            out[p["id"]] = (p.get("offer_id"), (p.get("name") or "")[:60])
+            out[p["id"]] = (p.get("offer_id"), p.get("name") or "")
     return out
 
 
@@ -205,8 +200,18 @@ def _parent(code):
     return m.group(1) if m and m.group(1) != code else None
 
 
-def cogs_map(offers):
-    """{offer_id: (себест/шт, источник)} по цепочке фолбэков (см. память cogs-lookup-chain)."""
+def bundle_quantity(offer_id, title=None):
+    """Кратность XN; код с суффиксом требует совпадения с названием «Комплект … N шт»."""
+    from ops.wb_promo_guard import bundle_multiplier
+    return bundle_multiplier(offer_id, title=title)
+
+
+def cogs_map(offers, titles=None):
+    """{offer_id: (полный себест карточки, источник)} по цепочке фолбэков.
+
+    Отгрузка/закупка точного offer_id уже содержит цену целого бандла. Цена родителя
+    или универсальной модели пересчитывается на число штук целевой карточки.
+    """
     offers = [o for o in offers if o]
     base = sorted(set(offers) | {p for p in (_parent(o) for o in offers) if p})
     link = {}
@@ -244,11 +249,22 @@ def cogs_map(offers):
     out = {}
     for o in offers:
         par = _parent(o)
+        quantity = bundle_quantity(o, (titles or {}).get(o))
+
+        def full_cost(value, source, source_code):
+            if value is None or quantity == 1 or source_code == o:
+                return value, source
+            factor = quantity / bundle_quantity(source_code, (titles or {}).get(source_code))
+            if factor == 1:
+                return value, source
+            return value * factor, f"{source} (×{factor:g} для {o})"
+
         v, s = by_ship(o)
         if v is None and par:
             v, s = by_ship(par)
             if v:
                 s += " (родитель)"
+                v, s = full_cost(v, s, par)
         if v is None:                                    # универсальная модель из справочника ТК
             for src in [o] + ([par] if par else []):
                 cand = [(c, *by_ship(c)) for c in link.get(src, [])]
@@ -256,25 +272,29 @@ def cogs_map(offers):
                 if cand:
                     c, v, s = max(cand, key=lambda t: ship[t[0]][0]["dt"])
                     s += " (универсальная)"
+                    v, s = full_cost(v, s, c)
                     break
         if v is None:
             for c in [o] + ([par] if par else []):
                 if c in sets:
                     v, s = sets[c], f"набор {c}"
+                    v, s = full_cost(v, s, c)
                     break
         if v is None:
             for c in [o] + ([par] if par else []):
                 if c in tc:
                     v, s = tc[c], f"закупка ТК {c}"      # оценка, а не себест лежащего лота
+                    v, s = full_cost(v, s, c)
                     break
         out[o] = (v, s or "НЕТ")
     return out
 
 
-def floor_price(cogs, keep):
-    """Пол цены: себест + max(300 ₽, 10 % себеста) чистыми, делённые на долю, что остаётся нам.
+def floor_price(cogs, keep, quantity=1):
+    """Пол цены: себест + max(300 ₽ × N, 10 % полного себеста) / доля продавца.
     Общий для лестницы и сторожа акций (ops/ozon_promo_guard.py) — иначе они спорят о товаре."""
-    return (cogs + max(GOAL_NET, GOAL_NET_PCT * cogs)) / keep
+    from ops.wb_promo_guard import min_net
+    return (cogs + min_net(cogs, quantity)) / keep
 
 
 # --- лестница ---------------------------------------------------------------
@@ -328,7 +348,8 @@ def _decide(row, keep, state, others, today, undercut=True):
     if v is None:
         row["skip"] = "себестоимость не найдена"
         return row
-    floor = floor_price(v, keep)
+    row["bundle_qty"] = bundle_quantity(off, row.get("name"))
+    floor = floor_price(v, keep, row["bundle_qty"])
     if undercut:
         om = others.get(off)
         if om and om - 1 < cap:                 # в чужой акции дешевле — встаём под неё
@@ -339,7 +360,7 @@ def _decide(row, keep, state, others, today, undercut=True):
     elif row["inside"] and (row.get("now_price") or 0) > 0:
         # товар завели руками — лестница стартует от ЕГО цены, а не от потолка акции:
         # цену не дёргаем, просто берём под управление. Ниже пола не оставляем.
-        cap = max(floor, min(cap, float(row["now_price"])))
+        cap = min(cap, max(floor, float(row["now_price"])))
     row["cap"] = round(cap, 2)
     rung = int(st.get("rung") or 0)
     last = st.get("last_step_on")
@@ -377,7 +398,7 @@ def plan_account(account):
         inside = participants(account, aid) if a.get("is_participating") else []
         pid2 = offer_of(account, [c["id"] for c in cands] + [p["id"] for p in inside])
         offs = [pid2.get(x["id"], (None,))[0] for x in cands + inside]
-        cogs = cogs_map(offs)
+        cogs = cogs_map(offs, titles={off: name for off, name in pid2.values() if off})
         state = ladder_state(account, [o for o in offs if o])
 
         for src, items in (("add", cands), ("inside", inside)):
@@ -385,6 +406,7 @@ def plan_account(account):
                 off, nm = pid2.get(c["id"], (None, ""))
                 row = {"account": account, "action_id": aid, "action_title": title,
                        "product_id": c["id"], "offer_id": off, "name": nm,
+                       "action_type": a.get("action_type"),
                        "cap": float(c.get("max_action_price") or 0),
                        "min_stock": int(c.get("min_stock") or 0),
                        "stock": int(stock.get(off, 0)) if off else 0,
@@ -462,7 +484,7 @@ def _log(account, aid, title, p, ok, note):
 
 
 def apply_plan(account, plans, dry=True, allow_remove=False, only_remove=False):
-    """add/update — через activate (тот же метод переустанавливает цену), remove — deactivate.
+    """add/update — новый update с Money, снятие по механике акции и перечитка результата.
 
     Снятие с акции трогает то, что человек уже завёл руками, поэтому требует allow_remove.
 
@@ -471,7 +493,8 @@ def apply_plan(account, plans, dry=True, allow_remove=False, only_remove=False):
     усмотрение, и делает это ночью: наши снятия к утру отыграны обратно, наши заводы выкинуты
     (подтверждено 23.08.2026 — те же 26 позиций acc1 сняты два дня подряд). Отключить
     автодобавление нельзя, единственный наш рычаг — снятие. Поэтому состав правим часто и
-    дёшево (только снятие, цены не трогаем), а полный прогон с лестницей — раз в сутки.
+    по механике акции: через предельную цену или удаление, без новых добавлений.
+    Полный прогон с лестницей — раз в сутки.
     """
     done = {"add": 0, "update": 0, "remove": 0}
     today = dt.date.today()
@@ -492,30 +515,43 @@ def apply_plan(account, plans, dry=True, allow_remove=False, only_remove=False):
             if p["mode"] == "keep":
                 _remember(account, aid, p, today)
         if put:
-            res = _req(account, "POST", "/v1/actions/products/activate",
-                       {"action_id": aid,
-                        "products": [{"product_id": p["product_id"], "action_price": p["price"],
-                                      "stock": max(p["stock"], p["min_stock"], 1)} for p in put]}
-                       ).get("result", {})
-            ok_ids = {int(x) for x in (res.get("product_ids") or [])}
-            rej = {int(r.get("product_id")): r.get("reason") for r in (res.get("rejected") or [])}
+            res = update_products(account, aid,
+                [{"product_id": p["product_id"], "action_price": p["price"],
+                  "stock": max(p["stock"], p["min_stock"], 1)} for p in put])
+            time.sleep(ACTION_VERIFY_WAIT)
+            actual = {int(p["id"]): p for p in participants(account, aid)}
             for p in put:
-                good = p["product_id"] in ok_ids
-                _log(account, aid, title, p, good, None if good else rej.get(p["product_id"], "отказ"))
+                got = actual.get(int(p["product_id"]))
+                if p["product_id"] in res.get("inactive", set()) and got is None:
+                    p["mode"] = "remove"
+                    _log(account, aid, title, p, True, "update исключил товар; отсутствие подтверждено")
+                    done["remove"] += 1
+                    continue
+                good = (p["product_id"] in res["active"] and got is not None
+                        and got["action_price"] >= float(p["floor"]) - .5)
+                note = (f"cap={p['price']}, seller_price={got['action_price']}" if good else
+                        res["rejected"].get(p["product_id"], "не подтверждена цена выше пола"))
+                _log(account, aid, title, p, good, note)
                 if good:
                     done[p["mode"]] += 1
-                    _remember(account, aid, p, today)
-            print(f"  {title}: принято {len(ok_ids)}, отказ {len(rej)}", flush=True)
+                    _remember(account, aid, {**p, "price": got["action_price"]}, today)
+                elif got is not None and got["action_price"] < float(p["floor"]) - .5:
+                    # Cap update does not guarantee the actual seller price. Exclude unsafe stock.
+                    p["max_price"] = got["max_action_price"]
+                    p["mode"] = "remove"
+                    p["why"] = "фактическая цена после update ниже пола, снимаем"
+                    if p not in rm:
+                        rm.append(p)
+            print(f"  {title}: update accepted {len(res['active'])}, verified {sum(1 for p in put if p['product_id'] in actual and actual[p['product_id']]['action_price'] >= float(p['floor'])-.5)}", flush=True)
         if rm:
-            res = _req(account, "POST", "/v1/actions/products/deactivate",
-                       {"action_id": aid, "product_ids": [p["product_id"] for p in rm]}
-                       ).get("result", {})
-            ok_ids = {int(x) for x in (res.get("product_ids") or [])}
+            res = remove_products(account, {"id": aid, "action_type": part[0].get("action_type")}, rm)
+            time.sleep(ACTION_VERIFY_WAIT)
+            remaining = {int(p["id"]) for p in participants(account, aid)}
             for p in rm:
-                good = p["product_id"] in ok_ids
-                _log(account, aid, title, p, good, "снят: цена ниже порога" if good else "снять не вышло")
+                good = p["product_id"] in res["inactive"] and p["product_id"] not in remaining
+                _log(account, aid, title, p, good, "снят и подтверждён" if good else "снятие не подтверждено")
                 done["remove"] += int(good)
-            print(f"  {title}: снято {len(ok_ids)} из {len(rm)}", flush=True)
+            print(f"  {title}: снято и подтверждено {sum(p['product_id'] not in remaining for p in rm)} из {len(rm)}", flush=True)
     return done
 
 
@@ -586,7 +622,7 @@ def report(account, plans, keep, keep_src, done, dry):
     ru = {"add": "завести", "update": "сдвинуть ступень", "keep": "оставить как есть",
           "remove": "снять", "мимо": "не подходят"}   # снимаем по нулю на складе ИЛИ по цене
     lines = [f"*{account}* · акции по белому списку · {'расчёт' if dry else 'исполнение'}",
-             f"нам остаётся {keep*100:.1f}% выручки ({keep_src}), цель +max({GOAL_NET:.0f} ₽; {GOAL_NET_PCT*100:.0f} % себеста) с единицы"]
+             f"нам остаётся {keep*100:.1f}% выручки ({keep_src}), цель +max({GOAL_NET:.0f} ₽ × кратность; {GOAL_NET_PCT*100:.0f} % полного себеста)"]
     for k in ("add", "update", "keep", "remove", "мимо"):
         if m.get(k):
             lines.append(f"  · {ru[k]}: {m[k]}")

@@ -1,0 +1,340 @@
+{
+  "months": [
+    {
+      "ym": "2026-07",
+      "orgs": {
+        "7807355364": {
+          "platforms": {
+            "wb": {
+              "base": 1478561.53,
+              "sales": 1478561.53,
+              "rets": 28150.0,
+              "net": 1450411.53
+            },
+            "ozon": {
+              "base": 5693255.86,
+              "sales": 5693255.86,
+              "rets": 132685.55,
+              "net": 5560570.31
+            },
+            "yandex": {
+              "base": 1474158.0,
+              "sales": 1474158.0,
+              "rets": 61075.0,
+              "net": 1413083.0
+            }
+          },
+          "base": 8645975.39,
+          "sales": 8645975.39,
+          "rets": 221910.55,
+          "net": 8424064.84,
+          "wb_last_day": "2026-07-31",
+          "ozon_unclassified": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          },
+          "ozon_excluded": {
+            "base": 305480.82,
+            "sales": 305480.82,
+            "rets": 10201.22,
+            "net": 295279.6
+          }
+        },
+        "7811803918": {
+          "platforms": {
+            "wb": {
+              "base": 1215503.16,
+              "sales": 1215503.16,
+              "rets": 14348.0,
+              "net": 1201155.16
+            },
+            "ozon": {
+              "base": 1302346.27,
+              "sales": 1302346.27,
+              "rets": 87040.56,
+              "net": 1215305.71
+            },
+            "yandex": null
+          },
+          "base": 2517849.43,
+          "sales": 2517849.43,
+          "rets": 101388.56,
+          "net": 2416460.87,
+          "wb_last_day": "2026-07-31",
+          "ozon_unclassified": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          },
+          "ozon_excluded": {
+            "base": 90796.75,
+            "sales": 90796.75,
+            "rets": 1771.02,
+            "net": 89025.73
+          }
+        }
+      }
+    },
+    {
+      "ym": "2026-08",
+      "orgs": {
+        "7807355364": {
+          "platforms": {
+            "wb": {
+              "base": 1293088.48,
+              "sales": 1293088.48,
+              "rets": 8074.65,
+              "net": 1285013.83
+            },
+            "ozon": {
+              "base": 4704918.45,
+              "sales": 4704918.45,
+              "rets": 28252.84,
+              "net": 4676665.61
+            },
+            "yandex": {
+              "base": 1696910.0,
+              "sales": 1696910.0,
+              "rets": 214117.0,
+              "net": 1482793.0
+            }
+          },
+          "base": 7694916.93,
+          "sales": 7694916.93,
+          "rets": 250444.49,
+          "net": 7444472.44,
+          "wb_last_day": "2026-08-31",
+          "ozon_unclassified": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          },
+          "ozon_excluded": {
+            "base": 270831.2,
+            "sales": 270831.2,
+            "rets": 16520.45,
+            "net": 254310.75
+          }
+        },
+        "7811803918": {
+          "platforms": {
+            "wb": {
+              "base": 922810.74,
+              "sales": 922810.74,
+              "rets": 31777.0,
+              "net": 891033.74
+            },
+            "ozon": {
+              "base": 789027.78,
+              "sales": 789027.78,
+              "rets": 28438.67,
+              "net": 760589.11
+            },
+            "yandex": null
+          },
+          "base": 1711838.52,
+          "sales": 1711838.52,
+          "rets": 60215.67,
+          "net": 1651622.85,
+          "wb_last_day": "2026-08-31",
+          "ozon_unclassified": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          },
+          "ozon_excluded": {
+            "base": 73234.68,
+            "sales": 73234.68,
+            "rets": 0.0,
+            "net": 73234.68
+          }
+        }
+      }
+    },
+    {
+      "ym": "2026-09",
+      "orgs": {
+        "7807355364": {
+          "platforms": {
+            "wb": {
+              "base": 1282251.7,
+              "sales": 1282251.7,
+              "rets": 14657.17,
+              "net": 1267594.53
+            },
+            "ozon": {
+              "base": 6564029.86,
+              "sales": 6564029.86,
+              "rets": 201426.41,
+              "net": 6362603.45
+            },
+            "yandex": {
+              "base": 1438906.0,
+              "sales": 1438906.0,
+              "rets": 157461.0,
+              "net": 1281445.0
+            }
+          },
+          "base": 9285187.56,
+          "sales": 9285187.56,
+          "rets": 373544.58,
+          "net": 8911642.98,
+          "wb_last_day": "2026-09-20",
+          "ozon_unclassified": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          },
+          "ozon_excluded": {
+            "base": 486730.84,
+            "sales": 486730.84,
+            "rets": 18950.83,
+            "net": 467780.01
+          }
+        },
+        "7811803918": {
+          "platforms": {
+            "wb": {
+              "base": 864230.65,
+              "sales": 864230.65,
+              "rets": 21703.12,
+              "net": 842527.53
+            },
+            "ozon": {
+              "base": 1252573.85,
+              "sales": 1252573.85,
+              "rets": 14634.94,
+              "net": 1237938.91
+            },
+            "yandex": null
+          },
+          "base": 2116804.5,
+          "sales": 2116804.5,
+          "rets": 36338.06,
+          "net": 2080466.44,
+          "wb_last_day": "2026-09-20",
+          "ozon_unclassified": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          },
+          "ozon_excluded": {
+            "base": 172687.96,
+            "sales": 172687.96,
+            "rets": 0.0,
+            "net": 172687.96
+          }
+        }
+      }
+    },
+    {
+      "ym": "2026-10",
+      "orgs": {
+        "7807355364": {
+          "platforms": {
+            "wb": null,
+            "ozon": null,
+            "yandex": null
+          },
+          "base": null,
+          "sales": null,
+          "rets": null,
+          "net": null,
+          "wb_last_day": null,
+          "ozon_unclassified": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          },
+          "ozon_excluded": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          }
+        },
+        "7811803918": {
+          "platforms": {
+            "wb": null,
+            "ozon": null,
+            "yandex": null
+          },
+          "base": null,
+          "sales": null,
+          "rets": null,
+          "net": null,
+          "wb_last_day": null,
+          "ozon_unclassified": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          },
+          "ozon_excluded": {
+            "base": 0.0,
+            "sales": 0.0,
+            "rets": 0.0,
+            "net": 0.0
+          }
+        }
+      }
+    }
+  ],
+  "orgs": {
+    "7807355364": "Цифровой Квадрат",
+    "7811803918": "Дисквэр"
+  },
+  "platforms": {
+    "wb": "Wildberries",
+    "ozon": "Ozon",
+    "yandex": "Яндекс Маркет"
+  },
+  "trademarks": {
+    "7807355364": "Цифровой квадрат",
+    "7811803918": "Dsquare"
+  },
+  "since": "2026-07-01",
+  "coverage": [
+    {
+      "account": "wb_acc1",
+      "ym": "2026-07",
+      "last_day": "2026-07-31"
+    },
+    {
+      "account": "wb_acc1",
+      "ym": "2026-08",
+      "last_day": "2026-08-31"
+    },
+    {
+      "account": "wb_acc1",
+      "ym": "2026-09",
+      "last_day": "2026-09-20"
+    },
+    {
+      "account": "wb_acc2",
+      "ym": "2026-07",
+      "last_day": "2026-07-31"
+    },
+    {
+      "account": "wb_acc2",
+      "ym": "2026-08",
+      "last_day": "2026-08-31"
+    },
+    {
+      "account": "wb_acc2",
+      "ym": "2026-09",
+      "last_day": "2026-09-20"
+    }
+  ],
+  "basis": "sales_before_returns",
+  "refresh_policy": "daily",
+  "calculated_at": "2026-10-05T14:06:35.747061+00:00"
+}

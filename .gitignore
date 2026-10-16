@@ -92,3 +92,85 @@ bin/mpsess.local
 
 # сырьё писем «Необработанные товары МС» (поток prc) — не в git
 /mail_unprocessed/
+
+# поток: mpstats-probe — сырые ответы MPSTATS и временные файлы не коммитим
+data/mpstats_probe/*/raw/
+data/mpstats_probe/*/tmp/
+data/mpstats_probe/**/*.env
+data/mpstats_probe/*/derived/actual_*.csv
+
+# Локальные резервные копии и временные эксперименты остаются на сервере.
+/backups/
+/scratchpad/
+*.lock
+/reports/data/*.previous
+/reports/data/*.txt
+/reports/data/*.csv
+/reports/data/bid_ladder_*.json
+/reports/data/feedback_health_state.json
+
+# Многогигабайтное сырьё аудитов не является исходным кодом.
+# Сохраняем документацию, скрипты, компактные итоги и входы, явно читаемые кодом.
+/docs/reports/**
+!/docs/reports/**/
+!/docs/reports/**/*.md
+!/docs/reports/**/*.py
+!/docs/reports/**/*.sql
+!/docs/reports/**/*.yaml
+!/docs/reports/**/*.yml
+!/docs/reports/**/summary.json
+!/docs/reports/**/checks.json
+!/docs/reports/**/verification.json
+!/docs/reports/**/published.json
+!/docs/reports/**/analysis.json
+!/docs/reports/**/manifest.json
+
+# Разовые выгрузки пересборок; исходные инструкции и скрипты сохраняются.
+/docs/rebuild/*.csv
+/docs/rebuild/*.jsonl
+
+!/docs/reports/card_dimensions_own_source_plan_2026-10-15/candidate_fill.json
+!/docs/reports/card_dimensions_own_source_plan_2026-10-15/review.csv
+!/docs/reports/card_dimensions_weight_night_2026-10-15/lock
+!/docs/reports/card_rapid_dimensions_night_2026-10-14/plan.json
+!/docs/reports/card_solutionsprint_current_review_2026-10-12/source_listings.json
+!/docs/reports/card_sprint_dimensions_prepare_2026-10-14/ms_attribute_metadata.json
+!/docs/reports/card_wb_name_plan_2026-10-15/label_full_text.json
+!/docs/reports/kb_baseline_2026-08-19.md
+!/docs/reports/kudir_2026-10-14/analysis.json
+!/docs/reports/kudir_diskver_2026-10-14/analysis.json
+!/docs/reports/ozon_acc1_plan.md
+!/docs/reports/prc_tc_fields_chip_conflicts_2026-08-20.csv
+!/docs/reports/prc_wb_label_geometry_2026-10-15/NotoSans-Regular.ttf
+!/docs/reports/prc_wb_label_geometry_2026-10-15/OFL.txt
+!/docs/reports/prc_wb_label_geometry_2026-10-15/README.md
+!/docs/reports/prc_wb_label_geometry_2026-10-15/before/prices/wb_label.py
+!/docs/reports/prc_wb_label_geometry_2026-10-15/before/tests/test_prc_wb_label.py
+!/docs/reports/prc_wb_label_geometry_2026-10-15/canary_preflight.xlsx
+!/docs/reports/prc_wb_label_geometry_2026-10-15/download_checks.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/dry_run/catalog_snapshot.json.gz
+!/docs/reports/prc_wb_label_geometry_2026-10-15/dry_run/review.csv.gz
+!/docs/reports/prc_wb_label_geometry_2026-10-15/dry_run/summary.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/embedded_font_widths.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/font_source.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/font_validation.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/formula_parity.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/geometry_changes.xlsx
+!/docs/reports/prc_wb_label_geometry_2026-10-15/geometry_results.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/initial_geometry_check.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/label_geometry_preview.pdf
+!/docs/reports/prc_wb_label_geometry_2026-10-15/live_pult_checks.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/live_sample_checks.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/preview_text_validation.json
+!/docs/reports/prc_wb_label_geometry_2026-10-15/validation_summary.json
+!/docs/reports/prc_wb_name_canary_night_2026-10-15/summary.json
+!/docs/reports/tc_chip_wave2_left_2026-09-24.csv
+!/docs/reports/wb_tnved_apply_203_2026-10-05/results.json
+!/docs/reports/wb_tnved_category_rule_recheck_2026-10-05/correct_category_code_conflicts.csv
+!/docs/reports/wb_tnved_dry_run_2026-10-05/no_source.csv
+!/docs/reports/wb_tnved_final_catalog_audit_2026-10-05/missing_fields.csv
+!/docs/reports/wb_tnved_remaining_2026-10-05/state.json
+!/docs/reports/yandex_weekly_aug_sep_2026/checks.json
+
+# Старые версии выгрузок — локальный runtime, не исходники.
+/reports/data/**/*.previous

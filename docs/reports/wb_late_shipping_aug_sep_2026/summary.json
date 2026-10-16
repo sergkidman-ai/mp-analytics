@@ -1,0 +1,30 @@
+[
+  {
+    "account": "wb_acc1",
+    "month": "2026-08",
+    "amount": "0",
+    "penalty_rows": 0,
+    "orders": 0
+  },
+  {
+    "account": "wb_acc1",
+    "month": "2026-09",
+    "amount": "21150.39",
+    "penalty_rows": 74,
+    "orders": 74
+  },
+  {
+    "account": "wb_acc2",
+    "month": "2026-08",
+    "amount": "0",
+    "penalty_rows": 0,
+    "orders": 0
+  },
+  {
+    "account": "wb_acc2",
+    "month": "2026-09",
+    "amount": "6749.48",
+    "penalty_rows": 44,
+    "orders": 44
+  }
+]
