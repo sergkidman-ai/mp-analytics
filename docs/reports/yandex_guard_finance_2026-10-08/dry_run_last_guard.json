@@ -1,0 +1,42 @@
+{
+  "timestamp": "2026-10-08 03:35:14.017671+00:00",
+  "rows": 1366,
+  "unique_sku": 1366,
+  "counts": {
+    "not_comparable": 74,
+    "comparable": 1292,
+    "between_old_and_new": 3,
+    "still_below_new": 8,
+    "above_old": 1281
+  },
+  "newly_passing_unique_sku": 3,
+  "verified_services": "2006996.80",
+  "verified_turnover": "2995262.45",
+  "verified_retention": "0.6700570763006093172236042287",
+  "effects": [
+    {
+      "offer_id": "34749",
+      "promo_price": "4450.00",
+      "old_floor": "4721.80",
+      "new_floor": "4359.844981281095826815391185",
+      "mode": "remove",
+      "status": "sent"
+    },
+    {
+      "offer_id": "347410",
+      "promo_price": "4694.00",
+      "old_floor": "4721.80",
+      "new_floor": "4359.844981281095826815391185",
+      "mode": "remove",
+      "status": "sent"
+    },
+    {
+      "offer_id": "22262",
+      "promo_price": "2968.00",
+      "old_floor": "3120.79",
+      "new_floor": "2881.558996143901186892410962",
+      "mode": "remove",
+      "status": "sent"
+    }
+  ]
+}

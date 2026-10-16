@@ -1,0 +1,303 @@
+{
+  "accounts": {
+    "oz_acc1": {
+      "account": "oz_acc1",
+      "checked": 6940,
+      "actions": 6,
+      "removed": 4,
+      "raised": 0,
+      "unconfirmed": 0
+    },
+    "oz_acc2": {
+      "account": "oz_acc2",
+      "checked": 3849,
+      "actions": 6,
+      "removed": 18,
+      "raised": 0,
+      "unconfirmed": 0
+    }
+  },
+  "changed_cards": [
+    {
+      "account": "oz_acc1",
+      "action_id": 1977747,
+      "product_id": 453348085,
+      "offer_id": "1714",
+      "action_price": "8886.00",
+      "floor_price": "10325.48",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "цена 8886 < пол 10325, поднимаем → фактическая цена после update ниже пола, снимаем",
+      "note": "сверка: в акции цена 8886.0; ['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc1",
+      "action_id": 1977747,
+      "product_id": 453348035,
+      "offer_id": "1716",
+      "action_price": "8886.00",
+      "floor_price": "10325.48",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "цена 8886 < пол 10325, поднимаем → фактическая цена после update ниже пола, снимаем",
+      "note": "сверка: в акции цена 8886.0; ['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc1",
+      "action_id": 1977747,
+      "product_id": 453348070,
+      "offer_id": "1717",
+      "action_price": "8886.00",
+      "floor_price": "10325.48",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "цена 8886 < пол 10325, поднимаем → фактическая цена после update ниже пола, снимаем",
+      "note": "сверка: в акции цена 8886.0; ['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc1",
+      "action_id": 1977747,
+      "product_id": 329697783,
+      "offer_id": "2403",
+      "action_price": "1059.00",
+      "floor_price": "1571.01",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "цена 1059 < пол 1571, поднимаем → фактическая цена после update ниже пола, снимаем",
+      "note": "сверка: в акции цена 1059.0; ['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 1340672263,
+      "offer_id": "0448X1969ATR",
+      "action_price": "973.00",
+      "floor_price": "1050.57",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "пол 1051 > потолок 973",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 1418665096,
+      "offer_id": "1000MRIYYV6C",
+      "action_price": "3802.00",
+      "floor_price": "4985.97",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "пол 4986 > потолок 3792",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 1421504507,
+      "offer_id": "1562CCRWCOI8",
+      "action_price": "952.00",
+      "floor_price": "996.43",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "пол 996 > потолок 923",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 1421517703,
+      "offer_id": "1696UZ7ERKI3",
+      "action_price": "3690.00",
+      "floor_price": "3932.67",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "пол 3933 > потолок 3690",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 1421515477,
+      "offer_id": "2403MV528YR5",
+      "action_price": "1015.00",
+      "floor_price": "1633.51",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "цена 1015 < пол 1634, поднимаем → фактическая цена после update ниже пола, снимаем",
+      "note": "сверка: в акции цена 1015.0; ['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 1418752064,
+      "offer_id": "3053DL8AUM4B",
+      "action_price": "3707.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (набор: компонента нет в наличии)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 4838593432,
+      "offer_id": "36751FHPABCJ",
+      "action_price": "4065.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (нет в наличии нигде)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 4838593475,
+      "offer_id": "36752TWEHVVN",
+      "action_price": "4065.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (нет в наличии нигде)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 1418620444,
+      "offer_id": "3675KXY5CYA8",
+      "action_price": "4065.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (нет в наличии нигде)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 1682782542,
+      "offer_id": "5887TA01K90K",
+      "action_price": "4107.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (нет в наличии нигде)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 1574333774,
+      "offer_id": "5947JCKHFV75",
+      "action_price": "33083.00",
+      "floor_price": "34170.08",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "пол 34170 > потолок 32972",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 2293387935,
+      "offer_id": "6296SGCRXDEF",
+      "action_price": "33265.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (нет в наличии нигде)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 2726782169,
+      "offer_id": "6593R3KEI5EM",
+      "action_price": "19780.00",
+      "floor_price": "37137.98",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "пол 37138 > потолок 19769",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 3563551285,
+      "offer_id": "6832EC2OZ1YF",
+      "action_price": "22761.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (нет в наличии нигде)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 3787872943,
+      "offer_id": "6927D8DYXBT7",
+      "action_price": "25818.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (нет в наличии нигде)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 3870551732,
+      "offer_id": "6948XC5OSEL8",
+      "action_price": "5047.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (нет в наличии нигде)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 6263118679,
+      "offer_id": "6987PLU5E4BE",
+      "action_price": "13932.00",
+      "floor_price": null,
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "себестоимость не найдена (нет в наличии нигде)",
+      "note": "['transition bridge: v2 deactivate used']"
+    },
+    {
+      "account": "oz_acc2",
+      "action_id": 1977747,
+      "product_id": 6437570844,
+      "offer_id": "7034SGZ5UU01",
+      "action_price": "40610.00",
+      "floor_price": "43455.75",
+      "mode": "remove",
+      "status": "confirmed",
+      "reason": "цена 40610 < пол 43456, поднимаем → фактическая цена после update ниже пола, снимаем",
+      "note": "сверка: в акции цена 40610.0; ['transition bridge: v2 deactivate used']"
+    }
+  ],
+  "tests_passed": 32,
+  "stock_and_regional_active_actions": 0,
+  "telegram_sent": false,
+  "api_stage": "15 October transition period; after-switch exclusion-by-price is covered by unit tests",
+  "price_collector": {
+    "rows_upserted": 2297,
+    "oz_acc1": {
+      "rows": 1632,
+      "unique_action_products": 6008
+    },
+    "oz_acc2": {
+      "rows": 665,
+      "unique_action_products": 3616
+    }
+  },
+  "source_article": "dropbox/20261015_091356_Natalie_Pro_natalya_новые_методы_для_акций_Озон.txt",
+  "cutover_announced": "2026-10-19 (UPD 2026-10-14)"
+}

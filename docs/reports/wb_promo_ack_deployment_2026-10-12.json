@@ -1,0 +1,15 @@
+{
+  "feature": "WB promo reminders until Natalia completion",
+  "tests_passed": 15,
+  "service": "active",
+  "first_notice_msk": "09:41, day before start",
+  "reminders_msk": "hourly at :41",
+  "adopted_promo_ids": [
+    3020
+  ],
+  "adopted_task": 1,
+  "first_button_notice_expected_msk": "2026-10-12 12:41",
+  "manual_messages_sent": 0,
+  "real_user_click_tested": false,
+  "migration_applied": 514
+}

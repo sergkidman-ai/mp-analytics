@@ -1,0 +1,40 @@
+[
+  {
+    "period": "2026-09-21",
+    "turnover": "964882.83",
+    "buyer": "543164.0",
+    "expense": "593608.25",
+    "expense_money": "171889.42",
+    "netting": "421718.83",
+    "cogs": "132272.50",
+    "returns": "74184.0",
+    "profit": "164818.08",
+    "margin": "17.08166783318136151308651642",
+    "expense_pct": "61.52127818462683184029712706",
+    "created": "143",
+    "delivered": "115",
+    "cogs_orders": "116",
+    "commission": "431262.18",
+    "logistics": "68958.48",
+    "advertising": "78646.64"
+  },
+  {
+    "period": "2026-09-28",
+    "turnover": "588356.65",
+    "buyer": "273719.0",
+    "expense": "402910.97",
+    "expense_money": "88273.32",
+    "netting": "314637.65",
+    "cogs": "92367.61",
+    "returns": "27866.0",
+    "profit": "65212.07",
+    "margin": "11.08376526380725024523815614",
+    "expense_pct": "68.48073698155701987901386005",
+    "created": "113",
+    "delivered": "64",
+    "cogs_orders": "99",
+    "commission": "297169.82",
+    "logistics": "49351.53",
+    "advertising": "46275.15"
+  }
+]

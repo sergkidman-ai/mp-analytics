@@ -1,0 +1,168 @@
+{
+  "checked_at": "2026-10-08T19:40:29.367192+00:00",
+  "catalog_counts": {
+    "wb_acc1": 7729,
+    "wb_acc2": 9522,
+    "oz_acc1": 7773,
+    "oz_acc2": 10362
+  },
+  "issues": [],
+  "latest_ozon_log_bundle_rows": 0,
+  "latest_ozon_log_unique_bundles": 0,
+  "latest_ozon_replay_new_modes": {},
+  "latest_ozon_replay_rows": [],
+  "colour_set_controls": {
+    "3216X0V1FNDJ": 1,
+    "4692X5BV7567": 1,
+    "0916X1TWMYE3": 1
+  },
+  "removed_loose_classifier_cards": {
+    "wb_acc1": [],
+    "wb_acc2": [
+      {
+        "nm_id": 313189706,
+        "code": "0064X9775UHA",
+        "title": "Картриджи DS T0501-T0520 для Epson Stylus 800N, Stylus 850"
+      },
+      {
+        "nm_id": 323340776,
+        "code": "0916X1TWMYE3",
+        "title": "Картриджи DS T0870-T0879 для Epson Stylus Photo R1900"
+      },
+      {
+        "nm_id": 878769505,
+        "code": "2707X0JZZWIY",
+        "title": "Картриджи DS 123XL для HP OfficeJet 3834, DeskJet 1110"
+      },
+      {
+        "nm_id": 324987258,
+        "code": "3216X0V1FNDJ",
+        "title": "Картриджи DS TN-421"
+      },
+      {
+        "nm_id": 324987785,
+        "code": "3488X0TCVP8W",
+        "title": "Картриджи DS PG-445XL-CL-446XL для Canon Pixma TS3140"
+      },
+      {
+        "nm_id": 323349519,
+        "code": "4692X5BV7567",
+        "title": "Картриджи DS №963 для HP OfficeJet Pro 9023"
+      },
+      {
+        "nm_id": 502509971,
+        "code": "6534X5HJF8WR",
+        "title": "Картриджи DS TK-8315 для Kyocera TASKalfa 2550ci"
+      },
+      {
+        "nm_id": 914742613,
+        "code": "6737X3UNXI4U",
+        "title": "Фотобарабан + картридж DS DK-320+TK-360 для Kyocera черный"
+      }
+    ]
+  },
+  "prior_price_estimate_removed_rows": [
+    {
+      "account": "wb_acc2",
+      "list": "Дисквер 713",
+      "nm_id": "323349519",
+      "vendor_code": "4692X5BV7567",
+      "snapshot_participated": "True",
+      "plan_price": "16940.0",
+      "current_price": "16765.44",
+      "within_plan_strict": "True",
+      "within_plan_rounded": "True"
+    },
+    {
+      "account": "wb_acc2",
+      "list": "Дисквер 13497",
+      "nm_id": "313189706",
+      "vendor_code": "0064X9775UHA",
+      "snapshot_participated": "True",
+      "plan_price": "1922.0",
+      "current_price": "1922.0",
+      "within_plan_strict": "True",
+      "within_plan_rounded": "True"
+    },
+    {
+      "account": "wb_acc2",
+      "list": "Дисквер 13497",
+      "nm_id": "323340776",
+      "vendor_code": "0916X1TWMYE3",
+      "snapshot_participated": "False",
+      "plan_price": "2162.0",
+      "current_price": "4808.0",
+      "within_plan_strict": "False",
+      "within_plan_rounded": "False"
+    },
+    {
+      "account": "wb_acc2",
+      "list": "Дисквер 13497",
+      "nm_id": "324987258",
+      "vendor_code": "3216X0V1FNDJ",
+      "snapshot_participated": "True",
+      "plan_price": "2802.0",
+      "current_price": "2728.9",
+      "within_plan_strict": "True",
+      "within_plan_rounded": "True"
+    },
+    {
+      "account": "wb_acc2",
+      "list": "Дисквер 13497",
+      "nm_id": "324987785",
+      "vendor_code": "3488X0TCVP8W",
+      "snapshot_participated": "True",
+      "plan_price": "6547.0",
+      "current_price": "6469.05",
+      "within_plan_strict": "True",
+      "within_plan_rounded": "True"
+    },
+    {
+      "account": "wb_acc2",
+      "list": "Дисквер 13497",
+      "nm_id": "502509971",
+      "vendor_code": "6534X5HJF8WR",
+      "snapshot_participated": "False",
+      "plan_price": "6943.0",
+      "current_price": "21954.24",
+      "within_plan_strict": "False",
+      "within_plan_rounded": "False"
+    },
+    {
+      "account": "wb_acc2",
+      "list": "Дисквер 13497",
+      "nm_id": "878769505",
+      "vendor_code": "2707X0JZZWIY",
+      "snapshot_participated": "False",
+      "plan_price": "5286.0",
+      "current_price": "10712.0",
+      "within_plan_strict": "False",
+      "within_plan_rounded": "False"
+    },
+    {
+      "account": "wb_acc2",
+      "list": "Дисквер 13497",
+      "nm_id": "914742613",
+      "vendor_code": "6737X3UNXI4U",
+      "snapshot_participated": "False",
+      "plan_price": "37479.0",
+      "current_price": "65457.12",
+      "within_plan_strict": "False",
+      "within_plan_rounded": "False"
+    }
+  ],
+  "suffix_cost_control": {
+    "code": "3933X6HHWDS8",
+    "qty": 6,
+    "ordinary": [
+      1278.0,
+      "supplier_min_x6"
+    ],
+    "stock_regional": [
+      1368.0,
+      "закупка ТК 3933 (×6 для 3933X6HHWDS8)"
+    ]
+  },
+  "api_writes": 0,
+  "db_writes": 0
+}

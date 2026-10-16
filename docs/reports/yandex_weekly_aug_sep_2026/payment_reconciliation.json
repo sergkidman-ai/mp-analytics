@@ -1,0 +1,10 @@
+{
+  "old_closure_rows": 1337,
+  "payment_rows": 1383,
+  "old_unmatched": 0,
+  "extra_by_date": {
+    "2026-09-30": 15,
+    "2026-09-28": 17,
+    "2026-09-29": 14
+  }
+}

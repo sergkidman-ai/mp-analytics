@@ -1,0 +1,86 @@
+{
+  "checked_utc": "2026-10-08T10:13:11.271971+00:00",
+  "priority": [
+    "checked Ali-feed-TC chain",
+    "existing exact-name identity link via MySklad to TC",
+    "existing primary-model candidate with single TC TNVED code"
+  ],
+  "sole_code_source": "TC live API ved_eaes_code",
+  "total": 20175,
+  "result_counts": {
+    "FALLBACK_MODEL_CANDIDATE": 8451,
+    "FEED_CHECKED": 7182,
+    "NEEDS_REVIEW": 986,
+    "NO_MODEL_MATCH": 3275,
+    "FALLBACK_IDENTITY": 281
+  },
+  "potential_coverage": 15914,
+  "potential_pct": 78.88,
+  "unresolved": 4261,
+  "code_counts": {
+    "8443999000": 15680,
+    "3215900009": 224,
+    "3707909000": 10
+  },
+  "category_counts": {
+    "1803": {
+      "NO_MODEL_MATCH": 6,
+      "NEEDS_REVIEW": 2
+    },
+    "6867": {
+      "FEED_CHECKED": 36,
+      "NO_MODEL_MATCH": 25
+    },
+    "6868": {
+      "NEEDS_REVIEW": 4,
+      "NO_MODEL_MATCH": 17,
+      "FALLBACK_IDENTITY": 1,
+      "FEED_CHECKED": 5
+    },
+    "6870": {
+      "FALLBACK_MODEL_CANDIDATE": 2437,
+      "FEED_CHECKED": 5516,
+      "NEEDS_REVIEW": 393,
+      "NO_MODEL_MATCH": 2452,
+      "FALLBACK_IDENTITY": 125
+    },
+    "6871": {
+      "FALLBACK_MODEL_CANDIDATE": 24,
+      "FEED_CHECKED": 79,
+      "NEEDS_REVIEW": 2,
+      "NO_MODEL_MATCH": 42,
+      "FALLBACK_IDENTITY": 5
+    },
+    "6872": {
+      "FEED_CHECKED": 300,
+      "FALLBACK_MODEL_CANDIDATE": 141,
+      "NEEDS_REVIEW": 11,
+      "NO_MODEL_MATCH": 71,
+      "FALLBACK_IDENTITY": 16
+    },
+    "6874": {
+      "FALLBACK_MODEL_CANDIDATE": 82,
+      "FEED_CHECKED": 135,
+      "NEEDS_REVIEW": 31,
+      "NO_MODEL_MATCH": 79,
+      "FALLBACK_IDENTITY": 2
+    },
+    "6875": {
+      "FEED_CHECKED": 1066,
+      "FALLBACK_MODEL_CANDIDATE": 5759,
+      "NEEDS_REVIEW": 514,
+      "NO_MODEL_MATCH": 459,
+      "FALLBACK_IDENTITY": 129
+    },
+    "6876": {
+      "NEEDS_REVIEW": 29,
+      "NO_MODEL_MATCH": 124,
+      "FALLBACK_MODEL_CANDIDATE": 8,
+      "FEED_CHECKED": 45,
+      "FALLBACK_IDENTITY": 3
+    }
+  },
+  "marketplace_writes": 0,
+  "write_ready": 0,
+  "note": "Preliminary source coverage. Unverified feed keys do not override other candidates; blocked feed features retained for final review. Existing Ali TNVED not fully read."
+}

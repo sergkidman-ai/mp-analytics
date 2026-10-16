@@ -1,0 +1,31 @@
+{
+  "source": "https://digitalsquare.ru/feeds/ds_kartridge_aliexpress.xml",
+  "feed_offers": 11172,
+  "feed_states": {
+    "FEED_TC_LINK_CHECKED": 9907,
+    "KEY_WITH_UNCONFIRMED_FEATURES": 1137,
+    "NO_UNIQUE_TC_KEY": 128
+  },
+  "feed_key_formats": {
+    "EXACT_MS_BARCODE": 4557,
+    "ORG_EMBEDDED_TC_CODE": 6370,
+    "DS_NUMERIC_SUFFIX_TC_CODE": 239,
+    "": 6
+  },
+  "ali_total": 20175,
+  "ali_feed_states": {
+    "NO_FEED_OFFER": 10375,
+    "FEED_TC_LINK_CHECKED": 7182,
+    "ALI_FEED_ID_WITH_UNCONFIRMED_IDENTITY": 1563,
+    "KEY_WITH_UNCONFIRMED_FEATURES": 1043,
+    "NO_UNIQUE_TC_KEY": 12
+  },
+  "checked_ali_feed_tc_links": 7182,
+  "additional_links_vs_previous_candidates": 3473,
+  "code_conflicts_vs_previous_candidates": 0,
+  "combined_potential_coverage": 15914,
+  "marketplace_writes": 0,
+  "note": "Embedded key format is inferred and checked against TC model/printer compatibility and type/color/resource, not a documented supplier mapping. No auto write readiness.",
+  "combined_potential_pct": 78.88,
+  "remaining_without_checked_link_or_model_candidate": 4261
+}
