@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 
 REPORTS = Path(__file__).resolve().parents[1] / 'docs' / 'reports'
 PREFIX = '/api/wb-bids/reports'
@@ -25,6 +25,10 @@ FILES = {
     'glue-orphan-stock-2026-10-12': 'mkt_wb_orphan_families_2026-10-12_acc1/index.html',
     'glue-status-2026-10-12': 'mkt_wb_glue_status_2026-10-12_acc1/index.html',
     'glue-laser-gaps-2026-10-12': 'mkt_wb_glue_status_2026-10-12_acc1/laser_gaps/index.html',
+    'glue-colour-laser-2026-10-16': 'mkt_wb_colour_laser_complete_2026-10-16_acc1/index.html',
+    'glue-colour-laser-sets-2026-10-16': 'mkt_wb_colour_laser_complete_2026-10-16_acc1/sets_to_create.csv',
+    'glue-colour-laser-missing-2026-10-16': 'mkt_wb_colour_laser_complete_2026-10-16_acc1/missing.csv',
+    'glue-colour-laser-absent-2026-10-16': 'mkt_wb_colour_laser_complete_2026-10-16_acc1/absent_models.csv',
     'wb-budgets-2026-10-12': 'mkt_wb_budgets_2026-10-12.html',
     'wb-budget-topup-2026-10-12': 'mkt_wb_budget_topup_2026-10-12.html',
 }
@@ -39,6 +43,8 @@ def report(key: str):
     path = REPORTS / relative
     if not path.is_file():
         raise HTTPException(status_code=404, detail='Report not found')
+    if path.suffix == '.csv':
+        return FileResponse(path, media_type='text/csv; charset=utf-8', filename=path.name, headers={'Cache-Control': 'no-store'})
     text = path.read_text(encoding='utf-8')
     headers = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}
     if path.suffix == '.json':

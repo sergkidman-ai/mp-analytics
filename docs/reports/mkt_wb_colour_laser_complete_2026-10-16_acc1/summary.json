@@ -1,0 +1,30 @@
+{
+  "account": "wb_acc1",
+  "catalog_read_at": "2026-10-16T10:45:51.098641+00:00",
+  "confirmed_at": "2026-10-16T11:31:38.784317+00:00",
+  "catalog_skus": 22348,
+  "model_families": 537,
+  "family_variants": 556,
+  "covered_color_parent_skus": 2171,
+  "statuses": {
+    "available_together_incomplete": 46,
+    "complete": 483,
+    "needs_specific_review": 26,
+    "primary_cards_absent": 1
+  },
+  "confirmed_operations": 3,
+  "moved_skus": 10,
+  "missing_colors_cases": 24,
+  "missing_kit_cases": 27,
+  "unresolved_family_cards": 0,
+  "color_coverage": {
+    "declared_color_main_skus": 1640,
+    "covered_declared_color_skus": 1640,
+    "without_family": 0,
+    "other_uncovered": 0
+  },
+  "unassigned_existing_sets": 12,
+  "sets_to_create": 15,
+  "existing_set_contents_to_check": 10,
+  "set_chip_execution_to_check": 8
+}
