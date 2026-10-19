@@ -86,13 +86,14 @@ def document(content):
     return html.fromstring(content, parser=html.HTMLParser(encoding="utf-8"))
 
 
-def request(session, method, path, **kwargs):
+def request(session, method, path, *, allowed_statuses=(), **kwargs):
     url = urljoin(BASE, path)
     if urlparse(url).hostname != "cartridge.ru" or urlparse(url).scheme != "https":
         raise ValueError("Unexpected supplier host")
     try:
         response = session.request(method, url, timeout=(15, 60), **kwargs)
-        response.raise_for_status()
+        if response.status_code not in allowed_statuses:
+            response.raise_for_status()
     except requests.RequestException:
         raise RuntimeError("Solutions Print request failed (credentials redacted)") from None
     if urlparse(response.url).hostname != "cartridge.ru":
@@ -114,7 +115,15 @@ def login(session):
             form.xpath('.//input[@type="hidden"]') if n.get("name")}
     data.update(AUTH_FORM="Y", TYPE="AUTH", backurl="/personal/",
                 USER_LOGIN=login_name, USER_PASSWORD=password, USER_REMEMBER="N")
-    result = document(request(session, "POST", form.get("action") or "/personal/", data=data).content)
+    # Bitrix can create the session, then fail while rendering the login response.
+    # Only this POST may return 500: confirm authentication with a GET, never
+    # resubmit credentials or treat a server error as proof of authentication.
+    response = request(session, "POST", form.get("action") or "/personal/",
+                       data=data, allowed_statuses=(500,))
+    result = document(response.content) if response.status_code != 500 else None
+    if (result is None or not result.xpath('//a[contains(@href,"logout=")]') or
+            result.xpath('//input[@name="USER_PASSWORD"]')):
+        result = document(request(session, "GET", "/personal/").content)
     verify_login(result)
 
 

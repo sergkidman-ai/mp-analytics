@@ -20,6 +20,10 @@
 с каталогом (вкладка «Новинки»), лист ожидания комплектов. Сторож добавляет только
 последнее звено — сказать человеку, что пришло и что ждёт его рук.
 
+Для Спринта вместо почты проверяется журнал успешных загрузок из ЛК по расписанию
+08:07/13:12/18:17 МСК, ежедневно; на завершение отведены 2 часа. Загрузку запускает
+отдельный prc-solutionsprint.timer, этот сторож только проверяет результат.
+
 Запуск: `./venv/bin/python -m ops.prc_price_watch --supplier kaktus_msk`
         `--dry` — прогон без записи в МС, `--force` — грузить, даже если письмо не новое.
 """
@@ -44,7 +48,7 @@ load_dotenv("/opt/mp-analytics/.env")
 import requests
 
 from core.db import query, upsert
-from prices import mail_schedule, unprocessed
+from prices import cabinet_schedule, mail_schedule, unprocessed
 from prices.profiles import get_profile
 from prices.mailbox import fetch_latest_price
 
@@ -254,6 +258,8 @@ def overdue_alert(profile, logfile, quiet=False, check_only=False):
     (`write_state`) переписывается только при удачном письме, а тревожить надо ровно тогда,
     когда письма и нет.
     """
+    if profile.key in cabinet_schedule.SUPPLIERS:
+        return cabinet_alert(profile, logfile, quiet=quiet, check_only=check_only)
     late = mail_schedule.overdue(profile.key)
     if not late:
         return None
@@ -271,6 +277,40 @@ def overdue_alert(profile, logfile, quiet=False, check_only=False):
         log(logfile, "телеграм: " + tg(text))
         if NOVELTY_IDS:                    # «прайса давно нет» — сигнал и оператору тоже
             log(logfile, "телеграм оператору: " + tg(text, NOVELTY_IDS))
+    return text
+
+
+def cabinet_alert(profile, logfile, quiet=False, check_only=False):
+    """Monitor successful cabinet loads, independently of IMAP and daily mail locks."""
+    late = cabinet_schedule.overdue(profile.key)
+    if not late:
+        return None
+    text = cabinet_schedule.alert_text(profile, late)
+    if check_only:
+        return text
+    log(logfile, f"ПРОСРОЧКА ЛК: запуск {late['slot'].isoformat()}, "
+                 f"срок {late['deadline'].isoformat()}")
+    if quiet:
+        return text
+    # Each missed slot gets one alert per recipient. Failed deliveries are retried
+    # next tick; the old once-per-day mail lock cannot suppress cabinet failures.
+    path = LOG_DIR / f"prc_price_watch_{profile.key}_cabinet.json"
+    try:
+        state = json.loads(path.read_text())
+    except (OSError, ValueError):
+        state = {}
+    slot = late["slot"].isoformat()
+    sent = set(state.get("sent_chats", [])) if state.get("slot") == slot else set()
+    chats = [c for c in dict.fromkeys(NOTIFY_IDS + NOVELTY_IDS) if c not in sent]
+    if not chats:
+        return None
+    result = tg(text, chats)
+    log(logfile, "телеграм ЛК: " + result)
+    delivered = {c for c in chats if f"{c}: ok" in result.split("; ")}
+    if delivered:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"slot": slot, "sent_chats": sorted(sent | delivered)},
+                                   ensure_ascii=False))
     return text
 
 
@@ -409,18 +449,27 @@ def auto_cards(profile, dry, code, logfile):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Сторож почты: новый прайс -> оприходование")
+    ap = argparse.ArgumentParser(description="Сторож прайсов: почтовые загрузки и расписание ЛК")
     ap.add_argument("--supplier", default="kaktus_msk")
     ap.add_argument("--dry", action="store_true", help="прогон без записи в МойСклад")
     ap.add_argument("--force", action="store_true", help="грузить, даже если письмо не новое")
     ap.add_argument("--quiet", action="store_true", help="не слать телеграм")
     ap.add_argument("--check-overdue", action="store_true",
-                    help="только посчитать просрочку и напечатать — ни почты, ни телеграма")
+                    help="проверить просрочку по журналу ЛК или истории писем — без почты и телеграма")
     args = ap.parse_args(argv)
 
     profile = profile_of(args.supplier)
     raw = getattr(profile, "unprocessed", False)
     logfile = LOG_DIR / f"prc_price_watch_{profile.key}.log"
+
+    if profile.key in cabinet_schedule.SUPPLIERS:
+        # The cabinet loader owns enters and novelties. Legacy unprocessed mail,
+        # done_today and --force must not trigger manual loads or stale-mail alerts.
+        text = overdue_alert(profile, logfile, quiet=args.quiet,
+                             check_only=args.check_overdue or args.dry)
+        if args.check_overdue or args.dry:
+            print(text or "просрочки нет")
+        return 0
 
     if args.check_overdue:
         # Проверка читает только историю приходов, в почту не ходит — годится и как ручная
