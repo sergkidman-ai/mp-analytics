@@ -26,6 +26,7 @@ from datetime import date, datetime, timedelta, timezone
 sys.path.insert(0, "/opt/mp-analytics")
 
 from core.db import query
+from prices import cabinet_schedule
 
 MSK = timezone(timedelta(hours=3))
 # Ждём дольше самого позднего наблюдения: поставщик имеет право задержаться на час, и будить
@@ -124,7 +125,8 @@ def overdue(key, now=None, history=None):
     Считаем ровно по трём условиям из шапки модуля. Отдельно возвращаем `silent` — сколько
     рабочих дней молчит поставщик: в сообщении это главное число.
     """
-    if key in PAUSED:                              # прайс не загружаем — молчать не преступление
+    if key in PAUSED or key in cabinet_schedule.SUPPLIERS:
+        # Cabinet enters have a fixed daily schedule, unrelated to old mail arrivals.
         return None
     now = now or datetime.now(MSK)
     info = schedule(key, history)
