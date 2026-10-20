@@ -49,6 +49,12 @@ class PostingTests(unittest.TestCase):
         self.account_lock.assert_called_once_with('oz_acc2',timeout=5)
         self.account_lock.return_value.__enter__.return_value.check.assert_called_once()
 
+    def test_refresh_records_carry_current_loaded_at(self):
+        before=datetime.now(timezone.utc)
+        record=api.raw_records('oz_acc2',[posting()],'fbs','2026-10-20','2026-10-20')[0]
+        self.assertLessEqual(before,record['loaded_at'])
+        self.assertLessEqual(record['loaded_at'],datetime.now(timezone.utc))
+
     def test_window_budget_alias_and_conflict_validation(self):
         self.requests_post.return_value=response()
         api.fetch_postings('oz_acc2','fbs','2026-10-20','2026-10-20',timeout=120,window_budget=120)

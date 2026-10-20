@@ -237,6 +237,7 @@ def raw_records(account, posts, scheme, date_from, date_to):
     return [{'account': account, 'posting_number': p['posting_number'], 'scheme': scheme,
              'status': p['status'], 'in_process_at': p.get('in_process_at') or p.get('created_at'),
              'period_from': date_from, 'period_to': date_to,
+             'loaded_at': datetime.now(timezone.utc),
              'payload': psycopg2.extras.Json(p)} for p in posts]
 
 
