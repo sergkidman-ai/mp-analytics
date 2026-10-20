@@ -1,0 +1,38 @@
+[
+  {
+    "account": "oz_acc2",
+    "window_from": "2026-10-20T00:00:00+00:00",
+    "window_to": "2026-10-20T14:23:43.697877+00:00",
+    "schemes": {
+      "fbs": {
+        "postings": 25,
+        "unique": 25,
+        "complete_to_observed_upper_bound": true
+      },
+      "fbo": {
+        "postings": 0,
+        "unique": 0,
+        "complete_to_observed_upper_bound": true
+      }
+    },
+    "written": 25
+  },
+  {
+    "account": "oz_acc1",
+    "window_from": "2026-10-20T00:00:00+00:00",
+    "window_to": "2026-10-20T14:23:43.697877+00:00",
+    "schemes": {
+      "fbs": {
+        "postings": 78,
+        "unique": 78,
+        "complete_to_observed_upper_bound": true
+      },
+      "fbo": {
+        "postings": 0,
+        "unique": 0,
+        "complete_to_observed_upper_bound": true
+      }
+    },
+    "written": 78
+  }
+]

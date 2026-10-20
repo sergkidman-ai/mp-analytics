@@ -1,0 +1,28 @@
+{
+  "oz_acc1": {
+    "accrual_days": 30,
+    "accrual_count": 5282,
+    "accrual_sum": "5466875.33",
+    "transaction_days": 30,
+    "transaction_count": 5282,
+    "transaction_sum": "5466875.33",
+    "missing": {
+      "missing": 0,
+      "amount": "0"
+    },
+    "mismatch_days": []
+  },
+  "oz_acc2": {
+    "accrual_days": 30,
+    "accrual_count": 1679,
+    "accrual_sum": "1100996.18",
+    "transaction_days": 30,
+    "transaction_count": 1679,
+    "transaction_sum": "1100996.18",
+    "missing": {
+      "missing": 0,
+      "amount": "0"
+    },
+    "mismatch_days": []
+  }
+}

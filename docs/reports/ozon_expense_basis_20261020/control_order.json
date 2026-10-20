@@ -1,0 +1,16 @@
+{
+  "posting_number": "10879561-0077-1",
+  "account": "oz_acc2",
+  "price": "728",
+  "sold_units": 1,
+  "fifo_cost": "69.28",
+  "target_profit": "300",
+  "old_august_floor": "828.60",
+  "old_rounded_september_floor": "941.80",
+  "new_floor": "941.85",
+  "gap": "-213.85",
+  "below_fifo": false,
+  "account_basis_estimated_net": "216.15",
+  "note": "Estimate under account-wide historical expense share, not actual per-order profit",
+  "version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41"
+}

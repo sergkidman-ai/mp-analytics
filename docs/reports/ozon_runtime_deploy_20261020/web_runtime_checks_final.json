@@ -1,0 +1,17 @@
+[
+  {
+    "port": 8090,
+    "path": "/warehouse/customer-orders",
+    "http": 200
+  },
+  {
+    "port": 8090,
+    "path": "/api/ozon/promos?account=oz_acc2&period=2026-10-01",
+    "http": 200
+  },
+  {
+    "port": 8092,
+    "path": "/api/ozon-economics?account=oz_acc2&limit=1",
+    "http": 200
+  }
+]

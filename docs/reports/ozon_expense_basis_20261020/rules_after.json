@@ -1,0 +1,30 @@
+[
+  {
+    "account": "oz_acc1",
+    "platform": "ozon",
+    "organization_id": "a5e7ee84-8d63-41f2-9fae-0be2ef90462b",
+    "retention": "0.59230117719010551328278343822537745308",
+    "base_from": "2026-09-01",
+    "base_to": "2026-09-30",
+    "valid_until": "2026-10-31",
+    "source": "ozon-account-exp-svc-signed-v1",
+    "source_sha256": "d85b775cf254286fe8d83a7dcafe5f32167d722dfbd00671c2129a83009d772c",
+    "version": "ozexp-v1:0e39b5aead7b9dce5dad9c85587ae47c9ef7ca532288f4a8f804c0428facbeb3",
+    "enabled": true,
+    "loaded_at": "2026-10-20 14:41:31.739899+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "platform": "ozon",
+    "organization_id": "f5bea6e0-c2ac-11ef-0a80-0221000adcc4",
+    "retention": "0.60792160582814830306968730470549277084",
+    "base_from": "2026-09-01",
+    "base_to": "2026-09-30",
+    "valid_until": "2026-10-31",
+    "source": "ozon-account-exp-svc-signed-v1",
+    "source_sha256": "7187d103b3b295152cc5283480c4977313bb770c0f39d2a5be547bb1ede35dc8",
+    "version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41",
+    "enabled": true,
+    "loaded_at": "2026-10-20 14:41:33.631687+00:00"
+  }
+]

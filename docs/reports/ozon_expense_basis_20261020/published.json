@@ -1,0 +1,151 @@
+[
+  {
+    "account": "oz_acc1",
+    "period_from": "2026-09-01",
+    "period_to": "2026-09-30",
+    "policy": "ozon-account-exp-svc-signed-v1",
+    "expense_lines": [
+      "commission",
+      "delivery",
+      "partners",
+      "fbo",
+      "promo",
+      "penalty",
+      "unclassified"
+    ],
+    "precision": 38,
+    "rounding": "ROUND_HALF_EVEN at final kopeck only",
+    "sales": "14578401.5",
+    "expenses": "8634804.37",
+    "retention": "0.59230117719010551328278343822537745308",
+    "keep": "0.40769882280989448671721656177462254692",
+    "lines": {
+      "commission": "6387102.75",
+      "compensation": "2295.2",
+      "delivery": "409871.33",
+      "fbo": "2107.36",
+      "other": "61436.0",
+      "partners": "233626.94",
+      "penalty": "169615.77",
+      "promo": "1432616.13",
+      "returns": "540453.0",
+      "sales": "14578401.5",
+      "unclassified": "-135.91"
+    },
+    "source_sha256": "d85b775cf254286fe8d83a7dcafe5f32167d722dfbd00671c2129a83009d772c",
+    "completeness": {
+      "complete": true,
+      "reasons": [],
+      "accrual_rows": 5282,
+      "transaction_rows": 5282,
+      "collector_days": 30,
+      "collector_log_sha256": "1ba4a03c2659173f2e72d82fe988d2deb070b9a571d3f7aa32139a65852620cd",
+      "collector_log_path": "/opt/mp-analytics/run_daily.log",
+      "realization_rows": 1694,
+      "note": "Successful full by-day collection log + all daily counts/sums and identities in existing raw + closed RUB realization; posting failures do not imply expense-source failure"
+    },
+    "status": "complete",
+    "reasons": [],
+    "unknown_codes": [
+      "operation:AccrualType_DefectFineComplaint",
+      "operation:OperationMarketplacePackageMaterialsProvision",
+      "operation:OperationMarketplacePackageRedistribution",
+      "service:PremiumMembershipCommissionCancelled"
+    ],
+    "net": "5466875.33",
+    "net_reconciliation_delta": "0.00",
+    "component_rounding_residual": "0.00",
+    "gross_debits": {
+      "commission": "6627524.31",
+      "partners": "252137.60",
+      "delivery": "410980.33",
+      "promo": "1432616.13",
+      "penalty": "174794.17",
+      "fbo": "2107.36",
+      "unclassified": "617.24"
+    },
+    "gross_credits": {
+      "partners": "18510.66",
+      "commission": "240421.56",
+      "delivery": "1109.0",
+      "unclassified": "753.15",
+      "penalty": "5178.40"
+    },
+    "fixed_subscription_expense": "24990.0",
+    "scope": "account-wide; includes FBO, advertising, fixed subscriptions; not actual order/FBS-only fees",
+    "version": "ozexp-v1:0e39b5aead7b9dce5dad9c85587ae47c9ef7ca532288f4a8f804c0428facbeb3"
+  },
+  {
+    "account": "oz_acc2",
+    "period_from": "2026-09-01",
+    "period_to": "2026-09-30",
+    "policy": "ozon-account-exp-svc-signed-v1",
+    "expense_lines": [
+      "commission",
+      "delivery",
+      "partners",
+      "fbo",
+      "promo",
+      "penalty",
+      "unclassified"
+    ],
+    "precision": 38,
+    "rounding": "ROUND_HALF_EVEN at final kopeck only",
+    "sales": "2811459.0",
+    "expenses": "1709146.67",
+    "retention": "0.60792160582814830306968730470549277084",
+    "keep": "0.39207839417185169693031269529450722916",
+    "lines": {
+      "commission": "1276095.16",
+      "compensation": "3213.85",
+      "delivery": "82156.0",
+      "fbo": "886.75",
+      "other": "23173.0",
+      "partners": "75360.66",
+      "penalty": "24806.84",
+      "promo": "249826.26",
+      "returns": "27703.0",
+      "sales": "2811459.0",
+      "unclassified": "15.0"
+    },
+    "source_sha256": "7187d103b3b295152cc5283480c4977313bb770c0f39d2a5be547bb1ede35dc8",
+    "completeness": {
+      "complete": true,
+      "reasons": [],
+      "accrual_rows": 1679,
+      "transaction_rows": 1679,
+      "collector_days": 30,
+      "collector_log_sha256": "14d7f284ad0328c92fdeb5fb88ee602fc2008928447418dbdc24a5021caf9909",
+      "collector_log_path": "/opt/mp-analytics/run_daily.log",
+      "realization_rows": 462,
+      "note": "Successful full by-day collection log + all daily counts/sums and identities in existing raw + closed RUB realization; posting failures do not imply expense-source failure"
+    },
+    "status": "complete",
+    "reasons": [],
+    "unknown_codes": [
+      "operation:OperationMarketplacePackageMaterialsProvision",
+      "operation:OperationMarketplacePackageRedistribution"
+    ],
+    "net": "1100996.18",
+    "net_reconciliation_delta": "0.00",
+    "component_rounding_residual": "0.00",
+    "gross_debits": {
+      "commission": "1288698.35",
+      "partners": "78832.39",
+      "delivery": "82248.0",
+      "fbo": "886.75",
+      "promo": "249826.26",
+      "penalty": "24902.18",
+      "unclassified": "15.0"
+    },
+    "gross_credits": {
+      "partners": "3471.73",
+      "commission": "12603.19",
+      "penalty": "95.34",
+      "delivery": "92.0"
+    },
+    "fixed_subscription_expense": "24990",
+    "scope": "account-wide; includes FBO, advertising, fixed subscriptions; not actual order/FBS-only fees",
+    "version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41"
+  }
+]

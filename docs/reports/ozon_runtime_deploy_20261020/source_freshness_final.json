@@ -1,0 +1,38 @@
+{
+  "raw_ozon_accrual": [
+    {
+      "account": "oz_acc1",
+      "latest_day": "2026-10-20",
+      "loaded_at": "2026-10-20 14:36:48.311198+00:00"
+    },
+    {
+      "account": "oz_acc2",
+      "latest_day": "2026-10-20",
+      "loaded_at": "2026-10-20 14:36:47.853873+00:00"
+    }
+  ],
+  "raw_ozon_transaction": [
+    {
+      "account": "oz_acc1",
+      "latest_day": "2026-10-20",
+      "loaded_at": "2026-10-20 14:36:49.095431+00:00"
+    },
+    {
+      "account": "oz_acc2",
+      "latest_day": "2026-10-20",
+      "loaded_at": "2026-10-20 14:36:48.126372+00:00"
+    }
+  ],
+  "raw_ozon_posting": [
+    {
+      "account": "oz_acc1",
+      "latest_day": "2026-10-20 13:56:25+00:00",
+      "loaded_at": "2026-10-20 14:23:45.662093+00:00"
+    },
+    {
+      "account": "oz_acc2",
+      "latest_day": "2026-10-20 14:07:29+00:00",
+      "loaded_at": "2026-10-20 14:23:44.190405+00:00"
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+[
+  {
+    "account": "oz_acc1",
+    "canonical_balance": {
+      "sales": 14578401.5,
+      "returns": 540453.0,
+      "commission": 6387102.750000006,
+      "delivery": 409871.3300000001,
+      "partners": 233626.93999999957,
+      "fbo": 2107.3599999999997,
+      "promo": 1432616.1300000008,
+      "penalty": 169615.76999999987,
+      "unclassified": -135.90999999999985,
+      "compensation": 2295.2,
+      "other": 61436.0
+    },
+    "line_differences": {
+      "sales": "0.0",
+      "commission": "6E-9",
+      "delivery": "1E-10",
+      "partners": "-4.3E-10",
+      "fbo": "-3E-13",
+      "promo": "8E-10",
+      "penalty": "-1.3E-10",
+      "unclassified": "1.5E-13"
+    },
+    "version": "ozexp-v1:0e39b5aead7b9dce5dad9c85587ae47c9ef7ca532288f4a8f804c0428facbeb3",
+    "gross_debits": {
+      "fbo": "2107.36",
+      "promo": "1432616.13",
+      "penalty": "174794.17",
+      "delivery": "410980.33",
+      "partners": "252137.60",
+      "commission": "6627524.31",
+      "unclassified": "617.24"
+    },
+    "gross_credits": {
+      "penalty": "5178.40",
+      "delivery": "1109.0",
+      "partners": "18510.66",
+      "commission": "240421.56",
+      "unclassified": "753.15"
+    },
+    "fixed_subscription_expense": "24990.0",
+    "unknown_codes": [
+      "operation:AccrualType_DefectFineComplaint",
+      "operation:OperationMarketplacePackageMaterialsProvision",
+      "operation:OperationMarketplacePackageRedistribution",
+      "service:PremiumMembershipCommissionCancelled"
+    ],
+    "scope": "account-wide; includes FBO, advertising, fixed subscriptions; not actual order/FBS-only fees"
+  },
+  {
+    "account": "oz_acc2",
+    "canonical_balance": {
+      "sales": 2811459.0,
+      "returns": 27703.0,
+      "commission": 1276095.1599999995,
+      "delivery": 82156.0,
+      "partners": 75360.65999999993,
+      "fbo": 886.7500000000002,
+      "promo": 249826.2599999999,
+      "penalty": 24806.840000000007,
+      "unclassified": 15.0,
+      "compensation": 3213.85,
+      "other": 23173.0
+    },
+    "line_differences": {
+      "sales": "0.0",
+      "commission": "-5E-10",
+      "delivery": "0.0",
+      "partners": "-7E-11",
+      "fbo": "2E-13",
+      "promo": "-1E-10",
+      "penalty": "7E-12",
+      "unclassified": "0.0"
+    },
+    "version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41",
+    "gross_debits": {
+      "fbo": "886.75",
+      "promo": "249826.26",
+      "penalty": "24902.18",
+      "delivery": "82248.0",
+      "partners": "78832.39",
+      "commission": "1288698.35",
+      "unclassified": "15.0"
+    },
+    "gross_credits": {
+      "penalty": "95.34",
+      "delivery": "92.0",
+      "partners": "3471.73",
+      "commission": "12603.19"
+    },
+    "fixed_subscription_expense": "24990",
+    "unknown_codes": [
+      "operation:OperationMarketplacePackageMaterialsProvision",
+      "operation:OperationMarketplacePackageRedistribution"
+    ],
+    "scope": "account-wide; includes FBO, advertising, fixed subscriptions; not actual order/FBS-only fees"
+  }
+]

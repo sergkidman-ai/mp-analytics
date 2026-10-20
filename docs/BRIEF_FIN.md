@@ -1,4 +1,89 @@
+# BRIEF_FIN — актуальное состояние wb4c20.10.2026
+
+## Выполнено по поручению Ozon API + expense basis
+
+- Собственный worktree fin-wb4c-ozon-api, ветка fin/wb4c-ozon-api-migration.
+  Коммиты513373c→5fbfda1→46206fd→e6bf727→4418299→e395742→6a6de40 локальны.
+  Shared main HEAD5d5504f сохранён: runtime внедрён патчами поверх чужих dirty changes.
+  Ни push, ни Git merge не делались. Worktree fin-shipment-guard не редактировался.
+- Runtime внедрён: FBSv4/FBOv3, общий account lock, bounded retries/pages/time,
+  Money-совместимые читатели web/финансов/инструментов. Старый PID2681936 завершён,
+  flock свободен. Dashboard+marketing active, customer UI/router сохранены.
+  Живой узкий сбор из shared: FBS78/25, FBO0/0 за фиксированное окно20.10;
+  начисления/адаптер точечно до20.10, loaded_at14:36UTC. Веб200,330тестовOK.
+- Общая expense basis6a6de40 + migration074 реально опубликованы для обоих кабинетов:
+  подтверждённый полный сентябрь, неизменяемые версии, августовские правила в истории.
+  Состав и суммы совпали с каноническим финансовым balance до копейки.
+  Action/ladder+shipment используют единый источник без fallback/keep4digits.
+  Контроль728/69.28/1: новый пол941.85 вместо828.60 по августу, цель300/10% прежняя.
+- Для customer-order: интегрировать6a6de40, get_basis/shipment_rule/floor_price из
+  core.ozon_expense_basis. Пилотные sync/расписания/mirror_raw не переключались.
+  Сохранять version на новую проверку, прошлые результаты не переписывать.
+- Отчёты: docs/reports/ozon_runtime_deploy_20261020/README.md и
+  docs/reports/ozon_expense_basis_20261020/README.md. Контракт:
+  docs/reference/ozon_expense_basis.md. Обратный диалог01a11ab9-1be9-7063-b6e5-4155493a5490.
+- Полный run_daily/массовая пересборка маржи/сторожи/уведомления/MPwrites не запускались.
+  Свежесть raw подтверждена; свежесть всех итоговых витрин после полного прогона пока нет.
+- Следующий шаг владельца пилота: интеграция общего expense API и новая проверка без
+  рассылки/МСwrites. Следующий штатный run_daily проверить по логу, здесь не запускать.
+- Остальные задачи сохранены: WB сопоставление имён акций и Ozon actions/products
+  неполная пагинация. Этим поручением не закрыты.
+
+---
+Ниже исторический бриф до фактического deployment; прежние «не внедрено»/PID жив
+заменены актуальным состоянием выше, остальные потоки/задачи сохранены.
+
 # BRIEF_FIN — поток «Финансы / экономика»
+
+## wb4c — миграция постингов Ozon, 20.10.2026
+
+- Пилот: владелец получил 37 posts в собственные snapshots, mirror_raw=False,
+  расписания/уведомления OFF. При финансовом deployment ОБЯЗАТЕЛЬНО сохранить
+  import customer_guard_router + app.include_router(customer_guard_router) в web/app.py,
+  страницу /warehouse/customer-orders и файлы web/customer_guard_api.py/static customer_orders.
+  Web-only patch прошёл apply --check и scratch apply/AST, обе вставки сохранены;
+  `deployment_preservation_check.json`. В shared checkout ничего не применялось.
+
+- Актуальный статус для customer-order пилота: `docs/reports/ozon_api_migration_20261020/COMPATIBILITY_STATUS.md`.
+  Читатели в production ещё legacy; Money в общий raw пока не писать. Все 11387 raw-строк
+  проверены по всем товарам: Money price/customer_price=0. Пилот уже интегрировал
+  4069230 + 040fbc1; get использует общий lock/check, ingest по умолчанию mirror_raw=False.
+  Старый run_daily 2681936 ещё жив и новый advisory lock не соблюдает.
+
+- Повторный apply --check полной миграции теперь блокируется чужим untracked
+  `core/ozon_posting.py` в shared main (совпадает с нашим). Не удаляли/не перезаписывали.
+  Перед финансовым внедрением пересобрать patch и сверить Git-учёт; локальные API commits готовы.
+- Стабильный API lock/window_budget: commit `5fbfda10c227a926624ad2912a757265091ccbc5` поверх `513373c`.
+  Пилот: limit=20, max_pages=10, window_budget=120, прежний date interface работает.
+  `collectors.ozon_postings.account_lock` — общий PG per-account context для point get;
+  списки берут lock автоматически. MS bigint LOCK_ID=7348201701 не менялся.
+  62 чистых committed-source теста адаптера/lock; всего 277 — OK. Новых API-проб нет.
+
+- Координация со сторожем: `docs/reports/ozon_api_migration_20261020/HANDOFF_TO_SHIPMENT_GUARD.md`
+  и `FBS_V4_OBSERVED_SCHEMA.json`. Артефактом сторожа подтверждены `filter.statuses`
+  и `sort_dir="DESC"`: 10 строк фильтрованной первой страницы. Отдельный полный
+  нефильтрованный snapshot — 34 уникальных (20+14). Повтор проб не нужен.
+  Новый API-проход для передачи не выполнялся. Дважды в сутки — только финансовый сбор;
+  лёгкий инкремент, общий raw-кэш/checkpoint и transport выделяются отдельным этапом,
+  ритм не согласован, расписания/уведомления не менялись. Прямого cross-dialog tool нет.
+
+- Отдельный worktree `.claude/worktrees/fin-wb4c-ozon-api`, ветка `fin/wb4c-ozon-api-migration`.
+- Реализованы FBS list v4 / FBO list v3, ограниченные повторы, строгая пагинация,
+  атомарная запись обеих схем и совместимость Money/legacy во всех найденных читателях.
+- Общий адаптер выделен в локальный commit `513373c405e1f87df2e83eb91cfbcd001f03ccd6` (4 файла),
+  API: `docs/reference/ozon_postings_adapter.md`; прямые импорты fetch_postings / product_price.
+  Точные UTC timestamps, limit=20, max_pages/timeout, FBS statuses/DESC; без записей.
+- 256 тестов прошли; отдельно 41 тест чистого committed source. READ ONLY SQL и контроль 3741.77 ₽ прошли.
+  Live read-only: oz_acc2 22 уникальных FBS, oz_acc1 76; FBO v3 проверен отдельно.
+- Production не менялся. Старый run_daily PID 2681936 ещё зависает; внедрение и управляемое
+  завершение процесса подготовлены, не выполнены. Сторожи/уведомления не запускались.
+- Отчёт и конкретный patch: `docs/reports/ozon_api_migration_20261020/README.md` в этом worktree;
+  `deployment.patch` требует пересверки из-за существующего untracked helper в shared checkout.
+- Следующий шаг: внедрить совместимые читатели и collector по плану отчёта, затем безопасно
+  завершить именно старый зависший процесс и проверить очередной штатный запуск.
+- Ранее открытые задачи wb4c (WB сопоставление названий акций, Ozon actions/products
+  неполная пагинация) сохранены и этой миграцией не закрыты.
+
 
 > Первым делом прочитай этот бриф + `CLAUDE.md` + `ARCHITECTURE.md`. Ты — сессия домена **fin**.
 > Параллельно может идти сессия домена **mkt** (Джем/реклама/воронка/ABC) — не лезь на её территорию.

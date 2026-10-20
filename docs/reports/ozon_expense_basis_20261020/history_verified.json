@@ -1,0 +1,18 @@
+[
+  {
+    "account": "oz_acc1",
+    "version": "promo-absolute-300-or-10pct-v1:7314386e46d8",
+    "retention": "0.5679530106393140786542338367",
+    "base_from": "2026-08-01",
+    "base_to": "2026-08-31",
+    "captured_at": "2026-10-20 14:41:31.739899+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "version": "promo-absolute-300-or-10pct-v1:7314386e46d8",
+    "retention": "0.5543316670175045133485603517",
+    "base_from": "2026-08-01",
+    "base_to": "2026-08-31",
+    "captured_at": "2026-10-20 14:41:33.631687+00:00"
+  }
+]

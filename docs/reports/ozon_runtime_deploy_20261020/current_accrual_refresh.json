@@ -1,0 +1,29 @@
+[
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-19",
+    "count": 51,
+    "written": 51,
+    "complete_day": true,
+    "margin_rebuilt": false,
+    "limit_note": "by-day ignored limit=10/20 in probes; one calendar day uses existing default1000 with bounded pagination"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-20",
+    "count": 51,
+    "written": 51,
+    "complete_day": true,
+    "margin_rebuilt": false,
+    "limit_note": "by-day ignored limit=10/20 in probes; one calendar day uses existing default1000 with bounded pagination"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-20",
+    "count": 156,
+    "written": 156,
+    "complete_day": true,
+    "margin_rebuilt": false,
+    "limit_note": "by-day ignored limit=10/20 in probes; one calendar day uses existing default1000 with bounded pagination"
+  }
+]
