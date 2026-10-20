@@ -11,17 +11,14 @@ from shipment_guard.economics import number
 def seed_rules(source_root):
     root=Path(source_root)
     rules=[]
-    for platform,name in [('wb','wb'),('ozon','ozon')]:
+    for platform,name in [('wb','wb')]:
         path=root/'reports/data'/f'mp_{name}_hist.json'
         raw=path.read_bytes(); data=json.loads(raw); i=data['months'].index('Авг')
         for account,a in data['accounts'].items():
             L=a['lines']
-            if platform=='ozon':
-                rate=sum(number(L[k][i]) for k in ['commission','delivery','partners','fbo','promo','penalty','unclassified'])/number(L['sales'][i])
-            else:
-                other=sum(number(L[k][i]) for k in ['delivery','storage','acceptance','ads','points','penalty','other'])
-                revenue=number(L['own_price'][i]); net=number(L['to_pay'][i])-other+number(L.get('compensation',[0]*len(data['months']))[i])
-                rate=(revenue-net-number(L.get('returns_pay',[0]*len(data['months']))[i]))/revenue
+            other=sum(number(L[k][i]) for k in ['delivery','storage','acceptance','ads','points','penalty','other'])
+            revenue=number(L['own_price'][i]); net=number(L['to_pay'][i])-other+number(L.get('compensation',[0]*len(data['months']))[i])
+            rate=(revenue-net-number(L.get('returns_pay',[0]*len(data['months']))[i]))/revenue
             rules.append((account,platform,rate,date(2026,8,1),date(2026,8,31),str(path),hashlib.sha256(raw).hexdigest()))
     path=root/'docs/reports/yandex_weekly_aug_sep_2026/checks.json'; raw=path.read_bytes()
     checks=json.loads(raw)
@@ -34,7 +31,19 @@ def seed_rules(source_root):
             c.execute("""INSERT INTO ms_shipment_rules(account,platform,organization_id,retention,base_from,base_to,valid_until,source,source_sha256,version)
               VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(account) DO NOTHING""",
               (account,platform,oid,rate,start,end,end+timedelta(days=60),path,digest,'promo-absolute-300-or-10pct-v1:'+digest[:12]))
-    return len(rules)
+    # Ozon never seeds an August constant. Only the common completeness-checked source.
+    from core.ozon_expense_basis import refresh,month_bounds
+    for account in ('oz_acc1','oz_acc2'):
+        b=refresh(account,apply=True)
+        if b['status']!='complete':
+            print(account, 'expense basis unavailable:', ','.join(b['reasons']))
+            continue
+        oid=next(k for k,v in config.ORGS.items() if v[0]==account[-1])
+        with store.transaction() as c:
+            c.execute("""INSERT INTO ms_shipment_rules(account,platform,organization_id,retention,base_from,base_to,valid_until,source,source_sha256,version)
+              VALUES(%s,'ozon',%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(account) DO NOTHING""",
+              (account,oid,b['retention'],b['period_from'],b['period_to'],month_bounds(str(date.today()))[1],b['policy'],b['source_sha256'],b['version']))
+    return len(rules)+2
 
 
 def main():

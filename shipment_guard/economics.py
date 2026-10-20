@@ -89,6 +89,9 @@ def assess(document, positions, fifo, confirmed, rule):
         try:
             retention=number(rule['retention'])
             valid_rule=0<=retention<1 and rule['valid_until']>=datetime.now(config.MS_TZ).date() and rule['platform']==platform
+            if platform=='ozon':
+                from core.ozon_expense_basis import latest_closed
+                valid_rule=valid_rule and str(rule['version']).startswith('ozexp-v1:') and rule['base_from']==latest_closed(datetime.now(config.MS_TZ).date())
             if valid_rule:
                 result['rule']={k:str(rule[k]) for k in ['version','retention','base_from','base_to','source','source_sha256']}
         except (ValueError,KeyError): pass
@@ -118,7 +121,11 @@ def assess(document, positions, fifo, confirmed, rule):
         if calculation_item is not None and cost is not None and calculation_item<cost:signals.append('below_fifo')
         if valid_rule and cost is not None and not ambiguous:
             # Absolute promo target per SOLD SKU/unit (one kit, not its physical components).
-            floor=(cost+max(D(300)*qty,D('.1')*cost))/(1-retention)
+            if platform=='ozon':
+                from core.ozon_expense_basis import floor_from_retention
+                floor=floor_from_retention(cost,qty,retention)
+            else:
+                floor=(cost+max(D(300)*qty,D('.1')*cost))/(1-retention)
             if calculation_item is not None and calculation_item<floor:signals.append('below_floor')
         if ambiguous:
             errors.append('Наборы '+g['sku']+' имеют общие компоненты: FIFO проверен по группе, по наборам не распределён')
