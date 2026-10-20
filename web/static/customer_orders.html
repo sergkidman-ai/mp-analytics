@@ -78,6 +78,7 @@ main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:1
       <option>Ожидает подтверждения</option><option>В пути</option><option>Доставлен</option>
       <option value="cancelled">Отменён в Ozon</option></select>
     <select id="signal" aria-label="Результат проверки"><option value="">Все результаты</option>
+      <option value="non_positive_profit">Убыточные / без прибыли (≤ 0 ₽)</option>
       <option value="below_floor">Ниже пола</option><option value="missing_ms">Нет в МС</option>
       <option value="unknown">Недостаточно данных</option>
       <option value="aggregate_only">Проверен итог заказа</option><option value="ok">Выше пола</option><option value="draft">Черновик</option></select>
@@ -132,7 +133,8 @@ async function load(){
       'Таблица обновляется из сохранённых данных раз в минуту.';
     $('stats').innerHTML=[['Заказов в выборке',total],['Ожидают проверки',d.queue?.pending??0],
       ['Последнее получение Ozon',dt(sync?.completed_at)]].map(([label,value])=>`<div class="bi"><div class="l">${esc(label)}</div><div class="v">${esc(value)}</div></div>`).join('');
-    $('message').textContent=!d.installed?'Хранилище пилота ещё не установлено.':!total?'Заказов по этим условиям пока нет.':'';
+    $('message').textContent=!d.installed?'Хранилище пилота ещё не установлено.':!total?
+      ($('signal').value==='non_positive_profit'?'По текущим проверенным данным заказов с чистой прибылью ≤ 0 ₽ по выбранным условиям нет. Непроверенные заказы в этот результат не входят.':'Заказов по этим условиям пока нет.') : '';
     $('rows').innerHTML=d.rows.map(row=>{
       const r=row.result||{},valid=row.current&&!row.job_error;
       const economicValid=valid&&row.basis_current;

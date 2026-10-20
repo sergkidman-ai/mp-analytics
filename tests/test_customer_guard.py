@@ -363,3 +363,29 @@ def test_dashboard_read_only_data_filters_and_history(pg):
     filtered = client.get("/api/customer-orders", params={"signal":"missing_ms"}).json()
     assert filtered["total"] == 1
     assert len(client.get(f"/api/customer-orders/{job['order_id']}/history").json()["rows"]) == 1
+
+
+@pytest.mark.parametrize('net,version,current,error,expected',[
+    ('-100.60','current',True,None,1),('0.00','current',True,None,1),
+    ('216.15','current',True,None,0),(None,'current',True,None,0),
+    ('NaN','current',True,None,0),('broken','current',True,None,0),
+    ('-1','old',True,None,0),('-1','current',False,None,0),
+    ('-1','current',True,'ms_429',0),
+])
+def test_profit_filter_excludes_unknown_and_stale_results(pg,monkeypatch,net,version,current,error,expected):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from web import customer_guard_api as api
+    monkeypatch.setattr(api,'get_basis',lambda account:{'version':'current'})
+    app=FastAPI();app.include_router(api.router);client=TestClient(app)
+    ingest([posting()]);job=store.claim(NOW+timedelta(minutes=10))
+    assert store.finish(job,dict(signal='below_floor',estimated_net=net,rule_version=version,floor='100'),
+                        NOW+timedelta(minutes=11))
+    if not current:db.execute('UPDATE customer_guard_orders SET generation=generation+1')
+    if error:db.execute('UPDATE customer_guard_jobs SET error=%s',(error,))
+    data=client.get('/api/customer-orders',params={'signal':'non_positive_profit'}).json()
+    assert data['total']==expected and len(data['rows'])==expected
+    def missing_basis(account):
+        raise api.BasisUnavailable('No current basis')
+    monkeypatch.setattr(api,'get_basis',missing_basis)
+    assert client.get('/api/customer-orders',params={'signal':'non_positive_profit'}).json()['total']==0

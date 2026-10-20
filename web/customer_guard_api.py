@@ -26,11 +26,21 @@ def data(status: str = "", signal: str = "", search: str = "",
          limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
     if not installed():
         return dict(installed=False, rows=[], total=0, sync=[], queue={})
+    try:
+        basis=get_basis("oz_acc2")
+    except BasisUnavailable:
+        basis=None
     where, params = ["o.account='oz_acc2'"], []
     if status:
         where.append("(o.ms_status=%s OR o.mp_status=%s)")
         params.extend([status, status])
-    if signal:
+    if signal == "non_positive_profit":
+        where.append("""c.generation=o.generation AND j.error IS NULL
+          AND c.result->>'rule_version'=%s AND c.result->>'floor' IS NOT NULL
+          AND CASE WHEN c.result->>'estimated_net' ~ '^-?[0-9]+([.][0-9]+)?$'
+              THEN (c.result->>'estimated_net')::numeric <= 0 ELSE false END""")
+        params.append(basis["version"] if basis else None)
+    elif signal:
         where.append("c.generation=o.generation AND c.result->>'signal'=%s")
         params.append(signal)
     if search:
@@ -53,10 +63,6 @@ def data(status: str = "", signal: str = "", search: str = "",
             row["mp_price"] = str(sale({"products": row["products"]})[0])
         except ValueError:
             row["mp_price"] = None
-    try:
-        basis=get_basis("oz_acc2")
-    except BasisUnavailable:
-        basis=None
     for row in rows:
         row["basis_current"]=bool(basis and (row["result"] or {}).get("rule_version")==basis["version"])
     queue = db.query("""SELECT count(*) FILTER(WHERE state IN ('pending','retry','running')) pending,
