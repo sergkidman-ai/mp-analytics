@@ -63,7 +63,6 @@ REJECT_DAYS = 7                     # окно памяти по отказам 
 REJECT_TRIES = 3                    # столько отказов по цене — товар откладываем
 ACTION_VERIFY_WAIT = 30             # Ozon применяет участие/цену асинхронно
 FLAT_EPS = 0.05                     # ход меньше 5% потолка → лестницу не строим, стоим на потолке
-KEEP_FALLBACK = {"oz_acc1": 0.421, "oz_acc2": 0.459}   # доля, что остаётся после удержаний Ozon
 SERGEY_CHAT_ID = 1031321444         # только явный chat_id, см. память telegram-channels
 UNDERCUT = ("распродажа стока",)    # где встаём на 1 ₽ ниже цены товара в ЧУЖИХ акциях.
                                     # Только распродажа стока: там цель — слить лежачий товар.
@@ -176,22 +175,10 @@ def ozon_stock(account):
 
 
 def keep_ratio(account):
-    """Доля выручки, что остаётся нам: 1 − удержания/продажи за последний ЗАКРЫТЫЙ месяц."""
-    try:
-        import reports.ozon_mp_report as R
-        today = dt.date.today()
-        first = today.replace(day=1)
-        prev = first - dt.timedelta(days=1)
-        b = R.balance(account, prev.year, prev.month)
-        sales = abs(float(b.get("sales") or 0))
-        itog = sum(abs(float(b.get(k) or 0)) for k in R.EXP_SVC)
-        if sales > 0:
-            k = 1 - itog / sales
-            if 0.2 < k < 0.9:
-                return round(k, 4), f"{prev:%m.%Y}"
-    except Exception as e:                                    # noqa: BLE001
-        print(f"  [keep] отчёт недоступен ({e}), берём константу", flush=True)
-    return KEEP_FALLBACK.get(account, 0.42), "константа"
+    """One confirmed, versioned common account basis; unavailable means no pricing."""
+    from core.ozon_expense_basis import get_basis,decimal
+    basis=get_basis(account)
+    return decimal(basis['keep']), f"{basis['period_from']}..{basis['period_to']} {basis['version']}"
 
 
 # --- себестоимость ----------------------------------------------------------
@@ -293,8 +280,8 @@ def cogs_map(offers, titles=None):
 def floor_price(cogs, keep, quantity=1):
     """Пол цены: себест + max(300 ₽ × N, 10 % полного себеста) / доля продавца.
     Общий для лестницы и сторожа акций (ops/ozon_promo_guard.py) — иначе они спорят о товаре."""
-    from ops.wb_promo_guard import min_net
-    return (cogs + min_net(cogs, quantity)) / keep
+    from core.ozon_expense_basis import floor_from_keep
+    return float(floor_from_keep(cogs,quantity,keep))
 
 
 # --- лестница ---------------------------------------------------------------
