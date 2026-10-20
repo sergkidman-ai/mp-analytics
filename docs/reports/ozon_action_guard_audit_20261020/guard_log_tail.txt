@@ -1,0 +1,58 @@
+2049: oz_acc2 · сторож акций Ozon · исполнение
+2050: акций (без белых): 4, позиций: 6347, остаётся нам 39.2% (09.2026)
+2051:   · проходят: 6345  · поднять: 0  · снять: 2
+2052:   – пол N > потолок N: 1
+2053:   – себестоимость не найдена: 1
+2054: сверка: confirmed 2
+2055: телеграм: отправлено
+2056:
+2057: === oz_acc1 ===
+2058: oz_acc1 · сторож акций Ozon · исполнение
+2059: акций (без белых): 4, позиций: 2317, остаётся нам 40.8% (09.2026)
+2060:   · проходят: 2317  · поднять: 0  · снять: 0
+2061: сверка: правок нет
+2062:
+2063: === oz_acc2 ===
+2064: oz_acc2 · сторож акций Ozon · исполнение
+2065: акций (без белых): 4, позиций: 6499, остаётся нам 39.2% (09.2026)
+2066:   · проходят: 6495  · поднять: 0  · снять: 4
+2067:   – себестоимость не найдена: 3
+2068:   – пол N > потолок N: 1
+2069: сверка: confirmed 4
+2070: телеграм: отправлено
+2071:
+2072: === oz_acc1 ===
+2073: Traceback (most recent call last):
+2074:   File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+2075:     return _run_code(code, main_globals, None,
+2076:   File "/usr/lib/python3.10/runpy.py", line 86, in _run_code
+2077:     exec(code, run_globals)
+2078:   File "/opt/mp-analytics/ops/ozon_promo_guard.py", line 344, in <module>
+2079:     main()
+2080:   File "/opt/mp-analytics/ops/ozon_promo_guard.py", line 309, in main
+2081:     rows, acts, keep, keep_src = snapshot(acc)
+2082:   File "/opt/mp-analytics/ops/ozon_promo_guard.py", line 55, in snapshot
+2083:     for p in oz.participants(account, a["id"]):
+2084:   File "/opt/mp-analytics/ops/ozon_stock_action.py", line 118, in participants
+2085:     return products(_req, account, action_id)
+2086:   File "/opt/mp-analytics/ops/ozon_actions.py", line 85, in products
+2087:     raise ActionProtocolError('Action pagination cursor did not advance')
+2088: ops.ozon_actions.ActionProtocolError: Action pagination cursor did not advance
+2089:
+2090: === oz_acc1 ===
+2091: Traceback (most recent call last):
+2092:   File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+2093:     return _run_code(code, main_globals, None,
+2094:   File "/usr/lib/python3.10/runpy.py", line 86, in _run_code
+2095:     exec(code, run_globals)
+2096:   File "/opt/mp-analytics/ops/ozon_promo_guard.py", line 344, in <module>
+2097:     main()
+2098:   File "/opt/mp-analytics/ops/ozon_promo_guard.py", line 309, in main
+2099:     rows, acts, keep, keep_src = snapshot(acc)
+2100:   File "/opt/mp-analytics/ops/ozon_promo_guard.py", line 55, in snapshot
+2101:     for p in oz.participants(account, a["id"]):
+2102:   File "/opt/mp-analytics/ops/ozon_stock_action.py", line 117, in participants
+2103:     return products(_req, account, action_id)
+2104:   File "/opt/mp-analytics/ops/ozon_actions.py", line 85, in products
+2105:     raise ActionProtocolError('Action pagination cursor did not advance')
+2106: ops.ozon_actions.ActionProtocolError: Action pagination cursor did not advance

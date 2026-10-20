@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-20T19:16:56.352780+00:00",
+  "sent_count": 3,
+  "orders_in_scope": 3,
+  "unique_products": 4,
+  "recipient_verified": true,
+  "guard_log_mtime": "2026-10-20T17:30:08.863523+00:00",
+  "guard_log_sha256": "1ff4af05fd509d7fa5de55246e1623fb808467abf5d7ddef0881dde1a5d69d92",
+  "cron_guard_jobs": 3,
+  "api_writes": 0,
+  "guard_runs_initiated_by_audit": 0,
+  "database_writes": 0
+}

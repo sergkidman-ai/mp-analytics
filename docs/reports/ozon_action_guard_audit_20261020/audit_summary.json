@@ -1,0 +1,513 @@
+[
+  {
+    "posting_number": "08864471-0578-4",
+    "incident_id": 1,
+    "check_id": 41,
+    "calculated_at": "2026-10-20 18:32:48.989010+00:00",
+    "notification_attempted_at_with_sent": "2026-10-20 18:32:56.368925+00:00",
+    "recipient_verified_as_natalia": true,
+    "telegram_message_id": 852,
+    "snapshot_id": 250,
+    "status_at_signal": "Неукомплектован",
+    "store_at_signal": "Дисквер",
+    "economics": {
+      "gap": "-229.97",
+      "cost": "71.680",
+      "note": "Состав и количество подтверждены по справочнику ТК",
+      "floor": "947.97",
+      "price": "718.0000",
+      "units": "1",
+      "signal": "below_floor",
+      "ms_price": "718.0",
+      "cost_kind": "purchase_estimate",
+      "positions": [
+        {
+          "code": "0447ct",
+          "name": "Картридж BCI-3еY CT",
+          "quantity": 1.0,
+          "external_code": "0447"
+        }
+      ],
+      "allocation": "single_market_line",
+      "composition": {
+        "sources": [
+          {
+            "code": "0447EK1IMZ1O",
+            "side": "ozon",
+            "source": {
+              "source": "Состав отсутствует в локальном справочнике ТК",
+              "market_sku": "0447EK1IMZ1O",
+              "code_bridge": "Принятое правило кода семейства: первые 4 символа; состав/количество только из ТК",
+              "tc_external_code": "0447"
+            }
+          },
+          {
+            "code": "0447",
+            "side": "ms",
+            "source": {
+              "source": "Состав отсутствует в локальном справочнике ТК"
+            }
+          }
+        ],
+        "expected": {
+          "0447": "1"
+        },
+        "selected": {
+          "0447": "1.0"
+        },
+        "verified": true
+      },
+      "cost_sources": [
+        {
+          "unit": "71.68",
+          "article": "1552",
+          "version": "2026-10-20 09:43:24.026",
+          "currency": "RUB",
+          "enter_id": "8c744fc0-cc51-11f1-0a80-07fe0020589c",
+          "quantity": "1.0",
+          "supplier": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/32425f47-88cf-11e7-6b01-4b1d000ab2f4",
+          "product_id": "ac491d37-fce4-11e7-7a31-d0fd0012adf6",
+          "position_id": "8c74665f-cc51-11f1-0a80-07fe002058b4"
+        }
+      ],
+      "rule_version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41",
+      "estimated_net": "209.83",
+      "expense_period_to": "2026-09-30",
+      "expense_period_from": "2026-09-01"
+    },
+    "products": [
+      {
+        "offer_id": "0447EK1IMZ1O",
+        "sku": 1822939677,
+        "product_id": 1340672221,
+        "quantity_in_order": 1,
+        "order_unit_price": "718.0000",
+        "current_base_price": 718,
+        "current_marketing_seller_price": 718,
+        "ozon_actions_exist": false,
+        "participation": [
+          {
+            "action_id": 1977747,
+            "at": "2026-10-20T19:13:39.726811+00:00",
+            "http": 200,
+            "last_id": "1340672220",
+            "first_returned_id": 1340672767,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4400847,
+            "at": "2026-10-20T19:13:40.464985+00:00",
+            "http": 200,
+            "last_id": "1340672220",
+            "first_returned_id": 1405562321,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4361400,
+            "at": "2026-10-20T19:13:41.086418+00:00",
+            "http": 200,
+            "last_id": "1340672220",
+            "first_returned_id": 1405549764,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4375943,
+            "at": "2026-10-20T19:13:41.776524+00:00",
+            "http": 200,
+            "last_id": "1340672220",
+            "first_returned_id": 1405549764,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          }
+        ],
+        "latest_guard_record": null
+      }
+    ]
+  },
+  {
+    "posting_number": "0156701940-0067-2",
+    "incident_id": 2,
+    "check_id": 51,
+    "calculated_at": "2026-10-20 18:39:48.138672+00:00",
+    "notification_attempted_at_with_sent": "2026-10-20 18:39:49.353860+00:00",
+    "recipient_verified_as_natalia": true,
+    "telegram_message_id": 853,
+    "snapshot_id": 277,
+    "status_at_signal": "Неукомплектован",
+    "store_at_signal": "Дисквер",
+    "economics": {
+      "gap": "-220.93",
+      "cost": "165.700",
+      "note": "Состав и количество подтверждены по справочнику ТК",
+      "floor": "1952.93",
+      "price": "1732.0000",
+      "units": "2",
+      "signal": "below_floor",
+      "ms_price": "1732.0",
+      "cost_kind": "purchase_estimate",
+      "positions": [
+        {
+          "code": "0328at",
+          "name": "Картридж для HP CN684HE № 178XL Black AQUAMARINE (Совместимый)",
+          "quantity": 2.0,
+          "external_code": "0328"
+        }
+      ],
+      "allocation": "single_market_line",
+      "composition": {
+        "sources": [
+          {
+            "code": "0328RGEUTSOV",
+            "side": "ozon",
+            "source": {
+              "source": "Состав отсутствует в локальном справочнике ТК",
+              "market_sku": "0328RGEUTSOV",
+              "code_bridge": "Принятое правило кода семейства: первые 4 символа; состав/количество только из ТК",
+              "tc_external_code": "0328"
+            }
+          },
+          {
+            "code": "0328",
+            "side": "ms",
+            "source": {
+              "source": "Состав отсутствует в локальном справочнике ТК"
+            }
+          }
+        ],
+        "expected": {
+          "0328": "2"
+        },
+        "selected": {
+          "0328": "2.0"
+        },
+        "verified": true
+      },
+      "cost_sources": [
+        {
+          "unit": "82.85",
+          "article": "AT-CN684HEBk",
+          "version": "2026-10-20 12:11:50.307",
+          "currency": "RUB",
+          "enter_id": "491c2744-cc66-11f1-0a80-182d00273a69",
+          "quantity": "2.0",
+          "supplier": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/61d01266-2fe1-11f0-0a80-0f7f000bf967",
+          "product_id": "def2fa77-10fb-11ea-0a80-063900055067",
+          "position_id": "491c64d5-cc66-11f1-0a80-182d00273aa0"
+        }
+      ],
+      "rule_version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41",
+      "estimated_net": "513.38",
+      "expense_period_to": "2026-09-30",
+      "expense_period_from": "2026-09-01"
+    },
+    "products": [
+      {
+        "offer_id": "0328RGEUTSOV",
+        "sku": 1822913892,
+        "product_id": 1340638062,
+        "quantity_in_order": 2,
+        "order_unit_price": "866.0000",
+        "current_base_price": 856,
+        "current_marketing_seller_price": 856,
+        "ozon_actions_exist": false,
+        "participation": [
+          {
+            "action_id": 1977747,
+            "at": "2026-10-20T19:13:39.569613+00:00",
+            "http": 200,
+            "last_id": "1340638061",
+            "first_returned_id": 1340638835,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4400847,
+            "at": "2026-10-20T19:13:40.300568+00:00",
+            "http": 200,
+            "last_id": "1340638061",
+            "first_returned_id": 1405562321,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4361400,
+            "at": "2026-10-20T19:13:40.942464+00:00",
+            "http": 200,
+            "last_id": "1340638061",
+            "first_returned_id": 1405549764,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4375943,
+            "at": "2026-10-20T19:13:41.563715+00:00",
+            "http": 200,
+            "last_id": "1340638061",
+            "first_returned_id": 1405549764,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          }
+        ],
+        "latest_guard_record": {
+          "id": 1980051,
+          "ts": "2026-10-18 23:32:35.307941+00:00",
+          "account": "oz_acc2",
+          "wave": "q6",
+          "action_id": 4375943,
+          "action_title": "Максимальный бустинг: усиление.",
+          "product_id": 1340638062,
+          "offer_id": "0328RGEUTSOV",
+          "name": "Картридж DS 178XL для принтеров HP DeskJet 3070A, PhotoSmart 5510, PhotoSmart5515 черный",
+          "action_price": "748.00",
+          "max_price": "748.00",
+          "cogs": "84.29",
+          "cogs_source": "own_stock",
+          "keep_ratio": "0.3921",
+          "floor_price": "980.08",
+          "new_price": null,
+          "mode": "remove",
+          "reason": "пол 980 > потолок 748",
+          "status": "confirmed",
+          "note": "['transition bridge: v2 deactivate used']"
+        }
+      }
+    ]
+  },
+  {
+    "posting_number": "39070231-0028-1",
+    "incident_id": 3,
+    "check_id": 55,
+    "calculated_at": "2026-10-20 18:43:49.924595+00:00",
+    "notification_attempted_at_with_sent": "2026-10-20 18:43:51.335773+00:00",
+    "recipient_verified_as_natalia": true,
+    "telegram_message_id": 854,
+    "snapshot_id": 333,
+    "status_at_signal": "Неукомплектован",
+    "store_at_signal": "Дисквер",
+    "economics": {
+      "gap": "-401.99",
+      "cost": "144.160",
+      "note": "Проверен итог заказа; распределение по товарам не подтверждено",
+      "floor": "1897.99",
+      "price": "1496.0000",
+      "units": "2",
+      "signal": "below_floor",
+      "ms_price": "1496.0",
+      "cost_kind": "purchase_estimate",
+      "positions": [
+        {
+          "code": "1262at",
+          "name": "Картридж для Epson T0791 Stylus Photo 1400/PX650/660/700W/800FW Black AQUAMARINE (Совместимый)",
+          "quantity": 1.0,
+          "external_code": "1262"
+        },
+        {
+          "code": "1265at",
+          "name": "Картридж для Epson T0794 Stylus Photo 1400/PX650/660/700W/800FW Yellow AQUAMARINE (Совместимый)",
+          "quantity": 1.0,
+          "external_code": "1265"
+        }
+      ],
+      "allocation": "order_total",
+      "composition": {
+        "sources": [
+          {
+            "code": "1262IE34VQEN",
+            "side": "ozon",
+            "source": {
+              "source": "Состав отсутствует в локальном справочнике ТК",
+              "market_sku": "1262IE34VQEN",
+              "code_bridge": "Принятое правило кода семейства: первые 4 символа; состав/количество только из ТК",
+              "tc_external_code": "1262"
+            }
+          },
+          {
+            "code": "1265NRS98Y6R",
+            "side": "ozon",
+            "source": {
+              "source": "Состав отсутствует в локальном справочнике ТК",
+              "market_sku": "1265NRS98Y6R",
+              "code_bridge": "Принятое правило кода семейства: первые 4 символа; состав/количество только из ТК",
+              "tc_external_code": "1265"
+            }
+          },
+          {
+            "code": "1262",
+            "side": "ms",
+            "source": {
+              "source": "Состав отсутствует в локальном справочнике ТК"
+            }
+          },
+          {
+            "code": "1265",
+            "side": "ms",
+            "source": {
+              "source": "Состав отсутствует в локальном справочнике ТК"
+            }
+          }
+        ],
+        "expected": {
+          "1262": "1",
+          "1265": "1"
+        },
+        "selected": {
+          "1262": "1.0",
+          "1265": "1.0"
+        },
+        "verified": true
+      },
+      "cost_sources": [
+        {
+          "unit": "72.08",
+          "article": "AT-T0791Bk",
+          "version": "2026-10-20 12:11:27.198",
+          "currency": "RUB",
+          "enter_id": "3f4167d0-cc66-11f1-0a80-16b70027693e",
+          "quantity": "1.0",
+          "supplier": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/61d01266-2fe1-11f0-0a80-0f7f000bf967",
+          "product_id": "fa61c3d9-10fb-11ea-0a80-0639000552df",
+          "position_id": "3f41f525-cc66-11f1-0a80-16b70027695d"
+        },
+        {
+          "unit": "72.08",
+          "article": "AT-T0794Y",
+          "version": "2026-10-20 12:11:27.198",
+          "currency": "RUB",
+          "enter_id": "3f4167d0-cc66-11f1-0a80-16b70027693e",
+          "quantity": "1.0",
+          "supplier": "https://api.moysklad.ru/api/remap/1.2/entity/counterparty/61d01266-2fe1-11f0-0a80-0f7f000bf967",
+          "product_id": "a03578a7-6509-11ea-0a80-042400119588",
+          "position_id": "3f41f97c-cc66-11f1-0a80-16b700276960"
+        }
+      ],
+      "rule_version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41",
+      "estimated_net": "442.39",
+      "expense_period_to": "2026-09-30",
+      "expense_period_from": "2026-09-01"
+    },
+    "products": [
+      {
+        "offer_id": "1262IE34VQEN",
+        "sku": 1873182181,
+        "product_id": 1405607154,
+        "quantity_in_order": 1,
+        "order_unit_price": "748.0000",
+        "current_base_price": 748,
+        "current_marketing_seller_price": 748,
+        "ozon_actions_exist": false,
+        "participation": [
+          {
+            "action_id": 1977747,
+            "at": "2026-10-20T19:13:39.943278+00:00",
+            "http": 200,
+            "last_id": "1405607153",
+            "first_returned_id": 1405607300,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4400847,
+            "at": "2026-10-20T19:13:40.641421+00:00",
+            "http": 200,
+            "last_id": "1405607153",
+            "first_returned_id": 1405610270,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4361400,
+            "at": "2026-10-20T19:13:41.240189+00:00",
+            "http": 200,
+            "last_id": "1405607153",
+            "first_returned_id": 1405609763,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4375943,
+            "at": "2026-10-20T19:13:41.939118+00:00",
+            "http": 200,
+            "last_id": "1405607153",
+            "first_returned_id": 1405609763,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          }
+        ],
+        "latest_guard_record": {
+          "id": 1980069,
+          "ts": "2026-10-18 23:32:35.307941+00:00",
+          "account": "oz_acc2",
+          "wave": "q6",
+          "action_id": 4375943,
+          "action_title": "Максимальный бустинг: усиление.",
+          "product_id": 1405607154,
+          "offer_id": "1262IE34VQEN",
+          "name": "Картридж DS T0791 для принтеров Epson Stylus Photo 1400, Stylus Photo 1500W черный",
+          "action_price": "748.00",
+          "max_price": "762.00",
+          "cogs": "72.75",
+          "cogs_source": "supplier_min",
+          "keep_ratio": "0.3921",
+          "floor_price": "950.65",
+          "new_price": null,
+          "mode": "remove",
+          "reason": "пол 951 > потолок 762",
+          "status": "confirmed",
+          "note": "['transition bridge: v2 deactivate used']"
+        }
+      },
+      {
+        "offer_id": "1265NRS98Y6R",
+        "sku": 1873183612,
+        "product_id": 1405609567,
+        "quantity_in_order": 1,
+        "order_unit_price": "748.0000",
+        "current_base_price": 748,
+        "current_marketing_seller_price": 748,
+        "ozon_actions_exist": false,
+        "participation": [
+          {
+            "action_id": 1977747,
+            "at": "2026-10-20T19:13:40.116330+00:00",
+            "http": 200,
+            "last_id": "1405609566",
+            "first_returned_id": 1405609681,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4400847,
+            "at": "2026-10-20T19:13:40.788720+00:00",
+            "http": 200,
+            "last_id": "1405609566",
+            "first_returned_id": 1405610270,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4361400,
+            "at": "2026-10-20T19:13:41.409166+00:00",
+            "http": 200,
+            "last_id": "1405609566",
+            "first_returned_id": 1405609763,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          },
+          {
+            "action_id": 4375943,
+            "at": "2026-10-20T19:13:42.115860+00:00",
+            "http": 200,
+            "last_id": "1405609566",
+            "first_returned_id": 1405609763,
+            "target_present": false,
+            "numeric_cursor_order_checked": true
+          }
+        ],
+        "latest_guard_record": null
+      }
+    ]
+  }
+]

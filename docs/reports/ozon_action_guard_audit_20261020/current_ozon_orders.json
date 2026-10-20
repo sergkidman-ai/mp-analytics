@@ -1,0 +1,60 @@
+[
+  {
+    "at": "2026-10-20T19:15:34.246610+00:00",
+    "path": "/v3/posting/fbs/get",
+    "http": 200,
+    "posting_number": "08864471-0578-4",
+    "status": "awaiting_packaging",
+    "in_process_at": "2026-10-19T15:05:53Z",
+    "products": [
+      {
+        "price": "718.0000",
+        "offer_id": "0447EK1IMZ1O",
+        "sku": 1822939677,
+        "quantity": 1,
+        "currency_code": "RUB"
+      }
+    ]
+  },
+  {
+    "at": "2026-10-20T19:15:34.291490+00:00",
+    "path": "/v3/posting/fbs/get",
+    "http": 200,
+    "posting_number": "0156701940-0067-2",
+    "status": "awaiting_packaging",
+    "in_process_at": "2026-10-20T06:45:42Z",
+    "products": [
+      {
+        "price": "866.0000",
+        "offer_id": "0328RGEUTSOV",
+        "sku": 1822913892,
+        "quantity": 2,
+        "currency_code": "RUB"
+      }
+    ]
+  },
+  {
+    "at": "2026-10-20T19:15:34.330516+00:00",
+    "path": "/v3/posting/fbs/get",
+    "http": 200,
+    "posting_number": "39070231-0028-1",
+    "status": "awaiting_packaging",
+    "in_process_at": "2026-10-20T08:46:20Z",
+    "products": [
+      {
+        "price": "748.0000",
+        "offer_id": "1262IE34VQEN",
+        "sku": 1873182181,
+        "quantity": 1,
+        "currency_code": "RUB"
+      },
+      {
+        "price": "748.0000",
+        "offer_id": "1265NRS98Y6R",
+        "sku": 1873183612,
+        "quantity": 1,
+        "currency_code": "RUB"
+      }
+    ]
+  }
+]

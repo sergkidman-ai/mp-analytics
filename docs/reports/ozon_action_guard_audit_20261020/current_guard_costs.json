@@ -1,0 +1,72 @@
+[
+  {
+    "code": "0447",
+    "offer_id": "0447EK1IMZ1O",
+    "guard_cost": 71.68,
+    "guard_source": "supplier_min",
+    "guard_floor": "947.97",
+    "stock": {
+      "qty_own": 0.0,
+      "qty_remote": 75.0,
+      "cost_own": null,
+      "supplier_min": 71.68,
+      "tc_price": 73.0
+    },
+    "linked": [
+      "5476"
+    ],
+    "components": null,
+    "basis_version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41"
+  },
+  {
+    "code": "0328",
+    "offer_id": "0328RGEUTSOV",
+    "guard_cost": 83.776,
+    "guard_source": "own_stock",
+    "guard_floor": "978.82",
+    "stock": {
+      "qty_own": 5.0,
+      "qty_remote": 1558.0,
+      "cost_own": 83.776,
+      "supplier_min": 82.85,
+      "tc_price": 87.0
+    },
+    "linked": [],
+    "components": null,
+    "basis_version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41"
+  },
+  {
+    "code": "1262",
+    "offer_id": "1262IE34VQEN",
+    "guard_cost": 72.75,
+    "guard_source": "own_stock",
+    "guard_floor": "950.70",
+    "stock": {
+      "qty_own": 1.0,
+      "qty_remote": 154.0,
+      "cost_own": 72.75,
+      "supplier_min": 72.08,
+      "tc_price": 76.0
+    },
+    "linked": [],
+    "components": null,
+    "basis_version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41"
+  },
+  {
+    "code": "1265",
+    "offer_id": "1265NRS98Y6R",
+    "guard_cost": 72.75,
+    "guard_source": "own_stock",
+    "guard_floor": "950.70",
+    "stock": {
+      "qty_own": 2.0,
+      "qty_remote": 197.0,
+      "cost_own": 72.75,
+      "supplier_min": 72.08,
+      "tc_price": 76.0
+    },
+    "linked": [],
+    "components": null,
+    "basis_version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41"
+  }
+]

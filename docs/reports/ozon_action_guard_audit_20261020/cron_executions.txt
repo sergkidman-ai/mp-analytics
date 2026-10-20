@@ -1,0 +1,3 @@
+2026-10-20T03:30:01+0000 cvmjukzfzz CRON[2860856]: (root) CMD (cd /opt/mp-analytics && ./venv/bin/python -m ops.ozon_promo_guard --apply --wave q6 --limit 300 >> /opt/mp-analytics/logs/oz_promo_guard.log 2>&1
+2026-10-20T10:30:01+0000 cvmjukzfzz CRON[3039224]: (root) CMD (cd /opt/mp-analytics && ./venv/bin/python -m ops.ozon_promo_guard --apply --wave q6 --limit 300 >> /opt/mp-analytics/logs/oz_promo_guard.log 2>&1
+2026-10-20T17:30:01+0000 cvmjukzfzz CRON[3229822]: (root) CMD (cd /opt/mp-analytics && ./venv/bin/python -m ops.ozon_promo_guard --apply --wave q6 --limit 300 >> /opt/mp-analytics/logs/oz_promo_guard.log 2>&1

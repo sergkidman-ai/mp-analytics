@@ -1,0 +1,65 @@
+[
+  {
+    "posting_number": "08864471-0578-4",
+    "ms_status_transitions_observed": [
+      {
+        "snapshot_id": 61,
+        "at": "2026-10-20 15:28:27.447070+00:00",
+        "status": "Неукомплектован",
+        "store": "Дисквер",
+        "document_updated": "2026-10-20 11:52:42.479",
+        "document_moment": "2026-10-19 18:05:00.000"
+      }
+    ],
+    "ozon_latest_snapshot": {
+      "id": 479,
+      "fetched_at": "2026-10-20 19:05:53.716566+00:00"
+    },
+    "mp_status": "awaiting_packaging",
+    "in_process_at": "2026-10-19T15:05:53Z",
+    "shipment_date": "2026-10-20T12:00:00Z",
+    "snapshot_count": 11
+  },
+  {
+    "posting_number": "0156701940-0067-2",
+    "ms_status_transitions_observed": [
+      {
+        "snapshot_id": 80,
+        "at": "2026-10-20 15:32:57.381425+00:00",
+        "status": "Неукомплектован",
+        "store": "Дисквер",
+        "document_updated": "2026-10-20 10:35:50.090",
+        "document_moment": "2026-10-20 09:45:00.000"
+      }
+    ],
+    "ozon_latest_snapshot": {
+      "id": 490,
+      "fetched_at": "2026-10-20 19:05:53.716566+00:00"
+    },
+    "mp_status": "awaiting_packaging",
+    "in_process_at": "2026-10-20T06:45:42Z",
+    "shipment_date": "2026-10-20T12:00:00Z",
+    "snapshot_count": 11
+  },
+  {
+    "posting_number": "39070231-0028-1",
+    "ms_status_transitions_observed": [
+      {
+        "snapshot_id": 88,
+        "at": "2026-10-20 15:34:38.288983+00:00",
+        "status": "Неукомплектован",
+        "store": "Дисквер",
+        "document_updated": "2026-10-20 14:33:58.780",
+        "document_moment": "2026-10-20 11:46:00.000"
+      }
+    ],
+    "ozon_latest_snapshot": {
+      "id": 495,
+      "fetched_at": "2026-10-20 19:05:53.716566+00:00"
+    },
+    "mp_status": "awaiting_packaging",
+    "in_process_at": "2026-10-20T08:46:20Z",
+    "shipment_date": "2026-10-20T12:00:00Z",
+    "snapshot_count": 11
+  }
+]

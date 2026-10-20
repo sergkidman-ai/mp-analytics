@@ -1,0 +1,96 @@
+[
+  {
+    "minute": "2026-10-20 03:31:00+00:00",
+    "account": "oz_acc2",
+    "wave": "q6",
+    "rows": 6499,
+    "statuses": [
+      "confirmed",
+      "skip"
+    ]
+  },
+  {
+    "minute": "2026-10-20 03:30:00+00:00",
+    "account": "oz_acc1",
+    "wave": "q6",
+    "rows": 2317,
+    "statuses": [
+      "skip"
+    ]
+  },
+  {
+    "minute": "2026-10-19 23:32:00+00:00",
+    "account": "oz_acc2",
+    "wave": "q6",
+    "rows": 6347,
+    "statuses": [
+      "confirmed",
+      "skip"
+    ]
+  },
+  {
+    "minute": "2026-10-19 23:30:00+00:00",
+    "account": "oz_acc1",
+    "wave": "q6",
+    "rows": 2323,
+    "statuses": [
+      "confirmed",
+      "skip"
+    ]
+  },
+  {
+    "minute": "2026-10-19 17:31:00+00:00",
+    "account": "oz_acc2",
+    "wave": "q6",
+    "rows": 6513,
+    "statuses": [
+      "skip"
+    ]
+  },
+  {
+    "minute": "2026-10-19 17:30:00+00:00",
+    "account": "oz_acc1",
+    "wave": "q6",
+    "rows": 7511,
+    "statuses": [
+      "skip"
+    ]
+  },
+  {
+    "minute": "2026-10-19 10:31:00+00:00",
+    "account": "oz_acc2",
+    "wave": "q6",
+    "rows": 6513,
+    "statuses": [
+      "skip"
+    ]
+  },
+  {
+    "minute": "2026-10-19 10:30:00+00:00",
+    "account": "oz_acc1",
+    "wave": "q6",
+    "rows": 7511,
+    "statuses": [
+      "skip"
+    ]
+  },
+  {
+    "minute": "2026-10-19 03:32:00+00:00",
+    "account": "oz_acc2",
+    "wave": "q6",
+    "rows": 6517,
+    "statuses": [
+      "confirmed",
+      "skip"
+    ]
+  },
+  {
+    "minute": "2026-10-19 03:30:00+00:00",
+    "account": "oz_acc1",
+    "wave": "q6",
+    "rows": 7511,
+    "statuses": [
+      "skip"
+    ]
+  }
+]
