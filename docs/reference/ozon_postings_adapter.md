@@ -3,7 +3,7 @@
 Импорты без копирования реализации:
 
 ```python
-from collectors.ozon_postings import fetch_postings
+from collectors.ozon_postings import fetch_postings, account_lock
 from core.ozon_posting import product_price, PostingProtocolError
 ```
 
@@ -12,7 +12,7 @@ from core.ozon_posting import product_price, PostingProtocolError
 ```python
 fetch_postings(
     account, scheme, date_from, date_to, *,
-    limit=1000, max_pages=None, timeout=900,
+    limit=1000, max_pages=None, timeout=None, window_budget=None, lock_timeout=5,
     statuses=None, sort_dir=None,
 ) -> list[dict]
 
@@ -26,9 +26,15 @@ product_price(product: dict) -> Decimal
 - `limit`: целое 1..1000. Для пилота задавать **20** явно.
 - `max_pages`: целое 1..10000, None означает 10000. Для пилота задавать собственный
   небольшой предел, например 4; неполное окно при достижении предела даёт ошибку.
-- `timeout`: положительное конечное число секунд общего бюджета вызова. Остаток
-  бюджета передаётся HTTP-повторам; учитываются Retry-After и паузы пагинации.
+- `window_budget`: положительное конечное число секунд общего бюджета вызова.
+  Для пилота **120**; остаток учитывает ожидание account-lock, его проверки,
+  HTTP-попытки, Retry-After и паузы пагинации. `timeout` — совместимый alias; если
+  переданы оба с разными значениями, ValueError. По умолчанию бюджет 900 секунд.
   Страница дополнительно ограничена 120 секундами и 5 HTTP-попытками.
+- `lock_timeout`: ожидание занятого account-lock (по умолчанию 5 секунд, не больше
+  бюджета окна). 0 — одна попытка без ожидания занятости. Подключение к PostgreSQL
+  имеет отдельный connect_timeout до 5 секунд и ограниченные SQL-запросы; после
+  подключения истёкший бюджет окна не позволяет начать HTTP.
 - `statuses=None`: ВСЕ статусы. Для FBS можно передать непустой list/tuple строк;
   в HTTP это **filter.statuses**. В пробе подтверждены awaiting_packaging/awaiting_deliver.
   Каждый возвращённый статус проверяется на вхождение в запрошенный список.
@@ -56,7 +62,7 @@ end = datetime.now(timezone.utc)        # зафиксировать один р
 start = end - timedelta(hours=2)
 posts = fetch_postings(
     'oz_acc2', 'fbs', start, end,
-    limit=20, max_pages=4, timeout=60,
+    limit=20, max_pages=10, window_budget=120,
     statuses=['awaiting_packaging', 'awaiting_deliver'],
     sort_dir='DESC',
 )
@@ -79,16 +85,61 @@ quantity учитывается вызывающим кодом ровно од�
 Не использовать customer_price для полной суммы продавца: у покупателя может быть KZT
 при цене продавца RUB. Исходный словарь не меняется.
 
+## Общая блокировка списков и point get
+
+`fetch_postings` автоматически держит session advisory lock одного кабинета
+на всё окно, включая все страницы и повторы; у него нет флага обхода блокировки.
+Ключи — PostgreSQL two-int `(0x4F5A4F4E, 1)` для oz_acc1 и `(0x4F5A4F4E, 2)` для
+oz_acc2. Это отдельное пространство от bigint MS lock `7348201701`.
+Разные кабинеты не блокируют друг друга. Миграция БД не нужна.
+
+Для point get использовать тот же публичный context manager:
+
+```python
+from collectors.ozon_postings import account_lock
+from core.ozon_posting_lock import OzonLockBusy, OzonLockLost
+
+with account_lock('oz_acc2', timeout=2) as lease:
+    lease.check()                  # непосредственно перед HTTP
+    result = existing_point_get()  # собственный ограниченный HTTP timeout
+```
+
+При повторах point get проверять `lease.check()` перед **каждой** HTTP-попыткой.
+Если используется общий низкоуровневый `request_page`, ему можно передать
+`check_lock=lease.check, deadline=<monotonic deadline>` — там проверка встроена
+перед каждой попыткой. Не переносить реализацию lock в пилот.
+
+`OzonLockBusy` (TimeoutError) — другой участник удерживает account-lock, проход
+не состоялся и checkpoint не продвигается. `OzonLockLost` (RuntimeError) — потеря
+владения/DB-соединения; дальнейшие HTTP-попытки запрещены. Старые процессы/вызовы,
+которые не используют этот протокол, advisory lock не останавливает: финансовый
+процесс должен быть запущен с новым кодом, point get обязан брать этот контекст.
+
+Lock живёт на отдельном autocommit-соединении, без долгой открытой транзакции;
+finally освобождает и закрывает его также при исключениях. Вложенный вызов одного
+кабинета в том же thread/task переиспользует lease; потомок async task/другой поток
+не получает обхода через унаследованный контекст. Можно обернуть общий проход
+account_lock и вызвать fetch_postings внутри, он повторно тот же lock не захватывает.
+
+MS LOCK_ID остаётся у shipment worker. Порядок владения: MS → Ozon, если нужны оба;
+не ждать MS-lock и не писать MS-документы, удерживая Ozon-lock.
+
+Семантика session locks и двух независимых пространств ключей:
+[официальная документация PostgreSQL 16](https://www.postgresql.org/docs/16/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS).
+
 ## Интеграция и границы коммита
 
-Отдельный коммит содержит только `collectors/ozon_postings.py`, `core/ozon_posting.py`,
-самодостаточные `tests/test_ozon_postings_adapter.py` и этот документ. Он не содержит
+Базовый commit `513373c405e1f87df2e83eb91cfbcd001f03ccd6` содержит collector,
+`core/ozon_posting.py`, самодостаточные тесты адаптера и этот документ. Следующий
+commit расширяет API и добавляет зависимость `core/ozon_posting_lock.py` и тесты lock.
+Для нового checkout нужны оба последовательных коммита; если базовый уже cherry-picked,
+применяется только новый. Их точные hashes перечислены в передаче wb4c. Он не содержит
 код customer-order runner, схемы БД пилота или изменения его адаптера/служб.
 Подключение — cherry-pick этого коммита в собственный worktree; код не копировать.
 Проверка адаптера:
 
 ```bash
-./venv/bin/python -m unittest tests.test_ozon_postings_adapter -q
+./venv/bin/python -m unittest tests.test_ozon_postings_adapter tests.test_ozon_posting_lock -q
 ```
 
 Финансовая миграция потребителей Money находится отдельными изменениями wb4c.

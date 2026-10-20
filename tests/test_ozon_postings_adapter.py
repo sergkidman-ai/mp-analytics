@@ -33,13 +33,67 @@ def response(status=200, obj=None, retry=None):
 
 class PostingTests(unittest.TestCase):
     def setUp(self):
-        for target, kwargs in [('requests.post',{}),('_headers',{'return_value':{}}),('time.sleep',{})]:
+        for target, kwargs in [('requests.post',{}),('_headers',{'return_value':{}}),('time.sleep',{}),('account_lock',{})]:
             p=patch.object(api, target, **kwargs) if '.' not in target else patch('collectors.ozon_postings.'+target,**kwargs)
             setattr(self,target.replace('.','_'),p.start());self.addCleanup(p.stop)
         self.output=redirect_stdout(io.StringIO());self.output.__enter__();self.addCleanup(self.output.__exit__,None,None,None)
 
     def fetch(self, scheme='fbs'):
         return api.fetch_postings('oz_acc2',scheme,'2026-10-20','2026-10-20',limit=2)
+
+    def test_pilot_date_interface_budget_and_page_cap(self):
+        self.requests_post.return_value=response(obj=page([posting()]))
+        posts=api.fetch_postings('oz_acc2','fbs','2026-10-20','2026-10-20',
+                                limit=20,max_pages=10,window_budget=120)
+        self.assertEqual(len(posts),1)
+        self.account_lock.assert_called_once_with('oz_acc2',timeout=5)
+        self.account_lock.return_value.__enter__.return_value.check.assert_called_once()
+
+    def test_window_budget_alias_and_conflict_validation(self):
+        self.requests_post.return_value=response()
+        api.fetch_postings('oz_acc2','fbs','2026-10-20','2026-10-20',timeout=120,window_budget=120)
+        for kwargs in ({'window_budget':0},{'window_budget':True},{'window_budget':float('inf')},
+                       {'timeout':60,'window_budget':120},{'lock_timeout':-1}):
+            with self.subTest(kwargs=kwargs),self.assertRaises(ValueError):
+                api.fetch_postings('oz_acc2','fbs','2026-10-20','2026-10-20',**kwargs)
+
+    def test_busy_or_lost_account_lock_never_calls_ozon(self):
+        from core.ozon_posting_lock import OzonLockBusy,OzonLockLost
+        self.account_lock.return_value.__enter__.side_effect=OzonLockBusy('busy')
+        with self.assertRaises(OzonLockBusy):self.fetch()
+        self.requests_post.assert_not_called()
+        self.account_lock.return_value.__enter__.side_effect=None
+        self.account_lock.return_value.__enter__.return_value.check.side_effect=OzonLockLost('lost')
+        with self.assertRaises(OzonLockLost):self.fetch()
+        self.requests_post.assert_not_called()
+
+    def test_lock_rechecked_before_retry_and_held_between_pages(self):
+        from core.ozon_posting_lock import OzonLockLost
+        lease=self.account_lock.return_value.__enter__.return_value
+        lease.check.side_effect=[None,OzonLockLost('lost')]
+        self.requests_post.return_value=response(429,retry='0')
+        with self.assertRaises(OzonLockLost):self.fetch()
+        self.assertEqual(self.requests_post.call_count,1)
+        self.account_lock.return_value.__exit__.assert_called_once()
+
+    def test_lock_check_time_is_included_before_http_attempt(self):
+        clock=[100]
+        def check():clock[0]=105
+        self.account_lock.return_value.__enter__.return_value.check.side_effect=check
+        with patch.object(api.time,'monotonic',side_effect=lambda:clock[0]),self.assertRaises(TimeoutError):
+            api.fetch_postings('oz_acc2','fbs','2026-10-20','2026-10-20',window_budget=4)
+        self.requests_post.assert_not_called()
+
+    def test_one_account_lease_is_held_for_all_pages(self):
+        cm=self.account_lock.return_value
+        pages=iter([page([posting()],True,'a'),page([posting('1-2-1')])])
+        def request(*args,**kwargs):
+            cm.__exit__.assert_not_called()
+            return response(obj=next(pages))
+        self.requests_post.side_effect=request
+        self.assertEqual(len(self.fetch()),2)
+        self.account_lock.assert_called_once();cm.__exit__.assert_called_once()
+        self.assertEqual(cm.__enter__.return_value.check.call_count,2)
 
     def test_precise_aware_utc_window_is_not_expanded_to_a_day(self):
         self.requests_post.return_value=response(obj=page([posting()]))
