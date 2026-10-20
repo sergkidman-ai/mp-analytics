@@ -1,0 +1,11 @@
+{
+  "state": "prepared_not_activated",
+  "native_marketplace_filter": false,
+  "processing_platform": "yandex",
+  "routing_other_platforms": "one demand GET only; no positions/FIFO/adapters/assessment",
+  "discovery": "new webhooks since explicit timezone-aware cutoff; no background scans",
+  "token_user": "yunusov@dsquare",
+  "tests": 54,
+  "subscriptions_unchanged": true,
+  "clarification_needed": "receiving all demand notifications is broader than receiving only Yandex notifications"
+}

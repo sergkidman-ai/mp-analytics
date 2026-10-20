@@ -1,0 +1,146 @@
+{
+  "token_source_filename": "20261008_130542_Natalie_Pro_natalya_токен_МС_Юнусов_для_Пульта.txt",
+  "uid": "yunusov@dsquare",
+  "checks": [
+    {
+      "resource": "identity",
+      "status": 200,
+      "uid": "yunusov@dsquare",
+      "employee_id": "2d132839-b864-11ef-0a80-09980007cebd"
+    },
+    {
+      "resource": "list_baseline_admin",
+      "status": 200
+    },
+    {
+      "resource": "list_dedicated",
+      "status": 200
+    },
+    {
+      "resource": "oz_acc1_demand",
+      "status": 200,
+      "account": "oz_acc1",
+      "account_matches": true,
+      "name_matches": true
+    },
+    {
+      "resource": "oz_acc1_expanded_positions",
+      "status": 200,
+      "account": "oz_acc1",
+      "rows": 1,
+      "full_page": true,
+      "expanded": true
+    },
+    {
+      "resource": "oz_acc1_fifo",
+      "status": 200,
+      "account": "oz_acc1",
+      "rows": 1,
+      "cost_fields_present": true,
+      "positive_total_cost": true
+    },
+    {
+      "resource": "oz_acc2_demand",
+      "status": 200,
+      "account": "oz_acc2",
+      "account_matches": true,
+      "name_matches": true
+    },
+    {
+      "resource": "oz_acc2_expanded_positions",
+      "status": 200,
+      "account": "oz_acc2",
+      "rows": 1,
+      "full_page": true,
+      "expanded": true
+    },
+    {
+      "resource": "oz_acc2_fifo",
+      "status": 200,
+      "account": "oz_acc2",
+      "rows": 1,
+      "cost_fields_present": true,
+      "positive_total_cost": true
+    },
+    {
+      "resource": "wb_acc1_demand",
+      "status": 200,
+      "account": "wb_acc1",
+      "account_matches": true,
+      "name_matches": true
+    },
+    {
+      "resource": "wb_acc1_expanded_positions",
+      "status": 200,
+      "account": "wb_acc1",
+      "rows": 2,
+      "full_page": true,
+      "expanded": true
+    },
+    {
+      "resource": "wb_acc1_fifo",
+      "status": 200,
+      "account": "wb_acc1",
+      "rows": 1,
+      "cost_fields_present": true,
+      "positive_total_cost": true
+    },
+    {
+      "resource": "wb_acc2_demand",
+      "status": 200,
+      "account": "wb_acc2",
+      "account_matches": true,
+      "name_matches": true
+    },
+    {
+      "resource": "wb_acc2_expanded_positions",
+      "status": 200,
+      "account": "wb_acc2",
+      "rows": 1,
+      "full_page": true,
+      "expanded": true
+    },
+    {
+      "resource": "wb_acc2_fifo",
+      "status": 200,
+      "account": "wb_acc2",
+      "rows": 1,
+      "cost_fields_present": true,
+      "positive_total_cost": true
+    },
+    {
+      "resource": "ya_acc1_demand",
+      "status": 200,
+      "account": "ya_acc1",
+      "account_matches": true,
+      "name_matches": true
+    },
+    {
+      "resource": "ya_acc1_expanded_positions",
+      "status": 200,
+      "account": "ya_acc1",
+      "rows": 4,
+      "full_page": true,
+      "expanded": true
+    },
+    {
+      "resource": "ya_acc1_fifo",
+      "status": 200,
+      "account": "ya_acc1",
+      "rows": 1,
+      "cost_fields_present": true,
+      "positive_total_cost": true
+    }
+  ],
+  "coverage": {
+    "baseline_total": 274,
+    "dedicated_total": 274,
+    "same_ids": true,
+    "missing_ids": [],
+    "extra_ids": []
+  },
+  "services_not_started": true,
+  "configured_for_guard": true,
+  "admin_and_other_env_values_preserved": true,
+  "rights_sufficient_for_guard_reads": true
+}

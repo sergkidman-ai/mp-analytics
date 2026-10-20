@@ -1,0 +1,34 @@
+[
+  {
+    "file": "customer_guard/__init__.py",
+    "kind": "added_or_identical"
+  },
+  {
+    "file": "customer_guard/domain.py",
+    "kind": "added_or_identical"
+  },
+  {
+    "file": "web/customer_guard_api.py",
+    "kind": "added_or_identical"
+  },
+  {
+    "file": "web/static/customer_orders.html",
+    "kind": "added_or_identical"
+  },
+  {
+    "file": "core/ozon_posting.py",
+    "kind": "added_or_identical"
+  },
+  {
+    "file": "web/app.py",
+    "kind": "patched",
+    "before": "1705e483b2698855072ca54f1a9870a1465feafe4bfaa6f4f0551510bbdd100b",
+    "after": "9a279448c52eecb299554e18eec914d4ea96d74ff1ba91395eb994c1ef9d17fe"
+  },
+  {
+    "file": "web/static/warehouse.html",
+    "kind": "patched",
+    "before": "e61d449dd756f6e10ed150527dc7c01ca458d3bc1a02443a24f398b9257eeec4",
+    "after": "fe599dcf4bcbbf1b48534e7a65f8a23c56b9fd397aa957b5ac00737cec2948a2"
+  }
+]

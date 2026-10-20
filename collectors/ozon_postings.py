@@ -134,14 +134,15 @@ def _window_bound(value, *, end=False):
     raise ValueError('Expected date or timezone-aware timestamp')
 
 
-def fetch_postings(account, scheme, date_from, date_to, *, limit=1000,
+def fetch_postings(account, scheme, date_from, date_to, *, limit=100,
                    max_pages=None, timeout=None, window_budget=None, lock_timeout=5,
                    statuses=None, sort_dir=None):
     """Read a complete inclusive UTC window, or raise. Never writes to DB.
 
     date_from/date_to: ISO dates (legacy whole days), aware datetime objects or
     ISO timestamps with Z/offset. Date callers retain their existing contract.
-    limit: page size; max_pages: complete-window cap; window_budget: total seconds,
+    limit: page size (FBS v4: 1..100, FBO: 1..1000); max_pages: complete-window cap;
+    window_budget: total seconds,
     including account lock wait, HTTP attempts, Retry-After and pagination pauses.
     timeout is the backwards-compatible alias; default budget is WINDOW_BUDGET.
     lock_timeout bounds waiting for the shared per-account PostgreSQL session lock.
@@ -150,7 +151,8 @@ def fetch_postings(account, scheme, date_from, date_to, *, limit=1000,
     Defaults retain ALL statuses for the financial collector. Return is a list
     of untouched posting dicts, without cache/checkpoint or financial rebuild.
     """
-    if scheme not in ('fbs', 'fbo') or type(limit) is not int or not 1 <= limit <= 1000:
+    max_limit = 100 if scheme == 'fbs' else 1000
+    if scheme not in ('fbs', 'fbo') or type(limit) is not int or not 1 <= limit <= max_limit:
         raise ValueError('Invalid scheme or page size')
     max_pages = MAX_PAGES if max_pages is None else max_pages
     if type(max_pages) is not int or not 1 <= max_pages <= MAX_PAGES:

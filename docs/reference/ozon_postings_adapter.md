@@ -12,7 +12,7 @@ from core.ozon_posting import product_price, PostingProtocolError
 ```python
 fetch_postings(
     account, scheme, date_from, date_to, *,
-    limit=1000, max_pages=None, timeout=None, window_budget=None, lock_timeout=5,
+    limit=100, max_pages=None, timeout=None, window_budget=None, lock_timeout=5,
     statuses=None, sort_dir=None,
 ) -> list[dict]
 
@@ -23,7 +23,8 @@ product_price(product: dict) -> Decimal
   Нормализуются в UTC, сохраняют точное включительное окно. Naive timestamp запрещён.
   Прежние ISO-даты и date-объекты означают полные UTC-сутки; финансовый вызов по датам
   совместим. Граница окончания суток — 23:59:59.999 UTC.
-- `limit`: целое 1..1000. Для пилота задавать **20** явно.
+- `limit`: по умолчанию **100**; FBS v4 принимает 1..100, FBO — 1..1000.
+  Для пилота задавать **20** явно. Старый финансовый default1000 для FBS запрещён.
 - `max_pages`: целое 1..10000, None означает 10000. Для пилота задавать собственный
   небольшой предел, например 4; неполное окно при достижении предела даёт ошибку.
 - `window_budget`: положительное конечное число секунд общего бюджета вызова.

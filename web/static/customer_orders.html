@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Заказы покупателей · Пульт бизнеса</title>
+<style>
+  :root{--bg:#0f1720;--card:#172230;--line:#243449;--txt:#e6edf3;--mut:#8aa0b5;--acc:#3fa7ff;--pos:#37c871;--neg:#ff5d5d;--warn:#ffb454}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
+  header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:auto;padding:16px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  main{flex:1;min-width:0;padding:22px;max-width:1100px;margin:0 auto}
+  .muted{color:var(--mut)}.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+  .lvlnav{display:flex;flex-direction:column;gap:3px}
+  .lvlnav a{color:var(--mut);text-decoration:none;border-radius:8px;padding:8px 11px;font-size:14px}
+  .lvlnav a:hover{background:var(--bg);color:var(--txt)}.lvlnav a.cur{color:var(--txt);background:var(--bg);box-shadow:inset 3px 0 0 var(--acc)}
+  .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
+  .logo:hover{background:var(--bg)}
+  .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
+  h2{font-size:15px;margin:22px 0 12px}
+  .big{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:6px 0 4px}
+  .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .bi .l{color:var(--mut);font-size:12px}
+  .bi .v{font-size:25px;font-weight:700;margin-top:4px}
+  .bi .v small{font-size:14px;font-weight:600;color:var(--mut)}
+  .bi .d{font-size:13px;margin-top:5px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  th{color:var(--mut);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
+  td.name{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .d0{color:var(--neg);font-weight:700}.d1{color:var(--warn)}
+  .note{color:var(--mut);font-size:12px;margin:14px 0 0}
+  .sub{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:820px){.sub{grid-template-columns:1fr}}
+  .whtabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;border-bottom:1px solid var(--line)}
+  .whtabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px 8px 0 0;font-weight:600;font-size:13px}
+  .whtabs a:hover{color:var(--txt);background:var(--card)}
+  .whtabs a.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
+
+main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}input,select,button{font:inherit;color:var(--txt);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:9px}button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.tablewrap{overflow:auto}th,td{text-align:left;vertical-align:top}td.money,th.money{text-align:right;white-space:nowrap}.small{font-size:12px;color:var(--mut)}.badge{display:inline-block;border-radius:5px;padding:3px 7px;background:var(--bg);font-size:12px}.danger{color:var(--neg)}.warning{color:var(--warn)}.nowrap{white-space:nowrap}.footer{display:flex;justify-content:space-between;gap:15px;margin-top:14px}dialog{color:var(--txt);background:var(--card);border:1px solid var(--line);max-width:900px;width:90%;border-radius:12px}dialog::backdrop{background:#0009}.notice{padding:12px 15px;border:1px solid var(--line);border-radius:8px;margin:15px 0;color:var(--mut)}@media(max-width:800px){header{width:145px;flex-basis:145px}main{padding:12px}}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">🏢 Пульт бизнеса</a>
+  <nav class="lvlnav">
+    <div class="navgroup">Инвентарь и расходы</div>
+    <a href="/warehouse" class="cur">🏭 Склад</a>
+    <a href="/suppliers">📦 Поставщики</a>
+    <a href="/stale">🧊 Залежи</a>
+    <a href="/brak">♻️ Брак/возвраты</a>
+    <a href="/opex">💼 Опер. расходы</a>
+    <div class="navgroup">Деньги</div>
+    <a href="/cashflow">💰 Кэшфлоу</a>
+    <a href="/turnover">🧮 Оборот для премии</a>
+    <a href="/turnover/royalty">Обороты по торговым маркам</a>
+    <div class="navgroup">Отчёты</div>
+    <a href="/reports">📋 Отчёты МП</a>
+  </nav>
+</header>
+<main>
+  <nav class="whtabs">
+    <a href="/warehouse">🏭 Остатки складов</a>
+    <a href="/reports/wb-clearance">🏷️ Распродажа остатков ВБ</a>
+    <a href="/warehouse/novelties">✨ Новинки</a>
+    <a href="/warehouse/loss">🔥 Пострадавшие склады ВБ</a>
+    <a href="/warehouse/customer-orders" class="cur">Заказы покупателей</a>
+  </nav>
+  <h1>Заказы покупателей</h1>
+  <div class="muted">Ozon · Дисквэр · FBS / rFBS</div>
+  <div class="notice" id="runtime">Загрузка состояния обработки…</div>
+  <div class="big" id="stats"></div>
+  <div class="toolbar">
+    <input id="search" placeholder="Номер отправления" aria-label="Номер отправления">
+    <select id="status" aria-label="Статус"><option value="">Все статусы</option>
+      <option>Неукомплектован</option><option>Подтвержден</option><option>Собирается</option>
+      <option>Ожидает подтверждения</option><option>В пути</option><option>Доставлен</option>
+      <option value="cancelled">Отменён в Ozon</option></select>
+    <select id="signal" aria-label="Результат проверки"><option value="">Все результаты</option>
+      <option value="non_positive_profit">Убыточные / без прибыли (≤ 0 ₽)</option>
+      <option value="below_floor">Ниже пола</option><option value="missing_ms">Нет в МС</option>
+      <option value="unknown">Недостаточно данных</option>
+      <option value="aggregate_only">Проверен итог заказа</option><option value="ok">Выше пола</option><option value="draft">Черновик</option></select>
+    <button id="refresh">Обновить таблицу</button>
+    <span class="small">Чтение сохранённых данных, без запросов к МС</span>
+  </div>
+  <p id="message" role="status" aria-live="polite"></p>
+  <p id="copy-status" class="small" role="status" aria-live="polite"></p>
+  <div class="tablewrap">
+    <table><thead><tr><th>Отправление<div class="small">По дате поступления в Ozon ↓</div></th><th>Статусы</th><th>Выбранный товар / склад</th>
+      <th class="money">Цена Ozon</th><th class="money">Себестоимость</th><th class="money">Чистая прибыль<div class="small">расчёт по текущим данным</div></th><th class="money">Пол</th>
+      <th class="money">Отклонение</th><th>Результат</th><th>Проверено в МС</th></tr></thead><tbody id="rows"></tbody></table>
+  </div>
+  <div class="footer"><span id="count" class="small"></span><div>
+    <button id="prev">← Назад</button> <button id="next">Далее →</button></div></div>
+  <p class="note">Цена продавца — из Ozon; обе суммы Ozon и МС сохранены. Отклонение — цена минус пол, не чистая прибыль.
+    Расчётная чистая прибыль = цена Ozon − себестоимость − расходы Ozon по средней доле кабинета.
+    Фактические начисления по заказу могут отличаться.
+    Предварительная стоимость может измениться до отгрузки. Один набор считается одной продаваемой единицей.</p>
+  <dialog id="history"><button id="close">Закрыть</button><h2>История проверок</h2><div id="history-body"></div></dialog>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=v=>v==null?'—':Number(v).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
+const dt=v=>v?new Date(v).toLocaleString('ru-RU',{timeZone:'Europe/Moscow',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+' МСК':'—';
+const mp={awaiting_packaging:'Ожидает сборки',awaiting_deliver:'Ожидает отгрузки',delivering:'В пути',delivered:'Доставлен',cancelled:'Отменён'};
+const kinds={actual:'Факт отгрузки',purchase_estimate:'Оценка закупки',fifo_estimate:'Предварительный FIFO'};
+const signals={below_floor:'Ниже пола',missing_ms:'Нет в МС',unknown:'Недостаточно данных',aggregate_only:'Проверен только итог',draft:'Черновик',ok:'Выше пола'};
+let offset=0,total=0,request=0;
+function state(row){
+  if(['cancelled','delivered'].includes(row.mp_status))return mp[row.mp_status];
+  if(!Object.hasOwn(mp,row.mp_status))return 'Статус Ozon требует проверки';
+  if(row.job_error)return 'Проверка не завершена';
+  if(!row.current)return row.job_state==='running'?'Проверяется':row.result?'Требует пересчёта':'Ожидает проверки';
+  if(row.result?.floor&&!row.basis_current)return 'База расходов требует обновления';
+  return signals[row.result?.signal]||'Недостаточно данных';
+}
+async function api(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw new Error('Не удалось прочитать данные ('+r.status+')');return r.json();}
+async function load(){
+  const n=++request;$('message').textContent='Загрузка…';
+  try{
+    const q=new URLSearchParams({limit:50,offset,status:$('status').value,signal:$('signal').value,search:$('search').value});
+    const d=await api('/api/customer-orders?'+q);if(n!==request)return;
+    total=d.total;
+    const sync=d.sync?.find(x=>x.scope==='ozon/oz_acc2/fbs');
+    $('runtime').textContent=(d.automatic_updates?
+      'Фоновая обработка включена: новые заказы — каждые 10 минут; первая проверка МС — после 10 минут с получения; повторные проверки до отгрузки — раз в 60 минут. ':
+      d.runtime?.enabled?'Фоновая обработка включена, но её работа пока не подтверждена. ':'Фоновая обработка выключена. ')+
+      (d.notifications_enabled?'Уведомления Наталии в prc: только при расчётной чистой прибыли ≤ 0 ₽. ':'Уведомления выключены. ')+
+      (d.runtime?.last_error?'Есть ошибка обработки; подробности видны в очереди. ':'')+
+      ((d.notifications?.uncertain||d.notifications?.failed)?'Есть уведомления с неподтверждённой доставкой; автоматический дубль не отправляется. ':'')+
+      'Таблица обновляется из сохранённых данных раз в минуту.';
+    $('stats').innerHTML=[['Заказов в выборке',total],['Ожидают проверки',d.queue?.pending??0],
+      ['Последнее получение Ozon',dt(sync?.completed_at)]].map(([label,value])=>`<div class="bi"><div class="l">${esc(label)}</div><div class="v">${esc(value)}</div></div>`).join('');
+    $('message').textContent=!d.installed?'Хранилище пилота ещё не установлено.':!total?
+      ($('signal').value==='non_positive_profit'?'По текущим проверенным данным заказов с чистой прибылью ≤ 0 ₽ по выбранным условиям нет. Непроверенные заказы в этот результат не входят.':'Заказов по этим условиям пока нет.') : '';
+    $('rows').innerHTML=d.rows.map(row=>{
+      const r=row.result||{},valid=row.current&&!row.job_error;
+      const economicValid=valid&&row.basis_current;
+      const hasMS=Boolean(r.positions?.length);
+      const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity}))||[];
+      const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар Ozon; состав МС ещё не проверен';
+      const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
+      return `<tr><td><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?'Поступил в Ozon':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
+        <button class="small" data-history="${Number(row.id)}">История проверок</button></td>
+        <td><div>Ozon: ${esc(mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
+        <td><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>`).join('')}
+          <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
+        <td class="money">${esc(money(row.mp_price))}<div class="small">МС: ${esc(money(r.ms_price))}</div></td>
+        <td class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
+        <td class="money ${economicValid&&r.estimated_net!=null?(Number(r.estimated_net)<=0?'danger':'pos'):''}">${esc(money(economicValid?r.estimated_net:null))}</td>
+        <td class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
+        <td><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div></td>
+        <td class="nowrap">${esc(dt(row.ms_checked_at))}</td></tr>`;
+    }).join('');
+    $('count').textContent=total?`${offset+1}–${Math.min(offset+50,total)} из ${total}`:'0 заказов';
+    $('prev').disabled=offset===0;$('next').disabled=offset+50>=total;
+  }catch(e){if(n===request){$('message').textContent=e.message;$('rows').innerHTML='';}}
+}
+$('refresh').onclick=()=>{offset=0;load();};
+for(const id of ['status','signal'])$(id).onchange=()=>{offset=0;load();};
+$('search').onkeydown=e=>{if(e.key==='Enter'){offset=0;load();}};
+$('prev').onclick=()=>{offset=Math.max(0,offset-50);load();};
+$('next').onclick=()=>{offset+=50;load();};
+$('close').onclick=()=>$('history').close();
+async function copyOrderNumber(value){
+  try{
+    if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(value);return;}
+  }catch(e){/* Try selection-based copying when clipboard permission is unavailable. */}
+  const field=document.createElement('textarea');
+  field.value=value;field.readOnly=true;field.style.position='fixed';field.style.opacity='0';
+  document.body.appendChild(field);
+  try{field.select();if(!document.execCommand('copy'))throw new Error('copy_failed');}
+  finally{field.remove();}
+}
+$('rows').onclick=async e=>{
+  const copy=e.target.closest('[data-copy]');
+  if(copy){
+    try{await copyOrderNumber(copy.dataset.copy);$('copy-status').textContent='Номер '+copy.dataset.copy+' скопирован.';}
+    catch(error){$('copy-status').textContent='Браузер не разрешил копирование. Выделите номер '+copy.dataset.copy+' и скопируйте вручную.';}
+    return;
+  }
+  const button=e.target.closest('[data-history]');if(!button)return;
+  $('history').showModal();$('history-body').textContent='Загрузка…';
+  try{const d=await api('/api/customer-orders/'+button.dataset.history+'/history');
+    $('history-body').innerHTML=d.rows.length?d.rows.map(x=>`<p><b>${esc(dt(x.calculated_at))}</b> · ${esc(signals[x.result.signal]||x.result.signal)}<br>
+      ${esc(kinds[x.result.cost_kind]||'Стоимость не определена')}: ${esc(money(x.result.cost))} · Пол: ${esc(money(x.result.floor))}<br>
+      Расчётная чистая прибыль: ${esc(money(x.result.estimated_net))}<br>${esc(x.result.note)}
+      ${x.result.recalculation?`<br>${x.result.recalculation==='expense_basis_and_composition'?'Пересчёт базы и состава по справочнику ТК':'Пересчёт базы расходов'}; себестоимость проверена ${esc(dt(x.result.cost_observed_at))}`:''}
+      ${x.result.expense_period_from?`<br>База расходов: ${esc(x.result.expense_period_from)} — ${esc(x.result.expense_period_to)}`:''}</p>`).join(''):'Проверок пока нет.';
+  }catch(e){$('history-body').textContent=e.message;}
+};
+load();
+setInterval(()=>{if(!document.hidden&&!$('history').open)load();},60000);
+</script>
+</body>
+</html>

@@ -9,6 +9,7 @@ from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 from core import db
+from shipment_guard import config
 
 @contextmanager
 def transaction(fast=False):
@@ -63,15 +64,19 @@ def accept(account, request, payload, events, event_at=None, transport='webhook'
 
 
 def claim():
+    since=config.pilot_since()
+    scope="AND last_source='webhook' AND requested_at >= %s" if since else ''
+    params=(since,str(uuid4())) if since else (str(uuid4()),)
     with transaction() as c:
-        c.execute("""WITH candidate AS (
+        c.execute(f"""WITH candidate AS (
           SELECT account_id,demand_id FROM ms_shipment_jobs
           WHERE ((state IN ('pending','retry') AND next_attempt_at<=now())
              OR (state='running' AND locked_until<now()))
+          {scope}
           ORDER BY next_attempt_at,first_seen_at FOR UPDATE SKIP LOCKED LIMIT 1)
           UPDATE ms_shipment_jobs j SET state='running',lease_token=%s,
             locked_until=now()+interval '10 minutes',attempts=attempts+1
-          FROM candidate x WHERE j.account_id=x.account_id AND j.demand_id=x.demand_id RETURNING j.*""",(str(uuid4()),))
+          FROM candidate x WHERE j.account_id=x.account_id AND j.demand_id=x.demand_id RETURNING j.*""",params)
         r=c.fetchone()
         return dict(r) if r else None
 
@@ -81,6 +86,19 @@ def heartbeat(job):
         c.execute("UPDATE ms_shipment_jobs SET locked_until=now()+interval '10 minutes' WHERE account_id=%s AND demand_id=%s AND lease_token=%s AND state='running'",(job['account_id'],job['demand_id'],job['lease_token']))
         if c.rowcount != 1:
             raise RuntimeError('lease_lost')
+
+
+def skip_outside_pilot(job):
+    """Release routing-only work without touching financial assessments or FIFO dates."""
+    with transaction() as c:
+        c.execute("""UPDATE ms_shipment_jobs SET processed_generation=%s,
+          state=CASE WHEN requested_generation=%s THEN 'done' ELSE 'pending' END,
+          locked_until=NULL,lease_token=NULL,processed_at=now(),last_checked_at=now(),last_error=NULL
+          WHERE account_id=%s AND demand_id=%s AND lease_token=%s AND state='running'
+          RETURNING state""",(job['requested_generation'],job['requested_generation'],
+          job['account_id'],job['demand_id'],job['lease_token']))
+        row=c.fetchone()
+        return row is not None and row['state']=='done'
 
 
 def finish(job, result, raw_document=None, raw_fifo=None, raw_order=None, retry=False):

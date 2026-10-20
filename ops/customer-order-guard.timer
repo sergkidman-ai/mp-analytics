@@ -1,0 +1,11 @@
+[Unit]
+Description=Wake Pult customer order queue (business intervals: 10 / 60 minutes)
+
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=60
+AccuracySec=5
+Unit=customer-order-guard.service
+
+[Install]
+WantedBy=timers.target

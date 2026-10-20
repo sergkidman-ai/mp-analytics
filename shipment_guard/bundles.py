@@ -1,6 +1,7 @@
 # поток: fin
 """TC BOM is a composition bridge only. FIFO always comes from this demand's report."""
 import hashlib
+import ast
 import json
 import os
 import re
@@ -12,6 +13,30 @@ from core import db
 from shipment_guard import store
 from shipment_guard.economics import number,money
 from shipment_guard.ms import SourceError
+
+
+def component_counts(components):
+    """Old TC caches contain stringified component records as well as plain codes."""
+    out=Counter()
+    entries=components.items() if isinstance(components,dict) else ((x,1) for x in components)
+    for value,count in entries:
+        if isinstance(value,str) and value.lstrip().startswith('{'):
+            if len(value)>8192:raise SourceError('tc_bom_component_format')
+            try:
+                value=ast.literal_eval(value)
+            except (ValueError,SyntaxError,RecursionError):
+                raise SourceError('tc_bom_component_format') from None
+        if isinstance(value,dict):
+            if set(value)-{'external_code','incoming_references','outgoing_references'}:
+                raise SourceError('tc_bom_component_format')
+            value=value.get('external_code')
+        if not isinstance(value,str) or not value.strip():
+            raise SourceError('tc_bom_component_format')
+        quantity=number(count)
+        if quantity<=0:raise SourceError('tc_bom_component_quantity')
+        out[value]+=quantity
+    return out
+
 
 class Catalogue:
     def __init__(self,request): self.request=request
@@ -41,7 +66,7 @@ class Catalogue:
         for component,n in bom.items():
             if component not in nested:out[component]+=n;continue
             if component in path:raise SourceError('tc_bom_cycle')
-            row=nested[component];flat,children=self._flatten(Counter(row['components']),path|{component})
+            row=nested[component];flat,children=self._flatten(component_counts(row['components']),path|{component})
             for c,count in flat.items():out[c]+=n*count
             proof[component]={'components':row['components'],'resolved_at':str(row['resolved_at']),'nested':children}
         return out,proof
@@ -50,12 +75,12 @@ class Catalogue:
         rows=db.query('SELECT components,resolved_at FROM set_cost WHERE external_code=%s',(sku,))
         if rows and rows[0].get('components'):
             components=rows[0]['components']
-            return Counter(components),{'source':'ТК set_cost.components','is_set':True,'resolved_at':str(rows[0]['resolved_at']),
+            return component_counts(components),{'source':'ТК set_cost.components','is_set':True,'resolved_at':str(rows[0]['resolved_at']),
                  'sha256':hashlib.sha256(json.dumps(components,ensure_ascii=False).encode()).hexdigest()}
         rows=db.query('SELECT * FROM ms_shipment_bom WHERE external_code=%s AND valid_until>now()',(sku,))
         if rows:
             r=rows[0]
-            return Counter(r['components']) if r['kind']=='set' else Counter({sku:1}),{
+            return component_counts(r['components']) if r['kind']=='set' else Counter({sku:1}),{
                 'source':r['source'],'is_set':r['kind']=='set','resolved_at':str(r['resolved_at']),'sha256':r['source_sha256'],'lookup_error':r['raw_payload'].get('error') if isinstance(r['raw_payload'],dict) else None}
         if not fetch:return Counter({sku:1}),{'source':'Состав отсутствует в локальном справочнике ТК'}
         key=os.getenv('CARTRIDGE_API_KEY')

@@ -1,0 +1,17 @@
+{
+  "paused_at": "2026-10-08",
+  "subscriptions_disabled": 3,
+  "other_subscriptions_preserved": 14,
+  "services": "worker and receiver stopped and disabled",
+  "queue_preserved": [
+    {
+      "state": "done",
+      "count": 248
+    },
+    {
+      "state": "error",
+      "count": 31
+    }
+  ],
+  "backup": "backups/shipment_guard_paused_20261008/"
+}

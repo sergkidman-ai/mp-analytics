@@ -1,0 +1,18 @@
+[Unit]
+Description=Pult customer orders - Ozon Diskver pilot
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics/runtime/customer-guard-current
+ExecStart=/opt/mp-analytics/venv/bin/python -m customer_guard.runtime
+TimeoutStartSec=600
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/mp-analytics/runtime

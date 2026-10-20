@@ -1,0 +1,63 @@
+{
+  "window": {
+    "since": "2026-10-19T00:00:00Z",
+    "to": "2026-10-20T13:18:03Z"
+  },
+  "page_count": 2,
+  "posting_count": 34,
+  "complete": true,
+  "matched_ms": 34,
+  "ms_user": "yunusov@dsquare",
+  "mp_statuses": {
+    "delivering": 12,
+    "awaiting_packaging": 17,
+    "delivered": 2,
+    "cancelled": 1,
+    "awaiting_deliver": 2
+  },
+  "ms_statuses": {
+    "В пути": 12,
+    "Неукомплектован": 17,
+    "Доставлен": 2,
+    "Отменен - сроки": 1,
+    "Собирается": 1,
+    "Подтвержден": 1
+  },
+  "confirmed_filter": {
+    "field": "filter.statuses",
+    "sort": "sort_dir=DESC",
+    "sample_count": 10,
+    "complete_filtered_query": false
+  },
+  "price_difference_count": 19,
+  "max_abs_price_difference_rub": "0.99",
+  "same_posting_v4_v3_price": true,
+  "confirmed_example": {
+    "number": "0142557324-0141-1",
+    "store": "Дисквер",
+    "mp_units": 1,
+    "ms_components": 6,
+    "fifo_rub": "510.08"
+  },
+  "split_example": {
+    "parent": "0177163975-0149",
+    "separate_ms_orders": true,
+    "separate_demands": true,
+    "mp_quantities": [
+      1,
+      2
+    ]
+  },
+  "selected_replacement_example": {
+    "number": "45473453-0495-1",
+    "market_set": "2306",
+    "ms_set": "3196",
+    "semantic_equivalence_verified": false
+  },
+  "calls": {
+    "ozon": 6,
+    "ms": 9
+  },
+  "non200": [],
+  "operational_changes": false
+}

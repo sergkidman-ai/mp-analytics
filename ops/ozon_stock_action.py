@@ -279,7 +279,7 @@ def cogs_map(offers, titles=None):
 
 def floor_price(cogs, keep, quantity=1):
     """Пол цены: себест + max(300 ₽ × N, 10 % полного себеста) / доля продавца.
-    Общий для лестницы и сторожа акций (ops/ozon_promo_guard.py) — иначе они спорят о товаре."""
+    Общий для лестницы и сторожа акций; единое округление с заказами."""
     from core.ozon_expense_basis import floor_from_keep
     return float(floor_from_keep(cogs,quantity,keep))
 

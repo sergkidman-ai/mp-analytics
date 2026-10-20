@@ -1,0 +1,13 @@
+# поток: fin
+[Unit]
+Description=Shipment guard durable worker
+After=network-online.target docker.service
+[Service]
+WorkingDirectory=/opt/mp-analytics/.claude/worktrees/fin-shipment-guard
+ExecStart=/opt/mp-analytics/venv/bin/python -m shipment_guard.worker
+Restart=on-failure
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+[Install]
+WantedBy=multi-user.target

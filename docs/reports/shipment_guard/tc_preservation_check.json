@@ -1,0 +1,7 @@
+{
+  "parallel_files": {
+    "docs/BRIEF_MKT.md": "6a4a9e1a3b9dc8c58560a58d9b78040f3caf18c7eb24c8cf7098d005f8c469b7",
+    "docs/reports/mkt_glue_journal.jsonl": "fecfb3b628b3e6fad4fa5eb32bb50c2a0406f92743fd4e31ec1ae00d4d659a71"
+  },
+  "note": "Concurrent mkt edits observed; not restored or written by shipment-guard task"
+}
