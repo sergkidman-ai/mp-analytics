@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "recipe": "prepare merged worktree; read-tree target index; merge --ff-only target",
+  "tracked_foreign_changes_preserved": true,
+  "untracked_matching_new_files_preserved": true
+}
