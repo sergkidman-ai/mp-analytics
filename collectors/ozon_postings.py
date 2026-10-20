@@ -19,6 +19,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from core.ozon_posting import PostingProtocolError, product_price, rub, money_amount  # noqa: E402
+from core.ozon_posting_lock import account_lock  # noqa: E402; public context for point-get callers
 from collectors.ozon import _headers  # noqa: E402
 
 FBS_URL = 'https://api-seller.ozon.ru/v4/posting/fbs/list'
@@ -39,13 +40,18 @@ def retry_after(value):
             return 0
 
 
-def request_page(url, headers, body, *, deadline=None):
+def request_page(url, headers, body, *, deadline=None, check_lock=None):
     """Bound each page by attempts and elapsed time, including server pauses."""
     deadline = min(deadline if deadline is not None else float('inf'), time.monotonic() + PAGE_BUDGET)
     for attempt in range(MAX_ATTEMPTS):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise TimeoutError('Ozon posting page retry budget exhausted')
+        if check_lock is not None:
+            check_lock()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError('Ozon posting page budget exhausted during lock check')
         try:
             response = requests.post(url, headers=headers, json=body,
                                      timeout=(min(5, remaining/4), min(30, remaining*3/4)))
@@ -129,13 +135,16 @@ def _window_bound(value, *, end=False):
 
 
 def fetch_postings(account, scheme, date_from, date_to, *, limit=1000,
-                   max_pages=None, timeout=WINDOW_BUDGET, statuses=None, sort_dir=None):
+                   max_pages=None, timeout=None, window_budget=None, lock_timeout=5,
+                   statuses=None, sort_dir=None):
     """Read a complete inclusive UTC window, or raise. Never writes to DB.
 
     date_from/date_to: ISO dates (legacy whole days), aware datetime objects or
     ISO timestamps with Z/offset. Date callers retain their existing contract.
-    limit: page size; max_pages: complete-window cap; timeout: total budget in
-    seconds, shared by HTTP attempts, Retry-After and pagination pauses.
+    limit: page size; max_pages: complete-window cap; window_budget: total seconds,
+    including account lock wait, HTTP attempts, Retry-After and pagination pauses.
+    timeout is the backwards-compatible alias; default budget is WINDOW_BUDGET.
+    lock_timeout bounds waiting for the shared per-account PostgreSQL session lock.
     Optional FBS statuses uses filter.statuses; only verified sort_dir='DESC' is
     exposed. Requested filtering/order is validated across all returned pages.
     Defaults retain ALL statuses for the financial collector. Return is a list
@@ -146,8 +155,14 @@ def fetch_postings(account, scheme, date_from, date_to, *, limit=1000,
     max_pages = MAX_PAGES if max_pages is None else max_pages
     if type(max_pages) is not int or not 1 <= max_pages <= MAX_PAGES:
         raise ValueError('Invalid posting page cap')
-    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
-        raise ValueError('Posting timeout must be finite positive seconds')
+    for budget in (timeout, window_budget):
+        if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float)) or not math.isfinite(budget) or budget <= 0):
+            raise ValueError('Posting window budget must be finite positive seconds')
+    if timeout is not None and window_budget is not None and timeout != window_budget:
+        raise ValueError('Conflicting timeout/window_budget values')
+    budget = window_budget if window_budget is not None else timeout if timeout is not None else WINDOW_BUDGET
+    if isinstance(lock_timeout, bool) or not isinstance(lock_timeout, (int, float)) or not math.isfinite(lock_timeout) or lock_timeout < 0:
+        raise ValueError('Invalid Ozon account lock timeout')
     if statuses is not None:
         if not isinstance(statuses, (list, tuple)) or not statuses or any(not isinstance(s, str) or not s.strip() for s in statuses):
             raise ValueError('Posting statuses must be a nonempty list of strings')
@@ -168,13 +183,22 @@ def fetch_postings(account, scheme, date_from, date_to, *, limit=1000,
     body = {'filter': flt, 'limit': limit, 'cursor': '', 'with': {'financial_data': True}}
     if sort_dir is not None:
         body['sort_dir'] = sort_dir
+    deadline = time.monotonic() + budget
+    with account_lock(account, timeout=min(lock_timeout, budget)) as lease:
+        return _fetch_pages(url, headers, body, start, end, scheme, max_pages=max_pages,
+                            deadline=deadline, check_lock=lease.check)
+
+
+def _fetch_pages(url, headers, body, start, end, scheme, *, max_pages, deadline, check_lock):
     out, numbers, cursors = [], set(), set()
-    deadline = time.monotonic() + timeout
+    limit = body['limit']
+    statuses = body['filter'].get('statuses')
+    sort_dir = body.get('sort_dir')
     previous_stamp = None
     for index in range(max_pages):
         if time.monotonic() >= deadline:
             raise TimeoutError('Ozon posting window budget exhausted')
-        result = request_page(url, headers, body, deadline=deadline)
+        result = request_page(url, headers, body, deadline=deadline, check_lock=check_lock)
         if not isinstance(result, dict) or not isinstance(result.get('postings'), list) or type(result.get('has_next')) is not bool or not isinstance(result.get('cursor'), str):
             raise PostingProtocolError('Expected root postings:list / has_next:bool / cursor:str')
         posts, has_next, cursor = result['postings'], result['has_next'], result['cursor']
