@@ -7,8 +7,9 @@ from decimal import Decimal
 
 import requests
 from core import db
+from core.ozon_expense_basis import get_basis, BasisUnavailable
 from customer_guard import store
-from customer_guard.domain import ACTIVE, utcnow
+from customer_guard.domain import ACTIVE, utcnow, non_positive_profit
 
 
 @lru_cache(maxsize=1)
@@ -29,25 +30,28 @@ def transport():
 
 
 def message(row):
-    if row["kind"] == "missing_ms":
-        return (f"Заказ не найден в МС\nOzon · Дисквэр · {row['posting_number']}\n"
-                "После получения Пультом прошло более 10 минут. Отправление активно в Ozon; "
-                "проверка МС выполнена успешно, заказ не найден.\n"
-                "Пульт → Склад → Заказы покупателей.")
     r = row["result"]
+    if row["kind"] != "non_positive_profit" or not non_positive_profit(r):
+        raise ValueError("notification_outside_profit_policy")
     rub = lambda key: f"{Decimal(r[key]):.2f} ₽"
-    return (f"Ниже целевого пола\nOzon · Дисквэр · {row['posting_number']}\n"
+    title = "Расчётный убыток" if Decimal(r["estimated_net"]) < 0 else "Заказ без прибыли"
+    return (f"{title}\nOzon · Дисквэр · {row['posting_number']}\n"
             f"МС: {row['ms_status']}\nЦена: {rub('price')}; себестоимость: {rub('cost')} "
             f"({'факт отгрузки' if r['cost_kind']=='actual' else 'предварительная оценка'}).\n"
             f"Пол: {rub('floor')}; отклонение: {rub('gap')}.\n"
-            f"Расчётный остаток: {rub('estimated_net')} — по средней доле расходов кабинета, "
-            "не фактическая прибыль заказа.\n"+
+            f"Расчётная чистая прибыль: {rub('estimated_net')}.\n"
+            "Цена минус себестоимость и расходы Ozon по средней доле кабинета. "
+            "Оценка по текущим данным; начисления по заказу могут отличаться.\n"+
             ("Соответствие состава не подтверждено; проверен общий итог.\n"
              if r.get("allocation")!="single_market_line" else "")+
             "Пульт → Склад → Заказы покупателей.")
 
 
 def claim(order_id, recipient, now):
+    try:
+        version = get_basis("oz_acc2")["version"]
+    except BasisUnavailable:
+        return None
     with store.transaction() as cur:
         cur.execute("""SELECT i.id,i.kind,o.posting_number,o.ms_status,c.result
           FROM customer_guard_incidents i JOIN customer_guard_orders o ON o.id=i.order_id
@@ -57,15 +61,14 @@ def claim(order_id, recipient, now):
           AND r.enabled AND r.notifications_enabled AND c.calculated_at>=r.activated_at
           AND i.check_id=c.id AND c.generation=o.generation AND j.state='done' AND j.error IS NULL
           AND o.mp_status=ANY(%s) AND o.observed_at>=%s AND o.ms_checked_at>=%s
-          AND o.ms_due_at<=%s AND i.kind=c.result->>'signal'
-          AND (i.kind='missing_ms' AND o.ms_id IS NULL OR
-               i.kind='below_floor' AND o.ms_status=ANY(%s)
-               AND o.mp_status IN ('awaiting_packaging','awaiting_deliver'))
+          AND o.ms_due_at<=%s AND i.kind='non_positive_profit'
+          AND c.result->>'rule_version'=%s AND o.ms_status=ANY(%s)
+          AND o.mp_status IN ('awaiting_packaging','awaiting_deliver')
           FOR UPDATE OF i,o SKIP LOCKED LIMIT 1""",
-          (order_id,list(ACTIVE),now-timedelta(seconds=60),now-timedelta(seconds=60),now,
+          (order_id,list(ACTIVE),now-timedelta(seconds=60),now-timedelta(seconds=60),now,version,
            ["Подтвержден","Собирается","Неукомплектован"]))
         row = cur.fetchone()
-        if not row:
+        if not row or not non_positive_profit(row["result"]):
             return None
         cur.execute("""UPDATE customer_guard_incidents SET delivery='sending',
           recipient=%s,attempted_at=%s,delivery_error=NULL WHERE id=%s""", (recipient,now,row["id"]))
@@ -83,6 +86,7 @@ def send_current(order_id):
     # Do not call Telegram at all when there is nothing eligible to deliver.
     candidates=db.query("""SELECT 1 FROM customer_guard_incidents i
       CROSS JOIN customer_guard_runtime r WHERE i.order_id=%s AND i.delivery='pending'
+      AND i.kind='non_positive_profit'
       AND i.resolved_at IS NULL AND r.enabled AND r.notifications_enabled LIMIT 1""", (order_id,))
     if not candidates:
         return "none"
@@ -90,6 +94,10 @@ def send_current(order_id):
     row = claim(order_id,recipient,utcnow())
     if not row:
         return "stale_or_disabled"
+    try:
+        basis_current = get_basis("oz_acc2")["version"] == row["result"]["rule_version"]
+    except BasisUnavailable:
+        basis_current = False
     # Stop/changed-order guard immediately before the external side effect.
     valid=db.query("""SELECT 1 FROM customer_guard_incidents i
       JOIN customer_guard_orders o ON o.id=i.order_id
@@ -97,7 +105,7 @@ def send_current(order_id):
       WHERE i.id=%s AND i.delivery='sending' AND i.resolved_at IS NULL
       AND i.check_id=c.id AND c.generation=o.generation AND r.enabled AND r.notifications_enabled
       AND o.mp_status=ANY(%s)""",(row["id"],list(ACTIVE)))
-    if not valid:
+    if not valid or not basis_current:
         return complete(row["id"],"suppressed",error="changed_before_send")
     try:
         response=requests.post(root+"/sendMessage",

@@ -13,6 +13,16 @@ TERMINAL = frozenset(("cancelled", "delivered"))
 READY = frozenset(("Неукомплектован", "Подтвержден", "Собирается"))
 
 
+def non_positive_profit(result):
+    """Only complete financial calculations can trigger a loss/break-even alert."""
+    if not result.get("rule_version") or result.get("floor") is None:
+        return False
+    try:
+        return number(result.get("estimated_net")) <= 0
+    except (ValueError, TypeError):
+        return False
+
+
 def utcnow():
     return datetime.now(timezone.utc)
 

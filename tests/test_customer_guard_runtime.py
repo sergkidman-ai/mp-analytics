@@ -15,8 +15,8 @@ def activate():
       activated_at=%s,heartbeat_at=%s WHERE id""",(NOW,NOW))
 
 
-def checked(number="123-001-1", status="awaiting_packaging", ms_state=None, signal="missing_ms",
-            cost_kind=None):
+def checked(number="123-001-1", status="awaiting_packaging", ms_state="Подтвержден", signal="below_floor",
+            cost_kind="fifo_estimate", net="-0.01", version="test-basis"):
     post=posting(number,status)
     ingest([post])
     at=NOW+timedelta(minutes=10)
@@ -24,7 +24,7 @@ def checked(number="123-001-1", status="awaiting_packaging", ms_state=None, sign
     assert store.refresh(job,post,at)
     document={"id":str(uuid4()),"state":{"name":ms_state}} if ms_state else None
     result=dict(signal=signal,cost_kind=cost_kind,price="728",cost="69.28",
-                floor="941.85",gap="-213.85",estimated_net="216.15")
+                floor="941.85",gap="-213.85",estimated_net=net,rule_version=version)
     assert store.finish(job,result,at,document)
     return job["order_id"],at
 
@@ -32,6 +32,7 @@ def checked(number="123-001-1", status="awaiting_packaging", ms_state=None, sign
 def fake_transport(monkeypatch, at):
     monkeypatch.setattr(n,"transport",lambda:("https://unused.invalid","natalia-only"))
     monkeypatch.setattr(n,"utcnow",lambda:at)
+    monkeypatch.setattr(n,"get_basis",lambda account:{"version":"test-basis"})
 
 
 def test_hourly_rechecks_do_not_poll_shipped_or_shorten_retry(pg):
@@ -63,7 +64,7 @@ def test_sent_once_to_single_recipient(pg,monkeypatch):
     assert n.send_current(oid)=="none"
     assert post.call_count==1
     body=post.call_args.kwargs["json"]
-    assert body["chat_id"]=="natalia-only" and "не найден" in body["text"]
+    assert body["chat_id"]=="natalia-only" and "Расчётная чистая прибыль: -0.01 ₽" in body["text"]
     assert db.query("SELECT telegram_message_id FROM customer_guard_incidents")[0]["telegram_message_id"]==123
 
 
@@ -106,19 +107,49 @@ def test_cancel_between_claim_and_send(pg,monkeypatch):
     assert not post.called
 
 
-def test_below_floor_only_before_departure_and_message_not_actual_loss(pg):
-    ready,at=checked(signal="below_floor",ms_state="Неукомплектован",cost_kind="purchase_estimate")
-    checked("123-001-2",status="delivering",signal="below_floor",ms_state="В пути",cost_kind="actual")
-    rows=db.query("SELECT * FROM customer_guard_incidents")
-    assert len(rows)==1 and rows[0]["order_id"]==ready
-    text=n.message(dict(kind="below_floor",posting_number="123",ms_status="Неукомплектован",
-        result=dict(price="728",cost="69.28",floor="941.85",gap="-213.85",
-                    estimated_net="216.15",cost_kind="purchase_estimate")))
-    assert "предварительная оценка" in text and "не фактическая прибыль" in text
-    assert "убыток" not in text
+@pytest.mark.parametrize("net,expected",[("-100.60",True),("0",True),("0.01",False),
+    ("216.15",False),(None,False),("NaN",False),("Infinity",False),(True,False)])
+def test_profit_threshold_and_message(pg,monkeypatch,net,expected):
+    activate();oid,at=checked(net=net)
+    fake_transport(monkeypatch,at)
+    post=Mock(return_value=Mock(status_code=200,json=lambda:{"ok":True,"result":{"message_id":7}}))
+    monkeypatch.setattr(n.requests,"post",post)
+    assert n.send_current(oid)==("sent" if expected else "none")
+    assert post.called==expected
+    if expected:
+        text=post.call_args.kwargs["json"]["text"]
+        assert "Расчётная чистая прибыль:" in text and "по средней доле кабинета" in text
+        assert "предварительная оценка" in text
+
+
+@pytest.mark.parametrize("kwargs",[
+    {"status":"delivering","ms_state":"В пути"},
+    {"ms_state":"Ожидает подтверждения"},
+    {"signal":"missing_ms","ms_state":None,"net":None},
+    {"version":None},
+])
+def test_no_alert_outside_ready_orders_and_complete_calculation(pg,kwargs):
+    checked(**kwargs)
+    assert not db.query("SELECT * FROM customer_guard_incidents")
+
+
+@pytest.mark.parametrize("mode",["stale_basis","unavailable_basis","legacy_kind","basis_changed_before_send"])
+def test_sender_rechecks_policy_and_expense_basis(pg,monkeypatch,mode):
+    activate();oid,at=checked();fake_transport(monkeypatch,at)
+    if mode=="legacy_kind":db.execute("UPDATE customer_guard_incidents SET kind='below_floor'")
+    if mode=="stale_basis":monkeypatch.setattr(n,"get_basis",lambda account:{"version":"other"})
+    if mode=="unavailable_basis":monkeypatch.setattr(n,"get_basis",Mock(side_effect=n.BasisUnavailable("missing")))
+    if mode=="basis_changed_before_send":
+        monkeypatch.setattr(n,"get_basis",Mock(side_effect=[{"version":"test-basis"},{"version":"other"}]))
+    post=Mock(side_effect=AssertionError("must not send"))
+    monkeypatch.setattr(n.requests,"post",post)
+    n.send_current(oid)
+    assert not post.called
 
 
 def test_tick_disabled_no_network_and_ten_minute_sync_gate(pg,monkeypatch):
+    # Advisory locks are database-wide even when fixture tables use a private schema.
+    monkeypatch.setattr(runtime,"RUNTIME_LOCK",uuid4().int % (2**63-1))
     sync=Mock(return_value={})
     monkeypatch.setattr(runtime.service,"sync",sync)
     assert runtime.tick()=={"enabled":False}

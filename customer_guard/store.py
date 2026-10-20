@@ -8,7 +8,7 @@ from uuid import uuid4
 from psycopg2.extras import Json, RealDictCursor
 from core import db
 from customer_guard.domain import ACTIVE, TERMINAL, digest, initial_due, posting_snapshot, posting_hash, sale
-from customer_guard.domain import economics, composition
+from customer_guard.domain import economics, composition, non_positive_profit
 
 
 def reprice(rule, now, resolver=None):
@@ -218,8 +218,8 @@ def finish(job, result, now, document=None, evidence=None):
                   VALUES(%s,'demand',%s,%s,%s) ON CONFLICT(order_id,entity_type,entity_id)
                   DO UPDATE SET checked_at=excluded.checked_at,version=excluded.version""",
                   (job["order_id"], source["entity_id"], now, source.get("version")))
-        kind = result.get("signal")
-        actionable = kind == "missing_ms" or (kind == "below_floor" and
+        kind = "non_positive_profit"
+        actionable = (non_positive_profit(result) and
             job["order"]["mp_status"] in ("awaiting_packaging", "awaiting_deliver") and
             (document or {}).get("state", {}).get("name") in ("Подтвержден","Собирается","Неукомплектован"))
         if actionable:

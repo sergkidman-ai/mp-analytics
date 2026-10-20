@@ -87,13 +87,14 @@ main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:1
   <p id="message" role="status" aria-live="polite"></p>
   <div class="tablewrap">
     <table><thead><tr><th>Отправление</th><th>Статусы</th><th>Выбранный товар / склад</th>
-      <th class="money">Цена Ozon</th><th class="money">Себестоимость</th><th class="money">Пол</th>
+      <th class="money">Цена Ozon</th><th class="money">Себестоимость</th><th class="money">Чистая прибыль<div class="small">расчёт по текущим данным</div></th><th class="money">Пол</th>
       <th class="money">Отклонение</th><th>Результат</th><th>Проверено в МС</th></tr></thead><tbody id="rows"></tbody></table>
   </div>
   <div class="footer"><span id="count" class="small"></span><div>
     <button id="prev">← Назад</button> <button id="next">Далее →</button></div></div>
   <p class="note">Цена продавца — из Ozon; обе суммы Ozon и МС сохранены. Отклонение — цена минус пол, не чистая прибыль.
-    Расчётный остаток использует общую долю расходов кабинета, а не фактические начисления по заказу.
+    Расчётная чистая прибыль = цена Ozon − себестоимость − расходы Ozon по средней доле кабинета.
+    Фактические начисления по заказу могут отличаться.
     Предварительная стоимость может измениться до отгрузки. Один набор считается одной продаваемой единицей.</p>
   <dialog id="history"><button id="close">Закрыть</button><h2>История проверок</h2><div id="history-body"></div></dialog>
 </main>
@@ -125,7 +126,7 @@ async function load(){
     $('runtime').textContent=(d.automatic_updates?
       'Фоновая обработка включена: новые заказы — каждые 10 минут; первая проверка МС — после 10 минут с получения; повторные проверки до отгрузки — раз в 60 минут. ':
       d.runtime?.enabled?'Фоновая обработка включена, но её работа пока не подтверждена. ':'Фоновая обработка выключена. ')+
-      (d.notifications_enabled?'Уведомления Наталии в prc включены. ':'Уведомления выключены. ')+
+      (d.notifications_enabled?'Уведомления Наталии в prc: только при расчётной чистой прибыли ≤ 0 ₽. ':'Уведомления выключены. ')+
       (d.runtime?.last_error?'Есть ошибка обработки; подробности видны в очереди. ':'')+
       ((d.notifications?.uncertain||d.notifications?.failed)?'Есть уведомления с неподтверждённой доставкой; автоматический дубль не отправляется. ':'')+
       'Таблица обновляется из сохранённых данных раз в минуту.';
@@ -145,9 +146,9 @@ async function load(){
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
         <td class="money">${esc(money(row.mp_price))}<div class="small">МС: ${esc(money(r.ms_price))}</div></td>
         <td class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
+        <td class="money ${economicValid&&r.estimated_net!=null?(Number(r.estimated_net)<=0?'danger':'pos'):''}">${esc(money(economicValid?r.estimated_net:null))}</td>
         <td class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
-        <td><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div>
-          ${economicValid&&r.estimated_net!=null?`<div class="small ${Number(r.estimated_net)<0?'danger':''}">${Number(r.estimated_net)<0?'Расчётный убыток':'Расчётный остаток'}: ${esc(money(r.estimated_net))}</div>`:''}</td>
+        <td><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div></td>
         <td class="nowrap">${esc(dt(row.ms_checked_at))}</td></tr>`;
     }).join('');
     $('count').textContent=total?`${offset+1}–${Math.min(offset+50,total)} из ${total}`:'0 заказов';
@@ -165,7 +166,8 @@ $('rows').onclick=async e=>{
   $('history').showModal();$('history-body').textContent='Загрузка…';
   try{const d=await api('/api/customer-orders/'+button.dataset.history+'/history');
     $('history-body').innerHTML=d.rows.length?d.rows.map(x=>`<p><b>${esc(dt(x.calculated_at))}</b> · ${esc(signals[x.result.signal]||x.result.signal)}<br>
-      ${esc(kinds[x.result.cost_kind]||'Стоимость не определена')}: ${esc(money(x.result.cost))} · Пол: ${esc(money(x.result.floor))}<br>${esc(x.result.note)}
+      ${esc(kinds[x.result.cost_kind]||'Стоимость не определена')}: ${esc(money(x.result.cost))} · Пол: ${esc(money(x.result.floor))}<br>
+      Расчётная чистая прибыль: ${esc(money(x.result.estimated_net))}<br>${esc(x.result.note)}
       ${x.result.recalculation?`<br>${x.result.recalculation==='expense_basis_and_composition'?'Пересчёт базы и состава по справочнику ТК':'Пересчёт базы расходов'}; себестоимость проверена ${esc(dt(x.result.cost_observed_at))}`:''}
       ${x.result.expense_period_from?`<br>База расходов: ${esc(x.result.expense_period_from)} — ${esc(x.result.expense_period_to)}`:''}</p>`).join(''):'Проверок пока нет.';
   }catch(e){$('history-body').textContent=e.message;}

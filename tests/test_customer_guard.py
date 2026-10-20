@@ -288,11 +288,13 @@ def test_stale_lease_and_changed_composition_cannot_finish(pg):
     assert not store.finish(next_job, {"signal":"missing_ms"}, NOW+timedelta(minutes=22))
 
 
-def test_incident_dedup_and_resolve_on_appearance(pg):
+def test_loss_incident_dedup_and_resolve_on_draft(pg):
     ingest([posting()])
     job = store.claim(NOW+timedelta(minutes=10))
-    assert store.finish(job, {"signal":"missing_ms"}, NOW+timedelta(minutes=11))
-    assert not store.finish(job, {"signal":"missing_ms"}, NOW+timedelta(minutes=11))
+    loss = dict(signal="below_floor", estimated_net="-1", floor="100", rule_version="test")
+    ready = {"id":str(uuid4()), "state":{"name":"Подтвержден"}}
+    assert store.finish(job, loss, NOW+timedelta(minutes=11), ready)
+    assert not store.finish(job, loss, NOW+timedelta(minutes=11), ready)
     assert len(db.query("SELECT * FROM customer_guard_incidents")) == 1
     changed = posting(status="awaiting_deliver")
     ingest([changed], NOW+timedelta(minutes=12))

@@ -13,7 +13,7 @@ from core.ozon_expense_basis import shipment_rule, BasisUnavailable
 from shipment_guard.ms import SourceError
 from shipment_guard.worker import LOCK_ID
 from customer_guard import store
-from customer_guard.domain import ACTIVE, READY, composition, economics, sale, utcnow
+from customer_guard.domain import ACTIVE, READY, composition, economics, sale, utcnow, non_positive_profit
 from customer_guard.sources import CustomerMS, get_posting
 
 MESSAGES = {
@@ -150,8 +150,7 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting
                     latest = client.get(f"/entity/customerorder/{document['id']}")
                     if latest.get("updated") != document.get("updated"):
                         raise SourceError("ms_order_changed_during_check", 600)
-                if notify and (result["signal"]=="missing_ms" or
-                    result["signal"]=="below_floor" and post["status"]!="delivering"
+                if notify and (non_positive_profit(result) and post["status"]!="delivering"
                     and (document or {}).get("state",{}).get("name") in READY):
                     # Reconfirm price/composition/status after cost reads, before an external alert.
                     if not store.refresh(job,get(post["posting_number"]),clock()):
