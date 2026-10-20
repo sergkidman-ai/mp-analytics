@@ -15,13 +15,15 @@
 Окна: реклама — посуточная витрина mkt_ozon_ads_sku_daily (всё, что есть), продажи — 90 дней
 по raw_ozon_posting. На площадку скрипт НИЧЕГО не отправляет: только CSV в docs/reports/.
 """
+import pathlib
 import csv
 import datetime as dt
 import os
 import sys
 
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db
+from core.ozon_posting import posting_money_sql
 
 ACC = 'oz_acc2'
 OUT = 'docs/reports'
@@ -29,7 +31,7 @@ SALES_DAYS = 90
 
 
 def rows(q, p=()):
-    return db.query(q, p)
+    return db.query(posting_money_sql(q), p)
 
 
 def main():
@@ -49,7 +51,7 @@ def main():
             SELECT pr->>'sku' sku,
                    sum(CASE WHEN p.status<>'cancelled' THEN (pr->>'quantity')::numeric ELSE 0 END) qty,
                    sum(CASE WHEN p.status<>'cancelled'
-                            THEN (pr->>'price')::numeric*(pr->>'quantity')::numeric ELSE 0 END) rev,
+                            THEN RUB(pr.price)*(pr->>'quantity')::numeric ELSE 0 END) rev,
                    count(*) FILTER (WHERE p.status='cancelled') canc,
                    count(*) n_post,
                    max(p.in_process_at)::date last_sale

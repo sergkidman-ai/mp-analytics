@@ -24,6 +24,7 @@
 
 На площадку скрипт НИЧЕГО не отправляет: только CSV в docs/reports/ и сводка в stdout.
 """
+import pathlib
 import argparse
 import csv
 import datetime as dt
@@ -31,8 +32,9 @@ import os
 import statistics
 import sys
 
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db
+from core.ozon_posting import posting_money_sql
 
 OUT = '/opt/mp-analytics/docs/reports'
 PPO_RATE = 0.05          # оплата за заказ, оба аккаунта с 09-10.08
@@ -65,7 +67,7 @@ def fetch(acc):
     week_from = min(weeks) if weeks else dt.date.today()
     today = dt.date.today()
 
-    rows = db.query("""
+    rows = db.query(posting_money_sql("""
     WITH ads AS (
         SELECT sku::text sku,
                sum(views) views, sum(clicks) clicks, sum(money_spent) spend,
@@ -101,15 +103,15 @@ def fetch(acc):
         SELECT pr->>'sku' sku,
                sum(CASE WHEN p.status<>'cancelled' THEN (pr->>'quantity')::numeric ELSE 0 END) qty_all,
                sum(CASE WHEN p.status<>'cancelled'
-                        THEN (pr->>'price')::numeric*(pr->>'quantity')::numeric ELSE 0 END) rev_all,
+                        THEN RUB(pr.price)*(pr->>'quantity')::numeric ELSE 0 END) rev_all,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at >= current_date - 30
                         THEN (pr->>'quantity')::numeric ELSE 0 END) qty30,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at >= current_date - 30
-                        THEN (pr->>'price')::numeric*(pr->>'quantity')::numeric ELSE 0 END) rev30,
+                        THEN RUB(pr.price)*(pr->>'quantity')::numeric ELSE 0 END) rev30,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at >= current_date - 90
                         THEN (pr->>'quantity')::numeric ELSE 0 END) qty90,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at >= current_date - 90
-                        THEN (pr->>'price')::numeric*(pr->>'quantity')::numeric ELSE 0 END) rev90,
+                        THEN RUB(pr.price)*(pr->>'quantity')::numeric ELSE 0 END) rev90,
                count(*) n_post, count(*) FILTER (WHERE p.status='cancelled') canc,
                max(p.in_process_at) FILTER (WHERE p.status<>'cancelled')::date last_sale
           FROM raw_ozon_posting p, jsonb_array_elements(p.payload->'products') pr
@@ -157,7 +159,7 @@ def fetch(acc):
       LEFT JOIN marg     m  ON m.sku  = pt.sku::text
       LEFT JOIN stock    st ON st.sku = pt.sku::text
      WHERE pt.account=%(a)s AND NOT pt.is_archived
-    """, {'a': acc, 'wf': week_from})
+    """), {'a': acc, 'wf': week_from})
 
     # конверсия клика в заказ по ценовым бакетам — из той же посуточной витрины
     cr_num, cr_den = {}, {}

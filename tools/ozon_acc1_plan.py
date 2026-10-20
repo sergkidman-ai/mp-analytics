@@ -2,9 +2,11 @@
 # ozon_acc1_plan.py — план по рекламе Ozon acc1: поднять ставку / снизить / убрать (две волны).
 # Ключ связки — offer_id (sku у ставок, витрины и отчётов площадки живут в разных пространствах).
 # Пишет docs/reports/ozon_acc1_{raise,cut,wave1,wave2}.csv + сводку ozon_acc1_plan.md.
+import pathlib
 import sys, csv, json
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db
+from core.ozon_posting import posting_money_sql
 
 ACC = 'oz_acc1'
 PPO_NEW, MARGIN_UP, KPI, SHARE = 0.05, 2.4, 25.0, 0.35   # см. docs/reports/ozon_bid_plan.md §0
@@ -27,12 +29,12 @@ mc = {r['offer_id']: r for r in db.query("""
 """, (ACC, ACC))}
 
 # продажи 90 дней (отправления, есть с 01.05.2026) и 180 дней (транзакции, с 01.01.2026)
-s90 = {r['offer_id']: (r['qty'], float(r['rev'])) for r in db.query("""
+s90 = {r['offer_id']: (r['qty'], float(r['rev'])) for r in db.query(posting_money_sql("""
     SELECT pr->>'offer_id' offer_id, sum((pr->>'quantity')::int) qty,
-           sum((pr->>'price')::numeric*(pr->>'quantity')::int) rev
+           sum(RUB(pr.price)*(pr->>'quantity')::int) rev
     FROM raw_ozon_posting t CROSS JOIN LATERAL jsonb_array_elements(t.payload->'products') pr
     WHERE t.account=%s AND (t.payload->>'in_process_at')::timestamptz >= now()-interval '90 days'
-      AND t.payload->>'status' <> 'cancelled' GROUP BY 1""", (ACC,))}
+      AND t.payload->>'status' <> 'cancelled' GROUP BY 1"""), (ACC,))}
 s180 = {r['offer_id'] for r in db.query("""
     SELECT DISTINCT p.offer_id FROM raw_ozon_transaction t
       CROSS JOIN LATERAL jsonb_array_elements(t.payload->'items') i

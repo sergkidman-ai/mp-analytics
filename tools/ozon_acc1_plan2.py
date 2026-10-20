@@ -4,9 +4,11 @@
 #   окно продаж 180 дней (транзакции), 90 дней — только как признак «живой сейчас»;
 #   + оценка органики (сколько позиция продаёт БЕЗ рекламы), + каннибализация,
 #   + кандидаты вне РК. Ключ связки — offer_id.
+import pathlib
 import sys, csv, json, re
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db
+from core.ozon_posting import posting_money_sql
 
 ACC = 'oz_acc1'
 PPO_NEW, MARGIN_UP, KPI, SHARE = 0.05, 2.4, 17.0, 0.35   # MARGIN_UP: см. ozon_bid_plan.py
@@ -33,12 +35,12 @@ mc = {r['offer_id']: r for r in db.query("""
 """, (ACC, ACC))}
 
 # продажи 90 дней — отправления (цена в payload, есть с 01.05.2026)
-s90 = {r['offer_id']: (r['qty'], float(r['rev'])) for r in db.query("""
+s90 = {r['offer_id']: (r['qty'], float(r['rev'])) for r in db.query(posting_money_sql("""
     SELECT pr->>'offer_id' offer_id, sum((pr->>'quantity')::int) qty,
-           sum((pr->>'price')::numeric*(pr->>'quantity')::int) rev
+           sum(RUB(pr.price)*(pr->>'quantity')::int) rev
     FROM raw_ozon_posting t CROSS JOIN LATERAL jsonb_array_elements(t.payload->'products') pr
     WHERE t.account=%s AND (t.payload->>'in_process_at')::timestamptz >= now()-interval '90 days'
-      AND t.payload->>'status' <> 'cancelled' GROUP BY 1""", (ACC,))}
+      AND t.payload->>'status' <> 'cancelled' GROUP BY 1"""), (ACC,))}
 
 # продажи 180 дней — транзакции: accruals_for_sale делим поровну на позиции чека
 s180 = {r['offer_id']: (r['qty'], float(r['rev'])) for r in db.query("""
@@ -51,12 +53,12 @@ s180 = {r['offer_id']: (r['qty'], float(r['rev'])) for r in db.query("""
       AND t.payload->>'operation_type' LIKE '%%DeliveredToCustomer%%' GROUP BY 1""", (ACC,))}
 
 # выручка июля — для доли рекламы в продажах (органика)
-jul = {r['offer_id']: float(r['rev']) for r in db.query("""
-    SELECT pr->>'offer_id' offer_id, sum((pr->>'price')::numeric*(pr->>'quantity')::int) rev
+jul = {r['offer_id']: float(r['rev']) for r in db.query(posting_money_sql("""
+    SELECT pr->>'offer_id' offer_id, sum(RUB(pr.price)*(pr->>'quantity')::int) rev
     FROM raw_ozon_posting t CROSS JOIN LATERAL jsonb_array_elements(t.payload->'products') pr
     WHERE t.account=%s AND (t.payload->>'in_process_at')::timestamptz >= '2026-07-01'
       AND (t.payload->>'in_process_at')::timestamptz < '2026-08-01'
-      AND t.payload->>'status' <> 'cancelled' GROUP BY 1""", (ACC,))}
+      AND t.payload->>'status' <> 'cancelled' GROUP BY 1"""), (ACC,))}
 
 cr_sku = {r['sku']: float(r['cr']) for r in db.query("""
     SELECT sku::text sku, max(cr_bucket) cr FROM mkt_ozon_query_econ

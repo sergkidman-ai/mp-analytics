@@ -29,10 +29,12 @@
   status      состояние реестра и конечного автомата
   evaluate    что подлежит измерению и когда; фиксация решения человека
 """
+import pathlib
 import os, sys, json, argparse, hashlib, math, datetime as dt
 
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db  # noqa: E402
+from core.ozon_posting import posting_money_sql
 
 ACC = 'oz_acc1'
 BASE = '/opt/mp-analytics'
@@ -294,12 +296,12 @@ def наблюдение(код, заголовок, факт, размер, е�
 
 def obs_продажи(w1, w0):
     """Сдвиг заказов, штук и выручки: первый вопрос — «изменилось ли вообще что-нибудь»."""
-    q = """SELECT count(DISTINCT r.posting_number) postings,
+    q = posting_money_sql("""SELECT count(DISTINCT r.posting_number) postings,
                   sum((p->>'quantity')::int) qty,
-                  sum((p->>'quantity')::int * (p->>'price')::float) rub
+                  sum((p->>'quantity')::int * RUB(p.price)::float) rub
            FROM raw_ozon_posting r, jsonb_array_elements(r.payload->'products') p
            WHERE r.account=%s AND r.in_process_at::date BETWEEN %s AND %s
-             AND r.status <> 'cancelled'"""
+             AND r.status <> 'cancelled'""")
     a = db.query(q, (ACC, *w1))[0]
     b = db.query(q, (ACC, *w0))[0]
     out = []
@@ -836,12 +838,12 @@ def мощность(sku, метрика='', дней_базы=14, дней_те
     или объявить измеримым неизмеримое."""
     if not sku:
         return None
-    r = db.query("""SELECT (p->>'sku')::text s, count(*) поз,
-                           sum((p->>'quantity')::int * (p->>'price')::float) rub
+    r = db.query(posting_money_sql("""SELECT (p->>'sku')::text s, count(*) поз,
+                           sum((p->>'quantity')::int * RUB(p.price)::float) rub
                     FROM raw_ozon_posting r, jsonb_array_elements(r.payload->'products') p
                     WHERE r.account=%s AND r.status <> 'cancelled'
                       AND r.in_process_at::date > %s::date - %s
-                      AND (p->>'sku')::text = ANY(%s) GROUP BY 1""",
+                      AND (p->>'sku')::text = ANY(%s) GROUP BY 1"""),
                  (ACC, последний_зрелый_день(), дней_базы, list(sku)))
     выручка = {x['s']: float(x['rub'] or 0) for x in r}
     заказы = sum(int(x['поз'] or 0) for x in r)

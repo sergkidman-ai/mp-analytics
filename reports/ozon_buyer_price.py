@@ -29,6 +29,7 @@ import sys
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from core.ozon_posting import posting_money_sql
 
 ACCOUNTS = ["oz_acc1", "oz_acc2"]
 TARGET_INDEX = 1.05      # верх зелёной зоны по нашим же данным (GREEN max 1.05, RED от 1.06)
@@ -44,18 +45,18 @@ def measure_k(account, since_days=K_WINDOW_DAYS, until_days=0):
     Окно — [сегодня−since_days, сегодня−until_days). until_days>0 даёт holdout:
     k считается по старым продажам и проверяется на свежих, которые его не видели.
     """
-    rows = db.query("""
+    rows = db.query(posting_money_sql("""
     select fd->>'product_id' sku,
-           sum((fd->>'customer_price')::numeric) / nullif(sum((fd->>'price')::numeric), 0) k,
+           sum(RUB(fd.customer_price)) / nullif(sum(RUB(fd.price)), 0) k,
            count(*) n
     from raw_ozon_posting p,
          lateral jsonb_array_elements(
              coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd
-    where p.account = %s and p.status = 'delivered' and (fd->>'quantity')::int = 1
+    where p.account = %s and p.status = 'delivered' and FD_QTY(fd,p.payload) = 1
       and p.in_process_at >= current_date - %s and p.in_process_at < current_date - %s
-      and (fd->>'customer_price')::numeric > 0 and (fd->>'price')::numeric > 0
+      and RUB(fd.customer_price) > 0 and RUB(fd.price) > 0
     group by 1 having count(*) >= %s
-    """, (account, since_days, until_days, K_MIN_SALES))
+    """), (account, since_days, until_days, K_MIN_SALES))
     per_sku = {}
     for r in rows:
         k = float(r['k'])
@@ -71,6 +72,17 @@ def main(account="oz_acc1"):
     if not snap:
         print(f"{account}: снимка индекса нет — сначала collectors/ozon_price_index.py")
         return
+    coverage = db.query("""
+      SELECT count(*) FILTER (WHERE jsonb_typeof(fd->'customer_price')='object'
+                 AND fd->'customer_price'->>'currency' <> 'RUB') foreign_rows
+      FROM raw_ozon_posting p,
+        lateral jsonb_array_elements(coalesce(p.payload->'financial_data'->'products','[]'::jsonb)) fd
+      WHERE p.account=%s AND p.status='delivered'
+        AND p.in_process_at >= current_date - %s
+    """, (account, K_WINDOW_DAYS))[0]
+    if coverage['foreign_rows']:
+        print(f"{account}: цена покупателя в другой валюте — исключено строк из RUB k: "
+              f"{coverage['foreign_rows']} (без пересчёта курса)")
     per_sku, k_med = measure_k(account)
     if k_med is None:
         print(f"{account}: продаж за {K_WINDOW_DAYS} дней нет, k измерить не на чем")
@@ -120,16 +132,16 @@ def main(account="oz_acc1"):
     # на свежих, которых модель не видела. Цену берём из самой продажи, чтобы мерить
     # ошибку модели, а не дрейф нашей цены между продажей и снимком.
     hold, hold_med = measure_k(account, K_WINDOW_DAYS, HOLDOUT_DAYS)
-    fresh = db.query("""
-    select fd->>'product_id' sku, (fd->>'price')::numeric our,
-           (fd->>'customer_price')::numeric cust
+    fresh = db.query(posting_money_sql("""
+    select fd->>'product_id' sku, RUB(fd.price) our,
+           RUB(fd.customer_price) cust
     from raw_ozon_posting p,
          lateral jsonb_array_elements(
              coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd
-    where p.account = %s and p.status = 'delivered' and (fd->>'quantity')::int = 1
+    where p.account = %s and p.status = 'delivered' and FD_QTY(fd,p.payload) = 1
       and p.in_process_at >= current_date - %s
-      and (fd->>'customer_price')::numeric > 0 and (fd->>'price')::numeric > 0
-    """, (account, HOLDOUT_DAYS))
+      and RUB(fd.customer_price) > 0 and RUB(fd.price) > 0
+    """), (account, HOLDOUT_DAYS))
     ratios = []
     for r in fresh:
         kk = hold.get(r['sku'], (hold_med, 0))[0] if hold_med else None

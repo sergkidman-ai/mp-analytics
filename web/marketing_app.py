@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402  (core.db сам грузит .env из BASE_DIR)
+from core.ozon_posting import posting_money_sql
 from reports.bid_policy import (WB_MARGIN_GATE, WB_DRR_CEIL, WB_STEP_PCT,  # noqa: E402
                                 WB_STEP_DAYS, WB_TEST_CAP, verdict as _verdict)
 
@@ -214,12 +215,13 @@ def ozon_economics(account: str = "oz_acc1", q: str = "", limit: int = 300):
     if q:
         where.append("(m.article ILIKE %s OR p.offer_id ILIKE %s OR p.name ILIKE %s)")
         params += [f"%{q}%"] * 3
-    rows = db.query(f"""
+    rows = db.query(posting_money_sql(f"""
       WITH s AS (
         SELECT fd->>'product_id' sku,
-               sum((fd->>'quantity')::int)                                    qty,
-               sum((fd->>'price')::numeric * (fd->>'quantity')::int)          our_sum,
-               sum((fd->>'customer_price')::numeric * (fd->>'quantity')::int) cust_sum
+               sum(FD_QTY(fd,rp.payload))                                    qty,
+               sum(RUB(fd.price) * FD_QTY(fd,rp.payload))          our_sum,
+               sum(RUB(fd.customer_price) * FD_QTY(fd,rp.payload)) cust_sum,
+               sum(FD_QTY(fd,rp.payload)) FILTER (WHERE RUB(fd.customer_price) IS NOT NULL) cust_qty
         FROM raw_ozon_posting rp,
              LATERAL jsonb_array_elements(
                  coalesce(rp.payload->'financial_data'->'products','[]'::jsonb)) fd
@@ -230,7 +232,8 @@ def ozon_economics(account: str = "oz_acc1", q: str = "", limit: int = 300):
              s.qty, m.revenue_buyer, m.cogs, m.commission, m.logistics, m.storage,
              m.returns_sum, m.other, m.net_profit, m.margin_pct, m.commission_pct,
              s.our_sum / nullif(s.qty,0)  our_price_u,
-             s.cust_sum / nullif(s.qty,0) buyer_price_u,
+             s.cust_sum / nullif(s.cust_qty,0) buyer_price_u,
+             s.qty - coalesce(s.cust_qty,0) buyer_price_excluded_qty,
              b.color_index, b.external_index
       FROM margin_by_sku m
       LEFT JOIN s ON s.sku = m.article
@@ -245,7 +248,7 @@ def ozon_economics(account: str = "oz_acc1", q: str = "", limit: int = 300):
       WHERE {' AND '.join(where)}
       ORDER BY m.revenue_buyer DESC NULLS LAST
       LIMIT %s
-    """, (account, per["f"], per["t"]) + tuple(params) + (limit,))
+    """), (account, per["f"], per["t"]) + tuple(params) + (limit,))
     summ = db.query("""
       SELECT count(*) sku_n, sum(revenue_buyer) revenue, sum(cogs) cogs,
              sum(net_profit) net,

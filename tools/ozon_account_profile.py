@@ -19,14 +19,16 @@
 
 Запуск: venv/bin/python tools/ozon_account_profile.py --account oz_acc1 --weeks 8
 """
+import pathlib
 import argparse
 import csv
 import datetime as dt
 import os
 import sys
 
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db   # noqa: E402
+from core.ozon_posting import posting_money_sql
 
 OUT = '/opt/mp-analytics/docs/reports'
 
@@ -47,14 +49,14 @@ def fetch(acc, w0):
     w1 = w0 + dt.timedelta(days=6)
     p = {'a': acc, 'w0': w0, 'w1': w1}
 
-    sales = db.query("""
+    sales = db.query(posting_money_sql("""
         SELECT count(DISTINCT p.posting_number) postings,
                sum((pr->>'quantity')::numeric) qty,
-               sum((pr->>'price')::numeric * (pr->>'quantity')::numeric) rev,
+               sum(RUB(pr.price) * (pr->>'quantity')::numeric) rev,
                count(DISTINCT pr->>'sku') sku
           FROM raw_ozon_posting p, jsonb_array_elements(p.payload->'products') pr
          WHERE p.account=%(a)s AND p.status <> 'cancelled'
-           AND p.in_process_at::date BETWEEN %(w0)s AND %(w1)s""", p)[0]
+           AND p.in_process_at::date BETWEEN %(w0)s AND %(w1)s"""), p)[0]
 
     canc = db.query("""
         SELECT count(DISTINCT p.posting_number) n

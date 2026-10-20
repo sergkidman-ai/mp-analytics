@@ -4,6 +4,7 @@
 # (её показывает витрина «Ставки Ozon»). В чат — только сводка.
 import sys, csv; sys.path.insert(0,'.')
 from core import db
+from core.ozon_posting import posting_money_sql
 
 PPO_NEW  = 0.05      # ставка оплаты за заказ после снижения 7 → 5 %
 # п.п. маржи, которые вернутся после отключения платных программ Ozon.
@@ -21,12 +22,12 @@ O=[]
 def p(s=''): O.append(str(s))
 
 sales = {}
-for r in db.query("""
+for r in db.query(posting_money_sql("""
   select account, (pr->>'sku') sku, sum((pr->>'quantity')::int) qty,
-         sum((pr->>'price')::numeric*(pr->>'quantity')::int) rev
+         sum(RUB(pr.price)*(pr->>'quantity')::int) rev
   from raw_ozon_posting, lateral jsonb_array_elements(payload->'products') pr
   where in_process_at >= now() - interval '90 days' and status <> 'cancelled'
-  group by 1,2"""):
+  group by 1,2""")):
     sales[(r['account'], r['sku'])] = (r['qty'], float(r['rev']))
 
 cr_sku = {(r['account'], r['sku']): float(r['cr'])

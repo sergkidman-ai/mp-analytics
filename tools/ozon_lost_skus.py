@@ -18,14 +18,16 @@
 
 Запуск: venv/bin/python tools/ozon_lost_skus.py --account oz_acc1
 """
+import pathlib
 import argparse
 import csv
 import datetime as dt
 import os
 import sys
 
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db   # noqa: E402
+from core.ozon_posting import posting_money_sql
 
 OUT = '/opt/mp-analytics/docs/reports'
 
@@ -34,12 +36,12 @@ def f(x):
     return float(x) if x is not None else 0.0
 
 
-SQL = """
+SQL = posting_money_sql("""
 WITH base AS (
     SELECT pr->>'sku' sku,
            sum((pr->>'quantity')::numeric) qty,
-           sum((pr->>'price')::numeric * (pr->>'quantity')::numeric) rev,
-           round(avg((pr->>'price')::numeric)) price
+           sum(RUB(pr.price) * (pr->>'quantity')::numeric) rev,
+           round(avg(RUB(pr.price))) price
       FROM raw_ozon_posting p, jsonb_array_elements(p.payload->'products') pr
      WHERE p.account=%(a)s AND p.status <> 'cancelled'
        AND p.in_process_at::date BETWEEN %(b0)s AND %(b1)s
@@ -113,7 +115,7 @@ SELECT pt.sku::text sku, pt.offer_id, pt.name,
   LEFT JOIN marg m      ON m.sku  = b.sku
   LEFT JOIN fbo         ON fbo.sku = b.sku
  WHERE coalesce(l.qty, 0) = 0
-"""
+""")
 
 
 def diagnose(r):

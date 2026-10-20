@@ -22,6 +22,7 @@ from pydantic import BaseModel
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from core.ozon_posting import posting_money_sql
 from cf.mp_forecast import ACC_ORG as _CF_ACC_ORG  # noqa: E402
 import collectors.bank_txn_store as txn_store  # noqa: E402  правила разметки выписки (поток inv)
 import collectors.bank_file_import as bank_file_import  # noqa: E402  выписка файлом (банки без API)
@@ -4457,21 +4458,21 @@ OZ_SKU_SORT = {"revenue_buyer": "m.revenue_buyer", "net_profit": "m.net_profit",
 
 def _ozon_pricing(account, df, dt):
     """{sku: {sale_price, old_price, discount_pct}} из постингов (financial_data).
-    products[] и financial_data.products[] совмещаем по позиции (ORDINALITY)."""
+    products[] и financial_data.products[] совмещаем по SKU/product_id."""
     accts = [account] if account else ["oz_acc1", "oz_acc2"]
-    rows = db.query("""
+    rows = db.query(posting_money_sql("""
         SELECT pr.prod->>'sku' sku,
             sum(coalesce((f.fd->>'quantity')::numeric,(pr.prod->>'quantity')::numeric,0)) qty,
-            sum(coalesce((f.fd->>'price')::numeric,(pr.prod->>'price')::numeric,0)
+            sum(coalesce(RUB(f.fd.price),RUB(pr.prod.price),0)
                 *coalesce((f.fd->>'quantity')::numeric,(pr.prod->>'quantity')::numeric,1)) rev,
-            sum(coalesce((f.fd->>'old_price')::numeric,(f.fd->>'price')::numeric,(pr.prod->>'price')::numeric,0)
+            sum(coalesce(RUB(f.fd.old_price),RUB(f.fd.price),RUB(pr.prod.price),0)
                 *coalesce((f.fd->>'quantity')::numeric,(pr.prod->>'quantity')::numeric,1)) oldrev
         FROM raw_ozon_posting po
-          JOIN LATERAL jsonb_array_elements(po.payload->'products') WITH ORDINALITY AS pr(prod, idx) ON true
-          LEFT JOIN LATERAL jsonb_array_elements(po.payload->'financial_data'->'products')
-              WITH ORDINALITY AS f(fd, fidx) ON f.fidx = pr.idx
+          JOIN LATERAL jsonb_array_elements(po.payload->'products') AS pr(prod) ON true
+          LEFT JOIN LATERAL jsonb_array_elements(po.payload->'financial_data'->'products') AS f(fd)
+              ON f.fd->>'product_id' = pr.prod->>'sku'
         WHERE po.account = ANY(%s) AND po.in_process_at::date BETWEEN %s AND %s
-        GROUP BY 1""", (accts, df, dt))
+        GROUP BY 1"""), (accts, df, dt))
     out = {}
     for r in rows:
         q = float(r["qty"] or 0)
@@ -4493,17 +4494,17 @@ def ozon_promos(account: str = "", period: str = ""):
     df, dt = _oz_month(period)
     accts = [account] if account else ["oz_acc1", "oz_acc2"]
     # по акциям (товар может быть в нескольких акциях — считаем под каждой)
-    arows = db.query("""
-        SELECT a.act act, sum(coalesce((f.fd->>'quantity')::numeric,1)) units,
-            sum((f.fd->>'price')::numeric*coalesce((f.fd->>'quantity')::numeric,1)) rev,
-            sum(((f.fd->>'old_price')::numeric-(f.fd->>'price')::numeric)
-                *coalesce((f.fd->>'quantity')::numeric,1)) disc,
+    arows = db.query(posting_money_sql("""
+        SELECT a.act act, sum(FD_QTY(f.fd,po.payload)) units,
+            sum(RUB(f.fd.price)*FD_QTY(f.fd,po.payload)) rev,
+            sum((RUB(f.fd.old_price)-RUB(f.fd.price))
+                *FD_QTY(f.fd,po.payload)) disc,
             count(DISTINCT f.fd->>'product_id') skus
         FROM raw_ozon_posting po
           JOIN LATERAL jsonb_array_elements(po.payload->'financial_data'->'products') AS f(fd) ON true
           JOIN LATERAL jsonb_array_elements_text(f.fd->'actions') AS a(act) ON true
         WHERE po.account=ANY(%s) AND po.in_process_at::date BETWEEN %s AND %s
-        GROUP BY a.act ORDER BY rev DESC""", (accts, df, dt))
+        GROUP BY a.act ORDER BY rev DESC"""), (accts, df, dt))
     actions = []
     for r in arows:
         rev, disc = float(r["rev"] or 0), float(r["disc"] or 0)

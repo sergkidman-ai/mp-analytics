@@ -42,6 +42,7 @@
 «сделай базово, не заморачивайся»). Единственный критерий — факт прошедшей недели:
 есть заказы и какой ДРР. margin_safe и ceiling остаются в отчёте справочными колонками.
 """
+import pathlib
 import argparse
 import csv
 import datetime as dt
@@ -49,8 +50,9 @@ import json
 import os
 import sys
 
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db
+from core.ozon_posting import posting_money_sql
 
 OUT = '/opt/mp-analytics/docs/reports'
 PPO_RATE = 0.05           # оплата за заказ, оба аккаунта с 09-10.08
@@ -125,7 +127,7 @@ def fetch_week(acc, w0):
                       WHERE account=%s AND period_end - period_start >= 6 AND period_end <= %s""",
                   (acc, w1 + dt.timedelta(days=3)))[0]['w']
 
-    rows = db.query("""
+    rows = db.query(posting_money_sql("""
     WITH cur AS (
         SELECT campaign_id::text cid, sku::text sku, max(offer_id) offer_id,
                sum(views) views, sum(clicks) clicks, sum(money_spent) spend,
@@ -175,7 +177,7 @@ def fetch_week(acc, w0):
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at::date BETWEEN %(w0)s AND %(w1)s
                         THEN (pr->>'quantity')::numeric ELSE 0 END) qty_w,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at::date BETWEEN %(w0)s AND %(w1)s
-                        THEN (pr->>'price')::numeric*(pr->>'quantity')::numeric ELSE 0 END) rev_w,
+                        THEN RUB(pr.price)*(pr->>'quantity')::numeric ELSE 0 END) rev_w,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at::date BETWEEN %(p0)s AND %(p1)s
                         THEN (pr->>'quantity')::numeric ELSE 0 END) qty_p,
                max(p.in_process_at) FILTER (WHERE p.status<>'cancelled')::date last_sale
@@ -235,7 +237,7 @@ def fetch_week(acc, w0):
       LEFT JOIN ms       ms ON ms.article = pt.offer_id
       LEFT JOIN cum      cu ON cu.sku = pt.sku::text AND cu.cid = coalesce(c.cid, b.cid)
      WHERE pt.account=%(a)s AND NOT pt.is_archived
-    """, {'a': acc, 'w0': w0, 'w1': w1, 'p0': p0, 'p1': p1, 'sw': sw})
+    """), {'a': acc, 'w0': w0, 'w1': w1, 'p0': p0, 'p1': p1, 'sw': sw})
 
     for r in rows:
         cl, sp = f2(r['w_clicks']), f2(r['w_spend'])

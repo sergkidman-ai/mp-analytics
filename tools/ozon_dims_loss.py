@@ -15,6 +15,10 @@
 Результат: docs/reports/ozon_dims_loss.csv + сводка в stdout.
 """
 import os
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from core.ozon_posting import posting_money_sql
 import csv
 import psycopg2
 from dotenv import load_dotenv
@@ -40,17 +44,17 @@ from ozon_dims d
 where d.account = 'oz_acc1' and d.volume_l > 0
 """
 
-SQL_SALES = """
+SQL_SALES = posting_money_sql("""
 select pr->>'sku' as sku,
        sum((pr->>'quantity')::int) as qty,
-       sum((pr->>'price')::numeric * (pr->>'quantity')::int) as revenue
+       sum(RUB(pr.price) * (pr->>'quantity')::int) as revenue
 from raw_ozon_posting t,
      lateral jsonb_array_elements(t.payload->'products') pr
 where t.account = 'oz_acc1'
   and t.status <> 'cancelled'
   and t.in_process_at >= now() - interval '90 days'
 group by 1
-"""
+""")
 
 SQL_STOCK = """
 select sku::text, sum(free_to_sell) from ozon_fbo_stock

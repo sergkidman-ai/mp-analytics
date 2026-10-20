@@ -32,7 +32,6 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
-TXN_URL = "https://api-seller.ozon.ru/v3/finance/transaction/list"
 # Ozon аутентификация — пара Client-Id + Api-Key на аккаунт.
 CRED_ENV = {"oz_acc1": ("OZON_CLIENT_ID_ACC1", "OZON_API_KEY_ACC1"),
             "oz_acc2": ("OZON_CLIENT_ID_ACC2", "OZON_API_KEY_ACC2")}
@@ -156,28 +155,13 @@ def categorize_operation(op):
 # СБОР
 # --------------------------------------------------------------------------
 def fetch_transactions(account, date_from, date_to):
-    """Все операции за период, пагинация по page (page_size 1000). Обрабатываем 429."""
-    H = _headers(account)
-    out, page, pages = [], 1, 1
-    while page <= pages:
-        body = {"filter": {"date": {"from": f"{date_from}T00:00:00.000Z",
-                                    "to": f"{date_to}T23:59:59.999Z"},
-                           "posting_number": "", "transaction_type": "all"},
-                "page": page, "page_size": 1000}
-        r = requests.post(TXN_URL, headers=H, json=body, timeout=120)
-        if r.status_code == 429:
-            time.sleep(int(r.headers.get("Retry-After", "5")) + 1)
-            continue
-        r.raise_for_status()
-        res = r.json()["result"]
-        pages = res.get("page_count") or 1
-        ops = res.get("operations") or []
-        out.extend(ops)
-        print(f"  [oz fetch] {date_from}..{date_to} стр.{page}/{pages} "
-              f"+{len(ops)} (всего {len(out)})", flush=True)
-        page += 1
-        time.sleep(0.3)
-    return out
+    """Disabled endpoint: use accrual.main + accrual_adapter.main, as main does.
+
+    No callers remain in the repository. Fail before any obsolete API request;
+    returning raw accruals here would silently change the historical contract.
+    """
+    raise RuntimeError('Ozon finance transaction/list is disabled; use ozon.main() '
+                       '(accrual/by-day + accrual_adapter)')
 
 
 PRODUCT_LIST_URL = "https://api-seller.ozon.ru/v3/product/list"

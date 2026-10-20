@@ -27,10 +27,12 @@
     не разносит. По когорте печатается «вклад» — выручка и собственный рекламный
     расход; каноническая реконструкция Финансы→Баланс идёт только по аккаунту.
 """
+import pathlib
 import sys, csv, json, argparse, datetime as dt
 
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db
+from core.ozon_posting import posting_money_sql
 
 ACC = 'oz_acc1'
 COHORTS = '/opt/mp-analytics/docs/experiments/cohorts'
@@ -449,19 +451,19 @@ def daily_sales(skus, d0, d1):
     if not skus:
         return {}
     rows = db.query(
-        """SELECT r.in_process_at::date::text d,
+        posting_money_sql("""SELECT r.in_process_at::date::text d,
                   count(DISTINCT r.posting_number) postings,
                   count(DISTINCT r.posting_number) FILTER (WHERE r.status='cancelled') cancelled,
                   sum((p->>'quantity')::numeric) FILTER (WHERE r.status<>'cancelled') units,
-                  sum((p->>'price')::numeric*(p->>'quantity')::numeric)
+                  sum(RUB(p.price)*(p->>'quantity')::numeric)
                       FILTER (WHERE r.status<>'cancelled') gmv,
                   sum((p->>'quantity')::numeric) FILTER (WHERE r.status='cancelled') units_canc,
-                  sum((p->>'price')::numeric*(p->>'quantity')::numeric)
+                  sum(RUB(p.price)*(p->>'quantity')::numeric)
                       FILTER (WHERE r.status='cancelled') gmv_canc,
                   count(DISTINCT (p->>'sku')) FILTER (WHERE r.status<>'cancelled') sku_sold
            FROM raw_ozon_posting r, jsonb_array_elements(r.payload->'products') p
            WHERE r.account=%s AND (p->>'sku')::text = ANY(%s)
-             AND r.in_process_at::date BETWEEN %s AND %s GROUP BY 1""", (ACC, skus, d0, d1))
+             AND r.in_process_at::date BETWEEN %s AND %s GROUP BY 1"""), (ACC, skus, d0, d1))
     return {r['d']: {k: float(r[k] or 0) for k in
                      ('postings', 'cancelled', 'units', 'gmv', 'units_canc', 'gmv_canc', 'sku_sold')}
             for r in rows}
@@ -646,9 +648,9 @@ def posting_vs_price(skus, d0, d1):
     if not skus:
         return None
     rows = db.query(
-        """WITH sk AS (SELECT op.sku::text sku, op.offer_id FROM ozon_product op
+        posting_money_sql("""WITH sk AS (SELECT op.sku::text sku, op.offer_id FROM ozon_product op
                        WHERE op.account=%s AND op.sku::text = ANY(%s)),
-                pos AS (SELECT r.in_process_at::date d, (p->>'sku')::text sku, (p->>'price')::float pp
+                pos AS (SELECT r.in_process_at::date d, (p->>'sku')::text sku, RUB(p.price)::float pp
                         FROM raw_ozon_posting r, jsonb_array_elements(r.payload->'products') p
                         WHERE r.account=%s AND r.status<>'cancelled'
                           AND r.in_process_at::date BETWEEN %s AND %s
@@ -657,7 +659,7 @@ def posting_vs_price(skus, d0, d1):
            FROM pos JOIN sk ON sk.sku=pos.sku
            JOIN ozon_price_index pi ON pi.offer_id=sk.offer_id AND pi.account=%s
                                    AND pi.collected_on=pos.d
-           GROUP BY 1,2,3""", (ACC, skus, ACC, d0, d1, skus, ACC))
+           GROUP BY 1,2,3"""), (ACC, skus, ACC, d0, d1, skus, ACC))
     dv = sorted((r['pp'] - r['ip']) / r['ip'] for r in rows if r['ip'])
     if not dv:
         return None
@@ -782,7 +784,7 @@ def account_canonical(win):
     вызывается существующая функция отчёта.
     """
     try:
-        sys.path.insert(0, '/opt/mp-analytics')
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
         from reports.ozon_mp_report import _balance_range
         d2 = (_d(win[1]) + dt.timedelta(days=1)).isoformat()
         mags, sub, _det, _sc = _balance_range(ACC, win[0], d2)
@@ -900,11 +902,11 @@ def sku_baseline_bulk(skus, win):
     d0, d1 = win
     out = {s: {'выручка': 0.0, 'позиций': 0, 'показы': 0.0, 'расход': 0.0, 'спрос': 0.0} for s in skus}
     for r in db.query(
-            """SELECT (p->>'sku')::text sku, count(*) n,
-                      sum((p->>'price')::numeric * (p->>'quantity')::int) gmv
+            posting_money_sql("""SELECT (p->>'sku')::text sku, count(*) n,
+                      sum(RUB(p.price) * (p->>'quantity')::int) gmv
                FROM raw_ozon_posting r, jsonb_array_elements(r.payload->'products') p
                WHERE r.account=%s AND (p->>'sku')::text = ANY(%s) AND r.status<>'cancelled'
-                 AND r.in_process_at::date BETWEEN %s AND %s GROUP BY 1""",
+                 AND r.in_process_at::date BETWEEN %s AND %s GROUP BY 1"""),
             (ACC, skus, d0, d1)):
         if r['sku'] in out:
             out[r['sku']].update({'выручка': float(r['gmv'] or 0), 'позиций': int(r['n'] or 0)})
@@ -1507,13 +1509,13 @@ def panel(skus, days):
     # Номера постингов, а не их счётчик: один постинг может содержать два SKU когорты,
     # и при суммировании по SKU он иначе засчитался бы дважды (расхождение 72/76 и 39/44).
     for r in db.query(
-            """SELECT (p->>'sku')::text sku, r.in_process_at::date::text d, r.posting_number pn,
+            posting_money_sql("""SELECT (p->>'sku')::text sku, r.in_process_at::date::text d, r.posting_number pn,
                       (r.status='cancelled') canc,
                       sum((p->>'quantity')::numeric)::float units,
-                      sum((p->>'price')::numeric*(p->>'quantity')::numeric)::float gmv
+                      sum(RUB(p.price)*(p->>'quantity')::numeric)::float gmv
                FROM raw_ozon_posting r, jsonb_array_elements(r.payload->'products') p
                WHERE r.account=%s AND (p->>'sku')::text = ANY(%s)
-                 AND r.in_process_at::date BETWEEN %s AND %s GROUP BY 1,2,3,4""", (ACC, skus, d0, d1)):
+                 AND r.in_process_at::date BETWEEN %s AND %s GROUP BY 1,2,3,4"""), (ACC, skus, d0, d1)):
         c = P.setdefault((r['sku'], r['d']), {})
         c.setdefault('posts', []).append((r['pn'], bool(r['canc'])))
         if not r['canc']:

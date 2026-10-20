@@ -7,6 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import requests
 from core import db
+from core.ozon_posting import product_price
 from shipment_guard import config, store
 from shipment_guard.economics import number, money
 from shipment_guard.ms import SourceError, retry_seconds
@@ -121,8 +122,7 @@ class OrderAdapter:
         for p in raws:
             for i in p.get('products',[]):
                 # products.price is the seller's per-unit sale price, not customer paid after Ozon's discount.
-                if i.get('currency_code','RUB')!='RUB': raise SourceError('ozon_non_rub')
-                items.append((i['offer_id'],i['quantity'],number(i['price'])*number(i['quantity'])))
+                items.append((i['offer_id'],i['quantity'],product_price(i)*number(i['quantity'])))
         return raws,items,'Ozon posting.products.price × quantity; цена продажи продавца'
 
     def wb(self, account, assembly, document):

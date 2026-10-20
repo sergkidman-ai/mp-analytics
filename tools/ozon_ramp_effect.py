@@ -41,14 +41,16 @@
 
 Скрипт НИЧЕГО не отправляет на площадку: только CSV в docs/reports/ и сводка.
 """
+import pathlib
 import argparse
 import csv
 import datetime as dt
 import os
 import sys
 
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from core import db
+from core.ozon_posting import posting_money_sql
 
 OUT = '/opt/mp-analytics/docs/reports'
 PPO_RATE = 0.05
@@ -106,7 +108,7 @@ def fetch(acc):
                avg(bid) FILTER (WHERE bid > 0) bid_avg,
                count(DISTINCT stat_date) n_days
           FROM mkt_ozon_ads_sku_daily
-         WHERE account=%(a)s AND stat_date >= %(p2)s """ + WD + """ GROUP BY 1),
+         WHERE account=%(a)s AND stat_date >= %(p2)s """ + WD + posting_money_sql(""" GROUP BY 1),
     bidnow AS (
         SELECT sku::text sku, max(bid) bid
           FROM ozon_bids WHERE account=%(a)s
@@ -124,11 +126,11 @@ def fetch(acc):
         SELECT pr->>'sku' sku,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at::date <= %(p1)s
                         AND p.in_process_at::date > %(p1)s::date - 9
-                        THEN (pr->>'price')::numeric*(pr->>'quantity')::numeric ELSE 0 END) rev_pre,
+                        THEN RUB(pr.price)*(pr->>'quantity')::numeric ELSE 0 END) rev_pre,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at::date >= %(p2)s
-                        THEN (pr->>'price')::numeric*(pr->>'quantity')::numeric ELSE 0 END) rev_post,
+                        THEN RUB(pr.price)*(pr->>'quantity')::numeric ELSE 0 END) rev_post,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at >= current_date - 90
-                        THEN (pr->>'price')::numeric*(pr->>'quantity')::numeric ELSE 0 END) rev90,
+                        THEN RUB(pr.price)*(pr->>'quantity')::numeric ELSE 0 END) rev90,
                sum(CASE WHEN p.status<>'cancelled' AND p.in_process_at >= current_date - 90
                         THEN (pr->>'quantity')::numeric ELSE 0 END) qty90
           FROM raw_ozon_posting p, jsonb_array_elements(p.payload->'products') pr
@@ -166,7 +168,7 @@ def fetch(acc):
       LEFT JOIN sold   so ON so.sku = r.sku
       LEFT JOIN marg   m  ON m.sku  = r.sku
       LEFT JOIN ozon_product pt ON pt.account=%(a)s AND pt.sku::text = r.sku
-    """, {'a': acc, 'p1': pre_days[-1] if pre_days else SPLIT,
+    """), {'a': acc, 'p1': pre_days[-1] if pre_days else SPLIT,
           'p2': post_days[0] if post_days else SPLIT,
           'wpre': w_pre, 'wpost': w_post})
 
@@ -263,14 +265,14 @@ def control(pre_days, post_days, wd=''):
            round(sum(money_spent)/nullif(sum(clicks),0),1) cpc
       FROM d GROUP BY 1,2 ORDER BY 1, 2""",
                     {'p1': pre_days[-1], 'p2': post_days[0]})
-    sales = db.query("""
+    sales = db.query(posting_money_sql("""
       SELECT p.account acc, CASE WHEN p.in_process_at::date <= %(p1)s THEN 'до' ELSE 'после' END w,
-             round(sum((pr->>'price')::numeric*(pr->>'quantity')::numeric)
+             round(sum(RUB(pr.price)*(pr->>'quantity')::numeric)
                    / count(DISTINCT p.in_process_at::date)) rev_d
         FROM raw_ozon_posting p, jsonb_array_elements(p.payload->'products') pr
        WHERE p.status<>'cancelled'
          AND p.in_process_at::date BETWEEN %(p0)s AND %(p3)s
-         """ + wd.replace('a.stat_date', 'p.in_process_at::date') + """
+         """) + wd.replace('a.stat_date', 'p.in_process_at::date') + """
        GROUP BY 1,2 ORDER BY 1,2""",
                      {'p1': pre_days[-1], 'p0': pre_days[0], 'p3': post_days[-1]})
     return rows, sales

@@ -44,6 +44,7 @@ import sys
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
+from core.ozon_posting import posting_money_sql
 
 ACCOUNTS = ["oz_acc1", "oz_acc2"]
 DEFAULT_THRESHOLD = 25.0
@@ -77,17 +78,17 @@ def last_full_month(today):
 
 def payout_ratios(account):
     """payout / цена по каждому SKU из фактических продаж + медиана аккаунта."""
-    rows = db.query("""
+    rows = db.query(posting_money_sql("""
     select fd->>'product_id' sku,
-           sum((fd->>'payout')::numeric)
-             / nullif(sum((fd->>'price')::numeric * (fd->>'quantity')::int), 0) pr
+           sum(RUB(fd.payout))
+             / nullif(sum(RUB(fd.price) * FD_QTY(fd,p.payload)), 0) pr
     from raw_ozon_posting p,
          lateral jsonb_array_elements(
              coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd
     where p.account = %s and p.status = 'delivered'
-      and p.in_process_at >= current_date - %s and (fd->>'price')::numeric > 0
+      and p.in_process_at >= current_date - %s and RUB(fd.price) > 0
     group by 1
-    """, (account, SALES_DAYS))
+    """), (account, SALES_DAYS))
     per = {r['sku']: float(r['pr']) for r in rows
            if r['pr'] is not None and PAYOUT_FLOOR <= float(r['pr']) <= PAYOUT_CEIL}
     return per, (st.median(per.values()) if per else None)
@@ -101,7 +102,7 @@ def logistics_model(account):
     и струйник получал бы +12 ₽ из воздуха. Берутся только отправления РОВНО с одной
     единицей товара — иначе к объёму одной карточки приписана логистика всей коробки.
     """
-    rows = db.query("""
+    rows = db.query(posting_money_sql("""
     with tx as (
       select t.payload->'posting'->>'posting_number' pn,
              abs(sum((s->>'price')::numeric)) log
@@ -112,7 +113,7 @@ def logistics_model(account):
       group by 1),
     pq as (
       select distinct on (p.payload->>'posting_number') p.payload->>'posting_number' pn,
-             (select sum((fd->>'quantity')::int) from jsonb_array_elements(
+             (select sum(FD_QTY(fd,p.payload)) from jsonb_array_elements(
                  coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd) qty,
              (select fd->>'product_id' from jsonb_array_elements(
                  coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd limit 1) sku
@@ -121,7 +122,7 @@ def logistics_model(account):
     from tx join pq on pq.pn = tx.pn
     join ozon_dims d on d.account = %s and d.sku::text = pq.sku
     where pq.qty = 1 and d.volume_l > 0 and tx.log > 0
-    """, (account, MODEL_DAYS, account, account))
+    """), (account, MODEL_DAYS, account, account))
     buckets = [(0, 1), (1, 2), (2, 4), (4, 8), (8, 10 ** 6)]
     pts = []
     for lo, hi in buckets:
@@ -173,13 +174,13 @@ def returns_provision(account):
     where account = %s and (payload->>'operation_date')::date >= current_date - %s
       and payload->>'operation_type_name' = any(%s)
     """, (account, MODEL_DAYS, list(RETURN_OPS)))[0]['s']
-    qty = db.query("""
-    select sum((fd->>'quantity')::int) q
+    qty = db.query(posting_money_sql("""
+    select sum(FD_QTY(fd,p.payload)) q
     from raw_ozon_posting p, lateral jsonb_array_elements(
              coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd
     where p.account = %s and p.status = 'delivered'
       and p.in_process_at >= current_date - %s
-    """, (account, MODEL_DAYS))[0]['q']
+    """), (account, MODEL_DAYS))[0]['q']
     return (float(ret) / float(qty)) if (ret and qty) else 0.0
 
 
@@ -204,9 +205,9 @@ def volumes(account):
 
 def unit_costs(account, mfrom, mto):
     """Расходы площадки на штуку по SKU: витрина fin ÷ qty из постингов. + медианы аккаунта."""
-    rows = db.query("""
+    rows = db.query(posting_money_sql("""
     with q as (
-      select fd->>'product_id' sku, sum((fd->>'quantity')::int) qty
+      select fd->>'product_id' sku, sum(FD_QTY(fd,p.payload)) qty
       from raw_ozon_posting p,
            lateral jsonb_array_elements(
                coalesce(p.payload->'financial_data'->'products', '[]'::jsonb)) fd
@@ -224,7 +225,7 @@ def unit_costs(account, mfrom, mto):
     join q on q.sku = m.article
     where m.platform = 'ozon' and m.account = %s
       and m.period_from = %s and q.qty > 0
-    """, (account, mfrom, mto, account, mfrom))
+    """), (account, mfrom, mto, account, mfrom))
     per, med = {}, {}
     for r in rows:
         per[r['sku']] = {k: _f(r[k]) for k in ('log_u', 'st_u', 'ac_u', 'ret_u', 'oth_u', 'fifo_u')}
