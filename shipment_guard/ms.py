@@ -28,6 +28,7 @@ def retry_seconds(headers, now=None):
     except ValueError: return 60
 
 class MSClient:
+    resource_prefixes = ('/entity/demand', '/report/stock/byoperation')
     def __init__(self, session=None, clock=time.monotonic, sleep=time.sleep):
         self.session=session or requests.Session()
         self.clock,self.sleep=clock,sleep
@@ -45,7 +46,7 @@ class MSClient:
         self.pulse=lambda: None
 
     def get(self, path, params=None):
-        if not path.startswith(('/entity/demand','/report/stock/byoperation')):
+        if not path.startswith(self.resource_prefixes):
             raise ValueError('MS resource forbidden')
         with self.lock:
             self.pulse()

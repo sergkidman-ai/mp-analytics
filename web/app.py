@@ -41,6 +41,8 @@ app.include_router(turnover_router)
 
 from web.shipment_guard_api import router as shipment_guard_router  # поток: fin
 app.include_router(shipment_guard_router)
+from web.customer_guard_api import router as customer_guard_router  # поток: fin
+app.include_router(customer_guard_router)
 
 
 # ── Ограниченный доступ: сотрудник раздела «Новинки» (поток prc) ───────────────
