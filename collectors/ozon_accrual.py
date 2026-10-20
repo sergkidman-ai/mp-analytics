@@ -37,33 +37,45 @@ def _amount(a):
     return float(v)
 
 
-def fetch_day(account, day):
-    """Все начисления за один день. Обрабатываем 429."""
-    H = _headers(account)
-    out, last_id = [], ""
-    while True:
-        body = {"date": day, "limit": 1000}
-        if last_id:
-            body["last_id"] = last_id
-        r = requests.post(BYDAY_URL, headers=H, json=body, timeout=120)
-        if r.status_code == 429:
-            time.sleep(int(r.headers.get("Retry-After", "5")) + 1)
-            continue
-        if r.status_code != 200:
-            raise RuntimeError(f"by-day {account} {day}: {r.status_code} {r.text[:200]}")
-        res = r.json().get("result") or r.json()
-        out.extend(res.get("accruals") or [])
-        nxt = str(res.get("last_id") or "")
-        if nxt in ("", "0") or nxt == last_id:
-            return out
-        last_id = nxt
-        time.sleep(0.3)
+def fetch_day(account, day, *, limit=1000, max_pages=1000, window_budget=120):
+    """Complete day or error; bounded transport shared with the current Ozon adapter."""
+    from collectors.ozon_postings import request_page
+    from core.ozon_posting import PostingProtocolError
+    import math
+    dt.date.fromisoformat(day)
+    if type(limit) is not int or not 1<=limit<=1000 or type(max_pages) is not int or max_pages<=0:
+        raise ValueError('Invalid accrual page limits')
+    if isinstance(window_budget,bool) or not isinstance(window_budget,(int,float)) or not math.isfinite(window_budget) or window_budget<=0:
+        raise ValueError('Invalid accrual window budget')
+    H=_headers(account);out=[];last_id='';seen=set();cursors=set()
+    deadline=time.monotonic()+window_budget
+    for _ in range(max_pages):
+        body={'date':day,'limit':limit}
+        if last_id:body['last_id']=last_id
+        j=request_page(BYDAY_URL,H,body,deadline=deadline)
+        res=j.get('result',j) if isinstance(j,dict) else None
+        if not isinstance(res,dict) or not isinstance(res.get('accruals'),list) or 'last_id' not in res:
+            raise PostingProtocolError('Invalid accrual page schema')
+        rows=res['accruals']
+        if len(rows)>limit:raise PostingProtocolError('Accrual page exceeds limit')
+        for item in rows:
+            if not isinstance(item,dict) or item.get('accrual_id') is None or item.get('date')!=day:
+                raise PostingProtocolError('Invalid accrual identity/day')
+            if item['accrual_id'] in seen:raise PostingProtocolError('Duplicate accrual across pages')
+            seen.add(item['accrual_id'])
+        out.extend(rows);nxt=str(res['last_id'] or '')
+        if time.monotonic()>deadline:raise TimeoutError('Accrual window budget exhausted')
+        if nxt in ('','0'):return out
+        if not rows or nxt==last_id or nxt in cursors:raise PostingProtocolError('Accrual cursor did not advance')
+        cursors.add(nxt);last_id=nxt
+    raise PostingProtocolError('Accrual page limit exhausted')
 
 
 def load_raw(account, recs):
     rows = [{"account": account, "accrual_id": int(a["accrual_id"]),
              "accrual_date": a.get("date"), "accrued_category": a.get("accrued_category"),
              "unit_number": a.get("unit_number"), "total_amount": round(_amount(a), 2),
+             "loaded_at": dt.datetime.now(dt.timezone.utc),
              "payload": psycopg2.extras.Json(a)}
             for a in recs if a.get("accrual_id") is not None]
     if not rows:
