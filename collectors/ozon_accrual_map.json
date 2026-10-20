@@ -11,6 +11,7 @@
   "ITEM|79|": "OperationMarketplaceItemTemporaryStorageRedistribution",
   "ITEM|82|": "OperationMarketplaceServiceVolumeWeightCharacsProcessing",
   "NON_ITEM|121|": "OperationCourierPickUpReinvoice",
+  "NON_ITEM|127|": "OperationSubscriptionAnalyticsPlus",
   "NON_ITEM|18|": "OperationMarketplaceServiceEarlyPaymentAccrual",
   "NON_ITEM|25|": "AccrualInternalClaim",
   "NON_ITEM|38|": "OperationMarketplacePackageMaterialsProvision",
@@ -173,6 +174,10 @@
   },
   "OperationSellerReturnsCargoAssortmentValid": {
    "operation_type_name": "Подготовка товара к вывозу: Валид",
+   "type": "services"
+  },
+  "OperationSubscriptionAnalyticsPlus": {
+   "operation_type_name": "Аналитика Plus",
    "type": "services"
   },
   "OperationSubscriptionPremiumPlus": {

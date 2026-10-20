@@ -44,6 +44,9 @@ RESID_OPS = {   # тип операции → (строка, имя в ЛК)
     'OperationSubscriptionPremium': ('promo', 'Подписка Premium'),
     'OperationSubscriptionPremiumPlus': ('promo', 'Подписка Premium Plus'),
     'OperationSubscriptionPremiumPro': ('promo', 'Подписка Premium Pro'),
+    # type127 AnalyticsPlus — справочник Seller API, проверен 20.10.2026;
+    # фиксированная часть Premium Plus от «Озон Технологий» с 01.10.2026.
+    'OperationSubscriptionAnalyticsPlus': ('promo', 'Аналитика Plus'),
 }
 
 SERVICES = {   # услуга внутри операции → (строка, имя в ЛК)

@@ -1,0 +1,262 @@
+{
+  "checked_at_utc": "2026-10-20T11:21:33.249263+00:00",
+  "source": "POST https://api-seller.ozon.ru/v1/finance/accrual/types",
+  "type": {
+    "id": 127,
+    "name": "AnalyticsPlus",
+    "description": "Аналитика Plus"
+  },
+  "accounts": [
+    {
+      "account": "oz_acc1",
+      "label": "Цифровой квадрат",
+      "analytics_amount": 28000,
+      "premium_amount": 6990,
+      "total_subscription": "34990.00",
+      "source_period": "30.09.26-30.10.26",
+      "previous_subscription": [
+        {
+          "account": "oz_acc1",
+          "accrual_id": 64008677781,
+          "accrual_date": "2026-09-23",
+          "unit_number": "23.09.26-23.10.26",
+          "total_amount": "-24990.00",
+          "payload": {
+            "date": "2026-09-23",
+            "posting": null,
+            "item_fees": null,
+            "accrual_id": 64008677781,
+            "unit_number": "23.09.26-23.10.26",
+            "non_item_fee": {
+              "accrued": {
+                "amount": "-24990",
+                "currency": "RUB"
+              },
+              "type_id": 52
+            },
+            "total_amount": {
+              "amount": "-24990",
+              "currency": "RUB"
+            },
+            "container_fees": null,
+            "accrued_category": "NON_ITEM"
+          }
+        }
+      ],
+      "october_charges": [
+        {
+          "account": "oz_acc1",
+          "accrual_id": 64837649741,
+          "accrual_date": "2026-10-01",
+          "unit_number": "30.09.26-30.10.26",
+          "total_amount": "-6990.00",
+          "payload": {
+            "date": "2026-10-01",
+            "posting": null,
+            "item_fees": null,
+            "accrual_id": 64837649741,
+            "unit_number": "30.09.26-30.10.26",
+            "non_item_fee": {
+              "accrued": {
+                "amount": "-6990",
+                "currency": "RUB"
+              },
+              "type_id": 52
+            },
+            "total_amount": {
+              "amount": "-6990",
+              "currency": "RUB"
+            },
+            "container_fees": null,
+            "accrued_category": "NON_ITEM"
+          }
+        },
+        {
+          "account": "oz_acc1",
+          "accrual_id": 64837649742,
+          "accrual_date": "2026-10-01",
+          "unit_number": "30.09.26-30.10.26",
+          "total_amount": "-28000.00",
+          "payload": {
+            "date": "2026-10-01",
+            "posting": null,
+            "item_fees": null,
+            "accrual_id": 64837649742,
+            "unit_number": "30.09.26-30.10.26",
+            "non_item_fee": {
+              "accrued": {
+                "amount": "-28000",
+                "currency": "RUB"
+              },
+              "type_id": 127
+            },
+            "total_amount": {
+              "amount": "-28000",
+              "currency": "RUB"
+            },
+            "container_fees": null,
+            "accrued_category": "NON_ITEM"
+          }
+        }
+      ],
+      "service_correction": [
+        {
+          "account": "oz_acc1",
+          "accrual_id": 64960662958,
+          "accrual_date": "2026-10-01",
+          "unit_number": "23.09.26-30.09.26",
+          "total_amount": "18325.99",
+          "payload": {
+            "date": "2026-10-01",
+            "posting": null,
+            "item_fees": null,
+            "accrual_id": 64960662958,
+            "unit_number": "23.09.26-30.09.26",
+            "non_item_fee": {
+              "accrued": {
+                "amount": "18325.99",
+                "currency": "RUB"
+              },
+              "type_id": 57
+            },
+            "total_amount": {
+              "amount": "18325.99",
+              "currency": "RUB"
+            },
+            "container_fees": null,
+            "accrued_category": "NON_ITEM"
+          }
+        }
+      ],
+      "correction_interpretation": "Сумма и период согласуются с возвратом неиспользованных дней старой подписки; исходный тип57 общий и прямо Premium не называет."
+    },
+    {
+      "account": "oz_acc2",
+      "label": "Дисквер",
+      "analytics_amount": 28000,
+      "premium_amount": 6990,
+      "total_subscription": "34990.00",
+      "source_period": "30.09.26-30.10.26",
+      "previous_subscription": [
+        {
+          "account": "oz_acc2",
+          "accrual_id": 62136078746,
+          "accrual_date": "2026-09-05",
+          "unit_number": "05.09.26-05.10.26",
+          "total_amount": "-24990.00",
+          "payload": {
+            "date": "2026-09-05",
+            "posting": null,
+            "item_fees": null,
+            "accrual_id": 62136078746,
+            "unit_number": "05.09.26-05.10.26",
+            "non_item_fee": {
+              "accrued": {
+                "amount": "-24990",
+                "currency": "RUB"
+              },
+              "type_id": 52
+            },
+            "total_amount": {
+              "amount": "-24990",
+              "currency": "RUB"
+            },
+            "container_fees": null,
+            "accrued_category": "NON_ITEM"
+          }
+        }
+      ],
+      "october_charges": [
+        {
+          "account": "oz_acc2",
+          "accrual_id": 64837429389,
+          "accrual_date": "2026-10-01",
+          "unit_number": "30.09.26-30.10.26",
+          "total_amount": "-6990.00",
+          "payload": {
+            "date": "2026-10-01",
+            "posting": null,
+            "item_fees": null,
+            "accrual_id": 64837429389,
+            "unit_number": "30.09.26-30.10.26",
+            "non_item_fee": {
+              "accrued": {
+                "amount": "-6990",
+                "currency": "RUB"
+              },
+              "type_id": 52
+            },
+            "total_amount": {
+              "amount": "-6990",
+              "currency": "RUB"
+            },
+            "container_fees": null,
+            "accrued_category": "NON_ITEM"
+          }
+        },
+        {
+          "account": "oz_acc2",
+          "accrual_id": 64837429390,
+          "accrual_date": "2026-10-01",
+          "unit_number": "30.09.26-30.10.26",
+          "total_amount": "-28000.00",
+          "payload": {
+            "date": "2026-10-01",
+            "posting": null,
+            "item_fees": null,
+            "accrual_id": 64837429390,
+            "unit_number": "30.09.26-30.10.26",
+            "non_item_fee": {
+              "accrued": {
+                "amount": "-28000",
+                "currency": "RUB"
+              },
+              "type_id": 127
+            },
+            "total_amount": {
+              "amount": "-28000",
+              "currency": "RUB"
+            },
+            "container_fees": null,
+            "accrued_category": "NON_ITEM"
+          }
+        }
+      ],
+      "service_correction": [
+        {
+          "account": "oz_acc2",
+          "accrual_id": 64959848610,
+          "accrual_date": "2026-10-01",
+          "unit_number": "05.09.26-30.09.26",
+          "total_amount": "3331.99",
+          "payload": {
+            "date": "2026-10-01",
+            "posting": null,
+            "item_fees": null,
+            "accrual_id": 64959848610,
+            "unit_number": "05.09.26-30.09.26",
+            "non_item_fee": {
+              "accrued": {
+                "amount": "3331.99",
+                "currency": "RUB"
+              },
+              "type_id": 57
+            },
+            "total_amount": {
+              "amount": "3331.99",
+              "currency": "RUB"
+            },
+            "container_fees": null,
+            "accrued_category": "NON_ITEM"
+          }
+        }
+      ],
+      "correction_interpretation": "Сумма и период согласуются с возвратом неиспользованных дней старой подписки; исходный тип57 общий и прямо Premium не называет."
+    }
+  ],
+  "classification_reason": "В сохранённом справочнике 124 типа, в live 135; type127 отсутствует в локальном справочнике и карте адаптера.",
+  "pult_changed": true,
+  "financial_totals_changed": false,
+  "classification_applied": true,
+  "verification_file": "verification.json"
+}

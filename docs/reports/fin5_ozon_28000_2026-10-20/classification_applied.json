@@ -1,0 +1,20 @@
+[
+  {
+    "account": "oz_acc2",
+    "operation_id": 64837429390,
+    "patch": {
+      "type": "services",
+      "operation_type": "OperationSubscriptionAnalyticsPlus",
+      "operation_type_name": "Аналитика Plus"
+    }
+  },
+  {
+    "account": "oz_acc1",
+    "operation_id": 64837649742,
+    "patch": {
+      "type": "services",
+      "operation_type": "OperationSubscriptionAnalyticsPlus",
+      "operation_type_name": "Аналитика Plus"
+    }
+  }
+]

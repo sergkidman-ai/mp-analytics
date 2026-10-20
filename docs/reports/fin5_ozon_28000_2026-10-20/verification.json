@@ -1,0 +1,28 @@
+{
+  "oz_acc1": {
+    "financial_totals_unchanged": true,
+    "analytics_fact": "−28 000",
+    "analytics_forecast": "−28 000",
+    "label": "Аналитика Plus"
+  },
+  "oz_acc2": {
+    "financial_totals_unchanged": true,
+    "analytics_fact": "−28 000",
+    "analytics_forecast": "−28 000",
+    "label": "Аналитика Plus"
+  },
+  "watch": {
+    "baseline_initialized_at": "2026-10-11T13:25:23.181816+00:00",
+    "baseline_types": 86,
+    "type127_in_baseline": true,
+    "actual_telegram_delivery_for127": false,
+    "timer": "Tuesday 07:30 UTC",
+    "latest_run": "2026-10-20 07:30 UTC",
+    "latest_new_types": 0,
+    "latest_warnings": 0,
+    "dry_run_new_types": 0,
+    "dry_run_warnings": 0,
+    "telegram_sent_by_this_task": false,
+    "baseline_or_notification_state_changed": false
+  }
+}

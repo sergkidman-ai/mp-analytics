@@ -1,0 +1,100 @@
+[
+  {
+    "id": 1978854,
+    "account": "oz_acc2",
+    "operation_id": 64837429390,
+    "period_from": "2026-10-01",
+    "period_to": "2026-10-31",
+    "payload": {
+      "type": "other",
+      "items": [],
+      "amount": -28000.0,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "",
+        "warehouse_id": 0,
+        "posting_number": "30.09.26-30.10.26",
+        "delivery_schema": ""
+      },
+      "services": [],
+      "operation_id": 64837429390,
+      "operation_date": "2026-10-01 00:00:00",
+      "operation_type": "AccrualType_127",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "AccrualType_127",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00",
+    "accrual_payload": {
+      "date": "2026-10-01",
+      "posting": null,
+      "item_fees": null,
+      "accrual_id": 64837429390,
+      "unit_number": "30.09.26-30.10.26",
+      "non_item_fee": {
+        "accrued": {
+          "amount": "-28000",
+          "currency": "RUB"
+        },
+        "type_id": 127
+      },
+      "total_amount": {
+        "amount": "-28000",
+        "currency": "RUB"
+      },
+      "container_fees": null,
+      "accrued_category": "NON_ITEM"
+    }
+  },
+  {
+    "id": 1977176,
+    "account": "oz_acc1",
+    "operation_id": 64837649742,
+    "period_from": "2026-10-01",
+    "period_to": "2026-10-31",
+    "payload": {
+      "type": "other",
+      "items": [],
+      "amount": -28000.0,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "",
+        "warehouse_id": 0,
+        "posting_number": "30.09.26-30.10.26",
+        "delivery_schema": ""
+      },
+      "services": [],
+      "operation_id": 64837649742,
+      "operation_date": "2026-10-01 00:00:00",
+      "operation_type": "AccrualType_127",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "AccrualType_127",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00",
+    "accrual_payload": {
+      "date": "2026-10-01",
+      "posting": null,
+      "item_fees": null,
+      "accrual_id": 64837649742,
+      "unit_number": "30.09.26-30.10.26",
+      "non_item_fee": {
+        "accrued": {
+          "amount": "-28000",
+          "currency": "RUB"
+        },
+        "type_id": 127
+      },
+      "total_amount": {
+        "amount": "-28000",
+        "currency": "RUB"
+      },
+      "container_fees": null,
+      "accrued_category": "NON_ITEM"
+    }
+  }
+]

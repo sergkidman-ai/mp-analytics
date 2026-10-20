@@ -1,0 +1,58 @@
+[
+  {
+    "account": "oz_acc2",
+    "accrual_id": 64837429390,
+    "accrual_date": "2026-10-01",
+    "accrued_category": "NON_ITEM",
+    "unit_number": "30.09.26-30.10.26",
+    "total_amount": "-28000.00",
+    "payload": {
+      "date": "2026-10-01",
+      "posting": null,
+      "item_fees": null,
+      "accrual_id": 64837429390,
+      "unit_number": "30.09.26-30.10.26",
+      "non_item_fee": {
+        "accrued": {
+          "amount": "-28000",
+          "currency": "RUB"
+        },
+        "type_id": 127
+      },
+      "total_amount": {
+        "amount": "-28000",
+        "currency": "RUB"
+      },
+      "container_fees": null,
+      "accrued_category": "NON_ITEM"
+    }
+  },
+  {
+    "account": "oz_acc1",
+    "accrual_id": 64837649742,
+    "accrual_date": "2026-10-01",
+    "accrued_category": "NON_ITEM",
+    "unit_number": "30.09.26-30.10.26",
+    "total_amount": "-28000.00",
+    "payload": {
+      "date": "2026-10-01",
+      "posting": null,
+      "item_fees": null,
+      "accrual_id": 64837649742,
+      "unit_number": "30.09.26-30.10.26",
+      "non_item_fee": {
+        "accrued": {
+          "amount": "-28000",
+          "currency": "RUB"
+        },
+        "type_id": 127
+      },
+      "total_amount": {
+        "amount": "-28000",
+        "currency": "RUB"
+      },
+      "container_fees": null,
+      "accrued_category": "NON_ITEM"
+    }
+  }
+]

@@ -619,6 +619,61 @@
    "id": 124,
    "name": "RfbsBuyerDelivery",
    "description": "Перечисление за доставку от покупателя"
+  },
+  {
+   "id": 125,
+   "name": "AnalyticsLite",
+   "description": "Аналитика Lite"
+  },
+  {
+   "id": 126,
+   "name": "AnalyticsPremium",
+   "description": "Аналитика Premium"
+  },
+  {
+   "id": 127,
+   "name": "AnalyticsPlus",
+   "description": "Аналитика Plus"
+  },
+  {
+   "id": 128,
+   "name": "AnalyticsPro",
+   "description": "Аналитика Pro"
+  },
+  {
+   "id": 129,
+   "name": "AnalyticsCorrection",
+   "description": "Корректировка стоимости услуг"
+  },
+  {
+   "id": 130,
+   "name": "DisplayAdvertisingPlacement",
+   "description": "Размещение медийной рекламы"
+  },
+  {
+   "id": 131,
+   "name": "MicroFulfillmentSupply",
+   "description": "Приёмка товара партнёрами"
+  },
+  {
+   "id": 132,
+   "name": "MicroFulfillmentPicking",
+   "description": "Подготовка товара к отгрузке партнёрами"
+  },
+  {
+   "id": 133,
+   "name": "CrossDockHandlingAtDropOff",
+   "description": "Обработка грузоместа на точке отгрузки"
+  },
+  {
+   "id": 134,
+   "name": "CrossDockDeliveryToAcceptancePoint",
+   "description": "Доставка грузоместа до точки приёмки"
+  },
+  {
+   "id": 135,
+   "name": "CrossDockPartnerHandling",
+   "description": "Обработка грузоместа на точке отгрузки партнёрами"
   }
  ]
 }
