@@ -50,13 +50,15 @@ def data(status: str = "", signal: str = "", search: str = "",
     base = """FROM customer_guard_orders o
       LEFT JOIN customer_guard_checks c ON c.id=o.latest_check_id
       LEFT JOIN customer_guard_jobs j ON j.order_id=o.id """
+    received_at = """coalesce(nullif(o.mp_payload->>'in_process_at','')::timestamptz,
+      nullif(o.mp_payload->>'created_at','')::timestamptz)"""
     total = db.query("SELECT count(*) n " + base + "WHERE " + condition, tuple(params))[0]["n"]
     rows = db.query("""SELECT o.id,o.posting_number,o.parent_number,o.mp_status,o.ms_status,o.ms_store,
       o.first_seen_at,o.observed_at,o.ms_due_at,o.ms_checked_at,o.ms_id,
       o.mp_payload->'products' products,c.result,c.calculated_at,
       coalesce(c.generation=o.generation,false) current,
-      j.state job_state,j.error job_error,j.due_at retry_at """ + base +
-      "WHERE " + condition + " ORDER BY o.first_seen_at DESC,o.id DESC LIMIT %s OFFSET %s",
+      j.state job_state,j.error job_error,j.due_at retry_at, """ + received_at + " mp_received_at " + base +
+      "WHERE " + condition + " ORDER BY coalesce(" + received_at + ",o.first_seen_at) DESC,o.id DESC LIMIT %s OFFSET %s",
       tuple(params + [limit, offset]))
     for row in rows:
         try:

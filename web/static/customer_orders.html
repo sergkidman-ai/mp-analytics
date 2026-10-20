@@ -86,8 +86,9 @@ main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:1
     <span class="small">Чтение сохранённых данных, без запросов к МС</span>
   </div>
   <p id="message" role="status" aria-live="polite"></p>
+  <p id="copy-status" class="small" role="status" aria-live="polite"></p>
   <div class="tablewrap">
-    <table><thead><tr><th>Отправление</th><th>Статусы</th><th>Выбранный товар / склад</th>
+    <table><thead><tr><th>Отправление<div class="small">По дате поступления в Ozon ↓</div></th><th>Статусы</th><th>Выбранный товар / склад</th>
       <th class="money">Цена Ozon</th><th class="money">Себестоимость</th><th class="money">Чистая прибыль<div class="small">расчёт по текущим данным</div></th><th class="money">Пол</th>
       <th class="money">Отклонение</th><th>Результат</th><th>Проверено в МС</th></tr></thead><tbody id="rows"></tbody></table>
   </div>
@@ -142,7 +143,8 @@ async function load(){
       const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity}))||[];
       const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар Ozon; состав МС ещё не проверен';
       const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
-      return `<tr><td><button data-history="${Number(row.id)}">${esc(row.posting_number)}</button><div class="small">Получен ${esc(dt(row.first_seen_at))}</div></td>
+      return `<tr><td><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?'Поступил в Ozon':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
+        <button class="small" data-history="${Number(row.id)}">История проверок</button></td>
         <td><div>Ozon: ${esc(mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
         <td><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
@@ -163,7 +165,23 @@ $('search').onkeydown=e=>{if(e.key==='Enter'){offset=0;load();}};
 $('prev').onclick=()=>{offset=Math.max(0,offset-50);load();};
 $('next').onclick=()=>{offset+=50;load();};
 $('close').onclick=()=>$('history').close();
+async function copyOrderNumber(value){
+  try{
+    if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(value);return;}
+  }catch(e){/* Try selection-based copying when clipboard permission is unavailable. */}
+  const field=document.createElement('textarea');
+  field.value=value;field.readOnly=true;field.style.position='fixed';field.style.opacity='0';
+  document.body.appendChild(field);
+  try{field.select();if(!document.execCommand('copy'))throw new Error('copy_failed');}
+  finally{field.remove();}
+}
 $('rows').onclick=async e=>{
+  const copy=e.target.closest('[data-copy]');
+  if(copy){
+    try{await copyOrderNumber(copy.dataset.copy);$('copy-status').textContent='Номер '+copy.dataset.copy+' скопирован.';}
+    catch(error){$('copy-status').textContent='Браузер не разрешил копирование. Выделите номер '+copy.dataset.copy+' и скопируйте вручную.';}
+    return;
+  }
   const button=e.target.closest('[data-history]');if(!button)return;
   $('history').showModal();$('history-body').textContent='Загрузка…';
   try{const d=await api('/api/customer-orders/'+button.dataset.history+'/history');

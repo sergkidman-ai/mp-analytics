@@ -389,3 +389,19 @@ def test_profit_filter_excludes_unknown_and_stale_results(pg,monkeypatch,net,ver
         raise api.BasisUnavailable('No current basis')
     monkeypatch.setattr(api,'get_basis',missing_basis)
     assert client.get('/api/customer-orders',params={'signal':'non_positive_profit'}).json()['total']==0
+
+
+def test_dashboard_sorts_by_market_time_not_import_time(pg):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from web.customer_guard_api import router
+    app=FastAPI();app.include_router(router);client=TestClient(app)
+    older=posting('older-1');newer=posting('newer-1');unknown=posting('unknown-1')
+    older['in_process_at']=(NOW-timedelta(days=2)).isoformat()
+    newer['in_process_at']=(NOW-timedelta(days=1)).isoformat()
+    unknown.pop('in_process_at')
+    ingest([newer,older,unknown])
+    rows=client.get('/api/customer-orders').json()['rows']
+    assert [r['posting_number'] for r in rows]==['unknown-1','newer-1','older-1']
+    assert rows[0]['mp_received_at'] is None
+    assert client.get('/api/customer-orders',params={'offset':1,'limit':1}).json()['rows'][0]['posting_number']=='newer-1'
