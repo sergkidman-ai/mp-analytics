@@ -179,6 +179,68 @@ def ingest(posts, at=NOW):
     store.ingest(posts, at, at, NOW-timedelta(days=1), at, mirror_raw=True)
 
 
+def test_common_expense_floor_and_positive_remainder_below_target():
+    from core.ozon_expense_basis import floor_from_keep
+    post = posting()
+    post["products"][0]["price"] = "728"
+    keep = Decimal("0.39207839417185169693031269529450722916")
+    r = dict(rule(), retention=1-keep, version="september",
+             base_from="2026-09-01", base_to="2026-09-30")
+    value = domain.economics(post, Decimal("69.28"), "actual", r, NOW, True)
+    assert Decimal(value["floor"]) == floor_from_keep("69.28", 1, keep) == Decimal("941.85")
+    assert value["gap"] == "-213.85"
+    assert value["estimated_net"] == "216.15"
+    assert value["signal"] == "below_floor"
+
+
+def test_basis_reprice_preserves_source_time_history_and_is_idempotent(pg):
+    ingest([posting()])
+    checked = NOW+timedelta(minutes=10)
+    job = store.claim(checked)
+    old = domain.economics(posting(), Decimal("510.08"), "fifo_estimate", rule(), checked, True)
+    assert store.finish(job, old, checked)
+    before = db.query("SELECT * FROM customer_guard_checks")
+    snapshots = db.query("SELECT count(*) n FROM customer_guard_snapshots")[0]["n"]
+    r = dict(rule(), retention=Decimal(".5"), version="new")
+    assert store.reprice(r, checked+timedelta(minutes=3)) == 1
+    assert store.reprice(r, checked+timedelta(minutes=4)) == 0
+    rows = db.query("SELECT * FROM customer_guard_checks ORDER BY id")
+    assert rows[0] == before[0]
+    assert rows[1]["result"]["floor"] == "1620.16"
+    assert rows[1]["result"]["source_check_id"] == rows[0]["id"]
+    assert rows[1]["result"]["cost_observed_at"] == checked.isoformat()
+    assert db.query("SELECT ms_checked_at FROM customer_guard_orders")[0]["ms_checked_at"] == checked
+    assert db.query("SELECT count(*) n FROM customer_guard_snapshots")[0]["n"] == snapshots
+    # A changed marketplace revision must be checked against MS before local repricing.
+    changed = posting()
+    changed["products"][0]["quantity"] = 2
+    ingest([changed], checked+timedelta(minutes=5))
+    assert store.reprice(dict(r, version="newer"), checked+timedelta(minutes=6)) == 0
+
+
+def test_tc_structured_component_codes_and_cached_recheck(pg):
+    from shipment_guard.bundles import component_counts
+    from shipment_guard.ms import SourceError
+    record = {"external_code":"3109","incoming_references":[],"outgoing_references":[]}
+    assert component_counts([str(record), record, "3110"]) == {"3109":2, "3110":1}
+    with pytest.raises(SourceError):
+        component_counts(["{'external_code': '3109', 'quantity': 8}"])
+    with pytest.raises(SourceError):
+        component_counts(["{invalid_record}"])
+    ingest([posting()])
+    checked = NOW+timedelta(minutes=10)
+    job = store.claim(checked)
+    old = domain.economics(posting(), Decimal("510.08"), "fifo_estimate", rule(), checked)
+    # Saved public positions use external_code, as in evaluate().
+    old["positions"] = [{"quantity":1,"external_code":"3109"}]
+    assert store.finish(job, old, checked)
+    resolver = lambda code: (component_counts([str(record)]) if code=="set" else {code:1}, {})
+    assert store.reprice(rule(), checked+timedelta(minutes=1), resolver) == 1
+    result = db.query("SELECT result FROM customer_guard_checks ORDER BY id DESC LIMIT 1")[0]["result"]
+    assert result["signal"] == "ok"
+    assert result["composition"]["verified"]
+    assert store.reprice(rule(), checked+timedelta(minutes=2), resolver) == 0
+
 def test_first_seen_delay_duplicates_and_late_answers(pg):
     ingest([posting()])
     ingest([posting()], NOW+timedelta(minutes=8))

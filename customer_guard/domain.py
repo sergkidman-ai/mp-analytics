@@ -130,10 +130,14 @@ def economics(post, cost, kind, rule, now, allocation_verified=False):
     retention = number(rule["retention"])
     if not 0 <= retention < 1 or cost <= 0:
         raise ValueError("invalid_economics")
-    floor = (cost + max(Decimal(300) * units, Decimal(".1") * cost)) / (1 - retention)
+    from core.ozon_expense_basis import floor_from_retention
+    floor = floor_from_retention(cost, units, retention)
     result.update(floor=str(floor.quantize(Decimal(".01"))),
                   gap=str((price - floor).quantize(Decimal(".01"))),
                   rule_version=rule["version"],
+                  expense_period_from=str(rule.get("base_from") or ""),
+                  expense_period_to=str(rule.get("base_to") or ""),
+                  estimated_net=str((price * (1 - retention) - cost).quantize(Decimal(".01"))),
                   signal="below_floor" if price < floor else "aggregate_only")
     if allocation_verified:
         result.update(allocation="single_market_line", note="Состав и количество подтверждены по справочнику ТК")

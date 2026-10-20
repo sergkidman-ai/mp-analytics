@@ -2,11 +2,56 @@
 """Transactional observations, leased first checks and durable incidents."""
 from contextlib import contextmanager
 from datetime import timedelta
+from decimal import Decimal
 from uuid import uuid4
 
 from psycopg2.extras import Json, RealDictCursor
 from core import db
 from customer_guard.domain import ACTIVE, TERMINAL, digest, initial_due, posting_snapshot, posting_hash, sale
+from customer_guard.domain import economics, composition
+
+
+def reprice(rule, now, resolver=None):
+    """Append results for current, completed checks; retain original source timestamps."""
+    changed = 0
+    with transaction() as cur:
+        cur.execute("""SELECT o.id,o.mp_payload,o.generation,o.ms_checked_at,
+          c.id check_id,c.result,c.input_hash
+          FROM customer_guard_orders o
+          JOIN customer_guard_checks c ON c.id=o.latest_check_id
+          JOIN customer_guard_jobs j ON j.order_id=o.id
+          WHERE o.account='oz_acc2' AND c.generation=o.generation AND j.state='done'
+          AND c.result->>'cost' IS NOT NULL
+          AND (c.result->>'rule_version' IS DISTINCT FROM %s OR %s)
+          ORDER BY o.id FOR UPDATE OF o,j""", (rule["version"], resolver is not None))
+        for row in cur.fetchall():
+            old = row["result"]
+            positions = [{"quantity":p["quantity"], "assortment":{"externalCode":p.get("external_code")}}
+                         for p in old.get("positions", [])]
+            proof = (composition(row["mp_payload"], positions, resolver)
+                     if resolver else old.get("composition"))
+            if old.get("rule_version") == rule["version"] and proof == old.get("composition"):
+                continue
+            verified = (proof.get("verified", False) and len(row["mp_payload"]["products"]) == 1
+                        if resolver else old.get("allocation") == "single_market_line")
+            fresh = economics(row["mp_payload"], Decimal(old["cost"]), old["cost_kind"],
+                              rule, now, allocation_verified=verified)
+            if fresh.get("rule_version") != rule["version"]:
+                continue
+            result = dict(old, **fresh, recalculation="expense_basis_and_composition" if resolver else "expense_basis",
+                          source_check_id=row["check_id"],
+                          cost_observed_at=row["ms_checked_at"].isoformat())
+            if proof is not None:
+                result["composition"] = proof
+            cur.execute("""INSERT INTO customer_guard_checks
+              (order_id,generation,calculated_at,result,input_hash) VALUES(%s,%s,%s,%s,%s) RETURNING id""",
+              (row["id"], row["generation"], now, Json(result),
+               digest([row["input_hash"], rule["version"], proof])))
+            cid = cur.fetchone()["id"]
+            cur.execute("UPDATE customer_guard_orders SET latest_check_id=%s WHERE id=%s",
+                        (cid, row["id"]))
+            changed += 1
+    return changed
 
 
 @contextmanager

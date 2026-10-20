@@ -9,6 +9,7 @@ import time
 
 import psycopg2
 from core import db
+from core.ozon_expense_basis import shipment_rule, BasisUnavailable
 from shipment_guard.ms import SourceError
 from shipment_guard.worker import LOCK_ID
 from customer_guard import store
@@ -122,8 +123,6 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting
         client = client or CustomerMS(budget=budget)
         client.pulse = pulse
         client.verify_identity()
-        rules = db.query("SELECT * FROM ms_shipment_rules WHERE account='oz_acc2' AND enabled")
-        rule = rules[0] if len(rules) == 1 else None
         for _ in range(limit):
             job = store.claim(clock(), posting_number)
             if not job:
@@ -135,6 +134,10 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting
                     continue
                 client.evidence = []
                 document = client.find_order(post["posting_number"])
+                try:
+                    rule = shipment_rule("oz_acc2", as_of=clock().date())
+                except BasisUnavailable:
+                    rule = None
                 result = evaluate(post, document, client, rule, clock())
                 if document:
                     latest = client.get(f"/entity/customerorder/{document['id']}")
@@ -152,6 +155,20 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting
     return dict(completed=completed, ms_requests=client.requests)
 
 
+def reprice(refresh_composition=False):
+    """New local calculations; never present stored MS evidence as newly fetched."""
+    now = utcnow()
+    rule = shipment_rule("oz_acc2", as_of=now.date())
+    resolver = None
+    if refresh_composition:
+        from shipment_guard.bundles import Catalogue
+        catalogue = Catalogue(None)
+        resolver = lambda code: catalogue.resolve(code, fetch=False)
+    with exclusive():
+        return dict(recalculated=store.reprice(rule, now, resolver), ms_requests=0,
+                    rule_version=rule["version"])
+
+
 def main():
     parser = argparse.ArgumentParser(description="Ozon Дисквэр: однократный запуск, без расписания")
     subs = parser.add_subparsers(dest="command", required=True)
@@ -163,12 +180,16 @@ def main():
     worker.add_argument("--posting", help="Проверить конкретное уже наступившее задание")
     refresher = subs.add_parser("refresh")
     refresher.add_argument("--limit", type=int, default=5)
+    repricer = subs.add_parser("reprice", help="Пересчитать сохранённую стоимость по новой базе, без запросов МС")
+    repricer.add_argument("--composition", action="store_true", help="Также сверить сохранённый состав по локальному ТК")
     args = parser.parse_args()
     try:
         if args.command == "sync":
             result = sync(args.days)
         elif args.command == "refresh":
             result = refresh(args.limit)
+        elif args.command == "reprice":
+            result = reprice(args.composition)
         else:
             result = work(args.limit, args.budget, posting_number=args.posting)
         print(json.dumps(result, ensure_ascii=False))
