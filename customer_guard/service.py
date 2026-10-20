@@ -65,13 +65,14 @@ def sync(days=2):
     return dict(received=len(posts), account="oz_acc2")
 
 
-def refresh(limit=5):
+def refresh(limit=5, older_than=None):
     """Point checks cover late changes outside the new-order creation window."""
     if not 1 <= limit <= 10:
         raise ValueError("refresh_limit_1_to_10")
     with exclusive() as pulse:
         rows = db.query("""SELECT posting_number FROM customer_guard_orders
-          WHERE mp_status=ANY(%s) ORDER BY observed_at,id LIMIT %s""", (list(ACTIVE), limit))
+          WHERE mp_status=ANY(%s) AND observed_at<%s ORDER BY observed_at,id LIMIT %s""",
+          (list(ACTIVE), older_than or utcnow(), limit))
         for index, row in enumerate(rows):
             pulse()
             if index:
@@ -115,11 +116,17 @@ def evaluate(post, document, client, rule, now):
     return result
 
 
-def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting_number=None):
+def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting_number=None,
+         notify=False):
     if not 1 <= limit <= 10 or not 1 <= budget <= 100:
         raise ValueError("pilot_run_budget")
     completed = 0
+    notification_errors = []
     with exclusive() as pulse:
+        if not db.query("""SELECT 1 FROM customer_guard_jobs WHERE
+          (state IN ('pending','retry') AND due_at<=%s) OR
+          (state='running' AND lease_until<%s) LIMIT 1""", (clock(),clock())):
+            return dict(completed=0, ms_requests=0)
         client = client or CustomerMS(budget=budget)
         client.pulse = pulse
         client.verify_identity()
@@ -143,8 +150,20 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting
                     latest = client.get(f"/entity/customerorder/{document['id']}")
                     if latest.get("updated") != document.get("updated"):
                         raise SourceError("ms_order_changed_during_check", 600)
+                if notify and (result["signal"]=="missing_ms" or
+                    result["signal"]=="below_floor" and post["status"]!="delivering"
+                    and (document or {}).get("state",{}).get("name") in READY):
+                    # Reconfirm price/composition/status after cost reads, before an external alert.
+                    if not store.refresh(job,get(post["posting_number"]),clock()):
+                        continue
                 if store.finish(job, result, clock(), document, client.evidence):
                     completed += 1
+                    if notify:
+                        from customer_guard.notifications import send_current
+                        try:
+                            send_current(job["order_id"])
+                        except Exception as exc:
+                            notification_errors.append(type(exc).__name__)
             except SourceError as exc:
                 store.fail(job, str(exc), clock(), exc.retry_after)
                 # Avoid a burst of failures on shared quota/permissions/budget.
@@ -152,7 +171,24 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting
             except Exception as exc:
                 store.fail(job, "source_or_calculation_error:" + type(exc).__name__, clock())
                 break  # Exception text can contain credentials from request URLs.
-    return dict(completed=completed, ms_requests=client.requests)
+    result=dict(completed=completed, ms_requests=client.requests)
+    if notification_errors:
+        result["notification_errors"]=notification_errors
+    return result
+
+
+def bootstrap(days=90):
+    """Bounded initial active-order coverage, separate from the fresh-order checkpoint."""
+    if days != 90:
+        raise ValueError("pilot_backfill_90_days")
+    from collectors.ozon_postings import fetch_postings
+    now = utcnow()
+    start = now-timedelta(days=days)
+    with exclusive():
+        posts = fetch_postings("oz_acc2","fbs",start,now,limit=20,max_pages=20,
+                               timeout=120,statuses=sorted(ACTIVE))
+        store.ingest(posts,now,utcnow(),start,now,scope="ozon/oz_acc2/backfill")
+    return dict(received=len(posts),coverage_days=days)
 
 
 def reprice(refresh_composition=False):

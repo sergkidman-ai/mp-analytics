@@ -160,6 +160,9 @@ def pg(monkeypatch):
         sql = (Path(__file__).parents[1] / "migrations/073_customer_guard.sql").read_text()
         cur.execute(sql.replace("BEGIN;", "").replace("COMMIT;", ""))
         cur.execute((Path(__file__).parents[1] / "migrations/008_ozon_posting.sql").read_text())
+        cur.execute((Path(__file__).parents[1] / "migrations/074_ozon_expense_basis.sql").read_text())
+        cur.execute((Path(__file__).parents[1] / "migrations/075_customer_guard_runtime.sql").read_text()
+                    .replace("BEGIN;","").replace("COMMIT;",""))
 
     @contextmanager
     def isolated():

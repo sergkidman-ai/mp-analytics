@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import HTMLResponse
 from core import db
 from customer_guard.domain import sale
+from core.ozon_expense_basis import get_basis, BasisUnavailable
 
 router = APIRouter(tags=["Заказы покупателей"])
 
@@ -52,12 +53,26 @@ def data(status: str = "", signal: str = "", search: str = "",
             row["mp_price"] = str(sale({"products": row["products"]})[0])
         except ValueError:
             row["mp_price"] = None
+    try:
+        basis=get_basis("oz_acc2")
+    except BasisUnavailable:
+        basis=None
+    for row in rows:
+        row["basis_current"]=bool(basis and (row["result"] or {}).get("rule_version")==basis["version"])
     queue = db.query("""SELECT count(*) FILTER(WHERE state IN ('pending','retry','running')) pending,
       count(*) FILTER(WHERE state='error') errors,min(due_at) FILTER(WHERE state IN ('pending','retry')) next_due
       FROM customer_guard_jobs""")[0]
-    return dict(installed=True, rows=rows, total=total, queue=queue,
+    runtime={}
+    if db.query("SELECT to_regclass('customer_guard_runtime') name")[0]["name"]:
+        runtime=db.query("""SELECT *,coalesce(heartbeat_at>now()-interval '10 minutes',false) healthy
+          FROM customer_guard_runtime WHERE id""")[0]
+    notices=db.query("SELECT delivery,count(*) n FROM customer_guard_incidents GROUP BY delivery")
+    return dict(installed=True, rows=rows, total=total, queue=queue, runtime=runtime,
+                notifications={x["delivery"]:x["n"] for x in notices},
                 sync=db.query("SELECT * FROM customer_guard_sync_state ORDER BY scope"),
-                automatic_updates=False, notifications_enabled=False)
+                automatic_updates=bool(runtime.get("enabled") and runtime.get("healthy")),
+                notifications_enabled=bool(runtime.get("enabled") and runtime.get("healthy")
+                                           and runtime.get("notifications_enabled")))
 
 
 @router.get("/api/customer-orders/{order_id}/history")

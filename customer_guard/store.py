@@ -105,7 +105,8 @@ def observe(cur, post, observed_at, received_at, api_version="fbs/list/v4"):
     return order
 
 
-def ingest(posts, started_at, received_at, window_from, window_to, *, mirror_raw=False):
+def ingest(posts, started_at, received_at, window_from, window_to, *, mirror_raw=False,
+           scope="ozon/oz_acc2/fbs"):
     # Entire window, including raw, checkpoint and jobs, commits together.
     with transaction() as cur:
         for post in posts:
@@ -126,11 +127,25 @@ def ingest(posts, started_at, received_at, window_from, window_to, *, mirror_raw
                window_from.date(), window_to.date(), Json(post), started_at))
         cur.execute("""INSERT INTO customer_guard_sync_state
           (scope,started_at,completed_at,window_from,window_to,row_count,error)
-          VALUES('ozon/oz_acc2/fbs',%s,%s,%s,%s,%s,NULL)
+          VALUES(%s,%s,%s,%s,%s,%s,NULL)
           ON CONFLICT(scope) DO UPDATE SET started_at=excluded.started_at,
           completed_at=excluded.completed_at,window_from=excluded.window_from,
           window_to=excluded.window_to,row_count=excluded.row_count,error=NULL""",
-          (started_at, received_at, window_from, window_to, len(posts)))
+          (scope, started_at, received_at, window_from, window_to, len(posts)))
+
+
+def schedule_rechecks(now):
+    """Only finished, still-active pre-shipment checks; never shorten a retry lease."""
+    with transaction() as cur:
+        cur.execute("""UPDATE customer_guard_jobs j SET state='pending',kind='hourly_ms_check',
+          due_at=%s,attempts=0,error=NULL,lease_token=NULL,lease_until=NULL
+          FROM customer_guard_orders o LEFT JOIN customer_guard_checks c ON c.id=o.latest_check_id
+          WHERE j.order_id=o.id AND j.state='done' AND o.mp_status=ANY(%s)
+          AND o.ms_checked_at<=%s-interval '60 minutes'
+          AND (o.ms_status=ANY(%s) OR o.ms_id IS NULL OR
+               o.ms_status='Ожидает подтверждения' OR c.result->>'cost_kind' IS DISTINCT FROM 'actual')""",
+          (now, list(ACTIVE), now, ["Подтвержден","Собирается","Неукомплектован"]))
+        return cur.rowcount
 
 
 def claim(now, posting_number=None):
@@ -143,9 +158,13 @@ def claim(now, posting_number=None):
               WHERE account='oz_acc2' AND posting_number=%s)"""
             args.append(posting_number)
         cur.execute("""SELECT j.order_id FROM customer_guard_jobs j
+          JOIN customer_guard_orders o ON o.id=j.order_id
           WHERE ((j.state IN ('pending','retry') AND j.due_at<=%s)
              OR (j.state='running' AND j.lease_until<%s))""" + scope +
-          " ORDER BY j.due_at,j.order_id FOR UPDATE SKIP LOCKED LIMIT 1", tuple(args))
+          """ ORDER BY CASE
+            WHEN o.mp_status IN ('awaiting_packaging','awaiting_deliver') AND o.ms_checked_at IS NULL THEN 0
+            WHEN o.mp_status IN ('awaiting_packaging','awaiting_deliver') THEN 1 ELSE 2 END,
+            j.due_at,j.order_id FOR UPDATE OF j SKIP LOCKED LIMIT 1""", tuple(args))
         row = cur.fetchone()
         if not row:
             return None
@@ -200,15 +219,23 @@ def finish(job, result, now, document=None, evidence=None):
                   DO UPDATE SET checked_at=excluded.checked_at,version=excluded.version""",
                   (job["order_id"], source["entity_id"], now, source.get("version")))
         kind = result.get("signal")
-        if kind == "missing_ms":
+        actionable = kind == "missing_ms" or (kind == "below_floor" and
+            job["order"]["mp_status"] in ("awaiting_packaging", "awaiting_deliver") and
+            (document or {}).get("state", {}).get("name") in ("Подтвержден","Собирается","Неукомплектован"))
+        if actionable:
             cur.execute("""INSERT INTO customer_guard_incidents
               (order_id,kind,dedup_key,opened_at,check_id) VALUES(%s,%s,%s,%s,%s)
-              ON CONFLICT(dedup_key) DO NOTHING""",
-              (job["order_id"], kind, f"oz_acc2:{job['order']['posting_number']}:missing_ms", now, cid))
-        elif document:
+              ON CONFLICT(dedup_key) DO UPDATE SET check_id=excluded.check_id,
+                resolved_at=NULL,delivery='pending'
+              WHERE (customer_guard_incidents.resolved_at IS NULL
+                AND customer_guard_incidents.delivery='pending')
+                OR customer_guard_incidents.delivery='suppressed'""",
+              (job["order_id"], kind, f"oz_acc2:{job['order']['posting_number']}:{kind}", now, cid))
+        if document or actionable:
             cur.execute("""UPDATE customer_guard_incidents SET resolved_at=%s,
               delivery=CASE WHEN delivery='pending' THEN 'suppressed' ELSE delivery END
-              WHERE order_id=%s AND resolved_at IS NULL""", (now, job["order_id"]))
+              WHERE order_id=%s AND resolved_at IS NULL AND kind IS DISTINCT FROM %s""",
+              (now, job["order_id"], kind if actionable else None))
         cur.execute("""UPDATE customer_guard_jobs SET state='done',lease_token=NULL,
           lease_until=NULL,error=NULL WHERE order_id=%s""", (job["order_id"],))
         return True

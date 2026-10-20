@@ -1,0 +1,136 @@
+# поток: fin
+from datetime import timedelta
+from uuid import uuid4
+from unittest.mock import Mock
+
+import requests
+import pytest
+from core import db
+from customer_guard import store, notifications as n, runtime
+from tests.test_customer_guard import pg, posting, ingest, NOW
+
+
+def activate():
+    db.execute("""UPDATE customer_guard_runtime SET enabled=true,notifications_enabled=true,
+      activated_at=%s,heartbeat_at=%s WHERE id""",(NOW,NOW))
+
+
+def checked(number="123-001-1", status="awaiting_packaging", ms_state=None, signal="missing_ms",
+            cost_kind=None):
+    post=posting(number,status)
+    ingest([post])
+    at=NOW+timedelta(minutes=10)
+    job=store.claim(at,number)
+    assert store.refresh(job,post,at)
+    document={"id":str(uuid4()),"state":{"name":ms_state}} if ms_state else None
+    result=dict(signal=signal,cost_kind=cost_kind,price="728",cost="69.28",
+                floor="941.85",gap="-213.85",estimated_net="216.15")
+    assert store.finish(job,result,at,document)
+    return job["order_id"],at
+
+
+def fake_transport(monkeypatch, at):
+    monkeypatch.setattr(n,"transport",lambda:("https://unused.invalid","natalia-only"))
+    monkeypatch.setattr(n,"utcnow",lambda:at)
+
+
+def test_hourly_rechecks_do_not_poll_shipped_or_shorten_retry(pg):
+    ready,at=checked(signal="ok",ms_state="Подтвержден",cost_kind="fifo_estimate")
+    shipped,_=checked("123-001-2",status="delivering",signal="ok",ms_state="В пути",cost_kind="actual")
+    assert store.schedule_rechecks(at+timedelta(minutes=59,seconds=59))==0
+    assert store.schedule_rechecks(at+timedelta(minutes=60))==1
+    assert store.schedule_rechecks(at+timedelta(minutes=61))==0
+    states={r["order_id"]:r["state"] for r in db.query("SELECT order_id,state FROM customer_guard_jobs")}
+    assert states=={ready:"pending",shipped:"done"}
+    job=store.claim(at+timedelta(minutes=61))
+    store.fail(job,"ms_429",at+timedelta(minutes=61),600)
+    assert store.schedule_rechecks(at+timedelta(minutes=65))==0
+    assert store.claim(at+timedelta(minutes=70)) is None
+
+
+def test_initial_pre_shipment_checks_are_not_stuck_behind_historical_deliveries(pg):
+    ingest([posting("old-001-1",status="delivering"),posting("new-001-1")])
+    job=store.claim(NOW+timedelta(minutes=10))
+    assert job["order"]["posting_number"]=="new-001-1"
+
+
+def test_sent_once_to_single_recipient(pg,monkeypatch):
+    activate();oid,at=checked()
+    fake_transport(monkeypatch,at)
+    post=Mock(return_value=Mock(status_code=200,json=lambda:{"ok":True,"result":{"message_id":123}}))
+    monkeypatch.setattr(n.requests,"post",post)
+    assert n.send_current(oid)=="sent"
+    assert n.send_current(oid)=="none"
+    assert post.call_count==1
+    body=post.call_args.kwargs["json"]
+    assert body["chat_id"]=="natalia-only" and "не найден" in body["text"]
+    assert db.query("SELECT telegram_message_id FROM customer_guard_incidents")[0]["telegram_message_id"]==123
+
+
+def test_timeout_uncertain_and_crash_recovery_never_resends(pg,monkeypatch):
+    activate();oid,at=checked();fake_transport(monkeypatch,at)
+    post=Mock(side_effect=requests.Timeout("must not log request URL"))
+    monkeypatch.setattr(n.requests,"post",post)
+    assert n.send_current(oid)=="uncertain"
+    assert n.send_current(oid)=="none"
+    assert post.call_count==1
+    db.execute("UPDATE customer_guard_incidents SET delivery='sending',attempted_at=%s",(at,))
+    n.recover_interrupted(at+timedelta(minutes=3))
+    assert db.query("SELECT delivery FROM customer_guard_incidents")[0]["delivery"]=="uncertain"
+
+
+@pytest.mark.parametrize("condition",["stale","cancelled","disabled","before_activation"])
+def test_no_delivery_for_stale_cancelled_or_disabled(pg,monkeypatch,condition):
+    activate();oid,at=checked()
+    fake_transport(monkeypatch,at+timedelta(minutes=2) if condition=="stale" else at)
+    if condition=="cancelled":ingest([posting(status="cancelled")],at+timedelta(seconds=1))
+    if condition=="disabled":db.execute("UPDATE customer_guard_runtime SET notifications_enabled=false")
+    if condition=="before_activation":db.execute("UPDATE customer_guard_runtime SET activated_at=%s",(at+timedelta(seconds=1),))
+    post=Mock(side_effect=AssertionError("must not send"))
+    monkeypatch.setattr(n.requests,"post",post)
+    n.send_current(oid)
+    assert not post.called
+
+
+def test_cancel_between_claim_and_send(pg,monkeypatch):
+    activate();oid,at=checked();fake_transport(monkeypatch,at)
+    original=n.claim
+    def claim(*args):
+        row=original(*args)
+        ingest([posting(status="cancelled")],at+timedelta(seconds=1))
+        return row
+    monkeypatch.setattr(n,"claim",claim)
+    post=Mock(side_effect=AssertionError("must not send"))
+    monkeypatch.setattr(n.requests,"post",post)
+    assert n.send_current(oid)=="suppressed"
+    assert not post.called
+
+
+def test_below_floor_only_before_departure_and_message_not_actual_loss(pg):
+    ready,at=checked(signal="below_floor",ms_state="Неукомплектован",cost_kind="purchase_estimate")
+    checked("123-001-2",status="delivering",signal="below_floor",ms_state="В пути",cost_kind="actual")
+    rows=db.query("SELECT * FROM customer_guard_incidents")
+    assert len(rows)==1 and rows[0]["order_id"]==ready
+    text=n.message(dict(kind="below_floor",posting_number="123",ms_status="Неукомплектован",
+        result=dict(price="728",cost="69.28",floor="941.85",gap="-213.85",
+                    estimated_net="216.15",cost_kind="purchase_estimate")))
+    assert "предварительная оценка" in text and "не фактическая прибыль" in text
+    assert "убыток" not in text
+
+
+def test_tick_disabled_no_network_and_ten_minute_sync_gate(pg,monkeypatch):
+    sync=Mock(return_value={})
+    monkeypatch.setattr(runtime.service,"sync",sync)
+    assert runtime.tick()=={"enabled":False}
+    assert not sync.called
+    activate()
+    ingest([posting()])
+    monkeypatch.setattr(runtime,"utcnow",lambda:NOW+timedelta(minutes=9))
+    monkeypatch.setattr(runtime.service,"refresh",Mock(return_value={}))
+    monkeypatch.setattr(runtime.service,"work",Mock(return_value={}))
+    monkeypatch.setattr(runtime.service,"reprice",Mock(return_value={}))
+    runtime.tick()
+    assert not sync.called
+    monkeypatch.setattr(runtime,"utcnow",lambda:NOW+timedelta(minutes=10))
+    runtime.tick()
+    assert sync.call_count==1

@@ -69,8 +69,7 @@ main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:1
   </nav>
   <h1>Заказы покупателей</h1>
   <div class="muted">Ozon · Дисквэр · FBS / rFBS</div>
-  <div class="notice">Пилот работает однократными запусками. Автоматическое обновление и отправка уведомлений пока выключены.
-    Проверка МС назначается через 10 минут после первого получения заказа Пультом.</div>
+  <div class="notice" id="runtime">Загрузка состояния обработки…</div>
   <div class="big" id="stats"></div>
   <div class="toolbar">
     <input id="search" placeholder="Номер отправления" aria-label="Номер отправления">
@@ -112,6 +111,7 @@ function state(row){
   if(!Object.hasOwn(mp,row.mp_status))return 'Статус Ozon требует проверки';
   if(row.job_error)return 'Проверка не завершена';
   if(!row.current)return row.job_state==='running'?'Проверяется':row.result?'Требует пересчёта':'Ожидает проверки';
+  if(row.result?.floor&&!row.basis_current)return 'База расходов требует обновления';
   return signals[row.result?.signal]||'Недостаточно данных';
 }
 async function api(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw new Error('Не удалось прочитать данные ('+r.status+')');return r.json();}
@@ -121,25 +121,33 @@ async function load(){
     const q=new URLSearchParams({limit:50,offset,status:$('status').value,signal:$('signal').value,search:$('search').value});
     const d=await api('/api/customer-orders?'+q);if(n!==request)return;
     total=d.total;
-    const sync=d.sync?.[0];
+    const sync=d.sync?.find(x=>x.scope==='ozon/oz_acc2/fbs');
+    $('runtime').textContent=(d.automatic_updates?
+      'Фоновая обработка включена: новые заказы — каждые 10 минут; первая проверка МС — после 10 минут с получения; повторные проверки до отгрузки — раз в 60 минут. ':
+      d.runtime?.enabled?'Фоновая обработка включена, но её работа пока не подтверждена. ':'Фоновая обработка выключена. ')+
+      (d.notifications_enabled?'Уведомления Наталии в prc включены. ':'Уведомления выключены. ')+
+      (d.runtime?.last_error?'Есть ошибка обработки; подробности видны в очереди. ':'')+
+      ((d.notifications?.uncertain||d.notifications?.failed)?'Есть уведомления с неподтверждённой доставкой; автоматический дубль не отправляется. ':'')+
+      'Таблица обновляется из сохранённых данных раз в минуту.';
     $('stats').innerHTML=[['Заказов в выборке',total],['Ожидают проверки',d.queue?.pending??0],
       ['Последнее получение Ozon',dt(sync?.completed_at)]].map(([label,value])=>`<div class="bi"><div class="l">${esc(label)}</div><div class="v">${esc(value)}</div></div>`).join('');
     $('message').textContent=!d.installed?'Хранилище пилота ещё не установлено.':!total?'Заказов по этим условиям пока нет.':'';
     $('rows').innerHTML=d.rows.map(row=>{
       const r=row.result||{},valid=row.current&&!row.job_error;
+      const economicValid=valid&&row.basis_current;
       const hasMS=Boolean(r.positions?.length);
       const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity}))||[];
       const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар Ozon; состав МС ещё не проверен';
-      const cls=valid&&['below_floor','missing_ms'].includes(r.signal)?'danger':valid&&r.signal==='ok'?'pos':'warning';
+      const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
       return `<tr><td><button data-history="${Number(row.id)}">${esc(row.posting_number)}</button><div class="small">Получен ${esc(dt(row.first_seen_at))}</div></td>
         <td><div>Ozon: ${esc(mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
         <td><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
         <td class="money">${esc(money(row.mp_price))}<div class="small">МС: ${esc(money(r.ms_price))}</div></td>
         <td class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
-        <td class="money">${esc(money(valid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td class="money ${cls}">${esc(money(valid?r.gap:null))}</td>
+        <td class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
         <td><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div>
-          ${valid&&r.estimated_net!=null?`<div class="small ${Number(r.estimated_net)<0?'danger':''}">${Number(r.estimated_net)<0?'Расчётный убыток':'Расчётный остаток'}: ${esc(money(r.estimated_net))}</div>`:''}</td>
+          ${economicValid&&r.estimated_net!=null?`<div class="small ${Number(r.estimated_net)<0?'danger':''}">${Number(r.estimated_net)<0?'Расчётный убыток':'Расчётный остаток'}: ${esc(money(r.estimated_net))}</div>`:''}</td>
         <td class="nowrap">${esc(dt(row.ms_checked_at))}</td></tr>`;
     }).join('');
     $('count').textContent=total?`${offset+1}–${Math.min(offset+50,total)} из ${total}`:'0 заказов';
@@ -163,6 +171,7 @@ $('rows').onclick=async e=>{
   }catch(e){$('history-body').textContent=e.message;}
 };
 load();
+setInterval(()=>{if(!document.hidden&&!$('history').open)load();},60000);
 </script>
 </body>
 </html>
