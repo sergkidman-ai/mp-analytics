@@ -1,0 +1,63 @@
+{
+  "pilot": "oz_acc2",
+  "ms_user": "yunusov@dsquare",
+  "ms_requests": 48,
+  "ms_http_counts": {
+    "200": 46,
+    "412": 2
+  },
+  "ms_seconds_median": 0.208,
+  "ms_seconds_max": 1.557,
+  "min_rate_remaining": 42,
+  "ozon_requests": [
+    {
+      "path": "/v3/posting/fbs/list",
+      "http": 429,
+      "message": null
+    },
+    {
+      "path": "/v3/posting/fbs/list",
+      "http": 429,
+      "message": "You have reached request rate limit per second"
+    },
+    {
+      "path": "/v3/posting/fbs/get",
+      "http": 200,
+      "message": null
+    }
+  ],
+  "exact_bridge_matched": 5,
+  "exact_bridge_checked": 5,
+  "working_states": {
+    "Подтвержден": 0,
+    "Неукомплектован": 14,
+    "Собирается": 1
+  },
+  "changed_orders": {
+    "10": 0,
+    "1440": 52
+  },
+  "live_chain": {
+    "posting": "71295564-0105-1",
+    "ozon_status": "delivering",
+    "ozon_price": 3531.0,
+    "ms_sum": 3531.21,
+    "fifo": 646.15
+  },
+  "notification_read_check": {
+    "bot": "ds_prc_bot",
+    "recipient": "Pro_natalya",
+    "getMe": true,
+    "getChat": true,
+    "messages_sent": 0
+  },
+  "constraints": {
+    "tk_delay_minutes": 10,
+    "missing_ms_alert_after_first_seen_minutes": 10,
+    "ui": "Склад → Заказы покупателей",
+    "repeat_interval": "not agreed; do not enable five-minute polling",
+    "ms_env": "SHIPMENT_GUARD_MS_TOKEN",
+    "phase": "read-only preflight",
+    "services_started": false
+  }
+}
