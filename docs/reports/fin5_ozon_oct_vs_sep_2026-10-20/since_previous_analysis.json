@@ -1,0 +1,38 @@
+[
+  {
+    "account": "oz_acc1",
+    "since_previous_analysis": {
+      "sales": 1326547.0,
+      "itog": 747911.990000003,
+      "payout": 569211.009999997,
+      "returns": 10457.0,
+      "cogs": 0.0,
+      "net": 569211.0099999967,
+      "margin": 3.258384910167578
+    },
+    "finance_last_date": "2026-10-20",
+    "cogs_computed_at": "2026-10-19 02:24:36.177280+00:00",
+    "cogs_sku_revenue": 9201402.0,
+    "finance_revenue_minus_cogs_sku_revenue": 1326547.0,
+    "payout_share_september": 37.76154209951238,
+    "payout_share_october": 38.10898020117687
+  },
+  {
+    "account": "oz_acc2",
+    "since_previous_analysis": {
+      "sales": 0.0,
+      "itog": -2.3283064365386963e-10,
+      "payout": 2.3283064365386963e-10,
+      "returns": 0.0,
+      "cogs": 0.0,
+      "net": 2.3283064365386963e-10,
+      "margin": 1.0658141036401503e-14
+    },
+    "finance_last_date": "2026-10-18",
+    "cogs_computed_at": "2026-10-18 19:40:19.080182+00:00",
+    "cogs_sku_revenue": 1893491.0,
+    "finance_revenue_minus_cogs_sku_revenue": 0.0,
+    "payout_share_september": 39.07033986556849,
+    "payout_share_october": 34.664976490514064
+  }
+]

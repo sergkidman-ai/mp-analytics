@@ -1,0 +1,24 @@
+{
+  "order_number": "44671170-0530",
+  "posting_number": "44671170-0530-1",
+  "account": "oz_acc2",
+  "return_type": "ClientReturn",
+  "return_reason_as_reported": "Товар в неполной комплектации",
+  "return_created": "2026-10-09",
+  "return_ids": [
+    "1001750927",
+    "1001750928",
+    "1001750929"
+  ],
+  "gross_sale_reversal": "93342.00",
+  "commission_reversal": "43870.74",
+  "financial_operations_total": "-5125.39",
+  "financial_total_scope": "Only Ozon transactions; excludes COGS and cost reversal",
+  "fee_components": {
+    "outbound_logistics": "517.00",
+    "return_logistics": "408.00",
+    "customer_complaint": "4200.39"
+  },
+  "statuses_as_of": "2026-10-19",
+  "pending_pickup_return_id": "1001750928"
+}

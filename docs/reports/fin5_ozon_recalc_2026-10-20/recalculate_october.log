@@ -1,0 +1,16 @@
+[scoped] oz_acc1 start 2026-10-20T19:19:42.732640+00:00
+Ozon каталог oz_acc1
+Записано sku: 77494 | в архиве: 50574
+Ozon постинги oz_acc1 2026-10-01..2026-10-20
+[scoped] oz_acc1 failed HTTPError
+[scoped] oz_acc2 start 2026-10-20T19:20:40.784487+00:00
+Ozon каталог oz_acc2
+Записано sku: 24359 | в архиве: 328
+Ozon постинги oz_acc2 2026-10-01..2026-10-20
+[scoped] oz_acc2 failed HTTPError
+Traceback (most recent call last):
+  File "/opt/mp-analytics/docs/reports/fin5_ozon_recalc_2026-10-20/recalculate_october.py", line 63, in <module>
+    main()
+  File "/opt/mp-analytics/docs/reports/fin5_ozon_recalc_2026-10-20/recalculate_october.py", line 59, in main
+    assert status=='both_october_calculations_succeeded',results
+AssertionError: [{'account': 'oz_acc1', 'status': 'failed', 'steps': ['catalog'], 'error_type': 'HTTPError', 'error': '400 Client Error: Bad Request for url: https://api-seller.ozon.ru/v4/posting/fbs/list'}, {'account': 'oz_acc2', 'status': 'failed', 'steps': ['catalog'], 'error_type': 'HTTPError', 'error': '400 Client Error: Bad Request for url: https://api-seller.ozon.ru/v4/posting/fbs/list'}]

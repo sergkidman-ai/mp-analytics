@@ -1,0 +1,614 @@
+[
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-01",
+    "n": 5290,
+    "spend": "16382.52",
+    "orders": "44.0",
+    "attributed_sales": "332506.0",
+    "collected_at": "2026-09-02 09:25:23.458561+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-02",
+    "n": 5407,
+    "spend": "16617.73",
+    "orders": "40.0",
+    "attributed_sales": "413302.0",
+    "collected_at": "2026-09-03 09:35:55.483860+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-03",
+    "n": 5348,
+    "spend": "18976.00",
+    "orders": "35.0",
+    "attributed_sales": "273553.0",
+    "collected_at": "2026-09-04 09:30:42.373922+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-04",
+    "n": 5046,
+    "spend": "14866.93",
+    "orders": "41.0",
+    "attributed_sales": "476542.0",
+    "collected_at": "2026-09-05 09:20:19.727994+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-05",
+    "n": 4416,
+    "spend": "14352.06",
+    "orders": "13.0",
+    "attributed_sales": "103252.0",
+    "collected_at": "2026-09-06 09:22:09.171678+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-06",
+    "n": 4478,
+    "spend": "14217.14",
+    "orders": "15.0",
+    "attributed_sales": "120541.0",
+    "collected_at": "2026-09-07 09:23:15.609491+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-07",
+    "n": 5257,
+    "spend": "23995.36",
+    "orders": "47.0",
+    "attributed_sales": "417641.0",
+    "collected_at": "2026-09-08 09:23:31.920032+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-08",
+    "n": 5106,
+    "spend": "20765.04",
+    "orders": "56.0",
+    "attributed_sales": "577564.0",
+    "collected_at": "2026-09-09 09:20:13.884182+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-09",
+    "n": 4975,
+    "spend": "20542.00",
+    "orders": "42.0",
+    "attributed_sales": "265829.0",
+    "collected_at": "2026-09-10 09:20:35.985902+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-10",
+    "n": 5178,
+    "spend": "21436.23",
+    "orders": "52.0",
+    "attributed_sales": "435810.0",
+    "collected_at": "2026-09-11 09:22:11.175666+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-11",
+    "n": 4911,
+    "spend": "19681.18",
+    "orders": "33.0",
+    "attributed_sales": "287746.0",
+    "collected_at": "2026-09-12 09:19:17.897276+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-12",
+    "n": 4721,
+    "spend": "16286.03",
+    "orders": "15.0",
+    "attributed_sales": "77616.0",
+    "collected_at": "2026-09-13 09:20:36.171523+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-13",
+    "n": 4725,
+    "spend": "19480.89",
+    "orders": "19.0",
+    "attributed_sales": "151227.0",
+    "collected_at": "2026-09-14 09:22:27.799186+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-14",
+    "n": 5487,
+    "spend": "22436.11",
+    "orders": "44.0",
+    "attributed_sales": "384505.0",
+    "collected_at": "2026-09-15 09:18:42.965438+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-15",
+    "n": 5660,
+    "spend": "23384.96",
+    "orders": "44.0",
+    "attributed_sales": "353178.0",
+    "collected_at": "2026-09-16 09:20:13.288406+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-16",
+    "n": 5692,
+    "spend": "24210.68",
+    "orders": "53.0",
+    "attributed_sales": "415566.0",
+    "collected_at": "2026-09-17 09:25:51.300037+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-09-17",
+    "n": 5589,
+    "spend": "25396.01",
+    "orders": "34.0",
+    "attributed_sales": "311888.0",
+    "collected_at": "2026-09-18 09:22:21.448986+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-01",
+    "n": 6241,
+    "spend": "21321.89",
+    "orders": "52.0",
+    "attributed_sales": "384273.0",
+    "collected_at": "2026-10-02 09:21:27.822352+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-02",
+    "n": 6218,
+    "spend": "19643.09",
+    "orders": "52.0",
+    "attributed_sales": "370520.0",
+    "collected_at": "2026-10-03 09:18:43.051901+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-03",
+    "n": 5797,
+    "spend": "16536.47",
+    "orders": "27.0",
+    "attributed_sales": "187869.0",
+    "collected_at": "2026-10-04 09:18:33.814577+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-04",
+    "n": 5869,
+    "spend": "22766.95",
+    "orders": "26.0",
+    "attributed_sales": "139053.0",
+    "collected_at": "2026-10-05 09:18:38.589044+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-05",
+    "n": 6526,
+    "spend": "28625.33",
+    "orders": "61.0",
+    "attributed_sales": "435202.0",
+    "collected_at": "2026-10-06 09:18:51.609943+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-06",
+    "n": 6319,
+    "spend": "28176.24",
+    "orders": "64.0",
+    "attributed_sales": "468014.0",
+    "collected_at": "2026-10-07 09:20:12.662707+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-07",
+    "n": 6466,
+    "spend": "28545.59",
+    "orders": "55.0",
+    "attributed_sales": "496970.0",
+    "collected_at": "2026-10-08 09:18:40.707905+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-08",
+    "n": 6484,
+    "spend": "29761.75",
+    "orders": "74.0",
+    "attributed_sales": "522858.0",
+    "collected_at": "2026-10-09 09:18:57.050391+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-09",
+    "n": 6327,
+    "spend": "23910.79",
+    "orders": "74.0",
+    "attributed_sales": "522270.0",
+    "collected_at": "2026-10-10 09:18:46.530379+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-10",
+    "n": 5908,
+    "spend": "21181.16",
+    "orders": "24.0",
+    "attributed_sales": "263011.0",
+    "collected_at": "2026-10-11 09:19:05.153741+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-11",
+    "n": 5837,
+    "spend": "21651.20",
+    "orders": "29.0",
+    "attributed_sales": "230630.0",
+    "collected_at": "2026-10-12 09:19:03.039460+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-12",
+    "n": 6494,
+    "spend": "28842.92",
+    "orders": "52.0",
+    "attributed_sales": "331449.0",
+    "collected_at": "2026-10-13 09:18:44.081223+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-13",
+    "n": 6458,
+    "spend": "26298.07",
+    "orders": "58.0",
+    "attributed_sales": "409484.0",
+    "collected_at": "2026-10-14 09:18:46.409197+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-14",
+    "n": 6507,
+    "spend": "28394.16",
+    "orders": "54.0",
+    "attributed_sales": "439335.0",
+    "collected_at": "2026-10-15 09:18:59.356511+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-15",
+    "n": 6377,
+    "spend": "28283.29",
+    "orders": "59.0",
+    "attributed_sales": "499443.0",
+    "collected_at": "2026-10-16 09:18:50.366681+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-16",
+    "n": 6326,
+    "spend": "26855.36",
+    "orders": "56.0",
+    "attributed_sales": "476973.0",
+    "collected_at": "2026-10-17 09:19:32.977049+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "stat_date": "2026-10-17",
+    "n": 6324,
+    "spend": "21698.68",
+    "orders": "13.0",
+    "attributed_sales": "99567.0",
+    "collected_at": "2026-10-18 09:19:09.774862+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-01",
+    "n": 2410,
+    "spend": "1166.53",
+    "orders": "8.0",
+    "attributed_sales": "86781.0",
+    "collected_at": "2026-09-02 09:28:40.777178+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-02",
+    "n": 2496,
+    "spend": "851.65",
+    "orders": "10.0",
+    "attributed_sales": "42782.0",
+    "collected_at": "2026-09-03 09:45:50.607627+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-03",
+    "n": 2461,
+    "spend": "1276.94",
+    "orders": "4.0",
+    "attributed_sales": "8349.0",
+    "collected_at": "2026-09-04 09:36:35.641196+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-04",
+    "n": 2292,
+    "spend": "897.25",
+    "orders": "5.0",
+    "attributed_sales": "22984.0",
+    "collected_at": "2026-09-05 09:22:08.874750+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-05",
+    "n": 2003,
+    "spend": "812.72",
+    "orders": "4.0",
+    "attributed_sales": "8157.0",
+    "collected_at": "2026-09-06 09:23:14.273005+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-06",
+    "n": 2047,
+    "spend": "922.86",
+    "orders": "6.0",
+    "attributed_sales": "5038.0",
+    "collected_at": "2026-09-07 09:24:53.855302+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-07",
+    "n": 2317,
+    "spend": "1310.24",
+    "orders": "2.0",
+    "attributed_sales": "4737.0",
+    "collected_at": "2026-09-08 09:24:51.001267+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-08",
+    "n": 2366,
+    "spend": "1354.14",
+    "orders": "9.0",
+    "attributed_sales": "78063.0",
+    "collected_at": "2026-09-09 09:22:31.877961+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-09",
+    "n": 2217,
+    "spend": "1250.08",
+    "orders": "3.0",
+    "attributed_sales": "16506.0",
+    "collected_at": "2026-09-10 09:22:08.375530+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-10",
+    "n": 2245,
+    "spend": "1082.05",
+    "orders": "5.0",
+    "attributed_sales": "19007.0",
+    "collected_at": "2026-09-11 09:23:37.290318+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-11",
+    "n": 2082,
+    "spend": "1041.38",
+    "orders": "15.0",
+    "attributed_sales": "71439.0",
+    "collected_at": "2026-09-12 09:20:22.902880+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-12",
+    "n": 1904,
+    "spend": "869.97",
+    "orders": "5.0",
+    "attributed_sales": "33569.0",
+    "collected_at": "2026-09-13 09:22:15.373935+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-13",
+    "n": 1884,
+    "spend": "1013.87",
+    "orders": "3.0",
+    "attributed_sales": "26834.0",
+    "collected_at": "2026-09-14 09:25:17.796219+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-14",
+    "n": 2347,
+    "spend": "8196.06",
+    "orders": "8.0",
+    "attributed_sales": "38816.0",
+    "collected_at": "2026-09-15 09:19:22.895843+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-15",
+    "n": 2373,
+    "spend": "17309.76",
+    "orders": "6.0",
+    "attributed_sales": "23096.0",
+    "collected_at": "2026-09-16 09:21:52.851567+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-16",
+    "n": 2499,
+    "spend": "7102.40",
+    "orders": "11.0",
+    "attributed_sales": "75778.0",
+    "collected_at": "2026-09-17 09:27:36.827194+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-09-17",
+    "n": 2588,
+    "spend": "18506.24",
+    "orders": "6.0",
+    "attributed_sales": "43655.0",
+    "collected_at": "2026-09-18 09:23:52.116967+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-01",
+    "n": 2955,
+    "spend": "17483.25",
+    "orders": "14.0",
+    "attributed_sales": "55036.0",
+    "collected_at": "2026-10-02 09:24:58.599916+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-02",
+    "n": 2778,
+    "spend": "7194.72",
+    "orders": "5.0",
+    "attributed_sales": "28826.0",
+    "collected_at": "2026-10-03 09:19:21.321135+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-03",
+    "n": 2507,
+    "spend": "13097.69",
+    "orders": "3.0",
+    "attributed_sales": "8179.0",
+    "collected_at": "2026-10-04 09:19:16.755025+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-04",
+    "n": 2639,
+    "spend": "14602.56",
+    "orders": "2.0",
+    "attributed_sales": "2937.0",
+    "collected_at": "2026-10-05 09:19:24.292325+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-05",
+    "n": 2935,
+    "spend": "14681.76",
+    "orders": "1.0",
+    "attributed_sales": "2511.0",
+    "collected_at": "2026-10-06 09:19:34.324367+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-06",
+    "n": 2890,
+    "spend": "17420.73",
+    "orders": "8.0",
+    "attributed_sales": "31221.0",
+    "collected_at": "2026-10-07 09:21:08.444958+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-07",
+    "n": 2905,
+    "spend": "12236.68",
+    "orders": "8.0",
+    "attributed_sales": "18418.0",
+    "collected_at": "2026-10-08 09:19:31.522633+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-08",
+    "n": 2872,
+    "spend": "8430.48",
+    "orders": "4.0",
+    "attributed_sales": "38511.0",
+    "collected_at": "2026-10-09 09:19:39.693317+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-09",
+    "n": 2793,
+    "spend": "7284.35",
+    "orders": "6.0",
+    "attributed_sales": "95177.0",
+    "collected_at": "2026-10-10 09:19:29.627115+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-10",
+    "n": 2545,
+    "spend": "7337.95",
+    "orders": "2.0",
+    "attributed_sales": "3176.0",
+    "collected_at": "2026-10-11 09:20:00.310725+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-11",
+    "n": 2518,
+    "spend": "6768.96",
+    "orders": "3.0",
+    "attributed_sales": "9112.0",
+    "collected_at": "2026-10-12 09:19:40.982684+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-12",
+    "n": 2915,
+    "spend": "5999.89",
+    "orders": "6.0",
+    "attributed_sales": "33731.0",
+    "collected_at": "2026-10-13 09:19:30.769606+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-13",
+    "n": 2863,
+    "spend": "11372.08",
+    "orders": "9.0",
+    "attributed_sales": "32940.0",
+    "collected_at": "2026-10-14 09:19:33.166652+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-14",
+    "n": 2890,
+    "spend": "10503.64",
+    "orders": "4.0",
+    "attributed_sales": "44793.0",
+    "collected_at": "2026-10-15 09:19:48.791244+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-15",
+    "n": 2950,
+    "spend": "8114.61",
+    "orders": "3.0",
+    "attributed_sales": "40462.0",
+    "collected_at": "2026-10-16 09:19:40.608318+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-16",
+    "n": 2710,
+    "spend": "4454.45",
+    "orders": "7.0",
+    "attributed_sales": "27764.0",
+    "collected_at": "2026-10-17 09:20:21.381557+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "stat_date": "2026-10-17",
+    "n": 2925,
+    "spend": "3215.18",
+    "orders": "2.0",
+    "attributed_sales": "2262.0",
+    "collected_at": "2026-10-18 09:19:53.966817+00:00"
+  }
+]

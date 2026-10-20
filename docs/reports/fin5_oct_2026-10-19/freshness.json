@@ -1,0 +1,156 @@
+{
+  "ozon": [
+    {
+      "account": "oz_acc1",
+      "first_date": "2026-10-01",
+      "last_date": "2026-10-19",
+      "loaded_at": "2026-10-19 02:22:31.177087+00:00",
+      "records": 3918
+    },
+    {
+      "account": "oz_acc2",
+      "first_date": "2026-10-01",
+      "last_date": "2026-10-18",
+      "loaded_at": "2026-10-19 02:25:12.202251+00:00",
+      "records": 925
+    }
+  ],
+  "wb": [
+    {
+      "account": "wb_acc1",
+      "first_date": "2026-10-01",
+      "last_date": "2026-10-12",
+      "loaded_at": "2026-10-19 02:39:33.239700+00:00",
+      "records": 3848
+    },
+    {
+      "account": "wb_acc2",
+      "first_date": "2026-10-01",
+      "last_date": "2026-10-12",
+      "loaded_at": "2026-10-19 02:39:39.733669+00:00",
+      "records": 2452
+    }
+  ],
+  "ya_services": [
+    {
+      "ym": "2026-09",
+      "first_date": "2026-09-01",
+      "last_date": "2026-09-30",
+      "loaded_at": "2026-10-19 02:26:54.706087+00:00",
+      "records": 3289,
+      "cost": "559527.63",
+      "netting": "1447408.45"
+    },
+    {
+      "ym": "2026-10",
+      "first_date": "2026-10-01",
+      "last_date": "2026-10-18",
+      "loaded_at": "2026-10-19 02:26:54.706087+00:00",
+      "records": 1503,
+      "cost": "229097.44",
+      "netting": "650260.23"
+    }
+  ],
+  "ya_closure": [
+    {
+      "ym": "2026-09",
+      "category": "returns",
+      "first_date": "2026-09-01",
+      "last_date": "2026-09-26",
+      "loaded_at": "2026-09-28 10:31:35.120681+00:00",
+      "records": 65,
+      "amount": "-157461.0"
+    },
+    {
+      "ym": "2026-09",
+      "category": "revenue",
+      "first_date": "2026-09-01",
+      "last_date": "2026-09-28",
+      "loaded_at": "2026-09-28 10:31:35.120681+00:00",
+      "records": 481,
+      "amount": "1438906.0"
+    }
+  ],
+  "cogs": [
+    {
+      "platform": "ozon",
+      "account": "oz_acc1",
+      "period_from": "2026-09-01",
+      "skus": 897,
+      "qty": null,
+      "cogs": "2884029.1845000000854804",
+      "first_computed": "2026-09-01 02:26:10.330539+00:00",
+      "last_computed": "2026-09-30 19:28:51.171564+00:00"
+    },
+    {
+      "platform": "ozon",
+      "account": "oz_acc1",
+      "period_from": "2026-10-01",
+      "skus": 819,
+      "qty": null,
+      "cogs": "1874088.03000000002362",
+      "first_computed": "2026-10-01 02:23:27.110465+00:00",
+      "last_computed": "2026-10-19 02:24:36.177280+00:00"
+    },
+    {
+      "platform": "ozon",
+      "account": "oz_acc2",
+      "period_from": "2026-09-01",
+      "skus": 390,
+      "qty": null,
+      "cogs": "629491.41327536232295",
+      "first_computed": "2026-09-01 19:37:47.697599+00:00",
+      "last_computed": "2026-10-01 02:24:45.448150+00:00"
+    },
+    {
+      "platform": "ozon",
+      "account": "oz_acc2",
+      "period_from": "2026-10-01",
+      "skus": 274,
+      "qty": null,
+      "cogs": "373116.82999999999678",
+      "first_computed": "2026-10-01 02:25:09.914937+00:00",
+      "last_computed": "2026-10-18 19:40:19.080182+00:00"
+    },
+    {
+      "platform": "wb",
+      "account": "wb_acc1",
+      "period_from": "2026-09-01",
+      "skus": 666,
+      "qty": "655.0",
+      "cogs": "476982.962142857141885",
+      "first_computed": "2026-10-19 02:39:48.258439+00:00",
+      "last_computed": "2026-10-19 02:39:48.258439+00:00"
+    },
+    {
+      "platform": "wb",
+      "account": "wb_acc1",
+      "period_from": "2026-10-01",
+      "skus": 547,
+      "qty": "489.0",
+      "cogs": "300829.750000000001705",
+      "first_computed": "2026-10-19 02:39:57.593415+00:00",
+      "last_computed": "2026-10-19 02:39:57.593415+00:00"
+    },
+    {
+      "platform": "wb",
+      "account": "wb_acc2",
+      "period_from": "2026-09-01",
+      "skus": 600,
+      "qty": "546.0",
+      "cogs": "389174.77800000000306",
+      "first_computed": "2026-10-19 02:39:51.817921+00:00",
+      "last_computed": "2026-10-19 02:39:51.817921+00:00"
+    },
+    {
+      "platform": "wb",
+      "account": "wb_acc2",
+      "period_from": "2026-10-01",
+      "skus": 431,
+      "qty": "316.0",
+      "cogs": "232669.07500000000167",
+      "first_computed": "2026-10-19 02:40:02.501124+00:00",
+      "last_computed": "2026-10-19 02:40:02.501124+00:00"
+    }
+  ]
+}

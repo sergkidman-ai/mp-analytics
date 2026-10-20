@@ -1,0 +1,74 @@
+[
+  {
+    "campaign_id": "13424726",
+    "title": "Все",
+    "pay_model": "Трафареты",
+    "state": "CAMPAIGN_STATE_RUNNING",
+    "covered_to": "2026-10-19",
+    "updated_at": "2026-10-01 05:47:04.089697+00:00"
+  },
+  {
+    "campaign_id": "13424988",
+    "title": "3000-5000",
+    "pay_model": "Трафареты",
+    "state": "CAMPAIGN_STATE_RUNNING",
+    "covered_to": "2026-10-19",
+    "updated_at": "2026-10-01 05:47:04.089697+00:00"
+  },
+  {
+    "campaign_id": "13425039",
+    "title": "5000-10000",
+    "pay_model": "Трафареты",
+    "state": "CAMPAIGN_STATE_RUNNING",
+    "covered_to": "2026-10-19",
+    "updated_at": "2026-10-01 05:47:04.089697+00:00"
+  },
+  {
+    "campaign_id": "13425066",
+    "title": "10000-500000",
+    "pay_model": "Трафареты",
+    "state": "CAMPAIGN_STATE_RUNNING",
+    "covered_to": "2026-10-19",
+    "updated_at": "2026-10-01 05:47:04.089697+00:00"
+  },
+  {
+    "campaign_id": "19250899",
+    "title": "от 0 до 3000",
+    "pay_model": "Трафареты",
+    "state": "CAMPAIGN_STATE_RUNNING",
+    "covered_to": "2026-10-19",
+    "updated_at": "2026-10-01 05:47:04.089697+00:00"
+  },
+  {
+    "campaign_id": "41758909",
+    "title": "Бонусы на продвижение товаров-новинок FBS",
+    "pay_model": "Трафареты",
+    "state": "CAMPAIGN_STATE_RUNNING",
+    "covered_to": "2026-10-19",
+    "updated_at": "2026-10-01 05:47:04.089697+00:00"
+  },
+  {
+    "campaign_id": "42757736",
+    "title": "Бонусы на продвижение товаров-новинок FBS",
+    "pay_model": "Трафареты",
+    "state": "CAMPAIGN_STATE_INACTIVE",
+    "covered_to": "2026-10-19",
+    "updated_at": "2026-10-01 05:47:04.089697+00:00"
+  },
+  {
+    "campaign_id": "43608717",
+    "title": "Бонусы на продвижение товаров-новинок FBS",
+    "pay_model": "Трафареты",
+    "state": "CAMPAIGN_STATE_RUNNING",
+    "covered_to": "2026-10-19",
+    "updated_at": "2026-10-01 05:47:04.089697+00:00"
+  },
+  {
+    "campaign_id": "44499213",
+    "title": "Бонусы на продвижение товаров-новинок FBS",
+    "pay_model": "Трафареты",
+    "state": "CAMPAIGN_STATE_RUNNING",
+    "covered_to": "2026-10-19",
+    "updated_at": "2026-10-06 05:47:04.661010+00:00"
+  }
+]

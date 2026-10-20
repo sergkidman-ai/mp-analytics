@@ -1,0 +1,378 @@
+[
+  {
+    "account": "oz_acc1",
+    "posting_number": "0138665994-0065-1",
+    "reversed_sales": "-21318.0",
+    "commission": "9379.92",
+    "first_date": "2026-10-06",
+    "last_date": "2026-10-06"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0202974198-0020-1",
+    "reversed_sales": "-17899.0",
+    "commission": "8412.53",
+    "first_date": "2026-10-01",
+    "last_date": "2026-10-01"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "58150252-0219-1",
+    "reversed_sales": "-11625.0",
+    "commission": "5463.75",
+    "first_date": "2026-10-12",
+    "last_date": "2026-10-12"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "23466879-0219-1",
+    "reversed_sales": "-10457.0",
+    "commission": "4601.08",
+    "first_date": "2026-10-19",
+    "last_date": "2026-10-19"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "25147979-0425-1",
+    "reversed_sales": "-10120.0",
+    "commission": "4554.0",
+    "first_date": "2026-10-16",
+    "last_date": "2026-10-16"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0136558242-0008-6",
+    "reversed_sales": "-8433.0",
+    "commission": "3963.51",
+    "first_date": "2026-10-12",
+    "last_date": "2026-10-12"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0110122668-0011-6",
+    "reversed_sales": "-8427.0",
+    "commission": "3960.69",
+    "first_date": "2026-10-02",
+    "last_date": "2026-10-02"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0174002855-0011-5",
+    "reversed_sales": "-7877.0",
+    "commission": "3702.19",
+    "first_date": "2026-10-03",
+    "last_date": "2026-10-03"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0172375157-0003-2",
+    "reversed_sales": "-7585.0",
+    "commission": "3564.95",
+    "first_date": "2026-10-12",
+    "last_date": "2026-10-12"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0116394860-0005-5",
+    "reversed_sales": "-7497.0",
+    "commission": "3523.59",
+    "first_date": "2026-10-04",
+    "last_date": "2026-10-04"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0157547735-0004-4",
+    "reversed_sales": "-7497.0",
+    "commission": "3523.59",
+    "first_date": "2026-10-01",
+    "last_date": "2026-10-01"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0251782090-0008-10",
+    "reversed_sales": "-7229.0",
+    "commission": "3397.63",
+    "first_date": "2026-10-09",
+    "last_date": "2026-10-09"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "50270941-0181-1",
+    "reversed_sales": "-7070.0",
+    "commission": "3181.5",
+    "first_date": "2026-10-09",
+    "last_date": "2026-10-09"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0276550895-0002-3",
+    "reversed_sales": "-6705.0",
+    "commission": "3151.35",
+    "first_date": "2026-10-12",
+    "last_date": "2026-10-12"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "01675050-1859-1",
+    "reversed_sales": "-6693.0",
+    "commission": "3011.85",
+    "first_date": "2026-10-04",
+    "last_date": "2026-10-04"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "28178606-0420-1",
+    "reversed_sales": "-6585.0",
+    "commission": "2897.4",
+    "first_date": "2026-10-14",
+    "last_date": "2026-10-14"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0199134210-0015-1",
+    "reversed_sales": "-6035.0",
+    "commission": "2836.45",
+    "first_date": "2026-10-16",
+    "last_date": "2026-10-16"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "88858665-0158-1",
+    "reversed_sales": "-4331.0",
+    "commission": "2035.57",
+    "first_date": "2026-10-06",
+    "last_date": "2026-10-06"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0138368935-0073-1",
+    "reversed_sales": "-4262.0",
+    "commission": "1875.28",
+    "first_date": "2026-10-06",
+    "last_date": "2026-10-06"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "04956724-0698-1",
+    "reversed_sales": "-3929.0",
+    "commission": "1768.05",
+    "first_date": "2026-10-05",
+    "last_date": "2026-10-05"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "88566323-0468-1",
+    "reversed_sales": "-3589.0",
+    "commission": "1686.83",
+    "first_date": "2026-10-03",
+    "last_date": "2026-10-03"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0115733259-0143-1",
+    "reversed_sales": "-3447.0",
+    "commission": "1516.68",
+    "first_date": "2026-10-05",
+    "last_date": "2026-10-05"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0257373084-0045-1",
+    "reversed_sales": "-3277.0",
+    "commission": "1540.19",
+    "first_date": "2026-10-05",
+    "last_date": "2026-10-05"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "05843423-0061-1",
+    "reversed_sales": "-3265.0",
+    "commission": "1534.55",
+    "first_date": "2026-10-12",
+    "last_date": "2026-10-12"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "26051371-0491-1",
+    "reversed_sales": "-3201.0",
+    "commission": "1504.47",
+    "first_date": "2026-10-01",
+    "last_date": "2026-10-01"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "0185373109-0161-1",
+    "reversed_sales": "-3137.0",
+    "commission": "1380.28",
+    "first_date": "2026-10-12",
+    "last_date": "2026-10-12"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "73921525-0049-1",
+    "reversed_sales": "-3064.0",
+    "commission": "1440.08",
+    "first_date": "2026-10-08",
+    "last_date": "2026-10-08"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "08240519-1031-1",
+    "reversed_sales": "-2820.0",
+    "commission": "1269.0",
+    "first_date": "2026-10-16",
+    "last_date": "2026-10-16"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "60972194-0173-1",
+    "reversed_sales": "-2399.0",
+    "commission": "1055.56",
+    "first_date": "2026-10-08",
+    "last_date": "2026-10-08"
+  },
+  {
+    "account": "oz_acc1",
+    "posting_number": "74103374-0047-1",
+    "reversed_sales": "-2140.0",
+    "commission": "963.0",
+    "first_date": "2026-10-17",
+    "last_date": "2026-10-17"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "44671170-0530-1",
+    "reversed_sales": "-93342.0",
+    "commission": "43870.74",
+    "first_date": "2026-10-09",
+    "last_date": "2026-10-09"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0200788250-0167-2",
+    "reversed_sales": "-18333.0",
+    "commission": "8616.51",
+    "first_date": "2026-10-15",
+    "last_date": "2026-10-15"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0123964402-0034-3",
+    "reversed_sales": "-6503.0",
+    "commission": "3056.41",
+    "first_date": "2026-10-04",
+    "last_date": "2026-10-04"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "71349351-0211-1",
+    "reversed_sales": "-6503.0",
+    "commission": "3056.41",
+    "first_date": "2026-10-17",
+    "last_date": "2026-10-17"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0130290643-0015-1",
+    "reversed_sales": "-6236.0",
+    "commission": "2806.2",
+    "first_date": "2026-10-14",
+    "last_date": "2026-10-14"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "56754372-0151-4",
+    "reversed_sales": "-6236.0",
+    "commission": "2930.92",
+    "first_date": "2026-10-02",
+    "last_date": "2026-10-02"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0203902046-0281-7",
+    "reversed_sales": "-6236.0",
+    "commission": "2806.2",
+    "first_date": "2026-10-02",
+    "last_date": "2026-10-02"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "58112512-0159-9",
+    "reversed_sales": "-6236.0",
+    "commission": "2930.92",
+    "first_date": "2026-10-04",
+    "last_date": "2026-10-04"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0127848909-0014-7",
+    "reversed_sales": "-5860.0",
+    "commission": "2637.0",
+    "first_date": "2026-10-11",
+    "last_date": "2026-10-11"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0169105841-0302-2",
+    "reversed_sales": "-3131.0",
+    "commission": "1408.95",
+    "first_date": "2026-10-14",
+    "last_date": "2026-10-14"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "45351060-0475-2",
+    "reversed_sales": "-3077.0",
+    "commission": "1446.19",
+    "first_date": "2026-10-15",
+    "last_date": "2026-10-15"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "45823282-0161-1",
+    "reversed_sales": "-2836.0",
+    "commission": "1332.92",
+    "first_date": "2026-10-04",
+    "last_date": "2026-10-04"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "79033216-0226-1",
+    "reversed_sales": "-1701.0",
+    "commission": "765.45",
+    "first_date": "2026-10-10",
+    "last_date": "2026-10-10"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0267412008-0053-1",
+    "reversed_sales": "-717.0",
+    "commission": "322.65",
+    "first_date": "2026-10-06",
+    "last_date": "2026-10-06"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0267412008-0056-1",
+    "reversed_sales": "-679.0",
+    "commission": "305.55",
+    "first_date": "2026-10-06",
+    "last_date": "2026-10-06"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0267412008-0055-1",
+    "reversed_sales": "-679.0",
+    "commission": "305.55",
+    "first_date": "2026-10-06",
+    "last_date": "2026-10-06"
+  },
+  {
+    "account": "oz_acc2",
+    "posting_number": "0267412008-0054-1",
+    "reversed_sales": "-679.0",
+    "commission": "305.55",
+    "first_date": "2026-10-06",
+    "last_date": "2026-10-06"
+  }
+]

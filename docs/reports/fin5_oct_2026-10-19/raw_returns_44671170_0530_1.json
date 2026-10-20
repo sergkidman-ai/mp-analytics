@@ -1,0 +1,266 @@
+[
+  {
+    "return_id": "1001750927",
+    "payload": {
+      "id": 1001750927,
+      "type": "ClientReturn",
+      "place": {
+        "id": 1020000759816000,
+        "name": "МОСКВА_4048",
+        "address": "Россия, Москва, улица Годовикова, 11 корпус 2"
+      },
+      "schema": "Fbs",
+      "visual": {
+        "status": {
+          "id": 16,
+          "sys_name": "ReceivedBySeller",
+          "display_name": "Получен"
+        },
+        "change_moment": "2026-10-15T11:37:53.926872Z"
+      },
+      "product": {
+        "sku": 3260315711,
+        "name": "Картриджи DS PFI-030-PFI-031M для принтеров Canon imagePROGRAF TM-240, TM 250, TM255, IPF ТМ-340, TM-350, TM355",
+        "price": {
+          "price": 31114,
+          "currency_code": "RUB"
+        },
+        "offer_id": "6803CL0EVRQE",
+        "quantity": 1,
+        "commission": {
+          "price": 0,
+          "currency_code": ""
+        },
+        "commission_percent": 0,
+        "price_without_commission": {
+          "price": 0,
+          "currency_code": ""
+        }
+      },
+      "storage": {
+        "sum": {
+          "price": 0,
+          "currency_code": ""
+        },
+        "days": 0,
+        "arrived_moment": "2026-10-15T08:12:45.812625Z",
+        "utilization_sum": {
+          "price": 0,
+          "currency_code": ""
+        },
+        "tariffication_first_date": null,
+        "tariffication_start_date": null,
+        "utilization_forecast_date": null
+      },
+      "logistic": {
+        "barcode": "ii16029559735",
+        "return_date": "2026-10-09T08:58:07.317Z",
+        "final_moment": "2026-10-15T11:37:53.926872Z",
+        "technical_return_moment": null,
+        "cancelled_with_compensation_moment": null
+      },
+      "order_id": 39295860194,
+      "exemplars": [
+        {
+          "id": 202262498154000,
+          "exemplar_id": 37969980428
+        }
+      ],
+      "source_id": 21001739480,
+      "company_id": 2523124,
+      "clearing_id": 251518743387000,
+      "order_number": "44671170-0530",
+      "target_place": {
+        "id": 1020000759816000,
+        "name": "МОСКВА_4048",
+        "address": "Россия, Москва, улица Годовикова, 11 корпус 2"
+      },
+      "posting_number": "44671170-0530-1",
+      "additional_info": {
+        "is_opened": true,
+        "is_super_econom": false
+      },
+      "courier_delivery": null,
+      "return_clearing_id": 751574008305000,
+      "return_reason_name": "Товар в неполной комплектации",
+      "compensation_status": null
+    },
+    "loaded_at": "2026-10-19 06:09:11.950042+00:00"
+  },
+  {
+    "return_id": "1001750928",
+    "payload": {
+      "id": 1001750928,
+      "type": "ClientReturn",
+      "place": {
+        "id": 1020000759816000,
+        "name": "МОСКВА_4048",
+        "address": "Россия, Москва, улица Годовикова, 11 корпус 2"
+      },
+      "schema": "Fbs",
+      "visual": {
+        "status": {
+          "id": 3,
+          "sys_name": "ArrivedAtReturnPlace",
+          "display_name": "В пункте выдачи"
+        },
+        "change_moment": "2026-10-17T15:12:13.298723Z"
+      },
+      "product": {
+        "sku": 3260315711,
+        "name": "Картриджи DS PFI-030-PFI-031M для принтеров Canon imagePROGRAF TM-240, TM 250, TM255, IPF ТМ-340, TM-350, TM355",
+        "price": {
+          "price": 31114,
+          "currency_code": "RUB"
+        },
+        "offer_id": "6803CL0EVRQE",
+        "quantity": 1,
+        "commission": {
+          "price": 0,
+          "currency_code": ""
+        },
+        "commission_percent": 0,
+        "price_without_commission": {
+          "price": 0,
+          "currency_code": ""
+        }
+      },
+      "storage": {
+        "sum": {
+          "price": 0,
+          "currency_code": ""
+        },
+        "days": 1,
+        "arrived_moment": "2026-10-17T15:12:28.642428Z",
+        "utilization_sum": {
+          "price": 0,
+          "currency_code": ""
+        },
+        "tariffication_first_date": "2026-10-19T15:12:23.677379Z",
+        "tariffication_start_date": "2026-10-18T15:12:23.677379Z",
+        "utilization_forecast_date": "2026-10-27T15:12:23.677379Z"
+      },
+      "logistic": {
+        "barcode": "ii16029559734",
+        "return_date": "2026-10-09T08:58:07.317Z",
+        "final_moment": null,
+        "technical_return_moment": null,
+        "cancelled_with_compensation_moment": null
+      },
+      "order_id": 39295860194,
+      "exemplars": [
+        {
+          "id": 202262498156000,
+          "exemplar_id": 37969980429
+        }
+      ],
+      "source_id": 21001739481,
+      "company_id": 2523124,
+      "clearing_id": 251518743387000,
+      "order_number": "44671170-0530",
+      "target_place": {
+        "id": 1020000759816000,
+        "name": "МОСКВА_4048",
+        "address": "Россия, Москва, улица Годовикова, 11 корпус 2"
+      },
+      "posting_number": "44671170-0530-1",
+      "additional_info": {
+        "is_opened": true,
+        "is_super_econom": false
+      },
+      "courier_delivery": null,
+      "return_clearing_id": 702091082933000,
+      "return_reason_name": "Товар в неполной комплектации",
+      "compensation_status": null
+    },
+    "loaded_at": "2026-10-19 06:09:11.950042+00:00"
+  },
+  {
+    "return_id": "1001750929",
+    "payload": {
+      "id": 1001750929,
+      "type": "ClientReturn",
+      "place": {
+        "id": 1020000759816000,
+        "name": "МОСКВА_4048",
+        "address": "Россия, Москва, улица Годовикова, 11 корпус 2"
+      },
+      "schema": "Fbs",
+      "visual": {
+        "status": {
+          "id": 16,
+          "sys_name": "ReceivedBySeller",
+          "display_name": "Получен"
+        },
+        "change_moment": "2026-10-15T11:37:53.926872Z"
+      },
+      "product": {
+        "sku": 3260315711,
+        "name": "Картриджи DS PFI-030-PFI-031M для принтеров Canon imagePROGRAF TM-240, TM 250, TM255, IPF ТМ-340, TM-350, TM355",
+        "price": {
+          "price": 31114,
+          "currency_code": "RUB"
+        },
+        "offer_id": "6803CL0EVRQE",
+        "quantity": 1,
+        "commission": {
+          "price": 0,
+          "currency_code": ""
+        },
+        "commission_percent": 0,
+        "price_without_commission": {
+          "price": 0,
+          "currency_code": ""
+        }
+      },
+      "storage": {
+        "sum": {
+          "price": 0,
+          "currency_code": ""
+        },
+        "days": 0,
+        "arrived_moment": "2026-10-15T07:30:46.059124Z",
+        "utilization_sum": {
+          "price": 0,
+          "currency_code": ""
+        },
+        "tariffication_first_date": null,
+        "tariffication_start_date": null,
+        "utilization_forecast_date": null
+      },
+      "logistic": {
+        "barcode": "ii16029559733",
+        "return_date": "2026-10-09T08:58:07.317Z",
+        "final_moment": "2026-10-15T11:37:53.926872Z",
+        "technical_return_moment": null,
+        "cancelled_with_compensation_moment": null
+      },
+      "order_id": 39295860194,
+      "exemplars": [
+        {
+          "id": 202262498162000,
+          "exemplar_id": 37969980430
+        }
+      ],
+      "source_id": 21001739482,
+      "company_id": 2523124,
+      "clearing_id": 251518743387000,
+      "order_number": "44671170-0530",
+      "target_place": {
+        "id": 1020000759816000,
+        "name": "МОСКВА_4048",
+        "address": "Россия, Москва, улица Годовикова, 11 корпус 2"
+      },
+      "posting_number": "44671170-0530-1",
+      "additional_info": {
+        "is_opened": true,
+        "is_super_econom": false
+      },
+      "courier_delivery": null,
+      "return_clearing_id": 751574007942000,
+      "return_reason_name": "Товар в неполной комплектации",
+      "compensation_status": null
+    },
+    "loaded_at": "2026-10-19 06:09:11.950042+00:00"
+  }
+]

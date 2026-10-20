@@ -1,0 +1,344 @@
+[
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "12704286",
+    "spend": "140500.52",
+    "clicks": "6597",
+    "orders": "266.0",
+    "attributed_revenue": "1855204.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "10659516",
+    "spend": "97127.74",
+    "clicks": "1604",
+    "orders": "89.0",
+    "attributed_revenue": "1836619.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "10659294",
+    "spend": "43028.66",
+    "clicks": "1226",
+    "orders": "71.0",
+    "attributed_revenue": "669571.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "40385357",
+    "spend": "26873.16",
+    "clicks": "227",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "35269704",
+    "spend": "19678.10",
+    "clicks": "580",
+    "orders": "85.0",
+    "attributed_revenue": "970850.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "10626733",
+    "spend": "14287.96",
+    "clicks": "1169",
+    "orders": "64.0",
+    "attributed_revenue": "221766.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "10604674",
+    "spend": "3834.28",
+    "clicks": "435",
+    "orders": "49.0",
+    "attributed_revenue": "35651.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "37536223",
+    "spend": "3412.52",
+    "clicks": "21",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "10651636",
+    "spend": "2609.60",
+    "clicks": "305",
+    "orders": "21.0",
+    "attributed_revenue": "43336.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "35269713",
+    "spend": "2130.35",
+    "clicks": "141",
+    "orders": "9.0",
+    "attributed_revenue": "49005.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-09",
+    "campaign_id": "18816976",
+    "spend": "1067.46",
+    "clicks": "67",
+    "orders": "4.0",
+    "attributed_revenue": "68009.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "12704286",
+    "spend": "278985.89",
+    "clicks": "12418",
+    "orders": "442.0",
+    "attributed_revenue": "2626626.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "10659516",
+    "spend": "75311.68",
+    "clicks": "1480",
+    "orders": "73.0",
+    "attributed_revenue": "1737900.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "10659294",
+    "spend": "30241.61",
+    "clicks": "1193",
+    "orders": "73.0",
+    "attributed_revenue": "694411.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "10626733",
+    "spend": "25345.09",
+    "clicks": "2075",
+    "orders": "157.0",
+    "attributed_revenue": "649379.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "35269704",
+    "spend": "13241.88",
+    "clicks": "374",
+    "orders": "26.0",
+    "attributed_revenue": "387492.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "10604674",
+    "spend": "6786.00",
+    "clicks": "742",
+    "orders": "36.0",
+    "attributed_revenue": "33724.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "10651636",
+    "spend": "6325.61",
+    "clicks": "591",
+    "orders": "34.0",
+    "attributed_revenue": "74806.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "18816976",
+    "spend": "2898.40",
+    "clicks": "140",
+    "orders": "7.0",
+    "attributed_revenue": "118772.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "35269713",
+    "spend": "2372.07",
+    "clicks": "168",
+    "orders": "7.0",
+    "attributed_revenue": "122266.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "42756090",
+    "spend": "2064.77",
+    "clicks": "16",
+    "orders": "1.0",
+    "attributed_revenue": "3250.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "44498580",
+    "spend": "1322.12",
+    "clicks": "14",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "period": "2026-10",
+    "campaign_id": "43607968",
+    "spend": "484.81",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-09",
+    "campaign_id": "41758909",
+    "spend": "49893.52",
+    "clicks": "617",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-09",
+    "campaign_id": "13424726",
+    "spend": "14419.60",
+    "clicks": "1900",
+    "orders": "72.0",
+    "attributed_revenue": "385033.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-09",
+    "campaign_id": "19250899",
+    "spend": "2681.80",
+    "clicks": "250",
+    "orders": "24.0",
+    "attributed_revenue": "40049.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-09",
+    "campaign_id": "13425039",
+    "spend": "1695.93",
+    "clicks": "138",
+    "orders": "7.0",
+    "attributed_revenue": "74236.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-09",
+    "campaign_id": "13424988",
+    "spend": "1248.64",
+    "clicks": "88",
+    "orders": "11.0",
+    "attributed_revenue": "49390.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-09",
+    "campaign_id": "13425066",
+    "spend": "1117.34",
+    "clicks": "86",
+    "orders": "8.0",
+    "attributed_revenue": "121172.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-10",
+    "campaign_id": "43608717",
+    "spend": "64317.67",
+    "clicks": "397",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-10",
+    "campaign_id": "41758909",
+    "spend": "51404.35",
+    "clicks": "1478",
+    "orders": "2.0",
+    "attributed_revenue": "7772.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-10",
+    "campaign_id": "42757736",
+    "spend": "24685.20",
+    "clicks": "451",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-10",
+    "campaign_id": "13424726",
+    "spend": "24501.04",
+    "clicks": "3014",
+    "orders": "44.0",
+    "attributed_revenue": "239093.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-10",
+    "campaign_id": "19250899",
+    "spend": "4215.26",
+    "clicks": "390",
+    "orders": "28.0",
+    "attributed_revenue": "56464.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-10",
+    "campaign_id": "13425039",
+    "spend": "1537.41",
+    "clicks": "137",
+    "orders": "5.0",
+    "attributed_revenue": "64910.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-10",
+    "campaign_id": "44499213",
+    "spend": "1435.04",
+    "clicks": "13",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-10",
+    "campaign_id": "13425066",
+    "spend": "1178.02",
+    "clicks": "96",
+    "orders": "7.0",
+    "attributed_revenue": "121838.0"
+  },
+  {
+    "account": "oz_acc2",
+    "period": "2026-10",
+    "campaign_id": "13424988",
+    "spend": "808.09",
+    "clicks": "74",
+    "orders": "3.0",
+    "attributed_revenue": "14480.0"
+  }
+]

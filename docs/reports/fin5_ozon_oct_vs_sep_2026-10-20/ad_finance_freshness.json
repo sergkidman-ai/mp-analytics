@@ -1,0 +1,44 @@
+[
+  {
+    "account": "oz_acc1",
+    "code": "OperationMarketplaceCostPerClick",
+    "last_date": "2026-10-19",
+    "n": 172,
+    "amount": "-472278.97"
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OperationPromotionWithCostPerOrder",
+    "last_date": "2026-10-19",
+    "n": 19,
+    "amount": "-509283.45"
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OperationSubscriptionAnalyticsPlus",
+    "last_date": "2026-10-01",
+    "n": 1,
+    "amount": "-28000.0"
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OperationMarketplaceCostPerClick",
+    "last_date": "2026-10-17",
+    "n": 100,
+    "amount": "-29673.29"
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OperationPromotionWithCostPerOrder",
+    "last_date": "2026-10-17",
+    "n": 17,
+    "amount": "-64623.90"
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OperationSubscriptionAnalyticsPlus",
+    "last_date": "2026-10-01",
+    "n": 1,
+    "amount": "-28000.0"
+  }
+]

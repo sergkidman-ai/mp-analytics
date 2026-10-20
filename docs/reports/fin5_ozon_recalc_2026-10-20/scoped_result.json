@@ -1,0 +1,35 @@
+{
+  "started_utc": "2026-10-20T19:22:57.025531+00:00",
+  "results": [
+    {
+      "account": "oz_acc1",
+      "status": "ok",
+      "steps": [
+        "catalog",
+        "postings_both_schemes",
+        "accruals_and_adapter",
+        "shipment_costs",
+        "october_margin"
+      ],
+      "shipment_cost_collection": [
+        62,
+        24008
+      ]
+    },
+    {
+      "account": "oz_acc2",
+      "status": "ok",
+      "steps": [
+        "catalog",
+        "postings_both_schemes",
+        "accruals_and_adapter",
+        "shipment_costs",
+        "october_margin"
+      ],
+      "shipment_cost_collection": [
+        26,
+        2259
+      ]
+    }
+  ]
+}

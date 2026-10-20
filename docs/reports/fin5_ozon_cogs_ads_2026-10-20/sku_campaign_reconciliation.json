@@ -1,0 +1,170 @@
+[
+  {
+    "account": "oz_acc1",
+    "campaign_id": "12704286",
+    "spend": "264483.17",
+    "orders": "426.0",
+    "revenue": "2528362.0",
+    "last_collected": "2026-10-18 09:18:54.941320+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "10659516",
+    "spend": "71738.40",
+    "orders": "72.0",
+    "revenue": "1703426.0",
+    "last_collected": "2026-10-18 09:19:09.738713+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "10659294",
+    "spend": "28135.18",
+    "orders": "72.0",
+    "revenue": "684548.0",
+    "last_collected": "2026-10-18 09:18:17.567874+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "10626733",
+    "spend": "24232.01",
+    "orders": "154.0",
+    "revenue": "636066.0",
+    "last_collected": "2026-10-18 09:18:09.833746+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "35269704",
+    "spend": "12481.04",
+    "orders": "25.0",
+    "revenue": "379355.0",
+    "last_collected": "2026-10-18 09:18:56.124321+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "10604674",
+    "spend": "6463.25",
+    "orders": "35.0",
+    "revenue": "32956.0",
+    "last_collected": "2026-10-18 09:19:03.905095+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "10651636",
+    "spend": "5924.41",
+    "orders": "31.0",
+    "revenue": "67920.0",
+    "last_collected": "2026-10-18 09:18:13.449798+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "18816976",
+    "spend": "2811.73",
+    "orders": "7.0",
+    "revenue": "118772.0",
+    "last_collected": "2026-10-18 09:18:55.600278+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "35269713",
+    "spend": "2352.05",
+    "orders": "7.0",
+    "revenue": "122266.0",
+    "last_collected": "2026-10-18 09:18:58.047533+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "42756090",
+    "spend": "2064.77",
+    "orders": "1.0",
+    "revenue": "3250.0",
+    "last_collected": "2026-10-05 09:18:26.712712+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "44498580",
+    "spend": "1322.12",
+    "orders": "0.0",
+    "revenue": "0.0",
+    "last_collected": "2026-10-18 09:19:09.774862+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "campaign_id": "43607968",
+    "spend": "484.81",
+    "orders": "0.0",
+    "revenue": "0.0",
+    "last_collected": "2026-10-18 09:19:09.749923+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "campaign_id": "43608717",
+    "spend": "63001.81",
+    "orders": "0.0",
+    "revenue": "0.0",
+    "last_collected": "2026-10-18 09:19:53.944408+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "campaign_id": "41758909",
+    "spend": "50051.72",
+    "orders": "2.0",
+    "revenue": "7772.0",
+    "last_collected": "2026-10-18 09:19:53.796647+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "campaign_id": "42757736",
+    "spend": "24685.20",
+    "orders": "0.0",
+    "revenue": "0.0",
+    "last_collected": "2026-10-11 09:20:00.082619+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "campaign_id": "13424726",
+    "spend": "23669.28",
+    "orders": "43.0",
+    "revenue": "223200.0",
+    "last_collected": "2026-10-18 09:19:47.948120+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "campaign_id": "19250899",
+    "spend": "3973.12",
+    "orders": "28.0",
+    "revenue": "56464.0",
+    "last_collected": "2026-10-18 09:19:53.204653+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "campaign_id": "13425039",
+    "spend": "1492.01",
+    "orders": "4.0",
+    "revenue": "51302.0",
+    "last_collected": "2026-10-18 09:19:48.968060+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "campaign_id": "44499213",
+    "spend": "1435.04",
+    "orders": "0.0",
+    "revenue": "0.0",
+    "last_collected": "2026-10-18 09:19:53.966817+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "campaign_id": "13425066",
+    "spend": "1103.99",
+    "orders": "7.0",
+    "revenue": "121838.0",
+    "last_collected": "2026-10-18 09:19:49.356439+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "campaign_id": "13424988",
+    "spend": "786.81",
+    "orders": "3.0",
+    "revenue": "14480.0",
+    "last_collected": "2026-10-18 09:19:48.516133+00:00"
+  }
+]

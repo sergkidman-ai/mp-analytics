@@ -1,0 +1,133 @@
+[
+  {
+    "id": 481021,
+    "account": "oz_acc2",
+    "posting_number": "44671170-0530-1",
+    "scheme": "fbs",
+    "status": "delivered",
+    "in_process_at": "2026-09-23 16:43:14+00:00",
+    "period_from": "2026-09-01",
+    "period_to": "2026-09-30",
+    "payload": {
+      "status": "delivered",
+      "barcodes": null,
+      "customer": null,
+      "optional": {
+        "products_with_possible_mandatory_mark": []
+      },
+      "order_id": 39295860194,
+      "products": [
+        {
+          "sku": 3260315711,
+          "imei": [],
+          "name": "Картриджи DS PFI-030-PFI-031M для принтеров Canon imagePROGRAF TM-240, TM 250, TM255, IPF ТМ-340, TM-350, TM355",
+          "price": "31114.0000",
+          "offer_id": "6803CL0EVRQE",
+          "quantity": 3,
+          "currency_code": "RUB",
+          "is_blr_traceable": false,
+          "is_marketplace_buyout": false
+        }
+      ],
+      "addressee": null,
+      "container": null,
+      "substatus": "posting_received",
+      "is_express": false,
+      "legal_info": {
+        "inn": "",
+        "kpp": "",
+        "company_name": ""
+      },
+      "prr_option": "",
+      "quantum_id": 0,
+      "is_multibox": false,
+      "cancellation": {
+        "cancel_reason": "",
+        "cancel_reason_id": 0,
+        "cancellation_type": "",
+        "cancelled_after_ship": false,
+        "cancellation_initiator": "",
+        "affect_cancellation_rating": false
+      },
+      "order_number": "44671170-0530",
+      "requirements": {
+        "products_requiring_gtd": [],
+        "products_requiring_imei": [],
+        "products_requiring_rnpt": [],
+        "products_requiring_jw_uin": [],
+        "products_requiring_weight": [],
+        "products_requiring_country": [],
+        "products_requiring_change_country": [],
+        "products_requiring_mandatory_mark": []
+      },
+      "in_process_at": "2026-09-23T16:43:14Z",
+      "multi_box_qty": 1,
+      "shipment_date": "2026-09-24T12:00:00Z",
+      "tariffication": {
+        "next_tariff_rate": 0,
+        "next_tariff_type": "",
+        "next_tariff_charge": "",
+        "current_tariff_rate": 0,
+        "current_tariff_type": "",
+        "current_tariff_charge": "",
+        "next_tariff_starts_at": null,
+        "next_tariff_charge_currency_code": "",
+        "current_tariff_charge_currency_code": ""
+      },
+      "analytics_data": null,
+      "financial_data": {
+        "products": [
+          {
+            "price": 31114,
+            "payout": 49471.26,
+            "actions": [
+              "Эластичный бустинг. Без ограничения срока действия",
+              "Скидка (за счет Озон) - DD by AI benefit system",
+              "Скидка (за счет Озон) - OA by AI benefit system",
+              "Округление",
+              "Товарная скидка на доставку (Сквозная экономика 5)"
+            ],
+            "quantity": 3,
+            "old_price": 39629,
+            "product_id": 3260315711,
+            "currency_code": "RUB",
+            "customer_price": 13619,
+            "commission_amount": -43870.74,
+            "commission_percent": 47,
+            "total_discount_value": 8515,
+            "customer_currency_code": "RUB",
+            "total_discount_percent": 21.49
+          }
+        ],
+        "cluster_to": "Ростов",
+        "cluster_from": "Москва, МО и Дальние регионы"
+      },
+      "is_presortable": false,
+      "posting_number": "44671170-0530-1",
+      "sorting_center": null,
+      "delivering_date": "2026-09-26T12:02:18Z",
+      "delivery_method": {
+        "id": 1020005005745590,
+        "name": "Доставка Ozon самостоятельно, Москва",
+        "warehouse": "ZVZ-AQUA+SF",
+        "tpl_provider": "Доставка Ozon",
+        "warehouse_id": 1020005005745590,
+        "tpl_provider_id": 24
+      },
+      "tracking_number": "",
+      "available_actions": [],
+      "container_sort_type": "sort",
+      "tariffication_steps": [],
+      "destination_place_id": 0,
+      "is_click_and_collect": false,
+      "tpl_integration_type": "ozon",
+      "integration_type_flow": "ozon",
+      "parent_posting_number": "",
+      "destination_place_name": "",
+      "pickup_code_verified_at": null,
+      "require_blr_traceable_attrs": false,
+      "shipment_date_without_delay": "2026-09-25T11:59:00Z"
+    },
+    "loaded_at": "2026-09-23 19:42:53.187415+00:00"
+  }
+]

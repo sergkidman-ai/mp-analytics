@@ -1,0 +1,8 @@
+{
+  "status": "both_october_calculations_succeeded",
+  "completed": [
+    "oz_acc1",
+    "oz_acc2"
+  ],
+  "source": "october_only_recovery_after_wb4c_deployment"
+}

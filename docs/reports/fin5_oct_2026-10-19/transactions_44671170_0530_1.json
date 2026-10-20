@@ -1,0 +1,365 @@
+[
+  {
+    "payload": {
+      "type": "orders",
+      "items": [
+        {
+          "sku": 3260315711,
+          "name": ""
+        },
+        {
+          "sku": 3260315711,
+          "name": ""
+        },
+        {
+          "sku": 3260315711,
+          "name": ""
+        }
+      ],
+      "amount": 48954.26,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [
+        {
+          "name": "MarketplaceServiceItemDirectFlowLogistic",
+          "price": -432.0
+        },
+        {
+          "name": "MarketplaceServiceItemRedistributionDropOffApvz",
+          "price": -10.0
+        },
+        {
+          "name": "MarketplaceServiceItemDeliveryToHandoverPlaceOzon",
+          "price": -75.0
+        }
+      ],
+      "operation_id": 65184050749,
+      "operation_date": "2026-10-04 00:00:00",
+      "operation_type": "OperationAgentDeliveredToCustomer",
+      "delivery_charge": 0,
+      "sale_commission": -43870.74,
+      "accruals_for_sale": 93342.0,
+      "operation_type_name": "Доставка покупателю",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "services",
+      "items": [],
+      "amount": -933.42,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [],
+      "operation_id": 65184515390,
+      "operation_date": "2026-10-04 00:00:00",
+      "operation_type": "DefectFineShipmentDelayRated",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "Отгрузка в нерекомендованный слот",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "returns",
+      "items": [
+        {
+          "sku": 3260315711,
+          "name": ""
+        },
+        {
+          "sku": 3260315711,
+          "name": ""
+        },
+        {
+          "sku": 3260315711,
+          "name": ""
+        }
+      ],
+      "amount": -49471.26,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [],
+      "operation_id": 65725131658,
+      "operation_date": "2026-10-09 00:00:00",
+      "operation_type": "ClientReturnAgentOperation",
+      "delivery_charge": 0,
+      "sale_commission": 43870.74,
+      "accruals_for_sale": -93342.0,
+      "operation_type_name": "Получение возврата, отмены, невыкупа от покупателя",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "services",
+      "items": [],
+      "amount": 933.42,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [],
+      "operation_id": 65725588831,
+      "operation_date": "2026-10-09 00:00:00",
+      "operation_type": "DefectFineShipmentDelayRatedCancelled",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "Отгрузка в нерекомендованный слот - отмена начисления",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "other",
+      "items": [],
+      "amount": -4200.39,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [],
+      "operation_id": 66079158664,
+      "operation_date": "2026-10-12 00:00:00",
+      "operation_type": "AccrualType_DefectFineComplaint",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "Жалобы покупателей",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "returns",
+      "items": [
+        {
+          "sku": 3260315711,
+          "name": ""
+        }
+      ],
+      "amount": -15.0,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [
+        {
+          "name": "MarketplaceServiceItemRedistributionReturnsPVZ",
+          "price": -15.0
+        }
+      ],
+      "operation_id": 66380744799,
+      "operation_date": "2026-10-15 00:00:00",
+      "operation_type": "OperationReturnGoodsFBSofRMS",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "returns",
+      "items": [
+        {
+          "sku": 3260315711,
+          "name": ""
+        }
+      ],
+      "amount": -121.0,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [
+        {
+          "name": "MarketplaceServiceItemReturnFlowLogistic",
+          "price": -121.0
+        }
+      ],
+      "operation_id": 66380896451,
+      "operation_date": "2026-10-15 00:00:00",
+      "operation_type": "OperationReturnGoodsFBSofRMS",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "returns",
+      "items": [
+        {
+          "sku": 3260315711,
+          "name": ""
+        }
+      ],
+      "amount": -121.0,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [
+        {
+          "name": "MarketplaceServiceItemReturnFlowLogistic",
+          "price": -121.0
+        }
+      ],
+      "operation_id": 66375517444,
+      "operation_date": "2026-10-15 00:00:00",
+      "operation_type": "OperationReturnGoodsFBSofRMS",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "returns",
+      "items": [
+        {
+          "sku": 3260315711,
+          "name": ""
+        }
+      ],
+      "amount": -15.0,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [
+        {
+          "name": "MarketplaceServiceItemRedistributionReturnsPVZ",
+          "price": -15.0
+        }
+      ],
+      "operation_id": 66375224476,
+      "operation_date": "2026-10-15 00:00:00",
+      "operation_type": "OperationReturnGoodsFBSofRMS",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "returns",
+      "items": [
+        {
+          "sku": 3260315711,
+          "name": ""
+        }
+      ],
+      "amount": -15.0,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [
+        {
+          "name": "MarketplaceServiceItemRedistributionReturnsPVZ",
+          "price": -15.0
+        }
+      ],
+      "operation_id": 66652933693,
+      "operation_date": "2026-10-17 00:00:00",
+      "operation_type": "OperationReturnGoodsFBSofRMS",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "payload": {
+      "type": "returns",
+      "items": [
+        {
+          "sku": 3260315711,
+          "name": ""
+        }
+      ],
+      "amount": -121.0,
+      "_source": "accrual",
+      "posting": {
+        "order_date": "2026-09-23 19:43:14",
+        "warehouse_id": 0,
+        "posting_number": "44671170-0530-1",
+        "delivery_schema": "FBS"
+      },
+      "services": [
+        {
+          "name": "MarketplaceServiceItemReturnFlowLogistic",
+          "price": -121.0
+        }
+      ],
+      "operation_id": 66652971678,
+      "operation_date": "2026-10-17 00:00:00",
+      "operation_type": "OperationReturnGoodsFBSofRMS",
+      "delivery_charge": 0,
+      "sale_commission": 0.0,
+      "accruals_for_sale": 0.0,
+      "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+      "return_delivery_charge": 0
+    },
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  }
+]

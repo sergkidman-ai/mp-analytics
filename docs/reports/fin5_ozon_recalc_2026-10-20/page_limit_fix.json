@@ -1,0 +1,21 @@
+{
+  "official_api_error": {
+    "code": 3,
+    "message": "Request validation error: invalid PostingFbsListRequest.Limit: value must be inside range (0, 100]"
+  },
+  "new_default_limit": 100,
+  "fbs_valid_range": [
+    1,
+    100
+  ],
+  "fbo_explicit_range_preserved": [
+    1,
+    1000
+  ],
+  "new_regression_tests": 3,
+  "total_tests_run": 76,
+  "skipped_integration_tests": 8,
+  "post_recalc_control_tests": 3,
+  "financial_logic_changed": false,
+  "computed_at_now_refreshed_on_upsert": true
+}

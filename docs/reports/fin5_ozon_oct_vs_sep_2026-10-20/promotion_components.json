@@ -1,0 +1,192 @@
+[
+  {
+    "account": "oz_acc1",
+    "code": "MarketplaceServiceItemElectronicServicesPremiumCashbackIndividualPoints",
+    "label": "Баллы Premium (индивидуальные)",
+    "now": 0,
+    "september": 0,
+    "now_pct": 0.0,
+    "september_pct": 0.0,
+    "margin_impact_pp": 0.0
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OP:AccrualType_FirstCustomerReview",
+    "label": "Сбор первых отзывов",
+    "now": 5034.82,
+    "september": 67879,
+    "now_pct": 0.04782336996503308,
+    "september_pct": 0.4690599673118156,
+    "margin_impact_pp": 0.42123659734678254
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OP:OperationMarketplaceAcceleratedProductReviews",
+    "label": "Ускоренный сбор отзывов",
+    "now": 57645.0,
+    "september": 89365,
+    "now_pct": 0.5475425460362697,
+    "september_pct": 0.617533316324937,
+    "margin_impact_pp": 0.06999077028866729
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OP:OperationMarketplaceCostPerClick",
+    "label": "Оплата за клик",
+    "now": 472278.97000000015,
+    "september": 581856,
+    "now_pct": 4.485954196776601,
+    "september_pct": 4.020762774056538,
+    "margin_impact_pp": -0.465191422720062
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OP:OperationPointsForReviews",
+    "label": "Баллы за отзывы",
+    "now": 0,
+    "september": 0,
+    "now_pct": 0.0,
+    "september_pct": 0.0,
+    "margin_impact_pp": 0.0
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OP:OperationPromotionWithCostPerOrder",
+    "label": "Продвижение с оплатой за заказ",
+    "now": 509283.45,
+    "september": 661924,
+    "now_pct": 4.8374422216521,
+    "september_pct": 4.574051618363651,
+    "margin_impact_pp": -0.2633906032884492
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OP:OperationSubscriptionAnalyticsPlus",
+    "label": "Аналитика Plus",
+    "now": 28000.0,
+    "september": 0,
+    "now_pct": 0.26595873517244434,
+    "september_pct": 0.0,
+    "margin_impact_pp": -0.26595873517244434
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OP:OperationSubscriptionPremiumPlus",
+    "label": "Подписка Premium Plus",
+    "now": 6990.0,
+    "september": 24990,
+    "now_pct": 0.0663946985305495,
+    "september_pct": 0.1726868189443314,
+    "margin_impact_pp": 0.10629212041378192
+  },
+  {
+    "account": "oz_acc1",
+    "code": "OP:OperationSubscriptionPremiumPro",
+    "label": "Подписка Premium Pro",
+    "now": 0,
+    "september": 0,
+    "now_pct": 0.0,
+    "september_pct": 0.0,
+    "margin_impact_pp": 0.0
+  },
+  {
+    "account": "oz_acc1",
+    "code": "PremiumMembershipCommission",
+    "label": "Подписка Premium Pro (процент)",
+    "now": 0,
+    "september": 6602,
+    "now_pct": 0.0,
+    "september_pct": 0.04562138370029916,
+    "margin_impact_pp": 0.04562138370029915
+  },
+  {
+    "account": "oz_acc2",
+    "code": "MarketplaceServiceItemElectronicServicesPremiumCashbackIndividualPoints",
+    "label": "Баллы Premium (индивидуальные)",
+    "now": 0,
+    "september": 0,
+    "now_pct": 0.0,
+    "september_pct": 0.0,
+    "margin_impact_pp": 0.0
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OP:AccrualType_FirstCustomerReview",
+    "label": "Сбор первых отзывов",
+    "now": 36966.14,
+    "september": 19194,
+    "now_pct": 1.9522743968680072,
+    "september_pct": 0.6831193291379543,
+    "margin_impact_pp": -1.2691550677300532
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OP:OperationMarketplaceAcceleratedProductReviews",
+    "label": "Ускоренный сбор отзывов",
+    "now": 10065.0,
+    "september": 19520,
+    "now_pct": 0.5315578473834838,
+    "september_pct": 0.6947217518377028,
+    "margin_impact_pp": 0.16316390445421902
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OP:OperationMarketplaceCostPerClick",
+    "label": "Оплата за клик",
+    "now": 29673.290000000005,
+    "september": 46430,
+    "now_pct": 1.5671207309672983,
+    "september_pct": 1.6524554783721588,
+    "margin_impact_pp": 0.08533474740486068
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OP:OperationPointsForReviews",
+    "label": "Баллы за отзывы",
+    "now": 0,
+    "september": 0,
+    "now_pct": 0.0,
+    "september_pct": 0.0,
+    "margin_impact_pp": 0.0
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OP:OperationPromotionWithCostPerOrder",
+    "label": "Продвижение с оплатой за заказ",
+    "now": 64623.899999999994,
+    "september": 139692,
+    "now_pct": 3.4129499427248393,
+    "september_pct": 4.97167371709592,
+    "margin_impact_pp": 1.5587237743710811
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OP:OperationSubscriptionAnalyticsPlus",
+    "label": "Аналитика Plus",
+    "now": 28000.0,
+    "september": 0,
+    "now_pct": 1.4787500970429752,
+    "september_pct": 0.0,
+    "margin_impact_pp": -1.478750097042975
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OP:OperationSubscriptionPremium",
+    "label": "Подписка Premium",
+    "now": 0,
+    "september": 0,
+    "now_pct": 0.0,
+    "september_pct": 0.0,
+    "margin_impact_pp": 0.0
+  },
+  {
+    "account": "oz_acc2",
+    "code": "OP:OperationSubscriptionPremiumPlus",
+    "label": "Подписка Premium Plus",
+    "now": 6990.0,
+    "september": 24990,
+    "now_pct": 0.3691593992260856,
+    "september_pct": 0.8894004394684525,
+    "margin_impact_pp": 0.520241040242367
+  }
+]

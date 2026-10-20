@@ -1,0 +1,46 @@
+[
+  {
+    "account": "oz_acc1",
+    "period_from": "2026-09-01",
+    "skus": 897,
+    "missing_skus": 30,
+    "revenue_without_cogs": "300407.0000000000005",
+    "sku_revenue": "14578401.5000000000228",
+    "cogs": "2884029.1845000000854804",
+    "first_computed": "2026-09-01 02:26:10.330539+00:00",
+    "last_computed": "2026-09-30 19:28:51.171564+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "period_from": "2026-10-01",
+    "skus": 819,
+    "missing_skus": 20,
+    "revenue_without_cogs": "121965.0",
+    "sku_revenue": "9201402.000000000052",
+    "cogs": "1874088.03000000002362",
+    "first_computed": "2026-10-01 02:23:27.110465+00:00",
+    "last_computed": "2026-10-19 02:24:36.177280+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "period_from": "2026-09-01",
+    "skus": 390,
+    "missing_skus": 11,
+    "revenue_without_cogs": "80453.6666666666585",
+    "sku_revenue": "2811458.9999999999898",
+    "cogs": "629491.41327536232295",
+    "first_computed": "2026-09-01 19:37:47.697599+00:00",
+    "last_computed": "2026-10-01 02:24:45.448150+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "period_from": "2026-10-01",
+    "skus": 274,
+    "missing_skus": 11,
+    "revenue_without_cogs": "36181.0",
+    "sku_revenue": "1893490.999999999998",
+    "cogs": "373116.82999999999678",
+    "first_computed": "2026-10-01 02:25:09.914937+00:00",
+    "last_computed": "2026-10-18 19:40:19.080182+00:00"
+  }
+]

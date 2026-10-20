@@ -1,0 +1,38 @@
+[
+  {
+    "month": "2026-09",
+    "code": "OperationMarketplaceCostPerClick",
+    "name": "Оплата за клик",
+    "records": 90,
+    "first_day": "2026-09-01",
+    "last_day": "2026-09-18",
+    "charged": "21163.32"
+  },
+  {
+    "month": "2026-09",
+    "code": "OperationPromotionWithCostPerOrder",
+    "name": "Продвижение с оплатой за заказ",
+    "records": 18,
+    "first_day": "2026-09-01",
+    "last_day": "2026-09-18",
+    "charged": "77217.00"
+  },
+  {
+    "month": "2026-10",
+    "code": "OperationMarketplaceCostPerClick",
+    "name": "Оплата за клик",
+    "records": 100,
+    "first_day": "2026-10-01",
+    "last_day": "2026-10-17",
+    "charged": "29673.29"
+  },
+  {
+    "month": "2026-10",
+    "code": "OperationPromotionWithCostPerOrder",
+    "name": "Продвижение с оплатой за заказ",
+    "records": 17,
+    "first_day": "2026-10-01",
+    "last_day": "2026-10-17",
+    "charged": "64623.90"
+  }
+]

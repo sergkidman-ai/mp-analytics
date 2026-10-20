@@ -1,0 +1,66 @@
+[
+  {
+    "platform": "ozon",
+    "account": "oz_acc1",
+    "period_from": "2026-09-01",
+    "missing_cogs_skus": 30,
+    "missing_cogs_revenue": "300407.0000000000005",
+    "revenue": "14578401.5000000000228"
+  },
+  {
+    "platform": "ozon",
+    "account": "oz_acc1",
+    "period_from": "2026-10-01",
+    "missing_cogs_skus": 20,
+    "missing_cogs_revenue": "121965.0",
+    "revenue": "9201402.000000000052"
+  },
+  {
+    "platform": "ozon",
+    "account": "oz_acc2",
+    "period_from": "2026-09-01",
+    "missing_cogs_skus": 11,
+    "missing_cogs_revenue": "80453.6666666666585",
+    "revenue": "2811458.9999999999898"
+  },
+  {
+    "platform": "ozon",
+    "account": "oz_acc2",
+    "period_from": "2026-10-01",
+    "missing_cogs_skus": 11,
+    "missing_cogs_revenue": "36181.0",
+    "revenue": "1893490.999999999998"
+  },
+  {
+    "platform": "wb",
+    "account": "wb_acc1",
+    "period_from": "2026-09-01",
+    "missing_cogs_skus": 0,
+    "missing_cogs_revenue": null,
+    "revenue": "2415259.4200000000057"
+  },
+  {
+    "platform": "wb",
+    "account": "wb_acc1",
+    "period_from": "2026-10-01",
+    "missing_cogs_skus": 0,
+    "missing_cogs_revenue": null,
+    "revenue": "1617146.680000000001"
+  },
+  {
+    "platform": "wb",
+    "account": "wb_acc2",
+    "period_from": "2026-09-01",
+    "missing_cogs_skus": 0,
+    "missing_cogs_revenue": null,
+    "revenue": "1521344.7899999999992"
+  },
+  {
+    "platform": "wb",
+    "account": "wb_acc2",
+    "period_from": "2026-10-01",
+    "missing_cogs_skus": 0,
+    "missing_cogs_revenue": null,
+    "revenue": "994700.2299999999985"
+  }
+]

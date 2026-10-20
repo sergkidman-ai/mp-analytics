@@ -1,0 +1,1433 @@
+[
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-01",
+    "records": 80,
+    "sales": "134481",
+    "refunds": "0",
+    "sold_commission": "55641.89",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-02",
+    "records": 137,
+    "sales": "237683",
+    "refunds": "19053",
+    "sold_commission": "95737.32",
+    "other_commission": "-7430.67"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-03",
+    "records": 277,
+    "sales": "492807",
+    "refunds": "652",
+    "sold_commission": "199829.09",
+    "other_commission": "-254.28"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-04",
+    "records": 166,
+    "sales": "196572",
+    "refunds": "5974",
+    "sold_commission": "79493.92",
+    "other_commission": "-2329.86"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-05",
+    "records": 145,
+    "sales": "170104",
+    "refunds": "0",
+    "sold_commission": "70222.97",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-06",
+    "records": 181,
+    "sales": "261575",
+    "refunds": "2436",
+    "sold_commission": "106284.49",
+    "other_commission": "-950.04"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-07",
+    "records": 168,
+    "sales": "372746",
+    "refunds": "0",
+    "sold_commission": "151738.08",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-08",
+    "records": 81,
+    "sales": "161102",
+    "refunds": "0",
+    "sold_commission": "65865.89",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-09",
+    "records": 104,
+    "sales": "202651",
+    "refunds": "0",
+    "sold_commission": "82234.14",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-10",
+    "records": 245,
+    "sales": "481500.51",
+    "refunds": "7883",
+    "sold_commission": "195695.71",
+    "other_commission": "-3310.86"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-11",
+    "records": 174,
+    "sales": "289183",
+    "refunds": "0",
+    "sold_commission": "119070.46",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-12",
+    "records": 156,
+    "sales": "246247",
+    "refunds": "0",
+    "sold_commission": "100675.74",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-13",
+    "records": 147,
+    "sales": "331846",
+    "refunds": "0",
+    "sold_commission": "136739.89",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-14",
+    "records": 170,
+    "sales": "274475",
+    "refunds": "4174",
+    "sold_commission": "110932.18",
+    "other_commission": "-1753.08"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-15",
+    "records": 90,
+    "sales": "119354",
+    "refunds": "0",
+    "sold_commission": "49161.93",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-16",
+    "records": 88,
+    "sales": "164414",
+    "refunds": "4169",
+    "sold_commission": "66698.75",
+    "other_commission": "-1690.44"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-17",
+    "records": 242,
+    "sales": "610182",
+    "refunds": "0",
+    "sold_commission": "250413.64",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-18",
+    "records": 173,
+    "sales": "486901",
+    "refunds": "2932",
+    "sold_commission": "200796.37",
+    "other_commission": "-1231.44"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-19",
+    "records": 163,
+    "sales": "349251",
+    "refunds": "14182",
+    "sold_commission": "143256.91",
+    "other_commission": "-5850.48"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-20",
+    "records": 164,
+    "sales": "372754",
+    "refunds": "5603",
+    "sold_commission": "154792.33",
+    "other_commission": "-2185.17"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-21",
+    "records": 142,
+    "sales": "243729",
+    "refunds": "0",
+    "sold_commission": "99104.47",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-22",
+    "records": 79,
+    "sales": "123316.00",
+    "refunds": "0",
+    "sold_commission": "49925.31",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-23",
+    "records": 66,
+    "sales": "76577",
+    "refunds": "0",
+    "sold_commission": "31037.61",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-24",
+    "records": 174,
+    "sales": "488593",
+    "refunds": "14535",
+    "sold_commission": "195727.51",
+    "other_commission": "-6015.24"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-25",
+    "records": 159,
+    "sales": "421906.5",
+    "refunds": "5738",
+    "sold_commission": "172494.45",
+    "other_commission": "-2409.96"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-26",
+    "records": 134,
+    "sales": "174055",
+    "refunds": "0",
+    "sold_commission": "71738.89",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-27",
+    "records": 153,
+    "sales": "317308",
+    "refunds": "0",
+    "sold_commission": "128943.44",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-28",
+    "records": 118,
+    "sales": "217528",
+    "refunds": "745",
+    "sold_commission": "90122.23",
+    "other_commission": "-298"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-29",
+    "records": 75,
+    "sales": "72391",
+    "refunds": "0",
+    "sold_commission": "30367.83",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-30",
+    "records": 98,
+    "sales": "187236",
+    "refunds": "0",
+    "sold_commission": "77384.71",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-08-31",
+    "records": 186,
+    "sales": "565948",
+    "refunds": "0",
+    "sold_commission": "235074.18",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-01",
+    "records": 131,
+    "sales": "226368",
+    "refunds": "0",
+    "sold_commission": "94275.88",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-02",
+    "records": 145,
+    "sales": "170179.5",
+    "refunds": "25733",
+    "sold_commission": "74211.24",
+    "other_commission": "-10141.78"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-03",
+    "records": 178,
+    "sales": "321864",
+    "refunds": "40784",
+    "sold_commission": "139882.38",
+    "other_commission": "-17129.28"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-04",
+    "records": 184,
+    "sales": "387724",
+    "refunds": "65207",
+    "sold_commission": "169871.82",
+    "other_commission": "-27621.24"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-05",
+    "records": 125,
+    "sales": "333461",
+    "refunds": "3277",
+    "sold_commission": "149869.40",
+    "other_commission": "-1540.19"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-06",
+    "records": 93,
+    "sales": "355634",
+    "refunds": "0",
+    "sold_commission": "164397.95",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-07",
+    "records": 232,
+    "sales": "803024",
+    "refunds": "23197",
+    "sold_commission": "361903.34",
+    "other_commission": "-9021.34"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-08",
+    "records": 229,
+    "sales": "472419.0",
+    "refunds": "28944.0",
+    "sold_commission": "213802.50",
+    "other_commission": "-12100.38"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-09",
+    "records": 164,
+    "sales": "594648.0",
+    "refunds": "22424.0",
+    "sold_commission": "273306.85",
+    "other_commission": "-10384.60"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-10",
+    "records": 179,
+    "sales": "476439.0",
+    "refunds": "0.0",
+    "sold_commission": "219361.72",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-11",
+    "records": 171,
+    "sales": "488153.0",
+    "refunds": "2242.0",
+    "sold_commission": "220345.85",
+    "other_commission": "-941.64"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-12",
+    "records": 85,
+    "sales": "252409.0",
+    "refunds": "10539.0",
+    "sold_commission": "114638.54",
+    "other_commission": "-4943.19"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-13",
+    "records": 112,
+    "sales": "313224.0",
+    "refunds": "7053.0",
+    "sold_commission": "143830.29",
+    "other_commission": "-3173.85"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-14",
+    "records": 226,
+    "sales": "810758.0",
+    "refunds": "6489.0",
+    "sold_commission": "369383.37",
+    "other_commission": "-3049.83"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-15",
+    "records": 202,
+    "sales": "570723.0",
+    "refunds": "100602.0",
+    "sold_commission": "263795.39",
+    "other_commission": "-46721.49"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-16",
+    "records": 222,
+    "sales": "644483.0",
+    "refunds": "6045.0",
+    "sold_commission": "294998.97",
+    "other_commission": "-2659.8"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-17",
+    "records": 201,
+    "sales": "665435.0",
+    "refunds": "9928.0",
+    "sold_commission": "300798.71",
+    "other_commission": "-4666.16"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-18",
+    "records": 163,
+    "sales": "537085.0",
+    "refunds": "0.0",
+    "sold_commission": "243848.03",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-19",
+    "records": 139,
+    "sales": "336110.0",
+    "refunds": "0.0",
+    "sold_commission": "155721.09",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-20",
+    "records": 115,
+    "sales": "336695.0",
+    "refunds": "0.0",
+    "sold_commission": "155157.58",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-21",
+    "records": 271,
+    "sales": "1146070.0",
+    "refunds": "7605.0",
+    "sold_commission": "522441.58",
+    "other_commission": "-3574.35"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-22",
+    "records": 193,
+    "sales": "455739.0",
+    "refunds": "11441.0",
+    "sold_commission": "208155.91",
+    "other_commission": "-5072.83"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-23",
+    "records": 223,
+    "sales": "430237.0",
+    "refunds": "62923.0",
+    "sold_commission": "197834.25",
+    "other_commission": "-28785.17"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-24",
+    "records": 169,
+    "sales": "391741.0",
+    "refunds": "2568.0",
+    "sold_commission": "179094.18",
+    "other_commission": "-1129.92"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-25",
+    "records": 196,
+    "sales": "430975.0",
+    "refunds": "0.0",
+    "sold_commission": "196673.56",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-26",
+    "records": 140,
+    "sales": "336268.0",
+    "refunds": "36673.0",
+    "sold_commission": "153541.40",
+    "other_commission": "-17236.31"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-27",
+    "records": 116,
+    "sales": "393254.0",
+    "refunds": "1795.0",
+    "sold_commission": "179560.83",
+    "other_commission": "-789.8"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-28",
+    "records": 297,
+    "sales": "880504.0",
+    "refunds": "50850.0",
+    "sold_commission": "402948.32",
+    "other_commission": "-23290.15"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-29",
+    "records": 192,
+    "sales": "495523.0",
+    "refunds": "11985.0",
+    "sold_commission": "225614.26",
+    "other_commission": "-5481.21"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-09-30",
+    "records": 189,
+    "sales": "521255.0",
+    "refunds": "2149.0",
+    "sold_commission": "238259.12",
+    "other_commission": "-967.05"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-01",
+    "records": 208,
+    "sales": "464717.0",
+    "refunds": "28597.0",
+    "sold_commission": "211996.40",
+    "other_commission": "-13440.59"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-02",
+    "records": 182,
+    "sales": "430633.0",
+    "refunds": "8427.0",
+    "sold_commission": "196568.86",
+    "other_commission": "-3960.69"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-03",
+    "records": 133,
+    "sales": "294094.0",
+    "refunds": "11466.0",
+    "sold_commission": "134448.06",
+    "other_commission": "-5389.02"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-04",
+    "records": 157,
+    "sales": "224220.0",
+    "refunds": "14190.0",
+    "sold_commission": "101163.38",
+    "other_commission": "-6535.44"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-05",
+    "records": 307,
+    "sales": "685969.0",
+    "refunds": "10653.0",
+    "sold_commission": "312612.64",
+    "other_commission": "-4824.92"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-06",
+    "records": 265,
+    "sales": "468362.0",
+    "refunds": "29911.0",
+    "sold_commission": "213859.24",
+    "other_commission": "-13290.77"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-07",
+    "records": 229,
+    "sales": "391459.0",
+    "refunds": "0.0",
+    "sold_commission": "179418.10",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-08",
+    "records": 287,
+    "sales": "613745.0",
+    "refunds": "5463.0",
+    "sold_commission": "282669.15",
+    "other_commission": "-2495.64"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-09",
+    "records": 280,
+    "sales": "555747.0",
+    "refunds": "14299.0",
+    "sold_commission": "254855.39",
+    "other_commission": "-6579.13"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-10",
+    "records": 175,
+    "sales": "369798.0",
+    "refunds": "0.0",
+    "sold_commission": "169074.89",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-11",
+    "records": 135,
+    "sales": "392361.0",
+    "refunds": "0.0",
+    "sold_commission": "179518.72",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-12",
+    "records": 304,
+    "sales": "778883.0",
+    "refunds": "40750.0",
+    "sold_commission": "354681.29",
+    "other_commission": "-19058.39"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-13",
+    "records": 271,
+    "sales": "761012.0",
+    "refunds": "0.0",
+    "sold_commission": "349287.97",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-14",
+    "records": 206,
+    "sales": "489034.0",
+    "refunds": "6585.0",
+    "sold_commission": "223566.00",
+    "other_commission": "-2897.4"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-15",
+    "records": 261,
+    "sales": "805950.0",
+    "refunds": "0.0",
+    "sold_commission": "368385.23",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-16",
+    "records": 262,
+    "sales": "540265.0",
+    "refunds": "18975.0",
+    "sold_commission": "248779.20",
+    "other_commission": "-8659.45"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-17",
+    "records": 141,
+    "sales": "398972.0",
+    "refunds": "2140.0",
+    "sold_commission": "182679.68",
+    "other_commission": "-963.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-18",
+    "records": 110,
+    "sales": "481833.0",
+    "refunds": "0.0",
+    "sold_commission": "221605.39",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-19",
+    "records": 5,
+    "sales": "54348.0",
+    "refunds": "0.0",
+    "sold_commission": "25543.56",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-01",
+    "records": 35,
+    "sales": "58282",
+    "refunds": "0",
+    "sold_commission": "23334.32",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-02",
+    "records": 28,
+    "sales": "71326",
+    "refunds": "0",
+    "sold_commission": "29115.76",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-03",
+    "records": 54,
+    "sales": "85173",
+    "refunds": "21310",
+    "sold_commission": "34838.06",
+    "other_commission": "-8524"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-04",
+    "records": 45,
+    "sales": "53401",
+    "refunds": "0",
+    "sold_commission": "21782.46",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-05",
+    "records": 32,
+    "sales": "24963",
+    "refunds": "0",
+    "sold_commission": "9985.2",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-06",
+    "records": 38,
+    "sales": "24174",
+    "refunds": "15827",
+    "sold_commission": "10017.18",
+    "other_commission": "-6647.34"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-07",
+    "records": 28,
+    "sales": "71720",
+    "refunds": "0",
+    "sold_commission": "29451.62",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-08",
+    "records": 18,
+    "sales": "4189",
+    "refunds": "0",
+    "sold_commission": "1675.6",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-09",
+    "records": 36,
+    "sales": "88022",
+    "refunds": "0",
+    "sold_commission": "35349.74",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-10",
+    "records": 65,
+    "sales": "62651",
+    "refunds": "1969",
+    "sold_commission": "25741.46",
+    "other_commission": "-787.6"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-11",
+    "records": 52,
+    "sales": "28381",
+    "refunds": "5233",
+    "sold_commission": "11869.98",
+    "other_commission": "-2197.86"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-12",
+    "records": 34,
+    "sales": "40735",
+    "refunds": "0",
+    "sold_commission": "16614.3",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-13",
+    "records": 43,
+    "sales": "16244",
+    "refunds": "4968",
+    "sold_commission": "6749.40",
+    "other_commission": "-2086.56"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-14",
+    "records": 34,
+    "sales": "39203",
+    "refunds": "0",
+    "sold_commission": "16046.08",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-15",
+    "records": 21,
+    "sales": "22447",
+    "refunds": "0",
+    "sold_commission": "9342.76",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-16",
+    "records": 22,
+    "sales": "18273",
+    "refunds": "0",
+    "sold_commission": "7309.2",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-17",
+    "records": 47,
+    "sales": "110638",
+    "refunds": "0",
+    "sold_commission": "45771.12",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-18",
+    "records": 44,
+    "sales": "173935",
+    "refunds": "0",
+    "sold_commission": "71771.10",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-19",
+    "records": 22,
+    "sales": "13608",
+    "refunds": "0",
+    "sold_commission": "5461.54",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-20",
+    "records": 43,
+    "sales": "67350",
+    "refunds": "0",
+    "sold_commission": "27383.68",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-21",
+    "records": 28,
+    "sales": "41372",
+    "refunds": "0",
+    "sold_commission": "17329.22",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-22",
+    "records": 28,
+    "sales": "10228",
+    "refunds": "0",
+    "sold_commission": "4169.44",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-23",
+    "records": 26,
+    "sales": "17765",
+    "refunds": "593",
+    "sold_commission": "7232.22",
+    "other_commission": "-237.2"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-24",
+    "records": 40,
+    "sales": "118253",
+    "refunds": "0",
+    "sold_commission": "48997.78",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-25",
+    "records": 20,
+    "sales": "21470",
+    "refunds": "0",
+    "sold_commission": "8588.0",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-26",
+    "records": 36,
+    "sales": "32735",
+    "refunds": "0",
+    "sold_commission": "13631.10",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-27",
+    "records": 43,
+    "sales": "65071",
+    "refunds": "0",
+    "sold_commission": "26774.02",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-28",
+    "records": 23,
+    "sales": "11097",
+    "refunds": "0",
+    "sold_commission": "4469.36",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-29",
+    "records": 24,
+    "sales": "19994",
+    "refunds": "0",
+    "sold_commission": "8062.28",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-30",
+    "records": 16,
+    "sales": "17845",
+    "refunds": "1608",
+    "sold_commission": "7342.95",
+    "other_commission": "-675.36"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-08-31",
+    "records": 38,
+    "sales": "94376",
+    "refunds": "0",
+    "sold_commission": "38849.66",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-01",
+    "records": 49,
+    "sales": "40982",
+    "refunds": "0",
+    "sold_commission": "17731.65",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-02",
+    "records": 58,
+    "sales": "47435",
+    "refunds": "0",
+    "sold_commission": "20913.00",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-03",
+    "records": 39,
+    "sales": "67558",
+    "refunds": "4098",
+    "sold_commission": "28829.09",
+    "other_commission": "-1721.16"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-04",
+    "records": 26,
+    "sales": "28248",
+    "refunds": "2127",
+    "sold_commission": "12452.77",
+    "other_commission": "-957.15"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-05",
+    "records": 32,
+    "sales": "39003",
+    "refunds": "0",
+    "sold_commission": "17776.01",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-06",
+    "records": 33,
+    "sales": "21549",
+    "refunds": "0",
+    "sold_commission": "9766.02",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-07",
+    "records": 63,
+    "sales": "105014",
+    "refunds": "0",
+    "sold_commission": "47089.68",
+    "other_commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-08",
+    "records": 42,
+    "sales": "126853.0",
+    "refunds": "0.0",
+    "sold_commission": "58656.58",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-09",
+    "records": 28,
+    "sales": "23340.0",
+    "refunds": "0.0",
+    "sold_commission": "10689.24",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-10",
+    "records": 62,
+    "sales": "85009.0",
+    "refunds": "0.0",
+    "sold_commission": "39503.53",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-11",
+    "records": 71,
+    "sales": "86598.0",
+    "refunds": "0.0",
+    "sold_commission": "40035.94",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-12",
+    "records": 29,
+    "sales": "79080.0",
+    "refunds": "0.0",
+    "sold_commission": "36217.44",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-13",
+    "records": 39,
+    "sales": "35111.0",
+    "refunds": "0.0",
+    "sold_commission": "16178.41",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-14",
+    "records": 81,
+    "sales": "80267.0",
+    "refunds": "10490.0",
+    "sold_commission": "37085.67",
+    "other_commission": "-4815.84"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-15",
+    "records": 57,
+    "sales": "81098.0",
+    "refunds": "2766.0",
+    "sold_commission": "36980.96",
+    "other_commission": "-1244.70"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-16",
+    "records": 61,
+    "sales": "57743.0",
+    "refunds": "0.0",
+    "sold_commission": "26837.55",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-17",
+    "records": 60,
+    "sales": "78475.0",
+    "refunds": "0.0",
+    "sold_commission": "35963.97",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-18",
+    "records": 67,
+    "sales": "157932.0",
+    "refunds": "0.0",
+    "sold_commission": "73238.26",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-19",
+    "records": 32,
+    "sales": "17910.0",
+    "refunds": "0.0",
+    "sold_commission": "8404.90",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-20",
+    "records": 41,
+    "sales": "107766.0",
+    "refunds": "8222.0",
+    "sold_commission": "49027.20",
+    "other_commission": "-3864.34"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-21",
+    "records": 87,
+    "sales": "193012.0",
+    "refunds": "0.0",
+    "sold_commission": "89037.78",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-22",
+    "records": 69,
+    "sales": "75265.0",
+    "refunds": "0.0",
+    "sold_commission": "34770.41",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-23",
+    "records": 70,
+    "sales": "143795.0",
+    "refunds": "0.0",
+    "sold_commission": "66220.67",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-24",
+    "records": 52,
+    "sales": "71600.0",
+    "refunds": "0.0",
+    "sold_commission": "33161.58",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-25",
+    "records": 60,
+    "sales": "91464.0",
+    "refunds": "0.0",
+    "sold_commission": "41812.90",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-26",
+    "records": 62,
+    "sales": "141518.0",
+    "refunds": "0.0",
+    "sold_commission": "66165.90",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-27",
+    "records": 45,
+    "sales": "102254.0",
+    "refunds": "0.0",
+    "sold_commission": "47341.18",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-28",
+    "records": 87,
+    "sales": "267712.0",
+    "refunds": "0.0",
+    "sold_commission": "122244.08",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-29",
+    "records": 103,
+    "sales": "230817.0",
+    "refunds": "0.0",
+    "sold_commission": "106253.37",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-09-30",
+    "records": 74,
+    "sales": "127051.0",
+    "refunds": "0.0",
+    "sold_commission": "58312.61",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-01",
+    "records": 57,
+    "sales": "62276.0",
+    "refunds": "0.0",
+    "sold_commission": "28528.38",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-02",
+    "records": 58,
+    "sales": "106477.0",
+    "refunds": "12472.0",
+    "sold_commission": "48442.15",
+    "other_commission": "-5737.12"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-03",
+    "records": 43,
+    "sales": "39231.0",
+    "refunds": "0.0",
+    "sold_commission": "18154.59",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-04",
+    "records": 55,
+    "sales": "151602.0",
+    "refunds": "15575.0",
+    "sold_commission": "70222.18",
+    "other_commission": "-7320.25"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-05",
+    "records": 68,
+    "sales": "167645.0",
+    "refunds": "0.0",
+    "sold_commission": "77586.39",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-06",
+    "records": 69,
+    "sales": "278739.0",
+    "refunds": "2754.0",
+    "sold_commission": "129337.27",
+    "other_commission": "-1239.30"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-07",
+    "records": 45,
+    "sales": "54137.0",
+    "refunds": "0.0",
+    "sold_commission": "25010.03",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-08",
+    "records": 60,
+    "sales": "116592.0",
+    "refunds": "0.0",
+    "sold_commission": "54379.28",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-09",
+    "records": 48,
+    "sales": "140476.0",
+    "refunds": "93342.0",
+    "sold_commission": "64917.62",
+    "other_commission": "-43870.74"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-10",
+    "records": 34,
+    "sales": "28279.0",
+    "refunds": "1701.0",
+    "sold_commission": "13030.95",
+    "other_commission": "-765.45"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-11",
+    "records": 42,
+    "sales": "92527.0",
+    "refunds": "5860.0",
+    "sold_commission": "42033.41",
+    "other_commission": "-2637.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-12",
+    "records": 63,
+    "sales": "120465.0",
+    "refunds": "0.0",
+    "sold_commission": "55313.01",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-13",
+    "records": 52,
+    "sales": "66837.0",
+    "refunds": "0.0",
+    "sold_commission": "30533.25",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-14",
+    "records": 44,
+    "sales": "35482.0",
+    "refunds": "9367.0",
+    "sold_commission": "16160.24",
+    "other_commission": "-4215.15"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-15",
+    "records": 63,
+    "sales": "152261.0",
+    "refunds": "21410.0",
+    "sold_commission": "70420.57",
+    "other_commission": "-10062.70"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-16",
+    "records": 38,
+    "sales": "156039.0",
+    "refunds": "0.0",
+    "sold_commission": "72718.41",
+    "other_commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-17",
+    "records": 62,
+    "sales": "93254.0",
+    "refunds": "6503.0",
+    "sold_commission": "43205.34",
+    "other_commission": "-3056.41"
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-18",
+    "records": 24,
+    "sales": "31172.0",
+    "refunds": "0.0",
+    "sold_commission": "14101.52",
+    "other_commission": "0.0"
+  }
+]

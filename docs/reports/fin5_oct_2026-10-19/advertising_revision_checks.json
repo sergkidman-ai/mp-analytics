@@ -1,0 +1,10 @@
+{
+  "production_files_unchanged": true,
+  "protected_sha256": {
+    "web/static/reports.html": "177214cc6d6a7e2886fe40bf76c862808a5bb169693641dae3730da451fc50a7",
+    "reports/ozon_mp_page.py": "27582ee6e4dd6b1896b8634628adb71b57c10b18b16dc413c6306a717e9e9660",
+    "reports/ozon_mp_report.py": "9e33d32ec9a107dc75cb6f4ac2d3699ac86faf5a071d00e4f527cb6bad51e444",
+    "reports/data/mp_ozon_hist.json": "7314386e46d87546375d3793bacdbb7925639d737ed691b3d6f7cd4fda8571a5"
+  },
+  "promotion_effects_reconciled": true
+}

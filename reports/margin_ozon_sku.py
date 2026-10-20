@@ -375,6 +375,7 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
 
     # сборка строк + запись
     recs, rows_view = [], []
+    computed_at = datetime.datetime.now(datetime.timezone.utc)
     for sku, f in sku_fin.items():
         rev = f["revenue"]
         cogs = sku_cogs.get(sku, 0.0) - storno.get(sku, 0.0)
@@ -382,6 +383,7 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
         rec = {
             "article": sku, "platform": "ozon", "account": account,
             "period_from": date_from, "period_to": date_to, "qty": None,
+            "computed_at": computed_at,
             "revenue_buyer": rev, "cogs": cogs,
             "commission": -f["commission"], "logistics": -f["logistics"],
             "returns_sum": -f["returns"], "storage": -f["storage"],

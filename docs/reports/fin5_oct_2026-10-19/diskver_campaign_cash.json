@@ -1,0 +1,114 @@
+[
+  {
+    "period": "2026-09",
+    "campaign_id": "13424726",
+    "charged": "14419.61",
+    "records": 18,
+    "first_day": "2026-09-01",
+    "last_day": "2026-09-18"
+  },
+  {
+    "period": "2026-09",
+    "campaign_id": "19250899",
+    "charged": "2681.80",
+    "records": 18,
+    "first_day": "2026-09-01",
+    "last_day": "2026-09-18"
+  },
+  {
+    "period": "2026-09",
+    "campaign_id": "13425039",
+    "charged": "1695.90",
+    "records": 18,
+    "first_day": "2026-09-01",
+    "last_day": "2026-09-18"
+  },
+  {
+    "period": "2026-09",
+    "campaign_id": "13424988",
+    "charged": "1248.62",
+    "records": 18,
+    "first_day": "2026-09-01",
+    "last_day": "2026-09-18"
+  },
+  {
+    "period": "2026-09",
+    "campaign_id": "13425066",
+    "charged": "1117.36",
+    "records": 17,
+    "first_day": "2026-09-01",
+    "last_day": "2026-09-18"
+  },
+  {
+    "period": "2026-09",
+    "campaign_id": "41758909",
+    "charged": "0.03",
+    "records": 1,
+    "first_day": "2026-09-14",
+    "last_day": "2026-09-14"
+  },
+  {
+    "period": "2026-10",
+    "campaign_id": "13424726",
+    "charged": "22308.10",
+    "records": 17,
+    "first_day": "2026-10-01",
+    "last_day": "2026-10-17"
+  },
+  {
+    "period": "2026-10",
+    "campaign_id": "19250899",
+    "charged": "3973.01",
+    "records": 17,
+    "first_day": "2026-10-01",
+    "last_day": "2026-10-17"
+  },
+  {
+    "period": "2026-10",
+    "campaign_id": "13425039",
+    "charged": "1492.05",
+    "records": 17,
+    "first_day": "2026-10-01",
+    "last_day": "2026-10-17"
+  },
+  {
+    "period": "2026-10",
+    "campaign_id": "13425066",
+    "charged": "1103.97",
+    "records": 17,
+    "first_day": "2026-10-01",
+    "last_day": "2026-10-17"
+  },
+  {
+    "period": "2026-10",
+    "campaign_id": "13424988",
+    "charged": "786.79",
+    "records": 17,
+    "first_day": "2026-10-01",
+    "last_day": "2026-10-17"
+  },
+  {
+    "period": "2026-10",
+    "campaign_id": "42757736",
+    "charged": "9.21",
+    "records": 2,
+    "first_day": "2026-10-07",
+    "last_day": "2026-10-10"
+  },
+  {
+    "period": "2026-10",
+    "campaign_id": "41758909",
+    "charged": "0.09",
+    "records": 6,
+    "first_day": "2026-10-01",
+    "last_day": "2026-10-11"
+  },
+  {
+    "period": "2026-10",
+    "campaign_id": "43608717",
+    "charged": "0.07",
+    "records": 7,
+    "first_day": "2026-10-06",
+    "last_day": "2026-10-17"
+  }
+]

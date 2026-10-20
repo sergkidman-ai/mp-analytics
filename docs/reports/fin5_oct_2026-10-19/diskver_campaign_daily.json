@@ -1,0 +1,2642 @@
+[
+  {
+    "stat_date": "2026-09-01",
+    "campaign_id": "13424726",
+    "spend": "719.15",
+    "clicks": "88",
+    "orders": "4.0",
+    "attributed_revenue": "52760.0"
+  },
+  {
+    "stat_date": "2026-09-01",
+    "campaign_id": "13424988",
+    "spend": "76.99",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-01",
+    "campaign_id": "13425039",
+    "spend": "55.35",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-01",
+    "campaign_id": "13425066",
+    "spend": "110.14",
+    "clicks": "5",
+    "orders": "2.0",
+    "attributed_revenue": "31126.0"
+  },
+  {
+    "stat_date": "2026-09-01",
+    "campaign_id": "19250899",
+    "spend": "204.90",
+    "clicks": "20",
+    "orders": "2.0",
+    "attributed_revenue": "2895.0"
+  },
+  {
+    "stat_date": "2026-09-02",
+    "campaign_id": "13424726",
+    "spend": "603.90",
+    "clicks": "82",
+    "orders": "7.0",
+    "attributed_revenue": "36448.0"
+  },
+  {
+    "stat_date": "2026-09-02",
+    "campaign_id": "13424988",
+    "spend": "34.48",
+    "clicks": "4",
+    "orders": "1.0",
+    "attributed_revenue": "2258.0"
+  },
+  {
+    "stat_date": "2026-09-02",
+    "campaign_id": "13425039",
+    "spend": "112.57",
+    "clicks": "8",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-02",
+    "campaign_id": "13425066",
+    "spend": "19.36",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-02",
+    "campaign_id": "19250899",
+    "spend": "81.34",
+    "clicks": "6",
+    "orders": "2.0",
+    "attributed_revenue": "4076.0"
+  },
+  {
+    "stat_date": "2026-09-03",
+    "campaign_id": "13424726",
+    "spend": "917.97",
+    "clicks": "112",
+    "orders": "3.0",
+    "attributed_revenue": "7537.0"
+  },
+  {
+    "stat_date": "2026-09-03",
+    "campaign_id": "13424988",
+    "spend": "104.24",
+    "clicks": "6",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-03",
+    "campaign_id": "13425039",
+    "spend": "51.99",
+    "clicks": "6",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-03",
+    "campaign_id": "13425066",
+    "spend": "54.49",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-03",
+    "campaign_id": "19250899",
+    "spend": "148.25",
+    "clicks": "13",
+    "orders": "1.0",
+    "attributed_revenue": "812.0"
+  },
+  {
+    "stat_date": "2026-09-04",
+    "campaign_id": "13424726",
+    "spend": "567.35",
+    "clicks": "83",
+    "orders": "2.0",
+    "attributed_revenue": "6075.0"
+  },
+  {
+    "stat_date": "2026-09-04",
+    "campaign_id": "13424988",
+    "spend": "67.38",
+    "clicks": "1",
+    "orders": "2.0",
+    "attributed_revenue": "16230.0"
+  },
+  {
+    "stat_date": "2026-09-04",
+    "campaign_id": "13425039",
+    "spend": "33.23",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-04",
+    "campaign_id": "13425066",
+    "spend": "75.90",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-04",
+    "campaign_id": "19250899",
+    "spend": "153.39",
+    "clicks": "11",
+    "orders": "1.0",
+    "attributed_revenue": "679.0"
+  },
+  {
+    "stat_date": "2026-09-05",
+    "campaign_id": "13424726",
+    "spend": "696.92",
+    "clicks": "86",
+    "orders": "3.0",
+    "attributed_revenue": "7478.0"
+  },
+  {
+    "stat_date": "2026-09-05",
+    "campaign_id": "13424988",
+    "spend": "1.0",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-05",
+    "campaign_id": "13425039",
+    "spend": "28.83",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-05",
+    "campaign_id": "13425066",
+    "spend": "1.0",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-05",
+    "campaign_id": "19250899",
+    "spend": "84.97",
+    "clicks": "9",
+    "orders": "1.0",
+    "attributed_revenue": "679.0"
+  },
+  {
+    "stat_date": "2026-09-06",
+    "campaign_id": "13424726",
+    "spend": "698.28",
+    "clicks": "93",
+    "orders": "6.0",
+    "attributed_revenue": "5038.0"
+  },
+  {
+    "stat_date": "2026-09-06",
+    "campaign_id": "13424988",
+    "spend": "4.89",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-06",
+    "campaign_id": "13425039",
+    "spend": "42.67",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-06",
+    "campaign_id": "13425066",
+    "spend": "39.05",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-06",
+    "campaign_id": "19250899",
+    "spend": "137.97",
+    "clicks": "11",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-07",
+    "campaign_id": "13424726",
+    "spend": "881.62",
+    "clicks": "110",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-07",
+    "campaign_id": "13424988",
+    "spend": "58.76",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-07",
+    "campaign_id": "13425039",
+    "spend": "110.06",
+    "clicks": "9",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-07",
+    "campaign_id": "13425066",
+    "spend": "30.06",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-07",
+    "campaign_id": "19250899",
+    "spend": "229.74",
+    "clicks": "22",
+    "orders": "2.0",
+    "attributed_revenue": "4737.0"
+  },
+  {
+    "stat_date": "2026-09-08",
+    "campaign_id": "13424726",
+    "spend": "970.72",
+    "clicks": "127",
+    "orders": "7.0",
+    "attributed_revenue": "75742.0"
+  },
+  {
+    "stat_date": "2026-09-08",
+    "campaign_id": "13424988",
+    "spend": "62.65",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-08",
+    "campaign_id": "13425039",
+    "spend": "102.50",
+    "clicks": "10",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-08",
+    "campaign_id": "13425066",
+    "spend": "69.38",
+    "clicks": "6",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-08",
+    "campaign_id": "19250899",
+    "spend": "148.89",
+    "clicks": "11",
+    "orders": "2.0",
+    "attributed_revenue": "2321.0"
+  },
+  {
+    "stat_date": "2026-09-09",
+    "campaign_id": "13424726",
+    "spend": "826.18",
+    "clicks": "102",
+    "orders": "1.0",
+    "attributed_revenue": "5729.0"
+  },
+  {
+    "stat_date": "2026-09-09",
+    "campaign_id": "13424988",
+    "spend": "82.96",
+    "clicks": "6",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-09",
+    "campaign_id": "13425039",
+    "spend": "97.61",
+    "clicks": "6",
+    "orders": "1.0",
+    "attributed_revenue": "9955.0"
+  },
+  {
+    "stat_date": "2026-09-09",
+    "campaign_id": "13425066",
+    "spend": "140.87",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-09",
+    "campaign_id": "19250899",
+    "spend": "102.46",
+    "clicks": "10",
+    "orders": "1.0",
+    "attributed_revenue": "822.0"
+  },
+  {
+    "stat_date": "2026-09-10",
+    "campaign_id": "13424726",
+    "spend": "700.14",
+    "clicks": "94",
+    "orders": "4.0",
+    "attributed_revenue": "8853.0"
+  },
+  {
+    "stat_date": "2026-09-10",
+    "campaign_id": "13424988",
+    "spend": "78.55",
+    "clicks": "6",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-10",
+    "campaign_id": "13425039",
+    "spend": "147.24",
+    "clicks": "13",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-10",
+    "campaign_id": "13425066",
+    "spend": "48.15",
+    "clicks": "4",
+    "orders": "1.0",
+    "attributed_revenue": "10154.0"
+  },
+  {
+    "stat_date": "2026-09-10",
+    "campaign_id": "19250899",
+    "spend": "107.97",
+    "clicks": "17",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-11",
+    "campaign_id": "13424726",
+    "spend": "563.27",
+    "clicks": "85",
+    "orders": "7.0",
+    "attributed_revenue": "40513.0"
+  },
+  {
+    "stat_date": "2026-09-11",
+    "campaign_id": "13424988",
+    "spend": "48.18",
+    "clicks": "4",
+    "orders": "2.0",
+    "attributed_revenue": "7632.0"
+  },
+  {
+    "stat_date": "2026-09-11",
+    "campaign_id": "13425039",
+    "spend": "98.64",
+    "clicks": "8",
+    "orders": "1.0",
+    "attributed_revenue": "12360.0"
+  },
+  {
+    "stat_date": "2026-09-11",
+    "campaign_id": "13425066",
+    "spend": "143.85",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-11",
+    "campaign_id": "19250899",
+    "spend": "187.44",
+    "clicks": "19",
+    "orders": "5.0",
+    "attributed_revenue": "10934.0"
+  },
+  {
+    "stat_date": "2026-09-12",
+    "campaign_id": "13424726",
+    "spend": "566.85",
+    "clicks": "74",
+    "orders": "1.0",
+    "attributed_revenue": "1932.0"
+  },
+  {
+    "stat_date": "2026-09-12",
+    "campaign_id": "13424988",
+    "spend": "24.72",
+    "clicks": "1",
+    "orders": "1.0",
+    "attributed_revenue": "1459.0"
+  },
+  {
+    "stat_date": "2026-09-12",
+    "campaign_id": "13425039",
+    "spend": "137.08",
+    "clicks": "12",
+    "orders": "1.0",
+    "attributed_revenue": "8137.0"
+  },
+  {
+    "stat_date": "2026-09-12",
+    "campaign_id": "13425066",
+    "spend": "0.0",
+    "clicks": "0",
+    "orders": "1.0",
+    "attributed_revenue": "20108.0"
+  },
+  {
+    "stat_date": "2026-09-12",
+    "campaign_id": "19250899",
+    "spend": "141.32",
+    "clicks": "9",
+    "orders": "1.0",
+    "attributed_revenue": "1933.0"
+  },
+  {
+    "stat_date": "2026-09-13",
+    "campaign_id": "13424726",
+    "spend": "785.90",
+    "clicks": "97",
+    "orders": "2.0",
+    "attributed_revenue": "19550.0"
+  },
+  {
+    "stat_date": "2026-09-13",
+    "campaign_id": "13424988",
+    "spend": "3.0",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-13",
+    "campaign_id": "13425039",
+    "spend": "81.71",
+    "clicks": "7",
+    "orders": "1.0",
+    "attributed_revenue": "7284.0"
+  },
+  {
+    "stat_date": "2026-09-13",
+    "campaign_id": "13425066",
+    "spend": "41.14",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-13",
+    "campaign_id": "19250899",
+    "spend": "102.12",
+    "clicks": "12",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-14",
+    "campaign_id": "13424726",
+    "spend": "835.28",
+    "clicks": "119",
+    "orders": "6.0",
+    "attributed_revenue": "33172.0"
+  },
+  {
+    "stat_date": "2026-09-14",
+    "campaign_id": "13424988",
+    "spend": "86.29",
+    "clicks": "4",
+    "orders": "1.0",
+    "attributed_revenue": "3874.0"
+  },
+  {
+    "stat_date": "2026-09-14",
+    "campaign_id": "13425039",
+    "spend": "150.63",
+    "clicks": "9",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-14",
+    "campaign_id": "13425066",
+    "spend": "48.17",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-14",
+    "campaign_id": "19250899",
+    "spend": "276.99",
+    "clicks": "22",
+    "orders": "1.0",
+    "attributed_revenue": "1770.0"
+  },
+  {
+    "stat_date": "2026-09-14",
+    "campaign_id": "41758909",
+    "spend": "6798.70",
+    "clicks": "61",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-15",
+    "campaign_id": "13424726",
+    "spend": "739.20",
+    "clicks": "109",
+    "orders": "3.0",
+    "attributed_revenue": "16733.0"
+  },
+  {
+    "stat_date": "2026-09-15",
+    "campaign_id": "13424988",
+    "spend": "108.05",
+    "clicks": "9",
+    "orders": "1.0",
+    "attributed_revenue": "3874.0"
+  },
+  {
+    "stat_date": "2026-09-15",
+    "campaign_id": "13425039",
+    "spend": "87.97",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-15",
+    "campaign_id": "13425066",
+    "spend": "32.49",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-15",
+    "campaign_id": "19250899",
+    "spend": "156.78",
+    "clicks": "15",
+    "orders": "2.0",
+    "attributed_revenue": "2489.0"
+  },
+  {
+    "stat_date": "2026-09-15",
+    "campaign_id": "41758909",
+    "spend": "16185.27",
+    "clicks": "174",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-16",
+    "campaign_id": "13424726",
+    "spend": "782.96",
+    "clicks": "101",
+    "orders": "5.0",
+    "attributed_revenue": "19182.0"
+  },
+  {
+    "stat_date": "2026-09-16",
+    "campaign_id": "13424988",
+    "spend": "123.52",
+    "clicks": "12",
+    "orders": "1.0",
+    "attributed_revenue": "3874.0"
+  },
+  {
+    "stat_date": "2026-09-16",
+    "campaign_id": "13425039",
+    "spend": "95.86",
+    "clicks": "9",
+    "orders": "1.0",
+    "attributed_revenue": "11766.0"
+  },
+  {
+    "stat_date": "2026-09-16",
+    "campaign_id": "13425066",
+    "spend": "66.06",
+    "clicks": "7",
+    "orders": "3.0",
+    "attributed_revenue": "39511.0"
+  },
+  {
+    "stat_date": "2026-09-16",
+    "campaign_id": "19250899",
+    "spend": "99.20",
+    "clicks": "12",
+    "orders": "1.0",
+    "attributed_revenue": "1445.0"
+  },
+  {
+    "stat_date": "2026-09-16",
+    "campaign_id": "41758909",
+    "spend": "5934.80",
+    "clicks": "91",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-17",
+    "campaign_id": "13424726",
+    "spend": "1113.61",
+    "clicks": "155",
+    "orders": "3.0",
+    "attributed_revenue": "18925.0"
+  },
+  {
+    "stat_date": "2026-09-17",
+    "campaign_id": "13424988",
+    "spend": "50.86",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-17",
+    "campaign_id": "13425039",
+    "spend": "164.01",
+    "clicks": "17",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-17",
+    "campaign_id": "13425066",
+    "spend": "126.94",
+    "clicks": "12",
+    "orders": "1.0",
+    "attributed_revenue": "20273.0"
+  },
+  {
+    "stat_date": "2026-09-17",
+    "campaign_id": "19250899",
+    "spend": "133.93",
+    "clicks": "18",
+    "orders": "2.0",
+    "attributed_revenue": "4457.0"
+  },
+  {
+    "stat_date": "2026-09-17",
+    "campaign_id": "41758909",
+    "spend": "16916.89",
+    "clicks": "214",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-18",
+    "campaign_id": "13424726",
+    "spend": "1450.30",
+    "clicks": "183",
+    "orders": "8.0",
+    "attributed_revenue": "29366.0"
+  },
+  {
+    "stat_date": "2026-09-18",
+    "campaign_id": "13424988",
+    "spend": "232.12",
+    "clicks": "11",
+    "orders": "2.0",
+    "attributed_revenue": "10189.0"
+  },
+  {
+    "stat_date": "2026-09-18",
+    "campaign_id": "13425039",
+    "spend": "97.98",
+    "clicks": "7",
+    "orders": "2.0",
+    "attributed_revenue": "24734.0"
+  },
+  {
+    "stat_date": "2026-09-18",
+    "campaign_id": "13425066",
+    "spend": "70.29",
+    "clicks": "10",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-18",
+    "campaign_id": "19250899",
+    "spend": "184.14",
+    "clicks": "13",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-18",
+    "campaign_id": "41758909",
+    "spend": "4057.86",
+    "clicks": "77",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-19",
+    "campaign_id": "13424726",
+    "spend": "1189.69",
+    "clicks": "157",
+    "orders": "2.0",
+    "attributed_revenue": "17905.0"
+  },
+  {
+    "stat_date": "2026-09-19",
+    "campaign_id": "13424988",
+    "spend": "47.75",
+    "clicks": "5",
+    "orders": "1.0",
+    "attributed_revenue": "1445.0"
+  },
+  {
+    "stat_date": "2026-09-19",
+    "campaign_id": "13425039",
+    "spend": "46.09",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-19",
+    "campaign_id": "13425066",
+    "spend": "17.18",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-19",
+    "campaign_id": "19250899",
+    "spend": "77.64",
+    "clicks": "12",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-19",
+    "campaign_id": "41758909",
+    "spend": "2146.89",
+    "clicks": "63",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-20",
+    "campaign_id": "13424726",
+    "spend": "1133.99",
+    "clicks": "148",
+    "orders": "1.0",
+    "attributed_revenue": "1239.0"
+  },
+  {
+    "stat_date": "2026-09-20",
+    "campaign_id": "13424988",
+    "spend": "33.17",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-20",
+    "campaign_id": "13425039",
+    "spend": "170.96",
+    "clicks": "13",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-20",
+    "campaign_id": "13425066",
+    "spend": "2.0",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-20",
+    "campaign_id": "19250899",
+    "spend": "164.20",
+    "clicks": "18",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-20",
+    "campaign_id": "41758909",
+    "spend": "1212.28",
+    "clicks": "38",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-21",
+    "campaign_id": "13424726",
+    "spend": "1473.30",
+    "clicks": "189",
+    "orders": "2.0",
+    "attributed_revenue": "6340.0"
+  },
+  {
+    "stat_date": "2026-09-21",
+    "campaign_id": "13424988",
+    "spend": "7.97",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-21",
+    "campaign_id": "13425039",
+    "spend": "67.03",
+    "clicks": "9",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-21",
+    "campaign_id": "13425066",
+    "spend": "96.17",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-21",
+    "campaign_id": "19250899",
+    "spend": "265.69",
+    "clicks": "24",
+    "orders": "1.0",
+    "attributed_revenue": "841.0"
+  },
+  {
+    "stat_date": "2026-09-21",
+    "campaign_id": "41758909",
+    "spend": "1565.87",
+    "clicks": "55",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-21",
+    "campaign_id": "42757736",
+    "spend": "902.66",
+    "clicks": "6",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-22",
+    "campaign_id": "13424726",
+    "spend": "2183.05",
+    "clicks": "282",
+    "orders": "2.0",
+    "attributed_revenue": "4833.0"
+  },
+  {
+    "stat_date": "2026-09-22",
+    "campaign_id": "13424988",
+    "spend": "30.98",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-22",
+    "campaign_id": "13425039",
+    "spend": "87.36",
+    "clicks": "7",
+    "orders": "1.0",
+    "attributed_revenue": "11496.0"
+  },
+  {
+    "stat_date": "2026-09-22",
+    "campaign_id": "13425066",
+    "spend": "124.06",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-22",
+    "campaign_id": "19250899",
+    "spend": "418.76",
+    "clicks": "39",
+    "orders": "5.0",
+    "attributed_revenue": "13798.0"
+  },
+  {
+    "stat_date": "2026-09-22",
+    "campaign_id": "41758909",
+    "spend": "1624.90",
+    "clicks": "67",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-22",
+    "campaign_id": "42757736",
+    "spend": "1287.34",
+    "clicks": "10",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-23",
+    "campaign_id": "13424726",
+    "spend": "2800.77",
+    "clicks": "366",
+    "orders": "6.0",
+    "attributed_revenue": "53861.0"
+  },
+  {
+    "stat_date": "2026-09-23",
+    "campaign_id": "13424988",
+    "spend": "27.67",
+    "clicks": "4",
+    "orders": "1.0",
+    "attributed_revenue": "4284.0"
+  },
+  {
+    "stat_date": "2026-09-23",
+    "campaign_id": "13425039",
+    "spend": "48.94",
+    "clicks": "6",
+    "orders": "1.0",
+    "attributed_revenue": "17075.0"
+  },
+  {
+    "stat_date": "2026-09-23",
+    "campaign_id": "13425066",
+    "spend": "39.09",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-23",
+    "campaign_id": "19250899",
+    "spend": "264.72",
+    "clicks": "28",
+    "orders": "1.0",
+    "attributed_revenue": "1947.0"
+  },
+  {
+    "stat_date": "2026-09-23",
+    "campaign_id": "41758909",
+    "spend": "1275.60",
+    "clicks": "65",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-23",
+    "campaign_id": "42757736",
+    "spend": "1168.95",
+    "clicks": "8",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-24",
+    "campaign_id": "13424726",
+    "spend": "1769.37",
+    "clicks": "217",
+    "orders": "3.0",
+    "attributed_revenue": "59415.0"
+  },
+  {
+    "stat_date": "2026-09-24",
+    "campaign_id": "13424988",
+    "spend": "29.56",
+    "clicks": "3",
+    "orders": "2.0",
+    "attributed_revenue": "2890.0"
+  },
+  {
+    "stat_date": "2026-09-24",
+    "campaign_id": "13425039",
+    "spend": "154.35",
+    "clicks": "12",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-24",
+    "campaign_id": "13425066",
+    "spend": "95.34",
+    "clicks": "9",
+    "orders": "2.0",
+    "attributed_revenue": "29719.0"
+  },
+  {
+    "stat_date": "2026-09-24",
+    "campaign_id": "19250899",
+    "spend": "283.93",
+    "clicks": "25",
+    "orders": "1.0",
+    "attributed_revenue": "2934.0"
+  },
+  {
+    "stat_date": "2026-09-24",
+    "campaign_id": "41758909",
+    "spend": "646.04",
+    "clicks": "25",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-24",
+    "campaign_id": "42757736",
+    "spend": "1261.49",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-25",
+    "campaign_id": "13424726",
+    "spend": "1314.19",
+    "clicks": "157",
+    "orders": "1.0",
+    "attributed_revenue": "5515.0"
+  },
+  {
+    "stat_date": "2026-09-25",
+    "campaign_id": "13424988",
+    "spend": "11.47",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-25",
+    "campaign_id": "13425039",
+    "spend": "50.87",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-25",
+    "campaign_id": "13425066",
+    "spend": "131.86",
+    "clicks": "8",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-25",
+    "campaign_id": "19250899",
+    "spend": "274.07",
+    "clicks": "30",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-25",
+    "campaign_id": "41758909",
+    "spend": "477.90",
+    "clicks": "19",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-25",
+    "campaign_id": "42757736",
+    "spend": "704.87",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-26",
+    "campaign_id": "13424726",
+    "spend": "1321.29",
+    "clicks": "155",
+    "orders": "8.0",
+    "attributed_revenue": "15761.0"
+  },
+  {
+    "stat_date": "2026-09-26",
+    "campaign_id": "13424988",
+    "spend": "71.99",
+    "clicks": "6",
+    "orders": "1.0",
+    "attributed_revenue": "9127.0"
+  },
+  {
+    "stat_date": "2026-09-26",
+    "campaign_id": "13425039",
+    "spend": "17.19",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-26",
+    "campaign_id": "13425066",
+    "spend": "78.91",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-26",
+    "campaign_id": "19250899",
+    "spend": "323.81",
+    "clicks": "29",
+    "orders": "1.0",
+    "attributed_revenue": "1528.0"
+  },
+  {
+    "stat_date": "2026-09-26",
+    "campaign_id": "41758909",
+    "spend": "407.57",
+    "clicks": "8",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-26",
+    "campaign_id": "42757736",
+    "spend": "378.9",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-27",
+    "campaign_id": "13424726",
+    "spend": "1465.26",
+    "clicks": "169",
+    "orders": "4.0",
+    "attributed_revenue": "12735.0"
+  },
+  {
+    "stat_date": "2026-09-27",
+    "campaign_id": "13424988",
+    "spend": "45.09",
+    "clicks": "6",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-27",
+    "campaign_id": "13425039",
+    "spend": "61.43",
+    "clicks": "6",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-27",
+    "campaign_id": "13425066",
+    "spend": "18.11",
+    "clicks": "3",
+    "orders": "1.0",
+    "attributed_revenue": "18788.0"
+  },
+  {
+    "stat_date": "2026-09-27",
+    "campaign_id": "19250899",
+    "spend": "225.19",
+    "clicks": "20",
+    "orders": "2.0",
+    "attributed_revenue": "4530.0"
+  },
+  {
+    "stat_date": "2026-09-27",
+    "campaign_id": "41758909",
+    "spend": "3010.20",
+    "clicks": "57",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-27",
+    "campaign_id": "42757736",
+    "spend": "395.56",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-28",
+    "campaign_id": "13424726",
+    "spend": "1459.23",
+    "clicks": "183",
+    "orders": "8.0",
+    "attributed_revenue": "23227.0"
+  },
+  {
+    "stat_date": "2026-09-28",
+    "campaign_id": "13424988",
+    "spend": "0.0",
+    "clicks": "0",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-28",
+    "campaign_id": "13425039",
+    "spend": "173.69",
+    "clicks": "14",
+    "orders": "1.0",
+    "attributed_revenue": "8772.0"
+  },
+  {
+    "stat_date": "2026-09-28",
+    "campaign_id": "13425066",
+    "spend": "99.90",
+    "clicks": "8",
+    "orders": "2.0",
+    "attributed_revenue": "38740.0"
+  },
+  {
+    "stat_date": "2026-09-28",
+    "campaign_id": "19250899",
+    "spend": "399.87",
+    "clicks": "38",
+    "orders": "4.0",
+    "attributed_revenue": "8562.0"
+  },
+  {
+    "stat_date": "2026-09-28",
+    "campaign_id": "41758909",
+    "spend": "2247.28",
+    "clicks": "45",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-28",
+    "campaign_id": "42757736",
+    "spend": "953.30",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-28",
+    "campaign_id": "43608717",
+    "spend": "173.73",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-29",
+    "campaign_id": "13424726",
+    "spend": "1522.96",
+    "clicks": "183",
+    "orders": "5.0",
+    "attributed_revenue": "9480.0"
+  },
+  {
+    "stat_date": "2026-09-29",
+    "campaign_id": "13424988",
+    "spend": "79.99",
+    "clicks": "7",
+    "orders": "1.0",
+    "attributed_revenue": "631.0"
+  },
+  {
+    "stat_date": "2026-09-29",
+    "campaign_id": "13425039",
+    "spend": "149.11",
+    "clicks": "10",
+    "orders": "1.0",
+    "attributed_revenue": "9477.0"
+  },
+  {
+    "stat_date": "2026-09-29",
+    "campaign_id": "13425066",
+    "spend": "41.29",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-29",
+    "campaign_id": "19250899",
+    "spend": "447.55",
+    "clicks": "38",
+    "orders": "5.0",
+    "attributed_revenue": "10943.0"
+  },
+  {
+    "stat_date": "2026-09-29",
+    "campaign_id": "41758909",
+    "spend": "1799.53",
+    "clicks": "30",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-29",
+    "campaign_id": "42757736",
+    "spend": "1194.61",
+    "clicks": "9",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-29",
+    "campaign_id": "43608717",
+    "spend": "502.32",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-30",
+    "campaign_id": "13424726",
+    "spend": "1649.47",
+    "clicks": "225",
+    "orders": "5.0",
+    "attributed_revenue": "68157.0"
+  },
+  {
+    "stat_date": "2026-09-30",
+    "campaign_id": "13424988",
+    "spend": "69.39",
+    "clicks": "10",
+    "orders": "2.0",
+    "attributed_revenue": "2776.0"
+  },
+  {
+    "stat_date": "2026-09-30",
+    "campaign_id": "13425039",
+    "spend": "172.89",
+    "clicks": "16",
+    "orders": "1.0",
+    "attributed_revenue": "9450.0"
+  },
+  {
+    "stat_date": "2026-09-30",
+    "campaign_id": "13425066",
+    "spend": "190.84",
+    "clicks": "12",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-30",
+    "campaign_id": "19250899",
+    "spend": "249.25",
+    "clicks": "21",
+    "orders": "2.0",
+    "attributed_revenue": "4229.0"
+  },
+  {
+    "stat_date": "2026-09-30",
+    "campaign_id": "41758909",
+    "spend": "23340.38",
+    "clicks": "413",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-30",
+    "campaign_id": "42757736",
+    "spend": "4076.33",
+    "clicks": "34",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-09-30",
+    "campaign_id": "43608717",
+    "spend": "513.04",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-01",
+    "campaign_id": "13424726",
+    "spend": "1330.81",
+    "clicks": "167",
+    "orders": "8.0",
+    "attributed_revenue": "33366.0"
+  },
+  {
+    "stat_date": "2026-10-01",
+    "campaign_id": "13424988",
+    "spend": "87.10",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-01",
+    "campaign_id": "13425039",
+    "spend": "62.18",
+    "clicks": "10",
+    "orders": "1.0",
+    "attributed_revenue": "10979.0"
+  },
+  {
+    "stat_date": "2026-10-01",
+    "campaign_id": "13425066",
+    "spend": "98.25",
+    "clicks": "9",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-01",
+    "campaign_id": "19250899",
+    "spend": "181.27",
+    "clicks": "23",
+    "orders": "4.0",
+    "attributed_revenue": "8628.0"
+  },
+  {
+    "stat_date": "2026-10-01",
+    "campaign_id": "41758909",
+    "spend": "11563.05",
+    "clicks": "246",
+    "orders": "1.0",
+    "attributed_revenue": "2063.0"
+  },
+  {
+    "stat_date": "2026-10-01",
+    "campaign_id": "42757736",
+    "spend": "3972.49",
+    "clicks": "45",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-01",
+    "campaign_id": "43608717",
+    "spend": "188.1",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-02",
+    "campaign_id": "13424726",
+    "spend": "1167.38",
+    "clicks": "151",
+    "orders": "3.0",
+    "attributed_revenue": "23624.0"
+  },
+  {
+    "stat_date": "2026-10-02",
+    "campaign_id": "13424988",
+    "spend": "75.26",
+    "clicks": "7",
+    "orders": "1.0",
+    "attributed_revenue": "3827.0"
+  },
+  {
+    "stat_date": "2026-10-02",
+    "campaign_id": "13425039",
+    "spend": "117.81",
+    "clicks": "11",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-02",
+    "campaign_id": "13425066",
+    "spend": "56.21",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-02",
+    "campaign_id": "19250899",
+    "spend": "361.87",
+    "clicks": "27",
+    "orders": "1.0",
+    "attributed_revenue": "1375.0"
+  },
+  {
+    "stat_date": "2026-10-02",
+    "campaign_id": "41758909",
+    "spend": "897.70",
+    "clicks": "23",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-02",
+    "campaign_id": "42757736",
+    "spend": "2634.12",
+    "clicks": "22",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-02",
+    "campaign_id": "43608717",
+    "spend": "1884.37",
+    "clicks": "11",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-03",
+    "campaign_id": "13424726",
+    "spend": "940.54",
+    "clicks": "126",
+    "orders": "1.0",
+    "attributed_revenue": "2434.0"
+  },
+  {
+    "stat_date": "2026-10-03",
+    "campaign_id": "13424988",
+    "spend": "27.44",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-03",
+    "campaign_id": "13425039",
+    "spend": "54.11",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-03",
+    "campaign_id": "13425066",
+    "spend": "43.53",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-03",
+    "campaign_id": "19250899",
+    "spend": "152.64",
+    "clicks": "13",
+    "orders": "2.0",
+    "attributed_revenue": "5745.0"
+  },
+  {
+    "stat_date": "2026-10-03",
+    "campaign_id": "41758909",
+    "spend": "1794.23",
+    "clicks": "39",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-03",
+    "campaign_id": "42757736",
+    "spend": "2450.75",
+    "clicks": "22",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-03",
+    "campaign_id": "43608717",
+    "spend": "7634.45",
+    "clicks": "39",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-04",
+    "campaign_id": "13424726",
+    "spend": "1262.20",
+    "clicks": "146",
+    "orders": "1.0",
+    "attributed_revenue": "841.0"
+  },
+  {
+    "stat_date": "2026-10-04",
+    "campaign_id": "13424988",
+    "spend": "106.45",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-04",
+    "campaign_id": "13425039",
+    "spend": "15.56",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-04",
+    "campaign_id": "13425066",
+    "spend": "1.0",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-04",
+    "campaign_id": "19250899",
+    "spend": "248.32",
+    "clicks": "23",
+    "orders": "1.0",
+    "attributed_revenue": "2096.0"
+  },
+  {
+    "stat_date": "2026-10-04",
+    "campaign_id": "41758909",
+    "spend": "1758.84",
+    "clicks": "51",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-04",
+    "campaign_id": "42757736",
+    "spend": "4304.94",
+    "clicks": "33",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-04",
+    "campaign_id": "43608717",
+    "spend": "6905.25",
+    "clicks": "35",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-05",
+    "campaign_id": "13424726",
+    "spend": "1895.93",
+    "clicks": "247",
+    "orders": "1.0",
+    "attributed_revenue": "2511.0"
+  },
+  {
+    "stat_date": "2026-10-05",
+    "campaign_id": "13424988",
+    "spend": "32.69",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-05",
+    "campaign_id": "13425039",
+    "spend": "41.72",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-05",
+    "campaign_id": "13425066",
+    "spend": "113.69",
+    "clicks": "7",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-05",
+    "campaign_id": "19250899",
+    "spend": "211.75",
+    "clicks": "22",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-05",
+    "campaign_id": "41758909",
+    "spend": "4728.07",
+    "clicks": "233",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-05",
+    "campaign_id": "42757736",
+    "spend": "3228.53",
+    "clicks": "66",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-05",
+    "campaign_id": "43608717",
+    "spend": "4344.82",
+    "clicks": "22",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-05",
+    "campaign_id": "44499213",
+    "spend": "84.56",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-06",
+    "campaign_id": "13424726",
+    "spend": "2211.17",
+    "clicks": "276",
+    "orders": "6.0",
+    "attributed_revenue": "14410.0"
+  },
+  {
+    "stat_date": "2026-10-06",
+    "campaign_id": "13424988",
+    "spend": "89.37",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-06",
+    "campaign_id": "13425039",
+    "spend": "189.28",
+    "clicks": "17",
+    "orders": "1.0",
+    "attributed_revenue": "13154.0"
+  },
+  {
+    "stat_date": "2026-10-06",
+    "campaign_id": "13425066",
+    "spend": "83.24",
+    "clicks": "11",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-06",
+    "campaign_id": "19250899",
+    "spend": "200.91",
+    "clicks": "21",
+    "orders": "1.0",
+    "attributed_revenue": "3657.0"
+  },
+  {
+    "stat_date": "2026-10-06",
+    "campaign_id": "41758909",
+    "spend": "7137.85",
+    "clicks": "207",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-06",
+    "campaign_id": "42757736",
+    "spend": "3220.57",
+    "clicks": "76",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-06",
+    "campaign_id": "43608717",
+    "spend": "4288.34",
+    "clicks": "22",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-06",
+    "campaign_id": "44499213",
+    "spend": "0.0",
+    "clicks": "0",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-07",
+    "campaign_id": "13424726",
+    "spend": "2147.24",
+    "clicks": "270",
+    "orders": "4.0",
+    "attributed_revenue": "5276.0"
+  },
+  {
+    "stat_date": "2026-10-07",
+    "campaign_id": "13424988",
+    "spend": "53.69",
+    "clicks": "6",
+    "orders": "1.0",
+    "attributed_revenue": "5357.0"
+  },
+  {
+    "stat_date": "2026-10-07",
+    "campaign_id": "13425039",
+    "spend": "221.84",
+    "clicks": "15",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-07",
+    "campaign_id": "13425066",
+    "spend": "81.54",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-07",
+    "campaign_id": "19250899",
+    "spend": "215.89",
+    "clicks": "22",
+    "orders": "3.0",
+    "attributed_revenue": "7785.0"
+  },
+  {
+    "stat_date": "2026-10-07",
+    "campaign_id": "41758909",
+    "spend": "1922.94",
+    "clicks": "118",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-07",
+    "campaign_id": "42757736",
+    "spend": "3068.24",
+    "clicks": "126",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-07",
+    "campaign_id": "43608717",
+    "spend": "4525.30",
+    "clicks": "29",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-07",
+    "campaign_id": "44499213",
+    "spend": "0.0",
+    "clicks": "0",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-08",
+    "campaign_id": "13424726",
+    "spend": "1493.37",
+    "clicks": "183",
+    "orders": "2.0",
+    "attributed_revenue": "4989.0"
+  },
+  {
+    "stat_date": "2026-10-08",
+    "campaign_id": "13424988",
+    "spend": "101.10",
+    "clicks": "10",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-08",
+    "campaign_id": "13425039",
+    "spend": "179.36",
+    "clicks": "10",
+    "orders": "1.0",
+    "attributed_revenue": "13608.0"
+  },
+  {
+    "stat_date": "2026-10-08",
+    "campaign_id": "13425066",
+    "spend": "181.22",
+    "clicks": "12",
+    "orders": "1.0",
+    "attributed_revenue": "19914.0"
+  },
+  {
+    "stat_date": "2026-10-08",
+    "campaign_id": "19250899",
+    "spend": "385.16",
+    "clicks": "33",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-08",
+    "campaign_id": "41758909",
+    "spend": "442.87",
+    "clicks": "20",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-08",
+    "campaign_id": "42757736",
+    "spend": "1227.84",
+    "clicks": "46",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-08",
+    "campaign_id": "43608717",
+    "spend": "4256.28",
+    "clicks": "42",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-08",
+    "campaign_id": "44499213",
+    "spend": "163.28",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-09",
+    "campaign_id": "13424726",
+    "spend": "1299.11",
+    "clicks": "160",
+    "orders": "3.0",
+    "attributed_revenue": "35435.0"
+  },
+  {
+    "stat_date": "2026-10-09",
+    "campaign_id": "13424988",
+    "spend": "24.66",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-09",
+    "campaign_id": "13425039",
+    "spend": "59.25",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-09",
+    "campaign_id": "13425066",
+    "spend": "118.01",
+    "clicks": "11",
+    "orders": "3.0",
+    "attributed_revenue": "59742.0"
+  },
+  {
+    "stat_date": "2026-10-09",
+    "campaign_id": "19250899",
+    "spend": "221.04",
+    "clicks": "21",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-09",
+    "campaign_id": "41758909",
+    "spend": "416.26",
+    "clicks": "17",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-09",
+    "campaign_id": "42757736",
+    "spend": "563.35",
+    "clicks": "14",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-09",
+    "campaign_id": "43608717",
+    "spend": "4040.89",
+    "clicks": "40",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-09",
+    "campaign_id": "44499213",
+    "spend": "541.78",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-10",
+    "campaign_id": "13424726",
+    "spend": "1538.20",
+    "clicks": "174",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-10",
+    "campaign_id": "13424988",
+    "spend": "12.94",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-10",
+    "campaign_id": "13425039",
+    "spend": "48.66",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-10",
+    "campaign_id": "13425066",
+    "spend": "5.46",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-10",
+    "campaign_id": "19250899",
+    "spend": "296.29",
+    "clicks": "22",
+    "orders": "2.0",
+    "attributed_revenue": "3176.0"
+  },
+  {
+    "stat_date": "2026-10-10",
+    "campaign_id": "41758909",
+    "spend": "2003.95",
+    "clicks": "55",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-10",
+    "campaign_id": "42757736",
+    "spend": "14.37",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-10",
+    "campaign_id": "43608717",
+    "spend": "3271.04",
+    "clicks": "18",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-10",
+    "campaign_id": "44499213",
+    "spend": "147.04",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-11",
+    "campaign_id": "13424726",
+    "spend": "1313.02",
+    "clicks": "158",
+    "orders": "2.0",
+    "attributed_revenue": "5907.0"
+  },
+  {
+    "stat_date": "2026-10-11",
+    "campaign_id": "13424988",
+    "spend": "7.04",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-11",
+    "campaign_id": "13425039",
+    "spend": "54.97",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-11",
+    "campaign_id": "13425066",
+    "spend": "20.69",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-11",
+    "campaign_id": "19250899",
+    "spend": "234.55",
+    "clicks": "17",
+    "orders": "1.0",
+    "attributed_revenue": "3205.0"
+  },
+  {
+    "stat_date": "2026-10-11",
+    "campaign_id": "41758909",
+    "spend": "1681.06",
+    "clicks": "59",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-11",
+    "campaign_id": "43608717",
+    "spend": "3457.63",
+    "clicks": "20",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-11",
+    "campaign_id": "44499213",
+    "spend": "0.0",
+    "clicks": "0",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-12",
+    "campaign_id": "13424726",
+    "spend": "871.11",
+    "clicks": "109",
+    "orders": "1.0",
+    "attributed_revenue": "1995.0"
+  },
+  {
+    "stat_date": "2026-10-12",
+    "campaign_id": "13424988",
+    "spend": "51.81",
+    "clicks": "5",
+    "orders": "1.0",
+    "attributed_revenue": "5296.0"
+  },
+  {
+    "stat_date": "2026-10-12",
+    "campaign_id": "13425039",
+    "spend": "22.05",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-12",
+    "campaign_id": "13425066",
+    "spend": "67.21",
+    "clicks": "5",
+    "orders": "2.0",
+    "attributed_revenue": "22062.0"
+  },
+  {
+    "stat_date": "2026-10-12",
+    "campaign_id": "19250899",
+    "spend": "177.14",
+    "clicks": "16",
+    "orders": "2.0",
+    "attributed_revenue": "4378.0"
+  },
+  {
+    "stat_date": "2026-10-12",
+    "campaign_id": "41758909",
+    "spend": "1513.88",
+    "clicks": "40",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-12",
+    "campaign_id": "43608717",
+    "spend": "3228.46",
+    "clicks": "19",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-12",
+    "campaign_id": "44499213",
+    "spend": "68.23",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-13",
+    "campaign_id": "13424726",
+    "spend": "1535.96",
+    "clicks": "189",
+    "orders": "3.0",
+    "attributed_revenue": "18082.0"
+  },
+  {
+    "stat_date": "2026-10-13",
+    "campaign_id": "13424988",
+    "spend": "24.04",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-13",
+    "campaign_id": "13425039",
+    "spend": "175.65",
+    "clicks": "18",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-13",
+    "campaign_id": "13425066",
+    "spend": "80.88",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-13",
+    "campaign_id": "19250899",
+    "spend": "247.91",
+    "clicks": "27",
+    "orders": "5.0",
+    "attributed_revenue": "9149.0"
+  },
+  {
+    "stat_date": "2026-10-13",
+    "campaign_id": "41758909",
+    "spend": "6159.26",
+    "clicks": "164",
+    "orders": "1.0",
+    "attributed_revenue": "5709.0"
+  },
+  {
+    "stat_date": "2026-10-13",
+    "campaign_id": "43608717",
+    "spend": "3148.38",
+    "clicks": "20",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-13",
+    "campaign_id": "44499213",
+    "spend": "0.0",
+    "clicks": "0",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-14",
+    "campaign_id": "13424726",
+    "spend": "1568.83",
+    "clicks": "188",
+    "orders": "2.0",
+    "attributed_revenue": "30262.0"
+  },
+  {
+    "stat_date": "2026-10-14",
+    "campaign_id": "13424988",
+    "spend": "33.81",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-14",
+    "campaign_id": "13425039",
+    "spend": "64.69",
+    "clicks": "9",
+    "orders": "1.0",
+    "attributed_revenue": "13561.0"
+  },
+  {
+    "stat_date": "2026-10-14",
+    "campaign_id": "13425066",
+    "spend": "70.40",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-14",
+    "campaign_id": "19250899",
+    "spend": "148.94",
+    "clicks": "16",
+    "orders": "1.0",
+    "attributed_revenue": "970.0"
+  },
+  {
+    "stat_date": "2026-10-14",
+    "campaign_id": "41758909",
+    "spend": "4787.45",
+    "clicks": "111",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-14",
+    "campaign_id": "43608717",
+    "spend": "3564.80",
+    "clicks": "21",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-14",
+    "campaign_id": "44499213",
+    "spend": "264.72",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-15",
+    "campaign_id": "13424726",
+    "spend": "1395.12",
+    "clicks": "172",
+    "orders": "1.0",
+    "attributed_revenue": "37403.0"
+  },
+  {
+    "stat_date": "2026-10-15",
+    "campaign_id": "13424988",
+    "spend": "36.76",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-15",
+    "campaign_id": "13425039",
+    "spend": "123.98",
+    "clicks": "9",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-15",
+    "campaign_id": "13425066",
+    "spend": "49.00",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-15",
+    "campaign_id": "19250899",
+    "spend": "216.97",
+    "clicks": "26",
+    "orders": "2.0",
+    "attributed_revenue": "3059.0"
+  },
+  {
+    "stat_date": "2026-10-15",
+    "campaign_id": "41758909",
+    "spend": "1654.04",
+    "clicks": "39",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-15",
+    "campaign_id": "43608717",
+    "spend": "4638.74",
+    "clicks": "28",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-15",
+    "campaign_id": "44499213",
+    "spend": "0.0",
+    "clicks": "0",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-16",
+    "campaign_id": "13424726",
+    "spend": "1107.92",
+    "clicks": "121",
+    "orders": "5.0",
+    "attributed_revenue": "6665.0"
+  },
+  {
+    "stat_date": "2026-10-16",
+    "campaign_id": "13424988",
+    "spend": "21.65",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-16",
+    "campaign_id": "13425039",
+    "spend": "29.25",
+    "clicks": "3",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-16",
+    "campaign_id": "13425066",
+    "spend": "13.24",
+    "clicks": "2",
+    "orders": "1.0",
+    "attributed_revenue": "20120.0"
+  },
+  {
+    "stat_date": "2026-10-16",
+    "campaign_id": "19250899",
+    "spend": "275.10",
+    "clicks": "26",
+    "orders": "1.0",
+    "attributed_revenue": "979.0"
+  },
+  {
+    "stat_date": "2026-10-16",
+    "campaign_id": "41758909",
+    "spend": "815.38",
+    "clicks": "16",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-16",
+    "campaign_id": "43608717",
+    "spend": "2095.76",
+    "clicks": "13",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-16",
+    "campaign_id": "44499213",
+    "spend": "96.15",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-17",
+    "campaign_id": "13424726",
+    "spend": "591.37",
+    "clicks": "78",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-17",
+    "campaign_id": "13424988",
+    "spend": "1.0",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-17",
+    "campaign_id": "13425039",
+    "spend": "31.65",
+    "clicks": "5",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-17",
+    "campaign_id": "13425066",
+    "spend": "20.42",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-17",
+    "campaign_id": "19250899",
+    "spend": "197.37",
+    "clicks": "16",
+    "orders": "2.0",
+    "attributed_revenue": "2262.0"
+  },
+  {
+    "stat_date": "2026-10-17",
+    "campaign_id": "41758909",
+    "spend": "774.89",
+    "clicks": "15",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-17",
+    "campaign_id": "43608717",
+    "spend": "1529.20",
+    "clicks": "9",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-17",
+    "campaign_id": "44499213",
+    "spend": "69.28",
+    "clicks": "1",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-18",
+    "campaign_id": "13424726",
+    "spend": "831.76",
+    "clicks": "99",
+    "orders": "1.0",
+    "attributed_revenue": "15893.0"
+  },
+  {
+    "stat_date": "2026-10-18",
+    "campaign_id": "13424988",
+    "spend": "21.28",
+    "clicks": "2",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-18",
+    "campaign_id": "13425039",
+    "spend": "45.40",
+    "clicks": "5",
+    "orders": "1.0",
+    "attributed_revenue": "13608.0"
+  },
+  {
+    "stat_date": "2026-10-18",
+    "campaign_id": "13425066",
+    "spend": "74.03",
+    "clicks": "4",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-18",
+    "campaign_id": "19250899",
+    "spend": "242.14",
+    "clicks": "19",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-18",
+    "campaign_id": "41758909",
+    "spend": "1352.63",
+    "clicks": "25",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-18",
+    "campaign_id": "43608717",
+    "spend": "1315.86",
+    "clicks": "8",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  },
+  {
+    "stat_date": "2026-10-18",
+    "campaign_id": "44499213",
+    "spend": "0.0",
+    "clicks": "0",
+    "orders": "0.0",
+    "attributed_revenue": "0.0"
+  }
+]

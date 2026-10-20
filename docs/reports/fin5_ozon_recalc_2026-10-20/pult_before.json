@@ -1,0 +1,969 @@
+{
+  "month": {
+    "label": "Окт",
+    "month_key": "2026-10",
+    "elapsed_days": 20,
+    "days_in_month": 31,
+    "remaining_days": 11,
+    "window_days": 14,
+    "last_date": "2026-10-20",
+    "estimate": true,
+    "last_by_acc": {
+      "oz_acc1": "2026-10-20",
+      "oz_acc2": "2026-10-20"
+    },
+    "lag_note": ""
+  },
+  "accounts": {
+    "oz_acc1": {
+      "sales": {
+        "jul": {
+          "txt": "10 776 348",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "17 225 768",
+          "cls": "g up"
+        }
+      },
+      "rev": {
+        "jul": {
+          "txt": "—",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "—",
+          "cls": ""
+        }
+      },
+      "bon": {
+        "jul": {
+          "txt": "—",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "—",
+          "cls": ""
+        }
+      },
+      "par": {
+        "jul": {
+          "txt": "—",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "—",
+          "cls": ""
+        }
+      },
+      "orders": {
+        "jul": {
+          "txt": "1 391",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "2 193",
+          "cls": "g up"
+        }
+      },
+      "returns_cnt": {
+        "jul": {
+          "txt": "101",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "157",
+          "cls": "a up"
+        }
+      },
+      "check": {
+        "jul": {
+          "txt": "7 747",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "7 854",
+          "cls": ""
+        }
+      },
+      "returns": {
+        "jul": {
+          "txt": "−265 160",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−392 380",
+          "cls": ""
+        }
+      },
+      "commission": {
+        "jul": {
+          "txt": "−4 808 674",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−7 704 398",
+          "cls": "a up"
+        }
+      },
+      "delivery": {
+        "jul": {
+          "txt": "−316 822",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−498 384",
+          "cls": "g dn"
+        }
+      },
+      "partners": {
+        "jul": {
+          "txt": "−188 509",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−296 951",
+          "cls": "g dn"
+        }
+      },
+      "fbo": {
+        "jul": {
+          "txt": "−6 948",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−11 037",
+          "cls": "g dn"
+        }
+      },
+      "promo": {
+        "jul": {
+          "txt": "−1 079 232",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−1 667 364",
+          "cls": "a up"
+        }
+      },
+      "penalty": {
+        "jul": {
+          "txt": "−73 084",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−119 097",
+          "cls": "g dn"
+        }
+      },
+      "unclassified": {
+        "jul": {
+          "txt": "+17 947",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "+17 726",
+          "cls": "g dn"
+        }
+      },
+      "itog": {
+        "jul": {
+          "txt": "−6 455 324<span class=\"pc\">59.9%</span>",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−10 279 506<span class=\"pc\">59.7%</span>",
+          "cls": "a up"
+        }
+      },
+      "payout": {
+        "jul": {
+          "txt": "4 102 243<span class=\"pc\">38.1%</span>",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "6 627 142<span class=\"pc\">38.5%</span>",
+          "cls": "g up"
+        }
+      },
+      "cogs": {
+        "jul": {
+          "txt": "−1 874 088<span class=\"pc\">17.4%</span>",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−2 995 691<span class=\"pc\">17.4%</span>",
+          "cls": "g dn"
+        }
+      },
+      "compensation": {
+        "jul": {
+          "txt": "0",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "0",
+          "cls": "a dn"
+        }
+      },
+      "other": {
+        "jul": {
+          "txt": "46 379",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "73 259",
+          "cls": ""
+        }
+      },
+      "net": {
+        "jul": {
+          "txt": "2 228 155",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "3 631 451",
+          "cls": "g up"
+        }
+      },
+      "margin": {
+        "jul": {
+          "txt": "20.7%",
+          "cls": "a dn"
+        },
+        "fc": {
+          "txt": "21.1%",
+          "cls": ""
+        }
+      },
+      "d:delivery:MarketplaceServiceItemDeliveryToHandoverPlaceOzon": {
+        "jul": {
+          "txt": "−6 050",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−9 645",
+          "cls": ""
+        },
+        "label": "Доставка до места выдачи силами Ozon"
+      },
+      "d:delivery:MarketplaceServiceItemDirectFlowLogistic": {
+        "jul": {
+          "txt": "−257 652",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−406 344",
+          "cls": "g dn"
+        },
+        "label": "Логистика"
+      },
+      "d:delivery:MarketplaceServiceItemDropoffPickup": {
+        "jul": {
+          "txt": "−4",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−4",
+          "cls": ""
+        },
+        "label": "Обработка отправления Pick-up"
+      },
+      "d:delivery:MarketplaceServiceItemReturnFlowLogistic": {
+        "jul": {
+          "txt": "−14 215",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−21 501",
+          "cls": ""
+        },
+        "label": "Обратная логистика"
+      },
+      "d:delivery:OP:MarketplaceAgencyFeeAggregator3plRFBS": {
+        "jul": {
+          "txt": "−2 580",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−4 104",
+          "cls": ""
+        },
+        "label": "Агентское вознаграждение за доставку партнёрами (realFBS)"
+      },
+      "d:delivery:OP:OperationCourierPickUpReinvoice": {
+        "jul": {
+          "txt": "−36 321",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−56 787",
+          "cls": ""
+        },
+        "label": "Доставка до СЦ партнёрами"
+      },
+      "d:partners:MarketplaceRedistributionOfAcquiringOperation": {
+        "jul": {
+          "txt": "−68 421",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−107 052",
+          "cls": ""
+        },
+        "label": "Эквайринг"
+      },
+      "d:partners:MarketplaceServiceItemPackageRedistribution": {
+        "jul": {
+          "txt": "−340",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−521",
+          "cls": ""
+        },
+        "label": "Упаковка товара партнёрами"
+      },
+      "d:partners:MarketplaceServiceItemRedistributionDropOffApvz": {
+        "jul": {
+          "txt": "−1 110",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−1 927",
+          "cls": ""
+        },
+        "label": "Обработка отправления Drop-off партнёрами"
+      },
+      "d:partners:MarketplaceServiceItemRedistributionLastMileCourier": {
+        "jul": {
+          "txt": "−12 833",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−20 187",
+          "cls": ""
+        },
+        "label": "Доставка до места выдачи партнёрами"
+      },
+      "d:partners:MarketplaceServiceItemRedistributionReturnsPVZ": {
+        "jul": {
+          "txt": "−705",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−1 070",
+          "cls": ""
+        },
+        "label": "Обработка возвратов, отмен и невыкупов партнёрами"
+      },
+      "d:partners:MarketplaceServiceItemTemporaryStorageRedistribution": {
+        "jul": {
+          "txt": "−315",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−327",
+          "cls": ""
+        },
+        "label": "Временное размещение товара партнёрами"
+      },
+      "d:partners:OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": {
+        "jul": {
+          "txt": "−104 786",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−165 867",
+          "cls": "a up"
+        },
+        "label": "Услуги доставки партнёрами (realFBS)"
+      },
+      "d:penalty:MarketplaceServiceItemPackageMaterialsProvision": {
+        "jul": {
+          "txt": "−170",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−260",
+          "cls": ""
+        },
+        "label": "Обеспечение материалами для упаковки"
+      },
+      "d:penalty:OP:DefectFineShipmentDelay": {
+        "jul": {
+          "txt": "−7 098",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−10 858",
+          "cls": ""
+        },
+        "label": "Штраф: задержка отгрузки"
+      },
+      "d:penalty:OP:DefectFineShipmentDelayRated": {
+        "jul": {
+          "txt": "−54 540",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−87 164",
+          "cls": ""
+        },
+        "label": "Штраф: отгрузка в нерекомендованный слот"
+      },
+      "d:penalty:OP:DefectFineShipmentDelayRatedCancelled": {
+        "jul": {
+          "txt": "+1 402",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "+1 823",
+          "cls": ""
+        },
+        "label": "Штраф отменён (нерекомендованный слот)"
+      },
+      "d:penalty:OP:OperationMarketplaceServiceEarlyPaymentAccrual": {
+        "jul": {
+          "txt": "−12 677",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−22 638",
+          "cls": ""
+        },
+        "label": "Досрочная выплата"
+      },
+      "d:promo:OP:AccrualType_FirstCustomerReview": {
+        "jul": {
+          "txt": "−5 035",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−8 991",
+          "cls": ""
+        },
+        "label": "Сбор первых отзывов"
+      },
+      "d:promo:OP:OperationMarketplaceAcceleratedProductReviews": {
+        "jul": {
+          "txt": "−57 645",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−88 559",
+          "cls": ""
+        },
+        "label": "Ускоренный сбор отзывов"
+      },
+      "d:promo:OP:OperationMarketplaceCostPerClick": {
+        "jul": {
+          "txt": "−472 279",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−737 514",
+          "cls": "a up"
+        },
+        "label": "Оплата за клик"
+      },
+      "d:promo:OP:OperationPromotionWithCostPerOrder": {
+        "jul": {
+          "txt": "−509 283",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−797 311",
+          "cls": "a up"
+        },
+        "label": "Продвижение с оплатой за заказ"
+      },
+      "d:promo:OP:OperationSubscriptionAnalyticsPlus": {
+        "jul": {
+          "txt": "−28 000",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−28 000",
+          "cls": ""
+        },
+        "label": "Аналитика Plus"
+      },
+      "d:promo:OP:OperationSubscriptionPremiumPlus": {
+        "jul": {
+          "txt": "−6 990",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−6 990",
+          "cls": ""
+        },
+        "label": "Подписка Premium Plus"
+      }
+    },
+    "oz_acc2": {
+      "sales": {
+        "jul": {
+          "txt": "2 114 727",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "3 143 036",
+          "cls": "g up"
+        }
+      },
+      "rev": {
+        "jul": {
+          "txt": "—",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "—",
+          "cls": ""
+        }
+      },
+      "bon": {
+        "jul": {
+          "txt": "—",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "—",
+          "cls": ""
+        }
+      },
+      "par": {
+        "jul": {
+          "txt": "—",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "—",
+          "cls": ""
+        }
+      },
+      "orders": {
+        "jul": {
+          "txt": "277",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "403",
+          "cls": "g up"
+        }
+      },
+      "returns_cnt": {
+        "jul": {
+          "txt": "41",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "68",
+          "cls": "a up"
+        }
+      },
+      "check": {
+        "jul": {
+          "txt": "7 634",
+          "cls": "g up"
+        },
+        "fc": {
+          "txt": "7 805",
+          "cls": "g up"
+        }
+      },
+      "returns": {
+        "jul": {
+          "txt": "−177 758",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−293 224",
+          "cls": "a up"
+        }
+      },
+      "commission": {
+        "jul": {
+          "txt": "−892 751",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−1 312 932",
+          "cls": "a up"
+        }
+      },
+      "delivery": {
+        "jul": {
+          "txt": "−61 848",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−91 476",
+          "cls": ""
+        }
+      },
+      "partners": {
+        "jul": {
+          "txt": "−26 288",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−41 707",
+          "cls": "g dn"
+        }
+      },
+      "fbo": {
+        "jul": {
+          "txt": "−670",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−796",
+          "cls": "g dn"
+        }
+      },
+      "promo": {
+        "jul": {
+          "txt": "−182 129",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−244 167",
+          "cls": "g dn"
+        }
+      },
+      "penalty": {
+        "jul": {
+          "txt": "−18 369",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−29 456",
+          "cls": "g dn"
+        }
+      },
+      "unclassified": {
+        "jul": {
+          "txt": "−2 452",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−6 997",
+          "cls": "a up"
+        }
+      },
+      "itog": {
+        "jul": {
+          "txt": "−1 184 507<span class=\"pc\">56.0%</span>",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−1 727 531<span class=\"pc\">55.0%</span>",
+          "cls": "g dn"
+        }
+      },
+      "payout": {
+        "jul": {
+          "txt": "755 361<span class=\"pc\">35.7%</span>",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "1 126 793<span class=\"pc\">35.9%</span>",
+          "cls": "g up"
+        }
+      },
+      "cogs": {
+        "jul": {
+          "txt": "−373 117<span class=\"pc\">17.6%</span>",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−554 549<span class=\"pc\">17.6%</span>",
+          "cls": "g dn"
+        }
+      },
+      "compensation": {
+        "jul": {
+          "txt": "0",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "0",
+          "cls": "a dn"
+        }
+      },
+      "other": {
+        "jul": {
+          "txt": "2 899",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "4 512",
+          "cls": "a dn"
+        }
+      },
+      "net": {
+        "jul": {
+          "txt": "382 245",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "572 244",
+          "cls": "g up"
+        }
+      },
+      "margin": {
+        "jul": {
+          "txt": "18.1%",
+          "cls": "a dn"
+        },
+        "fc": {
+          "txt": "18.2%",
+          "cls": "a dn"
+        }
+      },
+      "d:delivery:MarketplaceServiceItemDeliveryToHandoverPlaceOzon": {
+        "jul": {
+          "txt": "−1 300",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−2 046",
+          "cls": ""
+        },
+        "label": "Доставка до места выдачи силами Ozon"
+      },
+      "d:delivery:MarketplaceServiceItemDirectFlowLogistic": {
+        "jul": {
+          "txt": "−54 769",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−80 061",
+          "cls": ""
+        },
+        "label": "Логистика"
+      },
+      "d:delivery:MarketplaceServiceItemReturnFlowLogistic": {
+        "jul": {
+          "txt": "−5 519",
+          "cls": "a up"
+        },
+        "fc": {
+          "txt": "−8 952",
+          "cls": "a up"
+        },
+        "label": "Обратная логистика"
+      },
+      "d:delivery:OP:MarketplaceAgencyFeeAggregator3plRFBS": {
+        "jul": {
+          "txt": "−260",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−417",
+          "cls": ""
+        },
+        "label": "Агентское вознаграждение за доставку партнёрами (realFBS)"
+      },
+      "d:partners:MarketplaceRedistributionOfAcquiringOperation": {
+        "jul": {
+          "txt": "−9 954",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−16 327",
+          "cls": ""
+        },
+        "label": "Эквайринг"
+      },
+      "d:partners:MarketplaceServiceItemPackageRedistribution": {
+        "jul": {
+          "txt": "−200",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−302",
+          "cls": ""
+        },
+        "label": "Упаковка товара партнёрами"
+      },
+      "d:partners:MarketplaceServiceItemRedistributionDropOffApvz": {
+        "jul": {
+          "txt": "−3 010",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−4 401",
+          "cls": "g dn"
+        },
+        "label": "Обработка отправления Drop-off партнёрами"
+      },
+      "d:partners:MarketplaceServiceItemRedistributionLastMileCourier": {
+        "jul": {
+          "txt": "−2 986",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−4 353",
+          "cls": ""
+        },
+        "label": "Доставка до места выдачи партнёрами"
+      },
+      "d:partners:MarketplaceServiceItemRedistributionReturnsPVZ": {
+        "jul": {
+          "txt": "−450",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−792",
+          "cls": ""
+        },
+        "label": "Обработка возвратов, отмен и невыкупов партнёрами"
+      },
+      "d:partners:MarketplaceServiceItemTemporaryStorageRedistribution": {
+        "jul": {
+          "txt": "−402",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−480",
+          "cls": ""
+        },
+        "label": "Временное размещение товара партнёрами"
+      },
+      "d:partners:OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": {
+        "jul": {
+          "txt": "−9 286",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−15 053",
+          "cls": "g dn"
+        },
+        "label": "Услуги доставки партнёрами (realFBS)"
+      },
+      "d:penalty:MarketplaceServiceItemPackageMaterialsProvision": {
+        "jul": {
+          "txt": "−100",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−151",
+          "cls": ""
+        },
+        "label": "Обеспечение материалами для упаковки"
+      },
+      "d:penalty:OP:DefectFineShipmentDelay": {
+        "jul": {
+          "txt": "−4 700",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−7 777",
+          "cls": ""
+        },
+        "label": "Штраф: задержка отгрузки"
+      },
+      "d:penalty:OP:DefectFineShipmentDelayRated": {
+        "jul": {
+          "txt": "−8 239",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−12 012",
+          "cls": ""
+        },
+        "label": "Штраф: отгрузка в нерекомендованный слот"
+      },
+      "d:penalty:OP:DefectFineShipmentDelayRatedCancelled": {
+        "jul": {
+          "txt": "+933",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "+1 667",
+          "cls": "g dn"
+        },
+        "label": "Штраф отменён (нерекомендованный слот)"
+      },
+      "d:penalty:OP:OperationMarketplaceServiceEarlyPaymentAccrual": {
+        "jul": {
+          "txt": "−6 263",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−11 183",
+          "cls": ""
+        },
+        "label": "Досрочная выплата"
+      },
+      "d:promo:OP:AccrualType_FirstCustomerReview": {
+        "jul": {
+          "txt": "−36 966",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−36 966",
+          "cls": ""
+        },
+        "label": "Сбор первых отзывов"
+      },
+      "d:promo:OP:OperationMarketplaceAcceleratedProductReviews": {
+        "jul": {
+          "txt": "−10 980",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−16 492",
+          "cls": ""
+        },
+        "label": "Ускоренный сбор отзывов"
+      },
+      "d:promo:OP:OperationMarketplaceCostPerClick": {
+        "jul": {
+          "txt": "−31 653",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−47 519",
+          "cls": "g dn"
+        },
+        "label": "Оплата за клик"
+      },
+      "d:promo:OP:OperationPromotionWithCostPerOrder": {
+        "jul": {
+          "txt": "−67 540",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−108 200",
+          "cls": ""
+        },
+        "label": "Продвижение с оплатой за заказ"
+      },
+      "d:promo:OP:OperationSubscriptionAnalyticsPlus": {
+        "jul": {
+          "txt": "−28 000",
+          "cls": ""
+        },
+        "fc": {
+          "txt": "−28 000",
+          "cls": ""
+        },
+        "label": "Аналитика Plus"
+      },
+      "d:promo:OP:OperationSubscriptionPremiumPlus": {
+        "jul": {
+          "txt": "−6 990",
+          "cls": "g dn"
+        },
+        "fc": {
+          "txt": "−6 990",
+          "cls": "g dn"
+        },
+        "label": "Подписка Premium Plus"
+      }
+    }
+  }
+}

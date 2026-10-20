@@ -1,0 +1,27 @@
+{
+  "first_customer_reviews": {
+    "status": "disabled_in_both_accounts",
+    "source": "Подтверждено пользователем 20.10.2026; дата отключения не указана",
+    "accrued_costs_remain_expenses": true
+  },
+  "cogs_lag": {
+    "posting_http_status": 502,
+    "last_run_started": "2026-10-19 19:07 UTC",
+    "run_still_active_at_audit": true,
+    "next_run_skipped": "2026-10-20 02:07 UTC",
+    "blocked_stage": "Ozon постинги oz_acc2 2026-10-01..2026-10-31",
+    "digital_margin_skipped_due_to_postings_failure": true,
+    "moysklad_digital_shipment_cost_collection_succeeded": true,
+    "unbounded_429_retry_exists_in_collector": true,
+    "actual_429_responses_from_hung_process_not_logged_or_proven": true
+  },
+  "priorities": {
+    "oz_acc1": "12704286",
+    "oz_acc2": "13424726"
+  },
+  "experiment_cash_growth": 135482.75999999998,
+  "experiment_share_of_net_cpc_cash_growth_pct": 117.30721525980974,
+  "all_campaign_share_of_net_cpc_cash_growth_pct": 88.5629450077574,
+  "campaigns_changed": false,
+  "production_or_database_changed": false
+}

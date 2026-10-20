@@ -1,0 +1,884 @@
+[
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-01",
+    "n": 131,
+    "sales": "226368",
+    "returns": "0",
+    "net_settlement": "73156.21",
+    "loaded_at": "2026-09-02 19:34:29.089197+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-02",
+    "n": 145,
+    "sales": "170179.5",
+    "returns": "-25733",
+    "net_settlement": "-296.36",
+    "loaded_at": "2026-09-03 19:51:30.983031+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-03",
+    "n": 178,
+    "sales": "321864",
+    "returns": "-40784",
+    "net_settlement": "82055.52",
+    "loaded_at": "2026-09-04 19:51:13.307038+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-04",
+    "n": 184,
+    "sales": "387724",
+    "returns": "-65207",
+    "net_settlement": "98325.13",
+    "loaded_at": "2026-09-05 19:51:51.478200+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-05",
+    "n": 125,
+    "sales": "333461",
+    "returns": "-3277",
+    "net_settlement": "135088.54",
+    "loaded_at": "2026-09-06 19:52:15.658250+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-06",
+    "n": 93,
+    "sales": "355634",
+    "returns": "0",
+    "net_settlement": "154256.81",
+    "loaded_at": "2026-09-07 19:53:04.422244+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-07",
+    "n": 232,
+    "sales": "803024",
+    "returns": "-23197",
+    "net_settlement": "336798.83",
+    "loaded_at": "2026-09-08 03:21:42.129000+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-08",
+    "n": 229,
+    "sales": "472419.0",
+    "returns": "-28944.0",
+    "net_settlement": "151071.71",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-09",
+    "n": 164,
+    "sales": "594648.0",
+    "returns": "-22424.0",
+    "net_settlement": "233314.74",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-10",
+    "n": 179,
+    "sales": "476439.0",
+    "returns": "0.0",
+    "net_settlement": "183110.15",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-11",
+    "n": 171,
+    "sales": "488153.0",
+    "returns": "-2242.0",
+    "net_settlement": "205234.20",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-12",
+    "n": 85,
+    "sales": "252409.0",
+    "returns": "-10539.0",
+    "net_settlement": "105162.04",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-13",
+    "n": 112,
+    "sales": "313224.0",
+    "returns": "-7053.0",
+    "net_settlement": "120958.13",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-14",
+    "n": 226,
+    "sales": "810758.0",
+    "returns": "-6489.0",
+    "net_settlement": "355029.85",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-15",
+    "n": 202,
+    "sales": "570723.0",
+    "returns": "-100602.0",
+    "net_settlement": "172671.20",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-16",
+    "n": 222,
+    "sales": "644483.0",
+    "returns": "-6045.0",
+    "net_settlement": "247658.63",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-17",
+    "n": 201,
+    "sales": "665435.0",
+    "returns": "-9928.0",
+    "net_settlement": "270220.61",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-18",
+    "n": 163,
+    "sales": "537085.0",
+    "returns": "0.0",
+    "net_settlement": "223548.49",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-19",
+    "n": 139,
+    "sales": "336110.0",
+    "returns": "0.0",
+    "net_settlement": "137875.91",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-20",
+    "n": 115,
+    "sales": "336695.0",
+    "returns": "0.0",
+    "net_settlement": "134737.79",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-21",
+    "n": 271,
+    "sales": "1146070.0",
+    "returns": "-7605.0",
+    "net_settlement": "512083.51",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-22",
+    "n": 193,
+    "sales": "455739.0",
+    "returns": "-11441.0",
+    "net_settlement": "155164.87",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-23",
+    "n": 223,
+    "sales": "430237.0",
+    "returns": "-62923.0",
+    "net_settlement": "62376.36",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-24",
+    "n": 169,
+    "sales": "391741.0",
+    "returns": "-2568.0",
+    "net_settlement": "128999.19",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-25",
+    "n": 196,
+    "sales": "430975.0",
+    "returns": "0.0",
+    "net_settlement": "169475.04",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-26",
+    "n": 140,
+    "sales": "336268.0",
+    "returns": "-36673.0",
+    "net_settlement": "120643.80",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-27",
+    "n": 116,
+    "sales": "393254.0",
+    "returns": "-1795.0",
+    "net_settlement": "171783.40",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-28",
+    "n": 297,
+    "sales": "880504.0",
+    "returns": "-50850.0",
+    "net_settlement": "357017.54",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-29",
+    "n": 192,
+    "sales": "495523.0",
+    "returns": "-11985.0",
+    "net_settlement": "181379.38",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-09-30",
+    "n": 189,
+    "sales": "521255.0",
+    "returns": "-2149.0",
+    "net_settlement": "187974.11",
+    "loaded_at": "2026-10-20 02:24:48.888256+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-01",
+    "n": 208,
+    "sales": "464717.0",
+    "returns": "-28597.0",
+    "net_settlement": "148830.08",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-02",
+    "n": 182,
+    "sales": "430633.0",
+    "returns": "-8427.0",
+    "net_settlement": "159561.40",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-03",
+    "n": 133,
+    "sales": "294094.0",
+    "returns": "-11466.0",
+    "net_settlement": "106549.51",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-04",
+    "n": 157,
+    "sales": "224220.0",
+    "returns": "-14190.0",
+    "net_settlement": "68578.11",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-05",
+    "n": 307,
+    "sales": "685969.0",
+    "returns": "-10653.0",
+    "net_settlement": "269735.94",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-06",
+    "n": 265,
+    "sales": "468362.0",
+    "returns": "-29911.0",
+    "net_settlement": "135480.58",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-07",
+    "n": 229,
+    "sales": "391459.0",
+    "returns": "0.0",
+    "net_settlement": "104496.50",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-08",
+    "n": 287,
+    "sales": "613745.0",
+    "returns": "-5463.0",
+    "net_settlement": "225052.60",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-09",
+    "n": 280,
+    "sales": "555747.0",
+    "returns": "-14299.0",
+    "net_settlement": "201645.45",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-10",
+    "n": 175,
+    "sales": "369798.0",
+    "returns": "0.0",
+    "net_settlement": "136458.14",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-11",
+    "n": 135,
+    "sales": "392361.0",
+    "returns": "0.0",
+    "net_settlement": "148865.50",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-12",
+    "n": 304,
+    "sales": "778883.0",
+    "returns": "-40750.0",
+    "net_settlement": "308530.41",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-13",
+    "n": 271,
+    "sales": "761012.0",
+    "returns": "0.0",
+    "net_settlement": "315912.01",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-14",
+    "n": 206,
+    "sales": "489034.0",
+    "returns": "-6585.0",
+    "net_settlement": "164069.40",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-15",
+    "n": 261,
+    "sales": "805950.0",
+    "returns": "0.0",
+    "net_settlement": "337500.40",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-16",
+    "n": 262,
+    "sales": "540265.0",
+    "returns": "-18975.0",
+    "net_settlement": "185916.69",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-17",
+    "n": 141,
+    "sales": "398972.0",
+    "returns": "-2140.0",
+    "net_settlement": "155121.71",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-18",
+    "n": 120,
+    "sales": "481833.0",
+    "returns": "0.0",
+    "net_settlement": "209247.83",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-19",
+    "n": 300,
+    "sales": "1197114.0",
+    "returns": "-10457.0",
+    "net_settlement": "539797.59",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_day": "2026-10-20",
+    "n": 56,
+    "sales": "183781.0",
+    "returns": "0.0",
+    "net_settlement": "90744.15",
+    "loaded_at": "2026-10-20 09:34:06.893495+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-01",
+    "n": 49,
+    "sales": "40982",
+    "returns": "0",
+    "net_settlement": "13679.53",
+    "loaded_at": "2026-09-02 02:34:16.689904+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-02",
+    "n": 58,
+    "sales": "47435",
+    "returns": "0",
+    "net_settlement": "13036.00",
+    "loaded_at": "2026-09-03 19:53:53.066069+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-03",
+    "n": 39,
+    "sales": "67558",
+    "returns": "-4098",
+    "net_settlement": "31338.80",
+    "loaded_at": "2026-09-04 02:50:43.236391+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-04",
+    "n": 26,
+    "sales": "28248",
+    "returns": "-2127",
+    "net_settlement": "3951.06",
+    "loaded_at": "2026-09-05 02:50:50.670795+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-05",
+    "n": 32,
+    "sales": "39003",
+    "returns": "0",
+    "net_settlement": "-6969.28",
+    "loaded_at": "2026-09-06 19:54:35.797736+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-06",
+    "n": 33,
+    "sales": "21549",
+    "returns": "0",
+    "net_settlement": "8210.17",
+    "loaded_at": "2026-09-07 19:55:58.365032+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-07",
+    "n": 63,
+    "sales": "105014",
+    "returns": "0",
+    "net_settlement": "47064.75",
+    "loaded_at": "2026-09-08 03:23:53.879792+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-08",
+    "n": 42,
+    "sales": "126853.0",
+    "returns": "0.0",
+    "net_settlement": "56178.22",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-09",
+    "n": 28,
+    "sales": "23340.0",
+    "returns": "0.0",
+    "net_settlement": "6350.19",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-10",
+    "n": 62,
+    "sales": "85009.0",
+    "returns": "0.0",
+    "net_settlement": "35430.22",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-11",
+    "n": 71,
+    "sales": "86598.0",
+    "returns": "0.0",
+    "net_settlement": "33354.49",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-12",
+    "n": 29,
+    "sales": "79080.0",
+    "returns": "0.0",
+    "net_settlement": "34341.00",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-13",
+    "n": 39,
+    "sales": "35111.0",
+    "returns": "0.0",
+    "net_settlement": "13624.35",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-14",
+    "n": 81,
+    "sales": "80267.0",
+    "returns": "-10490.0",
+    "net_settlement": "26393.55",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-15",
+    "n": 57,
+    "sales": "81098.0",
+    "returns": "-2766.0",
+    "net_settlement": "29822.71",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-16",
+    "n": 61,
+    "sales": "57743.0",
+    "returns": "0.0",
+    "net_settlement": "13468.80",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-17",
+    "n": 60,
+    "sales": "78475.0",
+    "returns": "0.0",
+    "net_settlement": "29179.15",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-18",
+    "n": 67,
+    "sales": "157932.0",
+    "returns": "0.0",
+    "net_settlement": "64720.04",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-19",
+    "n": 32,
+    "sales": "17910.0",
+    "returns": "0.0",
+    "net_settlement": "2974.02",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-20",
+    "n": 41,
+    "sales": "107766.0",
+    "returns": "-8222.0",
+    "net_settlement": "49034.16",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-21",
+    "n": 87,
+    "sales": "193012.0",
+    "returns": "0.0",
+    "net_settlement": "89445.10",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-22",
+    "n": 69,
+    "sales": "75265.0",
+    "returns": "0.0",
+    "net_settlement": "26658.64",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-23",
+    "n": 70,
+    "sales": "143795.0",
+    "returns": "0.0",
+    "net_settlement": "50750.63",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-24",
+    "n": 52,
+    "sales": "71600.0",
+    "returns": "0.0",
+    "net_settlement": "20657.00",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-25",
+    "n": 60,
+    "sales": "91464.0",
+    "returns": "0.0",
+    "net_settlement": "36220.96",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-26",
+    "n": 62,
+    "sales": "141518.0",
+    "returns": "0.0",
+    "net_settlement": "57750.73",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-27",
+    "n": 45,
+    "sales": "102254.0",
+    "returns": "0.0",
+    "net_settlement": "41335.93",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-28",
+    "n": 87,
+    "sales": "267712.0",
+    "returns": "0.0",
+    "net_settlement": "124611.58",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-29",
+    "n": 103,
+    "sales": "230817.0",
+    "returns": "0.0",
+    "net_settlement": "106331.21",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-09-30",
+    "n": 74,
+    "sales": "127051.0",
+    "returns": "0.0",
+    "net_settlement": "42052.47",
+    "loaded_at": "2026-10-20 11:51:32.949487+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-01",
+    "n": 57,
+    "sales": "62276.0",
+    "returns": "0.0",
+    "net_settlement": "-11651.12",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-02",
+    "n": 58,
+    "sales": "106477.0",
+    "returns": "-12472.0",
+    "net_settlement": "29924.83",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-03",
+    "n": 43,
+    "sales": "39231.0",
+    "returns": "0.0",
+    "net_settlement": "7214.91",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-04",
+    "n": 55,
+    "sales": "151602.0",
+    "returns": "-15575.0",
+    "net_settlement": "54987.31",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-05",
+    "n": 68,
+    "sales": "167645.0",
+    "returns": "0.0",
+    "net_settlement": "69240.80",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-06",
+    "n": 69,
+    "sales": "278739.0",
+    "returns": "-2754.0",
+    "net_settlement": "132913.69",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-07",
+    "n": 45,
+    "sales": "54137.0",
+    "returns": "0.0",
+    "net_settlement": "13606.23",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-08",
+    "n": 60,
+    "sales": "116592.0",
+    "returns": "0.0",
+    "net_settlement": "50482.90",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-09",
+    "n": 48,
+    "sales": "140476.0",
+    "returns": "-93342.0",
+    "net_settlement": "9191.45",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-10",
+    "n": 34,
+    "sales": "28279.0",
+    "returns": "-1701.0",
+    "net_settlement": "8262.10",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-11",
+    "n": 42,
+    "sales": "92527.0",
+    "returns": "-5860.0",
+    "net_settlement": "41561.08",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-12",
+    "n": 63,
+    "sales": "120465.0",
+    "returns": "0.0",
+    "net_settlement": "48114.05",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-13",
+    "n": 52,
+    "sales": "66837.0",
+    "returns": "0.0",
+    "net_settlement": "23633.50",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-14",
+    "n": 44,
+    "sales": "35482.0",
+    "returns": "-9367.0",
+    "net_settlement": "4781.44",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-15",
+    "n": 63,
+    "sales": "152261.0",
+    "returns": "-21410.0",
+    "net_settlement": "59214.54",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-16",
+    "n": 38,
+    "sales": "156039.0",
+    "returns": "0.0",
+    "net_settlement": "60140.02",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-17",
+    "n": 62,
+    "sales": "93254.0",
+    "returns": "-6503.0",
+    "net_settlement": "40339.73",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_day": "2026-10-18",
+    "n": 24,
+    "sales": "31172.0",
+    "returns": "0.0",
+    "net_settlement": "14420.75",
+    "loaded_at": "2026-10-19 02:25:12.202251+00:00"
+  }
+]

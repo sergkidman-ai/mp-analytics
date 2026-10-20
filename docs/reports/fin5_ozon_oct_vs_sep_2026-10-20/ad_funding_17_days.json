@@ -1,0 +1,42 @@
+[
+  [
+    {
+      "account": "oz_acc1",
+      "month": "2026-09",
+      "period": "01–17",
+      "cash": "724411.22",
+      "bonus": "29575.69",
+      "source_file": "oz_acc1_2026-09_01_17_expense.csv",
+      "rows": 191
+    },
+    {
+      "account": "oz_acc1",
+      "month": "2026-10",
+      "period": "01–17",
+      "cash": "892873.74",
+      "bonus": "3874.12",
+      "source_file": "oz_acc1_2026-10_01_17_expense.csv",
+      "rows": 184
+    }
+  ],
+  [
+    {
+      "account": "oz_acc2",
+      "month": "2026-09",
+      "period": "01–17",
+      "cash": "88391.78",
+      "bonus": "45835.64",
+      "source_file": "oz_acc2_2026-09_01_17_expense.csv",
+      "rows": 105
+    },
+    {
+      "account": "oz_acc2",
+      "month": "2026-10",
+      "period": "01–17",
+      "cash": "94297.19",
+      "bonus": "139030.05",
+      "source_file": "oz_acc2_2026-10_01_17_expense.csv",
+      "rows": 154
+    }
+  ]
+]

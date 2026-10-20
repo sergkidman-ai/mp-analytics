@@ -1,0 +1,618 @@
+[
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-09 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-93342.0",
+    "commission_return": "43870.74",
+    "posting": {
+      "order_date": "2026-09-23 19:43:14",
+      "warehouse_id": 0,
+      "posting_number": "44671170-0530-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3260315711,
+        "name": ""
+      },
+      {
+        "sku": 3260315711,
+        "name": ""
+      },
+      {
+        "sku": 3260315711,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-06 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-21318.0",
+    "commission_return": "9379.92",
+    "posting": {
+      "order_date": "2026-09-29 07:50:29",
+      "warehouse_id": 0,
+      "posting_number": "0138665994-0065-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 2203319319,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-15 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-18333.0",
+    "commission_return": "8616.51",
+    "posting": {
+      "order_date": "2026-09-24 20:28:37",
+      "warehouse_id": 0,
+      "posting_number": "0200788250-0167-2",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3841442531,
+        "name": ""
+      },
+      {
+        "sku": 3841442644,
+        "name": ""
+      },
+      {
+        "sku": 3841442668,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-01 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-17899.0",
+    "commission_return": "8412.53",
+    "posting": {
+      "order_date": "2026-09-14 09:51:52",
+      "warehouse_id": 0,
+      "posting_number": "0202974198-0020-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3557210660,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-12 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-11625.0",
+    "commission_return": "5463.75",
+    "posting": {
+      "order_date": "2026-10-03 12:26:10",
+      "warehouse_id": 0,
+      "posting_number": "58150252-0219-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 870872516,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-16 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-10120.0",
+    "commission_return": "4554.0",
+    "posting": {
+      "order_date": "2026-10-13 19:58:39",
+      "warehouse_id": 0,
+      "posting_number": "25147979-0425-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 864225717,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-12 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-8433.0",
+    "commission_return": "3963.51",
+    "posting": {
+      "order_date": "2026-09-13 21:59:09",
+      "warehouse_id": 0,
+      "posting_number": "0136558242-0008-6",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 1998987726,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-02 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-8427.0",
+    "commission_return": "3960.69",
+    "posting": {
+      "order_date": "2026-09-14 10:36:04",
+      "warehouse_id": 0,
+      "posting_number": "0110122668-0011-6",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 1998987726,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-03 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-7877.0",
+    "commission_return": "3702.19",
+    "posting": {
+      "order_date": "2026-09-08 03:40:21",
+      "warehouse_id": 0,
+      "posting_number": "0174002855-0011-5",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 4481064725,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-12 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-7585.0",
+    "commission_return": "3564.95",
+    "posting": {
+      "order_date": "2026-09-18 11:39:24",
+      "warehouse_id": 0,
+      "posting_number": "0172375157-0003-2",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 930640829,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-04 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-7497.0",
+    "commission_return": "3523.59",
+    "posting": {
+      "order_date": "2026-09-13 21:15:43",
+      "warehouse_id": 0,
+      "posting_number": "0116394860-0005-5",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 1261570517,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-01 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-7497.0",
+    "commission_return": "3523.59",
+    "posting": {
+      "order_date": "2026-09-13 16:59:25",
+      "warehouse_id": 0,
+      "posting_number": "0157547735-0004-4",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 1261570517,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-09 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-7229.0",
+    "commission_return": "3397.63",
+    "posting": {
+      "order_date": "2026-09-15 12:35:48",
+      "warehouse_id": 0,
+      "posting_number": "0251782090-0008-10",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 930640829,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-09 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-7070.0",
+    "commission_return": "3181.5",
+    "posting": {
+      "order_date": "2026-10-01 14:50:26",
+      "warehouse_id": 0,
+      "posting_number": "50270941-0181-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 1999376047,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-12 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6705.0",
+    "commission_return": "3151.35",
+    "posting": {
+      "order_date": "2026-09-22 14:32:21",
+      "warehouse_id": 0,
+      "posting_number": "0276550895-0002-3",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 4867096884,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-04 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6693.0",
+    "commission_return": "3011.85",
+    "posting": {
+      "order_date": "2026-09-28 18:41:03",
+      "warehouse_id": 0,
+      "posting_number": "01675050-1859-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3557210735,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-14 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6585.0",
+    "commission_return": "2897.4",
+    "posting": {
+      "order_date": "2026-10-07 10:36:23",
+      "warehouse_id": 0,
+      "posting_number": "28178606-0420-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 930625417,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-04 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6503.0",
+    "commission_return": "3056.41",
+    "posting": {
+      "order_date": "2026-09-22 19:47:10",
+      "warehouse_id": 0,
+      "posting_number": "0123964402-0034-3",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3841440965,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-17 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6503.0",
+    "commission_return": "3056.41",
+    "posting": {
+      "order_date": "2026-09-22 12:20:49",
+      "warehouse_id": 0,
+      "posting_number": "71349351-0211-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3841440965,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-02 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6236.0",
+    "commission_return": "2806.2",
+    "posting": {
+      "order_date": "2026-09-24 20:15:45",
+      "warehouse_id": 0,
+      "posting_number": "0203902046-0281-7",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3841442644,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-02 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6236.0",
+    "commission_return": "2930.92",
+    "posting": {
+      "order_date": "2026-09-20 22:51:08",
+      "warehouse_id": 0,
+      "posting_number": "56754372-0151-4",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3841440965,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-04 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6236.0",
+    "commission_return": "2930.92",
+    "posting": {
+      "order_date": "2026-09-24 20:38:04",
+      "warehouse_id": 0,
+      "posting_number": "58112512-0159-9",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3841442644,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-14 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6236.0",
+    "commission_return": "2806.2",
+    "posting": {
+      "order_date": "2026-09-24 14:06:11",
+      "warehouse_id": 0,
+      "posting_number": "0130290643-0015-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 3841442668,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-16 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-6035.0",
+    "commission_return": "2836.45",
+    "posting": {
+      "order_date": "2026-10-07 21:51:09",
+      "warehouse_id": 0,
+      "posting_number": "0199134210-0015-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 4480263481,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc2",
+    "day": "2026-10-11 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-5860.0",
+    "commission_return": "2637.0",
+    "posting": {
+      "order_date": "2026-09-28 19:53:20",
+      "warehouse_id": 0,
+      "posting_number": "0127848909-0014-7",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 1822909062,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-06 00:00:00",
+    "code": "OperationAgentStornoDeliveredToCustomer",
+    "name": "Доставка покупателю — отмена начисления",
+    "sale_reversal": "-4331.0",
+    "commission_return": "2035.57",
+    "posting": {
+      "order_date": "2026-09-28 15:11:24",
+      "warehouse_id": 0,
+      "posting_number": "88858665-0158-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 4527381798,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-06 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-4262.0",
+    "commission_return": "1875.28",
+    "posting": {
+      "order_date": "2026-09-22 06:06:31",
+      "warehouse_id": 0,
+      "posting_number": "0138368935-0073-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 4481063556,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-05 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-3929.0",
+    "commission_return": "1768.05",
+    "posting": {
+      "order_date": "2026-09-26 21:16:59",
+      "warehouse_id": 0,
+      "posting_number": "04956724-0698-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 1510948990,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-03 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-3589.0",
+    "commission_return": "1686.83",
+    "posting": {
+      "order_date": "2026-09-24 18:07:52",
+      "warehouse_id": 0,
+      "posting_number": "88566323-0468-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 864225062,
+        "name": ""
+      }
+    ]
+  },
+  {
+    "account": "oz_acc1",
+    "day": "2026-10-05 00:00:00",
+    "code": "ClientReturnAgentOperation",
+    "name": "Получение возврата, отмены, невыкупа от покупателя",
+    "sale_reversal": "-3447.0",
+    "commission_return": "1516.68",
+    "posting": {
+      "order_date": "2026-10-01 09:41:53",
+      "warehouse_id": 0,
+      "posting_number": "0115733259-0143-1",
+      "delivery_schema": "FBS"
+    },
+    "items": [
+      {
+        "sku": 863387594,
+        "name": ""
+      }
+    ]
+  }
+]

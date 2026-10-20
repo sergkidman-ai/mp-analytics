@@ -1,0 +1,24 @@
+[
+  {
+    "month": "2026-09",
+    "days": "01-18",
+    "cash_services": 319572.7,
+    "netting": 789597.77,
+    "receipts": 831355.0,
+    "refunds": 79722.0,
+    "gross_turnover": 1620952.77,
+    "accrued_services_pct": 68.42706897622934,
+    "scope": "raw service categories; agency separate"
+  },
+  {
+    "month": "2026-10",
+    "days": "01-18",
+    "cash_services": 229097.44,
+    "netting": 650260.23,
+    "receipts": 685873.0,
+    "refunds": 37711.0,
+    "gross_turnover": 1336133.23,
+    "accrued_services_pct": 65.8136217448914,
+    "scope": "raw service categories; agency separate"
+  }
+]

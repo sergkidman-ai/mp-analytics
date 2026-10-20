@@ -1,0 +1,26 @@
+[
+  {
+    "account": "oz_acc1",
+    "order_cohort": "before_price_change_06Oct",
+    "operations": 682,
+    "sales": "5040190.0"
+  },
+  {
+    "account": "oz_acc1",
+    "order_cohort": "from_06Oct",
+    "operations": 530,
+    "sales": "4161212.0"
+  },
+  {
+    "account": "oz_acc2",
+    "order_cohort": "before_price_change_06Oct",
+    "operations": 190,
+    "sales": "1339580.0"
+  },
+  {
+    "account": "oz_acc2",
+    "order_cohort": "from_06Oct",
+    "operations": 65,
+    "sales": "553911.0"
+  }
+]

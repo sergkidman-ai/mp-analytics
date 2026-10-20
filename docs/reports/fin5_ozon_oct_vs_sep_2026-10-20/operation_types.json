@@ -1,0 +1,1012 @@
+[
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationPromotionWithCostPerOrder",
+    "operation_type_name": "Продвижение с оплатой за заказ",
+    "n": 30,
+    "amount": "-661924.40",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceCostPerClick",
+    "operation_type_name": "Оплата за клик",
+    "n": 274,
+    "amount": "-581855.94",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "ClientReturnAgentOperation",
+    "operation_type_name": "Получение возврата, отмены, невыкупа от покупателя",
+    "n": 44,
+    "amount": "-240980.03",
+    "accrued": "-433336.0",
+    "commission": "192355.97"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "MarketplaceServiceRedistributionOfDeliveryServicesRFBS",
+    "operation_type_name": "Услуги доставки Партнерами Ozon на схеме realFBS",
+    "n": 157,
+    "amount": "-134996.11",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceServiceEarlyPaymentAccrual",
+    "operation_type_name": "Услуга досрочной выплаты",
+    "n": 6,
+    "amount": "-106019.55",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceAcceleratedProductReviews",
+    "operation_type_name": "Ускоренный сбор отзывов",
+    "n": 30,
+    "amount": "-89365.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "MarketplaceRedistributionOfAcquiringOperation",
+    "operation_type_name": "Оплата эквайринга",
+    "n": 1785,
+    "amount": "-82096.87",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "DefectFineShipmentDelayRated",
+    "operation_type_name": "Отгрузка в нерекомендованный слот",
+    "n": 342,
+    "amount": "-68414.62",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "AccrualType_FirstCustomerReview",
+    "operation_type_name": "Сбор первых отзывов",
+    "n": 14,
+    "amount": "-67879.22",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationAgentStornoDeliveredToCustomer",
+    "operation_type_name": "Доставка покупателю — отмена начисления",
+    "n": 4,
+    "amount": "-57942.41",
+    "accrued": "-107117.0",
+    "commission": "48065.59"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationCourierPickUpReinvoice",
+    "operation_type_name": "Доставка до СЦ партнёрами",
+    "n": 86,
+    "amount": "-53823.52",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationReturnGoodsFBSofRMS",
+    "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+    "n": 307,
+    "amount": "-39252.16",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationSubscriptionPremiumPlus",
+    "operation_type_name": "Подписка Premium Plus",
+    "n": 1,
+    "amount": "-24990.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "PremiumMembership",
+    "operation_type_name": "Подписка Premium Pro (процент)",
+    "n": 24,
+    "amount": "-5848.42",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "MarketplaceAgencyFeeAggregator3plRFBS",
+    "operation_type_name": "Агентское вознаграждение за доставку Партнерами Ozon на схеме realFBS",
+    "n": 157,
+    "amount": "-3140.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "SellerReturnsDeliveryToPickupPoint",
+    "operation_type_name": "Вывоз товара со Склада силами Ozon: Доставка до ПВЗ",
+    "n": 16,
+    "amount": "-1420.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceServiceStorage",
+    "operation_type_name": "Услуга размещения товаров на складе",
+    "n": 30,
+    "amount": "-687.36",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "AccrualType_DefectFineComplaint",
+    "operation_type_name": "Жалобы покупателей",
+    "n": 3,
+    "amount": "-602.24",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplacePackageRedistribution",
+    "operation_type_name": "Упаковка товара партнёрами",
+    "n": 43,
+    "amount": "-430.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceItemTemporaryStorageRedistribution",
+    "operation_type_name": "Временное размещение товара партнерами",
+    "n": 7,
+    "amount": "-390.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "MarketplaceServiceEasyReturnRfbs",
+    "operation_type_name": "Услуги доставки Партнёрами Ozon на схеме realFBS: Лёгкий возврат Почтой России",
+    "n": 2,
+    "amount": "-274.5",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplacePackageMaterialsProvision",
+    "operation_type_name": "Обеспечение материалами для упаковки товара",
+    "n": 43,
+    "amount": "-215.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceServiceVolumeWeightCharacsProcessing",
+    "operation_type_name": "Услуга по дополнительной обработке ОВХ",
+    "n": 1,
+    "amount": "-150.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "AccrualInternalClaim",
+    "operation_type_name": "Потеря по вине Ozon в логистике",
+    "n": 1,
+    "amount": "2295.2",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "DefectFineShipmentDelayRatedCancelled",
+    "operation_type_name": "Отгрузка в нерекомендованный слот - отмена начисления",
+    "n": 15,
+    "amount": "5178.40",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "MarketplaceSellerReexposureDeliveryReturnOperation",
+    "operation_type_name": "Перечисление за доставку от покупателя",
+    "n": 152,
+    "amount": "61436.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-09",
+    "operation_type": "OperationAgentDeliveredToCustomer",
+    "operation_type_name": "Доставка покупателю",
+    "n": 1708,
+    "amount": "7620663.08",
+    "accrued": "14578401.5",
+    "commission": "-6627524.31"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationPromotionWithCostPerOrder",
+    "operation_type_name": "Продвижение с оплатой за заказ",
+    "n": 19,
+    "amount": "-509283.45",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplaceCostPerClick",
+    "operation_type_name": "Оплата за клик",
+    "n": 172,
+    "amount": "-472278.97",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "ClientReturnAgentOperation",
+    "operation_type_name": "Получение возврата, отмены, невыкупа от покупателя",
+    "n": 29,
+    "amount": "-106922.05",
+    "accrued": "-197582.0",
+    "commission": "90659.95"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "MarketplaceServiceRedistributionOfDeliveryServicesRFBS",
+    "operation_type_name": "Услуги доставки Партнерами Ozon на схеме realFBS",
+    "n": 125,
+    "amount": "-101830.81",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "MarketplaceRedistributionOfAcquiringOperation",
+    "operation_type_name": "Оплата эквайринга",
+    "n": 1382,
+    "amount": "-67354.93",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplaceAcceleratedProductReviews",
+    "operation_type_name": "Ускоренный сбор отзывов",
+    "n": 19,
+    "amount": "-57645.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "DefectFineShipmentDelayRated",
+    "operation_type_name": "Отгрузка в нерекомендованный слот",
+    "n": 293,
+    "amount": "-53256.83",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationCourierPickUpReinvoice",
+    "operation_type_name": "Доставка до СЦ партнёрами",
+    "n": 57,
+    "amount": "-36321.35",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationSubscriptionAnalyticsPlus",
+    "operation_type_name": "Аналитика Plus",
+    "n": 1,
+    "amount": "-28000.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationReturnGoodsFBSofRMS",
+    "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+    "n": 234,
+    "amount": "-23732.58",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplaceServiceEarlyPaymentAccrual",
+    "operation_type_name": "Услуга досрочной выплаты",
+    "n": 1,
+    "amount": "-12677.05",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "DefectFineShipmentDelay",
+    "operation_type_name": "Превышение индекса ошибок: просроченная отгрузка",
+    "n": 75,
+    "amount": "-7098.44",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationSubscriptionPremiumPlus",
+    "operation_type_name": "Подписка Premium Plus",
+    "n": 1,
+    "amount": "-6990.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "SellerReturnsDeliveryToPickupPoint",
+    "operation_type_name": "Вывоз товара со Склада силами Ozon: Доставка до ПВЗ",
+    "n": 88,
+    "amount": "-6360.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "AccrualType_FirstCustomerReview",
+    "operation_type_name": "Сбор первых отзывов",
+    "n": 1,
+    "amount": "-5034.82",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "MarketplaceAgencyFeeAggregator3plRFBS",
+    "operation_type_name": "Агентское вознаграждение за доставку Партнерами Ozon на схеме realFBS",
+    "n": 125,
+    "amount": "-2500.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationAgentStornoDeliveredToCustomer",
+    "operation_type_name": "Доставка покупателю — отмена начисления",
+    "n": 1,
+    "amount": "-2142.93",
+    "accrued": "-4331.0",
+    "commission": "2035.57"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplaceServiceStorage",
+    "operation_type_name": "Услуга размещения товаров на складе",
+    "n": 19,
+    "amount": "-588.49",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "AccrualType_DefectFineComplaint",
+    "operation_type_name": "Жалобы покупателей",
+    "n": 3,
+    "amount": "-378.73",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplacePackageRedistribution",
+    "operation_type_name": "Упаковка товара партнёрами",
+    "n": 32,
+    "amount": "-320.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplaceItemTemporaryStorageRedistribution",
+    "operation_type_name": "Временное размещение товара партнерами",
+    "n": 4,
+    "amount": "-315.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplacePackageMaterialsProvision",
+    "operation_type_name": "Обеспечение материалами для упаковки товара",
+    "n": 32,
+    "amount": "-160.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "DefectFineShipmentDelayRatedCancelled",
+    "operation_type_name": "Отгрузка в нерекомендованный слот - отмена начисления",
+    "n": 12,
+    "amount": "1401.51",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "AccrualType_RealizationReportCorrection",
+    "operation_type_name": "Корректировка стоимости услуг",
+    "n": 1,
+    "amount": "18325.99",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "MarketplaceSellerReexposureDeliveryReturnOperation",
+    "operation_type_name": "Перечисление за доставку от покупателя",
+    "n": 121,
+    "amount": "44624.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc1",
+    "finance_month": "2026-10",
+    "operation_type": "OperationAgentDeliveredToCustomer",
+    "operation_type_name": "Доставка покупателю",
+    "n": 1432,
+    "amount": "5448933.93",
+    "accrued": "10527949.0",
+    "commission": "-4816116.59"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationPromotionWithCostPerOrder",
+    "operation_type_name": "Продвижение с оплатой за заказ",
+    "n": 30,
+    "amount": "-139692.35",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceCostPerClick",
+    "operation_type_name": "Оплата за клик",
+    "n": 155,
+    "amount": "-46430.25",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "MarketplaceServiceRedistributionOfDeliveryServicesRFBS",
+    "operation_type_name": "Услуги доставки Партнерами Ozon на схеме realFBS",
+    "n": 59,
+    "amount": "-45294.05",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationSubscriptionPremiumPlus",
+    "operation_type_name": "Подписка Premium Plus",
+    "n": 1,
+    "amount": "-24990",
+    "accrued": "0",
+    "commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "MarketplaceRedistributionOfAcquiringOperation",
+    "operation_type_name": "Оплата эквайринга",
+    "n": 568,
+    "amount": "-20843.40",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceAcceleratedProductReviews",
+    "operation_type_name": "Ускоренный сбор отзывов",
+    "n": 26,
+    "amount": "-19520.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "AccrualType_FirstCustomerReview",
+    "operation_type_name": "Сбор первых отзывов",
+    "n": 5,
+    "amount": "-19193.66",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceServiceEarlyPaymentAccrual",
+    "operation_type_name": "Услуга досрочной выплаты",
+    "n": 5,
+    "amount": "-17372.91",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "ClientReturnAgentOperation",
+    "operation_type_name": "Получение возврата, отмены, невыкупа от покупателя",
+    "n": 6,
+    "amount": "-14164.26",
+    "accrued": "-26002.0",
+    "commission": "11837.74"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationReturnGoodsFBSofRMS",
+    "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+    "n": 115,
+    "amount": "-10032.28",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "DefectFineShipmentDelayRated",
+    "operation_type_name": "Отгрузка в нерекомендованный слот",
+    "n": 57,
+    "amount": "-7026.93",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "MarketplaceAgencyFeeAggregator3plRFBS",
+    "operation_type_name": "Агентское вознаграждение за доставку Партнерами Ozon на схеме realFBS",
+    "n": 59,
+    "amount": "-1180.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationAgentStornoDeliveredToCustomer",
+    "operation_type_name": "Доставка покупателю — отмена начисления",
+    "n": 1,
+    "amount": "-824.11",
+    "accrued": "-1701.0",
+    "commission": "765.45"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "SellerReturnsDeliveryToPickupPoint",
+    "operation_type_name": "Вывоз товара со Склада силами Ozon: Доставка до ПВЗ",
+    "n": 14,
+    "amount": "-790.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "DefectFineShipmentDelay",
+    "operation_type_name": "Превышение индекса ошибок: просроченная отгрузка",
+    "n": 6,
+    "amount": "-437.34",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceItemTemporaryStorageRedistribution",
+    "operation_type_name": "Временное размещение товара партнерами",
+    "n": 13,
+    "amount": "-372.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "StarsMembership",
+    "operation_type_name": "Звёздные товары",
+    "n": 3,
+    "amount": "-370.73",
+    "accrued": "0",
+    "commission": "0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplacePackageRedistribution",
+    "operation_type_name": "Упаковка товара партнёрами",
+    "n": 14,
+    "amount": "-140.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplaceServiceStorage",
+    "operation_type_name": "Услуга размещения товаров на складе",
+    "n": 15,
+    "amount": "-96.75",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationMarketplacePackageMaterialsProvision",
+    "operation_type_name": "Обеспечение материалами для упаковки товара",
+    "n": 14,
+    "amount": "-70.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "DefectFineShipmentDelayRatedCancelled",
+    "operation_type_name": "Отгрузка в нерекомендованный слот - отмена начисления",
+    "n": 1,
+    "amount": "95.34",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "AccrualInternalClaim",
+    "operation_type_name": "Потеря по вине Ozon в логистике",
+    "n": 1,
+    "amount": "3213.85",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "MarketplaceSellerReexposureDeliveryReturnOperation",
+    "operation_type_name": "Перечисление за доставку от покупателя",
+    "n": 56,
+    "amount": "23173.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-09",
+    "operation_type": "OperationAgentDeliveredToCustomer",
+    "operation_type_name": "Доставка покупателю",
+    "n": 455,
+    "amount": "1443355.01",
+    "accrued": "2811459.0",
+    "commission": "-1288698.35"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "ClientReturnAgentOperation",
+    "operation_type_name": "Получение возврата, отмены, невыкупа от покупателя",
+    "n": 17,
+    "amount": "-90079.88",
+    "accrued": "-168984.0",
+    "commission": "78904.12"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationPromotionWithCostPerOrder",
+    "operation_type_name": "Продвижение с оплатой за заказ",
+    "n": 17,
+    "amount": "-64623.90",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "AccrualType_FirstCustomerReview",
+    "operation_type_name": "Сбор первых отзывов",
+    "n": 9,
+    "amount": "-36966.14",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplaceCostPerClick",
+    "operation_type_name": "Оплата за клик",
+    "n": 100,
+    "amount": "-29673.29",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationSubscriptionAnalyticsPlus",
+    "operation_type_name": "Аналитика Plus",
+    "n": 1,
+    "amount": "-28000.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplaceAcceleratedProductReviews",
+    "operation_type_name": "Ускоренный сбор отзывов",
+    "n": 14,
+    "amount": "-10065.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationReturnGoodsFBSofRMS",
+    "operation_type_name": "Доставка и обработка возврата, отмены, невыкупа",
+    "n": 124,
+    "amount": "-9447.30",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "MarketplaceRedistributionOfAcquiringOperation",
+    "operation_type_name": "Оплата эквайринга",
+    "n": 219,
+    "amount": "-8622.06",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "DefectFineShipmentDelayRated",
+    "operation_type_name": "Отгрузка в нерекомендованный слот",
+    "n": 46,
+    "amount": "-7795.11",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "MarketplaceServiceRedistributionOfDeliveryServicesRFBS",
+    "operation_type_name": "Услуги доставки Партнерами Ozon на схеме realFBS",
+    "n": 10,
+    "amount": "-7347.51",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationSubscriptionPremiumPlus",
+    "operation_type_name": "Подписка Premium Plus",
+    "n": 1,
+    "amount": "-6990.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplaceServiceEarlyPaymentAccrual",
+    "operation_type_name": "Услуга досрочной выплаты",
+    "n": 1,
+    "amount": "-6262.69",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "AccrualType_DefectFineComplaint",
+    "operation_type_name": "Жалобы покупателей",
+    "n": 1,
+    "amount": "-4200.39",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "DefectFineShipmentDelay",
+    "operation_type_name": "Превышение индекса ошибок: просроченная отгрузка",
+    "n": 22,
+    "amount": "-2552.84",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "AccrualType_SupplyInbound",
+    "operation_type_name": "Обработка товара",
+    "n": 1,
+    "amount": "-1583.85",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "SellerReturnsDeliveryToPickupPoint",
+    "operation_type_name": "Вывоз товара со Склада силами Ozon: Доставка до ПВЗ",
+    "n": 8,
+    "amount": "-590.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplaceItemTemporaryStorageRedistribution",
+    "operation_type_name": "Временное размещение товара партнерами",
+    "n": 8,
+    "amount": "-390.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "MarketplaceAgencyFeeAggregator3plRFBS",
+    "operation_type_name": "Агентское вознаграждение за доставку Партнерами Ozon на схеме realFBS",
+    "n": 10,
+    "amount": "-200.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplacePackageRedistribution",
+    "operation_type_name": "Упаковка товара партнёрами",
+    "n": 17,
+    "amount": "-170.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationMarketplacePackageMaterialsProvision",
+    "operation_type_name": "Обеспечение материалами для упаковки товара",
+    "n": 17,
+    "amount": "-85.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "DefectFineShipmentDelayRatedCancelled",
+    "operation_type_name": "Отгрузка в нерекомендованный слот - отмена начисления",
+    "n": 1,
+    "amount": "933.42",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "MarketplaceSellerReexposureDeliveryReturnOperation",
+    "operation_type_name": "Перечисление за доставку от покупателя",
+    "n": 10,
+    "amount": "2160.0",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "AccrualType_RealizationReportCorrection",
+    "operation_type_name": "Корректировка стоимости услуг",
+    "n": 1,
+    "amount": "3331.99",
+    "accrued": "0.0",
+    "commission": "0.0"
+  },
+  {
+    "account": "oz_acc2",
+    "finance_month": "2026-10",
+    "operation_type": "OperationAgentDeliveredToCustomer",
+    "operation_type_name": "Доставка покупателю",
+    "n": 270,
+    "amount": "965597.76",
+    "accrued": "1893491.0",
+    "commission": "-874094.59"
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "reason": "Scheduled runner waiting in WB cards before Ozon; use scoped October-only recovery",
+  "accounts": [
+    "oz_acc1",
+    "oz_acc2"
+  ],
+  "posting_and_accrual_window": [
+    "2026-10-01",
+    "2026-10-20"
+  ],
+  "margin_period": [
+    "2026-10-01",
+    "2026-10-31"
+  ],
+  "historical_freeze": false,
+  "marketplace_writes": false,
+  "notifications": false,
+  "read_only_observer_stopped": true
+}

@@ -1,0 +1,101 @@
+[
+  {
+    "campaign_id": "43608717",
+    "title": "Бонусы на продвижение товаров-новинок FBS",
+    "bonus_origin": true,
+    "performance_sep": "0",
+    "finance_sep": "0",
+    "orders_sep": 0,
+    "performance_oct": "64317.67",
+    "finance_oct": "0.07",
+    "orders_oct": 0
+  },
+  {
+    "campaign_id": "41758909",
+    "title": "Бонусы на продвижение товаров-новинок FBS",
+    "bonus_origin": true,
+    "performance_sep": "49893.52",
+    "finance_sep": "0.03",
+    "orders_sep": 0,
+    "performance_oct": "51404.35",
+    "finance_oct": "0.09",
+    "orders_oct": 2
+  },
+  {
+    "campaign_id": "42757736",
+    "title": "Бонусы на продвижение товаров-новинок FBS",
+    "bonus_origin": true,
+    "performance_sep": "0",
+    "finance_sep": "0",
+    "orders_sep": 0,
+    "performance_oct": "24685.20",
+    "finance_oct": "9.21",
+    "orders_oct": 0
+  },
+  {
+    "campaign_id": "13424726",
+    "title": "Все",
+    "bonus_origin": false,
+    "performance_sep": "14419.60",
+    "finance_sep": "14419.61",
+    "orders_sep": 72,
+    "performance_oct": "24501.04",
+    "finance_oct": "22308.10",
+    "orders_oct": 44
+  },
+  {
+    "campaign_id": "19250899",
+    "title": "от 0 до 3000",
+    "bonus_origin": false,
+    "performance_sep": "2681.80",
+    "finance_sep": "2681.80",
+    "orders_sep": 24,
+    "performance_oct": "4215.26",
+    "finance_oct": "3973.01",
+    "orders_oct": 28
+  },
+  {
+    "campaign_id": "13425039",
+    "title": "5000-10000",
+    "bonus_origin": false,
+    "performance_sep": "1695.93",
+    "finance_sep": "1695.90",
+    "orders_sep": 7,
+    "performance_oct": "1537.41",
+    "finance_oct": "1492.05",
+    "orders_oct": 5
+  },
+  {
+    "campaign_id": "44499213",
+    "title": "Бонусы на продвижение товаров-новинок FBS",
+    "bonus_origin": true,
+    "performance_sep": "0",
+    "finance_sep": "0",
+    "orders_sep": 0,
+    "performance_oct": "1435.04",
+    "finance_oct": "0",
+    "orders_oct": 0
+  },
+  {
+    "campaign_id": "13425066",
+    "title": "10000-500000",
+    "bonus_origin": false,
+    "performance_sep": "1117.34",
+    "finance_sep": "1117.36",
+    "orders_sep": 8,
+    "performance_oct": "1178.02",
+    "finance_oct": "1103.97",
+    "orders_oct": 7
+  },
+  {
+    "campaign_id": "13424988",
+    "title": "3000-5000",
+    "bonus_origin": false,
+    "performance_sep": "1248.64",
+    "finance_sep": "1248.62",
+    "orders_sep": 11,
+    "performance_oct": "808.09",
+    "finance_oct": "786.79",
+    "orders_oct": 3
+  }
+]

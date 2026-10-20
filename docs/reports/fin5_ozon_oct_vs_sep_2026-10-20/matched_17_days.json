@@ -1,0 +1,216 @@
+[
+  {
+    "account": "oz_acc1",
+    "month": "2026-09",
+    "period": "01–17",
+    "values": {
+      "sales": 7886945.5,
+      "returns": 352464.0,
+      "commission": 3414579.4299999983,
+      "delivery": 216543.53000000012,
+      "partners": 140489.42999999996,
+      "fbo": 360.20000000000005,
+      "promo": 791599.2100000001,
+      "penalty": 86612.90999999992,
+      "unclassified": -738.15,
+      "compensation": -0.0,
+      "other": 38781.0
+    },
+    "detail": {
+      "delivery": {
+        "MarketplaceServiceItemDirectFlowLogistic": 165526.0,
+        "MarketplaceServiceItemDeliveryToHandoverPlaceOzon": 3500.0,
+        "MarketplaceServiceItemReturnFlowLogistic": 12039.0,
+        "OP:MarketplaceAgencyFeeAggregator3plRFBS": 1920.0,
+        "MarketplaceServiceItemDropoffPickup": 152.80999999999992,
+        "OP:OperationCourierPickUpReinvoice": 33405.719999999994
+      },
+      "partners": {
+        "MarketplaceRedistributionOfAcquiringOperation": 48808.040000000015,
+        "MarketplaceServiceItemPackageRedistribution": 170.0,
+        "MarketplaceServiceItemRedistributionLastMileCourier": 7684.83,
+        "OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": 83154.04000000004,
+        "MarketplaceServiceItemRedistributionReturnsPVZ": 270.0,
+        "MarketplaceServiceItemRedistributionDropOffApvz": 16.52,
+        "MarketplaceServiceItemTemporaryStorageRedistribution": 264.0,
+        "OP:MarketplaceServiceEasyReturnRfbs": 122.0
+      },
+      "promo": {
+        "PremiumMembershipCommission": 6601.569999999999,
+        "OP:OperationMarketplaceAcceleratedProductReviews": 50935.0,
+        "OP:OperationMarketplaceCostPerClick": 303124.52,
+        "OP:OperationPromotionWithCostPerOrder": 421286.69999999995,
+        "OP:AccrualType_FirstCustomerReview": 9651.42
+      },
+      "penalty": {
+        "MarketplaceServiceItemPackageMaterialsProvision": 85.0,
+        "OP:DefectFineShipmentDelayRated": 39395.27999999999,
+        "OP:OperationMarketplaceServiceEarlyPaymentAccrual": 50198.14,
+        "OP:DefectFineShipmentDelayRatedCancelled": -3215.5099999999998,
+        "MarketplaceServiceVolumeWeightCharacsProcessing": 150.0
+      }
+    },
+    "fixed_subscription": 0.0,
+    "cash_cpc_cpo": 724411.22,
+    "cash_cpc_cpo_pct": 9.184940101335808
+  },
+  {
+    "account": "oz_acc1",
+    "month": "2026-10",
+    "period": "01–17",
+    "values": {
+      "sales": 8665221.0,
+      "returns": 191456.0,
+      "commission": 3875469.7600000007,
+      "delivery": 263227.7000000001,
+      "partners": 169846.74000000008,
+      "fbo": 6868.130000000001,
+      "promo": 982613.5599999999,
+      "penalty": 64690.840000000055,
+      "unclassified": -18074.16,
+      "compensation": -0.0,
+      "other": 43182.0
+    },
+    "detail": {
+      "delivery": {
+        "MarketplaceServiceItemDirectFlowLogistic": 210786.0,
+        "MarketplaceServiceItemDeliveryToHandoverPlaceOzon": 4675.0,
+        "MarketplaceServiceItemReturnFlowLogistic": 12364.0,
+        "OP:MarketplaceAgencyFeeAggregator3plRFBS": 2360.0,
+        "OP:OperationCourierPickUpReinvoice": 33038.57,
+        "MarketplaceServiceItemDropoffPickup": 4.13
+      },
+      "partners": {
+        "MarketplaceRedistributionOfAcquiringOperation": 59727.04000000001,
+        "MarketplaceServiceItemRedistributionLastMileCourier": 10571.830000000002,
+        "OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": 97387.86999999998,
+        "MarketplaceServiceItemRedistributionReturnsPVZ": 615.0,
+        "MarketplaceServiceItemPackageRedistribution": 310.0,
+        "MarketplaceServiceItemRedistributionDropOffApvz": 920.0,
+        "MarketplaceServiceItemTemporaryStorageRedistribution": 315.0
+      },
+      "promo": {
+        "OP:OperationMarketplaceCostPerClick": 418618.4900000001,
+        "OP:OperationPromotionWithCostPerOrder": 474255.25,
+        "OP:OperationMarketplaceAcceleratedProductReviews": 49715.0,
+        "OP:OperationSubscriptionAnalyticsPlus": 28000.0,
+        "OP:AccrualType_FirstCustomerReview": 5034.82,
+        "OP:OperationSubscriptionPremiumPlus": 6990.0
+      },
+      "penalty": {
+        "OP:DefectFineShipmentDelayRated": 46161.86000000006,
+        "MarketplaceServiceItemPackageMaterialsProvision": 155.0,
+        "OP:DefectFineShipmentDelay": 7098.44,
+        "OP:DefectFineShipmentDelayRatedCancelled": -1401.5100000000002,
+        "OP:OperationMarketplaceServiceEarlyPaymentAccrual": 12677.05
+      }
+    },
+    "fixed_subscription": 34990.0,
+    "cash_cpc_cpo": 892873.7400000001,
+    "cash_cpc_cpo_pct": 10.304108112187793
+  },
+  {
+    "account": "oz_acc2",
+    "month": "2026-09",
+    "period": "01–17",
+    "values": {
+      "sales": 1083363.0,
+      "returns": 19481.0,
+      "commission": 483968.6600000002,
+      "delivery": 30407.0,
+      "partners": 37741.58000000003,
+      "fbo": 206.74999999999994,
+      "promo": 123141.77999999998,
+      "penalty": 11997.52,
+      "unclassified": 0.0,
+      "compensation": -0.0,
+      "other": 12035.0
+    },
+    "detail": {
+      "delivery": {
+        "MarketplaceServiceItemDirectFlowLogistic": 27098.0,
+        "MarketplaceServiceItemDeliveryToHandoverPlaceOzon": 775.0,
+        "MarketplaceServiceItemReturnFlowLogistic": 1914.0,
+        "OP:MarketplaceAgencyFeeAggregator3plRFBS": 620.0
+      },
+      "partners": {
+        "MarketplaceRedistributionOfAcquiringOperation": 9977.960000000012,
+        "OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": 23626.65,
+        "MarketplaceServiceItemRedistributionDropOffApvz": 1710.0,
+        "MarketplaceServiceItemRedistributionLastMileCourier": 1623.2400000000002,
+        "MarketplaceServiceItemPackageRedistribution": 100.0,
+        "MarketplaceServiceItemTemporaryStorageRedistribution": 213.0,
+        "MarketplaceServiceItemRedistributionReturnsPVZ": 120.0,
+        "ItemAgentServiceStarsMembership": 370.72999999999996
+      },
+      "promo": {
+        "OP:OperationMarketplaceCostPerClick": 19128.53,
+        "OP:OperationPromotionWithCostPerOrder": 69263.25,
+        "OP:OperationMarketplaceAcceleratedProductReviews": 9760.0,
+        "OP:OperationSubscriptionPremiumPlus": 24990.0
+      },
+      "penalty": {
+        "OP:DefectFineShipmentDelayRated": 3243.4999999999995,
+        "MarketplaceServiceItemPackageMaterialsProvision": 50.0,
+        "OP:OperationMarketplaceServiceEarlyPaymentAccrual": 8799.36,
+        "OP:DefectFineShipmentDelayRatedCancelled": -95.34
+      }
+    },
+    "fixed_subscription": 24990.0,
+    "cash_cpc_cpo": 88391.78,
+    "cash_cpc_cpo_pct": 8.159017799204884
+  },
+  {
+    "account": "oz_acc2",
+    "month": "2026-10",
+    "period": "01–17",
+    "values": {
+      "sales": 1862319.0,
+      "returns": 168984.0,
+      "commission": 781088.9500000003,
+      "delivery": 56154.0,
+      "partners": 21781.790000000015,
+      "fbo": 590.0,
+      "promo": 175708.32999999993,
+      "penalty": 15762.220000000001,
+      "unclassified": 2452.25,
+      "compensation": -0.0,
+      "other": 2160.0
+    },
+    "detail": {
+      "delivery": {
+        "MarketplaceServiceItemReturnFlowLogistic": 5103.0,
+        "MarketplaceServiceItemDirectFlowLogistic": 49626.0,
+        "OP:MarketplaceAgencyFeeAggregator3plRFBS": 200.0,
+        "MarketplaceServiceItemDeliveryToHandoverPlaceOzon": 1225.0
+      },
+      "partners": {
+        "MarketplaceServiceItemRedistributionDropOffApvz": 2730.0,
+        "MarketplaceRedistributionOfAcquiringOperation": 8048.010000000001,
+        "MarketplaceServiceItemPackageRedistribution": 170.0,
+        "MarketplaceServiceItemRedistributionLastMileCourier": 2706.27,
+        "MarketplaceServiceItemRedistributionReturnsPVZ": 390.0,
+        "OP:MarketplaceServiceRedistributionOfDeliveryServicesRFBS": 7347.51,
+        "MarketplaceServiceItemTemporaryStorageRedistribution": 390.0
+      },
+      "promo": {
+        "OP:OperationMarketplaceCostPerClick": 29673.290000000005,
+        "OP:OperationPromotionWithCostPerOrder": 64623.899999999994,
+        "OP:OperationSubscriptionPremiumPlus": 6990.0,
+        "OP:OperationSubscriptionAnalyticsPlus": 28000.0,
+        "OP:AccrualType_FirstCustomerReview": 36966.14,
+        "OP:OperationMarketplaceAcceleratedProductReviews": 9455.0
+      },
+      "penalty": {
+        "MarketplaceServiceItemPackageMaterialsProvision": 85.0,
+        "OP:DefectFineShipmentDelayRated": 7795.110000000001,
+        "OP:DefectFineShipmentDelay": 2552.84,
+        "OP:DefectFineShipmentDelayRatedCancelled": -933.42,
+        "OP:OperationMarketplaceServiceEarlyPaymentAccrual": 6262.69
+      }
+    },
+    "fixed_subscription": 34990.0,
+    "cash_cpc_cpo": 94297.19,
+    "cash_cpc_cpo_pct": 5.063428445932195
+  }
+]

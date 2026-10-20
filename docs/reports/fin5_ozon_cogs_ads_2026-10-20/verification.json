@@ -1,0 +1,29 @@
+{
+  "cash_checks": [
+    {
+      "account": "oz_acc1",
+      "month": "2026-09",
+      "expense_cash_equals_finance": true
+    },
+    {
+      "account": "oz_acc1",
+      "month": "2026-10",
+      "expense_cash_equals_finance": true
+    },
+    {
+      "account": "oz_acc2",
+      "month": "2026-09",
+      "expense_cash_equals_finance": true
+    },
+    {
+      "account": "oz_acc2",
+      "month": "2026-10",
+      "expense_cash_equals_finance": true
+    }
+  ],
+  "cash_and_bonus_separate": true,
+  "cpo_zero_outcomes_treated_as_missing": true,
+  "stale_sku_outcomes_not_used_for_current_zero_order_decisions": true,
+  "campaigns_changed": false,
+  "database_changed": false
+}

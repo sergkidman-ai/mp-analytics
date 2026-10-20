@@ -1,0 +1,222 @@
+[
+  {
+    "account": "oz_acc1",
+    "key": "commission",
+    "label": "Комиссия",
+    "now": 4723421.07,
+    "september": 6387103,
+    "now_pct": 44.86553905228834,
+    "september_pct": 44.1363945314044,
+    "margin_impact_pp": -0.729144520883942
+  },
+  {
+    "account": "oz_acc1",
+    "key": "delivery",
+    "label": "Доставка",
+    "now": 310962.48000000004,
+    "september": 409871,
+    "now_pct": 2.953685280960233,
+    "september_pct": 2.832305688976873,
+    "margin_impact_pp": -0.12137959198335979
+  },
+  {
+    "account": "oz_acc1",
+    "key": "partners",
+    "label": "Услуги партнёров",
+    "now": 184158.17000000025,
+    "september": 233627,
+    "now_pct": 1.7492312130311447,
+    "september_pct": 1.6144179051423495,
+    "margin_impact_pp": -0.1348133078887952
+  },
+  {
+    "account": "oz_acc1",
+    "key": "fbo",
+    "label": "Складские услуги",
+    "now": 6948.490000000002,
+    "september": 2107,
+    "now_pct": 0.06600041470565636,
+    "september_pct": 0.01455986904824755,
+    "margin_impact_pp": -0.05144054565740881
+  },
+  {
+    "account": "oz_acc1",
+    "key": "promo",
+    "label": "Продвижение, отзывы и подписка",
+    "now": 1079232.2400000002,
+    "september": 1432616,
+    "now_pct": 10.251115768132998,
+    "september_pct": 9.899715878701572,
+    "margin_impact_pp": -0.3513998894314252
+  },
+  {
+    "account": "oz_acc1",
+    "key": "penalty",
+    "label": "Штрафы и прочие удержания",
+    "now": 71790.81000000007,
+    "september": 169616,
+    "now_pct": 0.6819068937359031,
+    "september_pct": 1.172086733976059,
+    "margin_impact_pp": 0.49017984024015593
+  },
+  {
+    "account": "oz_acc1",
+    "key": "unclassified",
+    "label": "Неклассифицировано",
+    "now": -17947.260000000002,
+    "september": -136,
+    "now_pct": -0.17047252033610727,
+    "september_pct": -0.0009397922119419396,
+    "margin_impact_pp": 0.16953272812416534
+  },
+  {
+    "account": "oz_acc1",
+    "key": "returns",
+    "label": "Возвраты",
+    "now": 201913.0,
+    "september": 433336,
+    "now_pct": 1.9178759319597767,
+    "september_pct": 2.99445439672112,
+    "margin_impact_pp": 1.0765784647613434
+  },
+  {
+    "account": "oz_acc1",
+    "key": "cogs",
+    "label": "Себестоимость",
+    "now": 1874088.03,
+    "september": 2884029,
+    "now_pct": 17.801074359307783,
+    "september_pct": 19.929323479519855,
+    "margin_impact_pp": 2.1282491202120717
+  },
+  {
+    "account": "oz_acc1",
+    "key": "compensation",
+    "label": "Компенсации",
+    "now": -0.0,
+    "september": 0,
+    "now_pct": -0.0,
+    "september_pct": 0.0,
+    "margin_impact_pp": -0.0
+  },
+  {
+    "account": "oz_acc1",
+    "key": "other",
+    "label": "Прочие начисления",
+    "now": 44624.0,
+    "september": 61436,
+    "now_pct": 0.423862235654827,
+    "september_pct": 0.4245373112710662,
+    "margin_impact_pp": -0.0006750756162391958
+  },
+  {
+    "account": "oz_acc2",
+    "key": "commission",
+    "label": "Комиссия",
+    "now": 795190.4700000003,
+    "september": 1276095,
+    "now_pct": 41.99599945286248,
+    "september_pct": 45.416544770047814,
+    "margin_impact_pp": 3.4205453171853364
+  },
+  {
+    "account": "oz_acc2",
+    "key": "delivery",
+    "label": "Доставка",
+    "now": 57461.0,
+    "september": 82156,
+    "now_pct": 3.034659261649514,
+    "september_pct": 2.923952881351348,
+    "margin_impact_pp": -0.11070638029816626
+  },
+  {
+    "account": "oz_acc2",
+    "key": "partners",
+    "label": "Услуги партнёров",
+    "now": 22514.52000000001,
+    "september": 75361,
+    "now_pct": 1.1890481655312863,
+    "september_pct": 2.6821171075943195,
+    "margin_impact_pp": 1.4930689420630332
+  },
+  {
+    "account": "oz_acc2",
+    "key": "fbo",
+    "label": "Складские услуги",
+    "now": 590.0,
+    "september": 887,
+    "now_pct": 0.031159377044834118,
+    "september_pct": 0.03156855501434643,
+    "margin_impact_pp": 0.00040917796951231433
+  },
+  {
+    "account": "oz_acc2",
+    "key": "promo",
+    "label": "Продвижение, отзывы и подписка",
+    "now": 176318.32999999993,
+    "september": 249826,
+    "now_pct": 9.311812414212685,
+    "september_pct": 8.891370715912188,
+    "margin_impact_pp": -0.4204416983004968
+  },
+  {
+    "account": "oz_acc2",
+    "key": "penalty",
+    "label": "Штрафы и прочие удержания",
+    "now": 15762.220000000001,
+    "september": 24807,
+    "now_pct": 0.8324422983790258,
+    "september_pct": 0.882887423044974,
+    "margin_impact_pp": 0.05044512466594819
+  },
+  {
+    "account": "oz_acc2",
+    "key": "unclassified",
+    "label": "Неклассифицировано",
+    "now": 2452.25,
+    "september": 15,
+    "now_pct": 0.1295094616240584,
+    "september_pct": 0.0005338538052031527,
+    "margin_impact_pp": -0.12897560781885525
+  },
+  {
+    "account": "oz_acc2",
+    "key": "returns",
+    "label": "Возвраты",
+    "now": 168984.0,
+    "september": 26002,
+    "now_pct": 8.924468085668218,
+    "september_pct": 0.9254177761928252,
+    "margin_impact_pp": -7.999050309475393
+  },
+  {
+    "account": "oz_acc2",
+    "key": "cogs",
+    "label": "Себестоимость",
+    "now": 373116.83,
+    "september": 629549,
+    "now_pct": 19.705233877530972,
+    "september_pct": 22.40580861412264,
+    "margin_impact_pp": 2.700574736591669
+  },
+  {
+    "account": "oz_acc2",
+    "key": "compensation",
+    "label": "Компенсации",
+    "now": -0.0,
+    "september": 0,
+    "now_pct": -0.0,
+    "september_pct": 0.0,
+    "margin_impact_pp": -0.0
+  },
+  {
+    "account": "oz_acc2",
+    "key": "other",
+    "label": "Прочие начисления",
+    "now": 2160.0,
+    "september": 23173,
+    "now_pct": 0.11407500748617237,
+    "september_pct": 0.8247329485315106,
+    "margin_impact_pp": -0.7106579410453382
+  }
+]

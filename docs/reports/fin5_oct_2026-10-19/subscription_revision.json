@@ -1,0 +1,218 @@
+{
+  "revision_date": "2026-10-20",
+  "financial_snapshot": "2026-10-19, original coverage preserved",
+  "accounts": [
+    {
+      "account": "oz_acc1",
+      "label": "Цифровой",
+      "subscription_sep": 24990,
+      "subscription_oct": 34990,
+      "monthly_increase": 10000,
+      "promo_oct": 985968.5599999999,
+      "promo_sep": 1432616,
+      "promo_oct_pct": 10.715416628900682,
+      "promo_sep_pct": 9.899715878701572,
+      "promo_margin_impact_pp": -0.8157007501991109,
+      "unclassified_oct": -18074.160000000003,
+      "subscription_oct_pct": 0.38026813739906157,
+      "subscription_sep_pct": 0.1726868189443314,
+      "subscription_margin_impact_pp": -0.2075813184547302,
+      "net": 1568794.9600000011,
+      "margin": 17.049520931701505
+    },
+    {
+      "account": "oz_acc2",
+      "label": "Дисквер",
+      "subscription_sep": 24990,
+      "subscription_oct": 34990,
+      "monthly_increase": 10000,
+      "promo_oct": 176318.33000000005,
+      "promo_sep": 249826,
+      "promo_oct_pct": 9.311812414212692,
+      "promo_sep_pct": 8.891370715912188,
+      "promo_margin_impact_pp": -0.4204416983005027,
+      "unclassified_oct": 2452.25,
+      "subscription_oct_pct": 1.8479094962690608,
+      "subscription_sep_pct": 0.8894004394684525,
+      "subscription_margin_impact_pp": -0.958509056800608,
+      "net": 283261.3799999995,
+      "margin": 14.959742612983082
+    }
+  ],
+  "promo_components": [
+    {
+      "account": "oz_acc1",
+      "code": "MarketplaceServiceItemElectronicServicesPremiumCashbackIndividualPoints",
+      "cash_oct": 0,
+      "cash_sep": 0,
+      "oct_pct": 0.0,
+      "sep_pct": 0.0,
+      "margin_impact_pp": 0.0
+    },
+    {
+      "account": "oz_acc1",
+      "code": "OP:AccrualType_FirstCustomerReview",
+      "cash_oct": 5034.82,
+      "cash_sep": 67879,
+      "oct_pct": 0.0547179658056457,
+      "sep_pct": 0.4690599673118156,
+      "margin_impact_pp": 0.41434200150616984
+    },
+    {
+      "account": "oz_acc1",
+      "code": "OP:OperationMarketplaceAcceleratedProductReviews",
+      "cash_oct": 53070.0,
+      "cash_sep": 89365,
+      "oct_pct": 0.576759932888488,
+      "sep_pct": 0.617533316324937,
+      "margin_impact_pp": 0.040773383436448936
+    },
+    {
+      "account": "oz_acc1",
+      "code": "OP:OperationMarketplaceCostPerClick",
+      "cash_oct": 418618.49000000005,
+      "cash_sep": 581856,
+      "oct_pct": 4.549507672852464,
+      "sep_pct": 4.020762774056538,
+      "margin_impact_pp": -0.5287448987959256
+    },
+    {
+      "account": "oz_acc1",
+      "code": "OP:OperationPointsForReviews",
+      "cash_oct": 0,
+      "cash_sep": 0,
+      "oct_pct": 0.0,
+      "sep_pct": 0.0,
+      "margin_impact_pp": 0.0
+    },
+    {
+      "account": "oz_acc1",
+      "code": "OP:OperationPromotionWithCostPerOrder",
+      "cash_oct": 474255.25,
+      "cash_sep": 661924,
+      "oct_pct": 5.1541629199550245,
+      "sep_pct": 4.574051618363651,
+      "margin_impact_pp": -0.5801113015913739
+    },
+    {
+      "account": "oz_acc1",
+      "code": "OP:OperationSubscriptionAnalyticsPlus",
+      "cash_oct": 28000,
+      "cash_sep": 0,
+      "oct_pct": 0.30430145319158974,
+      "sep_pct": 0.0,
+      "margin_impact_pp": -0.30430145319158974
+    },
+    {
+      "account": "oz_acc1",
+      "code": "OP:OperationSubscriptionPremiumPlus",
+      "cash_oct": 6990.0,
+      "cash_sep": 24990,
+      "oct_pct": 0.07596668420747187,
+      "sep_pct": 0.1726868189443314,
+      "margin_impact_pp": 0.09672013473685953
+    },
+    {
+      "account": "oz_acc1",
+      "code": "OP:OperationSubscriptionPremiumPro",
+      "cash_oct": 0,
+      "cash_sep": 0,
+      "oct_pct": 0.0,
+      "sep_pct": 0.0,
+      "margin_impact_pp": 0.0
+    },
+    {
+      "account": "oz_acc1",
+      "code": "PremiumMembershipCommission",
+      "cash_oct": 0,
+      "cash_sep": 6602,
+      "oct_pct": 0.0,
+      "sep_pct": 0.04562138370029916,
+      "margin_impact_pp": 0.04562138370029915
+    },
+    {
+      "account": "oz_acc2",
+      "code": "MarketplaceServiceItemElectronicServicesPremiumCashbackIndividualPoints",
+      "cash_oct": 0,
+      "cash_sep": 0,
+      "oct_pct": 0.0,
+      "sep_pct": 0.0,
+      "margin_impact_pp": 0.0
+    },
+    {
+      "account": "oz_acc2",
+      "code": "OP:AccrualType_FirstCustomerReview",
+      "cash_oct": 36966.14,
+      "cash_sep": 19194,
+      "oct_pct": 1.9522743968680072,
+      "sep_pct": 0.6831193291379543,
+      "margin_impact_pp": -1.2691550677300532
+    },
+    {
+      "account": "oz_acc2",
+      "code": "OP:OperationMarketplaceAcceleratedProductReviews",
+      "cash_oct": 10065.0,
+      "cash_sep": 19520,
+      "oct_pct": 0.5315578473834838,
+      "sep_pct": 0.6947217518377028,
+      "margin_impact_pp": 0.16316390445421902
+    },
+    {
+      "account": "oz_acc2",
+      "code": "OP:OperationMarketplaceCostPerClick",
+      "cash_oct": 29673.290000000005,
+      "cash_sep": 46430,
+      "oct_pct": 1.5671207309672983,
+      "sep_pct": 1.6524554783721588,
+      "margin_impact_pp": 0.08533474740486068
+    },
+    {
+      "account": "oz_acc2",
+      "code": "OP:OperationPointsForReviews",
+      "cash_oct": 0,
+      "cash_sep": 0,
+      "oct_pct": 0.0,
+      "sep_pct": 0.0,
+      "margin_impact_pp": 0.0
+    },
+    {
+      "account": "oz_acc2",
+      "code": "OP:OperationPromotionWithCostPerOrder",
+      "cash_oct": 64623.899999999994,
+      "cash_sep": 139692,
+      "oct_pct": 3.4129499427248393,
+      "sep_pct": 4.97167371709592,
+      "margin_impact_pp": 1.5587237743710811
+    },
+    {
+      "account": "oz_acc2",
+      "code": "OP:OperationSubscriptionAnalyticsPlus",
+      "cash_oct": 28000,
+      "cash_sep": 0,
+      "oct_pct": 1.4787500970429752,
+      "sep_pct": 0.0,
+      "margin_impact_pp": -1.478750097042975
+    },
+    {
+      "account": "oz_acc2",
+      "code": "OP:OperationSubscriptionPremium",
+      "cash_oct": 0,
+      "cash_sep": 0,
+      "oct_pct": 0.0,
+      "sep_pct": 0.0,
+      "margin_impact_pp": 0.0
+    },
+    {
+      "account": "oz_acc2",
+      "code": "OP:OperationSubscriptionPremiumPlus",
+      "cash_oct": 6990.0,
+      "cash_sep": 24990,
+      "oct_pct": 0.3691593992260856,
+      "sep_pct": 0.8894004394684525,
+      "margin_impact_pp": 0.520241040242367
+    }
+  ],
+  "financial_totals_changed": false,
+  "subscription_period": "30.09.26-30.10.26",
+  "interpretation": "Полная фикс-плата начислена сразу; октябрь промежуточный, сентябрь полный. Вклады в п.п. включают разницу оборота и момента начисления, не только рост тарифа."
+}

@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-10-20T19:19:42.732607+00:00",
+  "results": [
+    {
+      "account": "oz_acc1",
+      "status": "failed",
+      "steps": [
+        "catalog"
+      ],
+      "error_type": "HTTPError",
+      "error": "400 Client Error: Bad Request for url: https://api-seller.ozon.ru/v4/posting/fbs/list"
+    },
+    {
+      "account": "oz_acc2",
+      "status": "failed",
+      "steps": [
+        "catalog"
+      ],
+      "error_type": "HTTPError",
+      "error": "400 Client Error: Bad Request for url: https://api-seller.ozon.ru/v4/posting/fbs/list"
+    }
+  ]
+}

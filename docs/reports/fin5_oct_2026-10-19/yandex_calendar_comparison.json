@@ -1,0 +1,26 @@
+[
+  {
+    "month": "2026-09",
+    "receipts": "1547854.00",
+    "refunds": "173828.00",
+    "previous_order_receipts": "133516.00",
+    "payment_rows": 592,
+    "latest_payment": "2026-09-30",
+    "created_month_totals": {
+      "2026-08": "133516.00",
+      "2026-09": "1414338.00"
+    }
+  },
+  {
+    "month": "2026-10",
+    "receipts": "685873.00",
+    "refunds": "37711.00",
+    "previous_order_receipts": "107694.00",
+    "payment_rows": 236,
+    "latest_payment": "2026-10-18",
+    "created_month_totals": {
+      "2026-09": "107694.00",
+      "2026-10": "578179.00"
+    }
+  }
+]
