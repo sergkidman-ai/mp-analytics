@@ -385,7 +385,8 @@ class ДатаПрогона(unittest.TestCase):
             self.assertEqual(g['TODAY'], '2026-09-07')
             hypo = _исходник('ozon_hypo.py').split('# ============================== '
                                                    'конечный автомат')[0]
-            g2 = {'__name__': 'проверка_даты_hypo'}
+            g2 = {'__name__': 'проверка_даты_hypo',
+                  '__file__': os.path.join(_КОРЕНЬ, 'tools', 'ozon_hypo.py')}
             exec(compile(hypo, 'ozon_hypo.py', 'exec'), g2)
             self.assertEqual(g2['TODAY'], '2026-09-07')      # D6: второй часов нет
         finally:
