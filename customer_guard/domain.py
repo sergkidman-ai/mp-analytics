@@ -57,7 +57,7 @@ def sale(post):
 def posting_hash(post):
     from core.ozon_posting import product_price
     # Equal v3 scalar and v4 Money values describe the same business revision.
-    return digest(dict(status=post["status"], substatus=post.get("substatus"),
+    return digest(dict(status=post["status"], substatus=post.get("substatus") or "",
         products=sorted([(str(p.get("offer_id")), str(p.get("sku")),
                           str(number(p["quantity"]).normalize()),
                           str(product_price(p).normalize()))

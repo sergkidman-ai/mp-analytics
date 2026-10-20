@@ -74,7 +74,7 @@ class CustomerMS(MSClient):
 
     def supplier_cost(self, positions):
         if self.remote is None:
-            stores = self.collection("/entity/store", {"filter": "name=Удаленный"}, max_pages=1)
+            stores = self.collection("/entity/store", {"filter": "name=Удаленный склад"}, max_pages=1)
             if len(stores) != 1:
                 raise SourceError("remote_store_ambiguous")
             self.remote = stores[0]["meta"]["href"]
@@ -97,7 +97,11 @@ class CustomerMS(MSClient):
                 raise ValueError("supplier_overhead_unverified")
             key = (enter["id"], enter.get("updated"))
             if key not in self.receipts:
-                self.receipts[key] = self.positions("enter", enter["id"])
+                receipt_positions = self.positions("enter", enter["id"])
+                latest = self.get(f"/entity/enter/{enter['id']}")
+                if latest.get("updated") != enter.get("updated"):
+                    raise SourceError("supplier_receipt_changed", 600)
+                self.receipts[key] = receipt_positions
             matches = [p for p in self.receipts[key] if product_id(p) == pid]
             if len(matches) != 1:
                 raise ValueError("supplier_price_not_unique")
@@ -112,6 +116,11 @@ class CustomerMS(MSClient):
             sources.append(dict(product_id=pid, supplier=product["supplier"]["meta"]["href"],
                 article=product["article"], enter_id=enter["id"], position_id=line["id"],
                 version=enter.get("updated"), quantity=str(qty), unit=str(unit), currency="RUB"))
+        versions = defaultdict(set)
+        for source in sources:
+            versions[source["enter_id"]].add(source["version"])
+        if any(len(v) != 1 for v in versions.values()):
+            raise SourceError("supplier_receipt_changed", 600)
         return cost, sources
 
     def cost(self, order, positions):
@@ -138,6 +147,8 @@ class CustomerMS(MSClient):
                 for pid, qty in quantities(dp).items():
                     covered[pid] += qty
                 actual += fifo_cost(dp, self.fifo(uid))
+                if self.get(f"/entity/demand/{uid}").get("updated") != demand.get("updated"):
+                    raise SourceError("demand_changed_during_check", 600)
                 refs.append(dict(entity_id=uid, version=demand.get("updated")))
             if dict(covered) != quantities(positions):
                 raise ValueError("partial_demand_coverage")
@@ -153,10 +164,12 @@ class CustomerMS(MSClient):
 
 def get_posting(number_):
     from collectors.ozon import _headers
-    from collectors.ozon_postings import request_page
-    result = request_page("https://api-seller.ozon.ru/v3/posting/fbs/get",
-                          _headers("oz_acc2"), {"posting_number": number_},
-                          deadline=time.monotonic() + 45)
+    from collectors.ozon_postings import request_page, account_lock
+    deadline = time.monotonic() + 45
+    with account_lock("oz_acc2", timeout=2) as lease:
+        result = request_page("https://api-seller.ozon.ru/v3/posting/fbs/get",
+                              _headers("oz_acc2"), {"posting_number": number_},
+                              deadline=deadline, check_lock=lease.check)
     post = result.get("result", {})
     if post.get("posting_number") != number_:
         raise ValueError("posting_identity_mismatch")

@@ -108,6 +108,7 @@ const signals={below_floor:'Ниже пола',missing_ms:'Нет в МС',unkno
 let offset=0,total=0,request=0;
 function state(row){
   if(['cancelled','delivered'].includes(row.mp_status))return mp[row.mp_status];
+  if(!Object.hasOwn(mp,row.mp_status))return 'Статус Ozon требует проверки';
   if(row.job_error)return 'Проверка не завершена';
   if(!row.current)return row.job_state==='running'?'Проверяется':row.result?'Требует пересчёта':'Ожидает проверки';
   return signals[row.result?.signal]||'Недостаточно данных';
@@ -125,11 +126,13 @@ async function load(){
     $('message').textContent=!d.installed?'Хранилище пилота ещё не установлено.':!total?'Заказов по этим условиям пока нет.':'';
     $('rows').innerHTML=d.rows.map(row=>{
       const r=row.result||{},valid=row.current&&!row.job_error;
-      const products=r.positions?.length?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity}))||[];
+      const hasMS=Boolean(r.positions?.length);
+      const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity}))||[];
+      const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар Ozon; состав МС ещё не проверен';
       const cls=valid&&['below_floor','missing_ms'].includes(r.signal)?'danger':valid&&r.signal==='ok'?'pos':'warning';
       return `<tr><td><button data-history="${Number(row.id)}">${esc(row.posting_number)}</button><div class="small">Получен ${esc(dt(row.first_seen_at))}</div></td>
         <td><div>Ozon: ${esc(mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
-        <td>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>`).join('')}
+        <td><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
         <td class="money">${esc(money(row.mp_price))}<div class="small">МС: ${esc(money(r.ms_price))}</div></td>
         <td class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>

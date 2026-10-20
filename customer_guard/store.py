@@ -88,13 +88,19 @@ def ingest(posts, started_at, received_at, window_from, window_to, *, mirror_raw
           (started_at, received_at, window_from, window_to, len(posts)))
 
 
-def claim(now):
+def claim(now, posting_number=None):
     token = str(uuid4())
     with transaction() as cur:
+        scope = ""
+        args = [now, now]
+        if posting_number is not None:
+            scope = """ AND j.order_id=(SELECT id FROM customer_guard_orders
+              WHERE account='oz_acc2' AND posting_number=%s)"""
+            args.append(posting_number)
         cur.execute("""SELECT j.order_id FROM customer_guard_jobs j
-          WHERE (j.state IN ('pending','retry') AND j.due_at<=%s)
-             OR (j.state='running' AND j.lease_until<%s)
-          ORDER BY j.due_at FOR UPDATE SKIP LOCKED LIMIT 1""", (now, now))
+          WHERE ((j.state IN ('pending','retry') AND j.due_at<=%s)
+             OR (j.state='running' AND j.lease_until<%s))""" + scope +
+          " ORDER BY j.due_at,j.order_id FOR UPDATE SKIP LOCKED LIMIT 1", tuple(args))
         row = cur.fetchone()
         if not row:
             return None

@@ -114,7 +114,7 @@ def evaluate(post, document, client, rule, now):
     return result
 
 
-def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting):
+def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting_number=None):
     if not 1 <= limit <= 10 or not 1 <= budget <= 100:
         raise ValueError("pilot_run_budget")
     completed = 0
@@ -125,7 +125,7 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting):
         rules = db.query("SELECT * FROM ms_shipment_rules WHERE account='oz_acc2' AND enabled")
         rule = rules[0] if len(rules) == 1 else None
         for _ in range(limit):
-            job = store.claim(clock())
+            job = store.claim(clock(), posting_number)
             if not job:
                 break
             try:
@@ -146,8 +146,8 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting):
                 store.fail(job, str(exc), clock(), exc.retry_after)
                 # Avoid a burst of failures on shared quota/permissions/budget.
                 break
-            except Exception:
-                store.fail(job, "source_or_calculation_error", clock())
+            except Exception as exc:
+                store.fail(job, "source_or_calculation_error:" + type(exc).__name__, clock())
                 break  # Exception text can contain credentials from request URLs.
     return dict(completed=completed, ms_requests=client.requests)
 
@@ -160,6 +160,7 @@ def main():
     worker = subs.add_parser("work")
     worker.add_argument("--limit", type=int, default=3)
     worker.add_argument("--budget", type=int, default=60)
+    worker.add_argument("--posting", help="Проверить конкретное уже наступившее задание")
     refresher = subs.add_parser("refresh")
     refresher.add_argument("--limit", type=int, default=5)
     args = parser.parse_args()
@@ -169,7 +170,7 @@ def main():
         elif args.command == "refresh":
             result = refresh(args.limit)
         else:
-            result = work(args.limit, args.budget)
+            result = work(args.limit, args.budget, posting_number=args.posting)
         print(json.dumps(result, ensure_ascii=False))
     except Exception as exc:
         print(json.dumps({"error": type(exc).__name__, "message": "Запуск не завершён; секреты скрыты"}))

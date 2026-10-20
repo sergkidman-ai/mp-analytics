@@ -13,6 +13,8 @@ from core import db
 from customer_guard import domain, store
 from customer_guard.service import evaluate
 from customer_guard.sources import ORG
+from customer_guard.sources import CustomerMS
+from shipment_guard import config
 
 NOW = datetime(2026, 10, 20, 10, tzinfo=timezone.utc)
 
@@ -35,6 +37,7 @@ def rule():
 def test_wire_price_does_not_change_business_revision():
     a, b = posting(), posting()
     b["products"][0]["price"] = "1000.0000"
+    b["substatus"] = ""
     assert domain.posting_hash(a) == domain.posting_hash(b)
     b["products"][0]["quantity"] = 2
     assert domain.posting_hash(a) != domain.posting_hash(b)
@@ -89,6 +92,61 @@ def test_failed_cost_is_not_zero_or_green():
     result = evaluate(posting(), {"id":"x","state":{"name":"Собирается"}}, MS(), rule(), NOW)
     assert result["signal"] == "unknown"
     assert result["cost"] is None
+
+
+def test_supplier_receipt_price_quantity_vat_and_currency():
+    class MS(CustomerMS):
+        def __init__(self):
+            self.remote = config.MS+"/entity/store/remote"
+            self.receipts = {}
+            self.currency = "643"
+            self.enter_count = 1
+            self.position_calls = 0
+        def get(self, path, params=None):
+            if path.startswith("/entity/enter/"):
+                return {"updated":"v1"}
+            return {"article":"supplier-unique", "supplier":{"meta":{"href":"supplier"}}}
+        def collection(self, path, params=None, max_pages=10):
+            return [{"id":"receipt", "updated":"v1", "rate":{"currency":{"code":self.currency}},
+                     "vatEnabled":True,"vatIncluded":False}] * self.enter_count
+        def positions(self, entity, uid):
+            self.position_calls += 1
+            return [{**position(), "id":"line", "price":10000, "vat":20}]
+    client = MS()
+    value, proof = client.supplier_cost([position(qty=3)])
+    assert value == Decimal(360)
+    assert proof[0]["unit"] == "120.0"
+    assert client.supplier_cost([position(qty=2)])[0] == Decimal(240)
+    assert client.position_calls == 1  # Same receipt version reused within a run.
+    client.currency = "840"
+    with pytest.raises(ValueError, match="currency"):
+        client.supplier_cost([position()])
+    client.currency = "643"
+    client.enter_count = 2
+    with pytest.raises(ValueError, match="not_unique"):
+        client.supplier_cost([position()])
+
+
+def test_partial_demands_do_not_double_count_estimated_remainder():
+    uid = str(uuid4())
+    class MS(CustomerMS):
+        def __init__(self):
+            pass
+        def get(self, path, params=None):
+            return {"applicable":True, "updated":"v1",
+                "organization":{"meta":{"href":config.MS+"/entity/organization/"+ORG}},
+                "agent":{"meta":{"href":config.MS+"/entity/counterparty/b7e22828-0b7c-11ee-0a80-11480012ed47"}}}
+        def positions(self, entity, uid):
+            return [position(qty=1)]
+        def fifo(self, entity):
+            return [{"positions":[{"meta":{"href":"https://ms/entity/product/p1"},"cost":30000}]}]
+    order = {"demands":[{"meta":{"href":config.MS+"/entity/demand/"+uid}}]}
+    client = MS()
+    with pytest.raises(ValueError, match="partial_demand_coverage"):
+        client.cost(order, [position(qty=2)])
+    cost, kind, proof = client.cost(order, [position(qty=1)])
+    assert (cost,kind)==(Decimal(300),"actual")
+    assert proof[0]["entity_id"]==uid
 
 
 @pytest.fixture
@@ -201,6 +259,10 @@ def test_split_postings_have_separate_orders_and_jobs(pg):
     ingest([posting("123-001-1"), posting("123-001-2")])
     assert len(db.query("SELECT * FROM customer_guard_orders")) == 2
     assert len(db.query("SELECT * FROM customer_guard_jobs")) == 2
+    assert store.claim(NOW+timedelta(minutes=9), "123-001-2") is None
+    job = store.claim(NOW+timedelta(minutes=10), "123-001-2")
+    assert job["order"]["posting_number"] == "123-001-2"
+    assert store.claim(NOW+timedelta(minutes=10), "123-001-3") is None
 
 
 def test_unknown_mp_status_stops_pending_work_without_missing_alert(pg):
