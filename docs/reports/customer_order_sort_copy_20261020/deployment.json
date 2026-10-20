@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-20T19:18:10.121927+00:00",
+  "commit": "27ed8f1e7864e54f4e06584d6e084774649a3b84",
+  "api_http": 200,
+  "html_http": 200,
+  "rows_sorted": 104,
+  "pagination": "verified",
+  "tests": "31 passed; JS syntax; copy native/fallback/failure checked",
+  "automatic_updates": true
+}
