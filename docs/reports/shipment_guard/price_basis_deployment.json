@@ -1,0 +1,10 @@
+{
+  "deployed": {
+    "shipment_guard/economics.py": "25d713d01b059a9909969b4cc7a72b945a6a352df79b6e619a68a6bd520daeb9",
+    "web/static/shipment_guard.html": "05bb48d8911c17bc40fbf51559486b5a8a2e33398f8c3b357fbf41b52198c246",
+    "docs/BRIEF_FIN_SHIPMENT_GUARD.md": "be6e9d7fd2f2cf0c743c3e7d39dcc847581c130258568fde37758e3fe8fdef88"
+  },
+  "copies_match": true,
+  "tests": 47,
+  "wb_requeued": 128
+}

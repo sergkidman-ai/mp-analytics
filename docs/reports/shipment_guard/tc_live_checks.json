@@ -1,0 +1,32 @@
+{
+  "oz_acc1": {
+    "status": "ok",
+    "economic_lines": 2,
+    "fifo": 975.94,
+    "full_price": 6683.0
+  },
+  "wb_acc1": {
+    "status": "ok",
+    "economic_lines": 1,
+    "fifo": 649.39,
+    "full_price": 2341.0
+  },
+  "wb_acc2": {
+    "status": "ok",
+    "economic_lines": 1,
+    "fifo": 254.86,
+    "full_price": 1251.0
+  },
+  "oz_acc2": {
+    "status": "below_floor",
+    "economic_lines": 1,
+    "fifo": 114.0,
+    "full_price": 1160.0
+  },
+  "ya_acc1": {
+    "status": "ok",
+    "economic_lines": 1,
+    "fifo": 2780.0,
+    "full_price": 14787.0
+  }
+}

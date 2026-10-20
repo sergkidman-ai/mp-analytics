@@ -1,0 +1,17 @@
+{
+  "checked_at": "2026-10-20T19:23:42.096686+00:00",
+  "base_main": "5d5504f",
+  "source_branch": "fin/shipment-guard",
+  "source_commit": "aa3e962",
+  "tests": {
+    "passed": 203,
+    "subtests_passed": 57
+  },
+  "credential_scan": {
+    "commits": 39,
+    "blobs": 196,
+    "findings": 0
+  },
+  "shared_checkout": "main; working files and index untouched",
+  "raw_and_backups": "kept local"
+}

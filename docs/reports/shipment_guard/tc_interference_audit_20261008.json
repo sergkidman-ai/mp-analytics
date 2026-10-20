@@ -1,0 +1,52 @@
+{
+  "registration_evidence": {
+    "original_count": 14,
+    "created": [
+      {
+        "id": "a51469d3-c2f8-11f1-0a80-113400ab1929",
+        "action": "CREATE",
+        "existing": false
+      },
+      {
+        "id": "a5c0e9d3-c2f8-11f1-0a80-0c4e00ab8540",
+        "action": "UPDATE",
+        "existing": false
+      },
+      {
+        "id": "a66f4273-c2f8-11f1-0a80-0b5a00aad153",
+        "action": "DELETE",
+        "existing": false
+      }
+    ],
+    "existing_preserved": true
+  },
+  "tc_now": [
+    {
+      "id": "91e5df35-81de-11f0-0a80-15af0000da70",
+      "action": "CREATE",
+      "enabled": true,
+      "unchanged_since_pause": true
+    },
+    {
+      "id": "9c3bdcd0-04a5-11f0-0a80-0528003f3517",
+      "action": "UPDATE",
+      "enabled": true,
+      "unchanged_since_pause": true
+    }
+  ],
+  "own_disabled": true,
+  "ms_metrics": [
+    {
+      "name": "ms_requests",
+      "value": "2475",
+      "details": {
+        "remaining": "42",
+        "last_status": 200,
+        "duration_seconds": 0.369,
+        "min_start_gap_seconds": 1.0003276928327978
+      }
+    }
+  ],
+  "limitation": "metrics cover our MS requests only; TC delivery/processing unavailable",
+  "manual_replay_http_difference": "same saved body for 5971385726; source IP and User-Agent differ from MS; not proof of processing"
+}

@@ -215,6 +215,13 @@ def main():
                       f"(упал источник: {', '.join(failed_sources)})", flush=True)
                 continue
             step(f"Ozon маржа {acc} {df}", lambda a=acc, x=df, y=dt: ozm.build(x, y, a))
+        # Refresh expense basis from existing raw only; no extra marketplace/MS calls.
+        def _refresh_expense_basis(a=acc):
+            from core.ozon_expense_basis import refresh
+            basis=refresh(a,apply=True)
+            print(f"[basis] {a}: {basis['status']} {basis['period_from']} {basis['version']} "
+                  f"{','.join(basis['reasons'])}",flush=True)
+        step(f"Ozon единая база расходов {acc}", _refresh_expense_basis)
     # Кандидаты на вывоз со склада Ozon FBO — пересбор РАЗ В НЕДЕЛЮ, по вторникам (weekday()==1),
     # чтобы список на дашборде/в боте обновлялся еженедельно, а не дёргался ежедневно. Сигналы
     # оборачиваемости (ozon_stock_signals) выше собираются ежедневно — к вторнику данные свежие.

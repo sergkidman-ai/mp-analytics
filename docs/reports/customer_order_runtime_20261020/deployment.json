@@ -1,0 +1,60 @@
+{
+  "commit": "7fdcfaa34a932d5312f551bce45ff90aa5d45037",
+  "release": "/opt/mp-analytics/runtime/customer-guard-7fdcfaa34a93",
+  "files": {
+    "web/customer_guard_api.py": "d1a59e7e7396582f461cdaa75b79e7a1c539fad37a3ea300768a166a7d6e886a",
+    "web/static/customer_orders.html": "a4ca98f4e00fa5d0cb2fa5cd8e806a67f7ab30a101546ac5e0e9c934cc0bbda2"
+  },
+  "timer_started": true,
+  "timer_enabled": "enabled",
+  "runtime": {
+    "id": true,
+    "enabled": true,
+    "notifications_enabled": true,
+    "activated_at": "2026-10-20T18:31:44.759714+00:00",
+    "heartbeat_at": "2026-10-20T18:34:33.800288+00:00",
+    "last_tick_at": "2026-10-20T18:33:31.517796+00:00",
+    "last_error": null,
+    "settings": {
+      "backfill_days": 90,
+      "repeat_minutes": 60,
+      "new_orders_minutes": 10,
+      "initial_delay_minutes": 10
+    },
+    "healthy": true
+  },
+  "total_orders": 103,
+  "queue": {
+    "pending": 83,
+    "errors": 0,
+    "next_due": "2026-10-20T18:31:46.587473+00:00"
+  },
+  "notifications": {
+    "sent": 1
+  },
+  "automatic_updates": true,
+  "notifications_enabled": true,
+  "tests": {
+    "passed": 163,
+    "subtests": 44,
+    "focused_after_error_handling": 32,
+    "browser": "passed"
+  },
+  "all_deliveries_to_natalia": true,
+  "first_cycle": {
+    "new_orders": 41,
+    "old_status": 0,
+    "enqueued": 20,
+    "completed": 3,
+    "ms_requests": 47,
+    "errors": []
+  },
+  "bootstrap": {
+    "coverage_days": 90,
+    "active_orders": 99,
+    "pages": 5,
+    "new_orders": 66
+  },
+  "automatic_second_start": "Tue 2026-10-20 18:34:33 UTC",
+  "shared_branch": "main"
+}

@@ -1,0 +1,21 @@
+{
+  "original_count": 14,
+  "created": [
+    {
+      "id": "a51469d3-c2f8-11f1-0a80-113400ab1929",
+      "action": "CREATE",
+      "existing": false
+    },
+    {
+      "id": "a5c0e9d3-c2f8-11f1-0a80-0c4e00ab8540",
+      "action": "UPDATE",
+      "existing": false
+    },
+    {
+      "id": "a66f4273-c2f8-11f1-0a80-0b5a00aad153",
+      "action": "DELETE",
+      "existing": false
+    }
+  ],
+  "existing_preserved": true
+}

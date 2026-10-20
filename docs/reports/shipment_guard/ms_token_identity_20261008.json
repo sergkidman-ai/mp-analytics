@@ -1,0 +1,8 @@
+{
+  "checked_resource": "context/employee",
+  "employee_id": "c360ac26-3451-416d-8de9-9447e90ee9b4",
+  "uid": "admin@dsquare",
+  "tc_user_reported": "admin@dsquare",
+  "same_user_as_tc": true,
+  "guard_remains_paused": true
+}

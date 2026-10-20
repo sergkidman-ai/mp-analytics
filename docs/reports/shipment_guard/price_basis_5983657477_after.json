@@ -1,0 +1,13 @@
+{
+  "name": "5983657477",
+  "document_price": 3090.0,
+  "full_price": 2457.0,
+  "calculation_price": 3090.0,
+  "price_basis": "ms_document",
+  "fifo": 659.98,
+  "floor": 2153.78,
+  "deviation": 936.22,
+  "status": "ok",
+  "signals": [],
+  "calculated_at": "2026-10-08 10:39:18.572037+00:00"
+}

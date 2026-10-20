@@ -1,0 +1,40 @@
+{
+  "total": 37,
+  "current_checked": 33,
+  "queue": {
+    "pending": 0,
+    "errors": 0,
+    "next_due": null
+  },
+  "signals": {
+    "ok": 22,
+    "aggregate_only": 3,
+    "below_floor": 8
+  },
+  "estimated_losses": 0,
+  "ms_requests_this_stage": 331,
+  "automatic_updates": false,
+  "notifications_enabled": false,
+  "cost_load": [
+    {
+      "kind": "actual",
+      "orders": 13,
+      "min_get": 7,
+      "max_get": 7
+    },
+    {
+      "kind": "fifo_estimate",
+      "orders": 1,
+      "min_get": 4,
+      "max_get": 4
+    },
+    {
+      "kind": "purchase_estimate",
+      "orders": 19,
+      "min_get": 11,
+      "max_get": 18
+    }
+  ],
+  "open_missing": 0,
+  "history_count": 39
+}

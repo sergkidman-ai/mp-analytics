@@ -1,0 +1,161 @@
+{
+  "queue": [
+    {
+      "state": "error",
+      "n": 130
+    },
+    {
+      "state": "pending",
+      "n": 74
+    },
+    {
+      "state": "done",
+      "n": 41
+    },
+    {
+      "state": "running",
+      "n": 1
+    }
+  ],
+  "metrics": [
+    {
+      "name": "ozon_requests",
+      "value": "28",
+      "details": {
+        "last_status": 200
+      },
+      "updated_at": "2026-10-08 09:32:24.466189+00:00"
+    },
+    {
+      "name": "ms_requests",
+      "value": "1123",
+      "details": {
+        "remaining": "42",
+        "last_status": 200,
+        "duration_seconds": 0.229,
+        "min_start_gap_seconds": 1.0121276127174497
+      },
+      "updated_at": "2026-10-08 09:36:45.128821+00:00"
+    },
+    {
+      "name": "processed_jobs",
+      "value": "370",
+      "details": {
+        "ms_reads": 3,
+        "processing_seconds": 2.879,
+        "since_received_seconds": 331.86
+      },
+      "updated_at": "2026-10-08 09:36:45.401990+00:00"
+    },
+    {
+      "name": "worker_heartbeat",
+      "value": "1",
+      "details": {},
+      "updated_at": "2026-10-08 09:36:45.429991+00:00"
+    },
+    {
+      "name": "wb_requests",
+      "value": "49",
+      "details": {
+        "last_status": 200
+      },
+      "updated_at": "2026-10-08 09:36:30.583643+00:00"
+    }
+  ],
+  "statuses": [
+    {
+      "platform": "direct",
+      "account": null,
+      "status": "data_error",
+      "n": 1
+    },
+    {
+      "platform": "ozon",
+      "account": "oz_acc1",
+      "status": "below_floor",
+      "n": 2
+    },
+    {
+      "platform": "ozon",
+      "account": "oz_acc1",
+      "status": "data_error",
+      "n": 75
+    },
+    {
+      "platform": "ozon",
+      "account": "oz_acc1",
+      "status": "ok",
+      "n": 31
+    },
+    {
+      "platform": "ozon",
+      "account": "oz_acc2",
+      "status": "data_error",
+      "n": 15
+    },
+    {
+      "platform": "wb",
+      "account": "wb_acc1",
+      "status": "below_floor",
+      "n": 3
+    },
+    {
+      "platform": "wb",
+      "account": "wb_acc1",
+      "status": "data_error",
+      "n": 67
+    },
+    {
+      "platform": "wb",
+      "account": "wb_acc1",
+      "status": "ok",
+      "n": 1
+    },
+    {
+      "platform": "wb",
+      "account": "wb_acc2",
+      "status": "data_error",
+      "n": 41
+    },
+    {
+      "platform": "yandex",
+      "account": "ya_acc1",
+      "status": "below_fifo",
+      "n": 1
+    },
+    {
+      "platform": "yandex",
+      "account": "ya_acc1",
+      "status": "below_floor",
+      "n": 1
+    },
+    {
+      "platform": "yandex",
+      "account": "ya_acc1",
+      "status": "data_error",
+      "n": 6
+    },
+    {
+      "platform": "yandex",
+      "account": "ya_acc1",
+      "status": "ok",
+      "n": 2
+    }
+  ],
+  "preservation": {
+    "modified_files": 60,
+    "mismatches": [],
+    "main_head_now": "6d62b9465e7c787516b1283efac433bf9fa72635"
+  },
+  "real_webhook_notifications": 5,
+  "sync": [
+    {
+      "account_id": "4a8cbaf7-0e7b-11e2-9874-3c4a92f3a0a7",
+      "checkpoint": "2026-10-07 09:13:15.211688+00:00",
+      "last_success_at": null,
+      "last_attempt_at": "2026-10-08 09:14:19.181577+00:00",
+      "last_error": null,
+      "window_upper": "2026-10-08 09:13:49.172312+00:00"
+    }
+  ]
+}

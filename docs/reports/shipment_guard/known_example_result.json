@@ -1,0 +1,47 @@
+{
+  "name": "61563303169",
+  "updated": "2026-09-15 13:59:24.580",
+  "moment": "2026-09-15T13:58:00+03:00",
+  "platform": "yandex",
+  "account": "ya_acc1",
+  "organization": "ООО \"ЦИФРОВОЙ КВАДРАТ\"",
+  "order_id": "61563303169",
+  "document_price": 5048.0,
+  "full_price": 5048.0,
+  "fifo": 5975.74,
+  "floor": null,
+  "deviation": null,
+  "signals": [
+    "below_fifo",
+    "rule_unknown"
+  ],
+  "errors": [],
+  "lines": [
+    {
+      "ms_id": "a48494c3-adcd-11f1-0a80-15060028cbd3",
+      "sku": "a48494c3-adcd-11f1-0a80-15060028cbd3",
+      "quantity": 1.0,
+      "document_price": 5048.0,
+      "full_price": 5048.0,
+      "fifo": 5975.74,
+      "floor": null,
+      "deviation": null,
+      "level": "Товар",
+      "signals": [
+        "below_fifo"
+      ],
+      "position_count": 1
+    }
+  ],
+  "sources": {
+    "document": "МойСклад demand.sum (копейки)",
+    "fifo": "report/stock/byoperation.cost (итог, копейки)",
+    "quantity": "demand.positions.quantity",
+    "full_price": "raw_yandex_stats_order",
+    "expenses": "Предварительная база расходов; не фактическая комиссия заказа"
+  },
+  "rule": null,
+  "status": "below_fifo",
+  "price_difference": 0.0,
+  "price_difference_reason": null
+}

@@ -65,7 +65,7 @@ def snapshot(account):
     for r in rows:
         r["offer_id"], r["name"] = pid2.get(r["product_id"], (None, ""))
         r["cogs"], r["cogs_source"] = cogs.get(r["offer_id"], (None, "НЕТ")) if r["offer_id"] else (None, "нет offer_id")
-        r["keep_ratio"] = keep
+        r["keep_ratio"] = str(keep)  # exact Decimal, JSON-safe; no four-decimal truncation
     return rows, acts, keep, keep_src
 
 

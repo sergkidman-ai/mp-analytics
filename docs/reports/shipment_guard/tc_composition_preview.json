@@ -1,0 +1,1162 @@
+{
+  "counts": {
+    "ozon": {
+      "before_errors": 92,
+      "composition_matched": 78,
+      "result_ok": 74,
+      "result_below_floor": 4,
+      "unmatched": 14
+    },
+    "wb": {
+      "before_errors": 91,
+      "composition_matched": 77,
+      "result_ok": 54,
+      "result_below_floor": 23,
+      "unmatched": 14
+    },
+    "yandex": {
+      "before_errors": 8,
+      "composition_matched": 7,
+      "result_ok": 5,
+      "result_data_error": 1,
+      "result_below_floor": 1,
+      "unmatched": 1
+    }
+  },
+  "assessments": [
+    {
+      "id": 124,
+      "demand_id": "2c186591-c2cd-11f1-0a80-1c94009b8e82",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 12,
+      "demand_id": "73571f62-c235-11f1-0a80-1b10006b59a7",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 13,
+      "demand_id": "46daf341-c237-11f1-0a80-0c4e006db11c",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 393,
+      "demand_id": "a8e25b9f-c2bd-11f1-0a80-14db00954028",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 331,
+      "demand_id": "bacefc0e-c2f9-11f1-0a80-092300a6e3c7",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 21,
+      "demand_id": "8337440e-c239-11f1-0a80-1b10006cdceb",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 28,
+      "demand_id": "e00cdc41-c23b-11f1-0a80-18f50069a337",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 36,
+      "demand_id": "aeea0fc9-c239-11f1-0a80-14db006b2244",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 39,
+      "demand_id": "565fcb23-c23a-11f1-0a80-0b5800347f8d",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 319,
+      "demand_id": "75e55cd3-c2f9-11f1-0a80-1b1000ab305c",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 408,
+      "demand_id": "5211fe32-c2e0-11f1-0a80-195300a25d5d",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 94,
+      "demand_id": "914fc3da-bb21-11f1-0a80-0bbc00d4aa01",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 54,
+      "demand_id": "28c4a0db-c24f-11f1-0a80-09230073ff88",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 95,
+      "demand_id": "e020236c-c13b-11f1-0a80-1e780017e606",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 64,
+      "demand_id": "c42dbf0d-c253-11f1-0a80-157900769fd0",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 99,
+      "demand_id": "13f7b84e-c228-11f1-0a80-1c9400662051",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 333,
+      "demand_id": "9292fe4c-c2fa-11f1-0a80-0c4e00ac5ff9",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 70,
+      "demand_id": "2ee318a9-c22c-11f1-0a80-1c940067d5f8",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 76,
+      "demand_id": "f38a28d2-c22b-11f1-0a80-04030067787a",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 77,
+      "demand_id": "da6d55d6-c24f-11f1-0a80-1c940076853f",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 78,
+      "demand_id": "01ad034d-c22c-11f1-0a80-066a0066613c",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 79,
+      "demand_id": "860a2278-c233-11f1-0a80-1f230030f70a",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 102,
+      "demand_id": "e27a9bfc-c13b-11f1-0a80-113400183f86",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 394,
+      "demand_id": "3f5ea858-c2cd-11f1-0a80-10990098efa3",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 395,
+      "demand_id": "7da838ca-c2cd-11f1-0a80-1c94009b9c37",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 409,
+      "demand_id": "ecb47835-c2e4-11f1-0a80-040300a33329",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 91,
+      "demand_id": "9d254e7e-c25a-11f1-0a80-0b5a007be433",
+      "platform": "yandex",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 104,
+      "demand_id": "f0824ba8-b654-11f1-0a80-14b1001aef2e",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 105,
+      "demand_id": "175e282b-c073-11f1-0a80-07ec008501bf",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 108,
+      "demand_id": "69e08300-c2b5-11f1-0a80-0c4e00973a03",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 446,
+      "demand_id": "dd4cc450-c2fb-11f1-0a80-0fae005201c6",
+      "platform": "yandex",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 125,
+      "demand_id": "7f0d0dfb-c2cd-11f1-0a80-1953009c6b0d",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 128,
+      "demand_id": "c37d05d2-c2cd-11f1-0a80-14db00990ad6",
+      "platform": "yandex",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 129,
+      "demand_id": "2e28ff66-c2cd-11f1-0a80-05dc009b52a3",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 131,
+      "demand_id": "42deaa29-c2cd-11f1-0a80-05dc009b56df",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 133,
+      "demand_id": "320977fb-c2cd-11f1-0a80-09230097adca",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 138,
+      "demand_id": "30ab2b67-c2cd-11f1-0a80-0b5a009c11df",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 140,
+      "demand_id": "41a52f2d-c2cd-11f1-0a80-1579009a9804",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 141,
+      "demand_id": "79f3ebfe-c2cd-11f1-0a80-1953009c69d0",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 142,
+      "demand_id": "0f1e4e3f-c2ce-11f1-0a80-1c94009bbb4b",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 145,
+      "demand_id": "d229d1d2-c2cd-11f1-0a80-09230098051e",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 146,
+      "demand_id": "bdd933d4-c2cd-11f1-0a80-1b10009cb2bd",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 148,
+      "demand_id": "0a4cce0b-c2ce-11f1-0a80-0403009c28bd",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 149,
+      "demand_id": "05f7485c-c2ce-11f1-0a80-1c94009bb97f",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 151,
+      "demand_id": "0dee03c7-c2ce-11f1-0a80-18f50096f2a3",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 152,
+      "demand_id": "aa1c229a-c2d6-11f1-0a80-0b5a009e7332",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 153,
+      "demand_id": "11599c7f-c2ce-11f1-0a80-1134009c3227",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 154,
+      "demand_id": "2b276a52-c2ce-11f1-0a80-0c4e009cf41f",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 156,
+      "demand_id": "2594fcc7-c2d4-11f1-0a80-1c94009d15b8",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 163,
+      "demand_id": "55c81434-c2e0-11f1-0a80-14db009ebb94",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 167,
+      "demand_id": "6ca0f270-c2e1-11f1-0a80-195300a2dc34",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 168,
+      "demand_id": "f4caa2ed-c2e2-11f1-0a80-113400a2c840",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 170,
+      "demand_id": "ee49c019-c2e4-11f1-0a80-1099009fd711",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 172,
+      "demand_id": "5612ab24-c2e5-11f1-0a80-066a002a7225",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 174,
+      "demand_id": "96f9abb7-c2e2-11f1-0a80-0c4c004937f2",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 175,
+      "demand_id": "c67266f0-c2e5-11f1-0a80-113400a39f40",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 177,
+      "demand_id": "f7a8542f-c2e2-11f1-0a80-1099009f299c",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 181,
+      "demand_id": "4240e863-c2e2-11f1-0a80-157900a0a60e",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 4,
+      "demand_id": "eba4c402-c22e-11f1-0a80-157900678459",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 187,
+      "demand_id": "968576ea-79af-11f0-0a80-17330037ab2e",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 199,
+      "demand_id": "8952345a-c2e9-11f1-0a80-1e7800a51876",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 200,
+      "demand_id": "368e2aaf-c2eb-11f1-0a80-092300a14ea7",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 201,
+      "demand_id": "3a0f8e7a-c2eb-11f1-0a80-157900a3a46f",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 202,
+      "demand_id": "6c416f9c-c24a-11f1-0a80-09230071f488",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 203,
+      "demand_id": "42e85f92-c2eb-11f1-0a80-1c9400a4b4d2",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 205,
+      "demand_id": "417bbd47-c2eb-11f1-0a80-109900a2050c",
+      "platform": "yandex",
+      "before": "data_error",
+      "after": "data_error"
+    },
+    {
+      "id": 16,
+      "demand_id": "14e91a0d-c239-11f1-0a80-1c94006d0aa8",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 215,
+      "demand_id": "4aa31824-c2f6-11f1-0a80-040300a9b2ac",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 216,
+      "demand_id": "aa5a0281-c2f1-11f1-0a80-1e7800a7fdb7",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 217,
+      "demand_id": "84021bef-c2f1-11f1-0a80-1e7800a7e499",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 221,
+      "demand_id": "44360920-c2f6-11f1-0a80-157900a7b5ab",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 223,
+      "demand_id": "6696cb05-c2f5-11f1-0a80-0b5a00a9a447",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 398,
+      "demand_id": "bc97ce5a-c2cd-11f1-0a80-066a00230910",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 22,
+      "demand_id": "8ab1bd35-c239-11f1-0a80-1b10006cde99",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 242,
+      "demand_id": "3f6ce409-c2f6-11f1-0a80-18f500a4e550",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 243,
+      "demand_id": "522e4d08-c2f6-11f1-0a80-040300a9b6fc",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 246,
+      "demand_id": "508a6912-c2f6-11f1-0a80-1b1000a9ad02",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 249,
+      "demand_id": "3d784b3e-c2f6-11f1-0a80-1e7800a9df1a",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 251,
+      "demand_id": "561d7efd-c2f6-11f1-0a80-092300a58114",
+      "platform": "yandex",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 252,
+      "demand_id": "3bc5c177-c2f6-11f1-0a80-109900a65b1b",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 258,
+      "demand_id": "4c183ac7-c2f6-11f1-0a80-195300aa3d29",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 26,
+      "demand_id": "cf3d37fc-c239-11f1-0a80-0403006cc44a",
+      "platform": "yandex",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 30,
+      "demand_id": "ad19e6c8-c23e-11f1-0a80-14db006d09f2",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 448,
+      "demand_id": "2e07bf36-c2ff-11f1-0a80-05dc00abde82",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 116,
+      "demand_id": "c4d9be80-c2c5-11f1-0a80-15790098bdbf",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 46,
+      "demand_id": "7b9ca0d2-c24d-11f1-0a80-10990074310c",
+      "platform": "yandex",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 336,
+      "demand_id": "09408dda-c22f-11f1-0a80-1c9400690a28",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 53,
+      "demand_id": "883e7d11-c24b-11f1-0a80-1b100074e7e1",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 62,
+      "demand_id": "a156a483-065e-11f1-0a80-101300187b12",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 67,
+      "demand_id": "d8e60c95-c243-11f1-0a80-157900700c3f",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 68,
+      "demand_id": "fbd50016-c220-11f1-0a80-0e72002a0804",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 72,
+      "demand_id": "fea3e10e-c22b-11f1-0a80-1c940067c55d",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 74,
+      "demand_id": "eacfb15b-c24f-11f1-0a80-0d20003cb728",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 400,
+      "demand_id": "10653dee-c2ce-11f1-0a80-1b10009cc2f9",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 342,
+      "demand_id": "e9758061-c22e-11f1-0a80-11340069325f",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 401,
+      "demand_id": "33851383-c2ce-11f1-0a80-066a00232443",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 410,
+      "demand_id": "734f0fc1-c2e6-11f1-0a80-0c4e00a47626",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 416,
+      "demand_id": "e2ccc122-c2df-11f1-0a80-0c4e00a23ccc",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 343,
+      "demand_id": "3ec00a7c-c238-11f1-0a80-0403006c3566",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 344,
+      "demand_id": "8da42156-c237-11f1-0a80-0403006bfb77",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 345,
+      "demand_id": "92438a91-c230-11f1-0a80-05dc0068862a",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 346,
+      "demand_id": "b1b675db-c239-11f1-0a80-1579006ba4e7",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 347,
+      "demand_id": "d5e510d8-c23d-11f1-0a80-18f5006a6d78",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 402,
+      "demand_id": "708c9417-c2da-11f1-0a80-14db009cbcb0",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 349,
+      "demand_id": "5309bfcb-c241-11f1-0a80-0b5a006fccc5",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 351,
+      "demand_id": "aa9d466e-c239-11f1-0a80-0b5a006c863b",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 353,
+      "demand_id": "77e4bcf1-b65d-11f1-0a80-170e001e5e7a",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 354,
+      "demand_id": "de0ab4d5-b63a-11f1-0a80-167700135bd9",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 355,
+      "demand_id": "4270ae0e-c21f-11f1-0a80-1953006289f2",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 357,
+      "demand_id": "627071e2-bd76-11f1-0a80-0848002843b4",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 358,
+      "demand_id": "40d8fcc7-c21f-11f1-0a80-14db006060a7",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 359,
+      "demand_id": "5ea2aaf7-be33-11f1-0a80-1d89001f4e8a",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 360,
+      "demand_id": "16bbb19f-c0b2-11f1-0a80-112e0033a889",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 404,
+      "demand_id": "3206ac9e-c2ce-11f1-0a80-066a002323c7",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 412,
+      "demand_id": "53b8652b-c2e0-11f1-0a80-066a00289fff",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 362,
+      "demand_id": "dd72b35d-c242-11f1-0a80-18f5006cded8",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 363,
+      "demand_id": "6df8e79c-c24a-11f1-0a80-11340073ffd9",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 405,
+      "demand_id": "0c34d714-c2df-11f1-0a80-1579009f64a8",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 413,
+      "demand_id": "26963c77-c2e7-11f1-0a80-040300a3e8d7",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 450,
+      "demand_id": "df9f2143-c2ff-11f1-0a80-040300adaf31",
+      "platform": "ozon",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 364,
+      "demand_id": "303e7924-a6b1-11f1-0a80-06c7002acfe4",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 366,
+      "demand_id": "114f1959-c228-11f1-0a80-10990064d0c2",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 367,
+      "demand_id": "7ce97844-c253-11f1-0a80-10990076d71f",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 369,
+      "demand_id": "d8f0aef2-c204-11f1-0a80-1953005a66aa",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 370,
+      "demand_id": "ee6afabd-c204-11f1-0a80-14db0057d7a6",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 372,
+      "demand_id": "0017d66f-c22c-11f1-0a80-113400681065",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 373,
+      "demand_id": "f6ad1f17-c22b-11f1-0a80-14db0065106c",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 375,
+      "demand_id": "9c167d90-c204-11f1-0a80-14db0057ca21",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 376,
+      "demand_id": "05ce02e4-c204-11f1-0a80-04030059af81",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 377,
+      "demand_id": "98a2e9bb-c204-11f1-0a80-1c940059599e",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 378,
+      "demand_id": "9af0fd81-c204-11f1-0a80-1b100059b778",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 379,
+      "demand_id": "da2f7652-c204-11f1-0a80-1e78005acf2a",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 380,
+      "demand_id": "14ecb5b3-c204-11f1-0a80-0c4e005a954a",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 381,
+      "demand_id": "1a0d18fc-c228-11f1-0a80-1953006618ce",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 382,
+      "demand_id": "de5d9ac0-c204-11f1-0a80-11340059fd46",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 384,
+      "demand_id": "8aa20cb7-c2bc-11f1-0a80-066a001f70eb",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 386,
+      "demand_id": "77ff1fc6-c2cd-11f1-0a80-14db0098f643",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 387,
+      "demand_id": "7b04c718-c2cd-11f1-0a80-1579009aa605",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 388,
+      "demand_id": "7c67a9d9-c2cd-11f1-0a80-1b10009ca801",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 390,
+      "demand_id": "6fc2c7c1-c2c7-11f1-0a80-1c94009a61df",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 391,
+      "demand_id": "549fb11e-c2cc-11f1-0a80-10990098c4a2",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 392,
+      "demand_id": "43dea6ab-c2cd-11f1-0a80-1579009a9851",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 414,
+      "demand_id": "58a6325a-c2e5-11f1-0a80-14db00a07d17",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 415,
+      "demand_id": "fb3bdbd9-c2e1-11f1-0a80-066a00292793",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 417,
+      "demand_id": "38172ef6-c2eb-11f1-0a80-066a002c7c9c",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 418,
+      "demand_id": "44762fab-c2e8-11f1-0a80-1c9400a3e6c8",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 424,
+      "demand_id": "81e20036-c2f0-11f1-0a80-040300a79fdc",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 425,
+      "demand_id": "d50969b4-c2e8-11f1-0a80-092300a04954",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 426,
+      "demand_id": "3e391c4e-c2eb-11f1-0a80-066a002c7eec",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 427,
+      "demand_id": "d6e6adc8-c2e8-11f1-0a80-109900a144f5",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 429,
+      "demand_id": "a732b255-c2f1-11f1-0a80-113400a84983",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 430,
+      "demand_id": "a5bda638-c2f1-11f1-0a80-1c9400a74c9b",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 431,
+      "demand_id": "eb81b204-c2f1-11f1-0a80-18f500a2fa4b",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 433,
+      "demand_id": "a8d69d6c-c2f1-11f1-0a80-113400a849c0",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 436,
+      "demand_id": "abc1e735-c2f1-11f1-0a80-0b5a00a84792",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 438,
+      "demand_id": "72eb86e7-c2f3-11f1-0a80-0c4e00a97b16",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 440,
+      "demand_id": "538629f2-c2f6-11f1-0a80-113400aa2774",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 441,
+      "demand_id": "69c5cf46-c2f6-11f1-0a80-05dc00a8a469",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 442,
+      "demand_id": "54d06ef5-c2f6-11f1-0a80-113400aa27b3",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "below_floor"
+    },
+    {
+      "id": 443,
+      "demand_id": "63f30dac-c2f6-11f1-0a80-109900a67259",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 444,
+      "demand_id": "61c89cdf-c2f6-11f1-0a80-1e7800a9e8e0",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    },
+    {
+      "id": 445,
+      "demand_id": "5f59d89c-c2f6-11f1-0a80-040300a9bbf8",
+      "platform": "wb",
+      "before": "data_error",
+      "after": "ok"
+    }
+  ]
+}

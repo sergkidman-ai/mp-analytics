@@ -1,0 +1,104 @@
+[
+  {
+    "variable": "WB_TOKEN_ACC2",
+    "orders_status": 403
+  },
+  {
+    "variable": "WB_TOKEN_ACC1",
+    "orders_status": 403
+  },
+  {
+    "variable": "WB_TOKEN_PRICES_ACC1",
+    "orders_status": 403
+  },
+  {
+    "variable": "WB_TOKEN_PRICES_ACC2",
+    "orders_status": 403
+  },
+  {
+    "variable": "WB_TOKEN_CONTENT_ACC1",
+    "orders_status": 403
+  },
+  {
+    "variable": "WB_TOKEN_CONTENT_ACC2",
+    "orders_status": 403
+  },
+  {
+    "variable": "WB_TOKEN_RETURNS_ACC2",
+    "orders_status": 200,
+    "order_count": 1,
+    "order_fields": [
+      "address",
+      "scanPrice",
+      "comment",
+      "deliveryType",
+      "supplyId",
+      "orderUid",
+      "article",
+      "colorCode",
+      "rid",
+      "createdAt",
+      "offices",
+      "skus",
+      "id",
+      "warehouseId",
+      "nmId",
+      "chrtId",
+      "price",
+      "convertedPrice",
+      "currencyCode",
+      "convertedCurrencyCode",
+      "cargoType",
+      "crossBorderType",
+      "isZeroOrder",
+      "options",
+      "isPickupPointShipmentAllowed",
+      "officeId"
+    ]
+  },
+  {
+    "variable": "WB_TOKEN_RETURNS_ACC1",
+    "orders_status": 200,
+    "order_count": 1,
+    "order_fields": [
+      "address",
+      "scanPrice",
+      "comment",
+      "deliveryType",
+      "supplyId",
+      "orderUid",
+      "article",
+      "colorCode",
+      "rid",
+      "createdAt",
+      "offices",
+      "skus",
+      "id",
+      "warehouseId",
+      "nmId",
+      "chrtId",
+      "price",
+      "convertedPrice",
+      "currencyCode",
+      "convertedCurrencyCode",
+      "cargoType",
+      "crossBorderType",
+      "isZeroOrder",
+      "options",
+      "isPickupPointShipmentAllowed",
+      "officeId"
+    ]
+  },
+  {
+    "variable": "WB_TOKEN_ADS_ACC1",
+    "orders_status": 403
+  },
+  {
+    "variable": "WB_TOKEN_DOCS_ACC2",
+    "orders_status": 403
+  },
+  {
+    "variable": "WB_TOKEN_FINANCE_ACC2",
+    "orders_status": 403
+  }
+]
