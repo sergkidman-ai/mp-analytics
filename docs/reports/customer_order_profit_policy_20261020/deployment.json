@@ -1,0 +1,50 @@
+{
+  "at": "2026-10-20T19:00:09.479782+00:00",
+  "commit": "507d3ef24f5f0fabc515434b5a8b5781fa4197eb",
+  "release": "/opt/mp-analytics/runtime/customer-guard-507d3ef24f5f",
+  "previous_release": "/opt/mp-analytics/runtime/customer-guard-7fdcfaa34a93",
+  "html_sha256": "c927ee174008999436f826e5120ddeaa26654051c2a8af9768ab2a4c6bd8b747",
+  "suppressed_legacy_pending": 0,
+  "tests": "178 passed, 44 subtests passed",
+  "notification_policy": "non_positive_profit <= 0",
+  "schedule": "10/10/60 unchanged",
+  "live_ui_api_http": 200,
+  "control_order": {
+    "posting": "10879561-0077-1",
+    "estimated_net": "216.15",
+    "basis_current": true,
+    "notification_eligible": false
+  },
+  "ui_render_check": "profit column + policy notice verified against live API",
+  "first_cycles": [
+    {
+      "old_status": {
+        "refreshed": 3
+      },
+      "enqueue": 0,
+      "work": {
+        "completed": 3,
+        "ms_requests": 22
+      },
+      "reprice": {
+        "recalculated": 0,
+        "ms_requests": 0,
+        "rule_version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41"
+      },
+      "errors": []
+    }
+  ],
+  "runtime_verified": {
+    "enabled": true,
+    "notifications_enabled": true,
+    "heartbeat_at": "2026-10-20 19:01:00.000850+00:00",
+    "last_error": null
+  },
+  "deliveries": [
+    {
+      "kind": "below_floor",
+      "delivery": "sent",
+      "count": 3
+    }
+  ]
+}
