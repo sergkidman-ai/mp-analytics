@@ -15,6 +15,8 @@ from customer_guard.service import evaluate
 from customer_guard.sources import ORG
 from customer_guard.sources import CustomerMS
 from shipment_guard import config
+# Import this worktree's router before legacy ops test modules prepend the shared checkout.
+from web import customer_guard_api as guard_api
 
 NOW = datetime(2026, 10, 20, 10, tzinfo=timezone.utc)
 
@@ -163,6 +165,8 @@ def pg(monkeypatch):
         cur.execute((Path(__file__).parents[1] / "migrations/074_ozon_expense_basis.sql").read_text())
         cur.execute((Path(__file__).parents[1] / "migrations/075_customer_guard_runtime.sql").read_text()
                     .replace("BEGIN;","").replace("COMMIT;",""))
+
+        cur.execute((Path(__file__).parents[1] / 'migrations/076_customer_guard_wb.sql').read_text().replace('BEGIN;','').replace('COMMIT;',''))
 
     @contextmanager
     def isolated():
@@ -405,3 +409,22 @@ def test_dashboard_sorts_by_market_time_not_import_time(pg):
     assert [r['posting_number'] for r in rows]==['unknown-1','newer-1','older-1']
     assert rows[0]['mp_received_at'] is None
     assert client.get('/api/customer-orders',params={'offset':1,'limit':1}).json()['rows'][0]['posting_number']=='newer-1'
+
+
+def test_product_code_filter_matches_exact_ms_external_and_ozon_codes(pg):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from web.customer_guard_api import router
+    app=FastAPI();app.include_router(router);client=TestClient(app)
+    for i,(code,external) in enumerate([('0001wb','0001'),('0001at','0001'),('00010wb','00010')]):
+        post=posting(f'codes-{i}');ingest([post]);job=store.claim(NOW+timedelta(minutes=10),post['posting_number'])
+        positions=[dict(code=code,external_code=external,quantity=1)]*2
+        assert store.finish(job,dict(signal='ok',positions=positions),NOW+timedelta(minutes=11))
+    unverified=posting('not-checked');unverified['products'][0]['offer_id']='0001';ingest([unverified])
+    for query,count in [('0001',3),('0001wb',1),(' 0001WB ',1),('00010',1),('000',0),('0001%',0),("' OR true --",0)]:
+        d=client.get('/api/customer-orders',params={'product_code':query}).json()
+        assert d['total']==count and len(d['rows'])==count
+    d=client.get('/api/customer-orders',params={'product_code':'0001','limit':1,'offset':1}).json()
+    assert d['total']==3 and len(d['rows'])==1
+    d=client.get('/api/customer-orders',params={'product_code':'0001','search':'codes-0','signal':'ok'}).json()
+    assert d['total']==1 and d['rows'][0]['posting_number']=='codes-0'

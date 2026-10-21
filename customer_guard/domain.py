@@ -11,6 +11,14 @@ from shipment_guard.economics import number
 ACTIVE = frozenset(("awaiting_packaging", "awaiting_deliver", "delivering"))
 TERMINAL = frozenset(("cancelled", "delivered"))
 READY = frozenset(("Неукомплектован", "Подтвержден", "Собирается"))
+ACCOUNTS = {"oz_acc2":"ozon", "wb_acc2":"wb"}
+
+
+def market(post):
+    account = post.get("account", "oz_acc2")
+    if account not in ACCOUNTS or post.get("platform",ACCOUNTS[account]) != ACCOUNTS[account]:
+        raise ValueError("unsupported_guard_account")
+    return ACCOUNTS[account], account
 
 
 def non_positive_profit(result):
@@ -39,8 +47,10 @@ def initial_due(first_seen):
 def posting_snapshot(post):
     # Store calculation inputs, never recipient/address/phone data.
     keys = ("posting_number", "order_id", "order_number", "status", "substatus",
-            "in_process_at", "created_at", "shipment_date", "products")
+            "in_process_at", "created_at", "shipment_date", "products",
+            "platform", "account", "market_order", "market_status")
     result = {key: post[key] for key in keys if key in post}
+    market(result)
     if not isinstance(result.get("posting_number"), str) or not result["posting_number"]:
         raise ValueError("invalid_posting_number")
     if not isinstance(result.get("status"), str):
@@ -125,15 +135,20 @@ def composition(post, positions, resolver):
                 expected={k:str(v) for k,v in expected.items()}, selected={k:str(v) for k,v in selected.items()})
 
 
-def economics(post, cost, kind, rule, now, allocation_verified=False):
+def economics(post, cost, kind, rule, now, allocation_verified=False, price_override=None):
     price, units = sale(post)
+    platform, account = market(post)
+    if price_override is not None:
+        price = number(price_override)
+        if price <= 0:
+            raise ValueError("invalid_ms_price")
     result = dict(price=str(price), units=str(units), cost=str(cost), cost_kind=kind,
                   floor=None, gap=None, signal="unknown", allocation="order_total",
                   note="Проверен итог заказа; распределение по товарам не подтверждено")
-    if not rule or not rule.get("enabled") or rule.get("account") != "oz_acc2":
+    if not rule or not rule.get("enabled") or rule.get("account") != account:
         result["note"] = "Нет действующего правила пола"
         return result
-    if (rule["valid_until"] < now.date() or rule["platform"] != "ozon"
+    if (rule["valid_until"] < now.date() or rule["platform"] != platform
             or str(rule["organization_id"]) != "f5bea6e0-c2ac-11ef-0a80-0221000adcc4"):
         result["note"] = "Правило пола просрочено или относится к другому кабинету"
         return result

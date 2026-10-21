@@ -1,0 +1,36 @@
+{
+  "at": "2026-10-21T07:17:50.200409+00:00",
+  "source_commit": "ec383c06b379d4016194c9f4fc9f1d71a69a5b1c",
+  "base_release": "/opt/mp-analytics/runtime/customer-guard-2cb50210cb4d",
+  "release": "/opt/mp-analytics/runtime/customer-guard-ec383c06b379",
+  "changed_worker_files": [
+    "customer_guard/notifications.py",
+    "customer_guard/service.py",
+    "customer_guard/store.py"
+  ],
+  "tests": "65 passed; JS syntax passed",
+  "policy": [
+    "missing_ms",
+    "non_positive_profit"
+  ],
+  "html_http": 200,
+  "runtime": {
+    "enabled": true,
+    "notifications_enabled": true,
+    "heartbeat_at": "2026-10-21 07:18:33.160137+00:00",
+    "last_tick_at": "2026-10-21 07:18:33.170331+00:00",
+    "last_error": null
+  },
+  "incidents": [
+    {
+      "kind": "below_floor",
+      "delivery": "sent",
+      "n": 3
+    }
+  ],
+  "service_check": [
+    "ExecMainStartTimestamp=Wed 2026-10-21 07:18:28 UTC",
+    "ExecMainStatus=0",
+    "ActiveState=inactive"
+  ]
+}
