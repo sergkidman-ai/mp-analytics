@@ -101,11 +101,12 @@ def calculate(account, month, transactions, completeness, source_digest):
 
 
 def floor_from_keep(cost, units, keep):
+    from core.profit_floor import minimum_profit
     cost,units,keep=map(decimal,(cost,units,keep))
     if cost<=0 or units<=0 or not 0<keep<=1:raise ValueError('Invalid floor input')
     with localcontext() as ctx:
         ctx.prec=PRECISION
-        return ((cost+max(D(300)*units,D('.1')*cost))/keep).quantize(D('.01'),rounding=ROUND_HALF_EVEN)
+        return ((cost+minimum_profit(cost,units))/keep).quantize(D('.01'),rounding=ROUND_HALF_EVEN)
 
 
 def floor_price(cost, units, basis):

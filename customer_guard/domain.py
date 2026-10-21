@@ -7,6 +7,7 @@ import hashlib
 import json
 
 from shipment_guard.economics import number
+from core.profit_floor import POLICY_VERSION
 
 ACTIVE = frozenset(("awaiting_packaging", "awaiting_deliver", "delivering"))
 TERMINAL = frozenset(("cancelled", "delivered"))
@@ -160,6 +161,7 @@ def economics(post, cost, kind, rule, now, allocation_verified=False, price_over
     result.update(floor=str(floor.quantize(Decimal(".01"))),
                   gap=str((price - floor).quantize(Decimal(".01"))),
                   rule_version=rule["version"],
+                  floor_policy=POLICY_VERSION,
                   expense_period_from=str(rule.get("base_from") or ""),
                   expense_period_to=str(rule.get("base_to") or ""),
                   estimated_net=str((price * (1 - retention) - cost).quantize(Decimal(".01"))),

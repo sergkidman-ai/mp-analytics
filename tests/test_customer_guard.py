@@ -186,7 +186,7 @@ def ingest(posts, at=NOW):
     store.ingest(posts, at, at, NOW-timedelta(days=1), at, mirror_raw=True)
 
 
-def test_common_expense_floor_and_positive_remainder_below_target():
+def test_common_expense_floor_with_lower_target_for_low_cost():
     from core.ozon_expense_basis import floor_from_keep
     post = posting()
     post["products"][0]["price"] = "728"
@@ -194,10 +194,10 @@ def test_common_expense_floor_and_positive_remainder_below_target():
     r = dict(rule(), retention=1-keep, version="september",
              base_from="2026-09-01", base_to="2026-09-30")
     value = domain.economics(post, Decimal("69.28"), "actual", r, NOW, True)
-    assert Decimal(value["floor"]) == floor_from_keep("69.28", 1, keep) == Decimal("941.85")
-    assert value["gap"] == "-213.85"
+    assert Decimal(value["floor"]) == floor_from_keep("69.28", 1, keep) == Decimal("686.80")
+    assert value["gap"] == "41.20"
     assert value["estimated_net"] == "216.15"
-    assert value["signal"] == "below_floor"
+    assert value["signal"] == "ok"
 
 
 def test_basis_reprice_preserves_source_time_history_and_is_idempotent(pg):
@@ -223,6 +223,26 @@ def test_basis_reprice_preserves_source_time_history_and_is_idempotent(pg):
     changed["products"][0]["quantity"] = 2
     ingest([changed], checked+timedelta(minutes=5))
     assert store.reprice(dict(r, version="newer"), checked+timedelta(minutes=6)) == 0
+
+
+def test_floor_policy_reprice_without_ms_or_expense_basis_change(pg):
+    from core.profit_floor import POLICY_VERSION
+    ingest([posting()])
+    checked = NOW+timedelta(minutes=10)
+    job = store.claim(checked)
+    r = dict(rule(), retention=Decimal('.6'))
+    old = domain.economics(posting(), Decimal(100), 'actual', r, checked, True)
+    old.pop('floor_policy')
+    old.update(floor='1000.00',gap='0.00')
+    assert store.finish(job, old, checked)
+    assert store.reprice(r, checked+timedelta(minutes=1)) == 1
+    assert store.reprice(r, checked+timedelta(minutes=2)) == 0
+    rows = db.query('SELECT result FROM customer_guard_checks ORDER BY id')
+    assert rows[0]['result']==old
+    assert rows[1]['result']['floor']=='750.00'
+    assert rows[1]['result']['floor_policy']==POLICY_VERSION
+    assert rows[1]['result']['estimated_net']==old['estimated_net']
+    assert db.query('SELECT ms_checked_at FROM customer_guard_orders')[0]['ms_checked_at']==checked
 
 
 def test_tc_structured_component_codes_and_cached_recheck(pg):

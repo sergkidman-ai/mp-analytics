@@ -1,0 +1,26 @@
+{
+  "policy": "profit-floor-200-through-150-v1",
+  "source": "latest saved promo guard inputs; no marketplace requests/writes",
+  "accounts": {
+    "wb_acc1": {
+      "replayed_cheap_rows": 1070,
+      "lower_floor": 1070
+    },
+    "wb_acc2": {
+      "replayed_cheap_rows": 1182,
+      "lower_floor": 1182
+    },
+    "oz_acc1": {
+      "replayed_cheap_rows": 60,
+      "lower_floor": 60
+    },
+    "oz_acc2": {
+      "replayed_cheap_rows": 73,
+      "lower_floor": 73
+    },
+    "ya_acc1": {
+      "replayed_cheap_rows": 5,
+      "lower_floor": 5
+    }
+  }
+}
