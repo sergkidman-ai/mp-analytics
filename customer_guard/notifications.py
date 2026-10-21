@@ -44,6 +44,18 @@ def product_codes(result):
 
 def message(row):
     r = row["result"]
+    if row["kind"] == "missing_ms" and r.get("signal") == "missing_ms":
+        products = row.get("products") or []
+        codes = ["Артикул Ozon: "+" ".join(str(p.get("offer_id") or "—").split())[:80]
+                 for p in products[:12]]
+        if len(products)>12:
+            codes.append(f"Ещё {len(products)-12} позиций — в Пульте.")
+        return (f"Заказ не найден в МС\nOzon · Дисквэр · {row['posting_number']}\n"
+                "После получения Пультом прошло не менее 10 минут. Отправление активно в Ozon; "
+                "проверка МС выполнена успешно, заказ не найден.\n"+
+                ("\n".join(codes)+"\n" if codes else "")+
+                "Код товара МС, себестоимость и чистая прибыль пока не определены.\n"
+                "Пульт → Склад → Заказы покупателей.")
     if row["kind"] != "non_positive_profit" or not non_positive_profit(r):
         raise ValueError("notification_outside_profit_policy")
     rub = lambda key: f"{Decimal(r[key]):.2f} ₽"
@@ -65,9 +77,10 @@ def claim(order_id, recipient, now):
     try:
         version = get_basis("oz_acc2")["version"]
     except BasisUnavailable:
-        return None
+        version = None
     with store.transaction() as cur:
-        cur.execute("""SELECT i.id,i.kind,o.posting_number,o.ms_status,c.result
+        cur.execute("""SELECT i.id,i.kind,o.posting_number,o.ms_status,c.result,
+          o.mp_payload->'products' products
           FROM customer_guard_incidents i JOIN customer_guard_orders o ON o.id=i.order_id
           JOIN customer_guard_checks c ON c.id=o.latest_check_id
           JOIN customer_guard_jobs j ON j.order_id=o.id CROSS JOIN customer_guard_runtime r
@@ -75,14 +88,15 @@ def claim(order_id, recipient, now):
           AND r.enabled AND r.notifications_enabled AND c.calculated_at>=r.activated_at
           AND i.check_id=c.id AND c.generation=o.generation AND j.state='done' AND j.error IS NULL
           AND o.mp_status=ANY(%s) AND o.observed_at>=%s AND o.ms_checked_at>=%s
-          AND o.ms_due_at<=%s AND i.kind='non_positive_profit'
-          AND c.result->>'rule_version'=%s AND o.ms_status=ANY(%s)
-          AND o.mp_status IN ('awaiting_packaging','awaiting_deliver')
+          AND o.ms_due_at<=%s
+          AND (i.kind='missing_ms' AND c.result->>'signal'='missing_ms' AND o.ms_id IS NULL
+            OR i.kind='non_positive_profit' AND c.result->>'rule_version'=%s
+              AND o.ms_status=ANY(%s) AND o.mp_status IN ('awaiting_packaging','awaiting_deliver'))
           FOR UPDATE OF i,o SKIP LOCKED LIMIT 1""",
           (order_id,list(ACTIVE),now-timedelta(seconds=60),now-timedelta(seconds=60),now,version,
            ["Подтвержден","Собирается","Неукомплектован"]))
         row = cur.fetchone()
-        if not row or not non_positive_profit(row["result"]):
+        if not row or row["kind"]=="non_positive_profit" and not non_positive_profit(row["result"]):
             return None
         cur.execute("""UPDATE customer_guard_incidents SET delivery='sending',
           recipient=%s,attempted_at=%s,delivery_error=NULL WHERE id=%s""", (recipient,now,row["id"]))
@@ -100,7 +114,7 @@ def send_current(order_id):
     # Do not call Telegram at all when there is nothing eligible to deliver.
     candidates=db.query("""SELECT 1 FROM customer_guard_incidents i
       CROSS JOIN customer_guard_runtime r WHERE i.order_id=%s AND i.delivery='pending'
-      AND i.kind='non_positive_profit'
+      AND i.kind IN ('non_positive_profit','missing_ms')
       AND i.resolved_at IS NULL AND r.enabled AND r.notifications_enabled LIMIT 1""", (order_id,))
     if not candidates:
         return "none"
@@ -108,10 +122,12 @@ def send_current(order_id):
     row = claim(order_id,recipient,utcnow())
     if not row:
         return "stale_or_disabled"
-    try:
-        basis_current = get_basis("oz_acc2")["version"] == row["result"]["rule_version"]
-    except BasisUnavailable:
-        basis_current = False
+    basis_current = True
+    if row["kind"]=="non_positive_profit":
+        try:
+            basis_current = get_basis("oz_acc2")["version"] == row["result"]["rule_version"]
+        except BasisUnavailable:
+            basis_current = False
     # Stop/changed-order guard immediately before the external side effect.
     valid=db.query("""SELECT 1 FROM customer_guard_incidents i
       JOIN customer_guard_orders o ON o.id=i.order_id

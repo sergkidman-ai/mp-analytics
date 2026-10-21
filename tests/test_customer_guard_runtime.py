@@ -125,7 +125,6 @@ def test_profit_threshold_and_message(pg,monkeypatch,net,expected):
 @pytest.mark.parametrize("kwargs",[
     {"status":"delivering","ms_state":"В пути"},
     {"ms_state":"Ожидает подтверждения"},
-    {"signal":"missing_ms","ms_state":None,"net":None},
     {"version":None},
 ])
 def test_no_alert_outside_ready_orders_and_complete_calculation(pg,kwargs):
@@ -179,3 +178,39 @@ def test_message_has_selected_product_codes_and_bounded_length():
     assert 'Расчётная чистая прибыль: -20.00 ₽' in text
     row['result']['positions']=[dict(code='x'*200,external_code='y'*200,quantity=1)]*100
     assert len(n.message(row))<4096 and 'Ещё 88 позиций' in n.message(row)
+
+
+@pytest.mark.parametrize("condition",["active","early","stale","cancelled","disabled","appeared","changed_before_send"])
+def test_missing_ms_delivery_independent_of_basis_and_safely_gated(pg,monkeypatch,condition):
+    activate();oid,at=checked(ms_state=None,signal="missing_ms",net=None,version=None)
+    send_at=at-timedelta(seconds=1) if condition=="early" else at+timedelta(minutes=2) if condition=="stale" else at
+    fake_transport(monkeypatch,send_at)
+    monkeypatch.setattr(n,"get_basis",Mock(side_effect=n.BasisUnavailable("no expense data")))
+    if condition=="cancelled":ingest([posting(status="cancelled")],at+timedelta(seconds=1))
+    if condition=="disabled":db.execute("UPDATE customer_guard_runtime SET notifications_enabled=false")
+    if condition=="appeared":
+        ingest([posting(status="awaiting_deliver")],at+timedelta(seconds=1))
+        job=store.claim(at+timedelta(seconds=1))
+        doc={"id":str(uuid4()),"state":{"name":"Ожидает подтверждения"}}
+        assert store.finish(job,{"signal":"draft"},at+timedelta(seconds=2),doc)
+    if condition=="changed_before_send":
+        original=n.claim
+        def change(*args):
+            row=original(*args)
+            ingest([posting(status="cancelled")],at+timedelta(seconds=1))
+            return row
+        monkeypatch.setattr(n,"claim",change)
+    post=Mock(return_value=Mock(status_code=200,json=lambda:{"ok":True,"result":{"message_id":123}}))
+    monkeypatch.setattr(n.requests,"post",post)
+    result=n.send_current(oid)
+    assert post.call_count==(1 if condition=="active" else 0)
+    if condition=="active":
+        assert result=="sent" and n.send_current(oid)=="none"
+        text=post.call_args.kwargs["json"]["text"]
+        assert "Заказ не найден в МС" in text and "Артикул Ozon: set" in text
+        assert "чистая прибыль пока не определены" in text
+        assert store.schedule_rechecks(at+timedelta(minutes=60))==1
+        job=store.claim(at+timedelta(minutes=60))
+        assert store.refresh(job,posting(),at+timedelta(minutes=60))
+        assert store.finish(job,{"signal":"missing_ms"},at+timedelta(minutes=60))
+        assert n.send_current(oid)=="none" and post.call_count==1

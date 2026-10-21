@@ -150,7 +150,8 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting
                     latest = client.get(f"/entity/customerorder/{document['id']}")
                     if latest.get("updated") != document.get("updated"):
                         raise SourceError("ms_order_changed_during_check", 600)
-                if notify and (non_positive_profit(result) and post["status"]!="delivering"
+                if notify and (result["signal"]=="missing_ms" or
+                    non_positive_profit(result) and post["status"]!="delivering"
                     and (document or {}).get("state",{}).get("name") in READY):
                     # Reconfirm price/composition/status after cost reads, before an external alert.
                     if not store.refresh(job,get(post["posting_number"]),clock()):
