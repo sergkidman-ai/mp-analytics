@@ -7,7 +7,8 @@ from decimal import Decimal
 
 import requests
 from core import db
-from core.ozon_expense_basis import get_basis, BasisUnavailable
+from core.ozon_expense_basis import BasisUnavailable
+from customer_guard.rules import expense_basis as get_basis
 from customer_guard import store
 from customer_guard.domain import ACTIVE, utcnow, non_positive_profit
 
@@ -44,14 +45,15 @@ def product_codes(result):
 
 def message(row):
     r = row["result"]
+    label='WB' if row.get('platform')=='wb' else 'Ozon'
     if row["kind"] == "missing_ms" and r.get("signal") == "missing_ms":
         products = row.get("products") or []
-        codes = ["Артикул Ozon: "+" ".join(str(p.get("offer_id") or "—").split())[:80]
+        codes = [f"Артикул {label}: "+" ".join(str(p.get("offer_id") or "—").split())[:80]
                  for p in products[:12]]
         if len(products)>12:
             codes.append(f"Ещё {len(products)-12} позиций — в Пульте.")
-        return (f"Заказ не найден в МС\nOzon · Дисквэр · {row['posting_number']}\n"
-                "После получения Пультом прошло не менее 10 минут. Отправление активно в Ozon; "
+        return (f"Заказ не найден в МС\n{label} · Дисквэр · {row['posting_number']}\n"
+                f"После получения Пультом прошло не менее 10 минут. Отправление активно в {label}; "
                 "проверка МС выполнена успешно, заказ не найден.\n"+
                 ("\n".join(codes)+"\n" if codes else "")+
                 "Код товара МС, себестоимость и чистая прибыль пока не определены.\n"
@@ -60,13 +62,13 @@ def message(row):
         raise ValueError("notification_outside_profit_policy")
     rub = lambda key: f"{Decimal(r[key]):.2f} ₽"
     title = "Расчётный убыток" if Decimal(r["estimated_net"]) < 0 else "Заказ без прибыли"
-    return (f"{title}\nOzon · Дисквэр · {row['posting_number']}\n"
+    return (f"{title}\n{label} · Дисквэр · {row['posting_number']}\n"
             f"МС: {row['ms_status']}\n{product_codes(r)}"
             f"Цена: {rub('price')}; себестоимость: {rub('cost')} "
             f"({'факт отгрузки' if r['cost_kind']=='actual' else 'предварительная оценка'}).\n"
             f"Пол: {rub('floor')}; отклонение: {rub('gap')}.\n"
             f"Расчётная чистая прибыль: {rub('estimated_net')}.\n"
-            "Цена минус себестоимость и расходы Ozon по средней доле кабинета. "
+            f"Цена {'МС' if label=='WB' else 'Ozon'} минус себестоимость и расходы {label} по средней доле кабинета. "
             "Оценка по текущим данным; начисления по заказу могут отличаться.\n"+
             ("Соответствие состава не подтверждено; проверен общий итог.\n"
              if r.get("allocation")!="single_market_line" else "")+
@@ -74,18 +76,22 @@ def message(row):
 
 
 def claim(order_id, recipient, now):
+    orders=db.query('SELECT account FROM customer_guard_orders WHERE id=%s',(order_id,))
+    if not orders:
+        return None
     try:
-        version = get_basis("oz_acc2")["version"]
+        version = get_basis(orders[0]['account'])["version"]
     except BasisUnavailable:
         version = None
     with store.transaction() as cur:
-        cur.execute("""SELECT i.id,i.kind,o.posting_number,o.ms_status,c.result,
+        cur.execute("""SELECT i.id,i.kind,o.posting_number,o.ms_status,o.account,o.platform,c.result,
           o.mp_payload->'products' products
           FROM customer_guard_incidents i JOIN customer_guard_orders o ON o.id=i.order_id
           JOIN customer_guard_checks c ON c.id=o.latest_check_id
           JOIN customer_guard_jobs j ON j.order_id=o.id CROSS JOIN customer_guard_runtime r
           WHERE i.order_id=%s AND i.delivery='pending' AND i.resolved_at IS NULL
           AND r.enabled AND r.notifications_enabled AND c.calculated_at>=r.activated_at
+          AND (o.account='oz_acc2' OR coalesce((r.settings->>'wb_enabled')::boolean,false))
           AND i.check_id=c.id AND c.generation=o.generation AND j.state='done' AND j.error IS NULL
           AND o.mp_status=ANY(%s) AND o.observed_at>=%s AND o.ms_checked_at>=%s
           AND o.ms_due_at<=%s
@@ -125,7 +131,7 @@ def send_current(order_id):
     basis_current = True
     if row["kind"]=="non_positive_profit":
         try:
-            basis_current = get_basis("oz_acc2")["version"] == row["result"]["rule_version"]
+            basis_current = get_basis(row['account'])["version"] == row["result"]["rule_version"]
         except BasisUnavailable:
             basis_current = False
     # Stop/changed-order guard immediately before the external side effect.
@@ -134,6 +140,7 @@ def send_current(order_id):
       JOIN customer_guard_checks c ON c.id=o.latest_check_id CROSS JOIN customer_guard_runtime r
       WHERE i.id=%s AND i.delivery='sending' AND i.resolved_at IS NULL
       AND i.check_id=c.id AND c.generation=o.generation AND r.enabled AND r.notifications_enabled
+      AND (o.account='oz_acc2' OR coalesce((r.settings->>'wb_enabled')::boolean,false))
       AND o.mp_status=ANY(%s)""",(row["id"],list(ACTIVE)))
     if not valid or not basis_current:
         return complete(row["id"],"suppressed",error="changed_before_send")

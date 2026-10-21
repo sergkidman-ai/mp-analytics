@@ -9,11 +9,12 @@ import time
 
 import psycopg2
 from core import db
-from core.ozon_expense_basis import shipment_rule, BasisUnavailable
+from core.ozon_expense_basis import BasisUnavailable
+from customer_guard.rules import get_rule as shipment_rule
 from shipment_guard.ms import SourceError
 from shipment_guard.worker import LOCK_ID
 from customer_guard import store
-from customer_guard.domain import ACTIVE, READY, composition, economics, sale, utcnow, non_positive_profit
+from customer_guard.domain import ACTIVE, READY, composition, economics, sale, utcnow, non_positive_profit, market
 from customer_guard.sources import CustomerMS, get_posting
 
 MESSAGES = {
@@ -71,7 +72,7 @@ def refresh(limit=5, older_than=None):
         raise ValueError("refresh_limit_1_to_10")
     with exclusive() as pulse:
         rows = db.query("""SELECT posting_number FROM customer_guard_orders
-          WHERE mp_status=ANY(%s) AND observed_at<%s ORDER BY observed_at,id LIMIT %s""",
+          WHERE account='oz_acc2' AND mp_status=ANY(%s) AND observed_at<%s ORDER BY observed_at,id LIMIT %s""",
           (list(ACTIVE), older_than or utcnow(), limit))
         for index, row in enumerate(rows):
             pulse()
@@ -107,8 +108,13 @@ def evaluate(post, document, client, rule, now):
         catalogue = Catalogue(None)
         proof = composition(post, positions, lambda code: catalogue.resolve(code, fetch=False))
         result["composition"] = proof
+        wb = market(post)[0]=='wb'
+        if wb and (result.get('ms_price') is None or Decimal(result['ms_price'])<=0):
+            raise ValueError('invalid_ms_price')
         result.update(economics(post, cost, kind, rule, now,
-                               allocation_verified=proof["verified"] and len(post["products"]) == 1))
+                               allocation_verified=proof["verified"] and len(post["products"]) == 1,
+                               price_override=result.get('ms_price') if wb else None))
+        result['price_source']='ms' if wb else 'marketplace'
         result["cost_sources"] = sources
     except ValueError as exc:
         code = str(exc)
@@ -117,32 +123,40 @@ def evaluate(post, document, client, rule, now):
 
 
 def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting_number=None,
-         notify=False):
+         notify=False, account=None):
     if not 1 <= limit <= 10 or not 1 <= budget <= 100:
         raise ValueError("pilot_run_budget")
     completed = 0
     notification_errors = []
     with exclusive() as pulse:
-        if not db.query("""SELECT 1 FROM customer_guard_jobs WHERE
-          (state IN ('pending','retry') AND due_at<=%s) OR
-          (state='running' AND lease_until<%s) LIMIT 1""", (clock(),clock())):
+        if not db.query("""SELECT 1 FROM customer_guard_jobs j JOIN customer_guard_orders o ON o.id=j.order_id
+          WHERE ((j.state IN ('pending','retry') AND j.due_at<=%s) OR
+          (j.state='running' AND j.lease_until<%s)) AND (%s IS NULL OR o.account=%s)
+          LIMIT 1""", (clock(),clock(),account,account)):
             return dict(completed=0, ms_requests=0)
         client = client or CustomerMS(budget=budget)
         client.pulse = pulse
         client.verify_identity()
         for _ in range(limit):
-            job = store.claim(clock(), posting_number)
+            job = store.claim(clock(), posting_number, account)
             if not job:
                 break
             try:
                 pulse()
-                post = get(job["order"]["posting_number"])
+                job_account=job['order']['account']
+                client.account=job_account
+                def read_post():
+                    if job_account=='wb_acc2':
+                        from customer_guard.wb import WBClient
+                        return WBClient().refresh_posts([job['order']['mp_payload']])[0]
+                    return get(job['order']['posting_number'])
+                post = read_post()
                 if not store.refresh(job, post, clock()):
                     continue
                 client.evidence = []
                 document = client.find_order(post["posting_number"])
                 try:
-                    rule = shipment_rule("oz_acc2", as_of=clock().date())
+                    rule = shipment_rule(job_account, as_of=clock().date())
                 except BasisUnavailable:
                     rule = None
                 result = evaluate(post, document, client, rule, clock())
@@ -154,7 +168,7 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting
                     non_positive_profit(result) and post["status"]!="delivering"
                     and (document or {}).get("state",{}).get("name") in READY):
                     # Reconfirm price/composition/status after cost reads, before an external alert.
-                    if not store.refresh(job,get(post["posting_number"]),clock()):
+                    if not store.refresh(job,read_post(),clock()):
                         continue
                 if store.finish(job, result, clock(), document, client.evidence):
                     completed += 1
@@ -191,10 +205,10 @@ def bootstrap(days=90):
     return dict(received=len(posts),coverage_days=days)
 
 
-def reprice(refresh_composition=False):
+def reprice(refresh_composition=False, account='oz_acc2'):
     """New local calculations; never present stored MS evidence as newly fetched."""
     now = utcnow()
-    rule = shipment_rule("oz_acc2", as_of=now.date())
+    rule = shipment_rule(account, as_of=now.date())
     resolver = None
     if refresh_composition:
         from shipment_guard.bundles import Catalogue
@@ -232,6 +246,44 @@ def main():
     except Exception as exc:
         print(json.dumps({"error": type(exc).__name__, "message": "Запуск не завершён; секреты скрыты"}))
         raise SystemExit(1) from None
+
+
+
+
+def sync_wb(days=2, bootstrap=False):
+    from customer_guard.wb import WBClient
+    if not 1<=days<=30:
+        raise ValueError('wb_window_1_to_30_days')
+    now=utcnow();start=now-timedelta(days=days)
+    scope='wb/wb_acc2/backfill' if bootstrap else 'wb/wb_acc2/fbs'
+    with exclusive():
+        try:
+            posts=WBClient().fetch(start,now,max_pages=100 if bootstrap else 20)
+            if bootstrap:
+                posts=[p for p in posts if p['status'] not in ('cancelled','delivered')]
+            store.ingest(posts,now,utcnow(),start,now,scope=scope)
+        except Exception as exc:
+            db.execute('''INSERT INTO customer_guard_sync_state(scope,started_at,error)
+                VALUES(%s,%s,%s) ON CONFLICT(scope) DO UPDATE SET
+                started_at=excluded.started_at,error=excluded.error''',(scope,now,type(exc).__name__))
+            raise
+    return dict(received=len(posts),account='wb_acc2',coverage_days=days)
+
+
+def refresh_wb(older_than=None):
+    from customer_guard.wb import WBClient
+    with exclusive():
+        rows=db.query('''SELECT mp_payload FROM customer_guard_orders WHERE account='wb_acc2'
+            AND mp_status NOT IN ('cancelled','delivered') AND observed_at<%s
+            ORDER BY observed_at,id LIMIT 1001''',(older_than or utcnow(),))
+        if len(rows)>1000:
+            raise SourceError('wb_refresh_order_budget',600)
+        posts=WBClient().refresh_posts([r['mp_payload'] for r in rows])
+        now=utcnow()
+        with store.transaction() as cur:
+            for post in posts:
+                store.observe(cur,post,now,now,'fbs/status/v3')
+    return dict(refreshed=len(posts))
 
 
 if __name__ == "__main__":

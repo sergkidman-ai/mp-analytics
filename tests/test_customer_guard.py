@@ -15,6 +15,8 @@ from customer_guard.service import evaluate
 from customer_guard.sources import ORG
 from customer_guard.sources import CustomerMS
 from shipment_guard import config
+# Import this worktree's router before legacy ops test modules prepend the shared checkout.
+from web import customer_guard_api as guard_api
 
 NOW = datetime(2026, 10, 20, 10, tzinfo=timezone.utc)
 
@@ -163,6 +165,8 @@ def pg(monkeypatch):
         cur.execute((Path(__file__).parents[1] / "migrations/074_ozon_expense_basis.sql").read_text())
         cur.execute((Path(__file__).parents[1] / "migrations/075_customer_guard_runtime.sql").read_text()
                     .replace("BEGIN;","").replace("COMMIT;",""))
+
+        cur.execute((Path(__file__).parents[1] / 'migrations/076_customer_guard_wb.sql').read_text().replace('BEGIN;','').replace('COMMIT;',''))
 
     @contextmanager
     def isolated():

@@ -1,0 +1,48 @@
+[
+  {
+    "order": "6079407898",
+    "mp_status": "awaiting_packaging",
+    "ms_status": "Неукомплектован",
+    "result": {
+      "price": "2229.0",
+      "ms_price": "2229.0",
+      "cost": "437.450",
+      "cost_kind": "purchase_estimate",
+      "floor": "1654.52",
+      "gap": "574.48",
+      "estimated_net": "556.06",
+      "signal": "aggregate_only",
+      "note": "Проверен итог заказа; распределение по товарам не подтверждено",
+      "rule_version": "promo-absolute-300-or-10pct-v1:5629cf3a8b36"
+    },
+    "codes": [
+      {
+        "code": "0120at",
+        "external_code": "0120"
+      }
+    ]
+  },
+  {
+    "order": "6079561599",
+    "mp_status": "awaiting_packaging",
+    "ms_status": "Неукомплектован",
+    "result": {
+      "price": "2748.3",
+      "ms_price": "2748.3",
+      "cost": "629.660",
+      "cost_kind": "purchase_estimate",
+      "floor": "2085.75",
+      "gap": "662.55",
+      "estimated_net": "595.31",
+      "signal": "ok",
+      "note": "Состав и количество подтверждены по справочнику ТК",
+      "rule_version": "promo-absolute-300-or-10pct-v1:5629cf3a8b36"
+    },
+    "codes": [
+      {
+        "code": "5228at",
+        "external_code": "5228"
+      }
+    ]
+  }
+]
