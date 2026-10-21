@@ -1,0 +1,63 @@
+{
+  "at": "2026-10-21T07:04:17.222346+00:00",
+  "commit": "b6b0d758f4e924ffb6af126267d615e99d4faf98",
+  "checks": [
+    {
+      "screen": 1920,
+      "page": 1920,
+      "available": 1668,
+      "table": 1668,
+      "cells": 10,
+      "overflowCells": 0
+    },
+    {
+      "screen": 1440,
+      "page": 1440,
+      "available": 1188,
+      "table": 1188,
+      "cells": 10,
+      "overflowCells": 0
+    },
+    {
+      "screen": 1366,
+      "page": 1366,
+      "available": 1114,
+      "table": 1114,
+      "cells": 10,
+      "overflowCells": 0
+    },
+    {
+      "screen": 1280,
+      "page": 1280,
+      "available": 1028,
+      "table": 1028,
+      "cells": 10,
+      "overflowCells": 0
+    },
+    {
+      "screen": 1024,
+      "page": 1024,
+      "available": 784,
+      "table": 784,
+      "cells": 10,
+      "overflowCells": 0
+    },
+    {
+      "screen": 768,
+      "page": 768,
+      "available": 599,
+      "table": 599,
+      "cells": 10,
+      "overflowCells": 0
+    },
+    {
+      "screen": 390,
+      "page": 390,
+      "available": 366,
+      "table": 366,
+      "cells": 10,
+      "overflowCells": 0
+    }
+  ],
+  "deployment": "atomic HTML replacement; services unchanged"
+}
