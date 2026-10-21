@@ -22,7 +22,7 @@ def page():
 
 
 @router.get("/api/customer-orders")
-def data(status: str = "", signal: str = "", search: str = "",
+def data(status: str = "", signal: str = "", search: str = "", product_code: str = "",
          limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
     if not installed():
         return dict(installed=False, rows=[], total=0, sync=[], queue={})
@@ -46,6 +46,15 @@ def data(status: str = "", signal: str = "", search: str = "",
     if search:
         where.append("strpos(o.posting_number,%s)>0")
         params.append(search[:80])
+    if product_code.strip():
+        code = product_code.strip().lower()
+        where.append("""(EXISTS (
+          SELECT 1 FROM jsonb_array_elements(coalesce(c.result->'positions','[]'::jsonb)) p
+          WHERE lower(p->>'code')=%s OR lower(p->>'external_code')=%s)
+          OR EXISTS (
+          SELECT 1 FROM jsonb_array_elements(coalesce(o.mp_payload->'products','[]'::jsonb)) p
+          WHERE lower(p->>'offer_id')=%s))""")
+        params.extend([code, code, code])
     condition = " AND ".join(where)
     base = """FROM customer_guard_orders o
       LEFT JOIN customer_guard_checks c ON c.id=o.latest_check_id

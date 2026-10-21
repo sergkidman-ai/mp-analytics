@@ -165,3 +165,17 @@ def test_tick_disabled_no_network_and_ten_minute_sync_gate(pg,monkeypatch):
     monkeypatch.setattr(runtime,"utcnow",lambda:NOW+timedelta(minutes=10))
     runtime.tick()
     assert sync.call_count==1
+
+
+def test_message_has_selected_product_codes_and_bounded_length():
+    row=dict(kind='non_positive_profit',posting_number='123-1',ms_status='Неукомплектован',
+        result=dict(price='100',cost='60',floor='900',gap='-800',estimated_net='-20',
+                    cost_kind='purchase_estimate',rule_version='test',
+                    positions=[dict(code='0001wb',external_code='0001',quantity=2),
+                               dict(code='0002at',external_code='0002',quantity=1)]))
+    text=n.message(row)
+    assert 'Код МС: 0001wb; внешний код: 0001 × 2' in text
+    assert 'Код МС: 0002at; внешний код: 0002 × 1' in text
+    assert 'Расчётная чистая прибыль: -20.00 ₽' in text
+    row['result']['positions']=[dict(code='x'*200,external_code='y'*200,quantity=1)]*100
+    assert len(n.message(row))<4096 and 'Ещё 88 позиций' in n.message(row)

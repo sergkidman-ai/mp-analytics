@@ -73,6 +73,7 @@ main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:1
   <div class="big" id="stats"></div>
   <div class="toolbar">
     <input id="search" placeholder="Номер отправления" aria-label="Номер отправления">
+    <input id="product-code" placeholder="Код товара: 0001 или 0001wb" aria-label="Код товара или внешний код" title="Точное совпадение с кодом МС, внешним кодом или артикулом Ozon">
     <select id="status" aria-label="Статус"><option value="">Все статусы</option>
       <option>Неукомплектован</option><option>Подтвержден</option><option>Собирается</option>
       <option>Ожидает подтверждения</option><option>В пути</option><option>Доставлен</option>
@@ -121,7 +122,7 @@ async function api(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)t
 async function load(){
   const n=++request;$('message').textContent='Загрузка…';
   try{
-    const q=new URLSearchParams({limit:50,offset,status:$('status').value,signal:$('signal').value,search:$('search').value});
+    const q=new URLSearchParams({limit:50,offset,status:$('status').value,signal:$('signal').value,search:$('search').value,product_code:$('product-code').value.trim()});
     const d=await api('/api/customer-orders?'+q);if(n!==request)return;
     total=d.total;
     const sync=d.sync?.find(x=>x.scope==='ozon/oz_acc2/fbs');
@@ -140,13 +141,14 @@ async function load(){
       const r=row.result||{},valid=row.current&&!row.job_error;
       const economicValid=valid&&row.basis_current;
       const hasMS=Boolean(r.positions?.length);
-      const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity}))||[];
+      const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity,offer_id:p.offer_id}))||[];
       const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар Ozon; состав МС ещё не проверен';
       const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
       return `<tr><td><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?'Поступил в Ozon':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
         <button class="small" data-history="${Number(row.id)}">История проверок</button></td>
         <td><div>Ozon: ${esc(mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
-        <td><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>`).join('')}
+        <td><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>
+          <div class="small">${hasMS?`Код МС: <b>${esc(p.code||'—')}</b> · Внешний код: ${esc(p.external_code||'—')}`:`Артикул Ozon: ${esc(p.offer_id||'—')}`}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
         <td class="money">${esc(money(row.mp_price))}<div class="small">МС: ${esc(money(r.ms_price))}</div></td>
         <td class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
@@ -161,7 +163,7 @@ async function load(){
 }
 $('refresh').onclick=()=>{offset=0;load();};
 for(const id of ['status','signal'])$(id).onchange=()=>{offset=0;load();};
-$('search').onkeydown=e=>{if(e.key==='Enter'){offset=0;load();}};
+for(const id of ['search','product-code'])$(id).onkeydown=e=>{if(e.key==='Enter'){offset=0;load();}};
 $('prev').onclick=()=>{offset=Math.max(0,offset-50);load();};
 $('next').onclick=()=>{offset+=50;load();};
 $('close').onclick=()=>$('history').close();

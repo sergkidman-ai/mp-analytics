@@ -29,6 +29,19 @@ def transport():
     return root, recipient
 
 
+def product_codes(result):
+    positions = result.get("positions") or []
+    if not positions:
+        return "Коды товаров МС: нет данных.\n"
+    # Keep Telegram's message limit even for unusually large multi-line orders.
+    clean = lambda value, limit=80: " ".join(str(value or "—").split())[:limit]
+    lines = [f"Код МС: {clean(p.get('code'))}; внешний код: {clean(p.get('external_code'))}"
+             f" × {clean(p.get('quantity'),20)}" for p in positions[:12]]
+    if len(positions)>12:
+        lines.append(f"Ещё {len(positions)-12} позиций — состав полностью в Пульте.")
+    return "\n".join(lines)+"\n"
+
+
 def message(row):
     r = row["result"]
     if row["kind"] != "non_positive_profit" or not non_positive_profit(r):
@@ -36,7 +49,8 @@ def message(row):
     rub = lambda key: f"{Decimal(r[key]):.2f} ₽"
     title = "Расчётный убыток" if Decimal(r["estimated_net"]) < 0 else "Заказ без прибыли"
     return (f"{title}\nOzon · Дисквэр · {row['posting_number']}\n"
-            f"МС: {row['ms_status']}\nЦена: {rub('price')}; себестоимость: {rub('cost')} "
+            f"МС: {row['ms_status']}\n{product_codes(r)}"
+            f"Цена: {rub('price')}; себестоимость: {rub('cost')} "
             f"({'факт отгрузки' if r['cost_kind']=='actual' else 'предварительная оценка'}).\n"
             f"Пол: {rub('floor')}; отклонение: {rub('gap')}.\n"
             f"Расчётная чистая прибыль: {rub('estimated_net')}.\n"
