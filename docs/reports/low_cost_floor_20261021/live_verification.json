@@ -1,0 +1,21 @@
+{
+  "policy": "profit-floor-200-through-150-v1",
+  "loaded_from": {
+    "wb": "/opt/mp-analytics/ops/wb_promo_guard.py",
+    "ozon": "/opt/mp-analytics/ops/ozon_promo_guard.py",
+    "yandex": "/opt/mp-analytics/ops/ya_promo_guard.py"
+  },
+  "live_floor_cost100_keep40": {
+    "wb_acc1": 750.0,
+    "wb_acc2": 750.0,
+    "oz_acc1": 750.0,
+    "oz_acc2": 750.0,
+    "ya_acc1": "750.00"
+  },
+  "pult_example": {
+    "order": "81000118-0083-1",
+    "floor": "659.64",
+    "profit": "176.62",
+    "signal": "below_floor"
+  }
+}

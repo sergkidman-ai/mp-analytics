@@ -1,0 +1,80 @@
+{
+  "prepared_at": "2026-10-21T12:56:09.587928+00:00",
+  "release": "/opt/mp-analytics/runtime/customer-guard-3954c5808155",
+  "previous_release": "/opt/mp-analytics/runtime/customer-guard-79ba6814ef3e",
+  "source_commit": "3954c580815506a9d48c85cfed3853134b9ce614",
+  "published_at": "2026-10-21T12:56:31.302868+00:00",
+  "shared_files": [
+    "core/profit_floor.py",
+    "core/ozon_expense_basis.py",
+    "collectors/yandex_finance_basis.py",
+    "ops/wb_promo_guard.py",
+    "ops/ozon_stock_action.py",
+    "ops/ozon_promo_guard.py",
+    "ops/ya_promo_guard.py",
+    "ops/wb_plan_raise.py",
+    "ops/wb_promo_discount_audit.py",
+    "shipment_guard/economics.py",
+    "customer_guard/domain.py",
+    "web/static/customer_orders.html"
+  ],
+  "shared_hashes": {
+    "core/profit_floor.py": "54ca5d057b77a8a3fc2e8c10c3f994852d15fa70686ac0d62ef4b3294469d59e",
+    "core/ozon_expense_basis.py": "601259c1c8295806937526323071f5bf82ff978592de06ecfa6a0e7893270188",
+    "collectors/yandex_finance_basis.py": "2bbc229eeaf2abf5f434c9e4cd088227c30b67cfd52a280db642762ab8a27c1f",
+    "ops/wb_promo_guard.py": "c2eb927582ea7a2d564c691890846cca9fe38a525a8739a8380a52267707d708",
+    "ops/ozon_stock_action.py": "7ca853e307c9976d67c70c68f5d473bb81eaf64cdc1bfc1101c8ab2854546594",
+    "ops/ozon_promo_guard.py": "2b811fd3978ebcd276affdd4805fabc9a28948ad7313995de8ddbc5318926b1c",
+    "ops/ya_promo_guard.py": "c70c4c87aad911a9b4c4b4f190def277b28c04f9617b32de6d946df6ef0d0aee",
+    "ops/wb_plan_raise.py": "c1a96b38d25819ce438601f279142075c1921c58f553bf4da894140abbef2099",
+    "ops/wb_promo_discount_audit.py": "9aadc38038de57755a157fe1aee5225b1351c4b6bf92fa0cf0c32d93b735b0b3",
+    "shipment_guard/economics.py": "53431d7e0f010d3e773171186dae765fcef823c0886f4d10dcbeb7f36dc41085",
+    "customer_guard/domain.py": "07b390c6d7cfdb40b311985035b41207d80c16596662e43c92b1ee49cf75f227",
+    "web/static/customer_orders.html": "c36d209d87c5fca8c6bf89758102ec40b9ddd497bce655d21d8b96edca3b82fb"
+  },
+  "reprice": {
+    "oz_acc2": {
+      "recalculated": 88,
+      "ms_requests": 0,
+      "rule_version": "ozexp-v1:47788ccbad66f5d6e51b7af35a788825a03fa99383cea1ee5a357de216f3ea41"
+    },
+    "wb_acc2": {
+      "recalculated": 154,
+      "ms_requests": 0,
+      "rule_version": "promo-absolute-300-or-10pct-v1:5629cf3a8b36"
+    }
+  },
+  "ms_requests_for_reprice": 0,
+  "verified_at": "2026-10-21T12:58:46.970271+00:00",
+  "runtime": {
+    "enabled": true,
+    "notifications_enabled": true,
+    "settings": {
+      "wb_enabled": true,
+      "backfill_days": 90,
+      "repeat_minutes": 60,
+      "new_orders_minutes": 10,
+      "initial_delay_minutes": 10
+    },
+    "heartbeat_at": "2026-10-21 12:58:27.512407+00:00",
+    "last_tick_at": "2026-10-21 12:58:27.522742+00:00",
+    "last_error": null
+  },
+  "policy_coverage": [
+    {
+      "account": "oz_acc2",
+      "current_policy": 88,
+      "old_policy": 0
+    },
+    {
+      "account": "wb_acc2",
+      "current_policy": 154,
+      "old_policy": 0
+    }
+  ],
+  "tests": {
+    "passed": 315,
+    "subtests": 65
+  },
+  "marketplace_writes_during_deploy": 0
+}
