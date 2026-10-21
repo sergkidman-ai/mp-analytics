@@ -39,6 +39,33 @@
   .whtabs a.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
 
 main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}input,select,button{font:inherit;color:var(--txt);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:9px}button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.tablewrap{overflow:auto}th,td{text-align:left;vertical-align:top}td.money,th.money{text-align:right;white-space:nowrap}.small{font-size:12px;color:var(--mut)}.badge{display:inline-block;border-radius:5px;padding:3px 7px;background:var(--bg);font-size:12px}.danger{color:var(--neg)}.warning{color:var(--warn)}.nowrap{white-space:nowrap}.footer{display:flex;justify-content:space-between;gap:15px;margin-top:14px}dialog{color:var(--txt);background:var(--card);border:1px solid var(--line);max-width:900px;width:90%;border-radius:12px}dialog::backdrop{background:#0009}.notice{padding:12px 15px;border:1px solid var(--line);border-radius:8px;margin:15px 0;color:var(--mut)}@media(max-width:800px){header{width:145px;flex-basis:145px}main{padding:12px}}
+/* Keep all columns inside the workspace; long notes must not set table width. */
+main{padding:18px}
+.tablewrap table{table-layout:fixed;font-size:12px;line-height:1.4}
+.tablewrap th,.tablewrap td{padding:8px 6px;overflow-wrap:anywhere}
+.tablewrap th:nth-child(1){width:13%}.tablewrap th:nth-child(2){width:12%}
+.tablewrap th:nth-child(3){width:22%}.tablewrap th:nth-child(n+4):nth-child(-n+8){width:7%}
+.tablewrap th:nth-child(9){width:10%}.tablewrap th:nth-child(10){width:8%}
+.tablewrap td.money,.tablewrap th.money,.tablewrap .nowrap{white-space:normal}
+.tablewrap .small{font-size:11px;line-height:1.4;white-space:normal}
+.tablewrap button{max-width:100%;padding:5px 6px;white-space:normal;overflow-wrap:anywhere;text-align:left}
+.tablewrap [data-copy]{font-weight:600}.tablewrap [data-history]{margin-top:4px}
+.toolbar input,.toolbar select{min-width:0;max-width:100%}
+@media(max-width:1100px){
+  main{padding:12px}
+  .tablewrap table,.tablewrap tbody{display:block;border:0;background:transparent}
+  .tablewrap thead{display:none}
+  .tablewrap tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;margin-bottom:12px;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:8px}
+  .tablewrap td{display:block;min-width:0;text-align:left!important;border-bottom:1px solid var(--line)}
+  .tablewrap td:nth-child(3){grid-column:1/-1}
+  .tablewrap td::before{content:attr(data-label);display:block;margin-bottom:4px;color:var(--mut);font-size:11px;font-weight:600}
+  .tablewrap tr:last-child td{border-bottom:1px solid var(--line)}
+}
+@media(max-width:600px){
+  body{display:block}header{position:static;width:100%;height:auto;padding:8px;border-right:0;border-bottom:1px solid var(--line)}
+  .lvlnav{flex-direction:row;flex-wrap:wrap}.navgroup{width:100%;margin:3px 0 0}
+  .lvlnav a{padding:4px 8px;font-size:12px}.logo{margin:0;padding:4px 8px}
+}
 </style>
 </head>
 <body>
@@ -90,8 +117,8 @@ main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:1
   <p id="copy-status" class="small" role="status" aria-live="polite"></p>
   <div class="tablewrap">
     <table><thead><tr><th>Отправление<div class="small">По дате поступления в Ozon ↓</div></th><th>Статусы</th><th>Выбранный товар / склад</th>
-      <th class="money">Цена Ozon</th><th class="money">Себестоимость</th><th class="money">Чистая прибыль<div class="small">расчёт по текущим данным</div></th><th class="money">Пол</th>
-      <th class="money">Отклонение</th><th>Результат</th><th>Проверено в МС</th></tr></thead><tbody id="rows"></tbody></table>
+      <th class="money">Цена Ozon</th><th class="money" title="Себестоимость">Себест.</th><th class="money">Чистая прибыль<div class="small">расчёт</div></th><th class="money">Пол</th>
+      <th class="money" title="Отклонение: цена минус пол">Цена − пол</th><th>Результат</th><th>Проверено в МС</th></tr></thead><tbody id="rows"></tbody></table>
   </div>
   <div class="footer"><span id="count" class="small"></span><div>
     <button id="prev">← Назад</button> <button id="next">Далее →</button></div></div>
@@ -144,18 +171,18 @@ async function load(){
       const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity,offer_id:p.offer_id}))||[];
       const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар Ozon; состав МС ещё не проверен';
       const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
-      return `<tr><td><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?'Поступил в Ozon':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
+      return `<tr><td data-label="Отправление · новые сверху"><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?'Поступил в Ozon':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
         <button class="small" data-history="${Number(row.id)}">История проверок</button></td>
-        <td><div>Ozon: ${esc(mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
-        <td><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>
+        <td data-label="Статусы"><div>Ozon: ${esc(mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
+        <td data-label="Выбранный товар / склад"><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>
           <div class="small">${hasMS?`Код МС: <b>${esc(p.code||'—')}</b> · Внешний код: ${esc(p.external_code||'—')}`:`Артикул Ozon: ${esc(p.offer_id||'—')}`}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
-        <td class="money">${esc(money(row.mp_price))}<div class="small">МС: ${esc(money(r.ms_price))}</div></td>
-        <td class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
-        <td class="money ${economicValid&&r.estimated_net!=null?(Number(r.estimated_net)<=0?'danger':'pos'):''}">${esc(money(economicValid?r.estimated_net:null))}</td>
-        <td class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
-        <td><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div></td>
-        <td class="nowrap">${esc(dt(row.ms_checked_at))}</td></tr>`;
+        <td data-label="Цена Ozon" class="money">${esc(money(row.mp_price))}<div class="small">МС: ${esc(money(r.ms_price))}</div></td>
+        <td data-label="Себестоимость" class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
+        <td data-label="Чистая прибыль · расчёт" class="money ${economicValid&&r.estimated_net!=null?(Number(r.estimated_net)<=0?'danger':'pos'):''}">${esc(money(economicValid?r.estimated_net:null))}</td>
+        <td data-label="Пол" class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td data-label="Отклонение" class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
+        <td data-label="Результат"><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div></td>
+        <td data-label="Проверено в МС" class="nowrap">${esc(dt(row.ms_checked_at))}</td></tr>`;
     }).join('');
     $('count').textContent=total?`${offset+1}–${Math.min(offset+50,total)} из ${total}`:'0 заказов';
     $('prev').disabled=offset===0;$('next').disabled=offset+50>=total;
