@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-21T06:56:25.787954+00:00",
+  "source_commit": "2cb50210cb4d393d5e4668d198b6a31782b1f685",
+  "base_release": "/opt/mp-analytics/runtime/customer-guard-507d3ef24f5f",
+  "release": "/opt/mp-analytics/runtime/customer-guard-2cb50210cb4d",
+  "changed_worker_files": [
+    "customer_guard/notifications.py"
+  ],
+  "tests": "59 passed; JS syntax and UI render verified",
+  "api_http": 200,
+  "html_http": 200,
+  "live_filter_counts": {
+    "3183": 3,
+    "3183at": 3,
+    "0001": 0,
+    "0001wb": 0
+  },
+  "release_formatter_verified": true,
+  "runtime": {
+    "enabled": true,
+    "notifications_enabled": true,
+    "heartbeat_at": "2026-10-21 06:57:09.948674+00:00",
+    "last_tick_at": "2026-10-21 06:57:09.959527+00:00",
+    "last_error": null
+  }
+}
