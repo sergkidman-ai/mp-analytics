@@ -15,7 +15,8 @@
 - Отчёт docs/reports/ozon_pagination_fix_20261021/README.md; контракт
   docs/reference/ozon_action_pagination.md. Цели300/10%/стоимость не менялись.
 - Следующий cron10:30UTC возьмёт новый код; его результат ещё не проверен.
-  Новый fix пока не опубликован в origin/main, чужие worktree не редактировались.
+  По отдельной команде21.10 fix0aea5ce опубликован в origin/main и рабочей ветке;
+  shared main синхронизирован,217посторонних dirty-файлов сохранены.
 
 ## wb4c — статус пагинации акций21.10, read-only
 
