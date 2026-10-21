@@ -45,10 +45,11 @@ def money(v):
 
 
 def floor_price(cogs, keep):
+    from core.profit_floor import minimum_profit
     cost, ratio = D(str(cogs)), D(str(keep))
     if cost <= 0 or ratio <= 0 or ratio > 1:
         raise RuntimeError('Маркет: себестоимость/доля продавца непригодны')
-    return (cost + max(D(300), cost / D(10))) / ratio
+    return (cost + minimum_profit(cost)) / ratio
 
 
 @contextmanager

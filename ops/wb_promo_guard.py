@@ -3,7 +3,7 @@
 """Сторож автоакций WB: поднять цену ниже экономического пола.
 
 Пол применяется к discountedPrice Prices API — после скидки продавца, до СПП:
-    floor_net = max(300 ₽ × кратность, 10 % себестоимости полного комплекта)
+    floor_net = 200 ₽ × кратность при себесте ≤150 ₽/ед.; иначе max(300 ₽ × кратность, 10 % себеста)
     floor_price = (cogs + floor_net) / (1 − retention)
 
 Себестоимость: собственный достаточный остаток с проверкой аномально низкой цены,
@@ -605,8 +605,9 @@ def mp_stock(acc):
 
 
 def min_net(cogs, quantity=1):
-    """Минимальная прибыль карточки: 300 ₽ на штуку либо 10% её полной себестоимости."""
-    return max(MIN_NET * max(1, int(quantity)), MIN_NET_PCT * float(cogs))
+    """Общая политика прибыли; сохраняем установленную кратность карточки."""
+    from core.profit_floor import minimum_profit
+    return float(minimum_profit(cogs, max(1, int(quantity))))
 
 
 def floor_controlled_bundles(acc, goods, cogs, today=None, active_promo_names=()):

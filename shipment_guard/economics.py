@@ -125,7 +125,8 @@ def assess(document, positions, fifo, confirmed, rule):
                 from core.ozon_expense_basis import floor_from_retention
                 floor=floor_from_retention(cost,qty,retention)
             else:
-                floor=(cost+max(D(300)*qty,D('.1')*cost))/(1-retention)
+                from core.profit_floor import minimum_profit
+                floor=(cost+minimum_profit(cost,qty))/(1-retention)
             if calculation_item is not None and calculation_item<floor:signals.append('below_floor')
         if ambiguous:
             errors.append('Наборы '+g['sku']+' имеют общие компоненты: FIFO проверен по группе, по наборам не распределён')

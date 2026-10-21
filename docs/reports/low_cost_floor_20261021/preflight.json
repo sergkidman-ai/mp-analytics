@@ -1,0 +1,37 @@
+{
+  "logs": {
+    "wb_promo_guard_log": [
+      {
+        "account": "wb_acc1",
+        "n": 327805,
+        "latest": "2026-10-21 12:15:35.682743+00:00"
+      },
+      {
+        "account": "wb_acc2",
+        "n": 360357,
+        "latest": "2026-10-21 12:15:35.682743+00:00"
+      }
+    ],
+    "oz_promo_guard_log": [
+      {
+        "account": "oz_acc1",
+        "n": 35814,
+        "latest": "2026-10-21 10:32:01.887436+00:00"
+      },
+      {
+        "account": "oz_acc2",
+        "n": 43575,
+        "latest": "2026-10-21 10:33:29.139747+00:00"
+      }
+    ],
+    "ya_promo_guard_log": [
+      {
+        "account": "ya_acc1",
+        "n": 9498,
+        "latest": "2026-10-21 09:35:31.843646+00:00"
+      }
+    ]
+  },
+  "policy": "200 net for cost/unit <=150; else max(300/unit, 10% total cost)",
+  "source_head": "1ef7ede181eef569a8569d6fdf6702d5b2018222"
+}

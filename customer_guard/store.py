@@ -9,6 +9,7 @@ from psycopg2.extras import Json, RealDictCursor
 from core import db
 from customer_guard.domain import ACTIVE, TERMINAL, digest, initial_due, posting_snapshot, posting_hash, sale
 from customer_guard.domain import economics, composition, non_positive_profit, market
+from core.profit_floor import POLICY_VERSION
 
 
 def reprice(rule, now, resolver=None):
@@ -22,15 +23,17 @@ def reprice(rule, now, resolver=None):
           JOIN customer_guard_jobs j ON j.order_id=o.id
           WHERE o.account=%s AND c.generation=o.generation AND j.state='done'
           AND c.result->>'cost' IS NOT NULL
-          AND (c.result->>'rule_version' IS DISTINCT FROM %s OR %s)
-          ORDER BY o.id FOR UPDATE OF o,j""", (rule["account"],rule["version"], resolver is not None))
+          AND (c.result->>'rule_version' IS DISTINCT FROM %s
+            OR c.result->>'floor_policy' IS DISTINCT FROM %s OR %s)
+          ORDER BY o.id FOR UPDATE OF o,j""", (rule["account"],rule["version"], POLICY_VERSION, resolver is not None))
         for row in cur.fetchall():
             old = row["result"]
             positions = [{"quantity":p["quantity"], "assortment":{"externalCode":p.get("external_code")}}
                          for p in old.get("positions", [])]
             proof = (composition(row["mp_payload"], positions, resolver)
                      if resolver else old.get("composition"))
-            if old.get("rule_version") == rule["version"] and proof == old.get("composition"):
+            if (old.get("rule_version") == rule["version"] and old.get("floor_policy") == POLICY_VERSION
+                    and proof == old.get("composition")):
                 continue
             verified = (proof.get("verified", False) and len(row["mp_payload"]["products"]) == 1
                         if resolver else old.get("allocation") == "single_market_line")
@@ -39,7 +42,7 @@ def reprice(rule, now, resolver=None):
                               price_override=old.get("ms_price") if rule["account"]=="wb_acc2" else None)
             if fresh.get("rule_version") != rule["version"]:
                 continue
-            result = dict(old, **fresh, recalculation="expense_basis_and_composition" if resolver else "expense_basis",
+            result = dict(old, **fresh, recalculation="expense_basis_and_composition" if resolver else "expense_basis_or_floor_policy",
                           source_check_id=row["check_id"],
                           cost_observed_at=row["ms_checked_at"].isoformat())
             if proof is not None:
@@ -47,7 +50,7 @@ def reprice(rule, now, resolver=None):
             cur.execute("""INSERT INTO customer_guard_checks
               (order_id,generation,calculated_at,result,input_hash) VALUES(%s,%s,%s,%s,%s) RETURNING id""",
               (row["id"], row["generation"], now, Json(result),
-               digest([row["input_hash"], rule["version"], proof])))
+               digest([row["input_hash"], rule["version"], POLICY_VERSION, proof])))
             cid = cur.fetchone()["id"]
             cur.execute("UPDATE customer_guard_orders SET latest_check_id=%s WHERE id=%s",
                         (cid, row["id"]))
