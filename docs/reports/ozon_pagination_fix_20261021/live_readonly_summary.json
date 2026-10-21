@@ -1,0 +1,54 @@
+[
+  {
+    "account": "oz_acc1",
+    "action_id": 4375943,
+    "endpoint": "/v2/actions/products",
+    "pages": 8,
+    "received": 125,
+    "reported_totals": [
+      125
+    ],
+    "last_id": "5748600203",
+    "termination": "empty_page_same_cursor",
+    "complete": true
+  },
+  {
+    "account": "oz_acc1",
+    "action_id": 4400847,
+    "endpoint": "/v2/actions/products",
+    "pages": 3,
+    "received": 32,
+    "reported_totals": [
+      32
+    ],
+    "last_id": "4867703999",
+    "termination": "empty_page_same_cursor",
+    "complete": true
+  },
+  {
+    "account": "oz_acc2",
+    "action_id": 4375943,
+    "endpoint": "/v2/actions/products",
+    "pages": 3,
+    "received": 28,
+    "reported_totals": [
+      28
+    ],
+    "last_id": "4034934351",
+    "termination": "empty_page_same_cursor",
+    "complete": true
+  },
+  {
+    "account": "oz_acc2",
+    "action_id": 4400847,
+    "endpoint": "/v2/actions/products",
+    "pages": 3,
+    "received": 35,
+    "reported_totals": [
+      35
+    ],
+    "last_id": "6261941942",
+    "termination": "empty_page_same_cursor",
+    "complete": true
+  }
+]

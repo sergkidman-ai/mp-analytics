@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-21T07:26:38.220457+00:00",
+  "root_head": "8488037f8aeacf83cadbccab910b1825454985f5",
+  "changed_files": [
+    "ops/ozon_actions.py",
+    "ops/ozon_stock_action.py",
+    "ops/ozon_promo_guard.py",
+    "tests/test_ozon_action_pagination.py"
+  ],
+  "other_dirty_files_unchanged": 206,
+  "api_writes": 0,
+  "guards_applied": 0,
+  "notifications_sent": 0,
+  "schedule_changes": 0
+}

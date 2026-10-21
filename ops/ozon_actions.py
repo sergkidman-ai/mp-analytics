@@ -10,6 +10,23 @@ class ActionProtocolError(RuntimeError):
     pass
 
 
+class ActionProducts(list):
+    """Observed members with explicit coverage; partial absence proves nothing."""
+    def __init__(self, rows, *, complete=True, diagnostic=None):
+        super().__init__(rows)
+        self.complete = complete
+        self.diagnostic = diagnostic or {}
+
+
+class ActionPaginationIncomplete(ActionProtocolError):
+    def __init__(self, listing):
+        self.listing = listing
+        d = listing.diagnostic
+        super().__init__(f"Incomplete action list: account={d['account']} action={d['action_id']} "
+                         f"received={len(listing)} totals={d['reported_totals']} "
+                         f"termination={d['termination']} cursor={d['last_id']}")
+
+
 def amount(value):
     if isinstance(value, dict):
         value = value.get('amount')
@@ -55,11 +72,34 @@ def product(row, participant):
     return out
 
 
-def products(request, account, action_id, candidates=False):
+def products(request, account, action_id, candidates=False, *, allow_partial=False,
+             limit=100, max_pages=10000):
+    """Follow cursors through EOF; total is a coverage check, never an early stop.
+
+    Ozon can end on an empty page retaining the request cursor while total still
+    includes unreturned products. Expose these observations only to callers that
+    explicitly opt in; strict legacy callers must not infer removal from absence.
+    """
+    if type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError('Invalid action page size')
+    if type(max_pages) is not int or not 1 <= max_pages <= 10000:
+        raise ValueError('Invalid action page budget')
     endpoint = '/v2/actions/candidates' if candidates else '/v2/actions/products'
     out, seen_ids, seen_cursors, last = [], set(), set(), None
-    for _ in range(10000):
-        body = dict(action_id=action_id, limit=100)
+    totals = set()
+
+    def finish(reason, page, cursor):
+        complete = len(totals) <= 1 and (not totals or totals == {len(out)})
+        listing = ActionProducts(out, complete=complete, diagnostic=dict(
+            account=account, action_id=action_id, endpoint=endpoint, pages=page,
+            received=len(out), reported_totals=sorted(totals), last_id=cursor,
+            termination=reason, complete=complete))
+        if not complete and not allow_partial:
+            raise ActionPaginationIncomplete(listing)
+        return listing
+
+    for page in range(1, max_pages + 1):
+        body = dict(action_id=action_id, limit=limit)
         if last is not None:
             body['last_id'] = last
         data = payload(request(account, 'POST', endpoint, body))
@@ -73,18 +113,22 @@ def products(request, account, action_id, candidates=False):
                 raise ActionProtocolError('Duplicate product in action pagination')
             seen_ids.add(pid);out.append(item)
         total = data.get('total_items', data.get('total'))
-        if total is not None and len(out) >= int(total):
-            return out
+        if total is not None:
+            if isinstance(total, bool) or not str(total).isdigit():
+                raise ActionProtocolError(f'Invalid action total: account={account} action={action_id}')
+            totals.add(int(total))
         nxt = data.get('last_id')
         if nxt in (None, '', '0', 0):
-            if total is not None and len(out) < int(total):
-                raise ActionProtocolError('Action pagination ended before total')
-            return out
+            return finish('empty_cursor', page, nxt)
         nxt = str(nxt)
-        if not rows or nxt in seen_cursors:
-            raise ActionProtocolError('Action pagination cursor did not advance')
+        if not rows and nxt == last:
+            return finish('empty_page_same_cursor', page, nxt)
+        if nxt in seen_cursors:
+            raise ActionProtocolError(f'Action pagination cursor did not advance: '
+                                      f'account={account} action={action_id} page={page} cursor={nxt}')
         seen_cursors.add(nxt);last = nxt
-    raise ActionProtocolError('Action pagination limit exceeded')
+    raise ActionProtocolError(f'Action pagination limit exceeded: account={account} '
+                              f'action={action_id} pages={max_pages} cursor={last}')
 
 
 def outcome(response, legacy_active=False):

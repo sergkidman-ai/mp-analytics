@@ -112,9 +112,9 @@ def candidates(account, action_id):
     return products(_req, account, action_id, candidates=True)
 
 
-def participants(account, action_id):
+def participants(account, action_id, *, allow_partial=False, **page_options):
     from ops.ozon_actions import products
-    return products(_req, account, action_id)
+    return products(_req, account, action_id, allow_partial=allow_partial, **page_options)
 
 
 def update_products(account, action_id, rows):

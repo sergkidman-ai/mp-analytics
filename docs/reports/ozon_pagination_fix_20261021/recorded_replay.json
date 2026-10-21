@@ -1,0 +1,86 @@
+[
+  {
+    "account": "oz_acc1",
+    "action_id": 1977747,
+    "endpoint": "/v2/actions/products",
+    "pages": 18,
+    "received": 1670,
+    "reported_totals": [
+      1715
+    ],
+    "last_id": "6609416844",
+    "termination": "empty_page_same_cursor",
+    "complete": false,
+    "strict_absence_rejected": true
+  },
+  {
+    "account": "oz_acc1",
+    "action_id": 4361400,
+    "endpoint": "/v2/actions/products",
+    "pages": 2,
+    "received": 58,
+    "reported_totals": [
+      73
+    ],
+    "last_id": "4837730984",
+    "termination": "empty_page_same_cursor",
+    "complete": false,
+    "strict_absence_rejected": true
+  },
+  {
+    "account": "oz_acc1",
+    "action_id": 4375943,
+    "endpoint": "/v2/actions/products",
+    "pages": 2,
+    "received": 50,
+    "reported_totals": [
+      53
+    ],
+    "last_id": "4848640739",
+    "termination": "empty_page_same_cursor",
+    "complete": false,
+    "strict_absence_rejected": true
+  },
+  {
+    "account": "oz_acc2",
+    "action_id": 1977747,
+    "endpoint": "/v2/actions/products",
+    "pages": 65,
+    "received": 6323,
+    "reported_totals": [
+      6339
+    ],
+    "last_id": "6623962834",
+    "termination": "empty_page_same_cursor",
+    "complete": false,
+    "strict_absence_rejected": true
+  },
+  {
+    "account": "oz_acc2",
+    "action_id": 4361400,
+    "endpoint": "/v2/actions/products",
+    "pages": 2,
+    "received": 64,
+    "reported_totals": [
+      84
+    ],
+    "last_id": "6261941942",
+    "termination": "empty_page_same_cursor",
+    "complete": false,
+    "strict_absence_rejected": true
+  },
+  {
+    "account": "oz_acc2",
+    "action_id": 4375943,
+    "endpoint": "/v2/actions/products",
+    "pages": 2,
+    "received": 53,
+    "reported_totals": [
+      60
+    ],
+    "last_id": "6261939345",
+    "termination": "empty_page_same_cursor",
+    "complete": false,
+    "strict_absence_rejected": true
+  }
+]

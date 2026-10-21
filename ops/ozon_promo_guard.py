@@ -20,6 +20,7 @@ ops/ozon_stock_action.py («Распродажа стока», «Акция дл
 Страховки: себестоимость нашлась меньше чем у COGS_MIN_SHARE участников — аккаунт пропускаем
 целиком и шлём тревогу (падение цепочки себеста иначе сняло бы все акции); --limit режет число
 правок за прогон. После отправки состав акции перечитывается: sent → confirmed | error.
+Неполная выдача помечается явно; отсутствие в ней не подтверждает снятия (остаётся sent).
 
 Запуск (по умолчанию расчёт, в кабинет ничего не уходит):
     ./venv/bin/python -m ops.ozon_promo_guard                        # dry-run, оба аккаунта
@@ -28,11 +29,13 @@ ops/ozon_stock_action.py («Распродажа стока», «Акция дл
 Журнал: oz_promo_guard_log (migrations/124_oz_promo_guard.sql).
 """
 import argparse
+import json
 import math
 import pathlib
 import re
 import sys
 import time
+from datetime import datetime, timezone
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -45,14 +48,45 @@ PRICE_EPS = 0.5          # цена ≥ пол − 0,5 ₽ — проходит
 VERIFY_WAIT = 30         # сек до перечитки состава акции
 
 
-def snapshot(account):
+def _issue(issues, stage, action_id, detail):
+    item = dict(stage=stage, action_id=action_id, detail=detail)
+    if issues is not None and item not in issues:
+        issues.append(item)
+    print('⚠️ Ozon guard: ' + json.dumps(item, ensure_ascii=False), flush=True)
+
+
+def _save_run(account, args, rows, issues):
+    fatal = any(i['stage'] == 'account' for i in issues)
+    errors = sum(r.get('status') == 'error' for r in rows)
+    unconfirmed = sum(args.apply and r.get('status') in ('sent', 'retry') for r in rows)
+    status = 'failed' if fatal else ('partial' if issues else ('error' if errors or unconfirmed else 'ok'))
+    record = dict(at=datetime.now(timezone.utc).isoformat(), account=account,
+                  wave=args.wave, apply=args.apply, status=status, rows=len(rows),
+                  errors=errors, unconfirmed=unconfirmed, issues=issues)
+    print('run result: ' + json.dumps(record, ensure_ascii=False), flush=True)
+    if not args.no_log:
+        path = BASE_DIR / 'logs' / 'oz_promo_guard_runs.jsonl'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('a', encoding='utf-8') as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + '\n')
+    return status
+
+
+def snapshot(account, *, issues=None):
     """Все участники небелых акций: одна строка на товар×акцию, с себестом и полом."""
     keep, keep_src = oz.keep_ratio(account)
     acts = [a for a in oz.actions(account)
             if a.get("is_participating") and not oz.is_whitelisted(a.get("title"))]
     rows = []
     for a in acts:
-        for p in oz.participants(account, a["id"]):
+        try:
+            members = oz.participants(account, a["id"], allow_partial=True)
+        except Exception as exc:
+            _issue(issues, 'snapshot', a['id'], str(exc))
+            continue
+        if not getattr(members, 'complete', True):
+            _issue(issues, 'snapshot', a['id'], members.diagnostic)
+        for p in members:
             rows.append({"account": account, "action_id": a["id"], "action_title": a.get("title"),
                          "product_id": int(p["id"]),
                          "action_price": float(p.get("action_price") or 0),
@@ -210,9 +244,9 @@ def push(account, rows):
                     r["status"], r["note"] = "error", f"снять не удалось: {type(exc).__name__}: {exc}"
 
 
-def execute(account, rows):
+def execute(account, rows, *, issues=None):
     push(account, rows)
-    verify(account, rows)
+    verify(account, rows, issues=issues)
     failed = [r for r in rows if r["mode"] == "raise" and r.get("status") == "error"
               and r.get("verification_failed")]
     for r in failed:
@@ -220,10 +254,10 @@ def execute(account, rows):
         r["reason"] += " → фактическая цена после update ниже пола, снимаем"
     if failed:
         push(account,failed)
-        verify(account,failed)
+        verify(account,failed,issues=issues)
 
 
-def verify(account, rows):
+def verify(account, rows, *, issues=None):
     """Перечитываем состав тронутых акций: снятого там нет, поднятый стоит не ниже пола."""
     sent = [r for r in rows if r.get("status") == "sent"]
     if not sent:
@@ -231,8 +265,13 @@ def verify(account, rows):
     time.sleep(VERIFY_WAIT)
     for aid in sorted({r["action_id"] for r in sent}):
         try:
-            now = {int(p["id"]): float(p.get("action_price") or 0) for p in oz.participants(account, aid)}
+            members = oz.participants(account, aid, allow_partial=True)
+            complete = getattr(members, 'complete', True)
+            now = {int(p["id"]): float(p.get("action_price") or 0) for p in members}
+            if not complete:
+                _issue(issues, 'verify', aid, members.diagnostic)
         except Exception as e:                                          # noqa: BLE001
+            _issue(issues, 'verify', aid, str(e))
             for r in sent:
                 if r["action_id"] == aid:
                     r["note"] = ((r.get("note") or "") + f" · сверка не удалась: {e}").strip(" ·")
@@ -241,6 +280,11 @@ def verify(account, rows):
             if r["action_id"] != aid:
                 continue
             pid = r["product_id"]
+            if not complete and pid not in now:
+                # Neither removal nor a failed raise can be inferred from missing
+                # IDs in partial Ozon results; keep the request unconfirmed.
+                r['note'] = ((r.get('note') or '') + ' · неполная сверка: отсутствие не подтверждено').strip(' ·')
+                continue
             if r["mode"] == "raise" and pid not in now:
                 r["mode"] = "remove"
                 r["reason"] += " → перечитка подтвердила отсутствие в акции"
@@ -293,6 +337,33 @@ def summary(account, rows, acts, keep, keep_src, apply):
     return "\n".join(lines)
 
 
+def _run_account(acc, a, issues, rows):
+    print(f"\n=== {acc} ===", flush=True)
+    observed, acts, keep, keep_src = snapshot(acc, issues=issues)
+    rows.extend(observed)
+    for r in rows:
+        decide(r)
+        r["status"], r["note"] = "dry", None
+    known = sum(1 for r in rows if r["cogs"] is not None)
+    if len(rows) >= COGS_MIN_ROWS and known < COGS_MIN_SHARE * len(rows):
+        msg = (f"⚠️ *{acc}* · сторож акций Ozon: себестоимость найдена у {known} из {len(rows)} "
+               f"позиций — цепочка себеста сломана, аккаунт пропущен")
+        print(msg.replace("*", ""), flush=True)
+        _issue(issues, 'cost_coverage', None, msg)
+        return msg
+    _cut(rows, a.limit)
+    if a.apply:
+        for r in rows:
+            if r["mode"] in ("ok", "ok_deferred"):
+                r["status"] = "skip"
+        execute(acc, rows, issues=issues)
+    if not a.no_log:
+        save(rows, a.wave)
+    txt = summary(acc, rows, acts, keep, keep_src, a.apply)
+    print(txt.replace("*", ""), flush=True)
+    return txt
+
+
 def main():
     ap = argparse.ArgumentParser(description="Ozon: сторож акций — поднять или снять то, что ниже пола")
     ap.add_argument("--account", choices=oz.ACCOUNTS, help="по умолчанию оба")
@@ -304,32 +375,36 @@ def main():
     ap.add_argument("--no-tg", action="store_true", help="не слать сводку в бот")
     a = ap.parse_args()
     out = []
+    failed = False
     for acc in ([a.account] if a.account else oz.ACCOUNTS):
-        print(f"\n=== {acc} ===", flush=True)
-        rows, acts, keep, keep_src = snapshot(acc)
-        for r in rows:
-            decide(r)
-            r["status"], r["note"] = "dry", None
-        known = sum(1 for r in rows if r["cogs"] is not None)
-        if len(rows) >= COGS_MIN_ROWS and known < COGS_MIN_SHARE * len(rows):
-            msg = (f"⚠️ *{acc}* · сторож акций Ozon: себестоимость найдена у {known} из {len(rows)} "
-                   f"позиций — цепочка себеста сломана, аккаунт пропущен")
-            print(msg.replace("*", ""), flush=True)
-            if a.apply and not a.no_tg:
-                oz.send(msg)
-            continue
-        _cut(rows, a.limit)
-        if a.apply:
-            for r in rows:
-                if r["mode"] in ("ok", "ok_deferred"):
-                    r["status"] = "skip"
-            execute(acc, rows)
-        if not a.no_log:
-            save(rows, a.wave)
-        txt = summary(acc, rows, acts, keep, keep_src, a.apply)
-        print(txt.replace("*", ""), flush=True)
-        if a.apply and not a.no_tg and any(r["mode"] in ("raise", "remove") for r in rows):
-            oz.send(txt)
+        issues, rows = [], []
+        txt = f'{acc} · сторож акций Ozon'
+        try:
+            txt = _run_account(acc, a, issues, rows)
+        except Exception as exc:
+            _issue(issues, 'account', None, f'{type(exc).__name__}: {exc}')
+        if a.apply and not a.no_tg and (issues or any(r.get('mode') in ('raise', 'remove') for r in rows)):
+            notice = txt
+            if issues:
+                # Keep raw cursor/exception details in the local journal; plain
+                # coverage counts cannot break the existing Telegram Markdown.
+                notice += '\n⚠️ Проверка неполная; подробности в журнале запуска.'
+                for issue in issues[:8]:
+                    detail = issue['detail']
+                    if isinstance(detail, dict):
+                        notice += (f"\nАкция {issue['action_id']}: получено {detail.get('received')}, "
+                                   f"total {detail.get('reported_totals')}")
+                    else:
+                        notice += f"\nАкция {issue['action_id'] or '—'}: ошибка чтения или обработки."
+            try:
+                oz.send(notice[:3900])
+            except Exception as exc:
+                _issue(issues, 'notification', None, type(exc).__name__)
+        try:
+            failed |= _save_run(acc, a, rows, issues) != 'ok'
+        except Exception as exc:
+            failed = True
+            print(f'⚠️ {acc}: run journal failed: {type(exc).__name__}', flush=True)
         out += rows
     if a.csv and out:
         head = ["account", "action_title", "offer_id", "name", "action_price", "max_price", "cogs",
@@ -338,6 +413,8 @@ def main():
             "\n".join([";".join(head)] + [";".join("" if r.get(c) is None else str(r.get(c)) for c in head)
                                           for r in out]), encoding="utf-8")
         print(f"\nпострочно → {a.csv}", flush=True)
+    if failed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+{
+  "ops/ozon_actions.py": "7cf7430885b422b2eab5fa8b04e3c7a7e0309247fd156922f9c111c01b17e680",
+  "ops/ozon_promo_guard.py": "99fd79bee0c3c552f59e8d7f513fcc657cfe51bb20e88e199fa5446e22cc0c72",
+  "ops/ozon_stock_action.py": "0396a762b1671bca36bcdcd941c43dd1b8f5365a5c799defa5664871c856c409",
+  "tests/test_ozon_action_pagination.py": "0c156f35c66e55614de3a774436e061c816159f04e2358ee04c57df997216cdc"
+}
