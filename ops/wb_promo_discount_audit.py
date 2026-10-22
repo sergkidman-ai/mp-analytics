@@ -175,7 +175,7 @@ def audit_account(acc, goods, primary, decisions, mp_stocks, query_evidence=load
             findings.append('selected_supplier_quantity_short')
         cost=result['cost'];floor=None;net=None
         if cost is not None and not unavailable:
-            floor=(cost+max(config.MIN_NET*mult,config.MIN_NET_PCT*cost))/(1-config.RETENTION[acc])
+            floor=(cost+config.min_net(cost,mult))/(1-config.RETENTION[acc])
             net=price*(1-config.RETENTION[acc])-cost
             if price<floor-.5:
                 findings.append('below_floor')

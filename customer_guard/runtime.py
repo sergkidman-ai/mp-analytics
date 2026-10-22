@@ -58,10 +58,17 @@ def tick():
         synced=db.query("SELECT started_at FROM customer_guard_sync_state WHERE scope='ozon/oz_acc2/fbs'")
         if not synced or synced[0]["started_at"] <= now-timedelta(minutes=10):
             phase("new_orders",service.sync)
+        wb_enabled=state.get('settings',{}).get('wb_enabled',False)
+        if wb_enabled:
+            synced_wb=db.query("SELECT started_at FROM customer_guard_sync_state WHERE scope='wb/wb_acc2/fbs'")
+            if not synced_wb or synced_wb[0]['started_at']<=now-timedelta(minutes=10):
+                phase('wb_orders',service.sync_wb)
+                phase('wb_old_status',lambda:service.refresh_wb(older_than=now-timedelta(minutes=10)))
         # Old tracked active orders are point-refreshed, not forgotten outside the list window.
         phase("old_status",lambda:service.refresh(3,older_than=now-timedelta(minutes=10)))
         phase("enqueue",lambda:store.schedule_rechecks(utcnow()))
-        phase("work",lambda:service.work(limit=3,budget=100,notify=state["notifications_enabled"]))
+        phase("work",lambda:service.work(limit=3,budget=100,notify=state["notifications_enabled"],
+                                         account=None if wb_enabled else 'oz_acc2'))
         # Basis changes do not require fresh MS reads and do not send old alerts.
         try:
             result["reprice"]=service.reprice()
@@ -69,6 +76,8 @@ def tick():
             errors.append("expense_basis:unavailable")
         except Exception as exc:
             errors.append("reprice:"+type(exc).__name__)
+        if wb_enabled:
+            phase('wb_reprice',lambda:service.reprice(account='wb_acc2'))
         heartbeat(";".join(errors) or None)
         db.execute("UPDATE customer_guard_runtime SET last_tick_at=%s WHERE id",(utcnow(),))
         result["errors"]=errors

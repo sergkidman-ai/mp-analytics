@@ -39,6 +39,34 @@
   .whtabs a.cur{color:var(--txt);background:var(--card);box-shadow:inset 0 -2px 0 var(--acc)}
 
 main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}input,select,button{font:inherit;color:var(--txt);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:9px}button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.tablewrap{overflow:auto}th,td{text-align:left;vertical-align:top}td.money,th.money{text-align:right;white-space:nowrap}.small{font-size:12px;color:var(--mut)}.badge{display:inline-block;border-radius:5px;padding:3px 7px;background:var(--bg);font-size:12px}.danger{color:var(--neg)}.warning{color:var(--warn)}.nowrap{white-space:nowrap}.footer{display:flex;justify-content:space-between;gap:15px;margin-top:14px}dialog{color:var(--txt);background:var(--card);border:1px solid var(--line);max-width:900px;width:90%;border-radius:12px}dialog::backdrop{background:#0009}.notice{padding:12px 15px;border:1px solid var(--line);border-radius:8px;margin:15px 0;color:var(--mut)}@media(max-width:800px){header{width:145px;flex-basis:145px}main{padding:12px}}
+#stats .bi:last-child .v{font-size:14px;overflow-wrap:anywhere}
+/* Keep all columns inside the workspace; long notes must not set table width. */
+main{padding:18px}
+.tablewrap table{table-layout:fixed;font-size:12px;line-height:1.4}
+.tablewrap th,.tablewrap td{padding:8px 6px;overflow-wrap:anywhere}
+.tablewrap th:nth-child(1){width:13%}.tablewrap th:nth-child(2){width:12%}
+.tablewrap th:nth-child(3){width:22%}.tablewrap th:nth-child(n+4):nth-child(-n+8){width:7%}
+.tablewrap th:nth-child(9){width:10%}.tablewrap th:nth-child(10){width:8%}
+.tablewrap td.money,.tablewrap th.money,.tablewrap .nowrap{white-space:normal}
+.tablewrap .small{font-size:11px;line-height:1.4;white-space:normal}
+.tablewrap button{max-width:100%;padding:5px 6px;white-space:normal;overflow-wrap:anywhere;text-align:left}
+.tablewrap [data-copy]{font-weight:600}.tablewrap [data-history]{margin-top:4px}
+.toolbar input,.toolbar select{min-width:0;max-width:100%}
+@media(max-width:1100px){
+  main{padding:12px}
+  .tablewrap table,.tablewrap tbody{display:block;border:0;background:transparent}
+  .tablewrap thead{display:none}
+  .tablewrap tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;margin-bottom:12px;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:8px}
+  .tablewrap td{display:block;min-width:0;text-align:left!important;border-bottom:1px solid var(--line)}
+  .tablewrap td:nth-child(3){grid-column:1/-1}
+  .tablewrap td::before{content:attr(data-label);display:block;margin-bottom:4px;color:var(--mut);font-size:11px;font-weight:600}
+  .tablewrap tr:last-child td{border-bottom:1px solid var(--line)}
+}
+@media(max-width:600px){
+  body{display:block}header{position:static;width:100%;height:auto;padding:8px;border-right:0;border-bottom:1px solid var(--line)}
+  .lvlnav{flex-direction:row;flex-wrap:wrap}.navgroup{width:100%;margin:3px 0 0}
+  .lvlnav a{padding:4px 8px;font-size:12px}.logo{margin:0;padding:4px 8px}
+}
 </style>
 </head>
 <body>
@@ -68,15 +96,17 @@ main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:1
     <a href="/warehouse/customer-orders" class="cur">Заказы покупателей</a>
   </nav>
   <h1>Заказы покупателей</h1>
-  <div class="muted">Ozon · Дисквэр · FBS / rFBS</div>
+  <div class="muted">Ozon и WB · Дисквэр · заказы со склада продавца</div>
   <div class="notice" id="runtime">Загрузка состояния обработки…</div>
   <div class="big" id="stats"></div>
   <div class="toolbar">
+    <select id="account" aria-label="Площадка"><option value="">Ozon и WB · Дисквэр</option><option value="oz_acc2">Ozon · Дисквэр</option><option value="wb_acc2">WB · Дисквэр</option></select>
     <input id="search" placeholder="Номер отправления" aria-label="Номер отправления">
+    <input id="product-code" placeholder="Код товара: 0001 или 0001wb" aria-label="Код товара или внешний код" title="Точное совпадение с кодом МС, внешним кодом или артикулом площадки">
     <select id="status" aria-label="Статус"><option value="">Все статусы</option>
       <option>Неукомплектован</option><option>Подтвержден</option><option>Собирается</option>
       <option>Ожидает подтверждения</option><option>В пути</option><option>Доставлен</option>
-      <option value="cancelled">Отменён в Ozon</option></select>
+      <option value="cancelled">Отменён на площадке</option></select>
     <select id="signal" aria-label="Результат проверки"><option value="">Все результаты</option>
       <option value="non_positive_profit">Убыточные / без прибыли (≤ 0 ₽)</option>
       <option value="below_floor">Ниже пола</option><option value="missing_ms">Нет в МС</option>
@@ -88,14 +118,15 @@ main{max-width:none}h1{font-size:24px;margin:0 0 5px}.toolbar{display:flex;gap:1
   <p id="message" role="status" aria-live="polite"></p>
   <p id="copy-status" class="small" role="status" aria-live="polite"></p>
   <div class="tablewrap">
-    <table><thead><tr><th>Отправление<div class="small">По дате поступления в Ozon ↓</div></th><th>Статусы</th><th>Выбранный товар / склад</th>
-      <th class="money">Цена Ozon</th><th class="money">Себестоимость</th><th class="money">Чистая прибыль<div class="small">расчёт по текущим данным</div></th><th class="money">Пол</th>
-      <th class="money">Отклонение</th><th>Результат</th><th>Проверено в МС</th></tr></thead><tbody id="rows"></tbody></table>
+    <table><thead><tr><th>Отправление<div class="small">По дате площадки ↓</div></th><th>Статусы</th><th>Выбранный товар / склад</th>
+      <th class="money">Цена продажи</th><th class="money" title="Себестоимость">Себест.</th><th class="money">Чистая прибыль<div class="small">расчёт</div></th><th class="money">Пол</th>
+      <th class="money" title="Отклонение: цена минус пол">Цена − пол</th><th>Результат</th><th>Проверено в МС</th></tr></thead><tbody id="rows"></tbody></table>
   </div>
   <div class="footer"><span id="count" class="small"></span><div>
     <button id="prev">← Назад</button> <button id="next">Далее →</button></div></div>
-  <p class="note">Цена продавца — из Ozon; обе суммы Ozon и МС сохранены. Отклонение — цена минус пол, не чистая прибыль.
-    Расчётная чистая прибыль = цена Ozon − себестоимость − расходы Ozon по средней доле кабинета.
+  <p class="note">Цена Ozon — с площадки; цена WB — из МС, без скидок за счёт WB. Обе исходные суммы сохранены. Отклонение — цена минус пол, не чистая прибыль.
+    Расчётная чистая прибыль = цена продажи − себестоимость − расходы площадки по средней доле кабинета.
+    Минимум прибыли: 200 ₽ на единицу при себестоимости до 150 ₽ включительно; выше — 300 ₽ или 10% себестоимости, что больше.
     Фактические начисления по заказу могут отличаться.
     Предварительная стоимость может измениться до отгрузки. Один набор считается одной продаваемой единицей.</p>
   <dialog id="history"><button id="close">Закрыть</button><h2>История проверок</h2><div id="history-body"></div></dialog>
@@ -111,7 +142,7 @@ const signals={below_floor:'Ниже пола',missing_ms:'Нет в МС',unkno
 let offset=0,total=0,request=0;
 function state(row){
   if(['cancelled','delivered'].includes(row.mp_status))return mp[row.mp_status];
-  if(!Object.hasOwn(mp,row.mp_status))return 'Статус Ozon требует проверки';
+  if(!Object.hasOwn(mp,row.mp_status))return 'Статус площадки требует проверки';
   if(row.job_error)return 'Проверка не завершена';
   if(!row.current)return row.job_state==='running'?'Проверяется':row.result?'Требует пересчёта':'Ожидает проверки';
   if(row.result?.floor&&!row.basis_current)return 'База расходов требует обновления';
@@ -121,47 +152,49 @@ async function api(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)t
 async function load(){
   const n=++request;$('message').textContent='Загрузка…';
   try{
-    const q=new URLSearchParams({limit:50,offset,status:$('status').value,signal:$('signal').value,search:$('search').value});
+    const q=new URLSearchParams({limit:50,offset,status:$('status').value,signal:$('signal').value,search:$('search').value,account:$('account').value,product_code:$('product-code').value.trim()});
     const d=await api('/api/customer-orders?'+q);if(n!==request)return;
     total=d.total;
-    const sync=d.sync?.find(x=>x.scope==='ozon/oz_acc2/fbs');
+    const syncLabel=(d.sync||[]).filter(x=>['ozon/oz_acc2/fbs','wb/wb_acc2/fbs'].includes(x.scope)).map(x=>(x.scope.startsWith('wb/')?'WB: ':'Ozon: ')+dt(x.completed_at)).join(' · ');
     $('runtime').textContent=(d.automatic_updates?
       'Фоновая обработка включена: новые заказы — каждые 10 минут; первая проверка МС — после 10 минут с получения; повторные проверки до отгрузки — раз в 60 минут. ':
       d.runtime?.enabled?'Фоновая обработка включена, но её работа пока не подтверждена. ':'Фоновая обработка выключена. ')+
-      (d.notifications_enabled?'Уведомления Наталии в prc: только при расчётной чистой прибыли ≤ 0 ₽. ':'Уведомления выключены. ')+
+      (d.notifications_enabled?'Уведомления Наталии в prc: при расчётной чистой прибыли ≤ 0 ₽ или если активный заказ не найден в МС после 10 минут ожидания. ':'Уведомления выключены. ')+
       (d.runtime?.last_error?'Есть ошибка обработки; подробности видны в очереди. ':'')+
       ((d.notifications?.uncertain||d.notifications?.failed)?'Есть уведомления с неподтверждённой доставкой; автоматический дубль не отправляется. ':'')+
       'Таблица обновляется из сохранённых данных раз в минуту.';
     $('stats').innerHTML=[['Заказов в выборке',total],['Ожидают проверки',d.queue?.pending??0],
-      ['Последнее получение Ozon',dt(sync?.completed_at)]].map(([label,value])=>`<div class="bi"><div class="l">${esc(label)}</div><div class="v">${esc(value)}</div></div>`).join('');
+      ['Последнее получение МП',syncLabel||'—']].map(([label,value])=>`<div class="bi"><div class="l">${esc(label)}</div><div class="v">${esc(value)}</div></div>`).join('');
     $('message').textContent=!d.installed?'Хранилище пилота ещё не установлено.':!total?
       ($('signal').value==='non_positive_profit'?'По текущим проверенным данным заказов с чистой прибылью ≤ 0 ₽ по выбранным условиям нет. Непроверенные заказы в этот результат не входят.':'Заказов по этим условиям пока нет.') : '';
     $('rows').innerHTML=d.rows.map(row=>{
       const r=row.result||{},valid=row.current&&!row.job_error;
+      const isWB=row.platform==='wb',marketName=isWB?'WB':'Ozon';
       const economicValid=valid&&row.basis_current;
       const hasMS=Boolean(r.positions?.length);
-      const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity}))||[];
-      const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар Ozon; состав МС ещё не проверен';
+      const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity,offer_id:p.offer_id}))||[];
+      const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар '+marketName+'; состав МС ещё не проверен';
       const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
-      return `<tr><td><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?'Поступил в Ozon':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
+      return `<tr><td data-label="Отправление · новые сверху"><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?marketName+' · поступил':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
         <button class="small" data-history="${Number(row.id)}">История проверок</button></td>
-        <td><div>Ozon: ${esc(mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
-        <td><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>`).join('')}
+        <td data-label="Статусы"><div>${marketName}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
+        <td data-label="Выбранный товар / склад"><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>
+          <div class="small">${hasMS?`Код МС: <b>${esc(p.code||'—')}</b> · Внешний код: ${esc(p.external_code||'—')}`:`Артикул ${marketName}: ${esc(p.offer_id||'—')}`}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
-        <td class="money">${esc(money(row.mp_price))}<div class="small">МС: ${esc(money(r.ms_price))}</div></td>
-        <td class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
-        <td class="money ${economicValid&&r.estimated_net!=null?(Number(r.estimated_net)<=0?'danger':'pos'):''}">${esc(money(economicValid?r.estimated_net:null))}</td>
-        <td class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
-        <td><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div></td>
-        <td class="nowrap">${esc(dt(row.ms_checked_at))}</td></tr>`;
+        <td data-label="Цена продажи" class="money">${esc(money(isWB&&valid&&r.ms_price!=null?r.ms_price:row.mp_price))}<div class="small">${isWB?`${valid&&r.ms_price!=null?'Цена МС':'МС: —'}; WB: ${esc(money(row.mp_price))}`:`МС: ${esc(money(r.ms_price))}`}</div></td>
+        <td data-label="Себестоимость" class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
+        <td data-label="Чистая прибыль · расчёт" class="money ${economicValid&&r.estimated_net!=null?(Number(r.estimated_net)<=0?'danger':'pos'):''}">${esc(money(economicValid?r.estimated_net:null))}</td>
+        <td data-label="Пол" class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td data-label="Отклонение" class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
+        <td data-label="Результат"><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div></td>
+        <td data-label="Проверено в МС" class="nowrap">${esc(dt(row.ms_checked_at))}</td></tr>`;
     }).join('');
     $('count').textContent=total?`${offset+1}–${Math.min(offset+50,total)} из ${total}`:'0 заказов';
     $('prev').disabled=offset===0;$('next').disabled=offset+50>=total;
   }catch(e){if(n===request){$('message').textContent=e.message;$('rows').innerHTML='';}}
 }
 $('refresh').onclick=()=>{offset=0;load();};
-for(const id of ['status','signal'])$(id).onchange=()=>{offset=0;load();};
-$('search').onkeydown=e=>{if(e.key==='Enter'){offset=0;load();}};
+for(const id of ['status','signal','account'])$(id).onchange=()=>{offset=0;load();};
+for(const id of ['search','product-code'])$(id).onkeydown=e=>{if(e.key==='Enter'){offset=0;load();}};
 $('prev').onclick=()=>{offset=Math.max(0,offset-50);load();};
 $('next').onclick=()=>{offset+=50;load();};
 $('close').onclick=()=>$('history').close();

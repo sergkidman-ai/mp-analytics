@@ -1,0 +1,49 @@
+{
+  "validated": 242,
+  "by_account": {
+    "wb_acc2": {
+      "recalculated": 154,
+      "lower_floor": 14,
+      "now_passes": 1
+    },
+    "oz_acc2": {
+      "recalculated": 88,
+      "lower_floor": 25,
+      "now_passes": 14
+    }
+  },
+  "examples": [
+    {
+      "account": "oz_acc2",
+      "order": "10879561-0077-1",
+      "cost": "69.28",
+      "old_floor": "941.85",
+      "new_floor": "686.80",
+      "profit": "216.15"
+    },
+    {
+      "account": "oz_acc2",
+      "order": "10879561-0077-2",
+      "cost": "75.91",
+      "old_floor": "958.76",
+      "new_floor": "703.71",
+      "profit": "209.52"
+    },
+    {
+      "account": "oz_acc2",
+      "order": "08864471-0578-4",
+      "cost": "71.710",
+      "old_floor": "948.05",
+      "new_floor": "693.00",
+      "profit": "209.80"
+    }
+  ],
+  "unchanged": [
+    "cost",
+    "profit",
+    "price",
+    "quantity",
+    "expense_basis",
+    "source_timestamp"
+  ]
+}

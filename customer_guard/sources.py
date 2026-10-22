@@ -8,19 +8,23 @@ import time
 from shipment_guard import config
 from shipment_guard.ms import MSClient, SourceError
 from shipment_guard.economics import number
-from customer_guard.domain import product_id, quantities, fifo_cost
+from customer_guard.domain import product_id, quantities, fifo_cost, ACCOUNTS
 
 ORG = "f5bea6e0-c2ac-11ef-0a80-0221000adcc4"
 OZON_AGENTS = ("b7e22828-0b7c-11ee-0a80-11480012ed47", "22240c7b-c88d-11ed-0a80-10e700065d1d")
 
 
 class CustomerMS(MSClient):
+    account = 'oz_acc2'
     resource_prefixes = ("/context/employee", "/entity/customerorder", "/entity/demand",
                          "/entity/product", "/entity/enter", "/entity/store",
                          "/report/stock/byoperation")
 
-    def __init__(self, *args, budget=60, **kwargs):
+    def __init__(self, *args, budget=60, account="oz_acc2", **kwargs):
+        if account not in ACCOUNTS:
+            raise ValueError('unsupported_guard_account')
         super().__init__(*args, **kwargs)
+        self.account = account
         self.interval = max(2.1, self.interval)
         self.budget = budget
         self.receipts = {}
@@ -54,13 +58,14 @@ class CustomerMS(MSClient):
         raise SourceError("ms_page_budget", 600)
 
     def find_order(self, number_):
-        if not re.fullmatch(r"\d+-\d+-\d+", number_):
+        if not re.fullmatch(r"\d+" if self.account=="wb_acc2" else r"\d+-\d+-\d+", number_):
             raise SourceError("unsupported_posting_number")
         flt = f"organization={config.MS}/entity/organization/{ORG};name={number_}"
-        flt += "".join(f";agent={config.MS}/entity/counterparty/{a}" for a in OZON_AGENTS)
+        agents = ("de89f3ba-757f-11ee-0a80-0f8300075ceb",) if self.account=="wb_acc2" else OZON_AGENTS
+        flt += "".join(f";agent={config.MS}/entity/counterparty/{a}" for a in agents)
         rows = self.collection("/entity/customerorder",
                                {"filter": flt, "expand": "state,store,agent"}, max_pages=1)
-        if any(x.get("name") != number_ or config.identity(x)[:2] != ("ozon", "oz_acc2") for x in rows):
+        if any(x.get("name") != number_ or config.identity(x)[:2] != (ACCOUNTS[self.account], self.account) for x in rows):
             raise SourceError("ms_filter_mismatch")
         if len(rows) > 1:
             raise SourceError("ms_ambiguous_order")
@@ -141,7 +146,7 @@ class CustomerMS(MSClient):
                 demand = self.get(f"/entity/demand/{uid}")
                 if not demand.get("applicable"):
                     continue
-                if config.identity(demand)[:2] != ("ozon", "oz_acc2"):
+                if config.identity(demand)[:2] != (ACCOUNTS[self.account], self.account):
                     raise ValueError("demand_account_mismatch")
                 dp = self.positions("demand", uid)
                 for pid, qty in quantities(dp).items():

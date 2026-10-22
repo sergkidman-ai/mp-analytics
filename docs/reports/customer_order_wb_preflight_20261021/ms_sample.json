@@ -1,0 +1,29 @@
+[
+  {
+    "number": "6079561599",
+    "matches": 1,
+    "status": "Неукомплектован",
+    "ms_sum": 274830.0,
+    "wb_price": 8750,
+    "wb_converted_price": 242050,
+    "currency": 933
+  },
+  {
+    "number": "6079407898",
+    "matches": 1,
+    "status": "Неукомплектован",
+    "ms_sum": 222900.0,
+    "wb_price": 169900,
+    "wb_converted_price": 169900,
+    "currency": 643
+  },
+  {
+    "number": "6072415254",
+    "matches": 1,
+    "status": "В пути",
+    "ms_sum": 337400.0,
+    "wb_price": 262100,
+    "wb_converted_price": 262100,
+    "currency": 643
+  }
+]

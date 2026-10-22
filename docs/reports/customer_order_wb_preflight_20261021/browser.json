@@ -1,0 +1,54 @@
+{
+  "viewports": [
+    {
+      "width": 1920,
+      "page": 1920,
+      "table": 1668,
+      "rows": 50,
+      "account": "wb_acc2"
+    },
+    {
+      "width": 1440,
+      "page": 1440,
+      "table": 1188,
+      "rows": 50,
+      "account": "wb_acc2"
+    },
+    {
+      "width": 1366,
+      "page": 1366,
+      "table": 1114,
+      "rows": 50,
+      "account": "wb_acc2"
+    },
+    {
+      "width": 1280,
+      "page": 1280,
+      "table": 1028,
+      "rows": 50,
+      "account": "wb_acc2"
+    },
+    {
+      "width": 1024,
+      "page": 1024,
+      "table": 784,
+      "rows": 50,
+      "account": "wb_acc2"
+    },
+    {
+      "width": 768,
+      "page": 768,
+      "table": 599,
+      "rows": 50,
+      "account": "wb_acc2"
+    },
+    {
+      "width": 390,
+      "page": 390,
+      "table": 366,
+      "rows": 50,
+      "account": "wb_acc2"
+    }
+  ],
+  "js_errors": []
+}

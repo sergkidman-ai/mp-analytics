@@ -15,6 +15,8 @@ from customer_guard.service import evaluate
 from customer_guard.sources import ORG
 from customer_guard.sources import CustomerMS
 from shipment_guard import config
+# Import this worktree's router before legacy ops test modules prepend the shared checkout.
+from web import customer_guard_api as guard_api
 
 NOW = datetime(2026, 10, 20, 10, tzinfo=timezone.utc)
 
@@ -164,6 +166,8 @@ def pg(monkeypatch):
         cur.execute((Path(__file__).parents[1] / "migrations/075_customer_guard_runtime.sql").read_text()
                     .replace("BEGIN;","").replace("COMMIT;",""))
 
+        cur.execute((Path(__file__).parents[1] / 'migrations/076_customer_guard_wb.sql').read_text().replace('BEGIN;','').replace('COMMIT;',''))
+
     @contextmanager
     def isolated():
         with original() as conn:
@@ -182,7 +186,7 @@ def ingest(posts, at=NOW):
     store.ingest(posts, at, at, NOW-timedelta(days=1), at, mirror_raw=True)
 
 
-def test_common_expense_floor_and_positive_remainder_below_target():
+def test_common_expense_floor_with_lower_target_for_low_cost():
     from core.ozon_expense_basis import floor_from_keep
     post = posting()
     post["products"][0]["price"] = "728"
@@ -190,10 +194,10 @@ def test_common_expense_floor_and_positive_remainder_below_target():
     r = dict(rule(), retention=1-keep, version="september",
              base_from="2026-09-01", base_to="2026-09-30")
     value = domain.economics(post, Decimal("69.28"), "actual", r, NOW, True)
-    assert Decimal(value["floor"]) == floor_from_keep("69.28", 1, keep) == Decimal("941.85")
-    assert value["gap"] == "-213.85"
+    assert Decimal(value["floor"]) == floor_from_keep("69.28", 1, keep) == Decimal("686.80")
+    assert value["gap"] == "41.20"
     assert value["estimated_net"] == "216.15"
-    assert value["signal"] == "below_floor"
+    assert value["signal"] == "ok"
 
 
 def test_basis_reprice_preserves_source_time_history_and_is_idempotent(pg):
@@ -219,6 +223,26 @@ def test_basis_reprice_preserves_source_time_history_and_is_idempotent(pg):
     changed["products"][0]["quantity"] = 2
     ingest([changed], checked+timedelta(minutes=5))
     assert store.reprice(dict(r, version="newer"), checked+timedelta(minutes=6)) == 0
+
+
+def test_floor_policy_reprice_without_ms_or_expense_basis_change(pg):
+    from core.profit_floor import POLICY_VERSION
+    ingest([posting()])
+    checked = NOW+timedelta(minutes=10)
+    job = store.claim(checked)
+    r = dict(rule(), retention=Decimal('.6'))
+    old = domain.economics(posting(), Decimal(100), 'actual', r, checked, True)
+    old.pop('floor_policy')
+    old.update(floor='1000.00',gap='0.00')
+    assert store.finish(job, old, checked)
+    assert store.reprice(r, checked+timedelta(minutes=1)) == 1
+    assert store.reprice(r, checked+timedelta(minutes=2)) == 0
+    rows = db.query('SELECT result FROM customer_guard_checks ORDER BY id')
+    assert rows[0]['result']==old
+    assert rows[1]['result']['floor']=='750.00'
+    assert rows[1]['result']['floor_policy']==POLICY_VERSION
+    assert rows[1]['result']['estimated_net']==old['estimated_net']
+    assert db.query('SELECT ms_checked_at FROM customer_guard_orders')[0]['ms_checked_at']==checked
 
 
 def test_tc_structured_component_codes_and_cached_recheck(pg):
@@ -405,3 +429,22 @@ def test_dashboard_sorts_by_market_time_not_import_time(pg):
     assert [r['posting_number'] for r in rows]==['unknown-1','newer-1','older-1']
     assert rows[0]['mp_received_at'] is None
     assert client.get('/api/customer-orders',params={'offset':1,'limit':1}).json()['rows'][0]['posting_number']=='newer-1'
+
+
+def test_product_code_filter_matches_exact_ms_external_and_ozon_codes(pg):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from web.customer_guard_api import router
+    app=FastAPI();app.include_router(router);client=TestClient(app)
+    for i,(code,external) in enumerate([('0001wb','0001'),('0001at','0001'),('00010wb','00010')]):
+        post=posting(f'codes-{i}');ingest([post]);job=store.claim(NOW+timedelta(minutes=10),post['posting_number'])
+        positions=[dict(code=code,external_code=external,quantity=1)]*2
+        assert store.finish(job,dict(signal='ok',positions=positions),NOW+timedelta(minutes=11))
+    unverified=posting('not-checked');unverified['products'][0]['offer_id']='0001';ingest([unverified])
+    for query,count in [('0001',3),('0001wb',1),(' 0001WB ',1),('00010',1),('000',0),('0001%',0),("' OR true --",0)]:
+        d=client.get('/api/customer-orders',params={'product_code':query}).json()
+        assert d['total']==count and len(d['rows'])==count
+    d=client.get('/api/customer-orders',params={'product_code':'0001','limit':1,'offset':1}).json()
+    assert d['total']==3 and len(d['rows'])==1
+    d=client.get('/api/customer-orders',params={'product_code':'0001','search':'codes-0','signal':'ok'}).json()
+    assert d['total']==1 and d['rows'][0]['posting_number']=='codes-0'

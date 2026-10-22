@@ -1,0 +1,78 @@
+{
+  "release": "/opt/mp-analytics/runtime/customer-guard-79ba6814ef3e",
+  "previous_release": "/opt/mp-analytics/runtime/customer-guard-ec383c06b379",
+  "commit": "79ba6814ef3eb82f3b0d497ffdda003ba542b35b",
+  "migration": "076_customer_guard_wb.sql",
+  "prepared_at": "2026-10-21T07:41:53.305943+00:00",
+  "active_bootstrap": 167,
+  "wb_status_requests": 2,
+  "activated_at": "2026-10-21T07:42:16.381058+00:00",
+  "first_ms_due": "2026-10-21T07:52:16.381058+00:00",
+  "verified_at": "2026-10-21T07:44:00.360782+00:00",
+  "runtime": {
+    "enabled": true,
+    "notifications_enabled": true,
+    "settings": {
+      "wb_enabled": true,
+      "backfill_days": 90,
+      "repeat_minutes": 60,
+      "new_orders_minutes": 10,
+      "initial_delay_minutes": 10
+    },
+    "last_error": null,
+    "last_tick_at": "2026-10-21 07:43:35.351361+00:00"
+  },
+  "orders": [
+    {
+      "account": "oz_acc2",
+      "mp_status": "awaiting_deliver",
+      "count": 8
+    },
+    {
+      "account": "oz_acc2",
+      "mp_status": "awaiting_packaging",
+      "count": 23
+    },
+    {
+      "account": "oz_acc2",
+      "mp_status": "cancelled",
+      "count": 2
+    },
+    {
+      "account": "oz_acc2",
+      "mp_status": "delivered",
+      "count": 4
+    },
+    {
+      "account": "oz_acc2",
+      "mp_status": "delivering",
+      "count": 73
+    },
+    {
+      "account": "wb_acc2",
+      "mp_status": "awaiting_deliver",
+      "count": 13
+    },
+    {
+      "account": "wb_acc2",
+      "mp_status": "awaiting_packaging",
+      "count": 7
+    },
+    {
+      "account": "wb_acc2",
+      "mp_status": "delivering",
+      "count": 147
+    }
+  ],
+  "wb_due": [
+    {
+      "first_due": "2026-10-21 07:52:16.381058+00:00",
+      "pending": 167
+    }
+  ],
+  "tests": {
+    "passed": 229,
+    "subtests": 57
+  },
+  "browser": "browser.json"
+}

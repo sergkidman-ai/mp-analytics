@@ -1,0 +1,42 @@
+{
+  "token_reference": "WB_TOKEN_RETURNS_ACC2",
+  "same_seller_as_acc2": true,
+  "recent_http": 200,
+  "recent_rows": 20,
+  "new_http": 200,
+  "new_rows": 7,
+  "status_http": 200,
+  "statuses": {
+    "('complete', 'sorted')": 16,
+    "('new', 'waiting')": 4
+  },
+  "fields": [
+    "address",
+    "article",
+    "cargoType",
+    "chrtId",
+    "colorCode",
+    "comment",
+    "convertedCurrencyCode",
+    "convertedPrice",
+    "createdAt",
+    "crossBorderType",
+    "currencyCode",
+    "deliveryType",
+    "id",
+    "isPickupPointShipmentAllowed",
+    "isZeroOrder",
+    "nmId",
+    "officeId",
+    "offices",
+    "options",
+    "orderUid",
+    "price",
+    "rid",
+    "scanPrice",
+    "skus",
+    "supplyId",
+    "trackNumber",
+    "warehouseId"
+  ]
+}
