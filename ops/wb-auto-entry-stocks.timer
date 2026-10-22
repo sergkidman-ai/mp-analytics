@@ -1,0 +1,14 @@
+[Unit]
+Description=WB stock preparation before the three auto-action entry/check waves
+
+[Timer]
+OnCalendar=2026-10-21 20:45:00 UTC
+OnCalendar=2026-10-21 21:15:00 UTC
+OnCalendar=2026-10-21 21:45:00 UTC
+Persistent=true
+AccuracySec=1s
+RandomizedDelaySec=0
+Unit=wb-auto-entry-stocks.service
+
+[Install]
+WantedBy=timers.target

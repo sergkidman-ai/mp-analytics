@@ -36,11 +36,12 @@ import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
 
-sys.path.insert(0, "/opt/mp-analytics")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 load_dotenv("/opt/mp-analytics/.env")
 from core import db  # noqa: E402
 
@@ -725,51 +726,9 @@ def decide(acc, goods, cogs, prepromo, ret, touched_only=True, floor_controlled=
 
 
 def push(acc, batch):
-    """Отправить пачку цен одной задачей. → (ok, текст ошибки).
-
-    Цена и скидка берутся из raise_plan(): база сохраняется, поднимаем срезом скидки.
-    """
-    body = {"data": [{"nmID": int(r["nm_id"]),
-                      "price": int(r["send_price"] if r.get("send_price") else math.ceil(r["target_price"])),
-                      "discount": int(r.get("send_disc") or 0)}
-                     for r in batch]}
-    r = None
-    for attempt in range(4):
-        try:
-            r = requests.post(WB_API + "/api/v2/upload/task", headers=head(acc), json=body, timeout=90)
-        except requests.RequestException as e:
-            if attempt == 3:
-                return False, f"сеть: {str(e)[:150]}"
-            time.sleep(2 ** attempt * 3)
-            continue
-        if r.status_code < 500:
-            break
-        if attempt == 3:
-            return False, f"HTTP {r.status_code} {r.text[:200]}"
-        time.sleep(2 ** attempt * 3)
-    if r.status_code >= 400:
-        return False, f"HTTP {r.status_code} {r.text[:200]}"
-    uid = (r.json().get("data") or {}).get("id")
-    if not uid:
-        return False, f"нет uploadID: {r.text[:200]}"
-    for _ in range(15):                              # задача обрабатывается асинхронно
-        time.sleep(4)
-        try:
-            d = wb_get(acc, WB_API + "/api/v2/history/tasks", {"uploadID": uid}).get("data") or {}
-        except Exception:
-            continue
-        if isinstance(d, list):
-            d = d[0] if d else {}
-        # Пустой ответ = задача ещё не заведена в истории, а не «провал»: сразу после
-        # /upload/task ВБ отдаёт data без полей, и status приходит None. До 15.09.2026 такой
-        # ответ считался терминальным, из-за чего волна 00:30 записала 100 ложных ошибок —
-        # цены при этом действительно не применились, задача просто не была опрошена до конца.
-        if not d or d.get("status") in (1, 2):
-            continue
-        if (d.get("successGoodsNumber") or 0) > 0:
-            return True, ""
-        return False, f"status={d.get('status')} {task_err(acc, uid)}".strip()
-    return False, "вердикта задачи не дождались"
+    """Shared durable WB writer; accepted uploads are verified per product."""
+    from ops.wb_auto_entry import legacy_push
+    return legacy_push(acc, batch)
 
 
 def task_err(acc, uid):
@@ -1003,4 +962,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from core.wb_price_writer import legacy_main
+    sys.exit(legacy_main(main))

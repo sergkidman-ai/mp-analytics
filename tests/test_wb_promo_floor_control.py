@@ -28,6 +28,13 @@ class WbFloorControlTests(unittest.TestCase):
         self.assertEqual(row['floor_net'], 1200)
         self.assertIsNone(row['target_price'])
 
+    def test_previous_confirmed_bundle_is_protected_after_small_drop(self):
+        row = guard.decide('wb_acc2', {1: (9894, 50, 4947, '0587X6DAMKZ4')},
+            {1: {'cogs': 1001.48, 'bundle': 6}}, {1: 5162}, .554,
+            floor_controlled={1: 'пол ранее подтверждён сторожем'})[0]
+        self.assertEqual(row['status'], 'todo')
+        self.assertGreater(row['target_price'], 4947)
+
     def test_cost_increase_without_price_drop_rechecks_floor(self):
         row = guard.decide('wb_acc2', {1: (16524, 25, 12393, '0948X12LDDNM')},
             {1: {'cogs': 1936.08, 'bundle': 12}}, {1: 12393}, .554,

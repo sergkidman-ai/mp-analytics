@@ -20,6 +20,14 @@ def row(verdict="ОК", price=400):
 
 
 class QuarantineReentry(unittest.TestCase):
+    def setUp(self):
+        # Unit tests must never depend on the live price-controller writer lock.
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        lock = patch('core.wb_price_writer.ROOT', Path(directory.name))
+        lock.start()
+        self.addCleanup(lock.stop)
+
     def test_reentry_reopens_completed_episode_with_new_price(self):
         tg = {("wb_acc1", "123"): target()}
         work = q.targets_refresh(tg, [row(price=400)], "2026-10-03")

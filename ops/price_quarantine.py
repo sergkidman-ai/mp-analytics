@@ -472,44 +472,9 @@ def wb_current(acc, nm):
 
 
 def wb_push(acc, nm, price):
-    """Отправить цену и дождаться вердикта задачи. → (ok, текст ошибки)."""
-    body = {"data": [{"nmID": int(nm), "price": int(price), "discount": 0}]}
-    for attempt in range(4):                              # 5xx — не отказ от цены, а сбой WB;
-        try:                                              # иначе лестница зря мельчит шаг
-            r = requests.post(f"{WB_API}/api/v2/upload/task", headers=_wb_h(acc),
-                              json=body, timeout=60)
-        except requests.RequestException as e:
-            if attempt == 3:
-                return False, f"сеть: {str(e)[:150]}"
-            time.sleep(2 ** attempt * 3)
-            continue
-        if r.status_code < 500:
-            break
-        if attempt == 3:
-            return False, f"HTTP {r.status_code} {r.text[:200]}"
-        time.sleep(2 ** attempt * 3)
-    if r.status_code >= 400:
-        return False, f"HTTP {r.status_code} {r.text[:200]}"
-    uid = (r.json().get("data") or {}).get("id")
-    if not uid:
-        return False, f"нет uploadID: {r.text[:200]}"
-    err = "вердикта задачи не дождались"
-    for _ in range(12):                                   # задача обрабатывается асинхронно
-        time.sleep(3)
-        try:
-            d = _wb_get(acc, "/api/v2/history/tasks", {"uploadID": uid}).get("data") or {}
-        except Exception as e:                            # сеть/лимит — просто ещё раз
-            err = str(e)[:120]
-            continue
-        if isinstance(d, list):                           # у WB здесь ОБЪЕКТ, но подстрахуемся
-            d = d[0] if d else {}
-        st = d.get("status")
-        if st in (1, 2):                                  # в очереди / в работе
-            continue
-        if (d.get("successGoodsNumber") or 0) > 0:
-            return True, ""
-        return False, f"status={st} {_wb_task_err(acc, uid)}".strip()
-    return False, err
+    """Shared durable WB writer with a fresh full-cost profit-floor check."""
+    from ops.wb_auto_entry import quarantine_push
+    return quarantine_push(acc, nm, price)
 
 
 def _wb_task_err(acc, uid):
@@ -522,6 +487,10 @@ def _wb_task_err(acc, uid):
         return ""
 
 
+from core.wb_price_writer import locked_release
+
+
+@locked_release
 def wb_release(acc, nm, target, log, state):
     """Лестница к целевой цене ТК. → (итог, шагов, конечная цена покупателю).
 

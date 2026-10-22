@@ -1,0 +1,159 @@
+{
+  "wb_acc1": {
+    "tasks": 3,
+    "verified_products": 6,
+    "pending_tasks": 0,
+    "future_reasons": {
+      "eligible": 7750,
+      "already_at_target": 3256,
+      "cap_below_floor": 126,
+      "no_mp_stock": 57,
+      "exclude_unknown_cost": 93,
+      "stock_not_confirmed_for_price_decrease": 4305,
+      "no_integer_discount": 6,
+      "no_complete_cost_or_supply": 120
+    },
+    "best_action_by_price": {
+      "Осенние скидки (автоматические скидки)": 10216,
+      "11.11 (автоматические скидки)": 790
+    },
+    "cheap_unit_cards": 1481
+  },
+  "wb_acc2": {
+    "tasks": 3,
+    "verified_products": 38,
+    "pending_tasks": 0,
+    "future_reasons": {
+      "eligible": 6358,
+      "already_at_target": 1726,
+      "no_mp_stock": 37,
+      "cap_below_floor": 1383,
+      "stock_not_confirmed_for_price_decrease": 6563,
+      "no_complete_cost_or_supply": 181,
+      "no_integer_discount": 42,
+      "exclude_unknown_cost": 28
+    },
+    "best_action_by_price": {
+      "11.11 - 2 (автоматические скидки)": 11,
+      "Осенние скидки (автоматические скидки)": 4343,
+      "11.11 (автоматические скидки)": 3730
+    },
+    "cheap_unit_cards": 1562
+  },
+  "captured": "2026-10-21T19:34:43.413610+00:00",
+  "tests": "74 passed, 5 subtests passed",
+  "tasks": [
+    {
+      "id": 1,
+      "account": "wb_acc1",
+      "state": "verified",
+      "upload_id": 136126587,
+      "terminal": 1
+    },
+    {
+      "id": 2,
+      "account": "wb_acc2",
+      "state": "verified",
+      "upload_id": 173537881,
+      "terminal": 1
+    },
+    {
+      "id": 3,
+      "account": "wb_acc1",
+      "state": "verified",
+      "upload_id": 136126992,
+      "terminal": 1
+    },
+    {
+      "id": 4,
+      "account": "wb_acc2",
+      "state": "verified",
+      "upload_id": 173538165,
+      "terminal": 1
+    },
+    {
+      "id": 5,
+      "account": "wb_acc1",
+      "state": "verified",
+      "upload_id": 136128421,
+      "terminal": 1
+    },
+    {
+      "id": 6,
+      "account": "wb_acc2",
+      "state": "verified",
+      "upload_id": 173539689,
+      "terminal": 1
+    }
+  ],
+  "source_sha256": {
+    "core/wb_auto_entry.py": "b281005520da9a8c7ca7073e814be7b7122f4bdf4f58d5430ce9cf163b0537bb",
+    "core/wb_auto_journal.py": "61a2f7a1deb564c3c45c5f72298bb479f92bd1646156b0cdfdc647ce82f1d3f4",
+    "core/wb_price_writer.py": "78825bc88c4bcc8d0e79b3769ebecb08508369b3d04da625972d62bc121f2341",
+    "ops/wb_auto_entry.py": "4d3f55aa839d36e44dd4657a040cf976c3b5f512006069dec239544d7cbc816e",
+    "ops/wb_auto_entry_prepare.py": "9aa6c1fb3a0ed033c63a19b2167d21882cdd05b51d6d41032ebe41dcb09e8f3d"
+  },
+  "latest_real_status": {
+    "captured": "2026-10-21 19:47:16.510350+00:00",
+    "results": [
+      {
+        "account": "wb_acc1",
+        "goods": 18274,
+        "stocks": 11972,
+        "reasons": {
+          "waiting_new_action_start": 15500,
+          "no_complete_cost_or_supply": 213
+        },
+        "selected": 0,
+        "accepted_batches": 0,
+        "submitted_products": 0,
+        "apply": true,
+        "below_floor_before": 0,
+        "below_floor_after": 0
+      },
+      {
+        "account": "wb_acc2",
+        "goods": 20093,
+        "stocks": 7000,
+        "reasons": {
+          "waiting_new_action_start": 16109,
+          "no_complete_cost_or_supply": 209
+        },
+        "selected": 0,
+        "accepted_batches": 0,
+        "submitted_products": 0,
+        "apply": true,
+        "below_floor_before": 0,
+        "below_floor_after": 0
+      }
+    ]
+  },
+  "stock_cache": {
+    "wb_acc1": {
+      "rows": 3981,
+      "complete": false,
+      "captured": 1792611601.052691
+    },
+    "wb_acc2": {
+      "rows": 16690,
+      "complete": true,
+      "captured": 1792609902.4313464
+    }
+  },
+  "forecast_note": "Simulation at 21:01 UTC, real prices before start; stock cache refreshing, no participation claim",
+  "updated_utc": "2026-10-21T19:49:30.827871+00:00",
+  "schedule_msk": {
+    "entry": "2026-10-22 00:00",
+    "checks": [
+      "2026-10-22 00:30",
+      "2026-10-22 01:00"
+    ],
+    "existing_guard": "02:00",
+    "stock_prepare": [
+      "2026-10-21 23:45",
+      "2026-10-22 00:15",
+      "2026-10-22 00:45"
+    ],
+    "failure_only_retry": "RestartSec=120, StartLimitBurst=3, StartLimitIntervalSec=1200"
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "captured": "2026-10-21T22:40:05.266956+00:00",
+  "stats": {
+    "wb_acc1": {
+      "attempted_unique": 14165,
+      "price_confirmed_at_least_once_unique": 14128,
+      "latest_errors": 37,
+      "error_groups": {
+        "quarantine": 24,
+        "too_large_decrease": 13
+      },
+      "pending_batches": 0
+    },
+    "wb_acc2": {
+      "attempted_unique": 12564,
+      "price_confirmed_at_least_once_unique": 11238,
+      "latest_errors": 1326,
+      "error_groups": {
+        "quarantine": 748,
+        "too_large_decrease": 578
+      },
+      "pending_batches": 0
+    }
+  },
+  "rescue": {
+    "captured": "2026-10-21 22:36:13.369655+00:00",
+    "results": [
+      {
+        "account": "wb_acc2",
+        "goods": 20093,
+        "stocks": 0,
+        "reasons": {
+          "already_at_target": 12894,
+          "stock_not_confirmed_for_price_decrease": 1948,
+          "cap_below_floor": 1138,
+          "no_complete_cost_or_supply": 261,
+          "no_integer_discount": 40,
+          "exclude_unknown_cost": 30,
+          "eligible": 5,
+          "protect_floor": 2
+        },
+        "selected": 37,
+        "accepted_batches": 1,
+        "submitted_products": 37,
+        "apply": true,
+        "below_floor_before": 2,
+        "stock_warning": "No fresh analytics cache; price decreases deferred, raises allowed",
+        "cas_skipped": 0,
+        "urgent_replanned": 2,
+        "selected_after_cas": 37,
+        "verified_products": 37,
+        "below_floor_after": 0,
+        "pending_batches": 0
+      }
+    ]
+  },
+  "final_readonly": {
+    "captured": "2026-10-21 22:39:25.457729+00:00",
+    "results": [
+      {
+        "account": "wb_acc1",
+        "goods": 18274,
+        "stocks": 0,
+        "reasons": {
+          "already_at_target": 15185,
+          "cap_below_floor": 72,
+          "eligible": 35,
+          "no_complete_cost_or_supply": 324,
+          "no_integer_discount": 5,
+          "stock_not_confirmed_for_price_decrease": 92
+        },
+        "selected": 35,
+        "accepted_batches": 0,
+        "submitted_products": 0,
+        "apply": false,
+        "below_floor_before": 0,
+        "stock_warning": "No fresh analytics cache; price decreases deferred, raises allowed",
+        "below_floor_after": 0
+      },
+      {
+        "account": "wb_acc2",
+        "goods": 20093,
+        "stocks": 0,
+        "reasons": {
+          "already_at_target": 12900,
+          "stock_not_confirmed_for_price_decrease": 1948,
+          "cap_below_floor": 1139,
+          "no_complete_cost_or_supply": 291,
+          "no_integer_discount": 40
+        },
+        "selected": 0,
+        "accepted_batches": 0,
+        "submitted_products": 0,
+        "apply": false,
+        "below_floor_before": 0,
+        "stock_warning": "No fresh analytics cache; price decreases deferred, raises allowed",
+        "below_floor_after": 0
+      }
+    ]
+  },
+  "tests": "75 passed, 5 subtests passed",
+  "membership_confirmed": false,
+  "root_cause": "WB terminal status 6 was incorrectly considered pending; fixed to reconcile per-product actual prices and terminal failures."
+}
