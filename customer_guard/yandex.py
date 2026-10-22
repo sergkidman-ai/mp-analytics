@@ -9,7 +9,7 @@ from shipment_guard.ms import SourceError
 from shipment_guard.economics import number
 
 STATUS = {'PROCESSING':'awaiting_packaging', 'DELIVERY':'delivering', 'PICKUP':'delivering',
-          'DELIVERED':'delivered', 'CANCELLED':'cancelled', 'PARTIALLY_DELIVERED':'delivering'}
+          'DELIVERED':'delivered', 'CANCELLED':'cancelled'}
 
 
 def normalize(order):
@@ -75,7 +75,7 @@ class YandexClient:
 
     def fetch(self, start, end, max_pages=50, active_only=False):
         body={'dates':{'creationDateFrom':start.date().isoformat(),'creationDateTo':end.date().isoformat()}}
-        if active_only: body['statuses']=['PROCESSING','DELIVERY','PICKUP','UNPAID','PLACING','RESERVED','PARTIALLY_DELIVERED']
+        if active_only: body['statuses']=['PROCESSING','DELIVERY','PICKUP','UNPAID','PLACING','RESERVED']
         token=None;seen=set();posts={}
         for _ in range(max_pages):
             data=self.call(body,token)
