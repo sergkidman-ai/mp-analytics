@@ -8,7 +8,7 @@ import psycopg2
 from core import db
 from core.ozon_expense_basis import BasisUnavailable
 from customer_guard import service, store
-from customer_guard.domain import utcnow
+from customer_guard.domain import utcnow, enabled_accounts
 from customer_guard.notifications import recover_interrupted
 
 RUNTIME_LOCK = 7348201702
@@ -64,11 +64,25 @@ def tick():
             if not synced_wb or synced_wb[0]['started_at']<=now-timedelta(minutes=10):
                 phase('wb_orders',service.sync_wb)
                 phase('wb_old_status',lambda:service.refresh_wb(older_than=now-timedelta(minutes=10)))
+        settings=state.get('settings',{})
+        if settings.get('digital_enabled',False):
+            for acc, platform, operation in (
+                ('oz_acc1','ozon',lambda:service.sync(account='oz_acc1')),
+                ('wb_acc1','wb',lambda:service.sync_wb(account='wb_acc1')),
+                ('ya_acc1','yandex',service.sync_yandex)):
+                checkpoint=db.query('SELECT started_at FROM customer_guard_sync_state WHERE scope=%s',
+                                    (f'{platform}/{acc}/fbs',))
+                if not checkpoint or checkpoint[0]['started_at']<=now-timedelta(minutes=10):
+                    phase(acc+'_orders',operation)
+                    if platform=='wb':
+                        phase(acc+'_old_status',lambda:service.refresh_wb(account='wb_acc1',older_than=now-timedelta(minutes=10)))
+            phase('oz_acc1_old_status',lambda:service.refresh(3,account='oz_acc1',older_than=now-timedelta(minutes=10)))
+            phase('ya_acc1_old_status',lambda:service.refresh_yandex(3,older_than=now-timedelta(minutes=10)))
         # Old tracked active orders are point-refreshed, not forgotten outside the list window.
         phase("old_status",lambda:service.refresh(3,older_than=now-timedelta(minutes=10)))
         phase("enqueue",lambda:store.schedule_rechecks(utcnow()))
         phase("work",lambda:service.work(limit=3,budget=100,notify=state["notifications_enabled"],
-                                         account=None if wb_enabled else 'oz_acc2'))
+                                         accounts=enabled_accounts(settings)))
         # Basis changes do not require fresh MS reads and do not send old alerts.
         try:
             result["reprice"]=service.reprice()
@@ -78,6 +92,9 @@ def tick():
             errors.append("reprice:"+type(exc).__name__)
         if wb_enabled:
             phase('wb_reprice',lambda:service.reprice(account='wb_acc2'))
+        if settings.get('digital_enabled',False):
+            for acc in ('oz_acc1','wb_acc1','ya_acc1'):
+                phase(acc+'_reprice',lambda acc=acc:service.reprice(account=acc))
         heartbeat(";".join(errors) or None)
         db.execute("UPDATE customer_guard_runtime SET last_tick_at=%s WHERE id",(utcnow(),))
         result["errors"]=errors

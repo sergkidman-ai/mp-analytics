@@ -84,7 +84,7 @@ def test_two_cabinets_do_not_share_identity_jobs_or_incidents(pg,monkeypatch):
     app=FastAPI();app.include_router(api.router);c=TestClient(app)
     assert c.get('/api/customer-orders').json()['total']==2
     assert c.get('/api/customer-orders',params={'account':'wb_acc2'}).json()['rows'][0]['platform']=='wb'
-    assert c.get('/api/customer-orders',params={'account':'wb_acc1'}).status_code==422
+    assert c.get('/api/customer-orders',params={'account':'wb_acc3'}).status_code==422
     ingest([post(status='canceled_by_client')],at+timedelta(seconds=1))
     active=db.query("SELECT o.account FROM customer_guard_incidents i JOIN customer_guard_orders o ON o.id=i.order_id WHERE resolved_at IS NULL")
     assert [r['account'] for r in active]==['oz_acc2']

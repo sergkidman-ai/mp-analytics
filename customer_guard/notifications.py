@@ -45,14 +45,15 @@ def product_codes(result):
 
 def message(row):
     r = row["result"]
-    label='WB' if row.get('platform')=='wb' else 'Ozon'
+    label={'wb':'WB','ozon':'Ozon','yandex':'Маркет'}.get(row.get('platform'),'Ozon')
+    company='Цифровой' if row.get('account','').endswith('acc1') else 'Дисквэр'
     if row["kind"] == "missing_ms" and r.get("signal") == "missing_ms":
         products = row.get("products") or []
         codes = [f"Артикул {label}: "+" ".join(str(p.get("offer_id") or "—").split())[:80]
                  for p in products[:12]]
         if len(products)>12:
             codes.append(f"Ещё {len(products)-12} позиций — в Пульте.")
-        return (f"Заказ не найден в МС\n{label} · Дисквэр · {row['posting_number']}\n"
+        return (f"Заказ не найден в МС\n{label} · {company} · {row['posting_number']}\n"
                 f"После получения Пультом прошло не менее 10 минут. Отправление активно в {label}; "
                 "проверка МС выполнена успешно, заказ не найден.\n"+
                 ("\n".join(codes)+"\n" if codes else "")+
@@ -62,13 +63,13 @@ def message(row):
         raise ValueError("notification_outside_profit_policy")
     rub = lambda key: f"{Decimal(r[key]):.2f} ₽"
     title = "Расчётный убыток" if Decimal(r["estimated_net"]) < 0 else "Заказ без прибыли"
-    return (f"{title}\n{label} · Дисквэр · {row['posting_number']}\n"
+    return (f"{title}\n{label} · {company} · {row['posting_number']}\n"
             f"МС: {row['ms_status']}\n{product_codes(r)}"
             f"Цена: {rub('price')}; себестоимость: {rub('cost')} "
             f"({'факт отгрузки' if r['cost_kind']=='actual' else 'предварительная оценка'}).\n"
             f"Пол: {rub('floor')}; отклонение: {rub('gap')}.\n"
             f"Расчётная чистая прибыль: {rub('estimated_net')}.\n"
-            f"Цена {'МС' if label=='WB' else 'Ozon'} минус себестоимость и расходы {label} по средней доле кабинета. "
+            f"Цена {'МС' if label in ('WB','Маркет') else 'Ozon'} минус себестоимость и расходы {label} по средней доле кабинета. "
             "Оценка по текущим данным; начисления по заказу могут отличаться.\n"+
             ("Соответствие состава не подтверждено; проверен общий итог.\n"
              if r.get("allocation")!="single_market_line" else "")+
@@ -91,7 +92,8 @@ def claim(order_id, recipient, now):
           JOIN customer_guard_jobs j ON j.order_id=o.id CROSS JOIN customer_guard_runtime r
           WHERE i.order_id=%s AND i.delivery='pending' AND i.resolved_at IS NULL
           AND r.enabled AND r.notifications_enabled AND c.calculated_at>=r.activated_at
-          AND (o.account='oz_acc2' OR coalesce((r.settings->>'wb_enabled')::boolean,false))
+          AND (o.account='oz_acc2' OR o.account='wb_acc2' AND coalesce((r.settings->>'wb_enabled')::boolean,false)
+          OR o.account IN ('oz_acc1','wb_acc1','ya_acc1') AND coalesce((r.settings->>'digital_enabled')::boolean,false))
           AND i.check_id=c.id AND c.generation=o.generation AND j.state='done' AND j.error IS NULL
           AND o.mp_status=ANY(%s) AND o.observed_at>=%s AND o.ms_checked_at>=%s
           AND o.ms_due_at<=%s
@@ -140,7 +142,8 @@ def send_current(order_id):
       JOIN customer_guard_checks c ON c.id=o.latest_check_id CROSS JOIN customer_guard_runtime r
       WHERE i.id=%s AND i.delivery='sending' AND i.resolved_at IS NULL
       AND i.check_id=c.id AND c.generation=o.generation AND r.enabled AND r.notifications_enabled
-      AND (o.account='oz_acc2' OR coalesce((r.settings->>'wb_enabled')::boolean,false))
+      AND (o.account='oz_acc2' OR o.account='wb_acc2' AND coalesce((r.settings->>'wb_enabled')::boolean,false)
+          OR o.account IN ('oz_acc1','wb_acc1','ya_acc1') AND coalesce((r.settings->>'digital_enabled')::boolean,false))
       AND o.mp_status=ANY(%s)""",(row["id"],list(ACTIVE)))
     if not valid or not basis_current:
         return complete(row["id"],"suppressed",error="changed_before_send")

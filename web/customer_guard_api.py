@@ -33,7 +33,7 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
     for acc in ACCOUNTS:
         try:bases[acc]=get_basis(acc)
         except BasisUnavailable:bases[acc]=None
-    where, params = ["o.account IN ('oz_acc2','wb_acc2')"], []
+    where, params = ["o.account=ANY(%s)"], [list(ACCOUNTS)]
     if account:
         where.append('o.account=%s');params.append(account)
     if status:
@@ -41,12 +41,11 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
         params.extend([status, status])
     if signal == "non_positive_profit":
         where.append("""c.generation=o.generation AND j.error IS NULL
-          AND ((o.account='oz_acc2' AND c.result->>'rule_version'=%s)
-            OR (o.account='wb_acc2' AND c.result->>'rule_version'=%s))
+          AND c.result->>'rule_version'=(%s::jsonb->>o.account)
           AND c.result->>'floor' IS NOT NULL
           AND CASE WHEN c.result->>'estimated_net' ~ '^-?[0-9]+([.][0-9]+)?$'
               THEN (c.result->>'estimated_net')::numeric <= 0 ELSE false END""")
-        params.extend([bases[a]['version'] if bases[a] else None for a in ACCOUNTS])
+        params.append(__import__('json').dumps({a:bases[a]['version'] if bases[a] else None for a in ACCOUNTS}))
     elif signal:
         where.append("c.generation=o.generation AND c.result->>'signal'=%s")
         params.append(signal)

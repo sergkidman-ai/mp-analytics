@@ -12,7 +12,17 @@ from core.profit_floor import POLICY_VERSION
 ACTIVE = frozenset(("awaiting_packaging", "awaiting_deliver", "delivering"))
 TERMINAL = frozenset(("cancelled", "delivered"))
 READY = frozenset(("Неукомплектован", "Подтвержден", "Собирается"))
-ACCOUNTS = {"oz_acc2":"ozon", "wb_acc2":"wb"}
+ACCOUNTS = {"oz_acc2":"ozon", "wb_acc2":"wb", "oz_acc1":"ozon", "wb_acc1":"wb", "ya_acc1":"yandex"}
+
+def organization(account):
+    if account not in ACCOUNTS:
+        raise ValueError('unsupported_guard_account')
+    return 'a5e7ee84-8d63-41f2-9fae-0be2ef90462b' if account.endswith('acc1') else 'f5bea6e0-c2ac-11ef-0a80-0221000adcc4'
+
+def enabled_accounts(settings):
+    return ['oz_acc2'] + (['wb_acc2'] if settings.get('wb_enabled') else []) + (
+        ['oz_acc1','wb_acc1','ya_acc1'] if settings.get('digital_enabled') else [])
+
 
 
 def market(post):
@@ -150,7 +160,7 @@ def economics(post, cost, kind, rule, now, allocation_verified=False, price_over
         result["note"] = "Нет действующего правила пола"
         return result
     if (rule["valid_until"] < now.date() or rule["platform"] != platform
-            or str(rule["organization_id"]) != "f5bea6e0-c2ac-11ef-0a80-0221000adcc4"):
+            or str(rule["organization_id"]) != organization(account)):
         result["note"] = "Правило пола просрочено или относится к другому кабинету"
         return result
     retention = number(rule["retention"])
