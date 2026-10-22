@@ -75,7 +75,7 @@ class YandexClient:
 
     def fetch(self, start, end, max_pages=50, active_only=False):
         body={'dates':{'creationDateFrom':start.date().isoformat(),'creationDateTo':end.date().isoformat()}}
-        if active_only: body['statuses']=['PROCESSING','DELIVERY','PICKUP','UNPAID','PLACING','RESERVED']
+        if active_only: body['statuses']=['PROCESSING','DELIVERY','PICKUP','UNPAID']
         token=None;seen=set();posts={}
         for _ in range(max_pages):
             data=self.call(body,token)

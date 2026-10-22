@@ -49,7 +49,7 @@ def test_yandex_api_pagination_exact_identity_and_budget(monkeypatch):
     assert req.call_args.args[0].endswith('/v1/businesses/123/orders')
     body=req.call_args.kwargs['json']
     assert body['programTypes']==['FBS'] and body['fake'] is False and 'dates' in body
-    assert body['statuses']==['PROCESSING','DELIVERY','PICKUP','UNPAID','PLACING','RESERVED']
+    assert body['statuses']==['PROCESSING','DELIVERY','PICKUP','UNPAID']
     with pytest.raises(SourceError,match='budget'):client.get_post(p[0])
     client=yandex.YandexClient(sleep=lambda _:None)
     client.call=Mock(return_value={'orders':[ya_order()],'paging':{'nextPageToken':'repeat'}})
