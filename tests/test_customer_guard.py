@@ -167,6 +167,7 @@ def pg(monkeypatch):
                     .replace("BEGIN;","").replace("COMMIT;",""))
 
         cur.execute((Path(__file__).parents[1] / 'migrations/076_customer_guard_wb.sql').read_text().replace('BEGIN;','').replace('COMMIT;',''))
+        cur.execute((Path(__file__).parents[1] / 'migrations/077_customer_guard_digital.sql').read_text().replace('BEGIN;','').replace('COMMIT;',''))
 
     @contextmanager
     def isolated():

@@ -29,7 +29,8 @@ def status(s):
     return 'unknown'
 
 
-def normalize(order, state):
+def normalize(order, state, account=ACCOUNT):
+    if account not in ("wb_acc1","wb_acc2"): raise ValueError("unsupported_guard_account")
     oid = order.get('id')
     if isinstance(oid,bool) or not isinstance(oid,int) or oid<=0 or state.get('id')!=oid:
         raise SourceError('wb_order_identity_mismatch')
@@ -47,14 +48,16 @@ def normalize(order, state):
     # No recipient, address, phone or buyer comment is stored.
     raw = {k:order[k] for k in ('id','rid','orderUid','article','nmId','createdAt','deliveryType',
         'price','convertedPrice','currencyCode','convertedCurrencyCode') if k in order}
-    return dict(platform='wb',account=ACCOUNT,posting_number=str(oid),order_number=str(order.get('orderUid') or oid),
+    return dict(platform='wb',account=account,posting_number=str(oid),order_number=str(order.get('orderUid') or oid),
         status=status(state),substatus=f"{state.get('supplierStatus')}:{state.get('wbStatus')}",
         created_at=stamp.isoformat(),in_process_at=stamp.isoformat(),market_order=raw,market_status=state,
         products=[dict(offer_id=order['article'],sku=order.get('nmId'),name=order['article'],quantity=1,price=str(price))])
 
 
 class WBClient:
-    def __init__(self, request=None, clock=time.monotonic, sleep=time.sleep, budget=120):
+    def __init__(self, request=None, clock=time.monotonic, sleep=time.sleep, budget=120, account=ACCOUNT):
+        if account not in ("wb_acc1","wb_acc2"): raise ValueError("unsupported_guard_account")
+        self.account=account
         self.request = request or requests.request
         self.clock,self.sleep = clock,sleep
         self.deadline=clock()+120
@@ -67,10 +70,11 @@ class WBClient:
             raise SourceError('wb_read_method_not_allowed')
         if self.calls>=self.budget or self.clock()>=self.deadline:
             raise SourceError('wb_request_budget',600)
-        ref=os.getenv('SHIPMENT_GUARD_WB_TOKEN_ENV_ACC2','WB_TOKEN_ACC2')
-        if not re.fullmatch(r'WB_TOKEN_[A-Z_]*ACC2',ref):
+        suffix=self.account[-4:].upper()
+        ref=os.getenv('SHIPMENT_GUARD_WB_TOKEN_ENV_'+suffix,'WB_TOKEN_'+suffix)
+        if not re.fullmatch(rf'WB_TOKEN_[A-Z_]*{suffix}',ref):
             raise SourceError('wb_token_reference_invalid')
-        token=os.getenv('SHIPMENT_GUARD_WB_TOKEN_ACC2') or os.getenv(ref)
+        token=os.getenv('SHIPMENT_GUARD_WB_TOKEN_'+suffix) or os.getenv(ref)
         if not token:
             raise SourceError('wb_marketplace_token_missing',3600)
         self.sleep(max(0,self.next_at-self.clock()));self.next_at=self.clock()+1
@@ -115,9 +119,9 @@ class WBClient:
         for row in self.call('/api/v3/orders/new')['orders']:
             orders[row['id']]=row
         statuses=self.statuses(list(orders))
-        return [normalize(row,statuses[oid]) for oid,row in orders.items()]
+        return [normalize(row,statuses[oid],self.account) for oid,row in orders.items()]
 
     def refresh_posts(self, posts):
         ids=[int(p['posting_number']) for p in posts]
         states=self.statuses(ids)
-        return [normalize(p['market_order'],states[int(p['posting_number'])]) for p in posts]
+        return [normalize(p['market_order'],states[int(p['posting_number'])],self.account) for p in posts]

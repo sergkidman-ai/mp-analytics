@@ -8,7 +8,7 @@ import time
 from shipment_guard import config
 from shipment_guard.ms import MSClient, SourceError
 from shipment_guard.economics import number
-from customer_guard.domain import product_id, quantities, fifo_cost, ACCOUNTS
+from customer_guard.domain import product_id, quantities, fifo_cost, ACCOUNTS, organization
 
 ORG = "f5bea6e0-c2ac-11ef-0a80-0221000adcc4"
 OZON_AGENTS = ("b7e22828-0b7c-11ee-0a80-11480012ed47", "22240c7b-c88d-11ed-0a80-10e700065d1d")
@@ -58,10 +58,10 @@ class CustomerMS(MSClient):
         raise SourceError("ms_page_budget", 600)
 
     def find_order(self, number_):
-        if not re.fullmatch(r"\d+" if self.account=="wb_acc2" else r"\d+-\d+-\d+", number_):
+        if not re.fullmatch(r"\d+" if ACCOUNTS[self.account]!="ozon" else r"\d+-\d+-\d+", number_):
             raise SourceError("unsupported_posting_number")
-        flt = f"organization={config.MS}/entity/organization/{ORG};name={number_}"
-        agents = ("de89f3ba-757f-11ee-0a80-0f8300075ceb",) if self.account=="wb_acc2" else OZON_AGENTS
+        flt = f"organization={config.MS}/entity/organization/{organization(self.account)};name={number_}"
+        agents = tuple(uid for uid, platform in config.AGENTS.items() if platform == ACCOUNTS[self.account])
         flt += "".join(f";agent={config.MS}/entity/counterparty/{a}" for a in agents)
         rows = self.collection("/entity/customerorder",
                                {"filter": flt, "expand": "state,store,agent"}, max_pages=1)
@@ -167,15 +167,16 @@ class CustomerMS(MSClient):
         raise ValueError("no_confirmed_cost")
 
 
-def get_posting(number_):
+def get_posting(number_, account="oz_acc2"):
+    if ACCOUNTS.get(account)!="ozon": raise ValueError("unsupported_guard_account")
     from collectors.ozon import _headers
     from collectors.ozon_postings import request_page, account_lock
     deadline = time.monotonic() + 45
-    with account_lock("oz_acc2", timeout=2) as lease:
+    with account_lock(account, timeout=2) as lease:
         result = request_page("https://api-seller.ozon.ru/v3/posting/fbs/get",
-                              _headers("oz_acc2"), {"posting_number": number_},
+                              _headers(account), {"posting_number": number_},
                               deadline=deadline, check_lock=lease.check)
     post = result.get("result", {})
     if post.get("posting_number") != number_:
         raise ValueError("posting_identity_mismatch")
-    return post
+    return dict(post, account=account, platform="ozon")

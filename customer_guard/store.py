@@ -39,7 +39,7 @@ def reprice(rule, now, resolver=None):
                         if resolver else old.get("allocation") == "single_market_line")
             fresh = economics(row["mp_payload"], Decimal(old["cost"]), old["cost_kind"],
                               rule, now, allocation_verified=verified,
-                              price_override=old.get("ms_price") if rule["account"]=="wb_acc2" else None)
+                              price_override=old.get("ms_price") if rule["platform"] in ("wb","yandex") else None)
             if fresh.get("rule_version") != rule["version"]:
                 continue
             result = dict(old, **fresh, recalculation="expense_basis_and_composition" if resolver else "expense_basis_or_floor_policy",
@@ -92,7 +92,7 @@ def observe(cur, post, observed_at, received_at, api_version="fbs/list/v4"):
     order = dict(cur.fetchone())
     cur.execute("""INSERT INTO customer_guard_snapshots
        (order_id,source,api_version,fetched_at,hash,payload) VALUES(%s,%s,%s,%s,%s,%s)""",
-       (order["id"],platform,api_version if platform=='ozon' else 'fbs/orders+status/v3', observed_at, fingerprint, Json(post)))
+       (order["id"],platform,api_version if platform=='ozon' else ('business/orders/v1' if platform=='yandex' else 'fbs/orders+status/v3'), observed_at, fingerprint, Json(post)))
     if changed and post["status"] in ACTIVE:
         due = max(order["ms_due_at"], received_at)
         cur.execute("""INSERT INTO customer_guard_jobs(order_id,generation,due_at,kind)
@@ -122,13 +122,13 @@ def ingest(posts, started_at, received_at, window_from, window_to, *, mirror_raw
                 continue
             cur.execute("""INSERT INTO raw_ozon_posting
               (account,posting_number,scheme,status,in_process_at,period_from,period_to,payload,loaded_at)
-              VALUES('oz_acc2',%s,'fbs',%s,%s,%s,%s,%s,%s)
+              VALUES(%s,%s,'fbs',%s,%s,%s,%s,%s,%s)
               ON CONFLICT(account,posting_number) DO UPDATE SET
               scheme=excluded.scheme,status=excluded.status,in_process_at=excluded.in_process_at,
               period_from=excluded.period_from,period_to=excluded.period_to,
               payload=excluded.payload,loaded_at=excluded.loaded_at
               WHERE raw_ozon_posting.loaded_at<=excluded.loaded_at""",
-              (post["posting_number"], post["status"], post.get("in_process_at") or post.get("created_at"),
+              (market(post)[1], post["posting_number"], post["status"], post.get("in_process_at") or post.get("created_at"),
                window_from.date(), window_to.date(), Json(post), started_at))
         cur.execute("""INSERT INTO customer_guard_sync_state
           (scope,started_at,completed_at,window_from,window_to,row_count,error)
@@ -153,7 +153,7 @@ def schedule_rechecks(now):
         return cur.rowcount
 
 
-def claim(now, posting_number=None, account=None):
+def claim(now, posting_number=None, account=None, accounts=None):
     token = str(uuid4())
     with transaction() as cur:
         scope = ""
@@ -165,6 +165,9 @@ def claim(now, posting_number=None, account=None):
         elif account:
             scope = " AND o.account=%s"
             args.append(account)
+        if accounts is not None:
+            scope += " AND o.account=ANY(%s)"
+            args.append(accounts)
         cur.execute("""SELECT j.order_id FROM customer_guard_jobs j
           JOIN customer_guard_orders o ON o.id=j.order_id
           WHERE ((j.state IN ('pending','retry') AND j.due_at<=%s)

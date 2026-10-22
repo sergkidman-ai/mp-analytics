@@ -96,11 +96,11 @@ main{padding:18px}
     <a href="/warehouse/customer-orders" class="cur">Заказы покупателей</a>
   </nav>
   <h1>Заказы покупателей</h1>
-  <div class="muted">Ozon и WB · Дисквэр · заказы со склада продавца</div>
+  <div class="muted">Цифровой и Дисквэр · Ozon, WB и Маркет · заказы со склада продавца</div>
   <div class="notice" id="runtime">Загрузка состояния обработки…</div>
   <div class="big" id="stats"></div>
   <div class="toolbar">
-    <select id="account" aria-label="Площадка"><option value="">Ozon и WB · Дисквэр</option><option value="oz_acc2">Ozon · Дисквэр</option><option value="wb_acc2">WB · Дисквэр</option></select>
+    <select id="account" aria-label="Площадка"><option value="">Все кабинеты</option><option value="oz_acc1">Ozon · Цифровой</option><option value="wb_acc1">WB · Цифровой</option><option value="ya_acc1">Маркет · Цифровой</option><option value="oz_acc2">Ozon · Дисквэр</option><option value="wb_acc2">WB · Дисквэр</option></select>
     <input id="search" placeholder="Номер отправления" aria-label="Номер отправления">
     <input id="product-code" placeholder="Код товара: 0001 или 0001wb" aria-label="Код товара или внешний код" title="Точное совпадение с кодом МС, внешним кодом или артикулом площадки">
     <select id="status" aria-label="Статус"><option value="">Все статусы</option>
@@ -124,7 +124,7 @@ main{padding:18px}
   </div>
   <div class="footer"><span id="count" class="small"></span><div>
     <button id="prev">← Назад</button> <button id="next">Далее →</button></div></div>
-  <p class="note">Цена Ozon — с площадки; цена WB — из МС, без скидок за счёт WB. Обе исходные суммы сохранены. Отклонение — цена минус пол, не чистая прибыль.
+  <p class="note">Цена Ozon — с площадки; цена WB и Маркета — из МС, без скидок за счёт площадки. Обе исходные суммы сохранены. Отклонение — цена минус пол, не чистая прибыль.
     Расчётная чистая прибыль = цена продажи − себестоимость − расходы площадки по средней доле кабинета.
     Минимум прибыли: 200 ₽ на единицу при себестоимости до 150 ₽ включительно; выше — 300 ₽ или 10% себестоимости, что больше.
     Фактические начисления по заказу могут отличаться.
@@ -155,7 +155,7 @@ async function load(){
     const q=new URLSearchParams({limit:50,offset,status:$('status').value,signal:$('signal').value,search:$('search').value,account:$('account').value,product_code:$('product-code').value.trim()});
     const d=await api('/api/customer-orders?'+q);if(n!==request)return;
     total=d.total;
-    const syncLabel=(d.sync||[]).filter(x=>['ozon/oz_acc2/fbs','wb/wb_acc2/fbs'].includes(x.scope)).map(x=>(x.scope.startsWith('wb/')?'WB: ':'Ozon: ')+dt(x.completed_at)).join(' · ');
+    const syncLabel=(d.sync||[]).filter(x=>x.scope.endsWith('/fbs')).map(x=>(({wb:'WB',ozon:'Ozon',yandex:'Маркет'}[x.scope.split('/')[0]]||'')+' '+(x.scope.includes('acc1')?'Цифровой: ':'Дисквэр: '))+dt(x.completed_at)).join(' · ');
     $('runtime').textContent=(d.automatic_updates?
       'Фоновая обработка включена: новые заказы — каждые 10 минут; первая проверка МС — после 10 минут с получения; повторные проверки до отгрузки — раз в 60 минут. ':
       d.runtime?.enabled?'Фоновая обработка включена, но её работа пока не подтверждена. ':'Фоновая обработка выключена. ')+
@@ -169,7 +169,7 @@ async function load(){
       ($('signal').value==='non_positive_profit'?'По текущим проверенным данным заказов с чистой прибылью ≤ 0 ₽ по выбранным условиям нет. Непроверенные заказы в этот результат не входят.':'Заказов по этим условиям пока нет.') : '';
     $('rows').innerHTML=d.rows.map(row=>{
       const r=row.result||{},valid=row.current&&!row.job_error;
-      const isWB=row.platform==='wb',marketName=isWB?'WB':'Ozon';
+      const isWB=row.platform==='wb',msPrice=['wb','yandex'].includes(row.platform),marketName={wb:'WB',ozon:'Ozon',yandex:'Маркет'}[row.platform]||row.platform,company=row.account.endsWith('acc1')?'Цифровой':'Дисквэр';
       const economicValid=valid&&row.basis_current;
       const hasMS=Boolean(r.positions?.length);
       const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity,offer_id:p.offer_id}))||[];
@@ -177,11 +177,11 @@ async function load(){
       const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
       return `<tr><td data-label="Отправление · новые сверху"><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?marketName+' · поступил':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
         <button class="small" data-history="${Number(row.id)}">История проверок</button></td>
-        <td data-label="Статусы"><div>${marketName}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
+        <td data-label="Статусы"><div>${marketName} · ${company}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
         <td data-label="Выбранный товар / склад"><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>
           <div class="small">${hasMS?`Код МС: <b>${esc(p.code||'—')}</b> · Внешний код: ${esc(p.external_code||'—')}`:`Артикул ${marketName}: ${esc(p.offer_id||'—')}`}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
-        <td data-label="Цена продажи" class="money">${esc(money(isWB&&valid&&r.ms_price!=null?r.ms_price:row.mp_price))}<div class="small">${isWB?`${valid&&r.ms_price!=null?'Цена МС':'МС: —'}; WB: ${esc(money(row.mp_price))}`:`МС: ${esc(money(r.ms_price))}`}</div></td>
+        <td data-label="Цена продажи" class="money">${esc(money(msPrice&&valid&&r.ms_price!=null?r.ms_price:row.mp_price))}<div class="small">${msPrice?`${valid&&r.ms_price!=null?'Цена МС':'МС: —'}; ${marketName}: ${esc(money(row.mp_price))}`:`МС: ${esc(money(r.ms_price))}`}</div></td>
         <td data-label="Себестоимость" class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
         <td data-label="Чистая прибыль · расчёт" class="money ${economicValid&&r.estimated_net!=null?(Number(r.estimated_net)<=0?'danger':'pos'):''}">${esc(money(economicValid?r.estimated_net:null))}</td>
         <td data-label="Пол" class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td data-label="Отклонение" class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
