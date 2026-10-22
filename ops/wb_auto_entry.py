@@ -21,7 +21,7 @@ import time
 import requests
 
 # Deployed cost/BOM policy is shared with the existing guard, including today's floor.
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv
 load_dotenv('/opt/mp-analytics/.env')
 from core.wb_auto_entry import active_offers, choose, instant, number, protection, sale

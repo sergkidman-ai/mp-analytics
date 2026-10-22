@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 import zipfile
 
-sys.path.insert(0, '/opt/mp-analytics')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core import db
 from core.wb_auto_entry import number
 from ops.wb_auto_entry import atomic_json

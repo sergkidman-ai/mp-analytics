@@ -36,11 +36,12 @@ import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
 
-sys.path.insert(0, "/opt/mp-analytics")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 load_dotenv("/opt/mp-analytics/.env")
 from core import db  # noqa: E402
 

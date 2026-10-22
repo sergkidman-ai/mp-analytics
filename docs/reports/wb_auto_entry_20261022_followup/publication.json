@@ -1,0 +1,13 @@
+{
+  "captured": "2026-10-22T07:41:58.658779+00:00",
+  "implementation_commit": "4d338a2",
+  "upstream_integrated": "520e859",
+  "tests": {
+    "passed": 95,
+    "subtests_passed": 5
+  },
+  "systemd_verify": "PASS",
+  "isolated_module_origin_check": "PASS",
+  "price_apply_during_publication": false,
+  "large_runtime_data_in_git": false
+}
