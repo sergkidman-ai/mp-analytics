@@ -58,6 +58,43 @@ def reprice(rule, now, resolver=None):
     return changed
 
 
+def reprice_saved(rule, now):
+    """Explicit local replay of saved totals; preserve even superseded revisions and jobs.
+
+    A changed marketplace order must never inherit a fresh-cost claim from this replay.
+    Uses the saved sale/cost/unit totals, not the order's possibly newer composition.
+    """
+    if rule.get('basis_kind')!='fixed' or rule.get('account')!='ya_acc1':
+        raise ValueError('fixed_market_rule_required')
+    changed=0
+    with transaction() as cur:
+        cur.execute("""SELECT o.id,o.ms_checked_at,c.id check_id,c.generation,c.result,c.input_hash
+          FROM customer_guard_orders o JOIN customer_guard_checks c ON c.id=o.latest_check_id
+          JOIN customer_guard_jobs j ON j.order_id=o.id
+          WHERE o.account=%s AND j.state!='running' AND c.result->>'cost' IS NOT NULL
+          AND c.result->>'price' IS NOT NULL AND c.result->>'units' IS NOT NULL
+          AND (c.result->>'rule_version' IS DISTINCT FROM %s
+            OR c.result->>'floor_policy' IS DISTINCT FROM %s)
+          ORDER BY o.id FOR UPDATE OF o,j""",(rule['account'],rule['version'],POLICY_VERSION))
+        for row in cur.fetchall():
+            old=row['result'];units=Decimal(old['units'])
+            # economics() validates these totals and applies the shared quantity/floor policy.
+            post=dict(account=rule['account'],platform=rule['platform'],
+                      products=[dict(quantity=str(units),price='1')])
+            fresh=economics(post,Decimal(old['cost']),old['cost_kind'],rule,now,
+                allocation_verified=old.get('allocation')=='single_market_line',price_override=old['price'])
+            if fresh.get('rule_version')!=rule['version']: continue
+            result=dict(old,**fresh,recalculation='saved_totals_fixed_expense',source_check_id=row['check_id'],
+                        cost_observed_at=row['ms_checked_at'].isoformat())
+            cur.execute("""INSERT INTO customer_guard_checks(order_id,generation,calculated_at,result,input_hash)
+              VALUES(%s,%s,%s,%s,%s) RETURNING id""",(row['id'],row['generation'],now,Json(result),
+              digest([row['input_hash'],rule['version'],POLICY_VERSION])))
+            cid=cur.fetchone()['id']
+            cur.execute('UPDATE customer_guard_orders SET latest_check_id=%s WHERE id=%s',(cid,row['id']))
+            changed+=1
+    return changed
+
+
 @contextmanager
 def transaction():
     with db.get_conn() as conn:
