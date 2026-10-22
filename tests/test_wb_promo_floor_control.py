@@ -22,7 +22,7 @@ class WbFloorControlTests(unittest.TestCase):
 
     def test_previous_confirmed_bundle_is_protected_after_small_drop(self):
         row = guard.decide('wb_acc2', {1: (9894, 50, 4947, '0587X6DAMKZ4')},
-            {1: {'cogs': 501.48, 'bundle': 6}}, {1: 5162}, .554,
+            {1: {'cogs': 1001.48, 'bundle': 6}}, {1: 5162}, .554,
             floor_controlled={1: 'пол ранее подтверждён сторожем'})[0]
         self.assertEqual(row['status'], 'todo')
         self.assertGreater(row['target_price'], 4947)

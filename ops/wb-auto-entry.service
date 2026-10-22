@@ -1,0 +1,19 @@
+[Unit]
+Description=WB auto-action highest eligible price and profit floor controller
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=1200
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+Environment="PGOPTIONS=-c statement_timeout=25000 -c lock_timeout=5000"
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.wb_auto_entry --apply --budget 150
+TimeoutStartSec=210
+Restart=on-failure
+RestartSec=120
+Nice=10
+CPUQuota=60%
+MemoryMax=768M

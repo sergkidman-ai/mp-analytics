@@ -1,0 +1,16 @@
+[Unit]
+Description=WB resumable read-only current stock cache for auto-action entry
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.wb_auto_entry --warm-stocks --budget 420
+TimeoutStartSec=900
+SuccessExitStatus=75
+Nice=15
+CPUQuota=30%
+MemoryMax=384M

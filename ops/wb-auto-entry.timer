@@ -1,0 +1,14 @@
+[Unit]
+Description=WB auto-action entry at 00:00 MSK, checks at 00:30 and 01:00 MSK
+
+[Timer]
+OnCalendar=2026-10-21 21:00:00 UTC
+OnCalendar=2026-10-21 21:30:00 UTC
+OnCalendar=2026-10-21 22:00:00 UTC
+Persistent=true
+AccuracySec=1s
+RandomizedDelaySec=0
+Unit=wb-auto-entry.service
+
+[Install]
+WantedBy=timers.target

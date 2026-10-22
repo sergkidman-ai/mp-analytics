@@ -146,4 +146,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from core.wb_price_writer import legacy_main
+    sys.exit(legacy_main(main))
