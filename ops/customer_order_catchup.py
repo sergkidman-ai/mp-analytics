@@ -61,8 +61,8 @@ def main():
             return
         stalled = 0
         previous = original
-        for run in range(1, 301):
-            if datetime.now(timezone.utc)-started > timedelta(hours=12):
+        for run in range(1, 601):
+            if datetime.now(timezone.utc)-started > timedelta(hours=24):
                 raise RuntimeError("catchup_wall_budget")
             while active_state() not in ("inactive", "failed"):
                 time.sleep(5)
@@ -79,10 +79,13 @@ def main():
             if rate_limit_count() > baseline_429:
                 raise RuntimeError("ms_rate_limited")
             stalled = stalled + 1 if current >= previous else 0
-            if stalled >= 3:
+            if stalled >= 9:
                 raise RuntimeError("catchup_no_progress")
+            if stalled and stalled % 3 == 0:
+                emit(event="cooldown", run=run, seconds=300, reason="no_progress")
+                time.sleep(300)
             previous = current
-            time.sleep(8)
+            time.sleep(20)
         raise RuntimeError("catchup_run_budget")
 
 
