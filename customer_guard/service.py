@@ -124,7 +124,7 @@ def evaluate(post, document, client, rule, now):
     return result
 
 
-def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting_number=None,
+def work(limit=5, budget=100, clock=utcnow, client=None, get=get_posting, posting_number=None,
          notify=False, account=None, accounts=None):
     if not 1 <= limit <= 10 or not 1 <= budget <= 100:
         raise ValueError("pilot_run_budget")
@@ -139,8 +139,22 @@ def work(limit=3, budget=60, clock=utcnow, client=None, get=get_posting, posting
         client = client or CustomerMS(budget=budget)
         client.pulse = pulse
         client.verify_identity()
+        enabled = list(dict.fromkeys(accounts or []))
+        fair_order = None
+        if posting_number is None and account is None and len(enabled) > 1:
+            start = int(clock().timestamp() // 60) % len(enabled)
+            fair_order = enabled[start:] + enabled[:start]
         for _ in range(limit):
-            job = store.claim(clock(), posting_number, account, accounts)
+            if fair_order is None:
+                job = store.claim(clock(), posting_number, account, accounts)
+            else:
+                job = None
+                for candidate in fair_order:
+                    job = store.claim(clock(), account=candidate, accounts=[candidate])
+                    if job:
+                        position = fair_order.index(candidate)
+                        fair_order = fair_order[position+1:] + fair_order[:position+1]
+                        break
             if not job:
                 break
             try:
@@ -230,8 +244,8 @@ def main():
     sync_parser = subs.add_parser("sync")
     sync_parser.add_argument("--days", type=int, default=2)
     worker = subs.add_parser("work")
-    worker.add_argument("--limit", type=int, default=3)
-    worker.add_argument("--budget", type=int, default=60)
+    worker.add_argument("--limit", type=int, default=5)
+    worker.add_argument("--budget", type=int, default=100)
     worker.add_argument("--posting", help="Проверить конкретное уже наступившее задание")
     refresher = subs.add_parser("refresh")
     refresher.add_argument("--limit", type=int, default=5)
