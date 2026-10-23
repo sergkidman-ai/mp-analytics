@@ -111,8 +111,9 @@ def main():
                 emit(event="sync", batch=batch, errors=result.get("errors", []),
                      normal_work=result.get("work"))
                 next_sync = datetime.now(timezone.utc)+SYNC_INTERVAL
-                if result.get("errors"):
-                    raise RuntimeError("runtime_sync_error")
+                # A failed marketplace collection does not invalidate saved jobs:
+                # service.work refreshes each claimed order at its source before MS.
+                # The next sync will retry the failed scope.
             state = db.query("SELECT enabled,notifications_enabled,settings FROM customer_guard_runtime WHERE id")[0]
             if not state["enabled"]:
                 raise RuntimeError("runtime_disabled")
