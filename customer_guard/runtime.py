@@ -81,7 +81,7 @@ def tick():
         # Old tracked active orders are point-refreshed, not forgotten outside the list window.
         phase("old_status",lambda:service.refresh(3,older_than=now-timedelta(minutes=10)))
         phase("enqueue",lambda:store.schedule_rechecks(utcnow()))
-        phase("work",lambda:service.work(limit=3,budget=100,notify=state["notifications_enabled"],
+        phase("work",lambda:service.work(limit=5,budget=100,notify=state["notifications_enabled"],
                                          accounts=enabled_accounts(settings)))
         # Basis changes do not require fresh MS reads and do not send old alerts.
         try:

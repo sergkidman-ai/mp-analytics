@@ -124,7 +124,7 @@ main{padding:18px}
   </div>
   <div class="footer"><span id="count" class="small"></span><div>
     <button id="prev">← Назад</button> <button id="next">Далее →</button></div></div>
-  <p class="note">Цена Ozon — с площадки; цена WB и Маркета — из МС, без скидок за счёт площадки. Обе исходные суммы сохранены. Отклонение — цена минус пол, не чистая прибыль.
+  <p class="note">Цена Ozon — с площадки; цена WB и Маркета — из МС, без скидок за счёт площадки. Обе исходные суммы сохранены. Отклонение — цена минус пол, не чистая прибыль. Для Маркета расходы фиксированы: 72% от цены продажи.
     Расчётная чистая прибыль = цена продажи − себестоимость − расходы площадки по средней доле кабинета.
     Минимум прибыли: 200 ₽ на единицу при себестоимости до 150 ₽ включительно; выше — 300 ₽ или 10% себестоимости, что больше.
     Фактические начисления по заказу могут отличаться.
@@ -184,7 +184,7 @@ async function load(){
         <td data-label="Цена продажи" class="money">${esc(money(msPrice&&valid&&r.ms_price!=null?r.ms_price:row.mp_price))}<div class="small">${msPrice?`${valid&&r.ms_price!=null?'Цена МС':'МС: —'}; ${marketName}: ${esc(money(row.mp_price))}`:`МС: ${esc(money(r.ms_price))}`}</div></td>
         <td data-label="Себестоимость" class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
         <td data-label="Чистая прибыль · расчёт" class="money ${economicValid&&r.estimated_net!=null?(Number(r.estimated_net)<=0?'danger':'pos'):''}">${esc(money(economicValid?r.estimated_net:null))}</td>
-        <td data-label="Пол" class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td data-label="Отклонение" class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
+        <td data-label="Пол" class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_basis_kind==='fixed'?'Расходы МП: '+(Number(r.expense_retention)*100).toLocaleString('ru-RU')+'% · фикс.':valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td data-label="Отклонение" class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
         <td data-label="Результат"><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div></td>
         <td data-label="Проверено в МС" class="nowrap">${esc(dt(row.ms_checked_at))}</td></tr>`;
     }).join('');

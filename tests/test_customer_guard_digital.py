@@ -131,7 +131,7 @@ def test_runtime_one_shared_ms_budget_for_five_cabinets(pg,monkeypatch):
     runtime.tick()
     call=runtime.service.work
     assert call.call_count==1
-    assert call.call_args.kwargs['limit']==3 and call.call_args.kwargs['budget']==100
+    assert call.call_args.kwargs['limit']==5 and call.call_args.kwargs['budget']==100
     assert set(call.call_args.kwargs['accounts'])==set(domain.ACCOUNTS)
     assert runtime.service.sync.call_count==2 and runtime.service.sync_wb.call_count==2
     assert runtime.service.sync_yandex.call_count==1

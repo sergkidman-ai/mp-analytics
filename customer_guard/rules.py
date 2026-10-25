@@ -1,8 +1,7 @@
 # поток: fin
 """Read existing, explicitly published expense rules for each supported cabinet."""
-from datetime import date, timedelta
-import calendar
-import os
+from datetime import date
+from decimal import Decimal
 from customer_guard.domain import ACCOUNTS, organization
 from core import db
 from core.ozon_expense_basis import BasisUnavailable, get_basis, shipment_rule
@@ -14,19 +13,10 @@ def get_rule(account, *, as_of=None):
     if account in ('oz_acc1','oz_acc2'):
         return shipment_rule(account, as_of=today)
     if account == 'ya_acc1':
-        from collectors.yandex_finance_basis import active_basis
-        try:
-            b=active_basis(os.getenv('CUSTOMER_GUARD_YANDEX_BASIS',
-                '/opt/mp-analytics/reports/data/yandex_finance_basis/active.json'))
-            start=date.fromisoformat(b['month']+'-01')
-            end=start.replace(day=calendar.monthrange(start.year,start.month)[1])
-            if end != today.replace(day=1)-timedelta(days=1):
-                raise ValueError('stale_yandex_basis')
-            return dict(account=account,platform='yandex',organization_id=organization(account),enabled=True,
-                retention=b['retention'],version='yaexp:'+b['version'],base_from=start,base_to=end,
-                valid_until=today.replace(day=calendar.monthrange(today.year,today.month)[1]))
-        except (RuntimeError,ValueError,KeyError,OSError) as exc:
-            raise BasisUnavailable('yandex_basis_unavailable') from None
+        # Explicit customer-order policy, Sergey 2026-10-22. Not a monthly finance report.
+        return dict(account=account,platform='yandex',organization_id=organization(account),enabled=True,
+            retention=Decimal('0.72'),version='customer-ya-fixed-retention-72-v1',
+            basis_kind='fixed',base_from=None,base_to=None,valid_until=date.max)
     if account not in ('wb_acc1','wb_acc2'):
         raise BasisUnavailable('unsupported_guard_account')
     if not db.query("SELECT to_regclass('ms_shipment_rules') name")[0]['name']:
@@ -46,4 +36,4 @@ def expense_basis(account):
     if account in ('oz_acc1','oz_acc2'):
         return get_basis(account)
     r = get_rule(account)
-    return dict(version=r['version'],period_from=str(r['base_from']),period_to=str(r['base_to']))
+    return dict(version=r['version'],period_from=str(r['base_from'] or ''),period_to=str(r['base_to'] or ''))
