@@ -48,22 +48,28 @@ def _till_note(till):
     return f"\n⏳ Действует до {msk:%d.%m %H:%M} МСК, осталось {left_ru}."
 
 
-def barcode_files(account, title_prefix="🔵 Штрихкод получения возвратов Ozon"):
+def barcode_files(account):
     """[(имя файла, байты, подпись, mime)] — картинка штрихкода одного аккаунта.
 
     Файлом, а не фото: `sendPhoto` перегоняет PNG в JPEG, штрихи плывут и сканер в пункте
-    выдачи код не берёт. Печатный бланк PDF не шлём (решение Сергея 07.08.2026 — лишнее),
+    выдачи код не берёт. Добавляем белые поля к PNG, обрезанному API до крайних штрихов.
+    Печатный бланк PDF не шлём (решение Сергея 07.08.2026 — лишнее),
     но забираем: срок жизни кода напечатан только на нём, в API его нет.
     """
     g = ozon.giveout(account)
-    png = codes.from_base64(g["png_b64"]) or codes.code128(g["value"])
+    png = codes.for_scanning(codes.from_base64(g["png_b64"]))
+    if not png:
+        png = codes.for_scanning(codes.code128(g["value"]))
     if not png:
         return []
     title = ozon.ACCOUNT_TITLE.get(account, account)
-    return [(f"ozon-shtrihkod-{account}.png", png,
-             f"{title_prefix} · {title}" + _till_note(g["till"])
-             + (f"\nЕсли не считывается — назвать код: <code>{g['value']}</code>"
-                if g["value"] else ""), "image/png")]
+    if title == "Дисквэр":
+        title = "Дисквер"
+    slug = {"oz_acc1": "tsifrovoy", "oz_acc2": "diskver"}.get(account, account)
+    day = datetime.now(ozon.MSK).date().isoformat()
+    return [(f"ozon-qr-{slug}-{day}.png", png,
+             f"Ozon - {title}" + _till_note(g["till"]), "image/png")]
+
 
 
 def send_summaries(chat_id):

@@ -1,0 +1,17 @@
+[Unit]
+Description=WB buyer QR upload for returns report
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/uvicorn returns_bot.wb_qr_ingest:app --host 127.0.0.1 --port 8096 --no-access-log
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

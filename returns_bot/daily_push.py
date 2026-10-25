@@ -9,6 +9,8 @@
 """
 import argparse
 import sys
+from datetime import datetime
+from returns_bot import wb_qr, orgs
 
 from returns_bot import collect as collector
 from returns_bot import bot, render, tg
@@ -44,6 +46,21 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
     # по сообщению на юрлицо: за возвратами Цифрового и Дисквэра ездят разные люди
     letters = [(org, text, barcode_photos(org) if with_codes else [])
                for org, text in render.summaries()]
+
+    # Each WB buyer QR is attached only to its company's summary.
+    if with_codes and wb_qr.enabled_day(wb_qr.now_msk()):
+        for account in wb_qr.enabled_accounts():
+            info=wb_qr.ACCOUNTS[account]
+            qr=wb_qr.attachment(account=account)
+            extra="" if qr else "\n\n⚠️ Свежий QR Wildberries - "+info['title']+" на сегодня не получен. Проверьте компьютер, браузер и вход в WB. Вчерашний QR не отправляем."
+            for index,(org,text,photos) in enumerate(letters):
+                if org==info['org']:
+                    letters[index]=(org,text+extra,photos+([qr] if qr else []));break
+            else:
+                letters.append((info['org'],render.summary(org=info['org'])+extra,[qr] if qr else []))
+
+    if wb_qr.now_msk().date().isoformat()==wb_qr.ONE_OFF_TEST_DATE:
+        letters=[(org,"🧪 Разовый тест воскресной отправки\n\n"+text,photos) for org,text,photos in letters]
 
     if dry_run:
         for org, text, photos in letters:
@@ -85,6 +102,9 @@ def main(argv=None):
     ap.add_argument("--no-collect", action="store_true", help="не ходить в API, взять из БД")
     ap.add_argument("--no-codes", action="store_true", help="без картинок штрихкодов")
     a = ap.parse_args(argv)
+    if not a.to and not a.dry_run and not wb_qr.enabled_day(wb_qr.now_msk()):
+        print("Воскресенье: ежедневная рассылка возвратов отключена.")
+        return 0
     targets = a.to or (tg.notify_ids() if not a.dry_run else [])
     return run(targets, a.dry_run, a.no_collect, not a.no_codes)
 

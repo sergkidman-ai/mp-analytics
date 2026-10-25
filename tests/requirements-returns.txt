@@ -1,0 +1,5 @@
+-r ../requirements.txt
+-r ../returns_bot/requirements-wb-qr.txt
+playwright
+qrcode[pil]
+httpx

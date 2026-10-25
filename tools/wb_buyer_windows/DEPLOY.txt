@@ -1,0 +1,60 @@
+Возвраты Ozon / QR покупательского WB — поток ret
+
+Сбор QR выполняется на Windows с авторизованным покупательским WB. Профиль/куки не
+экспортируются. Сервер принимает только PNG с одним читаемым QR, сроком на сегодня
+и отдельным upload-token компании. В ZIP, git и отчёты диагностики секреты не включать.
+
+ЗАВИСИМОСТИ СЕРВЕРА
+./venv/bin/pip install -r requirements.txt -r returns_bot/requirements-wb-qr.txt
+Для срока Ozon используется pdftotext (poppler-utils). Для резервной отрисовки Code128
+можно установить python-barcode; основной путь использует готовый PNG Ozon.
+
+СЕКРЕТЫ
+Только в .env, без публикации значений:
+RETURNS_WB_QR_UPLOAD_TOKEN — upload-only ключ Дисквэра/wb_acc2.
+RETURNS_WB_QR_DIGITAL_UPLOAD_TOKEN — независимый upload-only ключ Цифрового/wb_acc1.
+Каждый ключ — отдельная случайная строка secrets.token_urlsafe(32).
+TG_RETURNS_BOT_TOKEN / TG_RETURNS_ALLOWED_IDS / TG_RETURNS_NOTIFY_ID — существующий бот.
+Не менять токены подключённых компьютеров при повторном развёртывании.
+Папки .private/wb-buyer-diskver и .private/wb-buyer-digital должны быть приватными,
+игнорироваться git и не публиковаться nginx; файлы cache создаются с mode0600.
+
+СБОРКА ZIP (БЕЗ СЕКРЕТОВ)
+./venv/bin/python tools/wb_buyer_windows/build_packages.py --output-dir /tmp/wb-qr-packages
+Скрипт обновляет производную сборку Цифрового из источника Дисквэра и создаёт оба ZIP.
+Входные файлы: README, скрипты Windows и WB_QR_Extension; Nginx/env/куки не упаковываются.
+После проверки скопировать только выбранные ZIP в web/downloads/returns/ (0644).
+Локальные отчёты, реальные QR, ZIP и .private не добавлять в git.
+
+СЛУЖБЫ И NGINX
+returns_bot/returns-wb-qr-ingest.service — uvicorn только127.0.0.1:8096.
+returns_bot/returns-daily.service + returns_bot/returns-daily.timer — штатный Mon–Sat отчёт.
+Конфигурации точных путей для существующего HTTPS vhost bi.metaverseworld.ru:
+ tools/wb_buyer_windows/nginx-download.conf
+ tools/wb_buyer_windows/nginx-ingest.conf
+ tools/wb_buyer_windows_digital/nginx.conf
+Не заменять весь vhost. Добавить только соответствующие include, затем nginx -t и reload.
+Download/setup сохраняют существующую BasicAuth Пульта. Upload использует свой scoped
+Bearer token; Nginx не должен подменять его на BasicAuth. Сервис сам проверяет token,
+origin расширения и дату; auth_basic off применяется только к exact upload endpoints.
+
+После размещения unit-файлов выполнить daemon-reload, enable/start ingest и daily.timer.
+Бот long-polling returns-bot.service перезапускается при изменениях его кода.
+Разовый returns-wb-qr-test-20261025.timer — исторический тест только25.10.2026;
+не включать его как регулярный. Датированное исключение25.10 в клиенте/сервере
+не распространяется на другие воскресенья.
+
+ПРОВЕРКА БЕЗ РАССЫЛКИ
+Download/setup без Pult →401; upload без/с чужим token→401; extension preflight→204.
+QR чужой компании не должен попадать в соседний cache. Не тестировать production
+синтетическим QR: использовать временный cache и fakeTelegram в unittest.
+Цифровой присоединяется к ежедневному отчёту после первого валидного QR (.paired).
+Отсутствующий/вчерашний QR не отправляется, в соответствующей сводке — предупреждение.
+Первое реальное подключение проверяется отдельно, без повторной рассылки старого отчёта.
+
+ТЕСТЫ
+Установить tests/requirements-returns.txt и Google Chrome, доступный Playwright как chrome.
+./venv/bin/python -m unittest tests.test_returns_barcode tests.test_wb_qr_extension tests.test_wb_qr_auto tests.test_wb_qr_schedule tests.test_wb_qr_companies -q
+Для дополнительного протокольного теста Windows-хелпера нужен pwsh:
+WB_TEST_PWSH=/path/to/pwsh ./venv/bin/python -m unittest tests.test_wb_windows_qr -q
+PS/Chrome в тестах используют локальные фикстуры, без настоящей авторизации WB.

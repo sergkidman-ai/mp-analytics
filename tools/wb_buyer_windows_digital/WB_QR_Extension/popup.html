@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+  <title>Экран QR WB</title>
+</head>
+<body>
+  <h1>Экран QR Wildberries</h1>
+  <p>В вашем обычном браузере откройте QR получения в аккаунте Цифрового крупно.</p>
+  <p>Сохраним только область QR и код под ним. Проверьте результат перед сохранением.</p>
+  <section><p id="oneoff-test">Разовый тест: воскресенье 25.10.2026, сбор 09:00 МСК и отправка с утренним отчётом.</p><h2>Сбор к утреннему отчёту</h2><p>Пн–сб: сбор в 09:00 МСК, отправка с отчётом в 09:05–09:10 МСК.</p>
+  <p>Откройте заказы Цифрового в отдельном профиле браузера и не переключайте в нём аккаунт WB.</p>
+  <a href="https://bi.metaverseworld.ru/returns/wb-qr/setup/tsifrovoy" target="_blank" rel="noopener">Получить код подключения в Пульте</a>
+  <p><input id="upload-token" type="password" autocomplete="off" placeholder="Код подключения из Пульта" aria-label="Код подключения"></p>
+  <button id="enable-schedule" type="button">Включить сбор к отчёту</button>
+  <button id="test-transfer" type="button">Проверить передачу сейчас</button>
+  <button id="disable-schedule" type="button">Выключить сбор</button><p id="schedule-status" role="status"></p></section>
+  <button id="diagnostic" type="button">Сохранить диагностику</button>
+  <a id="diagnostic-download" download="WB_QR_schedule_report.json" hidden>Скачать отчёт расписания</a>
+  <button id="autotest" type="button">Автотест открытия QR</button>
+  <p>Для автотеста закройте окно QR, оставив раздел заказов. Откроется отдельная страница результата.</p>
+  <button id="capture" type="button">Снять экран QR</button>
+  <p id="status" role="status"></p>
+  <img id="preview" alt="Предпросмотр снятого экрана" hidden>
+  <a id="download" download="WB_Tsifrovoy_QR.png" hidden>Сохранить PNG</a>
+  <small>Считывание QR проверяется; аккаунт и срок действия проверьте на WB. Ручной тест не отправляет изображение; сбор по расписанию передаёт QR в отчёт возвратов.</small>
+  <script src="jsQR.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "QR WB — тест Дисквэр",
+  "version": "0.6.1",
+  "description": "Сбор QR WB Дисквэра по расписанию и передача в ежедневный отчёт возвратов.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "alarms",
+    "storage"
+  ],
+  "action": {
+    "default_title": "Сохранить экран QR WB",
+    "default_popup": "popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src https://bi.metaverseworld.ru"
+  },
+  "host_permissions": [
+    "https://www.wildberries.ru/*",
+    "https://wildberries.ru/*",
+    "https://bi.metaverseworld.ru/api/returns/wb-qr/diskver"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

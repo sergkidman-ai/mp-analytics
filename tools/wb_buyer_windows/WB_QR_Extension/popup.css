@@ -1,0 +1,10 @@
+body { font: 14px system-ui, sans-serif; width: 320px; margin: 16px; color: #202124; }
+h1 { font-size: 18px; margin-top: 0; }
+p { line-height: 1.4; }
+button, a { font: inherit; padding: 9px 12px; border-radius: 6px; }
+button { background: #4d278c; color: white; border: 0; cursor: pointer; }
+button:disabled { opacity: .6; cursor: wait; }
+a { display: inline-block; background: #e8edf5; color: #173a77; margin: 8px 0; }
+img { display: block; max-width: 100%; max-height: 280px; object-fit: contain; margin-top: 12px; }
+small { display: block; color: #5f6368; line-height: 1.4; margin-top: 8px; }
+[hidden] { display: none !important; }

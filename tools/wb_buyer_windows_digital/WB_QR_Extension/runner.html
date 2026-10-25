@@ -1,0 +1,7 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Автотест QR WB</title><link rel="stylesheet" href="runner.css"></head>
+<body><h1>Автотест QR Wildberries</h1><p>Оставьте вкладку WB открытой. Проверяем открытие QR и извлечение его изображения без снимка экрана.</p>
+<p id="status" role="status">Запускаю…</p><img id="result" alt="Извлечённый QR" hidden>
+<p><a id="save" download="WB_Tsifrovoy_QR.png" hidden>Сохранить QR PNG</a></p>
+<p><a id="report" download="WB_QR_test_report.json" hidden>Сохранить отчёт теста</a></p>
+<p>Проверьте, что в WB выбран аккаунт Цифрового. Ручной автотест ничего не отправляет. При запуске по расписанию QR передаётся на сервер для отчёта.</p>
+<script src="navigation.js"></script><script src="schedule.js"></script><script src="jsQR.js"></script><script src="runner.js"></script></body></html>

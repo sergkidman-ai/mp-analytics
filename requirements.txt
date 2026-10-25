@@ -9,3 +9,4 @@ python-calamine
 fastapi
 uvicorn[standard]
 fpdf2==2.8.8
+Pillow

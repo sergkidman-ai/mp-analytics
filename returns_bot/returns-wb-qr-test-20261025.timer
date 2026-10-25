@@ -1,0 +1,12 @@
+[Unit]
+Description=One-off Sunday returns + WB QR test on 2026-10-25
+
+[Timer]
+# 06:05 UTC = 09:05 MSK. No catch-up on a later date.
+OnCalendar=2026-10-25 06:05:00
+RandomizedDelaySec=5min
+Persistent=false
+Unit=returns-daily.service
+
+[Install]
+WantedBy=timers.target

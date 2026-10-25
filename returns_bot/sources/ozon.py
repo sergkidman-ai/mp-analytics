@@ -71,9 +71,11 @@ def giveout_pdf(account):
 
 # Срок жизни штрихкода Ozon в API не отдаёт нигде: /barcode даёт только значение,
 # /giveout/info и /giveout/list по нашим аккаунтам пусты. Дата напечатана на самом бланке
-# строкой «Штрихкод действует до 08.08.2026 11:56:15» — оттуда и берём.
-TILL_RE = re.compile(r"действует\s+до\s+(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})")
-MSK = timezone(timedelta(hours=3))     # на бланке московское время, сервер живёт в UTC
+# строкой «Штрихкод действует до 24.10.2026 06:06:15» — оттуда и берём.
+# Это UTC, несмотря на отсутствие суффикса: тот же код 2347-5369 в приложении
+# показан до 24.10 09:06 МСК (сверено со скриншотом Натальи 23.10.2026).
+TILL_RE = re.compile(r"действует\s+до\s+(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?")
+MSK = timezone(timedelta(hours=3))
 
 
 def _pdf_text(pdf_bytes):
@@ -87,7 +89,7 @@ def _pdf_text(pdf_bytes):
 
 
 def giveout_valid_till(pdf_bytes):
-    """До какого момента код примут в пункте (МСК). None, если бланк не разобрался.
+    """До какого момента код примут в пункте (UTC). None, если бланк не разобрался.
 
     Код живёт сутки с выпуска и от повторных запросов НЕ продлевается: два запроса
     с разницей в минуту вернули один и тот же срок (проверено 07.08.2026).
@@ -95,9 +97,10 @@ def giveout_valid_till(pdf_bytes):
     m = TILL_RE.search(_pdf_text(pdf_bytes or b""))
     if not m:
         return None
-    d, mo, y, hh, mm = (int(x) for x in m.groups())
+    d, mo, y, hh, mm = (int(x) for x in m.groups()[:5])
+    ss = int(m.group(6) or 0)
     try:
-        return datetime(y, mo, d, hh, mm, tzinfo=MSK)
+        return datetime(y, mo, d, hh, mm, ss, tzinfo=timezone.utc)
     except ValueError:
         return None
 
