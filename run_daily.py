@@ -279,6 +279,10 @@ def main():
          lambda: print("[fts]", __import__("reports.fts_page",
                        fromlist=["render"]).render(), flush=True))
 
+    step("Продажи юрлицам: отгрузки, FIFO и оплаты МС",
+         lambda: print("[legal-sales]", __import__("collectors.ms_legal_sales",
+                       fromlist=["refresh"]).refresh(), flush=True))
+
     # Уведомления о выкупе ВБ → УПД для Диадока. Уведомления выкладываются раз в неделю,
     # но забор инкрементальный (скачиваем только новые), поэтому проверяем ежедневно.
     step("ВБ: уведомления о выкупе",

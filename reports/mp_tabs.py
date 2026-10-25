@@ -12,6 +12,7 @@ TABS = [
     ("fts", "🛃 Отчёты ФТС",    "/reports/fts"),
     ("upd", "📄 УПД по выкупам", "/reports/upd"),
     ("kudir", "📒 КУДиР", "/reports/kudir"),
+    ("legal", "🏢 Отчёты продаж юрлицам", "/reports/legal-sales"),
 ]
 
 

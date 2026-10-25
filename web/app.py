@@ -1477,6 +1477,12 @@ def reports_yandex_page():
     return (STATIC / "reports_yandex.html").read_text(encoding="utf-8")
 
 
+@app.get("/reports/legal-sales", response_class=HTMLResponse)
+def reports_legal_sales_page():
+    from reports import legal_sales_page
+    return legal_sales_page.render()
+
+
 from datetime import date as _date, datetime as _datetime, timezone as _tz  # noqa: E402
 from urllib.parse import quote as _quote  # noqa: E402
 

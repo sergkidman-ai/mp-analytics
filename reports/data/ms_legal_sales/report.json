@@ -1,0 +1,2309 @@
+{
+  "year": 2026,
+  "updated_at": "2026-10-25",
+  "scanned_months": [
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09",
+    "2026-10"
+  ],
+  "rows": [
+    {
+      "demand_id": "5a33e4ab-f12d-11f0-0a80-15dc000a22f5",
+      "demand_name": "ORG-4178",
+      "order_id": "f0dffddb-e185-11f0-0a80-0fd700c64ede",
+      "order_name": "ORG-4178",
+      "date": "2026-01-14",
+      "month": "2026-01",
+      "project": "Kartridge.org",
+      "agent": "ООО \"МОНО-ВЕНТ ИНЖИНИРИНГ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "8008.00",
+      "paid": "8008.00",
+      "cogs": "2238.48",
+      "payments": [
+        {
+          "payment_id": "4be58e61-f201-11f0-0a80-113300155464",
+          "payment_name": "56671",
+          "payment_date": "2026-01-14",
+          "amount": "8008.00",
+          "agent_id": "275d6d06-b1e1-11e8-9ff4-315000157c3f",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "c9e81d3a-f1f5-11f0-0a80-007a00169e96",
+      "demand_name": "56666",
+      "order_id": "cac5666a-f078-11f0-0a80-0c4a001cd89b",
+      "order_name": "56666",
+      "date": "2026-01-15",
+      "month": "2026-01",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ВИТАМАКС РУС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4593.00",
+      "paid": "4593.00",
+      "cogs": "1449.61",
+      "payments": [
+        {
+          "payment_id": "4bd10d2a-f201-11f0-0a80-11330015545f",
+          "payment_name": "56670",
+          "payment_date": "2026-01-14",
+          "amount": "4593.00",
+          "agent_id": "35d03005-a358-11eb-0a80-04640005962b",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "395e03b3-f790-11f0-0a80-1639001a4d88",
+      "demand_name": "56664",
+      "order_id": "a133770c-f066-11f0-0a80-0c4a00184ce8",
+      "order_name": "56664",
+      "date": "2026-01-22",
+      "month": "2026-01",
+      "project": "Digitalsquare",
+      "agent": "ООО \"КАМЕННЫЙ ВЕК\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4385.00",
+      "paid": "4385.00",
+      "cogs": "934.00",
+      "payments": [
+        {
+          "payment_id": "025d989e-f386-11f0-0a80-0b2d007531d1",
+          "payment_name": "56673",
+          "payment_date": "2026-01-16",
+          "amount": "4385.00",
+          "agent_id": "26ba50f1-f99d-11ef-0a80-19240013b3d1",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "84cdb506-fa9a-11f0-0a80-061c004d1be4",
+      "demand_name": "Б1452",
+      "order_id": "d9eb02bf-f77f-11f0-0a80-180e000c5ef9",
+      "order_name": "Б1452",
+      "date": "2026-01-26",
+      "month": "2026-01",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ВИТАРУС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "1802.00",
+      "paid": "1802.00",
+      "cogs": "406.48",
+      "payments": [
+        {
+          "payment_id": "7ff0d34b-f8fc-11f0-0a80-17f500056add",
+          "payment_name": "56668/6",
+          "payment_date": "2026-01-23",
+          "amount": "1802.00",
+          "agent_id": "15fd1f40-0f73-11ea-0a80-03cf00190472",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "31fe8840-fc2e-11f0-0a80-028e003c528b",
+      "demand_name": "56675",
+      "order_id": "ebcb867b-fb4e-11f0-0a80-03060014e5e1",
+      "order_name": "56675",
+      "date": "2026-01-28",
+      "month": "2026-01",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ХАНТЕКС XXI\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "10373.00",
+      "paid": "10373.00",
+      "cogs": "2907.05",
+      "payments": [
+        {
+          "payment_id": "567906d5-fc2b-11f0-0a80-081d003099d4",
+          "payment_name": "56676/2",
+          "payment_date": "2026-01-27",
+          "amount": "10373.00",
+          "agent_id": "af5653cf-a503-11e3-f965-002590a28eca",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "c00cb57d-fcf6-11f0-0a80-0536000a0048",
+      "demand_name": "56678",
+      "order_id": "40321330-fcf4-11f0-0a80-04890012f21d",
+      "order_name": "56678",
+      "date": "2026-01-29",
+      "month": "2026-01",
+      "project": "Digitalsquare",
+      "agent": "ИП Чепур Елена Анатольевна",
+      "agent_type": "entrepreneur",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "2074.00",
+      "paid": "2074.00",
+      "cogs": "487.00",
+      "payments": [
+        {
+          "payment_id": "9d943999-fdc5-11f0-0a80-11b600113b75",
+          "payment_name": "56676/3",
+          "payment_date": "2026-01-29",
+          "amount": "2074.00",
+          "agent_id": "3fd0015a-fcf4-11f0-0a80-143f00134d04",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "85e050d3-0282-11f1-0a80-0bbd000c0ea7",
+      "demand_name": "ORG-4183",
+      "order_id": "6ba1c70e-00f5-11f1-0a80-0fd600710845",
+      "order_name": "ORG-4183",
+      "date": "2026-02-05",
+      "month": "2026-02",
+      "project": "Kartridge.org",
+      "agent": "ООО \"МОНО-ВЕНТ ИНЖИНИРИНГ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "2670.00",
+      "paid": "2670.00",
+      "cogs": "824.26",
+      "payments": [
+        {
+          "payment_id": "0e2df643-012e-11f1-0a80-0bb40016d951",
+          "payment_name": "ORG-4183",
+          "payment_date": "2026-02-03",
+          "amount": "2670.00",
+          "agent_id": "275d6d06-b1e1-11e8-9ff4-315000157c3f",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "2536f1de-05ad-11f1-0a80-09ca0076d1cd",
+      "demand_name": "56685",
+      "order_id": "444da65d-0338-11f1-0a80-064400131dac",
+      "order_name": "56685",
+      "date": "2026-02-09",
+      "month": "2026-02",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ОПТИО\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4282.50",
+      "paid": "4282.50",
+      "cogs": "1693.66",
+      "payments": [
+        {
+          "payment_id": "8621a202-0348-11f1-0a80-1c38000ae27c",
+          "payment_name": "56686",
+          "payment_date": "2026-02-06",
+          "amount": "4282.50",
+          "agent_id": "04d3723f-6833-11ea-0a80-060a0004836a",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "4bf2c55d-17af-11f1-0a80-116300163ff3",
+      "demand_name": "56670",
+      "order_id": "6a59a7d0-f533-11f0-0a80-1622007c5928",
+      "order_name": "56670",
+      "date": "2026-03-04",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ЯЛТИНСКИЙ ЗООПАРК \"СКАЗКА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "23371.00",
+      "paid": "23371.00",
+      "cogs": "5762.21",
+      "payments": [
+        {
+          "payment_id": "0efd80e2-064c-11f1-0a80-166b0017faaa",
+          "payment_name": "56686/12",
+          "payment_date": "2026-02-09",
+          "amount": "23371.00",
+          "agent_id": "89b05e0e-4992-11e6-7a69-93a700037e1e",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "3819bb06-17b0-11f1-0a80-17e2000adecd",
+      "demand_name": "56696",
+      "order_id": "71b5ef44-1799-11f1-0a80-04e90011315a",
+      "order_name": "56696",
+      "date": "2026-03-04",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ИП Мелехов Дмитрий Валерьевич",
+      "agent_type": "entrepreneur",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4281.00",
+      "paid": "4281.00",
+      "cogs": "1276.75",
+      "payments": [
+        {
+          "payment_id": "ebbba59d-1dff-11f1-0a80-0d5f0015668c",
+          "payment_name": "56706",
+          "payment_date": "2026-03-11",
+          "amount": "4281.00",
+          "agent_id": "bf028561-e0e0-11ec-0a80-007a00068ea8",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "f1ab9182-1937-11f1-0a80-06e000086a42",
+      "demand_name": "56698",
+      "order_id": "19ac5129-192a-11f1-0a80-116e001040c4",
+      "order_name": "56698",
+      "date": "2026-03-06",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ДИЭС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "3988.00",
+      "paid": "3988.00",
+      "cogs": "1225.00",
+      "payments": [
+        {
+          "payment_id": "2a9a27c1-1c7a-11f1-0a80-019e000ef2f6",
+          "payment_name": "56702",
+          "payment_date": "2026-03-06",
+          "amount": "3988.00",
+          "agent_id": "19576dd1-192a-11f1-0a80-1b6b00105205",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "c02f4bdc-1d45-11f1-0a80-0eac00ca3abc",
+      "demand_name": "56697",
+      "order_id": "eb00fede-187a-11f1-0a80-19e6001603b2",
+      "order_name": "56697",
+      "date": "2026-03-11",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ШВЕЙКА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "40698.00",
+      "paid": "40698.00",
+      "cogs": "12437.96",
+      "payments": [
+        {
+          "payment_id": "03768368-19dc-11f1-0a80-00f6000a518b",
+          "payment_name": "56701",
+          "payment_date": "2026-03-05",
+          "amount": "40698.00",
+          "agent_id": "eab4cf2d-187a-11f1-0a80-04ec00161e98",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "189980e2-236a-11f1-0a80-119400116134",
+      "demand_name": "56705",
+      "order_id": "93fa1899-2210-11f1-0a80-041b0026065b",
+      "order_name": "56705",
+      "date": "2026-03-19",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ВЕЛЕС СМ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4883.25",
+      "paid": "4883.25",
+      "cogs": "1479.00",
+      "payments": [
+        {
+          "payment_id": "055c9507-2366-11f1-0a80-16c700049214",
+          "payment_name": "56708/2",
+          "payment_date": "2026-03-18",
+          "amount": "4883.25",
+          "agent_id": "a0e3f4c8-af1f-11f0-0a80-069a0013b3e5",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "a0182acc-2450-11f1-0a80-16c9000c1506",
+      "demand_name": "56709",
+      "order_id": "8fa0e7b2-2366-11f1-0a80-1bc40010a16a",
+      "order_name": "56709",
+      "date": "2026-03-20",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ПЕТРОИНЖИНИРИНГ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "12223.00",
+      "paid": "12223.00",
+      "cogs": "4080.81",
+      "payments": [
+        {
+          "payment_id": "69af2190-269e-11f1-0a80-09cb0064ee23",
+          "payment_name": "56715",
+          "payment_date": "2026-03-20",
+          "amount": "12223.00",
+          "agent_id": "8f6c641a-2366-11f1-0a80-174600103843",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "3027ebd3-268d-11f1-0a80-0021006b870e",
+      "demand_name": "56711",
+      "order_id": "3c727023-23a1-11f1-0a80-07b9001dff91",
+      "order_name": "56711",
+      "date": "2026-03-23",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ООО \"АЕФ ПРОДАКШЕН\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "1517.00",
+      "paid": "1517.00",
+      "cogs": "422.00",
+      "payments": [
+        {
+          "payment_id": "69bbbbc6-269e-11f1-0a80-09cb0064ee25",
+          "payment_name": "56716",
+          "payment_date": "2026-03-20",
+          "amount": "1517.00",
+          "agent_id": "25ea5555-624e-11eb-0a80-07e700077101",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "d26903ee-2c1f-11f1-0a80-023b0092d5d1",
+      "demand_name": "56720",
+      "order_id": "294abf8e-28f9-11f1-0a80-054e001721c9",
+      "order_name": "56720",
+      "date": "2026-03-30",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ТД ДАВИАЛ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "6133.00",
+      "paid": "6133.00",
+      "cogs": "2064.38",
+      "payments": [
+        {
+          "payment_id": "cb2439d4-2a04-11f1-0a80-069e00298730",
+          "payment_name": "279",
+          "payment_date": "2026-03-27",
+          "amount": "6133.00",
+          "agent_id": "05d9da5a-7404-11ea-0a80-041500068750",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "d777d6f0-2ce3-11f1-0a80-1a2d00183c7f",
+      "demand_name": "56723",
+      "order_id": "4ff529fb-29c9-11f1-0a80-09d3003a2b8f",
+      "order_name": "56723",
+      "date": "2026-03-31",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ГРУППА ЭНЭКОС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "2410.00",
+      "paid": "2410.00",
+      "cogs": "570.50",
+      "payments": [
+        {
+          "payment_id": "16dc2167-2a05-11f1-0a80-0704002a1877",
+          "payment_name": "355",
+          "payment_date": "2026-03-27",
+          "amount": "2410.00",
+          "agent_id": "01c5519b-9718-11e8-9ff4-31500015ba0c",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "0fa28600-2ce6-11f1-0a80-08510019e3a8",
+      "demand_name": "56728",
+      "order_id": "8ca2216d-2cd4-11f1-0a80-1bdc0015b8fb",
+      "order_name": "56728",
+      "date": "2026-03-31",
+      "month": "2026-03",
+      "project": "Digitalsquare",
+      "agent": "ИНДИВИДУАЛЬНЫЙ ПРЕДПРИНИМАТЕЛЬ ГОЛУБЕВ АНДРЕЙ СЕРГЕЕВИЧ",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "1566.00",
+      "paid": "1566.00",
+      "cogs": "297.11",
+      "payments": [
+        {
+          "payment_id": "8d9f8950-2dbe-11f1-0a80-02480010234d",
+          "payment_name": "361",
+          "payment_date": "2026-03-31",
+          "amount": "1566.00",
+          "agent_id": "8d95319f-2dbe-11f1-0a80-02480010234b",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "98da24e9-2dbb-11f1-0a80-1467001792b1",
+      "demand_name": "56715",
+      "order_id": "a07ad061-2756-11f1-0a80-002600159653",
+      "order_name": "56715",
+      "date": "2026-04-01",
+      "month": "2026-04",
+      "project": "Digitalsquare",
+      "agent": "МАОУ ДО \"КОМПЬЮТЕРНЫЙ ЦЕНТР\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4317.00",
+      "paid": "4317.00",
+      "cogs": "1389.92",
+      "payments": [
+        {
+          "payment_id": "6f603808-2dbe-11f1-0a80-16df00106cd8",
+          "payment_name": "359",
+          "payment_date": "2026-03-30",
+          "amount": "4317.00",
+          "agent_id": "a9401cd3-bed4-4259-b068-d7b1a0b6fac6",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "1e23c4ba-31a5-11f1-0a80-0ba100780b80",
+      "demand_name": "56732",
+      "order_id": "0f9c1c09-2e26-11f1-0a80-004500065a01",
+      "order_name": "56732",
+      "date": "2026-04-06",
+      "month": "2026-04",
+      "project": "Digitalsquare",
+      "agent": "ООО \"НОРРСКЕН\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "18042.00",
+      "paid": "18042.00",
+      "cogs": "8142.58",
+      "payments": [
+        {
+          "payment_id": "2c20b50d-3e7e-11f1-0a80-13230000fe09",
+          "payment_name": "56754",
+          "payment_date": "2026-04-03",
+          "amount": "18042.00",
+          "agent_id": "e23046ff-6c60-11eb-0a80-086f000d5a3f",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "a4a80a53-3264-11f1-0a80-0db000199bd1",
+      "demand_name": "56729",
+      "order_id": "50288f5f-2ce5-11f1-0a80-0e1f0018fb11",
+      "order_name": "56729",
+      "date": "2026-04-07",
+      "month": "2026-04",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ИГТ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "37975.00",
+      "paid": "37975.00",
+      "cogs": "17141.80",
+      "payments": [
+        {
+          "payment_id": "2bf3e662-3e7e-11f1-0a80-13230000fe02",
+          "payment_name": "56752",
+          "payment_date": "2026-04-03",
+          "amount": "37975.00",
+          "agent_id": "4fe0df79-2ce5-11f1-0a80-023f0018dca3",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "0790ad91-332a-11f1-0a80-055e00094500",
+      "demand_name": "56733",
+      "order_id": "5ecc0825-2f2e-11f1-0a80-11bb00105ce9",
+      "order_name": "56733",
+      "date": "2026-04-08",
+      "month": "2026-04",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ТЕХСТРОЙ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4099.00",
+      "paid": "4099.00",
+      "cogs": "1310.64",
+      "payments": [
+        {
+          "payment_id": "f60dc567-3248-11f1-0a80-0bbb0004a390",
+          "payment_name": "364",
+          "payment_date": "2026-04-06",
+          "amount": "4099.00",
+          "agent_id": "2944225f-0638-11ec-0a80-01d1002bc912",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "c3312067-38ac-11f1-0a80-079e00156cb8",
+      "demand_name": "56739",
+      "order_id": "34f44ff8-36b6-11f1-0a80-0880005e30c5",
+      "order_name": "56739",
+      "date": "2026-04-15",
+      "month": "2026-04",
+      "project": "Digitalsquare",
+      "agent": "ИП Заводевкин Дмитрий Сергеевич",
+      "agent_type": "entrepreneur",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "11787.00",
+      "paid": "11787.00",
+      "cogs": "2218.84",
+      "payments": [
+        {
+          "payment_id": "415d5f7b-7d10-11f1-0a80-0b8d003d5695",
+          "payment_name": "56819/18",
+          "payment_date": "2026-04-14",
+          "amount": "11787.00",
+          "agent_id": "f5828cc7-acdd-11ed-0a80-05710010f7ae",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "3892c7f2-3a47-11f1-0a80-149900199312",
+      "demand_name": "56742",
+      "order_id": "88a11929-38a7-11f1-0a80-08840015237b",
+      "order_name": "56742",
+      "date": "2026-04-17",
+      "month": "2026-04",
+      "project": "Digitalsquare",
+      "agent": "ООО \"РПК\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Претензия решена обмен",
+      "sale": "38128.00",
+      "paid": "38128.00",
+      "cogs": "23036.84",
+      "payments": [
+        {
+          "payment_id": "364a3f74-3a53-11f1-0a80-0b2b000ac1f9",
+          "payment_name": "383",
+          "payment_date": "2026-04-16",
+          "amount": "38128.00",
+          "agent_id": "8850ca86-38a7-11f1-0a80-06f40015773f",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "e59690aa-3d52-11f1-0a80-060700062bea",
+      "demand_name": "56747",
+      "order_id": "d93809bb-3ca5-11f1-0a80-088d00794255",
+      "order_name": "56747",
+      "date": "2026-04-21",
+      "month": "2026-04",
+      "project": "Digitalsquare",
+      "agent": "ООО \"РЕСУРС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4161.00",
+      "paid": "4161.00",
+      "cogs": "1400.00",
+      "payments": [
+        {
+          "payment_id": "78436f32-3d63-11f1-0a80-14a100065cfc",
+          "payment_name": "56748",
+          "payment_date": "2026-04-20",
+          "amount": "4161.00",
+          "agent_id": "d8e33ad5-3ca5-11f1-0a80-0f830079f94f",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "1753c269-3fb9-11f1-0a80-09740013818f",
+      "demand_name": "56751",
+      "order_id": "eea84d39-3ef3-11f1-0a80-0d540012a3a4",
+      "order_name": "56751",
+      "date": "2026-04-24",
+      "month": "2026-04",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ЮНИПАРТС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "2994.00",
+      "paid": "2994.00",
+      "cogs": "701.34",
+      "payments": [
+        {
+          "payment_id": "608e2b78-7d10-11f1-0a80-0b8d003d5c28",
+          "payment_name": "56819/20",
+          "payment_date": "2026-04-24",
+          "amount": "2994.00",
+          "agent_id": "46a353ac-8a5f-11ec-0a80-05e0000a9ce9",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "cfcf4b19-42e0-11f1-0a80-0d5b009cfb19",
+      "demand_name": "56750",
+      "order_id": "006de2d0-3e66-11f1-0a80-07af0022f10e",
+      "order_name": "56750",
+      "date": "2026-04-28",
+      "month": "2026-04",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ДОРОГА ЗАКОНА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "15520.00",
+      "paid": "15520.00",
+      "cogs": "4416.47",
+      "payments": [
+        {
+          "payment_id": "605cd1ab-7d10-11f1-0a80-0b8d003d5c1d",
+          "payment_name": "56819/19",
+          "payment_date": "2026-04-24",
+          "amount": "15520.00",
+          "agent_id": "aa10f524-f096-11ec-0a80-050e00173e0b",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "78ce8920-47c1-11f1-0a80-1c82003668ff",
+      "demand_name": "56755",
+      "order_id": "99f0cfd9-42bc-11f1-0a80-1df3009688a3",
+      "order_name": "56755",
+      "date": "2026-05-04",
+      "month": "2026-05",
+      "project": "Digitalsquare",
+      "agent": "ООО \"БАККОН\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5612.00",
+      "paid": "5612.00",
+      "cogs": "800.00",
+      "payments": [
+        {
+          "payment_id": "3ebedb0b-452c-11f1-0a80-00c4005bcdef",
+          "payment_name": "56757/4",
+          "payment_date": "2026-04-30",
+          "amount": "5612.00",
+          "agent_id": "c8a230e3-1ff2-11eb-0a80-05d700056773",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "73cf9bb0-47c1-11f1-0a80-155000375461",
+      "demand_name": "56756",
+      "order_id": "356d0599-43ab-11f1-0a80-08a40013bd8b",
+      "order_name": "56756",
+      "date": "2026-05-04",
+      "month": "2026-05",
+      "project": "Digitalsquare",
+      "agent": "ООО \"СКОРОМЕД\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "7334.00",
+      "paid": "7334.00",
+      "cogs": "1350.00",
+      "payments": [
+        {
+          "payment_id": "76276040-447f-11f1-0a80-07f70002bec5",
+          "payment_name": "56757/2",
+          "payment_date": "2026-04-29",
+          "amount": "7334.00",
+          "agent_id": "34fdb19a-43ab-11f1-0a80-112c0013f79b",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "5e9a037d-5051-11f1-0a80-1ad300199531",
+      "demand_name": "56772",
+      "order_id": "c34e8261-4ed3-11f1-0a80-0fcc001fc0f0",
+      "order_name": "56772",
+      "date": "2026-05-15",
+      "month": "2026-05",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ПРИНТ ЭНД КАТ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "6894.00",
+      "paid": "6894.00",
+      "cogs": "2464.32",
+      "payments": [
+        {
+          "payment_id": "0bb11159-5102-11f1-0a80-17d8005e9bb8",
+          "payment_name": "56783",
+          "payment_date": "2026-05-14",
+          "amount": "6894.00",
+          "agent_id": "c2db1c67-4ed3-11f1-0a80-063a001ea0ab",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "6432eb61-55c4-11f1-0a80-1adf0015df8a",
+      "demand_name": "56777",
+      "order_id": "3c2bc25d-5446-11f1-0a80-08cc001abb00",
+      "order_name": "56777",
+      "date": "2026-05-22",
+      "month": "2026-05",
+      "project": "Digitalsquare",
+      "agent": "ООО \"СТУДИЯ \"МУРАВЕЙ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "39543.00",
+      "paid": "39543.00",
+      "cogs": "16174.31",
+      "payments": [
+        {
+          "payment_id": "8b4eb6dc-55b5-11f1-0a80-0d6a0009e65d",
+          "payment_name": "56789",
+          "payment_date": "2026-05-21",
+          "amount": "39543.00",
+          "agent_id": "fb14a68a-5437-11f1-0a80-08cc001692cd",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "1e298631-5a81-11f1-0a80-16a200192fa3",
+      "demand_name": "56774",
+      "order_id": "4df28a84-503d-11f1-0a80-1ad300144123",
+      "order_name": "56774",
+      "date": "2026-05-28",
+      "month": "2026-05",
+      "project": "Digitalsquare",
+      "agent": "ООО \"БАЗЕЛЕВС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "2850.00",
+      "paid": "2850.00",
+      "cogs": "528.85",
+      "payments": [
+        {
+          "payment_id": "23acccb7-59af-11f1-0a80-1caa00067c9b",
+          "payment_name": "56792",
+          "payment_date": "2026-05-26",
+          "amount": "2850.00",
+          "agent_id": "4d610bcf-503d-11f1-0a80-08c300142b21",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "3743c4d9-5a81-11f1-0a80-04150018ad9e",
+      "demand_name": "56779",
+      "order_id": "c952d4c7-58d7-11f1-0a80-076b009d53cd",
+      "order_name": "56779",
+      "date": "2026-05-28",
+      "month": "2026-05",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ГЛОБАЛ ЭЛЕКТРО ПРОДУКТ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "7651.30",
+      "paid": "7651.30",
+      "cogs": "1835.34",
+      "payments": [
+        {
+          "payment_id": "239cf558-59af-11f1-0a80-1caa00067c99",
+          "payment_name": "56791",
+          "payment_date": "2026-05-26",
+          "amount": "7651.30",
+          "agent_id": "c886f36c-58d7-11f1-0a80-1adf009b8798",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "2b04766d-5a75-11f1-0a80-0202000939de",
+      "demand_name": "56780",
+      "order_id": "5256fe71-599d-11f1-0a80-1d250011e623",
+      "order_name": "56780",
+      "date": "2026-05-28",
+      "month": "2026-05",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ЭЛЕСНА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "9992.00",
+      "paid": "9992.00",
+      "cogs": "4072.14",
+      "payments": [
+        {
+          "payment_id": "4e0a6117-5a75-11f1-0a80-0b5d0008577f",
+          "payment_name": "56793",
+          "payment_date": "2026-05-27",
+          "amount": "9992.00",
+          "agent_id": "51bfbd96-599d-11f1-0a80-0ca4001239fb",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "5892783c-5da1-11f1-0a80-058b0031aca9",
+      "demand_name": "56783",
+      "order_id": "ce4cb0d5-5d02-11f1-0a80-147b0060d767",
+      "order_name": "56783",
+      "date": "2026-06-01",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ООО \"МАРОП\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "3272.00",
+      "paid": "3272.00",
+      "cogs": "949.00",
+      "payments": [
+        {
+          "payment_id": "8173ee20-5e52-11f1-0a80-0b77000e428d",
+          "payment_name": "0120805948-0579-5",
+          "payment_date": "2026-06-01",
+          "amount": "3272.00",
+          "agent_id": "9f4d25fa-53ee-11ee-0a80-04cd000788f0",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "ed65d6f7-60cf-11f1-0a80-0809001a659c",
+      "demand_name": "56786",
+      "order_id": "b09671cd-5db8-11f1-0a80-004000806e8e",
+      "order_name": "56786",
+      "date": "2026-06-05",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ЧОУДО \"УЧЕБНЫЙ ЦЕНТР \"ЭВРИКА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "7702.00",
+      "paid": "7702.00",
+      "cogs": "1967.11",
+      "payments": [
+        {
+          "payment_id": "16419fd9-5f30-11f1-0a80-0cbe0010cd19",
+          "payment_name": "0120805948-0579-6",
+          "payment_date": "2026-06-02",
+          "amount": "7702.00",
+          "agent_id": "afce327a-5db8-11f1-0a80-07fe007ffdd4",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "960c5a2a-655c-11f1-0a80-10f9000425e9",
+      "demand_name": "56796",
+      "order_id": "41c161fc-6495-11f1-0a80-1ccc00113be2",
+      "order_name": "56796",
+      "date": "2026-06-11",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ЭТАЛОН\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "8662.00",
+      "paid": "8662.00",
+      "cogs": "3658.54",
+      "payments": [
+        {
+          "payment_id": "cf75088f-65b3-11f1-0a80-16db001bd6b7",
+          "payment_name": "56792/15",
+          "payment_date": "2026-06-10",
+          "amount": "8662.00",
+          "agent_id": "4157369c-6495-11f1-0a80-0c030011ba3f",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "3903abd9-6884-11f1-0a80-1efc0035c75f",
+      "demand_name": "56798",
+      "order_id": "abf7b082-656c-11f1-0a80-05c600170a7d",
+      "order_name": "56798",
+      "date": "2026-06-15",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ДОРСТРОЙ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5007.00",
+      "paid": "5007.00",
+      "cogs": "1784.58",
+      "payments": [
+        {
+          "payment_id": "674e781a-6631-11f1-0a80-009d00449736",
+          "payment_name": "56792/18",
+          "payment_date": "2026-06-11",
+          "amount": "5007.00",
+          "agent_id": "b116ccf4-0b26-11e8-7a6c-d2a900025458",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "c8adb366-68ab-11f1-0a80-10f900401582",
+      "demand_name": "56801",
+      "order_id": "8e00cee2-689a-11f1-0a80-1123009db647",
+      "order_name": "56801",
+      "date": "2026-06-15",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ВИТАРУС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "1738.00",
+      "paid": "1738.00",
+      "cogs": "325.67",
+      "payments": [
+        {
+          "payment_id": "5eb36079-6964-11f1-0a80-1128001484ce",
+          "payment_name": "56803",
+          "payment_date": "2026-06-15",
+          "amount": "1738.00",
+          "agent_id": "15fd1f40-0f73-11ea-0a80-03cf00190472",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "0f05f981-6afd-11f1-0a80-00a900403487",
+      "demand_name": "56800",
+      "order_id": "6ddd09aa-688d-11f1-0a80-1d570098b3aa",
+      "order_name": "56800",
+      "date": "2026-06-18",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ООО \"БАККОН\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "10036.00",
+      "paid": "10036.00",
+      "cogs": "3106.69",
+      "payments": [
+        {
+          "payment_id": "da3b8b94-6ad3-11f1-0a80-03680039fca0",
+          "payment_name": "56810",
+          "payment_date": "2026-06-17",
+          "amount": "10036.00",
+          "agent_id": "c8a230e3-1ff2-11eb-0a80-05d700056773",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "5292d954-6ece-11f1-0a80-1a5c003e6cb2",
+      "demand_name": "56809",
+      "order_id": "c7756bad-6e11-11f1-0a80-1940007b1002",
+      "order_name": "56809",
+      "date": "2026-06-23",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ООО \"РМК-СЕРВИС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Претензия решена обмен",
+      "sale": "4302.00",
+      "paid": "4302.00",
+      "cogs": "2022.01",
+      "payments": [
+        {
+          "payment_id": "0d7d1e90-6fb4-11f1-0a80-0d890004f2ee",
+          "payment_name": "56815",
+          "payment_date": "2026-06-23",
+          "amount": "4302.00",
+          "agent_id": "c686d535-6e11-11f1-0a80-1e08007ad2e0",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "603838fb-6fc5-11f1-0a80-0c490019a83a",
+      "demand_name": "56810",
+      "order_id": "4375b808-6ed9-11f1-0a80-0bf300a33b9e",
+      "order_name": "56810",
+      "date": "2026-06-24",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ООО РПК \"АФИНА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "40184.00",
+      "paid": "40184.00",
+      "cogs": "24360.10",
+      "payments": [
+        {
+          "payment_id": "0d672752-6fb4-11f1-0a80-0d890004f2ec",
+          "payment_name": "56814",
+          "payment_date": "2026-06-23",
+          "amount": "40184.00",
+          "agent_id": "42f109f1-6ed9-11f1-0a80-0bf300a33b75",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "a950aec5-714d-11f1-0a80-07770015dea6",
+      "demand_name": "56812",
+      "order_id": "0d129649-7064-11f1-0a80-16fa00108ef9",
+      "order_name": "56812",
+      "date": "2026-06-26",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ООО РПК \"АФИНА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "25000.00",
+      "paid": "25000.00",
+      "cogs": "12438.76",
+      "payments": [
+        {
+          "payment_id": "cce6e2fe-717a-11f1-0a80-1b070032c420",
+          "payment_name": "56817",
+          "payment_date": "2026-06-25",
+          "amount": "25000.00",
+          "agent_id": "42f109f1-6ed9-11f1-0a80-0bf300a33b75",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "2d369cc6-7465-11f1-0a80-09ed001b5d62",
+      "demand_name": "56816",
+      "order_id": "515eb52e-7387-11f1-0a80-07770071580f",
+      "order_name": "56816",
+      "date": "2026-06-30",
+      "month": "2026-06",
+      "project": "Digitalsquare",
+      "agent": "ИП Мелехов Дмитрий Валерьевич",
+      "agent_type": "entrepreneur",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4052.00",
+      "paid": "4052.00",
+      "cogs": "1121.25",
+      "payments": [
+        {
+          "payment_id": "82bee424-744e-11f1-0a80-0b4c00011b94",
+          "payment_name": "56821",
+          "payment_date": "2026-06-29",
+          "amount": "4052.00",
+          "agent_id": "bf028561-e0e0-11ec-0a80-007a00068ea8",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "bb7a4008-76c6-11f1-0a80-1dbb000a3ffd",
+      "demand_name": "56820",
+      "order_id": "b797de26-7478-11f1-0a80-1e1c00218430",
+      "order_name": "56820",
+      "date": "2026-07-03",
+      "month": "2026-07",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ПРИНТ ЭНД КАТ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "7273.00",
+      "paid": "7273.00",
+      "cogs": "2692.34",
+      "payments": [
+        {
+          "payment_id": "07524d8e-75e3-11f1-0a80-08b80006f8d8",
+          "payment_name": "56819/2",
+          "payment_date": "2026-07-01",
+          "amount": "7273.00",
+          "agent_id": "c2db1c67-4ed3-11f1-0a80-063a001ea0ab",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "7930078c-7913-11f1-0a80-08c20075a1c9",
+      "demand_name": "56821",
+      "order_id": "64c2670f-76a6-11f1-0a80-0781000e37a8",
+      "order_name": "56821",
+      "date": "2026-07-06",
+      "month": "2026-07",
+      "project": "Digitalsquare",
+      "agent": "ООО РПК \"АФИНА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "31645.00",
+      "paid": "31645.00",
+      "cogs": "13160.19",
+      "payments": [
+        {
+          "payment_id": "2e41f675-791e-11f1-0a80-0b570051fdfb",
+          "payment_name": "56819/9",
+          "payment_date": "2026-07-03",
+          "amount": "31645.00",
+          "agent_id": "42f109f1-6ed9-11f1-0a80-0bf300a33b75",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "223f9977-79f5-11f1-0a80-1d88001e5bf3",
+      "demand_name": "56811",
+      "order_id": "8a4f5a10-7002-11f1-0a80-0c4d00034671",
+      "order_name": "56811",
+      "date": "2026-07-07",
+      "month": "2026-07",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ОРГ-ИНТЕГРА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5300.00",
+      "paid": "5300.00",
+      "cogs": "2705.00",
+      "payments": [
+        {
+          "payment_id": "2e16c00c-791e-11f1-0a80-0b570051fd86",
+          "payment_name": "56819/7",
+          "payment_date": "2026-07-03",
+          "amount": "5300.00",
+          "agent_id": "89fb766d-7002-11f1-0a80-113700034acb",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "c1ca4bd2-79d9-11f1-0a80-19930016bdb2",
+      "demand_name": "56824",
+      "order_id": "010b9acc-7929-11f1-0a80-1a69007c431c",
+      "order_name": "56824",
+      "date": "2026-07-07",
+      "month": "2026-07",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ТОЧКА РУ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "41720.00",
+      "paid": "41720.00",
+      "cogs": "23256.07",
+      "payments": [
+        {
+          "payment_id": "d7994371-79e4-11f1-0a80-1038001488ac",
+          "payment_name": "56819/10",
+          "payment_date": "2026-07-06",
+          "amount": "41720.00",
+          "agent_id": "0089ae73-7929-11f1-0a80-0556007aa36a",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "a7a2c4d5-8022-11f1-0a80-07b30037949b",
+      "demand_name": "56828",
+      "order_id": "be0a794a-7ea2-11f1-0a80-154b007c526f",
+      "order_name": "56828",
+      "date": "2026-07-15",
+      "month": "2026-07",
+      "project": "Digitalsquare",
+      "agent": "ООО \"КП-ОПТ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "11272.00",
+      "paid": "11272.00",
+      "cogs": "4574.00",
+      "payments": [
+        {
+          "payment_id": "6c09fa3d-7f63-11f1-0a80-07b60015cbdf",
+          "payment_name": "56829",
+          "payment_date": "2026-07-13",
+          "amount": "11272.00",
+          "agent_id": "bc4dc5e9-7ea2-11f1-0a80-13740078e43a",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "9fa36417-84db-11f1-0a80-1aa20013ce16",
+      "demand_name": "56831",
+      "order_id": "3c0551cd-8111-11f1-0a80-1734001d4f21",
+      "order_name": "56831",
+      "date": "2026-07-21",
+      "month": "2026-07",
+      "project": "Digitalsquare",
+      "agent": "ТПО УП УД ПРФ",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4855.00",
+      "paid": "4855.00",
+      "cogs": "1690.23",
+      "payments": [
+        {
+          "payment_id": "2cfd341b-8414-11f1-0a80-10060066ebce",
+          "payment_name": "56834",
+          "payment_date": "2026-07-17",
+          "amount": "4855.00",
+          "agent_id": "3b760084-8111-11f1-0a80-093e001c09d5",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "1f80c169-85d1-11f1-0a80-1e730010f4e5",
+      "demand_name": "56835",
+      "order_id": "dc4520d4-85cb-11f1-0a80-1dfb001c00d3",
+      "order_name": "56835",
+      "date": "2026-07-22",
+      "month": "2026-07",
+      "project": "Digitalsquare",
+      "agent": "ООО \"СТИКС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5200.00",
+      "paid": "5200.00",
+      "cogs": "1123.37",
+      "payments": [
+        {
+          "payment_id": "5177b1ba-867e-11f1-0a80-1c98001d2920",
+          "payment_name": "56833/5",
+          "payment_date": "2026-07-22",
+          "amount": "5200.00",
+          "agent_id": "59ec232e-6f43-11ea-0a80-001e00040fe8",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "77e8bea5-8cae-11f1-0a80-1f4f000535ab",
+      "demand_name": "56840",
+      "order_id": "f42f17b0-8bec-11f1-0a80-0fc00011546e",
+      "order_name": "56840",
+      "date": "2026-07-31",
+      "month": "2026-07",
+      "project": "Digitalsquare",
+      "agent": "ООО \"АВТОГРУЗ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "10173.00",
+      "paid": "10173.00",
+      "cogs": "4059.13",
+      "payments": [
+        {
+          "payment_id": "5ef8e30f-8c94-11f1-0a80-08f4000c47e5",
+          "payment_name": "56842",
+          "payment_date": "2026-07-30",
+          "amount": "10173.00",
+          "agent_id": "f355144a-8bec-11f1-0a80-1155001149b0",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "4d324c66-9185-11f1-0a80-040c003ccadb",
+      "demand_name": "56846",
+      "order_id": "e9032238-8ffa-11f1-0a80-115b001c876d",
+      "order_name": "56846",
+      "date": "2026-08-06",
+      "month": "2026-08",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ТРЕСТ КХМ БУРЕНИЕ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "18777.00",
+      "paid": "18777.00",
+      "cogs": "6050.51",
+      "payments": [
+        {
+          "payment_id": "5568b8ff-914b-11f1-0a80-18bf0031185f",
+          "payment_name": "56852",
+          "payment_date": "2026-08-05",
+          "amount": "18777.00",
+          "agent_id": "b71e3785-8622-11eb-0a80-06e9001f83c7",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "71121d57-923f-11f1-0a80-07450014c908",
+      "demand_name": "56808",
+      "order_id": "d2b13b8b-6dfc-11f1-0a80-1a5d00749dff",
+      "order_name": "56808",
+      "date": "2026-08-07",
+      "month": "2026-08",
+      "project": "Digitalsquare",
+      "agent": "ООО ИК \"ПРОМТЕХСЕРВИС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "28690.00",
+      "paid": "28690.00",
+      "cogs": "12139.40",
+      "payments": [
+        {
+          "payment_id": "4f1965da-914b-11f1-0a80-16ba0031cd40",
+          "payment_name": "56851",
+          "payment_date": "2026-08-05",
+          "amount": "28690.00",
+          "agent_id": "d181a5ee-6dfc-11f1-0a80-08650074eb64",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "60b1f8ed-9240-11f1-0a80-074500150dad",
+      "demand_name": "56845",
+      "order_id": "22742261-8fde-11f1-0a80-1b860014f39e",
+      "order_name": "56845",
+      "date": "2026-08-07",
+      "month": "2026-08",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ДОРОГА ЗАКОНА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "12546.00",
+      "paid": "12546.00",
+      "cogs": "3349.69",
+      "payments": [
+        {
+          "payment_id": "4ea55df9-914b-11f1-0a80-0fd5002fe9aa",
+          "payment_name": "56850",
+          "payment_date": "2026-08-05",
+          "amount": "12546.00",
+          "agent_id": "aa10f524-f096-11ec-0a80-050e00173e0b",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "e1228399-94bc-11f1-0a80-0cab0037ec39",
+      "demand_name": "56852",
+      "order_id": "0225c1d4-94ba-11f1-0a80-0eea00882986",
+      "order_name": "56852",
+      "date": "2026-08-10",
+      "month": "2026-08",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ОБУВЬ КОМФОРТ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5277.00",
+      "paid": "5277.00",
+      "cogs": "1894.73",
+      "payments": [
+        {
+          "payment_id": "ef16ea4e-9598-11f1-0a80-18c7003acc8b",
+          "payment_name": "56848/6",
+          "payment_date": "2026-08-11",
+          "amount": "5277.00",
+          "agent_id": "62a348d9-6acc-11eb-0a80-050c000e12ba",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "63e44458-9554-11f1-0a80-1b280009a5cd",
+      "demand_name": "56851",
+      "order_id": "bad7ad0a-94b9-11f1-0a80-195400899b34",
+      "order_name": "56851",
+      "date": "2026-08-11",
+      "month": "2026-08",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ЮНИПАРТС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "2989.00",
+      "paid": "2989.00",
+      "cogs": "602.20",
+      "payments": [
+        {
+          "payment_id": "eea3e25f-9598-11f1-0a80-068f003a8bf1",
+          "payment_name": "56848/5",
+          "payment_date": "2026-08-11",
+          "amount": "2989.00",
+          "agent_id": "46a353ac-8a5f-11ec-0a80-05e0000a9ce9",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "908dc168-97b1-11f1-0a80-0057001db7ea",
+      "demand_name": "56855",
+      "order_id": "96196e35-97a9-11f1-0a80-09f10019b0cb",
+      "order_name": "56855",
+      "date": "2026-08-14",
+      "month": "2026-08",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ОБУВЬ КОМФОРТ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5411.00",
+      "paid": "5411.00",
+      "cogs": "2206.89",
+      "payments": [
+        {
+          "payment_id": "22a01864-97b7-11f1-0a80-1a5800201c91",
+          "payment_name": "56848/13",
+          "payment_date": "2026-08-14",
+          "amount": "5411.00",
+          "agent_id": "62a348d9-6acc-11eb-0a80-050c000e12ba",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "92688d2c-97d1-11f1-0a80-18d100134ec9",
+      "demand_name": "56856",
+      "order_id": "56565c8a-97ae-11f1-0a80-1cf0001c4e42",
+      "order_name": "56856",
+      "date": "2026-08-14",
+      "month": "2026-08",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ВЕЛЕС СМ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4853.00",
+      "paid": "4853.00",
+      "cogs": "1491.00",
+      "payments": [
+        {
+          "payment_id": "b636750b-97c3-11f1-0a80-08380023ca0b",
+          "payment_name": "56848/14",
+          "payment_date": "2026-08-14",
+          "amount": "4853.00",
+          "agent_id": "a0e3f4c8-af1f-11f0-0a80-069a0013b3e5",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": "56856.1",
+      "completion_demand_id": "ade8cba4-9d27-11f1-0a80-18160004d309",
+      "completion_date": "2026-08-21"
+    },
+    {
+      "demand_id": "174232c9-9fa0-11f1-0a80-197a00bdd671",
+      "demand_name": "56857",
+      "order_id": "afba37af-97c4-11f1-0a80-1a5800253493",
+      "order_name": "56857",
+      "date": "2026-08-24",
+      "month": "2026-08",
+      "project": "Digitalsquare",
+      "agent": "ИП Назарова Светлана Васильевна",
+      "agent_type": "entrepreneur",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "9495.00",
+      "paid": "9495.00",
+      "cogs": "3958.29",
+      "payments": [
+        {
+          "payment_id": "6c5134df-9ca0-11f1-0a80-1a62002ebe7c",
+          "payment_name": "56848/26",
+          "payment_date": "2026-08-20",
+          "amount": "9495.00",
+          "agent_id": "fd40fd7e-22a7-11ed-0a80-04c300026265",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "5b251d0c-9f94-11f1-0a80-06ad00bb0957",
+      "demand_name": "56860",
+      "order_id": "3b363708-9ae8-11f1-0a80-06a0002866a6",
+      "order_name": "56860",
+      "date": "2026-08-24",
+      "month": "2026-08",
+      "project": "Digitalsquare",
+      "agent": "ООО \"РИЖСКИЙ РЫНОК\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5382.20",
+      "paid": "5382.20",
+      "cogs": "1894.00",
+      "payments": [
+        {
+          "payment_id": "c0621ffb-9af0-11f1-0a80-06a0002bb179",
+          "payment_name": "56848/18",
+          "payment_date": "2026-08-18",
+          "amount": "5382.20",
+          "agent_id": "f3695496-b2e5-11ef-0a80-07cc000959c4",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "4144fc4c-a6c7-11f1-0a80-1379003821c8",
+      "demand_name": "56861",
+      "order_id": "ade62e6e-9b9e-11f1-0a80-14900019642b",
+      "order_name": "56861",
+      "date": "2026-09-02",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "АО \"ЯРОСЛАВТЕХНОЛОГИЯ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "16808.00",
+      "paid": "16808.00",
+      "cogs": "9063.97",
+      "payments": [
+        {
+          "payment_id": "775107d0-9c8b-11f1-0a80-09fc00276dc6",
+          "payment_name": "56848/25",
+          "payment_date": "2026-08-20",
+          "amount": "16808.00",
+          "agent_id": "2cc9e01a-c83f-11eb-0a80-03ac00038b14",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "ae54f2ab-a765-11f1-0a80-143e0006c8ab",
+      "demand_name": "56871",
+      "order_id": "53770846-a54e-11f1-0a80-091700dcc40c",
+      "order_name": "56871",
+      "date": "2026-09-03",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ДЧ ИНЖИНИРИНГ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "15272.00",
+      "paid": "15272.00",
+      "cogs": "5760.00",
+      "payments": [
+        {
+          "payment_id": "30fb9902-a6cf-11f1-0a80-1b3800375573",
+          "payment_name": "56878",
+          "payment_date": "2026-09-02",
+          "amount": "15272.00",
+          "agent_id": "52bf5305-a54e-11f1-0a80-182000dc1142",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "fcb3aa52-a787-11f1-0a80-114600105534",
+      "demand_name": "56873",
+      "order_id": "980f5496-a5f9-11f1-0a80-1822003555ad",
+      "order_name": "56873",
+      "date": "2026-09-03",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ОДД-ПРОДЖЕКТ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "6818.70",
+      "paid": "6818.70",
+      "cogs": "2450.82",
+      "payments": [
+        {
+          "payment_id": "992292bf-a612-11f1-0a80-0fbb00427009",
+          "payment_name": "56876",
+          "payment_date": "2026-09-01",
+          "amount": "6818.70",
+          "agent_id": "9773b313-a5f9-11f1-0a80-1433003b1585",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "1a09f2e2-a8fb-11f1-0a80-02a6003f8263",
+      "demand_name": "56864",
+      "order_id": "9cbba85d-9d55-11f1-0a80-06ad002a7939",
+      "order_name": "56864",
+      "date": "2026-09-05",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ЛАНКОМ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "34994.50",
+      "paid": "34994.50",
+      "cogs": "10391.64",
+      "payments": [
+        {
+          "payment_id": "32192835-a6cf-11f1-0a80-06c70037d1b1",
+          "payment_name": "56879",
+          "payment_date": "2026-09-02",
+          "amount": "34994.50",
+          "agent_id": "9c188e55-9d55-11f1-0a80-0856002be845",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "7ee3f6a1-ab83-11f1-0a80-04d60095d56d",
+      "demand_name": "56874",
+      "order_id": "599b895c-a828-11f1-0a80-0bf50022e4b0",
+      "order_name": "56874",
+      "date": "2026-09-08",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ИП Поярков Станислав Викторович",
+      "agent_type": "entrepreneur",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "10470.00",
+      "paid": "10470.00",
+      "cogs": "4136.00",
+      "payments": [
+        {
+          "payment_id": "9c7e0db5-a837-11f1-0a80-1b4700555f46",
+          "payment_name": "56883",
+          "payment_date": "2026-09-04",
+          "amount": "10470.00",
+          "agent_id": "f7818edf-a827-11f1-0a80-15f10023b753",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "71b4644e-adc8-11f1-0a80-15060026f69f",
+      "demand_name": "56879",
+      "order_id": "fbbe2ded-ad16-11f1-0a80-0fd0002dcd9c",
+      "order_name": "56879",
+      "date": "2026-09-11",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ООО НПГ \"СОЛЯРИС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5105.00",
+      "paid": "5105.00",
+      "cogs": "2371.49",
+      "payments": [
+        {
+          "payment_id": "e5a0c4e5-ad20-11f1-0a80-0fd0003222e2",
+          "payment_name": "56888",
+          "payment_date": "2026-09-10",
+          "amount": "5105.00",
+          "agent_id": "fb3ecbae-ad16-11f1-0a80-0df5002d6e79",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "52474dc2-add2-11f1-0a80-0fd5001404c4",
+      "demand_name": "56882",
+      "order_id": "2d68ce16-add2-11f1-0a80-10720029e47e",
+      "order_name": "56882",
+      "date": "2026-09-11",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ВИТАРУС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "1693.00",
+      "paid": "1693.00",
+      "cogs": "369.80",
+      "payments": [
+        {
+          "payment_id": "4c8f9f93-add9-11f1-0a80-17f2002e3f89",
+          "payment_name": "56891",
+          "payment_date": "2026-09-11",
+          "amount": "1693.00",
+          "agent_id": "15fd1f40-0f73-11ea-0a80-03cf00190472",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "aec2b2d9-ae9e-11f1-0a80-1de900291f54",
+      "demand_name": "56875",
+      "order_id": "95473cba-a828-11f1-0a80-06e700232a88",
+      "order_name": "56875",
+      "date": "2026-09-12",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ФОНД \"АГЕНТСТВО ЯНАО \"МОЙ БИЗНЕС\" (МКК)\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5963.00",
+      "paid": "5963.00",
+      "cogs": "2989.80",
+      "payments": [
+        {
+          "payment_id": "eb42d3f4-add0-11f1-0a80-0d37002950bc",
+          "payment_name": "56890",
+          "payment_date": "2026-09-11",
+          "amount": "5963.00",
+          "agent_id": "7ab81c3b-a828-11f1-0a80-138200221d6b",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "203961fd-b028-11f1-0a80-1b7300d7fb9c",
+      "demand_name": "56881",
+      "order_id": "1b54558a-adbc-11f1-0a80-1506002164aa",
+      "order_name": "56881",
+      "date": "2026-09-14",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ТПО УП УД ПРФ",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "7986.00",
+      "paid": "7986.00",
+      "cogs": "5014.64",
+      "payments": [
+        {
+          "payment_id": "5895e0e3-adc4-11f1-0a80-1b730023698c",
+          "payment_name": "56889",
+          "payment_date": "2026-09-11",
+          "amount": "7986.00",
+          "agent_id": "3b760084-8111-11f1-0a80-093e001c09d5",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "1d683604-b5c2-11f1-0a80-1163005796c0",
+      "demand_name": "56886",
+      "order_id": "49a1d2d4-b1ad-11f1-0a80-1453006bf779",
+      "order_name": "56886",
+      "date": "2026-09-21",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ООО РПК \"АФИНА\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "22863.00",
+      "paid": "22863.00",
+      "cogs": "11493.18",
+      "payments": [
+        {
+          "payment_id": "9f03d22f-b255-11f1-0a80-10780019fa54",
+          "payment_name": "56898",
+          "payment_date": "2026-09-17",
+          "amount": "22863.00",
+          "agent_id": "42f109f1-6ed9-11f1-0a80-0bf300a33b75",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "79609680-b72b-11f1-0a80-00d000210cae",
+      "demand_name": "56891",
+      "order_id": "6ecca48b-b657-11f1-0a80-0d4a001ca8d2",
+      "order_name": "56891",
+      "date": "2026-09-23",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ИП Мелехов Дмитрий Валерьевич",
+      "agent_type": "entrepreneur",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "4059.60",
+      "paid": "4059.60",
+      "cogs": "1173.12",
+      "payments": [
+        {
+          "payment_id": "fa151919-b664-11f1-0a80-03fc0020f6c6",
+          "payment_name": "56889/4",
+          "payment_date": "2026-09-22",
+          "amount": "4059.60",
+          "agent_id": "bf028561-e0e0-11ec-0a80-007a00068ea8",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "a5a0a892-b7ef-11f1-0a80-16820019cd8f",
+      "demand_name": "56893",
+      "order_id": "3a22cce1-b737-11f1-0a80-1ba7002a7006",
+      "order_name": "56893",
+      "date": "2026-09-24",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ИП Шепицын Алексей Александрович",
+      "agent_type": "entrepreneur",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "22918.00",
+      "paid": "22918.00",
+      "cogs": "11039.00",
+      "payments": [
+        {
+          "payment_id": "0e1bba08-b758-11f1-0a80-10860035d125",
+          "payment_name": "56889/6",
+          "payment_date": "2026-09-23",
+          "amount": "22918.00",
+          "agent_id": "392c8331-b737-11f1-0a80-167c00275439",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "04ba766a-bb1e-11f1-0a80-062800d11c99",
+      "demand_name": "56896",
+      "order_id": "7b835df2-b80f-11f1-0a80-05be0026478c",
+      "order_name": "56896",
+      "date": "2026-09-28",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ООО \"УЛЬТРАМАРИН\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "2723.00",
+      "paid": "2723.00",
+      "cogs": "543.40",
+      "payments": [
+        {
+          "payment_id": "5d98346f-b83a-11f1-0a80-1a1e00394bac",
+          "payment_name": "56895/3",
+          "payment_date": "2026-09-24",
+          "amount": "2723.00",
+          "agent_id": "ed79a17c-74ad-11e8-9109-f8fc000b18d0",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "ab129ab9-bca8-11f1-0a80-168c0028321c",
+      "demand_name": "56899",
+      "order_id": "9d5fdd40-b8d3-11f1-0a80-1738002d2c92",
+      "order_name": "56899",
+      "date": "2026-09-30",
+      "month": "2026-09",
+      "project": "Digitalsquare",
+      "agent": "ФОНД \"АГЕНТСТВО ЯНАО \"МОЙ БИЗНЕС\" (МКК)\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "9924.00",
+      "paid": "9924.00",
+      "cogs": "4216.14",
+      "payments": [
+        {
+          "payment_id": "5412b222-bbe9-11f1-0a80-155a0029c833",
+          "payment_name": "56901/4",
+          "payment_date": "2026-09-29",
+          "amount": "9924.00",
+          "agent_id": "7ab81c3b-a828-11f1-0a80-138200221d6b",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "906d5be3-bd70-11f1-0a80-0b0f0024a42a",
+      "demand_name": "56902",
+      "order_id": "2ada8c30-ba6f-11f1-0a80-1a2500a14788",
+      "order_name": "56902",
+      "date": "2026-10-01",
+      "month": "2026-10",
+      "project": "Digitalsquare",
+      "agent": "ООО \"НОРРСКЕН\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "1488.00",
+      "paid": "1488.00",
+      "cogs": "249.06",
+      "payments": [
+        {
+          "payment_id": "8af1afa8-bc9d-11f1-0a80-1c8400240952",
+          "payment_name": "56901/6",
+          "payment_date": "2026-09-30",
+          "amount": "1488.00",
+          "agent_id": "e23046ff-6c60-11eb-0a80-086f000d5a3f",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "8aff47f4-be3a-11f1-0a80-183a00216ef6",
+      "demand_name": "56906",
+      "order_id": "10e2ef20-bccc-11f1-0a80-1d8100383267",
+      "order_name": "56906",
+      "date": "2026-10-02",
+      "month": "2026-10",
+      "project": "Digitalsquare",
+      "agent": "ООО \"МСК\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "5498.00",
+      "paid": "5498.00",
+      "cogs": "1729.66",
+      "payments": [
+        {
+          "payment_id": "fa104591-bce8-11f1-0a80-168c00446e2e",
+          "payment_name": "56901/9",
+          "payment_date": "2026-09-30",
+          "amount": "5498.00",
+          "agent_id": "0f6e36db-bccc-11f1-0a80-1c8400375e63",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "7ed4e695-c896-11f1-0a80-040500b2d9dc",
+      "demand_name": "56917",
+      "order_id": "edad5ca8-c88a-11f1-0a80-109d018fccfb",
+      "order_name": "56917",
+      "date": "2026-10-15",
+      "month": "2026-10",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ЮНИПАРТС\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "3071.00",
+      "paid": "3071.00",
+      "cogs": "692.19",
+      "payments": [
+        {
+          "payment_id": "c39d9125-c93c-11f1-0a80-1a9d0023c0e6",
+          "payment_name": "56901/26",
+          "payment_date": "2026-10-16",
+          "amount": "3071.00",
+          "agent_id": "46a353ac-8a5f-11ec-0a80-05e0000a9ce9",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    },
+    {
+      "demand_id": "da6a6ab5-cbbd-11f1-0a80-117000e9e9d9",
+      "demand_name": "56918",
+      "order_id": "5ec0072d-c89d-11f1-0a80-0c51019f9dd4",
+      "order_name": "56918",
+      "date": "2026-10-19",
+      "month": "2026-10",
+      "project": "Digitalsquare",
+      "agent": "ООО \"ВЕСТ\"",
+      "agent_type": "legal",
+      "demand_agent_discrepancy": null,
+      "order_status": "Доставлен",
+      "sale": "24213.00",
+      "paid": "24213.00",
+      "cogs": "4572.00",
+      "payments": [
+        {
+          "payment_id": "ce41c09c-c927-11f1-0a80-1d45001bbf0d",
+          "payment_name": "56901/24",
+          "payment_date": "2026-10-16",
+          "amount": "24213.00",
+          "agent_id": "b9b0e6bf-59fd-11e9-9107-5048000eb2d4",
+          "organization_account_id": "1b7e77e9-6402-11ed-0a80-0635004cfc3a"
+        }
+      ],
+      "completion_demand_name": null,
+      "completion_demand_id": null,
+      "completion_date": null
+    }
+  ]
+}
