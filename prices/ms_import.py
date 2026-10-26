@@ -56,6 +56,7 @@ COLUMNS = [
 WB_SOURCE_COLUMNS = {
     "Источник WB: код модели": "_wb_source_code",
     "Источник WB: имя поставщика": "_wb_price_name",
+    "Источник WB: артикул поставщика": "_wb_price_article",
     "Источник WB: характеристики": "_wb_facts",
     "Источник WB: подтверждение": "_wb_evidence",
     "Источник WB: версия правил": "_wb_rules_version",
@@ -462,7 +463,7 @@ KIND_SYNONYM = [
 ]
 
 
-def wb_from_price(price_name, partial=False):
+def wb_from_price(price_name, partial=False, price_article="", selected_brand=""):
     """Сырьё формулы из НАЗВАНИЯ ПОСТАВЩИКА — когда каталога ТК по коду нет вовсе.
 
     Не пересказ имени (это отменённое «как у родни») и не выдумка: тип, модель, бренд, цвет
@@ -478,6 +479,10 @@ def wb_from_price(price_name, partial=False):
     if not name:
         return None
     brands = features.brand(name)
+    if selected_brand:
+        if selected_brand not in brands:
+            return None
+        brands = {selected_brand}
     if len(brands) > 1 or (not brands and not partial):
         return None
     head = name.split(",")[0]
@@ -550,6 +555,24 @@ def wb_from_price(price_name, partial=False):
             candidates = re.findall(rf"(?<![\w/-]){pattern}(?![\w/-])", tail, re.IGNORECASE)
             if len(candidates) == 1 and re.match(rf"^{pattern}(?![\w/-])", tail, re.IGNORECASE):
                 model = candidates[0]
+    if not model and kind and len(brands) == 1 and not re.search(r"набор|комплект", kind, re.IGNORECASE):
+        # Article is an independent supplier field, not an arbitrary token after «для».
+        # E.g. «WB 60STB25» confirms 60STB25 in «для F+ M60 60STB25 25K»;
+        # neither printer M60 nor resource 25K may be selected by position.
+        article_model = re.sub(r"^WB\s+", "", str(price_article or "").strip(), flags=re.IGNORECASE)
+        # Some supplier articles add a product-type marker after the model:
+        # "WB EK-10016 DRUM". It is not part of the model, and the model must
+        # still occur exactly once as a standalone code in the supplier name.
+        drum_article = re.fullmatch(r"([A-Za-z0-9][A-Za-z0-9-]*)\s+DRUM", article_model,
+                                    flags=re.IGNORECASE)
+        if (drum_article and kind in ("Картридж", "Фотобарабан")
+                and re.search(r"(?<![A-Za-z])DRUM(?![A-Za-z])", name, re.IGNORECASE)):
+            article_model = drum_article[1]
+        if (len(article_model) >= 4 and " " not in article_model and looks_like_model(article_model)
+                and re.search(r"[A-Za-z]", article_model) and not RESOURCE_TOKEN.fullmatch(article_model)):
+            hits = re.findall(rf"(?<![\w/-]){re.escape(article_model)}(?![\w/-])", name, re.IGNORECASE)
+            if len(hits) == 1:
+                model = hits[0]
     if not model and not partial:
         return None
     color = features.color(name)
@@ -568,12 +591,13 @@ def wb_from_price(price_name, partial=False):
     return raw
 
 
-def wb_details(external_code, price_name, facts=None, evidence=""):
+def wb_details(external_code, price_name, facts=None, evidence="", price_article=""):
     """Resolve source facts once; all entry points use the same frozen formatter."""
     from prices.wb_label import RULES_VERSION
     from prices.wb_source import SOURCE_VERSION, fingerprint, merge_facts
     from tools.prc.wb_fill import compose_details
     source = dict(source_code=str(external_code or "").strip(), price_name=price_name or "",
+                  price_article=str(price_article or "").strip(),
                   facts={k: str(v).strip() for k, v in (facts or {}).items() if v},
                   evidence=str(evidence or "").strip(), rules_version=RULES_VERSION,
                   source_version=SOURCE_VERSION, raw={}, name="", reason="", source_type="")
@@ -593,17 +617,43 @@ def wb_details(external_code, price_name, facts=None, evidence=""):
         note = (f"каталога ТК по коду {external_code} нет" if external_code
                 else "строка не сведена с моделью каталога ТК")
     if not rows or (not result.name and result.issue == "missing_source"):
-        parsed = wb_from_price(price_name, partial=True)
+        article = source["price_article"]
+        cactus = re.fullmatch(r"CS-TSGHP(?:BK|C|M|Y)-500", article, re.IGNORECASE)
+        selected_brand = source["facts"].get("brand", "") if cactus and evidence else ""
+        parsed = wb_from_price(price_name, partial=True, price_article=article,
+                               selected_brand=selected_brand)
         if parsed is not None:
+            # Owner confirmed that this exact Odyssey item is a photodrum.
+            # The supplier heading says "Картридж", so its type cannot win here.
+            avision = article.upper() == "WB EK-10016 DRUM"
+            if (avision and re.search(r"\bDRUM\b", price_name, re.IGNORECASE)
+                    and parsed.get("title", "").upper() == "EK-10016"
+                    and (parsed.get("printer_models") or [{}])[0].get("brand") == "Avision"):
+                parsed = {**parsed, "consumable_type": "Фотобарабан"}
+                source["source_type"] = "supplier+owner-confirmed-avision"
+            # These four Ricoh novelties have an explicit owner-confirmed meaning:
+            # SP352HE is the compatible printer family, 408223/408224 the drum model.
+            ricoh = re.fullmatch(r"WB SP352HE DRUM (40822[34])-(BK|C|M|Y)", article, re.IGNORECASE)
+            if (ricoh and re.search(r"\bDRUM\b", price_name, re.IGNORECASE)
+                    and len(re.findall(rf"(?<![\w/-]){ricoh[1]}(?![\w/-])", price_name)) == 1
+                    and (parsed.get("printer_models") or [{}])[0].get("brand") == "Ricoh"):
+                parsed = {**parsed, "consumable_type": "Фотобарабан", "title": ricoh[1]}
+                source["source_type"] = "supplier+owner-confirmed-ricoh"
             # Incomplete TC facts remain authoritative; fallback may only fill gaps.
             raw = {**parsed, **{k: v for k, v in raw.items() if v}}
-            source["source_type"] = "tc+supplier" if rows else "supplier"
+            if not source["source_type"].startswith("supplier+owner-confirmed"):
+                source["source_type"] = "tc+supplier" if rows else "supplier"
         elif not rows:
             source.update(reason=f"{note}; исходные данные неоднозначны — сверить тип/модель/бренд")
             source["token"] = fingerprint(source)
             return source
     try:
         raw = merge_facts(raw, source["facts"], source["evidence"], tc_kinds() if facts else ())
+        if (raw.get("consumable_type") == "Картридж"
+                and (re.search(r"(?<![A-Za-z])DRUM(?![A-Za-z])", source["price_article"], re.I)
+                     or re.search(r"(?<![A-Za-z])DRUM(?![A-Za-z])", price_name or "", re.I))):
+            raise ValueError("DRUM указан в артикуле или названии поставщика, но тип определился "
+                             "как «Картридж» — подтвердите тип расходника до создания карточки")
         result = compose_details(raw, price_name)
         if facts:
             source["source_type"] += "+confirmed"
@@ -617,10 +667,30 @@ def wb_details(external_code, price_name, facts=None, evidence=""):
     return source
 
 
-def wb_compose(external_code, price_name):
+def wb_compose(external_code, price_name, price_article=""):
     """Compatibility tuple; no second formula or separate shortening rules."""
-    result = wb_details(external_code, price_name)
+    result = wb_details(external_code, price_name, price_article=price_article)
     return result["name"], result["reason"] or None
+
+
+CACTUS_PAIR_EVIDENCE = ("Решение владельца 23.10.2026: универсальный тонер "
+                        "оформляется двумя связанными карточками, отдельно для HP и Samsung")
+
+
+def novelty_wb_variants(external_code, price_name, price_article, count):
+    """Return one source per card; the approved Cactus family always needs two."""
+    if re.fullmatch(r"CS-TSGHP(?:BK|C|M|Y)-500", price_article or "", re.IGNORECASE):
+        if count != 2:
+            raise ValueError("универсальный тонер Cactus требует ровно две связанные карточки")
+        variants = [wb_details(external_code, price_name, {"brand": brand},
+                               CACTUS_PAIR_EVIDENCE, price_article=price_article)
+                    for brand in ("HP", "Samsung")]
+        if (not all(source["name"] for source in variants)
+                or len({source["name"] for source in variants}) != 2
+                or any(brand not in source["name"] for brand, source in zip(("HP", "Samsung"), variants))):
+            raise ValueError("не удалось подтвердить обе марки универсального тонера")
+        return variants
+    return [wb_details(external_code, price_name, price_article=price_article) for _ in range(count)]
 
 
 def wb_record_errors(records):
@@ -630,14 +700,15 @@ def wb_record_errors(records):
     for rec in records:
         source = rec.get("_wb_source_code", rec.get("Внешний код", ""))
         price_name = rec.get("_wb_price_name", rec.get("Наименование", ""))
+        price_article = rec.get("_wb_price_article", rec.get("Артикул", ""))
         facts, evidence = rec.get("_wb_facts"), rec.get("_wb_evidence", "")
         from prices.wb_label import RULES_VERSION
         if rec.get("_wb_rules_version") and rec["_wb_rules_version"] != RULES_VERSION:
             errors.append(f"{rec.get('Код')}: правила Названия WB изменились — пересчитать черновик")
             continue
-        key = (source, price_name, json.dumps(facts, sort_keys=True), evidence)
+        key = (source, price_name, price_article, json.dumps(facts, sort_keys=True), evidence)
         if key not in cache:
-            cache[key] = wb_details(source, price_name, facts, evidence)
+            cache[key] = wb_details(source, price_name, facts, evidence, price_article=price_article)
         details = cache[key]
         if rec.get("_wb_source_token") and rec["_wb_source_token"] != details["token"]:
             errors.append(f"{rec.get('Код')}: исходные данные Названия WB изменились — пересчитать черновик")
@@ -656,7 +727,7 @@ def prepare_wb_import(records):
     for rec in records:
         for column, key in WB_SOURCE_COLUMNS.items():
             value = rec.get(column)
-            if key == "_wb_source_code" and column in rec:
+            if key in ("_wb_source_code", "_wb_price_article") and column in rec:
                 # A blank source code explicitly means supplier-only. Excel restores
                 # an exported empty string as None; it must not become the NEW code.
                 rec[key] = str(value or "").strip()
@@ -666,9 +737,10 @@ def prepare_wb_import(records):
         source = str(rec.get("_wb_source_code", rec.get("Внешний код", "")) or "").strip()
         rec["_wb_source_code"] = source
         rec.setdefault("_wb_price_name", rec.get("Наименование", ""))
+        rec.setdefault("_wb_price_article", rec.get("Артикул", ""))
         if not rec.get("Доп. поле: Название WB"):
             result = wb_details(source, rec["_wb_price_name"], rec.get("_wb_facts"),
-                                rec.get("_wb_evidence", ""))
+                                rec.get("_wb_evidence", ""), price_article=rec["_wb_price_article"])
             rec["Доп. поле: Название WB"] = result["name"]
     errors = wb_record_errors(records)
     if errors:
@@ -896,7 +968,7 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None, ms_codes=N
         # значения старого образца, и наследование их же и размножало. Замечание
         # выводим единственное — когда формула НЕ дала названия: пустое поле на
         # карточке недопустимо: нужно уточнить исходные характеристики и пересчитать формулу.
-        wb, wb_flag = wb_compose(ext, row["name"])
+        wb, wb_flag = wb_compose(ext, row["name"], price_article=row["article"])
 
         # Вес у родни расходится — берём САМУЮ СВЕЖУЮ карточку внешнего кода (решение
         # Сергея 08.08): её заводили последней, по последним данным.
@@ -1001,6 +1073,7 @@ def build(supplier_key, decisions=("matched",), limit=None, ids=None, ms_codes=N
             "_novelty_id": row["id"],
             "_wb_source_code": ext,
             "_wb_price_name": row["name"],
+            "_wb_price_article": row["article"],
             "Группы": path or "",
             "Код": f"{ext}{suffix(row['article'], profile.key, row['name'])}",
             "Внешний код": ext,
@@ -1296,8 +1369,10 @@ def write_xlsx(records, path):
         source = rec.get("_wb_resolved") or wb_details(
             rec.get("_wb_source_code", rec.get("Внешний код", "")),
             rec.get("_wb_price_name", rec.get("Наименование", "")),
-            rec.get("_wb_facts"), rec.get("_wb_evidence", ""))
+            rec.get("_wb_facts"), rec.get("_wb_evidence", ""),
+            price_article=rec.get("_wb_price_article", rec.get("Артикул", "")))
         metadata = {"_wb_source_code": source["source_code"], "_wb_price_name": source["price_name"],
+                    "_wb_price_article": source["price_article"],
                     "_wb_facts": json.dumps(source["facts"], ensure_ascii=False),
                     "_wb_evidence": source["evidence"], "_wb_rules_version": source["rules_version"],
                     "_wb_source_token": source["token"]}

@@ -1041,7 +1041,8 @@ function msCardHtml(c, i){
     `<label class="f ${span || ""}"><span>${label}</span><input class="${cls}" value="${esc(value)}"></label>`;
   return `<div class="card ${i === MS.main ? "main" : ""}" data-i="${i}">
     <h4>Карточка ${i + 1} · ${esc(c.code)}
-      <label><input type="radio" name="msmain" ${i === MS.main ? "checked" : ""}> главная (артикул поставщика)</label></h4>
+      <label><input type="radio" name="msmain" ${i === MS.main ? "checked" : ""}
+        ${MS.wbPairLocked ? "disabled" : ""}> главная (артикул поставщика)</label></h4>
     <div class="grid">
       ${fld("f-ec", "Внешний код", c.external_code)}
       ${fld("f-code", "Код", c.code)}
@@ -1091,6 +1092,10 @@ async function msLoad(n, keep){
   MS.wbMaxChars = d.wb_max_chars || 55;
   MS.wbOptions = d.wb_fact_options || {};
   MS.wbSource = d.wb_source;
+  MS.wbSources = d.wb_sources || null;
+  MS.wbPairLocked = !!d.wb_pair_locked;
+  $("#mscount").value = d.n;
+  $("#mscount").disabled = MS.wbPairLocked;
   if (!keep){ MS.wbFacts = {}; MS.wbEvidence = ""; }
   // Коды, артикул и связь всегда берём свежие с сервера: они зависят от числа карточек.
   // Остальное у всех карточек одинаковое, поэтому добавленная карточка берёт правки первой,
@@ -1124,7 +1129,7 @@ async function msLoad(n, keep){
   $("#msnote").textContent = "внешние коды и связь пересчитываются при смене числа";
   msRender();
   msWbRenderFacts();
-  if (keep && Object.keys(MS.wbFacts || {}).length) await msWbRecalculate();
+  if (keep && !MS.wbPairLocked && Object.keys(MS.wbFacts || {}).length) await msWbRecalculate();
   else msWbApply(d.wb_source);
   return true;
 }
@@ -1139,6 +1144,14 @@ function msWbRenderFacts(){
       <datalist id="mswb-${key}">${options}</datalist></label>`;
   }).join("");
   $("#mswbevidence").value = MS.wbEvidence || "";
+  if (MS.wbPairLocked){
+    $("#mswbfacts").querySelectorAll("input").forEach(el => { el.disabled = true; });
+    $("#mswbevidence").disabled = true;
+    $("#mswbrecalc").disabled = true;
+    return;
+  }
+  $("#mswbevidence").disabled = false;
+  $("#mswbrecalc").disabled = false;
   const dirty = () => {
     MS.wbFacts = Object.fromEntries([...$("#mswbfacts").querySelectorAll("input")]
       .map(el => [el.dataset.wbfact, el.value.trim()]).filter(([, value]) => value));
@@ -1152,7 +1165,8 @@ function msWbRenderFacts(){
 }
 
 function msWbApply(source){
-  MS.cards = msCollect().map(card => ({...card, wb: source.name || ""}));
+  MS.cards = msCollect().map((card, i) => ({...card,
+    wb: (MS.wbPairLocked ? MS.wbSources[i]?.name : source.name) || ""}));
   MS.wbSource = source;
   MS.wbDirty = false;
   $("#mswbstatus").textContent = source.reason || (source.name ? "Название рассчитано" : "Нет исходных данных");
@@ -1200,6 +1214,7 @@ async function msSend(dry){
   const body = {id: MS.id, cards: msCollect(), main_index: MS.main, dry,
                 wb_source_code: MS.wbSourceCode || "",
                 wb_source_token: MS.wbSource.token, wb_rules_version: MS.wbSource.rules_version,
+                wb_source_tokens: (MS.wbSources || []).map(s => s.token),
                 wb_facts: MS.wbFacts || {}, wb_evidence: MS.wbEvidence || "",
                 printer: $("#msprinter").value, kind: $("#mskind").value};
   const out = await (await fetch("/api/novelties/ms-create", {method: "POST",

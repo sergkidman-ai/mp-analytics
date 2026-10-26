@@ -14,6 +14,7 @@ from tools.prc.wb_fill import compose_details
 from tools.prc.wb_source_audit import check
 
 TN = "Картридж для Brother TN2355 HL L2320D/MFC L2700D 2.6K White Box (Совместимый)"
+FPLUS = "Картридж для F+ M60 60STB25 25K White Box (Совместимый)"
 KINDS = ["Комплект картриджей", "Тонер-картридж", "Картридж", "Фотобарабан", "Тонер", "Чернила"]
 
 
@@ -28,6 +29,7 @@ def record(source, **over):
             "Наименование": TN, "Описание": TN, "Группы": "Тест", "Вес": "",
             "Закупочная цена": "", "Штрихкод Code128": "", "Доп. поле: Название WB": source["name"],
             "_wb_source_code": source["source_code"], "_wb_price_name": source["price_name"],
+            "_wb_price_article": source.get("price_article", ""),
             "_wb_rules_version": source["rules_version"], "_wb_source_token": source["token"],
             "_wb_facts": source["facts"], "_wb_evidence": source["evidence"], **over}
 
@@ -46,6 +48,121 @@ class SupplierSource(unittest.TestCase):
         self.assertEqual(s["raw"]["chip"], "")
         self.assertEqual(s["rules_version"], RULES_VERSION)
         self.assertEqual(s["name"], compose_details(s["raw"], TN).name)
+
+    def test_real_fplus_model_confirmed_by_supplier_article(self):
+        self.assertFalse(ms_import.wb_details("", FPLUS)["name"])
+        s = ms_import.wb_details("", FPLUS, price_article="WB 60STB25")
+        self.assertEqual(s["name"], "Картридж 60STB25 для F+")
+        self.assertEqual(s["raw"]["title"], "60STB25")
+        self.assertEqual(s["raw"]["ink_colors"], [])
+        self.assertEqual(s["raw"]["chip"], "")
+        self.assertNotIn("M60", s["name"])
+        self.assertNotIn("25K", s["name"])
+        self.assertEqual(ms_import.wb_record_errors([record(s, **{"Артикул":"WB 60STB25"})]), [])
+
+    def test_real_avision_article_with_drum_suffix_confirms_model(self):
+        name = ("Картридж для Avision EK-10016 AM7630i /AM7640i 150K DRUM "
+                "White Box (Совместимый)")
+        source = ms_import.wb_details("", name, price_article="WB EK-10016 DRUM")
+        self.assertEqual(source["raw"]["title"], "EK-10016")
+        self.assertEqual(source["raw"]["consumable_type"], "Фотобарабан")
+        self.assertEqual(source["source_type"], "supplier+owner-confirmed-avision")
+        self.assertEqual(source["name"], "Фотобарабан EK-10016 для Avision")
+        self.assertEqual(ms_import.wb_record_errors([record(source)]), [])
+
+    def test_unconfirmed_drum_cartridge_cannot_be_created(self):
+        name = "Картридж для Avision EK-10017 AM7630i DRUM White Box"
+        source = ms_import.wb_details("", name, price_article="WB EK-10017 DRUM")
+        self.assertFalse(source["name"])
+        self.assertIn("подтвердите тип", source["reason"])
+        self.assertIn("не собрано", ms_import.wb_record_errors([record(source)])[0])
+
+    def test_drum_conflict_is_held_even_when_catalogue_says_cartridge(self):
+        raw = tc(title="EK-10017", additional_title="", printer_models=[{"brand": "Avision"}],
+                 ink_colors=[], chip="", capacity="")
+        for name, article in (("Картридж Avision EK-10017 DRUM", "WB EK-10017 DRUM"),
+                              ("Картридж Avision EK-10017 DRUM", "WB EK-10017"),
+                              ("Картридж Avision EK-10017", "WB EK-10017 DRUM")):
+            with self.subTest(name=name, article=article), \
+                 patch.object(ms_import, "query", return_value=[{"raw": raw}]):
+                source = ms_import.wb_details("9999", name, price_article=article)
+                self.assertFalse(source["name"])
+                self.assertIn("подтвердите тип", source["reason"])
+
+    def test_drum_article_needs_exact_single_model_and_drum_in_name(self):
+        name = "Картридж для Avision EK-10016 AM7630i DRUM White Box"
+        variants = (name.replace("EK-10016", "EK-10017"),
+                    name.replace("DRUM", ""),
+                    name.replace("EK-10016", "EK-10016/EK-10017"),
+                    name.replace("EK-10016", "EK-10016 EK-10016"))
+        for variant in variants:
+            with self.subTest(name=variant):
+                self.assertFalse(ms_import.wb_details("", variant,
+                                 price_article="WB EK-10016 DRUM")["name"])
+
+    def test_owner_confirmed_ricoh_drum_model_and_type(self):
+        cases = (("408223-BK", "408223 Black", "черный"),
+                 ("408224-C", "408224 Cyan", "голубой"),
+                 ("408224-M", "408224 Magenta", "пурпурный"),
+                 ("408224-Y", "408224 Yellow", "желтый"))
+        for suffix, title, color in cases:
+            with self.subTest(suffix=suffix):
+                name = f"Картридж для Ricoh SPC352/C360 DRUM {title} 12К White Box"
+                source = ms_import.wb_details("", name,
+                            price_article="WB SP352HE DRUM " + suffix)
+                self.assertEqual(source["raw"]["consumable_type"], "Фотобарабан")
+                self.assertEqual(source["raw"]["title"], suffix.split('-')[0])
+                self.assertIn(color, source["name"])
+                self.assertNotIn("SP352HE", source["name"])
+                self.assertEqual(ms_import.wb_record_errors([record(source)]), [])
+
+    def test_cactus_pair_has_distinct_wb_sources_and_requires_both_cards(self):
+        name = ("Тонер Cactus CS-TSGHPBK-500 черный флакон 500гр. "
+                "для принтера Samsung Universal CLT-K404; HP W2070")
+        with self.assertRaisesRegex(ValueError, 'две'):
+            ms_import.novelty_wb_variants("", name, "CS-TSGHPBK-500", 1)
+        sources = ms_import.novelty_wb_variants("", name, "CS-TSGHPBK-500", 2)
+        self.assertEqual(len(sources), 2)
+        self.assertEqual([s["facts"]["brand"] for s in sources], ["HP", "Samsung"])
+        self.assertNotEqual(sources[0]["token"], sources[1]["token"])
+        self.assertIn('500 г', sources[0]["name"])
+        self.assertEqual(ms_import.wb_record_errors([record(s) for s in sources]), [])
+
+    def test_article_is_not_used_unless_explicit_and_unambiguous_in_name(self):
+        for article, name in (("WB 60STB40", FPLUS), ("WB 25K", FPLUS), ("WB 25000K", FPLUS),
+                              ("WB M60", FPLUS), ("WB 60STB25", FPLUS+" 60STB25"),
+                              ("WB 60STB25", FPLUS.replace("60STB25", "60STB25/60STB40"))):
+            with self.subTest(article=article,name=name):
+                self.assertFalse(ms_import.wb_details("", name, price_article=article)["name"])
+
+    def test_component_article_cannot_supply_model_of_entire_set(self):
+        name=FPLUS.replace("Картридж", "Комплект картриджей")+" 4шт"
+        self.assertFalse(ms_import.wb_details("",name,price_article="WB 60STB25")["name"])
+
+    def test_article_survives_secondary_card_excel_and_existing_card_audit(self):
+        s = ms_import.wb_details("", FPLUS, price_article="WB 60STB25")
+        rec = record(s, **{"Артикул":"", "Наименование":FPLUS, "Описание":FPLUS})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = ms_import.write_xlsx([rec], Path(tmp)/"secondary.xlsx")
+            import openpyxl
+            book = openpyxl.load_workbook(path, data_only=True)
+            sheet = book.active
+            restored = dict(zip([c.value for c in sheet[1]], [c.value for c in sheet[2]]))
+            book.close()
+        ms_import.prepare_wb_import([restored])
+        saved = restored["_wb_resolved"]
+        self.assertEqual(saved["price_article"],"WB 60STB25")
+        product={"id":"p","externalCode":"9999","code":"9999wb","name":FPLUS}
+        with patch.object(wb_source.db,"query",return_value=[
+            {"ms_id":"p","external_code":"9999","source":saved}]):
+            again=wb_source.for_product(product)
+        self.assertEqual(again["name"],s["name"])
+        self.assertEqual(again["token"],s["token"])
+
+    def test_changed_supplier_article_invalidates_source_snapshot(self):
+        s = ms_import.wb_details("", FPLUS, price_article="WB 60STB25")
+        rec = record(s, _wb_price_article="WB 60STB40")
+        self.assertIn("исходные данные", ms_import.wb_record_errors([rec])[0])
 
     def test_printer_codes_resource_and_ambiguous_models_are_held(self):
         for tail in ("HL L2320D/MFC L2700D", "MFC-L2700D", "2.6K White Box",

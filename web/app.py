@@ -3581,6 +3581,9 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
         return {"ok": False, "error": "строки не найдено"}
     row = found[0]
     n = max(1, min(int(n or 1), MS_CARDS_MAX))
+    cactus_pair = bool(re.fullmatch(r"CS-TSGHP(?:BK|C|M|Y)-500", row["article"] or "", re.I))
+    if cactus_pair:
+        n = 2
     try:
         profile = get_identity(row["supplier_key"])
         abbr = ms_import.suffix(row["article"], row["supplier_key"], row["name"])
@@ -3605,10 +3608,17 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     # «брать как у родни» отменено 16.08.2026, а диалог писался 11.08 и остался на старом.
     # Каталог ТК модели не знает (у новинки его часто и нет) — формула не отменяется, сырьё
     # берётся из названия поставщика; замечание скажет человеку сверить.
-    wb_source = ms_import.wb_details(tk_ext, row["name"])
+    wb_sources = ms_import.novelty_wb_variants(tk_ext, row["name"], row["article"], n)
+    wb_source = wb_sources[0]
     wb, wb_note = wb_source["name"], wb_source["reason"]
     if wb_note:
         warn.append(wb_note)
+    if cactus_pair:
+        warn.append("Универсальный тонер: две карточки HP и Samsung; связь между их кодами заполнена")
+    if (re.search(r"\bDRUM\b", row["article"] or "", re.IGNORECASE)
+            and wb_source.get("raw", {}).get("consumable_type") == "Картридж"):
+        warn.append("В артикуле стоит DRUM, а в названии поставщика — «Картридж»: "
+                    "перед созданием проверьте тип расходника по карточке поставщика")
     tk_pages = db.query("""SELECT resource FROM prc_tc_model
                             WHERE gone_at IS NULL AND resource IS NOT NULL AND external_code = %s""",
                         (tk_ext,)) if tk_ext else []
@@ -3663,11 +3673,12 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
             # заполненное, а не заполняет с нуля. Уникальны только коды и артикул — артикул
             # у МС ключ, две карточки с одним артикулом он не пропустит (потому и у главной).
             "article": row["article"] if i == 0 else "",
-            "name": row["name"], "description": row["name"],
+            "name": wb_sources[i]["name"] if cactus_pair else row["name"],
+            "description": row["name"],
             # числа отдаём строками: обратно они приходят из полей ввода, тоже строками
             "folder": folder, "weight": str(weight or ""),
             "buy_price": str(row["price_rub"]) if row["price_rub"] is not None else "",
-            "wb": wb, "code128": "",
+            "wb": wb_sources[i]["name"], "code128": "",
             "supplier_code": row["article"],
             "link": ";".join(others) if others else (row["link"] or ""),
         })
@@ -3675,6 +3686,8 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
     # угадываем и показываем оператору списком — каталог ТК нового кода ещё не знает.
     from prices import series as series_mod
     kind = series_mod.kind_of(row["name"], tk_ext)
+    if wb_source["source_type"].startswith("supplier+owner-confirmed"):
+        kind = "Фотобарабан"
     printer = series_mod.guess_printer(row["name"], kind)
     series_value, series_why = series_mod.series(kind, printer, row["price_rub"])
     if not kind:
@@ -3685,6 +3698,8 @@ def novelties_ms_form(id: int, n: int = 1, ext: str = ""):
             "article": row["article"], "name": row["name"], "n": n,
             "wb_source_code": tk_ext,
             "wb_source": wb_source,
+            "wb_sources": wb_sources,
+            "wb_pair_locked": cactus_pair,
             "wb_fact_options": fact_options(),
             "wb_max_chars": MAX_CHARS, "wb_rules_version": RULES_VERSION,
             "kind": kind, "kinds": series_mod.kinds(),
@@ -3738,6 +3753,7 @@ class MsCreate(BaseModel):
     wb_source_code: str = ""
     wb_rules_version: str = ""
     wb_source_token: str = ""
+    wb_source_tokens: list[str] | None = None
     wb_facts: dict[str, str] | None = None
     wb_evidence: str = ""
 
@@ -3753,12 +3769,13 @@ class WbNamePreview(BaseModel):
 def novelties_wb_name_preview(payload: WbNamePreview):
     """Recalculate from original supplier data and confirmed facts; never writes."""
     from prices import ms_import
-    rows = db.query("SELECT name, ms_code FROM prc_novelty WHERE id = %s", (payload.id,))
+    rows = db.query("SELECT name, article, ms_code FROM prc_novelty WHERE id = %s", (payload.id,))
     if not rows:
         return {"ok": False, "error": "строки не найдено"}
     row = rows[0]
     source_code = payload.source_code.strip() or (row.get("ms_code") or "")[:4]
-    source = ms_import.wb_details(source_code, row["name"], payload.facts, payload.evidence)
+    source = ms_import.wb_details(source_code, row["name"], payload.facts, payload.evidence,
+                                price_article=row.get("article", ""))
     return {"ok": True, "wb_source": source}
 
 
@@ -3770,6 +3787,7 @@ def novelties_ms_create(payload: MsCreate):
     остаются, ответ перечисляет что создано и на чём встали. Повтор безопасен: занятые коды
     отсекает проверка.
     """
+    import re
     from prices import ms_import
     from prices import series as series_mod
     from prices.profiles import get_identity
@@ -3786,13 +3804,33 @@ def novelties_ms_create(payload: MsCreate):
     # Recheck the final formula server-side, including stale dialogs/manual text.
     # The model source may differ from the newly allocated external code.
     wb_source = payload.wb_source_code.strip() or (row.get("ms_code") or "")[:4]
+    cactus_pair = bool(re.fullmatch(r"CS-TSGHP(?:BK|C|M|Y)-500", row["article"] or "", re.I))
+    if cactus_pair:
+        if len(cards) != 2 or payload.main_index != 0:
+            return {"ok": False, "error": "универсальный тонер: две карточки, главная — HP"}
+        sources = ms_import.novelty_wb_variants(wb_source, row["name"], row["article"], 2)
+        if (payload.wb_source_token != sources[0]["token"] or
+                payload.wb_source_tokens != [s["token"] for s in sources]):
+            return {"ok": False, "error": "исходные данные Названия WB изменились — переоткройте форму"}
+        if (cards[0].link != cards[1].external_code.zfill(4) or
+                cards[1].link != cards[0].external_code.zfill(4)):
+            return {"ok": False, "error": "у двух карточек должна быть взаимная Связь"}
+        for i, brand in enumerate(("HP", "Samsung")):
+            other = "Samsung" if i == 0 else "HP"
+            name = cards[i].name or ""
+            if (not re.search(rf"(?<![\w-]){brand}(?![\w-])", name, re.I)
+                    or re.search(rf"(?<![\w-]){other}(?![\w-])", name, re.I)):
+                return {"ok": False, "error": f"карточка {i + 1}: наименование должно быть только для {brand}"}
+    else:
+        sources = [None] * len(cards)
     wb_errors = ms_import.wb_record_errors([
         {"Код": c.code, "_wb_source_code": wb_source, "_wb_price_name": row["name"],
+         "_wb_price_article": row["article"],
          "_wb_rules_version": getattr(payload, "wb_rules_version", ""),
-         "_wb_source_token": getattr(payload, "wb_source_token", ""),
-         "_wb_facts": getattr(payload, "wb_facts", None),
-         "_wb_evidence": getattr(payload, "wb_evidence", ""),
-         "Доп. поле: Название WB": c.wb} for c in cards])
+         "_wb_source_token": sources[i]["token"] if cactus_pair else getattr(payload, "wb_source_token", ""),
+         "_wb_facts": sources[i]["facts"] if cactus_pair else getattr(payload, "wb_facts", None),
+         "_wb_evidence": sources[i]["evidence"] if cactus_pair else getattr(payload, "wb_evidence", ""),
+         "Доп. поле: Название WB": c.wb} for i, c in enumerate(cards)])
     if wb_errors:
         return {"ok": False, "error": "; ".join(wb_errors[:6]), "errors": wb_errors}
     profile = get_identity(row["supplier_key"])
@@ -3851,6 +3889,7 @@ def novelties_ms_create(payload: MsCreate):
                          f"ей место в чёрном списке"}
 
     def rec(i, c):
+        source = sources[i]
         return {
             "Группы": c.folder, "Код": c.code.strip(), "Внешний код": c.external_code.strip(),
             "Наименование": c.name.strip(), "Описание": (c.description or c.name).strip(),
@@ -3866,10 +3905,11 @@ def novelties_ms_create(payload: MsCreate):
             "Доп. поле: Название WB": (c.wb or "").strip(),
             "_wb_source_code": wb_source,
             "_wb_price_name": row["name"],
+            "_wb_price_article": row["article"],
             "_wb_rules_version": payload.wb_rules_version,
-            "_wb_source_token": payload.wb_source_token,
-            "_wb_facts": payload.wb_facts,
-            "_wb_evidence": payload.wb_evidence,
+            "_wb_source_token": source["token"] if cactus_pair else payload.wb_source_token,
+            "_wb_facts": source["facts"] if cactus_pair else payload.wb_facts,
+            "_wb_evidence": source["evidence"] if cactus_pair else payload.wb_evidence,
             "Штрихкод Code128": (c.code128 or "").strip(),
             "Доп. поле: Связь": (c.link or "").strip(),
             "Серия": series_value or "",

@@ -5,7 +5,7 @@ import hashlib
 import json
 
 from core import db
-SOURCE_VERSION = "2026-10-16.1"
+SOURCE_VERSION = "2026-10-16.2"
 FACT_KEYS = ("kind", "model", "brand", "color", "chip", "capacity", "content")
 SOURCE_FIELDS = ("consumable_type", "title", "additional_title", "printer_models",
                  "ink_colors", "chip", "capacity", "volume_ml")
@@ -67,7 +67,7 @@ def merge_facts(raw, facts, evidence, kinds):
 
 def fingerprint(source):
     data = {k: source.get(k) for k in (
-        "source_code", "price_name", "raw", "facts", "evidence", "rules_version", "source_version")}
+        "source_code", "price_name", "price_article", "raw", "facts", "evidence", "rules_version", "source_version")}
     data["raw"] = {k: (source.get("raw") or {}).get(k) for k in SOURCE_FIELDS}
     return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False,
                                      default=str).encode()).hexdigest()
@@ -102,7 +102,8 @@ def for_product(product):
     rows = db.query("SELECT ms_id, external_code, source FROM prc_wb_name_source WHERE card_code = %s",
                     (product.get("code"),))
     if not rows:
-        return wb_details(product.get("externalCode") or "", product.get("name") or "")
+        return wb_details(product.get("externalCode") or "", product.get("name") or "",
+                          price_article=product.get("article") or "")
     row = rows[0]
     if str(row["ms_id"]) != str(product.get("id")) or row["external_code"] != product.get("externalCode"):
         raise ValueError("сохранённый источник Названия WB не соответствует карточке МС")
@@ -110,4 +111,5 @@ def for_product(product):
     if (product.get("name") or "") != source["card_name"]:
         raise ValueError("наименование карточки изменилось — сверить сохранённый источник Названия WB")
     return wb_details(source["source_code"], source["price_name"],
-                      facts=source.get("facts"), evidence=source.get("evidence", ""))
+                      facts=source.get("facts"), evidence=source.get("evidence", ""),
+                      price_article=source.get("price_article", ""))
