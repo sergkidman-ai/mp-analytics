@@ -24,6 +24,8 @@ ops/ozon_stock_action.py («Распродажа стока», «Акция дл
 целиком и шлём тревогу (падение цепочки себеста иначе сняло бы все акции); --limit режет число
 правок за прогон. После отправки состав акции перечитывается: sent → confirmed | error.
 Неполная выдача помечается явно; отсутствие в ней не подтверждает снятия (остаётся sent).
+Исключение: явное `deactivated_product_ids` для этой акции, отсутствие в перечитке
+и общая цена выше потолка акции подтверждают снятие даже при неверном `total_items`.
 
 Запуск (по умолчанию расчёт, в кабинет ничего не уходит):
     ./venv/bin/python -m ops.ozon_promo_guard                        # dry-run, оба аккаунта
@@ -291,6 +293,7 @@ def push(account, rows):
                 r["note"] = str(result['warnings']) if result['warnings'] else None
                 if pid in result["inactive"]:
                     r["mode"], r["status"] = "remove", "sent"
+                    r["deactivation_accepted"] = True
                     r["reason"] += " → update исключил товар"
                 elif pid in result["active"]:
                     r["status"] = "sent"
@@ -304,6 +307,7 @@ def push(account, rows):
                 result = oz.remove_products(account, {"id":aid,"action_type":part[0].get("action_type")},rm)
                 for r in rm:
                     r["status"] = "sent" if r["product_id"] in result["inactive"] else "error"
+                    r["deactivation_accepted"] = r["product_id"] in result["inactive"]
                     if result.get("warnings"):
                         r["note"] = ((r.get("note") or "") + "; " + str(result["warnings"])).strip("; ")
                     if r["status"] == "error":
@@ -341,6 +345,10 @@ def push_shared(account, rows):
             accepted = pid in result["active"] or pid in result["inactive"]
             for r in groups[pid]:
                 r["status"] = "sent" if accepted else "error"
+                r["deactivation_accepted"] = r is leader and pid in result["inactive"]
+                if r is leader and pid in result["inactive"] and r["mode"] == "raise":
+                    r["mode"], r["new_price"] = "remove", None
+                    r["reason"] += " → update исключил товар"
                 r["shared_write_failed"] = not accepted
                 r["shared_request_accepted"] = accepted
                 r["note"] = (str(result["warnings"]) if result["warnings"] else None) if accepted else (
@@ -352,6 +360,7 @@ def execute(account, rows, *, issues=None):
     push(account, rows)
     verify(account, rows, issues=issues)
     verify_shared_caps(account, rows, issues=issues)
+    verify_partial_deactivations(account, rows, issues=issues)
     shared_groups = defaultdict(list)
     for r in rows:
         if r.get("shared_price") and r.get("is_current", True):
@@ -371,6 +380,7 @@ def execute(account, rows, *, issues=None):
         for r in group:
             r["shared_price"], r["mode"], r["new_price"] = float(target), "remove", None
             r["status"], r["verification_failed"], r["shared_write_failed"] = "retry", False, False
+            r["partial_absence"], r["deactivation_accepted"] = False, False
             r["below_floor_verified"] = False
             r["reason"] += " → общая цена не подтверждена, выводим из текущих акций"
             retry_shared.append(r)
@@ -378,6 +388,7 @@ def execute(account, rows, *, issues=None):
         push_shared(account, retry_shared)
         verify(account, retry_shared, issues=issues)
         verify_shared_caps(account, retry_shared, issues=issues)
+        verify_partial_deactivations(account, retry_shared, issues=issues)
     failed = [r for r in rows if r["mode"] == "raise" and r.get("status") == "error"
               and r.get("verification_failed") and not r.get("shared_price")]
     for r in failed:
@@ -414,8 +425,10 @@ def verify(account, rows, *, issues=None):
             if not complete and pid not in now:
                 # Neither removal nor a failed raise can be inferred from missing
                 # IDs in partial Ozon results; keep the request unconfirmed.
+                r["partial_absence"] = True
                 r['note'] = ((r.get('note') or '') + ' · неполная сверка: отсутствие не подтверждено').strip(' ·')
                 continue
+            r["partial_absence"] = False
             if r["mode"] == "raise" and pid not in now:
                 r["mode"] = "remove"
                 r["reason"] += " → перечитка подтвердила отсутствие в акции"
@@ -474,6 +487,31 @@ def verify_shared_caps(account, rows, *, issues=None):
             r["status"] = "error"
             r["shared_cap_mismatch"] = True
             r["note"] = ((r.get("note") or "") + f" · общая цена {cap:.0f} вместо {target:.0f}").strip(" ·")
+
+
+def verify_partial_deactivations(account, rows, *, issues=None):
+    """Подтверждает снятие при сломанном total только по ответу этой акции и общей цене."""
+    pending = [r for r in rows if r.get("status") == "sent" and r.get("mode") == "remove"
+               and r.get("partial_absence") and r.get("deactivation_accepted")]
+    if not pending:
+        return
+    try:
+        caps = read_shared_caps(account, [r["product_id"] for r in pending])
+    except Exception as exc:
+        _issue(issues, "verify_deactivation_cap", None, f"{type(exc).__name__}: {exc}")
+        return
+    for r in pending:
+        cap = caps.get(r["product_id"])
+        ceiling = float(r.get("max_price") or 0)
+        if ceiling <= 0 or cap is None or cap <= ceiling + PRICE_EPS:
+            r["note"] = ((r.get("note") or "") + " · общая цена не подтверждает снятие").strip(" ·")
+            continue
+        if r.get("shared_price") and abs(cap - float(r["shared_price"])) > PRICE_EPS:
+            r["note"] = ((r.get("note") or "") + " · общая цена отличается от отправленной").strip(" ·")
+            continue
+        r["status"] = "confirmed"
+        r["note"] = ((r.get("note") or "") +
+                     f" · подтверждено: деактивация этой акции и общая цена {cap:.0f} выше потолка").strip(" ·")
 
 
 COLS = ["account", "wave", "action_id", "action_title", "product_id", "offer_id", "name",

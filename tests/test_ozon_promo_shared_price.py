@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from ops import ozon_promo_guard as guard
 from ops import ozon_stock_action as oz
+from ops.ozon_actions import ActionProducts
 
 
 def row(action_id, maximum, *, product_id=1, seller=70, future=False, limit=70):
@@ -174,6 +175,51 @@ class SharedPriceTests(unittest.TestCase):
         update.assert_called_once()
         self.assertTrue(all(r['shared_cap_mismatch'] for r in rows))
         self.assertEqual([r['status'] for r in rows], ['error', 'error'])
+
+    def test_partial_action_list_confirms_explicit_deactivation_with_cap(self):
+        item = row(10, 75)
+        with patch.object(oz, 'floor_price', return_value=80), \
+             patch.object(oz, 'bundle_quantity', return_value=1):
+            guard.decide(item)
+        listing = ActionProducts([], complete=False, diagnostic={'total_items': 1, 'received': 0})
+        with patch.object(oz, 'remove_products', return_value=dict(
+                active=set(), inactive={1}, rejected={}, warnings=[])), \
+             patch.object(oz, 'participants', return_value=listing), \
+             patch.object(guard, 'read_shared_caps', return_value={1: 81}), \
+             patch.object(guard.time, 'sleep'):
+            guard.execute('oz_acc1', [item], issues=[])
+        self.assertEqual(item['status'], 'confirmed')
+        self.assertTrue(item['partial_absence'])
+        self.assertIn('общая цена 81 выше потолка', item['note'])
+
+    def test_partial_action_list_stays_unconfirmed_without_either_proof(self):
+        for ack, cap in ((False, 81), (True, 75), (True, None)):
+            with self.subTest(ack=ack, cap=cap):
+                item = row(10, 75)
+                item.update(mode='remove', status='sent', partial_absence=True,
+                            deactivation_accepted=ack)
+                with patch.object(guard, 'read_shared_caps', return_value={1: cap} if cap else {}) as read:
+                    guard.verify_partial_deactivations('oz_acc1', [item])
+                self.assertEqual(item['status'], 'sent')
+                if not ack:
+                    read.assert_not_called()
+
+    def test_partial_shared_deactivation_confirms_only_acknowledged_action(self):
+        rows = [row(10, 75), row(20, 74)]
+        with patch.object(oz, 'floor_price', return_value=80), \
+             patch.object(oz, 'bundle_quantity', return_value=1):
+            for item in rows:
+                guard.decide(item)
+        guard.coordinate_shared_prices(rows)
+        listing = ActionProducts([], complete=False, diagnostic={'total_items': 1, 'received': 0})
+        with patch.object(oz, 'update_products', return_value=dict(
+                active=set(), inactive={1}, rejected={}, warnings=[])) as update, \
+             patch.object(oz, 'participants', return_value=listing), \
+             patch.object(guard, 'read_shared_caps', return_value={1: 80}), \
+             patch.object(guard.time, 'sleep'):
+            guard.execute('oz_acc1', rows, issues=[])
+        update.assert_called_once()
+        self.assertEqual([item['status'] for item in rows], ['confirmed', 'sent'])
 
 
 if __name__ == '__main__':
