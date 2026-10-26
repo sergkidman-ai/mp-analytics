@@ -163,16 +163,17 @@ def update(request, account, action_id, rows):
 
 
 def remove(request, account, action, rows):
-    """Use price exclusion for stock/elastic, dedicated removal for promo codes.
-
-    Transition bridge: while update retains old activation semantics, v2 deactivate
-    still retains old removal semantics. Try it only for explicitly unremoved rows;
-    after switch-over successful price exclusion needs no bridge.
-    """
+    """Вывод ценой для stock/elastic; прямое исключение только для промокодов."""
     kind = action.get('action_type')
     if kind in ('PROMO_CODE', 'PROMOCODE', 'PROMO_CODES'):
-        pending = rows
         result = dict(active=set(), inactive=set(), rejected={}, warnings=[])
+        for start in range(0, len(rows), 1000):
+            ids = [int(row['product_id']) for row in rows[start:start+1000]]
+            data = payload(request(account, 'POST', '/v2/actions/products/deactivate',
+                                   dict(action_id=action['id'], product_ids=ids)))
+            removed = {int(x) for x in data.get('product_ids', [])}
+            result['inactive'].update(removed)
+        return result
     elif kind in ('ELASTIC_BOOSTING', 'STOCK_DISCOUNT'):
         changes = []
         for row in rows:
@@ -183,17 +184,6 @@ def remove(request, account, action, rows):
                           float(row.get('action_price') or row.get('now_price') or 0))
             price = int(Decimal(str(ceiling)).to_integral_value(rounding=ROUND_CEILING)) + 1
             changes.append(dict(product_id=row['product_id'], action_price=price))
-        result = update(request, account, action['id'], changes)
-        pending = [row for row in rows if int(row['product_id']) not in result['inactive']]
+        return update(request, account, action['id'], changes)
     else:
         raise ActionProtocolError(f'Unsupported action type: {kind}')
-    for start in range(0, len(pending), 1000):
-        ids = [int(row['product_id']) for row in pending[start:start+1000]]
-        data = payload(request(account,'POST','/v2/actions/products/deactivate',
-                               dict(action_id=action['id'], product_ids=ids)))
-        removed = {int(x) for x in data.get('product_ids', [])}
-        result['inactive'].update(removed);result['active'].difference_update(removed)
-        for pid in removed:result['rejected'].pop(pid,None)
-        if kind in ('ELASTIC_BOOSTING','STOCK_DISCOUNT') and removed:
-            result['warnings'].append('transition bridge: v2 deactivate used')
-    return result

@@ -1,5 +1,21 @@
 # Сторож Ozon: общая предельная цена, 26.10.2026
 
+## Дополнение 26.10.2026: удаление товара из акции
+
+Скриншот ТК из Dropbox показывает ошибку `the method is blocked due to unified
+price logic` и страницу метода `/v2/actions/products/deactivate`. Этот метод Ozon
+оставил только для промокодов. Наши текущие акции имеют типы `ELASTIC_BOOSTING`
+и `STOCK_DISCOUNT`; для них удаление выполняется через
+`/v1/actions/products/update` с `action_price` строго выше порога акции.
+В `ops/ozon_actions.py` удалён резервный вызов `deactivate` для таких акций:
+отказ `update` теперь сохраняется как отказ, а не скрывается второй попыткой
+запрещённым методом. Изменение скопировано в штатный checkout, 48 профильных
+тестов прошли. Код ТК в этом репозитории отсутствует; требование для него —
+`docs/reports/ozon_unified_price_audit_20261026/tk_instruction_draft.md`.
+
+Источники: [изменение методов Ozon](https://dev.ozon.ru/start/563-Obnovlenie-metodov-raboty-s-aktsiiami-v-Seller-API-v2/),
+[единая предельная цена](https://dev.ozon.ru/news/840-Seller-API-napominanie-o-edinoi-predelnoi-tsene/).
+
 Ветка `mkt/ozon-unified-price-guard`, отдельный worktree. Первоначальный сухой прогон не менял Ozon; после прямой команды пользователя код установлен в `/opt/mp-analytics` и выполнен рабочий запуск. Расписание не менялось.
 
 ## Что исправлено в ветке

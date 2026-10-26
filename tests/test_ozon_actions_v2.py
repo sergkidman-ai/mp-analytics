@@ -76,12 +76,22 @@ class ProtocolTests(unittest.TestCase):
             self.assertEqual(r['inactive'],{1});self.assertEqual(req.call_count,1)
             self.assertEqual(req.call_args.args[3]['products'][0]['action_price']['amount'],'152.00')
 
-    def test_transition_bridge_uses_only_new_deactivate(self):
-        req=Mock(side_effect=[dict(rejected=[dict(product_id=1,reason='price above ceiling')]),
-                              dict(product_ids=[1])])
+    def test_stock_rejection_never_falls_back_to_promo_code_deactivate(self):
+        req=Mock(return_value=dict(rejected=[dict(product_id=1,reason='price above ceiling')]))
         r=api.remove(req,'oz_acc1',dict(id=5,action_type='STOCK_DISCOUNT'),[dict(product_id=1,max_price=100)])
-        self.assertEqual(r['inactive'],{1});self.assertTrue(r['warnings'])
-        self.assertEqual(req.call_args.args[2],'/v2/actions/products/deactivate')
+        self.assertEqual(r['inactive'],set())
+        self.assertEqual(r['rejected'],{1:'price above ceiling'})
+        self.assertEqual(req.call_count,1)
+        self.assertEqual(req.call_args.args[2],'/v1/actions/products/update')
+
+    def test_elastic_active_response_never_calls_deactivate(self):
+        req=Mock(return_value=dict(active_product_ids=[1]))
+        r=api.remove(req,'oz_acc1',dict(id=5,action_type='ELASTIC_BOOSTING'),
+                     [dict(product_id=1,max_price=100)])
+        self.assertEqual(r['active'],{1})
+        self.assertEqual(r['inactive'],set())
+        self.assertEqual(req.call_count,1)
+        self.assertEqual(req.call_args.args[2],'/v1/actions/products/update')
 
     def test_promo_codes_use_dedicated_removal_unknown_mechanics_fail(self):
         req=Mock(return_value=dict(product_ids=[1]))
