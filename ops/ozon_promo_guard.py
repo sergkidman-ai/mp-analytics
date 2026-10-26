@@ -33,6 +33,7 @@ ops/ozon_stock_action.py («Распродажа стока», «Акция дл
 """
 import argparse
 from collections import defaultdict
+import csv
 import json
 import math
 import pathlib
@@ -623,9 +624,11 @@ def main():
                 "current_cap", "future_expectation",
                 "max_price", "cogs", "cogs_source", "floor_price", "new_price", "shared_price",
                 "mode", "status", "reason", "note"]
-        pathlib.Path(a.csv).write_text(
-            "\n".join([";".join(head)] + [";".join("" if r.get(c) is None else str(r.get(c)) for c in head)
-                                          for r in out]), encoding="utf-8")
+        with pathlib.Path(a.csv).open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.writer(stream, delimiter=";")
+            writer.writerow(head)
+            for r in out:
+                writer.writerow("" if r.get(c) is None else str(r.get(c)) for c in head)
         print(f"\nпострочно → {a.csv}", flush=True)
     if failed:
         raise SystemExit(1)
