@@ -1,0 +1,20 @@
+# поток: fin
+[Unit]
+Description=Pult FBO marketplace orders (Ozon and WB, no MySklad)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics/runtime/mp-fbo-orders-current
+ExecStart=/opt/mp-analytics/venv/bin/python -m collectors.mp_fbo_orders
+TimeoutStartSec=900
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
