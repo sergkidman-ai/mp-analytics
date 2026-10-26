@@ -1,0 +1,12 @@
+[Unit]
+Description=Deliver late Wildberries pickup QR to returns bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python -m returns_bot.wb_qr_followup
+UMask=0077
+StandardOutput=journal
+StandardError=journal

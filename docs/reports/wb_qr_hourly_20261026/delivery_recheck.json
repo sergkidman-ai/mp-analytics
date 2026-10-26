@@ -1,0 +1,13 @@
+{
+  "verified_at": "2026-10-26T11:54:18.802319+03:00",
+  "confirmed_recipients": 2,
+  "followup_result": "success",
+  "duplicate_documents": 0,
+  "published_extension_version": "0.7.0",
+  "windows_verification": "controlled_upload_accepted",
+  "last_upload_msk": "2026-10-26T11:58:05.735664+03:00",
+  "test_followup": {
+    "skipped": 2
+  },
+  "timer_active": true
+}

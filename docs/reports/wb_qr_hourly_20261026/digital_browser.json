@@ -1,0 +1,1 @@
+{"native_scheduled_capture": true, "delayed_navigation_seconds": 3, "no_user_activation_during_capture": true, "upload_acknowledged": true, "failure_cleanup_preserves_user_tabs": true, "diagnostic_history": true, "v6_upgrade_recovers_exhausted_retries": true, "no_real_upload": true}

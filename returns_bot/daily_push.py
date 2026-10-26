@@ -10,7 +10,7 @@
 import argparse
 import sys
 from datetime import datetime
-from returns_bot import wb_qr, orgs
+from returns_bot import wb_qr, orgs, wb_qr_delivery
 
 from returns_bot import collect as collector
 from returns_bot import bot, render, tg
@@ -47,11 +47,14 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
     letters = [(org, text, barcode_photos(org) if with_codes else [])
                for org, text in render.summaries()]
 
+    wb_files = {}
     # Each WB buyer QR is attached only to its company's summary.
     if with_codes and wb_qr.enabled_day(wb_qr.now_msk()):
         for account in wb_qr.enabled_accounts():
             info=wb_qr.ACCOUNTS[account]
             qr=wb_qr.attachment(account=account)
+            if qr:
+                wb_files[qr[0]] = account
             extra="" if qr else "\n\n⚠️ Свежий QR Wildberries - "+info['title']+" на сегодня не получен. Проверьте компьютер, браузер и вход в WB. Вчерашний QR не отправляем."
             for index,(org,text,photos) in enumerate(letters):
                 if org==info['org']:
@@ -84,7 +87,12 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
                 # кнопка «Обновить» — под каждой сводкой: обработчик живёт в returns-bot.service
                 tg.send(chat_id, text, reply_markup=bot.KB_REFRESH)
                 for filename, data, caption, mime in photos:
-                    tg.send_document(chat_id, data, filename, caption, mime=mime)
+                    if filename in wb_files:
+                        status = wb_qr_delivery.send(wb_files[filename], chat_id, (filename, data, caption, mime))
+                        if status in ("failed", "uncertain"):
+                            raise RuntimeError("WB QR delivery: " + status)
+                    else:
+                        tg.send_document(chat_id, data, filename, caption, mime=mime)
             ok += 1
         except Exception as e:
             failed.append(f"{chat_id}: {type(e).__name__} {str(e)[:120]}")

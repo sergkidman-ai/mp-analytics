@@ -8,10 +8,10 @@ import re
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
-from returns_bot import wb_qr
+from returns_bot import wb_qr, wb_qr_followup
 
 load_dotenv(Path(__file__).resolve().parents[1]/'.env')
 app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
@@ -44,7 +44,7 @@ def options(company:str):
     return Response(status_code=204,headers={'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type'})
 
 @app.post(UPLOAD_PATTERN)
-async def upload(company:str,request:Request):
+async def upload(company:str,request:Request,background_tasks:BackgroundTasks):
     account=account_for(company)
     expected=token(account)
     if not expected or not hmac.compare_digest(request.headers.get('authorization',''),'Bearer '+expected):raise HTTPException(401,'unauthorized')
@@ -57,6 +57,7 @@ async def upload(company:str,request:Request):
         if len(png)>2_500_000:raise ValueError('too_large')
         if not isinstance(data['validity'],str) or len(data['validity'])>250:raise ValueError('invalid_validity')
         meta=wb_qr.store(png,data['day'],data['validity'],account=account)
+        background_tasks.add_task(wb_qr_followup.run)
         return {'ok':True,'day':meta['day'],'valid_until':meta['valid_until']}
     except (ValueError,KeyError,TypeError):raise HTTPException(400,'invalid_or_expired_qr') from None
 
@@ -72,7 +73,7 @@ def setup_page(request,account):
       '<p>Скопируйте код подключения в расширение «'+html.escape(extension)+'». Он разрешает загрузку QR только для выбранной компании.</p>'
       '<p>Код не нужно отправлять в Telegram или дропбокс.</p><textarea readonly style="width:100%;height:85px">'+html.escape(value)+'</textarea>'
       '<p>Вернитесь в заказы нужного покупательского аккаунта WB, вставьте код в расширение и нажмите «Включить сбор к отчёту».</p>'
-      '<p>QR собирается в 09:00 МСК, понедельник–суббота. Бот присылает его вместе с отчётом после09:05МСК.</p></main>')
+      '<p>QR собирается в 09:00 МСК, понедельник–суббота. Бот присылает его вместе с отчётом после 09:05 МСК. Если компьютер был недоступен, сбор повторяется каждый час до получения QR; поздний QR бот отправит отдельно.</p></main>')
 
 @app.get('/returns/wb-qr/setup',response_class=HTMLResponse)
 def setup(request:Request):return setup_page(request,'wb_acc2')

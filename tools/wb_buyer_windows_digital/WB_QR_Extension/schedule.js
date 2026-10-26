@@ -14,6 +14,15 @@ const WB_QR_SCHEDULE = (() => {
     while(!day(due).enabled)due+=DAY;
     return due;
   }
+  function hourKey(now) {return new Date(now+MSK).toISOString().slice(0,13);}
+  function nextCheck(now) {
+    let due=Math.floor(now/3600000)*3600000+3600000;
+    if(!day(due).enabled || due<day(due).due)due=next(now);
+    return due;
+  }
+  function nextAttempt(now,config,lastDay) {
+    return eligible(now,config,lastDay)?nextCheck(now):next(now);
+  }
   function eligible(now,config,lastDay) {
     const d=day(now);
     return Boolean(config?.enabled && d.enabled && now>=d.due && d.due>=config.enabledAt && lastDay!==d.key);
@@ -27,5 +36,5 @@ const WB_QR_SCHEDULE = (() => {
     const d=new Date(now+MSK);
     return Boolean(m && Number(m[1])===d.getUTCDate() && months.indexOf(m[2])===d.getUTCMonth() && /до\s+00:00/.test(text) && /мск|москв/i.test(text));
   }
-  return {day,next,eligible,currentValidity};
+  return {day,next,nextCheck,nextAttempt,hourKey,eligible,currentValidity};
 })();

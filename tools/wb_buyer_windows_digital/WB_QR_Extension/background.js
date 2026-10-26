@@ -1,12 +1,20 @@
 // поток: ret. Scheduled capture and narrow upload; Telegram credentials stay on the server.
 importScripts('schedule.js','navigation.js');
-const DAILY='wb-qr-09-msk',RETRY='wb-qr-retry',WATCH='wb-qr-watch';
+const DAILY='wb-qr-09-msk',RETRY='wb-qr-retry',WATCH='wb-qr-watch',CHECK='wb-qr-hourly';
 let serial=Promise.resolve();
 function enqueue(fn){const result=serial.then(fn,fn);serial=result.catch(()=>{});return result;}
-async function state(){return chrome.storage.local.get(['config','lastSuccessDay','run','attemptDay','attempts','lastResult','uploadToken','history']);}
+async function state(){return chrome.storage.local.get(['config','lastSuccessDay','run','attemptDay','attemptHour','attempts','lastResult','uploadToken','history']);}
 async function badge(text){await chrome.action.setBadgeText({text});await chrome.action.setBadgeBackgroundColor({color:text==='!'?'#b3261e':'#277544'});}
 function allowedUrl(value){try {const u=new URL(value);return u.protocol==='https:'&&['www.wildberries.ru','wildberries.ru'].includes(u.hostname)&&/^\/lk(?:\/|$)/.test(u.pathname)&&!u.search&&!u.hash;}catch{return false;}}
-async function plan(){const s=await state();if(s.config?.enabled)await chrome.alarms.create(DAILY,{when:WB_QR_SCHEDULE.next(Date.now())});else await chrome.alarms.clear(DAILY);}
+async function plan(){
+  const s=await state(),now=Date.now();
+  if(s.config?.enabled){
+    await chrome.alarms.create(DAILY,{when:WB_QR_SCHEDULE.next(now)});
+    if(WB_QR_SCHEDULE.eligible(now,s.config,s.lastSuccessDay))
+      await chrome.alarms.create(CHECK,{when:WB_QR_SCHEDULE.nextCheck(now)});
+    else await chrome.alarms.clear(CHECK);
+  }else for(const name of [DAILY,CHECK])await chrome.alarms.clear(name);
+}
 async function sessionId(){
   const s=await chrome.storage.session.get('browserSessionId');
   if(s.browserSessionId)return s.browserSessionId;
@@ -57,7 +65,7 @@ async function failRun(reason) {
   await cleanup(s.run);
   await chrome.alarms.clear(WATCH);await badge('!');
   const d=WB_QR_SCHEDULE.day(Date.now());
-  if(s.config?.enabled && d.enabled && d.key===s.run.day && (s.attempts||0)<3)
+  if(s.config?.enabled && d.enabled && d.key===s.run.day && (s.attemptHour!==WB_QR_SCHEDULE.hourKey(Date.now()) || (s.attempts||0)<3))
     await chrome.alarms.create(RETRY,{when:Date.now()+60*1000});
 }
 async function startIfDue(force=false) {
@@ -65,10 +73,10 @@ async function startIfDue(force=false) {
   if(s.run){if(now-s.run.startedAt>2*60*1000){await failRun('run_timeout');return startIfDue(force);}return;}
   if(!s.config?.enabled || !today.enabled)return;
   if(!force && !WB_QR_SCHEDULE.eligible(now,s.config,s.lastSuccessDay))return;
-  if(!force && s.attemptDay===today.key && (s.attempts||0)>=3)return;
+  if(!force && s.attemptHour===WB_QR_SCHEDULE.hourKey(now) && (s.attempts||0)>=3)return;
   if(!allowedUrl(s.config.targetUrl)){await badge('!');return;}
   const run={id:crypto.randomUUID(),day:today.key,startedAt:now,sessionId:await sessionId(),wbTab:null,runnerTab:null,windowId:null,stage:'create_window'};
-  await chrome.storage.local.set({run,attemptDay:today.key,attempts:s.attemptDay===today.key?(s.attempts||0)+1:1});
+  await chrome.storage.local.set({run,attemptDay:today.key,attemptHour:WB_QR_SCHEDULE.hourKey(now),attempts:s.attemptHour===WB_QR_SCHEDULE.hourKey(now)?(s.attempts||0)+1:1});
   await chrome.alarms.create(WATCH,{when:now+2*60*1000});
   try{
     // Use a selected, visible source page. Background tabs may be deferred by Chrome.
@@ -89,10 +97,10 @@ async function startIfDue(force=false) {
 }
 async function recover(){
   const version=await chrome.storage.local.get('schemaVersion');
-  if(version.schemaVersion!==6){
+  if(version.schemaVersion!==7){
     const old=await state();
-    await chrome.storage.local.set({schemaVersion:6,run:null,attemptDay:null,attempts:0});
-    for(const name of [RETRY,WATCH])await chrome.alarms.clear(name);
+    await chrome.storage.local.set({schemaVersion:7,run:null,attemptHour:null,attemptDay:null,attempts:0});
+    for(const name of [RETRY,WATCH,CHECK])await chrome.alarms.clear(name);
     await cleanup(old.run);
   }
   const pending=await state();
@@ -105,7 +113,7 @@ async function recover(){
 chrome.runtime.onInstalled.addListener(()=>enqueue(recover));
 chrome.runtime.onStartup.addListener(()=>enqueue(recover));
 chrome.alarms.onAlarm.addListener(alarm=>enqueue(async()=>{
-  if(alarm.name===DAILY){await plan();await startIfDue();}
+  if(alarm.name===DAILY||alarm.name===CHECK){await plan();await startIfDue();}
   if(alarm.name===RETRY)await startIfDue();
   if(alarm.name===WATCH)await failRun('run_timeout');
 }));
@@ -113,10 +121,10 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   if(sender.id!==chrome.runtime.id)return;
   enqueue(async()=>{
     if(message.type==='schedule-diagnostic'){
-      const s=await state();return {version:6,at:new Date().toISOString(),enabled:Boolean(s.config?.enabled),next:s.config?.enabled?new Date(WB_QR_SCHEDULE.next(Date.now())).toISOString():null,lastSuccessDay:s.lastSuccessDay||null,run:s.run?{day:s.run.day,stage:s.run.stage}:null,lastResult:s.lastResult||null,history:s.history||[]};
+      const s=await state();return {version:7,at:new Date().toISOString(),enabled:Boolean(s.config?.enabled),next:s.config?.enabled?new Date(WB_QR_SCHEDULE.nextAttempt(Date.now(),s.config,s.lastSuccessDay)).toISOString():null,lastSuccessDay:s.lastSuccessDay||null,run:s.run?{day:s.run.day,stage:s.run.stage}:null,lastResult:s.lastResult||null,history:s.history||[]};
     }
     if(message.type==='schedule-state'){
-      const s=await state();return {ok:true,config:s.config||null,lastResult:s.lastResult||null,run:s.run?{day:s.run.day,stage:s.run.stage}:null,next:s.config?.enabled?WB_QR_SCHEDULE.next(Date.now()):null};
+      const s=await state();return {ok:true,config:s.config||null,lastResult:s.lastResult||null,run:s.run?{day:s.run.day,stage:s.run.stage}:null,next:s.config?.enabled?WB_QR_SCHEDULE.nextAttempt(Date.now(),s.config,s.lastSuccessDay):null};
     }
     if(message.type==='schedule-enable'){
       const tab=await chrome.tabs.get(message.tabId),u=new URL(tab.url);
@@ -135,7 +143,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     }
     if(message.type==='schedule-disable'){
       await chrome.storage.local.set({config:{enabled:false}});
-      for(const name of [DAILY,RETRY])await chrome.alarms.clear(name);
+      for(const name of [DAILY,RETRY,CHECK])await chrome.alarms.clear(name);
       await badge('');return {ok:true};
     }
     if(message.type==='scheduled-input'){
@@ -175,7 +183,7 @@ async function completeUpload(runId){
   const s=await state(),run=s.run;if(!run||run.id!==runId)return;
   await chrome.storage.local.set({lastSuccessDay:run.day,run:null});
   await record({ok:true,day:run.day,at:new Date().toISOString(),delivery:'returns_report'});
-  await chrome.alarms.clear(WATCH);await chrome.alarms.clear(RETRY);await badge('OK');
+  await chrome.alarms.clear(WATCH);await chrome.alarms.clear(RETRY);await chrome.alarms.clear(CHECK);await badge('OK');
   await cleanup(run);
 }
 // Alarms may be cleared by a browser update; restore whenever the worker starts.

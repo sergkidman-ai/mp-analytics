@@ -59,6 +59,14 @@ class CompanyQrTests(unittest.TestCase):
         self.assertEqual(self.post('unknown','digital-test-token','fixture').status_code,404)
 
 class CompanyReportTests(unittest.TestCase):
+    def pass_qr(self, account, chat, attachment):
+        name,data,caption,mime=attachment
+        return daily_push.tg.send_document(chat,data,name,caption,mime=mime)
+
+    def setUp(self):
+        p=patch.object(daily_push.wb_qr_delivery,'send',side_effect=self.pass_qr)
+        p.start();self.addCleanup(p.stop)
+
     def test_each_qr_follows_its_own_summary_for_both_users(self):
         events=[]
         def attach(*,account):return (account+'.png',b'PNG',account,'image/png')

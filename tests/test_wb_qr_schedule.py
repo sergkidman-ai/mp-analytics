@@ -27,6 +27,15 @@ class ScheduleTests(unittest.TestCase):
     def test_next_run_uses_moscow_and_skips_sunday(self):
         for now,expected in [('2026-10-23T05:59:00Z','2026-10-23T06:00:00.000Z'),('2026-10-24T06:00:00Z','2026-10-25T06:00:00.000Z'),('2026-10-31T06:00:00Z','2026-11-02T06:00:00.000Z'),('2026-10-25T12:00:00Z','2026-10-26T06:00:00.000Z')]:
             self.assertEqual(self.page.evaluate('s=>new Date(WB_QR_SCHEDULE.next(Date.parse(s))).toISOString()',now),expected)
+    def test_hourly_check_uses_moscow_stops_at_midnight_and_skips_sunday(self):
+        for now,expected in [
+            ('2026-10-26T05:59:00Z','2026-10-26T06:00:00.000Z'),
+            ('2026-10-26T06:01:00Z','2026-10-26T07:00:00.000Z'),
+            ('2026-10-26T07:00:00Z','2026-10-26T08:00:00.000Z'),
+            ('2026-10-26T20:59:00Z','2026-10-27T06:00:00.000Z'),
+            ('2026-10-31T20:59:00Z','2026-11-02T06:00:00.000Z')]:
+            self.assertEqual(self.page.evaluate('s=>new Date(WB_QR_SCHEDULE.nextCheck(Date.parse(s))).toISOString()',now),expected)
+
     def test_catch_up_only_today_and_once(self):
         script='''([n,last,enabled])=>WB_QR_SCHEDULE.eligible(Date.parse(n),{enabled:true,enabledAt:Date.parse(enabled)},last)'''
         self.assertTrue(self.page.evaluate(script,['2026-10-24T10:00:00Z',None,'2026-10-23T10:00:00Z']))
@@ -104,7 +113,13 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(response.status_code,204);self.assertEqual(response.headers['access-control-allow-origin'],'chrome-extension://'+'a'*32)
 
 class DailyTests(unittest.TestCase):
+    def pass_qr(self, account, chat, attachment):
+        name,data,caption,mime=attachment
+        return daily_push.tg.send_document(chat,data,name,caption,mime=mime)
+
     def setUp(self):
+        p=patch.object(daily_push.wb_qr_delivery,'send',side_effect=self.pass_qr)
+        p.start();self.addCleanup(p.stop)
         p=patch.object(wb_qr,'enabled_accounts',return_value=('wb_acc2',))
         p.start();self.addCleanup(p.stop)
 

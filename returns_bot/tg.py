@@ -35,6 +35,10 @@ def notify_ids():
     return ids or sorted(allowed_ids())
 
 
+class Rejected(RuntimeError):
+    """Telegram explicitly rejected the request; safe to retry later."""
+
+
 def _api(method, data=None, files=None, tries=4):
     url = f"https://api.telegram.org/bot{token()}/{method}"
     for n in range(tries):
@@ -43,6 +47,8 @@ def _api(method, data=None, files=None, tries=4):
             j = r.json()
             if j.get("ok"):
                 return j.get("result")
+            if tries == 1 and r.status_code < 500:
+                raise Rejected(f"{method}: rejected ({r.status_code})")
             # 429: Telegram сам говорит, сколько ждать
             wait = ((j.get("parameters") or {}).get("retry_after")) or 2 ** n
             if r.status_code in (420, 429) or r.status_code >= 500:
@@ -51,6 +57,9 @@ def _api(method, data=None, files=None, tries=4):
             raise RuntimeError(f"{method}: {j.get('description')}")
         except requests.RequestException as exc:
             if n == tries - 1:
+                if isinstance(exc, requests.ConnectTimeout):
+                    # requests explicitly defines ConnectTimeout as safe to retry.
+                    raise Rejected(f"{method}: connection timeout before delivery") from None
                 # requests exceptions contain the authenticated Bot API URL.
                 # Suppress their chained traceback before callers log failures.
                 raise RuntimeError(f"{method}: transport failure ({type(exc).__name__})") from None
@@ -117,7 +126,7 @@ def send_photo(chat_id, png_bytes, caption=None, filename="code.png"):
     return _api("sendPhoto", data, files={"photo": (filename, png_bytes, "image/png")})
 
 
-def send_document(chat_id, data, filename, caption=None, mime="image/png"):
+def send_document(chat_id, data, filename, caption=None, mime="image/png", *, tries=4):
     """Файл БЕЗ пережатия.
 
     Штрихкод шлём именно так: `sendPhoto` перегоняет картинку в JPEG, тонкие штрихи плывут
@@ -127,7 +136,7 @@ def send_document(chat_id, data, filename, caption=None, mime="image/png"):
     if caption:
         d["caption"] = caption[:1000]
         d["parse_mode"] = "HTML"
-    return _api("sendDocument", d, files={"document": (filename, data, mime)})
+    return _api("sendDocument", d, files={"document": (filename, data, mime)}, tries=tries)
 
 
 def get_updates(offset=None, timeout=50):
