@@ -114,7 +114,7 @@ def stock_data(on="", platform="", organization="", account="", warehouse="", sk
             change=str(sum(float(x['change']) for x in matching))))
     return dict(rows=out[offset:offset+limit],total=len(out),summary=summary,
         warehouses=[dict(platform=p,name=w) for p,w in sorted(warehouses)],
-        coverage="По Маркету доступны только FBS-остатки наших складов (снимок 22.08.2026). Подтверждённого остатка на складе Маркета нет; ноль не предполагаем.")
+        coverage="Маркет не включён в учёт остатков складов МП: возвраты поступают на наш склад. Их приёмка сверяется ниже по документам МС.")
 
 
 @router.get("/api/warehouse/marketplace-stock")
@@ -191,3 +191,83 @@ def return_history(platform: str, account: str, return_id: str):
       FROM mp_return_status_events WHERE platform=%s AND account=%s AND return_id=%s
       ORDER BY id DESC LIMIT 100""",(platform,account,return_id))
     return dict(rows=rows)
+
+
+@router.get("/api/warehouse/marketplace-market-receipts")
+def market_receipts(state: str = "unconfirmed", search: str = "",
+                    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    """Market returns: MP identifies the case; a linked posted MS document confirms receipt."""
+    if state not in ("", "unconfirmed", "in_transit", "received", "unknown", "all"):
+        raise HTTPException(422, "Неизвестный фильтр")
+    scans = db.query("SELECT agent_id,earliest_scanned,last_success_at FROM market_ms_return_scan")
+    coverage = max((x['earliest_scanned'] for x in scans), default=None) if len(scans) >= 2 else None
+    last_scan = min((x['last_success_at'] for x in scans), default=None) if len(scans) >= 2 else None
+    rows = db.query("""WITH cases AS (
+        SELECT r.account,r.return_id,r.order_number,r.return_type,r.status_raw,r.stage,
+          r.created_at,r.last_seen,'return'::text source_kind
+        FROM mp_returns r WHERE r.platform='yandex' AND r.return_type IN ('RETURN','UNREDEEMED')
+        UNION ALL
+        SELECT s.account,'order:'||s.order_id,s.order_id,'CANCELLED_IN_DELIVERY',
+          s.payload->>'status','attention',d.demand_date::timestamptz,s.loaded_at,
+          'order_without_return'
+        FROM raw_yandex_stats_order s JOIN ya_cogs_demand d
+          ON d.account=s.account AND d.demand_name=s.order_id
+        WHERE s.payload->>'status'='CANCELLED_IN_DELIVERY'
+          AND NOT EXISTS (SELECT 1 FROM mp_returns r WHERE r.platform='yandex'
+            AND r.account=s.account AND r.order_number=s.order_id)
+      )
+      SELECT r.return_id,r.order_number,r.return_type,r.status_raw,r.stage,
+      r.created_at,r.last_seen,r.source_kind,m.salesreturn_id,m.demand_id,m.store_name,m.applicable,
+      m.moment,m.ms_updated_at,y.demand_id AS known_demand_id
+      FROM cases r
+      LEFT JOIN ya_cogs_demand y ON y.account=r.account AND y.demand_name=r.order_number
+      LEFT JOIN LATERAL (
+        SELECT salesreturn_id,demand_id,store_name,applicable,moment,ms_updated_at
+        FROM market_ms_return_receipts m
+        WHERE m.account=r.account AND m.order_number=r.order_number
+        ORDER BY (m.demand_id::text=y.demand_id) DESC NULLS LAST,
+          COALESCE(m.applicable AND m.store_name IN
+          ('Звездный','Дисквер','Кантемировская','Брак'),false) DESC,m.moment DESC
+        LIMIT 1
+      ) m ON true
+      ORDER BY r.created_at DESC NULLS LAST""")
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    out = []
+    for row in rows:
+        result = market_receipt_result(row, coverage)
+        age = (now - row['created_at']).days if row['created_at'] else None
+        out.append({**row, 'result': result, 'age_days': age})
+    if search.strip():
+        term = search.strip()[:80].lower()
+        out = [r for r in out if term in str(r['order_number'] or '').lower()
+               or term in str(r['return_id']).lower()]
+    if state == 'unconfirmed':
+        out = [r for r in out if r['result'] in ('waiting','draft','other_store','mismatch')]
+    elif state == 'in_transit':
+        out = [r for r in out if r['result'] in ('waiting','draft','other_store','mismatch')
+               and r['stage'] in ('transit','pickup','attention')]
+    elif state == 'received':
+        out = [r for r in out if r['result'] == 'received']
+    elif state == 'unknown':
+        out = [r for r in out if r['result'] == 'unknown']
+    out.sort(key=lambda r: (r['result'] not in ('waiting','draft','other_store','mismatch'),
+                            r['stage'] not in ('transit','pickup','attention'),
+                            -(r['age_days'] or 0), str(r['order_number'])))
+    return dict(rows=out[offset:offset+limit], total=len(out),
+                coverage_since=coverage, last_ms_scan=last_scan)
+
+
+def market_receipt_result(row, coverage):
+    """A posted return to a known own store with the exact shipment link is receipt evidence."""
+    if row['salesreturn_id']:
+        if row['known_demand_id'] and str(row['demand_id']) != str(row['known_demand_id']):
+            return 'mismatch'
+        if not row['applicable']:
+            return 'draft'
+        if row['store_name'] not in ('Звездный', 'Дисквер', 'Кантемировская', 'Брак'):
+            return 'other_store'
+        return 'received'
+    if not coverage or not row['created_at'] or row['created_at'].date() < coverage:
+        return 'unknown'
+    return 'waiting'

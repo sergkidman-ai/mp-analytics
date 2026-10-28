@@ -240,6 +240,9 @@ def main():
     # поэтому собирается ДО помесячной сборки. Закрытые месяцы коллектор не трогает.
     step("Яндекс.Маркет: себест отгрузок (FIFO)",
          lambda: __import__("collectors.ya_cogs_demand", fromlist=["main"]).main())
+    # Linked, posted salesreturns are receipt evidence; the scan is bounded to recent documents.
+    step("Яндекс.Маркет: приёмка возвратов МС",
+         lambda: print(__import__("collectors.market_ms_return_receipts", fromlist=["collect"]).collect()))
     # Verified display evidence; never publishes the active trading pointer.
     step("Яндекс.Маркет: проверенная финансовая база",
          lambda: print(__import__("collectors.yandex_finance_basis", fromlist=["refresh_previous"]).refresh_previous()))

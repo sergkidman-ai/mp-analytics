@@ -37,13 +37,19 @@ dialog{background:var(--card);color:var(--txt);border:1px solid var(--line);bord
 <p class="small" id="return-error"></p>
 <div class="tablewrap"><table><thead><tr><th>Площадка · организация</th><th>Заказ / возврат</th><th>Тип</th><th>Статус МП</th><th>Место / цель</th><th>Последнее наблюдение</th></tr></thead><tbody id="return-rows"></tbody></table></div>
 <div class="pager"><button id="return-prev">Назад</button><span id="return-page"></span><button id="return-next">Дальше</button></div>
+<h2>Маркет · приёмка возвратов в МС</h2>
+<p class="note">Маркет возвращает товары на наш склад. Его статус помогает увидеть незавершённый путь, но подтверждением приёмки здесь служит проведённый документ «Возврат покупателя», связанный с исходной отгрузкой МС. Отмены в доставке без записи возврата МП тоже показаны как кандидаты на проверку. Для склада «Брак» приёмка подтверждается, но товар не считается продаваемым.</p>
+<div class="filters"><label>Результат сверки<select id="market-state"><option value="unconfirmed">Без подтверждения МС</option><option value="in_transit">В пути без подтверждения</option><option value="received">Принято по МС</option><option value="unknown">Вне охвата МС</option><option value="all">Все</option></select></label><label>Номер заказа / возврата<input id="market-search" type="search" placeholder="Номер"></label></div>
+<p class="small" id="market-coverage"></p><p class="small error" id="market-error"></p>
+<div class="tablewrap"><table><thead><tr><th>Заказ / возврат</th><th>Тип · статус МП</th><th>С момента возврата</th><th>Подтверждение МС</th><th>Склад приёмки</th></tr></thead><tbody id="market-rows"></tbody></table></div>
+<div class="pager"><button id="market-prev">Назад</button><span id="market-page"></span><button id="market-next">Дальше</button></div>
 <dialog id="history"><div class="modalhead"><h2 id="history-title">История</h2><button id="close">Закрыть ✕</button></div><div id="history-body"></div></dialog>
 </main><script>
 const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const platformName={ozon:'Ozon',wb:'WB',yandex:'Маркет'}, orgName=a=>a.endsWith('acc1')?'Цифровой':'Дисквер';
 const fmt=v=>Number(v||0).toLocaleString('ru-RU'), delta=v=>`<span class="${Number(v)>0?'pos':Number(v)<0?'neg':''}">${Number(v)>0?'+':''}${fmt(v)}</span>`;
 const dt=v=>v?new Date(v).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}):'—';
-let stockOffset=0,returnOffset=0,stockTotal=0,returnTotal=0;
+let stockOffset=0,returnOffset=0,marketOffset=0,stockTotal=0,returnTotal=0,marketTotal=0;
 function account(){return $('account').value}
 async function get(url){const r=await fetch(url);if(!r.ok)throw Error('HTTP '+r.status);return r.json()}
 function fillOptions(select,values,old){select.innerHTML='<option value="">Все '+(select.id==='warehouse'?'склады':'статусы')+'</option>'+values.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');if(values.some(x=>x.value===old))select.value=old}
@@ -65,6 +71,14 @@ async function loadReturns(){try{
  $('return-rows').innerHTML=d.rows.map(x=>`<tr><td>${esc(platformName[x.platform])}<div class="small">${esc(orgName(x.account))} · ${esc(x.source)}</div></td><td><button data-return="1" data-platform="${esc(x.platform)}" data-account="${esc(x.account)}" data-id="${esc(x.return_id)}">${esc(x.posting_number||x.order_number||x.return_id)}</button><div class="small">Возврат ${esc(x.return_id)}</div></td><td>${esc(x.return_type||'—')}<div class="small">${esc(x.scheme||'')}</div></td><td>${esc(x.status_name||x.status_raw||'—')}<div class="small">${esc(x.status_raw||'')} · ${esc(x.stage)}</div></td><td>${esc(x.pvz_name||x.where_now||'—')}</td><td>${esc(dt(x.last_seen))}</td></tr>`).join('')||'<tr><td colspan="6">Возвратов по фильтру нет.</td></tr>';
  $('return-page').textContent=`${returnTotal?returnOffset+1:0}–${Math.min(returnOffset+50,returnTotal)} из ${returnTotal}`;$('return-prev').disabled=!returnOffset;$('return-next').disabled=returnOffset+50>=returnTotal;$('return-error').textContent='';
 }catch(e){$('return-error').textContent='Возвраты недоступны: '+e.message}}
+const marketLabel={received:'Принято по МС',waiting:'Нет связанного документа МС',draft:'Документ МС не проведён',other_store:'Документ на другом складе',mismatch:'Связана другая отгрузка',unknown:'Нет полного охвата МС'};
+async function loadMarket(){try{
+ const q=new URLSearchParams({state:$('market-state').value,search:$('market-search').value,limit:50,offset:marketOffset});
+ const d=await get('/api/warehouse/marketplace-market-receipts?'+q);marketTotal=d.total;
+ $('market-coverage').textContent=d.coverage_since?`Документы МС просмотрены с ${d.coverage_since}; последняя сверка ${dt(d.last_ms_scan)}. Более старые возвраты без документа отмечены как «вне охвата».`:'Пока нет полного исходного просмотра документов МС. Отсутствие документа ещё не подтверждено.';
+ $('market-rows').innerHTML=d.rows.map(x=>`<tr><td>${esc(x.order_number||'—')}<div class="small">${x.source_kind==='order_without_return'?'Записи возврата МП нет':'Возврат '+esc(x.return_id)}</div></td><td>${esc(x.return_type||'—')}<div class="small">МП: ${esc(x.status_raw||'—')} · ${esc(x.stage)}</div></td><td>${x.age_days===null?'—':fmt(x.age_days)+' дн.'}<div class="small">${x.source_kind==='order_without_return'?'С отгрузки: ':'С возврата: '}${esc(dt(x.created_at))}</div></td><td class="${x.result==='received'?'pos':x.result==='unknown'?'small':'neg'}">${esc(marketLabel[x.result]||x.result)}${x.salesreturn_id?'<div class="small">Документ '+esc(String(x.salesreturn_id).slice(0,8))+' · '+esc(String(x.moment||'').slice(0,16))+'</div>':''}</td><td>${esc(x.store_name||'—')}</td></tr>`).join('')||'<tr><td colspan="5">Записей по фильтру нет.</td></tr>';
+ $('market-page').textContent=`${marketTotal?marketOffset+1:0}–${Math.min(marketOffset+50,marketTotal)} из ${marketTotal}`;$('market-prev').disabled=!marketOffset;$('market-next').disabled=marketOffset+50>=marketTotal;$('market-error').textContent='';
+}catch(e){$('market-error').textContent='Сверка МС недоступна: '+e.message}}
 function reload(){stockOffset=0;returnOffset=0;loadStock();loadReturns()}
 for(const id of ['platform','org','account'])$(id).onchange=reload;
 for(const id of ['on','warehouse'])$(id).onchange=()=>{stockOffset=0;loadStock()};
@@ -72,11 +86,13 @@ for(const id of ['source','status','stage'])$(id).onchange=()=>{returnOffset=0;l
 let timer;for(const [id,fn] of [['sku',()=>{stockOffset=0;loadStock()}],['search',()=>{returnOffset=0;loadReturns()}]])$(id).oninput=()=>{clearTimeout(timer);timer=setTimeout(fn,350)};
 $('stock-prev').onclick=()=>{stockOffset=Math.max(0,stockOffset-100);loadStock()};$('stock-next').onclick=()=>{stockOffset+=100;loadStock()};
 $('return-prev').onclick=()=>{returnOffset=Math.max(0,returnOffset-50);loadReturns()};$('return-next').onclick=()=>{returnOffset+=50;loadReturns()};
+$('market-state').onchange=()=>{marketOffset=0;loadMarket()};$('market-search').oninput=()=>{clearTimeout(timer);timer=setTimeout(()=>{marketOffset=0;loadMarket()},350)};
+$('market-prev').onclick=()=>{marketOffset=Math.max(0,marketOffset-50);loadMarket()};$('market-next').onclick=()=>{marketOffset+=50;loadMarket()};
 $('close').onclick=()=>$('history').close();
 document.onclick=async e=>{const b=e.target.closest('button[data-stock],button[data-return]');if(!b)return;try{
  let d;if(b.dataset.stock){const q=new URLSearchParams({platform:b.dataset.platform,account:b.dataset.account,sku:b.dataset.sku,warehouse:b.dataset.warehouse});d=await get('/api/warehouse/marketplace-stock/history?'+q);$('history-title').textContent='Остаток '+b.dataset.sku+' · '+b.dataset.warehouse;$('history-body').innerHTML=d.rows.map((x,i)=>`<p>${esc(x.captured_at)} · к продаже <b>${fmt(x.usable_available)}</b>${i+1<d.rows.length?' · '+delta(Number(x.usable_available)-Number(d.rows[i+1].usable_available)):''}</p>`).join('')||'Снимков нет.'}
  else{d=await get('/api/warehouse/marketplace-returns/'+encodeURIComponent(b.dataset.platform)+'/'+encodeURIComponent(b.dataset.account)+'/'+encodeURIComponent(b.dataset.id)+'/history');$('history-title').textContent='Возврат '+b.dataset.id;$('history-body').innerHTML=d.rows.map(x=>`<p><b>${esc(x.status_name||x.status_raw||'—')}</b> · ${esc(x.status_raw||'')}<br><span class="small">Наблюдали ${esc(dt(x.observed_at))}${x.is_baseline?' · исходный снимок':''}${x.source_changed_at?' · МП: '+esc(x.source_changed_at):''}</span><br>${esc(x.place_name||'')} ${x.target_name?'→ '+esc(x.target_name):''}<br><span class="small">Подстатусы: ${esc(JSON.stringify(x.status_evidence||{}))}</span></p>`).join('')||'История ещё не собрана.'}
  $('history').showModal();
 }catch(error){$('history-title').textContent='Ошибка';$('history-body').textContent=error.message;$('history').showModal()}};
-reload();
+reload();loadMarket();
 </script></body></html>
