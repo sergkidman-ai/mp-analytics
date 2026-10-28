@@ -10,6 +10,8 @@ from core.ozon_expense_basis import BasisUnavailable
 from customer_guard.rules import expense_basis as get_basis
 
 router = APIRouter(tags=["Заказы покупателей"])
+NEGATIVE_CODES = "('cancelled','returned','returned_defective')"
+FBS_DETAIL = "coalesce(nullif(o.mp_payload->>'substatus',''),o.mp_status)"
 
 
 def installed():
@@ -22,9 +24,40 @@ def page():
                         headers={"Cache-Control": "no-store"})
 
 
+def negative_filter(value: str):
+    """Return SQL predicates and bound parameters for FBS/FBO, respectively."""
+    if not value:
+        return (None, []), (None, [])
+    if value == 'all':
+        return (f'o.mp_status IN {NEGATIVE_CODES}', []), (f'mp_status IN {NEGATIVE_CODES}', [])
+    if value == 'cancelled':
+        return ("o.mp_status='cancelled'", []), ("mp_status='cancelled'", [])
+    if value == 'returned':
+        return ("o.mp_status IN ('returned','returned_defective')", []), ("mp_status IN ('returned','returned_defective')", [])
+    parts = value.split(':', 2)
+    if len(parts) != 3 or parts[0] not in ('fbs', 'fbo') or parts[1] not in ('ozon', 'wb', 'yandex') or not 0 < len(parts[2]) <= 120:
+        raise HTTPException(422, 'Неизвестный отрицательный статус')
+    scheme, platform, code = parts
+    fbs = (f"o.mp_status IN {NEGATIVE_CODES} AND o.platform=%s AND {FBS_DETAIL}=%s", [platform, code])
+    fbo = (f"mp_status IN {NEGATIVE_CODES} AND platform=%s AND source_status=%s", [platform, code])
+    return (fbs if scheme == 'fbs' else ('false', [])), (fbo if scheme == 'fbo' else ('false', []))
+
+
+def negative_options(fbo_available):
+    """Only codes already observed in marketplace responses; no guessed taxonomy."""
+    rows = db.query(f"""SELECT 'fbs' scheme,o.platform,{FBS_DETAIL} code,count(*) n
+      FROM customer_guard_orders o WHERE o.mp_status IN {NEGATIVE_CODES}
+      GROUP BY o.platform,{FBS_DETAIL}""")
+    if fbo_available:
+        rows += db.query(f"""SELECT 'fbo' scheme,platform,source_status code,count(*) n
+          FROM mp_fbo_orders WHERE mp_status IN {NEGATIVE_CODES}
+          GROUP BY platform,source_status""")
+    return sorted(rows, key=lambda r:(r['platform'],r['scheme'],r['code'] or ''))
+
+
 @router.get("/api/customer-orders")
 def data(status: str = "", signal: str = "", search: str = "", product_code: str = "", account: str = "",
-         scheme: str = "",
+         scheme: str = "", negative_status: str = "",
          limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
     if not installed():
         return dict(installed=False, rows=[], total=0, sync=[], queue={})
@@ -32,6 +65,7 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
         raise HTTPException(422,'Неизвестный кабинет')
     if scheme not in ('','fbs','fbo'):
         raise HTTPException(422,'Неизвестная схема отгрузки')
+    (negative_fbs, negative_fbs_params), (negative_fbo, negative_fbo_params) = negative_filter(negative_status)
     bases={}
     for acc in ACCOUNTS:
         try:bases[acc]=get_basis(acc)
@@ -39,6 +73,8 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
     where, params = ["o.account=ANY(%s)"], [list(ACCOUNTS)]
     if account:
         where.append('o.account=%s');params.append(account)
+    if negative_fbs:
+        where.append('(' + negative_fbs + ')');params.extend(negative_fbs_params)
     if status:
         where.append("(o.ms_status=%s OR o.mp_status=%s)")
         params.extend([status, 'delivered' if status=='Доставлен' else status])
@@ -74,7 +110,7 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
                  if scheme!='fbo' else 0)
     rows = db.query("""SELECT o.id,o.platform,o.account,o.posting_number,o.parent_number,o.mp_status,o.ms_status,o.ms_store,
       o.first_seen_at,o.observed_at,o.ms_due_at,o.ms_checked_at,o.ms_id,
-      o.mp_payload->'products' products,c.result,c.calculated_at,
+      o.mp_payload->'products' products,o.mp_payload->>'substatus' source_status,c.result,c.calculated_at,
       coalesce(c.generation=o.generation,false) current,
       j.state job_state,j.error job_error,j.due_at retry_at, """ + received_at + " mp_received_at " + base +
       "WHERE " + condition + " ORDER BY coalesce(" + received_at + ",o.first_seen_at) DESC,o.id DESC LIMIT %s",
@@ -94,6 +130,8 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
         fwhere, fparams = ["account=ANY(%s)"], [[a for a in ACCOUNTS if a.startswith(('oz_','wb_'))]]
         if account:
             fwhere.append('account=%s');fparams.append(account)
+        if negative_fbo:
+            fwhere.append('(' + negative_fbo + ')');fparams.extend(negative_fbo_params)
         if status:
             normalized='delivered' if status=='Доставлен' else status
             if normalized=='returned':
@@ -112,7 +150,7 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
         fcondition=' AND '.join(fwhere)
         total_fbo=db.query('SELECT count(*) n FROM mp_fbo_orders WHERE '+fcondition,tuple(fparams))[0]['n']
         fbo_rows=db.query("""SELECT id,platform,account,posting_number,parent_number,mp_status,
-          source_status,created_at mp_received_at,observed_at,status_at,warehouse,
+          source_status,source_evidence,created_at mp_received_at,observed_at,status_at,warehouse,
           products,mp_price,price_source FROM mp_fbo_orders WHERE """+fcondition+
           " ORDER BY created_at DESC,id DESC LIMIT %s",tuple(fparams+[limit+offset]))
         for row in fbo_rows:
@@ -135,6 +173,7 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
     notices=db.query("SELECT delivery,count(*) n FROM customer_guard_incidents GROUP BY delivery")
     fbo_sync=(db.query('SELECT * FROM mp_fbo_sync_state ORDER BY scope') if fbo_available else [])
     return dict(installed=True, rows=rows, total=total, queue=queue, runtime=runtime,
+                negative_statuses=negative_options(fbo_available),
                 notifications={x["delivery"]:x["n"] for x in notices},
                 sync=db.query("SELECT * FROM customer_guard_sync_state ORDER BY scope"),
                 fbo_sync=fbo_sync,
@@ -147,8 +186,17 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
 def history(order_id: int):
     if not installed():
         raise HTTPException(503, "Хранилище ещё не установлено")
-    return dict(rows=db.query("""SELECT id,generation,calculated_at,result
-      FROM customer_guard_checks WHERE order_id=%s ORDER BY id DESC LIMIT 50""", (order_id,)))
+    checks=db.query("""SELECT id,generation,calculated_at,result
+      FROM customer_guard_checks WHERE order_id=%s ORDER BY id DESC LIMIT 50""", (order_id,))
+    statuses=db.query("""SELECT fetched_at,mp_status,substatus FROM (
+      SELECT id,fetched_at,payload->>'status' mp_status,payload->>'substatus' substatus,
+        lag(payload->>'status') OVER (ORDER BY id) previous_status,
+        lag(payload->>'substatus') OVER (ORDER BY id) previous_substatus
+      FROM customer_guard_snapshots WHERE order_id=%s
+        AND source IN ('ozon','wb','yandex') AND payload ? 'status') history
+      WHERE mp_status IS DISTINCT FROM previous_status OR substatus IS DISTINCT FROM previous_substatus
+      ORDER BY id DESC LIMIT 50""",(order_id,))
+    return dict(rows=checks,statuses=statuses)
 
 
 @router.get("/api/customer-orders/fbo/{order_id}/history")
@@ -156,5 +204,5 @@ def fbo_history(order_id: int):
     if not db.query("SELECT to_regclass('mp_fbo_order_events') AS name")[0]['name']:
         raise HTTPException(503,"История ФБО ещё не установлена")
     return dict(rows=db.query("""SELECT observed_at,status_at,mp_status,source_status,
-      warehouse,products,mp_price,source_api FROM mp_fbo_order_events
+      source_evidence,warehouse,products,mp_price,source_api FROM mp_fbo_order_events
       WHERE order_id=%s ORDER BY id DESC LIMIT 50""",(order_id,)))

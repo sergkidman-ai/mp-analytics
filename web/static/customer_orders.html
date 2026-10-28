@@ -52,6 +52,7 @@ main{padding:18px}
 .tablewrap button{max-width:100%;padding:5px 6px;white-space:normal;overflow-wrap:anywhere;text-align:left}
 .tablewrap [data-copy]{font-weight:600}.tablewrap [data-history]{margin-top:4px}
 .toolbar input,.toolbar select{min-width:0;max-width:100%}
+#negative-status{width:290px}
 @media(max-width:1100px){
   main{padding:12px}
   .tablewrap table,.tablewrap tbody{display:block;border:0;background:transparent}
@@ -109,6 +110,9 @@ main{padding:18px}
       <option>Ожидает подтверждения</option><option>В пути</option><option>Доставлен</option>
       <option value="cancelled">Отменён на площадке</option><option value="returned">Возврат ФБО</option>
       <option value="created">Создан ФБО</option><option value="status_unknown">Статус ФБО не подтверждён</option></select>
+    <select id="negative-status" aria-label="Отрицательный статус площадки"><option value="">Все исходы</option>
+      <option value="all">Все отрицательные</option><option value="cancelled">Отмены</option>
+      <option value="returned">Возвраты</option></select>
     <select id="signal" aria-label="Результат проверки"><option value="">Все результаты</option>
       <option value="non_positive_profit">Убыточные / без прибыли (≤ 0 ₽)</option>
       <option value="cost_unconfirmed">ФБО: себестоимость не подтверждена</option>
@@ -128,6 +132,7 @@ main{padding:18px}
   <div class="footer"><span id="count" class="small"></span><div>
     <button id="prev">← Назад</button> <button id="next">Далее →</button></div></div>
   <p class="note">Для ФБО показаны заказы площадки; себестоимость, прибыль и пол появятся только при подтверждённом происхождении конкретной единицы. ФБО не проверяется в МС и не создаёт уведомлений об убытке.
+    Фильтр отрицательных статусов показывает текущий статус отправления и исходный код МП. Сам по себе статус не подтверждает, куда физически вернулся товар; возврат после доставки может быть отдельным событием площадки.
     Для ФБС цена Ozon — с площадки; цена WB и Маркета — из МС, без скидок за счёт площадки. Обе исходные суммы сохранены. Отклонение — цена минус пол, не чистая прибыль. Для Маркета расходы фиксированы: 72% от цены продажи.
     Расчётная чистая прибыль = цена продажи − себестоимость − расходы площадки по средней доле кабинета.
     Минимум прибыли: 200 ₽ на единицу при себестоимости до 150 ₽ включительно; выше — 300 ₽ или 10% себестоимости, что больше.
@@ -143,6 +148,18 @@ const dt=v=>v?new Date(v).toLocaleString('ru-RU',{timeZone:'Europe/Moscow',day:'
 const mp={awaiting_packaging:'Ожидает сборки',awaiting_deliver:'Ожидает отгрузки',delivering:'В пути',delivered:'Доставлен',cancelled:'Отменён',created:'Создан',returned:'Возврат',returned_defective:'Возврат: брак',status_unknown:'Статус не подтверждён'};
 const kinds={actual:'Факт отгрузки',purchase_estimate:'Оценка закупки',fifo_estimate:'Предварительный FIFO'};
 const signals={below_floor:'Ниже пола',missing_ms:'Нет в МС',unknown:'Недостаточно данных',aggregate_only:'Проверен только итог',draft:'Черновик',ok:'Выше пола'};
+const negative=row=>['cancelled','returned','returned_defective'].includes(row.mp_status);
+const detail=row=>row.scheme==='fbo'?(row.source_evidence?.substatus||row.source_status||row.mp_status):(row.source_status||row.mp_status);
+function fillNegativeOptions(rows){
+  const select=$('negative-status'),previous=select.value;
+  const fixed='<option value="">Все исходы</option><option value="all">Все отрицательные</option><option value="cancelled">Отмены</option><option value="returned">Возвраты</option>';
+  select.innerHTML=fixed+(rows||[]).map(x=>{
+    const value=`${x.scheme}:${x.platform}:${x.code}`;
+    const platform={ozon:'Ozon',wb:'WB',yandex:'Маркет'}[x.platform]||x.platform;
+    return `<option value="${esc(value)}">${esc(platform)} · ${x.scheme==='fbo'?'ФБО':'ФБС'} · ${esc(x.code)} (${Number(x.n)})</option>`;
+  }).join('');
+  if([...select.options].some(x=>x.value===previous))select.value=previous;
+}
 let offset=0,total=0,request=0;
 function state(row){
   if(row.scheme==='fbo')return 'Себестоимость не подтверждена';
@@ -157,9 +174,10 @@ async function api(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)t
 async function load(){
   const n=++request;$('message').textContent='Загрузка…';
   try{
-    const q=new URLSearchParams({limit:50,offset,status:$('status').value,signal:$('signal').value,search:$('search').value,account:$('account').value,scheme:$('scheme').value,product_code:$('product-code').value.trim()});
+    const q=new URLSearchParams({limit:50,offset,status:$('status').value,negative_status:$('negative-status').value,signal:$('signal').value,search:$('search').value,account:$('account').value,scheme:$('scheme').value,product_code:$('product-code').value.trim()});
     const d=await api('/api/customer-orders?'+q);if(n!==request)return;
     total=d.total;
+    fillNegativeOptions(d.negative_statuses);
     const syncLabel=(d.sync||[]).filter(x=>x.scope.endsWith('/fbs')).map(x=>(({wb:'WB',ozon:'Ozon',yandex:'Маркет'}[x.scope.split('/')[0]]||'')+' '+(x.scope.includes('acc1')?'Цифровой: ':'Дисквэр: '))+dt(x.completed_at)).join(' · ');
     const fboSync=(d.fbo_sync||[]).filter(x=>x.scope.endsWith('/fbo')).map(x=>(x.scope.startsWith('wb/')?'WB':'Ozon')+' '+(x.scope.includes('acc1')?'Цифровой: ':'Дисквэр: ')+dt(x.completed_at)).join(' · ');
     $('runtime').textContent=(d.automatic_updates?
@@ -172,7 +190,7 @@ async function load(){
     $('stats').innerHTML=[['Заказов в выборке',total],['Очередь проверок МС · ФБС',d.queue?.pending??0],
       ['Последнее получение ФБС',syncLabel||'—'],['Последнее получение ФБО',fboSync||'—']].map(([label,value])=>`<div class="bi"><div class="l">${esc(label)}</div><div class="v">${esc(value)}</div></div>`).join('');
     $('message').textContent=!d.installed?'Хранилище пилота ещё не установлено.':!total?
-      ($('signal').value==='non_positive_profit'?'По текущим проверенным данным заказов с чистой прибылью ≤ 0 ₽ по выбранным условиям нет. Непроверенные заказы в этот результат не входят.':'Заказов по этим условиям пока нет.') : '';
+      ($('signal').value==='non_positive_profit'?'По текущим проверенным данным заказов с чистой прибылью ≤ 0 ₽ по выбранным условиям нет. Непроверенные заказы в этот результат не входят.':$('negative-status').value?'Заказов с таким отрицательным статусом в сохранённых данных пока нет.':'Заказов по этим условиям пока нет.') : '';
     $('rows').innerHTML=d.rows.map(row=>{
       const r=row.result||{},valid=row.current&&!row.job_error;
       const isWB=row.platform==='wb',msPrice=['wb','yandex'].includes(row.platform),marketName={wb:'WB',ozon:'Ozon',yandex:'Маркет'}[row.platform]||row.platform,company=row.account.endsWith('acc1')?'Цифровой':'Дисквэр';
@@ -180,7 +198,7 @@ async function load(){
         const goods=(row.products||[]).map(p=>`<div>${esc(p.name||p.offer_id||'Товар')} × ${esc(p.quantity)}</div><div class="small">Артикул: ${esc(p.offer_id||'—')} · SKU: ${esc(p.sku||'—')}</div>`).join('');
         const priceNote=row.price_source==='wb_order_feed_seller_price'?'Цена продавца WB':row.price_source==='wb_orders_price_with_disc'?'Цена из статистики WB':'Цена из заказа Ozon';
         return `<tr><td data-label="Отправление · новые сверху"><span class="badge">ФБО</span> <button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа">${esc(row.posting_number)} ⧉</button><div class="small">Заказ ${esc(dt(row.mp_received_at))}</div><button class="small" data-history="${Number(row.id)}" data-scheme="fbo">История статусов</button></td>
-          <td data-label="Статусы"><div>${esc(marketName)} · ${esc(company)}: ${esc(mp[row.mp_status]||row.source_status||row.mp_status)}</div><div class="small">Склад площадки</div></td>
+          <td data-label="Статусы"><div>${esc(marketName)} · ${esc(company)}: ${esc(mp[row.mp_status]||row.source_status||row.mp_status)}</div>${negative(row)?`<div class="small">Код МП: ${esc(row.source_status||row.mp_status)}${row.source_evidence?.substatus?' · '+esc(row.source_evidence.substatus):''}</div>`:''}<div class="small">Склад площадки</div></td>
           <td data-label="Товар / склад">${goods}<div class="small">${esc(row.warehouse||'Склад МП не указан')}</div></td>
           <td data-label="Цена продажи" class="money">${esc(money(row.mp_price))}<div class="small">${esc(priceNote)}</div></td>
           <td data-label="Себестоимость" class="money">—</td><td data-label="Чистая прибыль" class="money">—</td>
@@ -194,8 +212,8 @@ async function load(){
       const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар '+marketName+'; состав МС ещё не проверен';
       const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
       return `<tr><td data-label="Отправление · новые сверху"><span class="badge">ФБС</span> <button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?marketName+' · поступил':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
-        <button class="small" data-history="${Number(row.id)}">История проверок</button></td>
-        <td data-label="Статусы"><div>${marketName} · ${company}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
+        <button class="small" data-history="${Number(row.id)}">История статусов и проверок</button></td>
+        <td data-label="Статусы"><div>${marketName} · ${company}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div>${negative(row)?`<div class="small">Код МП: ${esc(row.mp_status)}${detail(row)!==row.mp_status?' · '+esc(detail(row)):''}</div>`:''}<div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
         <td data-label="Выбранный товар / склад"><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>
           <div class="small">${hasMS?`Код МС: <b>${esc(p.code||'—')}</b> · Внешний код: ${esc(p.external_code||'—')}`:`Артикул ${marketName}: ${esc(p.offer_id||'—')}`}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
@@ -211,7 +229,7 @@ async function load(){
   }catch(e){if(n===request){$('message').textContent=e.message;$('rows').innerHTML='';}}
 }
 $('refresh').onclick=()=>{offset=0;load();};
-for(const id of ['status','signal','account','scheme'])$(id).onchange=()=>{offset=0;load();};
+for(const id of ['status','negative-status','signal','account','scheme'])$(id).onchange=()=>{offset=0;load();};
 for(const id of ['search','product-code'])$(id).onkeydown=e=>{if(e.key==='Enter'){offset=0;load();}};
 $('prev').onclick=()=>{offset=Math.max(0,offset-50);load();};
 $('next').onclick=()=>{offset+=50;load();};
@@ -236,12 +254,14 @@ $('rows').onclick=async e=>{
   const button=e.target.closest('[data-history]');if(!button)return;
   $('history').showModal();$('history-body').textContent='Загрузка…';
   try{const fbo=button.dataset.scheme==='fbo';const d=await api(fbo?'/api/customer-orders/fbo/'+button.dataset.history+'/history':'/api/customer-orders/'+button.dataset.history+'/history');
-    if(fbo){$('history-body').innerHTML=d.rows.length?d.rows.map(x=>`<p><b>${esc(dt(x.status_at||x.observed_at))}</b> · ${esc(mp[x.mp_status]||x.source_status)}<br>${esc(x.warehouse||'Склад не указан')} · ${esc(money(x.mp_price))}</p>`).join(''):'Истории пока нет.';return;}
-    $('history-body').innerHTML=d.rows.length?d.rows.map(x=>`<p><b>${esc(dt(x.calculated_at))}</b> · ${esc(signals[x.result.signal]||x.result.signal)}<br>
+    if(fbo){$('history-body').innerHTML=d.rows.length?d.rows.map(x=>`<p><b>${esc(dt(x.status_at||x.observed_at))}</b> · ${esc(mp[x.mp_status]||x.source_status)}<br>Код МП: ${esc(x.source_status||x.mp_status)}${x.source_evidence?.substatus?' · '+esc(x.source_evidence.substatus):''}<br>${esc(x.warehouse||'Склад не указан')} · ${esc(money(x.mp_price))}</p>`).join(''):'Истории пока нет.';return;}
+    const statusHistory=(d.statuses||[]).map(x=>`<p><b>${esc(dt(x.fetched_at))}</b> · ${esc(mp[x.mp_status]||x.mp_status)}<br>Код МП: ${esc(x.mp_status)}${x.substatus?' · '+esc(x.substatus):''}</p>`).join('');
+    const checks=d.rows.length?d.rows.map(x=>`<p><b>${esc(dt(x.calculated_at))}</b> · ${esc(signals[x.result.signal]||x.result.signal)}<br>
       ${esc(kinds[x.result.cost_kind]||'Стоимость не определена')}: ${esc(money(x.result.cost))} · Пол: ${esc(money(x.result.floor))}<br>
       Расчётная чистая прибыль: ${esc(money(x.result.estimated_net))}<br>${esc(x.result.note)}
       ${x.result.recalculation?`<br>${x.result.recalculation==='expense_basis_and_composition'?'Пересчёт базы и состава по справочнику ТК':'Пересчёт базы расходов'}; себестоимость проверена ${esc(dt(x.result.cost_observed_at))}`:''}
       ${x.result.expense_period_from?`<br>База расходов: ${esc(x.result.expense_period_from)} — ${esc(x.result.expense_period_to)}`:''}</p>`).join(''):'Проверок пока нет.';
+    $('history-body').innerHTML='<h3>Статусы площадки</h3>'+(statusHistory||'Истории статусов пока нет.')+'<h3>Проверки себестоимости</h3>'+checks;
   }catch(e){$('history-body').textContent=e.message;}
 };
 load();
