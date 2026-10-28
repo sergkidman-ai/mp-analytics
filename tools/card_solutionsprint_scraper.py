@@ -70,13 +70,22 @@ def login(session):
         r = session.post(action, data=data, timeout=(15, 45))
     except requests.RequestException:
         raise RuntimeError('Supplier login request failed') from None
-    if r.status_code != 200:
+    if r.status_code not in (200, 500):
         raise RuntimeError(f'Supplier login HTTP {r.status_code}')
-    doc = html.fromstring(r.content)
+    doc = html.fromstring(r.content) if r.status_code == 200 else html.fromstring('<html/>')
     logout = doc.xpath('//a[contains(@href,"logout=yes") or contains(@href,"logout=Y")]')
+    verification = 'login response'
+    # The supplier may establish the session, then fail rendering the POST response.
+    # Verify that session with a safe GET; never repeat credential submission.
+    if r.status_code == 500 or not logout or doc.xpath('//input[@name="USER_PASSWORD"]'):
+        personal = get(session, BASE + '/personal/')
+        doc = html.fromstring(personal.content)
+        logout = doc.xpath('//a[contains(@href,"logout=yes") or contains(@href,"logout=Y")]')
+        verification = 'personal page after login'
     if not logout or doc.xpath('//input[@name="USER_PASSWORD"]'):
         raise RuntimeError('Authenticated session not confirmed; no further private requests')
-    return {'authenticated': True, 'verification': 'logout link present, password form absent'}
+    return {'authenticated': True, 'verification': verification + ': logout link present, password form absent',
+            'login_post_status': r.status_code}
 
 
 def parse_card(content, url, authenticated=False):
