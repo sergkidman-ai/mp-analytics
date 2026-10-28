@@ -293,6 +293,8 @@ def collect_stocks(account, captured_at, since="2025-01-01"):
             recs.append({**base, "warehouse": IN_WAY_WH, "quantity": 0, "quantity_full": 0,
                          **in_way})
     db.upsert("wb_stocks", recs, conflict_cols=["account", "nm_id", "warehouse", "captured_at"])
+    from collectors.mp_stock_history import record_snapshot
+    record_snapshot("wb", account, captured_at, recs)
     return len(recs)
 
 

@@ -59,6 +59,8 @@ def main(account="oz_acc1"):
     n = db.upsert("ozon_fbo_stock", recs,
                   conflict_cols=["account", "sku", "warehouse", "captured_at"],
                   update_cols=["item_code", "item_name", "free_to_sell", "reserved", "promised"])
+    from collectors.mp_stock_history import record_snapshot
+    record_snapshot("ozon", account, cap, recs)
     units = sum(r["free_to_sell"] for r in recs)
     print(f"Записано строк: {n} | складов: {len({r['warehouse'] for r in recs})} | "
           f"к продаже: {units}", flush=True)

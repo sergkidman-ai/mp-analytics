@@ -113,6 +113,9 @@ def store(rows, mark_gone=True):
               update_cols=[c for c in HEAD_COLS if c not in KEY] + ["last_seen", "gone_at"])
     if item_rows:
         db.upsert("mp_return_items", item_rows, KEY + ["seq"])
+    # Keep the marketplace's actual return states for later route analysis. No extra API calls.
+    from collectors.mp_return_status_history import record as record_statuses
+    record_statuses(rows, observed_at=now)
 
     # Дату «возврат у нас» ставим сами: у площадок её нет (см. миграцию 302). Штампуем ровно
     # те строки, что записаны этим прогоном (last_seen = now), и только один раз — иначе дата
