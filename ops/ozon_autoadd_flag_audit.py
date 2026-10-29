@@ -20,7 +20,7 @@ MAX_PAGES = 500
 JOURNAL = Path('/opt/mp-analytics/logs/ozon_autoadd_flag_runs.jsonl')
 
 
-def scan_account(account, api=None):
+def scan_account(account, api=None, on_enabled=None):
     """Return a complete count or raise; never call a mutating endpoint."""
     api = api or Api(account)
     cursor = ''
@@ -46,6 +46,8 @@ def scan_account(account, api=None):
             value = (item.get('price') or {}).get('auto_add_to_ozon_actions_list_enabled')
             if value is True:
                 counts['enabled'] += 1
+                if on_enabled is not None:
+                    on_enabled(item)
                 if len(examples) < 10:
                     examples.append(item.get('offer_id') or str(product_id))
             elif value is False:

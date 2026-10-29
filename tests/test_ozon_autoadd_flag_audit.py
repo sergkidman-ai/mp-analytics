@@ -39,6 +39,14 @@ class AuditTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'received 1 of total 2'):
             audit.scan_account('oz_acc1', api)
 
+    def test_callback_receives_only_enabled_targets(self):
+        api = Mock(calls=1)
+        api.post.return_value = (200, {'items': [item(1, True), item(2, False)],
+                                      'cursor': '', 'total': 2})
+        targets = []
+        audit.scan_account('oz_acc1', api, on_enabled=targets.append)
+        self.assertEqual([target['product_id'] for target in targets], [1])
+
 
 if __name__ == '__main__':
     unittest.main()
