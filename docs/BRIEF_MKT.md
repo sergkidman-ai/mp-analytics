@@ -1,5 +1,27 @@
 # BRIEF_MKT — поток «Маркетинг / видимость»
 
+## 29.10.2026 — ночной запуск снятия автоучастия Ozon
+
+По прямой команде пользователя подготовлен разовый guarded runner
+`ops/ozon_autoadd_flag_night.py`, установлен в общий checkout вместе с audit
+и manifest modules. Свежий полный read-only проход 18:06 UTC: oz_acc1 5940,
+oz_acc2 6377 включённых, unknown=0; всего 12317. У всех кандидатов есть
+`price`, `old_price`, `min_price`, `currency_code`; чтение по фильтру списка
+`product_id` проверено на обоих аккаунтах и пакетно на пяти ID.
+
+Одноразовый cron выставлен на 29.10 21:45 UTC / 30.10 00:45 МСК с локальной
+датой guard 2026-10-30. Перед массовой записью скрипт проверит по одному
+товару каждого аккаунта: `/v1/product/import/prices`, флаг
+`auto_add_to_ozon_actions_list_enabled=DISABLED`,
+`auto_action_enabled=UNKNOWN`, цены передаются ровно как прочитаны. После
+каждой пилотной/50-товарной пачки перечитываются флаг, цены, валюта и связанные
+поля; любое отклонение останавливает последующие записи. В конце требуется
+полный повторный срез с enabled=unknown=0. По умолчанию runner read-only;
+для записи нужны `--apply` и точная дата МСК. Перед cron проведены py_compile,
+read-only dry-run (5940/6377) и preflight сериализации 12317 payload без API
+записи. Полного тестового набора не запускал. Runner/run-log в
+`/opt/mp-analytics/logs/ozon_autoadd_night_runs.jsonl`.
+
 ## 29.10.2026 — подготовка ночного снятия автодобавления Ozon
 
 Новый read-only `ops/ozon_autoadd_flag_manifest.py` полностью перечитывает
