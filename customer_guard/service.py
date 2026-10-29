@@ -336,5 +336,78 @@ def refresh_yandex(limit=3, older_than=None):
     return dict(refreshed=len(rows))
 
 
+def observe_handoff_window(accounts, now=None):
+    """Extra marketplace-only reads for orders awaiting physical handoff, 16–19 MSK."""
+    from zoneinfo import ZoneInfo
+    now = now or utcnow()
+    if not 16 <= now.astimezone(ZoneInfo('Europe/Moscow')).hour < 19:
+        return dict(refreshed=0, outside_window=True)
+    cutoff = now - timedelta(minutes=5)
+    total = 0
+    with exclusive() as pulse:
+        for account in accounts:
+            platform = ACCOUNTS[account]
+            waiting = ("mp_status='awaiting_deliver' OR "
+                       "(mp_status='delivering' AND mp_payload->>'substatus'='complete:waiting')")
+            rows = db.query("""SELECT posting_number,mp_payload FROM customer_guard_orders
+              WHERE account=%s AND (""" + waiting + """
+              ) AND observed_at<%s AND first_seen_at>%s
+              ORDER BY observed_at,id LIMIT %s""",
+              (account, cutoff, now-timedelta(days=7),
+               100 if platform == 'wb' else 4 if platform == 'ozon' else 3))
+            if not rows:
+                continue
+            pulse()
+            if platform == 'wb':
+                from customer_guard.wb import WBClient
+                posts = WBClient(account=account).refresh_posts([r['mp_payload'] for r in rows])
+            elif platform == 'yandex':
+                from customer_guard.yandex import YandexClient
+                client = YandexClient()
+                posts = [client.get_post(r['mp_payload']) for r in rows]
+            else:
+                posts = [get_posting(r['posting_number'], account=account) for r in rows]
+            observed = utcnow()
+            with store.transaction() as cur:
+                for post in posts:
+                    store.observe(cur, post, observed, observed, 'handoff/window')
+            total += len(posts)
+    return dict(refreshed=total, accounts=len(accounts))
+
+
+def observe_recent_cancellations(accounts, now=None):
+    """Follow terminal statuses for 48h; no MoySklad calls or writes."""
+    now = now or utcnow()
+    total = 0
+    with exclusive() as pulse:
+        for account in accounts:
+            platform = ACCOUNTS[account]
+            rows = db.query("""SELECT o.posting_number,o.mp_payload FROM customer_guard_orders o
+              JOIN customer_guard_cancel_review r ON r.order_id=o.id
+              WHERE o.account=%s AND o.mp_status='cancelled'
+              AND r.first_cancelled_at>%s AND o.observed_at<%s
+              ORDER BY o.observed_at,o.id LIMIT %s""",
+              (account, now-timedelta(hours=48), now-timedelta(hours=2),
+               100 if platform == 'wb' else 5 if platform == 'ozon' else 3))
+            if not rows:
+                continue
+            pulse()
+            if platform == 'wb':
+                from customer_guard.wb import WBClient
+                posts = WBClient(account=account).refresh_posts([r['mp_payload'] for r in rows])
+            elif platform == 'yandex':
+                from customer_guard.yandex import YandexClient
+                client = YandexClient()
+                posts = [client.get_post(r['mp_payload']) for r in rows]
+            else:
+                posts = [get_posting(r['posting_number'], account=account) for r in rows]
+            observed = utcnow()
+            with store.transaction() as cur:
+                for post in posts:
+                    store.observe(cur, post, observed, observed, 'cancel/followup')
+            total += len(posts)
+    return dict(refreshed=total, accounts=len(accounts))
+
+
 if __name__ == "__main__":
     main()
