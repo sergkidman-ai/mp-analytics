@@ -185,7 +185,7 @@ async function load(){
       return `<tr><td data-label="Отправление · новые сверху"><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?marketName+' · поступил':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
         <button class="small" data-history="${Number(row.id)}">История проверок</button></td>
         <td data-label="Статусы"><div>${marketName} · ${company}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div>
-          ${row.cancel_category?`<div class="small"><b>Отмена в Пульте:</b> ${esc(row.cancel_category)}</div>`:''}
+          ${row.cancel_category?`<div class="small"><b>Отмена в Пульте:</b> ${esc(row.cancel_category)}</div>`:row.mp_status==='cancelled'?'<div class="small">Отмена вне периода наблюдения</div>':''}
           ${row.first_handoff_at?`<div class="small">Передача МП замечена: ${esc(dt(row.first_handoff_at))}</div>`:''}
           <div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
         <td data-label="Выбранный товар / склад"><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>
