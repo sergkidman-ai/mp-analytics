@@ -142,7 +142,7 @@ def main(argv=None):
     if a.dry_run:
         print(text)
         return 0
-    targets = a.to or tg.notify_ids()
+    targets = [target for target in (a.to or tg.notify_ids()) if tg.can_receive_codes(target) and tg.can_receive_lists(target)]
     if not targets:
         print("некому слать: пуст TG_RETURNS_NOTIFY_ID / TG_RETURNS_ALLOWED_IDS")
         return 1

@@ -1,9 +1,10 @@
 [Unit]
-Description=Retry late Wildberries QR delivery hourly Mon-Sat 09:15-23:15 MSK
+Description=Retry late WB QR: weekdays from 10:15, Saturday from 14:15 MSK
 
 [Timer]
-# Server timezone UTC: 06:15-20:15 = 09:15-23:15 Moscow.
-OnCalendar=Mon..Sat *-*-* 06..20:15:00
+# Server UTC: 07:15 = 10:15 Moscow; existing full-report users wait until 14:15.
+OnCalendar=Mon..Fri *-*-* 07..20:15:00
+OnCalendar=Sat *-*-* 11..20:15:00
 Persistent=true
 Unit=returns-wb-qr-followup.service
 

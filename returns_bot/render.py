@@ -5,7 +5,7 @@
 """
 import html
 import re
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import datetime, timezone
 
 from core import db
@@ -257,7 +257,7 @@ def stage_section(stage, heads, items, with_title=True):
                 sorted(by_pvz.items(), key=lambda kv: str(kv[0]))):
             if n_pvz:
                 out.append("")
-            out.append(f"  📍 {_esc(pvz_label(name, address))}")
+            out.append(f"  📍 <b>{_esc(pvz_label(name, address))}</b>")
             for n_ret, h in enumerate(pvz_rows):
                 if n_ret:
                     out.append("")
@@ -319,5 +319,38 @@ def pvz_digest():
     out = ["📍 <b>Точки, где лежат возвраты</b>"]
     for (org, platform, name, address), n in sorted(by.items(), key=lambda kv: -kv[1]):
         out.append(f"{PLATFORM_ICON.get(platform, '⚪')} {_esc(org)} · "
-                   f"{_esc(pvz_label(name, address))} — <b>{n}</b>")
+                   f"<b>{_esc(pvz_label(name, address))}</b> — <b>{n}</b>")
     return "\n".join(out)
+
+
+def daily_summaries(report, now, refreshed=True, incomplete=False):
+    """Two company reports from one DB snapshot; counts mean return records, not units."""
+    if report not in {"morning", "full"}:
+        raise ValueError("unknown report")
+    heads, items = fetch(("pickup",))
+    letters = []
+    names = {"ozon": "Ozon", "wb": "Wildberries", "yandex": "Яндекс Маркет"}
+    for org in orgs.ORDER:
+        rows = [h for h in heads if orgs.of(h["platform"], h["account"]) == org]
+        counts = Counter(h["platform"] for h in rows)
+        platforms = [p for p in names if any(k[0] == p for k in orgs.accounts(org))]
+        heading = "Предварительный отчёт" if report == "morning" else "Список к получению"
+        lines = [f"📦 <b>{_esc(org)} · Возвраты</b>",
+                 f"<b>{heading} · {now:%d.%m.%Y}</b>"]
+        if incomplete:
+            lines += ["⚠️ Не все площадки удалось обновить. Часть данных может быть устаревшей."]
+        elif refreshed:
+            lines += [f"Данные обновлены в {now:%H:%M} МСК."]
+        else:
+            lines += ["Сохранённые данные, без обновления площадок."]
+        lines += ["", "Готовы к получению:"]
+        lines += [f"{names[p]} — <b>{counts[p]}</b>" for p in platforms]
+        lines += [f"<b>Итого — {len(rows)}</b>"]
+        if report == "morning":
+            lines += ["", "В течение дня количество может измениться.",
+                      "Полный список заказов с адресами ПВЗ — в 14:00 МСК."]
+        else:
+            lines += ["", stage_section("pickup", rows, items, with_title=False)
+                      if rows else "Забирать нечего."]
+        letters.append((org, "\n".join(lines)))
+    return letters

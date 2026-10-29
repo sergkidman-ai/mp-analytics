@@ -1,0 +1,12 @@
+[Unit]
+Description=Returns full lists Mon-Sat at 14:00 MSK
+
+[Timer]
+# Server UTC: 11:00 = 14:00 Moscow.
+OnCalendar=Mon..Sat *-*-* 11:00:00
+AccuracySec=1s
+Persistent=true
+Unit=returns-full.service
+
+[Install]
+WantedBy=timers.target

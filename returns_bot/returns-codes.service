@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekday 10:00 MSK codes-only returns delivery
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python -m returns_bot.codes_push
+UMask=0077
+StandardOutput=journal
+StandardError=journal

@@ -21,10 +21,11 @@ class FollowupTests(unittest.TestCase):
         self.stack = ExitStack()
         self.enterContext = self.stack.enter_context
         self.addCleanup(self.stack.close)
+        self.enterContext(patch.object(tg, 'codes_only_notify_ids', return_value=[]))
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         root = Path(self.temp.name)
-        self.now = datetime(2026, 10, 26, 11, tzinfo=wb_qr.MSK)
+        self.now = datetime(2026, 10, 26, 15, tzinfo=wb_qr.MSK)
         for obj, attr, value in [(wb_qr, 'CACHE', root/'diskver'),
                                   (wb_qr, 'CACHE_DIGITAL', root/'digital'),
                                   (delivery, 'DIRECTORY', root/'receipts')]:
@@ -89,7 +90,7 @@ class FollowupTests(unittest.TestCase):
         self.assertEqual(self.doc.call_args.args[0], 'fixture2')
 
     def test_no_followup_before_report_or_on_sunday_or_for_yesterday(self):
-        self.assertEqual(followup.run(now=self.now.replace(hour=9,minute=14)), {})
+        self.assertEqual(followup.run(now=self.now.replace(hour=14,minute=14)), {})
         self.assertEqual(followup.run(now=self.now.replace(day=1,month=11)), {})
         self.assertEqual(followup.run(now=self.now.replace(day=27)), {'missing':1})
         self.doc.assert_not_called()

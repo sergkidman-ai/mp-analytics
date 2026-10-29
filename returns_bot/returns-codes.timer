@@ -1,0 +1,12 @@
+[Unit]
+Description=Returns pickup codes Mon-Fri at 10:00 MSK
+
+[Timer]
+# Server UTC: 07:00 = 10:00 Moscow.
+OnCalendar=Mon..Fri *-*-* 07:00:00
+AccuracySec=1s
+Persistent=true
+Unit=returns-codes.service
+
+[Install]
+WantedBy=timers.target

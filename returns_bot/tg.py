@@ -6,6 +6,8 @@
 import json
 import os
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
@@ -24,15 +26,51 @@ def token():
     return t
 
 
+def list_only_ids():
+    """Private recipients authorized for daily text return lists only."""
+    return {c.strip() for c in os.getenv("TG_RETURNS_LIST_ONLY_IDS", "").split(",") if c.strip()}
+
+
+def codes_only_ids():
+    """Recipients of the separate weekday 10:00 codes delivery, without reports."""
+    return {c.strip() for c in os.getenv("TG_RETURNS_CODES_ONLY_IDS", "").split(",") if c.strip()}
+
+
+def can_receive_lists(chat_id):
+    return str(chat_id) not in codes_only_ids()
+
+
+def codes_only_notify_ids(now=None):
+    now = now or datetime.now(ZoneInfo("Europe/Moscow"))
+    if now.tzinfo is not None:
+        now = now.astimezone(ZoneInfo("Europe/Moscow"))
+    return sorted(c for c in codes_only_ids() if can_receive_codes(c)) if now.weekday() < 5 else []
+
+
+def can_receive_codes(chat_id):
+    return str(chat_id) not in list_only_ids()
+
+
+def daily_notify_ids(now=None):
+    """Automatic daily recipients, with individual Saturday exclusions in Moscow time."""
+    now = now or datetime.now(ZoneInfo("Europe/Moscow"))
+    if now.tzinfo is not None:
+        now = now.astimezone(ZoneInfo("Europe/Moscow"))
+    excluded = ({c.strip() for c in os.getenv("TG_RETURNS_NO_SATURDAY_IDS", "").split(",")
+                 if c.strip()} if now.weekday() == 5 else set())
+    recipients = list(dict.fromkeys(notify_ids() + sorted(list_only_ids())))
+    return [c for c in recipients if c not in excluded and can_receive_lists(c)]
+
+
 def allowed_ids():
     raw = os.getenv("TG_RETURNS_ALLOWED_IDS", "") or ""
-    return {c.strip() for c in raw.split(",") if c.strip()}
+    return {c.strip() for c in raw.split(",") if c.strip()} | list_only_ids() | codes_only_ids()
 
 
 def notify_ids():
     raw = os.getenv("TG_RETURNS_NOTIFY_ID", "") or ""
     ids = [c.strip() for c in raw.split(",") if c.strip()]
-    return ids or sorted(allowed_ids())
+    return [c for c in (ids or sorted(allowed_ids())) if can_receive_codes(c) and can_receive_lists(c)]
 
 
 class Rejected(RuntimeError):
@@ -40,6 +78,10 @@ class Rejected(RuntimeError):
 
 
 def _api(method, data=None, files=None, tries=4):
+    if method in {"sendPhoto", "sendDocument", "sendMediaGroup", "sendVideo", "sendAnimation",
+                  "sendAudio", "sendVoice", "copyMessage", "copyMessages", "forwardMessage", "forwardMessages"}:
+        if not can_receive_codes((data or {}).get("chat_id")):
+            raise PermissionError("This recipient is authorized for text return lists only")
     url = f"https://api.telegram.org/bot{token()}/{method}"
     for n in range(tries):
         try:
