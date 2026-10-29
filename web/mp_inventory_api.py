@@ -131,7 +131,14 @@ def stock_history(platform: str, account: str, sku: str, warehouse: str):
       usable_total,reserved,promised,in_way_to_client,in_way_from_client
       FROM mp_stock_history WHERE platform=%s AND account=%s AND sku=%s AND warehouse=%s
       ORDER BY captured_at DESC LIMIT 180""",(platform,account,sku,warehouse))
-    return dict(rows=rows)
+    links=[]
+    if platform == 'wb':
+        links=db.query("""SELECT l.previous_capture,l.current_capture,l.quantity,l.evidence,
+          o.posting_number,o.created_at,o.mp_status
+          FROM mp_fbo_stock_link_candidates l JOIN mp_fbo_orders o ON o.id=l.order_id
+          WHERE l.account=%s AND l.sku=%s AND l.source_warehouse=%s
+          ORDER BY l.current_capture DESC LIMIT 30""",(account,sku,warehouse))
+    return dict(rows=rows,links=links)
 
 
 @router.get("/api/warehouse/marketplace-returns")
