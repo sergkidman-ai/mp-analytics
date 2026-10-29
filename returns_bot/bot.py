@@ -26,6 +26,23 @@ HELP = (
     "Под сводкой есть кнопка «Обновить» — то же самое, но не набирая команду."
 )
 
+HELP_LIST_ONLY = (
+    "📦 <b>Бот возвратов</b>\n\n"
+    "Вам доступны ежедневные списки возвратов без кодов получения.\n\n"
+    "/vozvraty — что лежит и ждёт забора\n"
+    "/pvz — точки: куда ехать и сколько там\n"
+    "/obnovit — обновить список\n\n"
+    "Под сводкой есть кнопка «Обновить»."
+)
+
+HELP_CODES_ONLY = (
+    "📦 <b>Коды получения возвратов</b>\n\n"
+    "Штрихкоды Ozon и QR Wildberries по Цифровому и Дисквэру — "
+    "по будням в 10:00 МСК. Если QR появится позже, он придёт отдельно.\n"
+    "Списки заказов и отчёты не отправляются.\n\n"
+    "/shtrihkod — получить штрихкоды Ozon"
+)
+
 # Кнопка под сводкой: сходить в кабинеты и перерисовать список. То же, что /obnovit + /vozvraty.
 CB_REFRESH = "ret:refresh"
 KB_REFRESH = {"inline_keyboard": [[{"text": "🔄 Обновить", "callback_data": CB_REFRESH}]]}
@@ -108,6 +125,9 @@ def refresh(chat_id):
 
 def handle_callback(chat_id, cq):
     """Нажатие кнопки. «Часики» гасим сразу: Telegram ждёт ответ ~10 с, а сбор идёт минутами."""
+    if not tg.can_receive_lists(chat_id):
+        tg.answer_callback(cq["id"], "Вам доступны только коды получения")
+        return
     if cq.get("data") != CB_REFRESH:
         tg.answer_callback(cq["id"])
         return
@@ -119,15 +139,25 @@ def handle_callback(chat_id, cq):
 
 
 def handle(chat_id, text):
-    cmd = (text or "").strip().split()[0].lower().split("@")[0]
+    parts = (text or "").strip().split()
+    cmd = parts[0].lower().split("@")[0] if parts else ""
+    help_text = HELP if tg.can_receive_codes(chat_id) else HELP_LIST_ONLY
+    if not tg.can_receive_lists(chat_id):
+        help_text = HELP_CODES_ONLY
+        if cmd != "/shtrihkod":
+            tg.send(chat_id, help_text)
+            return
 
     if cmd in ("/start", "/help"):
-        tg.send(chat_id, HELP)
+        tg.send(chat_id, help_text)
     elif cmd in ("/vozvraty", "/zabrat"):
         send_summaries(chat_id)
     elif cmd == "/pvz":
         tg.send(chat_id, render.pvz_digest(), reply_markup=KB_REFRESH)
     elif cmd == "/shtrihkod":
+        if not tg.can_receive_codes(chat_id):
+            tg.send(chat_id, "Вам доступны списки возвратов без кодов получения.")
+            return
         sent = 0
         for account in ozon.CRED_ENV:
             try:
@@ -146,7 +176,7 @@ def handle(chat_id, text):
         else:
             refresh(chat_id)
     else:
-        tg.send(chat_id, HELP)
+        tg.send(chat_id, help_text)
 
 
 def _who(msg):

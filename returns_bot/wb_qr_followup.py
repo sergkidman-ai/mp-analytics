@@ -9,15 +9,23 @@ from returns_bot import tg, wb_qr, wb_qr_delivery
 def run(dry_run=False, now=None):
     now = now or wb_qr.now_msk()
     counts = Counter()
-    # Morning report normally finishes by 09:10. Before 09:15 it owns delivery.
-    if not wb_qr.enabled_day(now) or (now.hour, now.minute) < (9, 15):
+    if not wb_qr.enabled_day(now):
+        return dict(counts)
+    targets = []
+    if (now.hour, now.minute) >= (14, 15):
+        targets.extend(tg.notify_ids())
+    if (now.hour, now.minute) >= (10, 15):
+        targets.extend(tg.codes_only_notify_ids(now))
+    if not targets:
         return dict(counts)
     for account in wb_qr.enabled_accounts():
         attachment = wb_qr.attachment(now, account=account)
         if not attachment:
             counts['missing'] += 1
             continue
-        for target in dict.fromkeys(tg.notify_ids()):
+        for target in dict.fromkeys(targets):
+            if not tg.can_receive_codes(target):
+                continue
             if dry_run:
                 counts['pending' if wb_qr_delivery.pending(account, target, now) else 'skipped'] += 1
             else:

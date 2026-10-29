@@ -42,6 +42,8 @@ def pending(account, chat_id, now=None):
 
 def send(account, chat_id, attachment, now=None):
     """Return sent/skipped/failed/uncertain; one network attempt under interprocess lock."""
+    if not tg.can_receive_codes(chat_id):
+        return "skipped"
     now = now or wb_qr.now_msk()
     day = now.date().isoformat()
     with locked():

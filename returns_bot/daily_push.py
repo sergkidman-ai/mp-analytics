@@ -35,7 +35,14 @@ def barcode_photos(org=None):
     return out
 
 
-def run(targets, dry_run=False, skip_collect=False, with_codes=True):
+def run(targets, dry_run=False, skip_collect=False, with_codes=True, report=None):
+    targets = [target for target in targets if tg.can_receive_lists(target)]
+    if not targets and not dry_run:
+        print("No recipients authorized for return lists")
+        return 1
+    errors = []
+    if report == "morning":
+        with_codes = False
     if not skip_collect:
         rows, errors = collector.gather()
         if rows:
@@ -43,10 +50,18 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
         for e in errors:
             print("ОШИБКА сбора", e)
 
-    # по сообщению на юрлицо: за возвратами Цифрового и Дисквэра ездят разные люди
-    letters = [(org, text, barcode_photos(org) if with_codes else [])
-               for org, text in render.summaries()]
+    if targets and not any(tg.can_receive_codes(t) for t in targets):
+        with_codes = False
 
+    # по сообщению на юрлицо: за возвратами Цифрового и Дисквэра ездят разные люди
+    summaries = (render.daily_summaries(report, wb_qr.now_msk(),
+                                        refreshed=not skip_collect, incomplete=bool(errors))
+                 if report else render.summaries())
+    letters = [(org, text, barcode_photos(org) if with_codes else [])
+               for org, text in summaries]
+
+    # Preserve clean summaries before adding code-specific warnings and attachments.
+    list_letters = [(org, text, []) for org, text, _ in letters]
     wb_files = {}
     # Each WB buyer QR is attached only to its company's summary.
     if with_codes and wb_qr.enabled_day(wb_qr.now_msk()):
@@ -64,6 +79,7 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
 
     if wb_qr.now_msk().date().isoformat()==wb_qr.ONE_OFF_TEST_DATE:
         letters=[(org,"🧪 Разовый тест воскресной отправки\n\n"+text,photos) for org,text,photos in letters]
+        list_letters=[(org,"🧪 Разовый тест воскресной отправки\n\n"+text,[]) for org,text,_ in list_letters]
 
     if dry_run:
         for org, text, photos in letters:
@@ -80,10 +96,13 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
     if not letters:                       # забирать нечего — одно короткое сообщение
         letters = [(None, render.summary(), [])]
 
+    if not list_letters:
+        list_letters = [(None, render.summary(), [])]
+
     ok, failed = 0, []
     for chat_id in targets:
         try:                       # один адресат не нажал Start (403) — остальные всё равно получат
-            for org, text, photos in letters:
+            for org, text, photos in (letters if tg.can_receive_codes(chat_id) else list_letters):
                 # кнопка «Обновить» — под каждой сводкой: обработчик живёт в returns-bot.service
                 tg.send(chat_id, text, reply_markup=bot.KB_REFRESH)
                 for filename, data, caption, mime in photos:
@@ -105,6 +124,7 @@ def run(targets, dry_run=False, skip_collect=False, with_codes=True):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="ежедневная сводка возвратов")
+    ap.add_argument("--report", choices=("morning", "full"), help="утренний краткий или полный отчёт")
     ap.add_argument("--to", nargs="*", help="chat_id адресатов (по умолчанию из .env)")
     ap.add_argument("--dry-run", action="store_true", help="напечатать текст, ничего не слать")
     ap.add_argument("--no-collect", action="store_true", help="не ходить в API, взять из БД")
@@ -113,8 +133,8 @@ def main(argv=None):
     if not a.to and not a.dry_run and not wb_qr.enabled_day(wb_qr.now_msk()):
         print("Воскресенье: ежедневная рассылка возвратов отключена.")
         return 0
-    targets = a.to or (tg.notify_ids() if not a.dry_run else [])
-    return run(targets, a.dry_run, a.no_collect, not a.no_codes)
+    targets = a.to or (tg.daily_notify_ids() if not a.dry_run else [])
+    return run(targets, a.dry_run, a.no_collect, not a.no_codes, report=a.report)
 
 
 if __name__ == "__main__":
