@@ -27,9 +27,10 @@
   .health .ht{font-size:19px;font-weight:700}
   .health .hs{color:var(--mut);font-size:13px;margin-top:3px}
   .big{margin-bottom:16px}
-  /* три ряда: итоги · комиссии площадок (всегда вместе) · опекс/после ФОТ/закупки */
+  /* Финансовые блоки: счета, оборот, удержания, деньги МП и прибыль */
   .big .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-bottom:14px}
   .big .row:last-child{margin-bottom:0}
+  .big .row.four .bi .v{font-size:20px}
   .bi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
   .bi .l{color:var(--mut);font-size:12px}.bi .v{font-size:24px;font-weight:700;margin-top:4px}
   .bi .delta{font-size:12px;margin-top:3px}
@@ -93,6 +94,16 @@
   .mptabs a:hover{background:var(--card);color:var(--txt)}
   .mptabs a.cur{background:var(--card);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
   .topbar .filters{margin-left:auto;display:flex;gap:8px;align-items:center}
+  @media(max-width:760px){
+    body{display:block}
+    header{width:100%;height:auto;position:static;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);display:block}
+    header .lvlnav{flex-direction:row;overflow-x:auto;white-space:nowrap}
+    header .lvlnav a{flex:0 0 auto}
+    header .navgroup{display:none}
+    main{padding:14px;max-width:none;overflow-x:auto}
+    .big .row{grid-template-columns:repeat(auto-fit,minmax(min(100%,165px),1fr))}
+    .topbar .filters{margin-left:0;flex-wrap:wrap}
+  }
 </style>
 </head>
 <body>
@@ -190,7 +201,15 @@ async function initPeriods(){
   $('#f-period').onchange=e=>{period=e.target.value;load();};
 }
 
-// Три плашки «сколько забрала площадка»: комиссия + её услуги за месяц, БЕЗ возвратов
+function turnoverTiles(b, dl){
+  const t=b.total||{};
+  return [['Оборот · общий',rub(t.revenue),deltaHtml(dl.total_revenue,true,false)],
+    ...[['ozon','🟦 Оборот Ozon'],['wb','🟣 Оборот ВБ'],['yandex','🟡 Оборот Маркета']]
+      .filter(([k])=>b[k]&&b[k].revenue!=null)
+      .map(([k,l])=>[l,rub(b[k].revenue),''])];
+}
+
+// «Сколько забрала площадка»: комиссия + её услуги за месяц, БЕЗ возвратов
 // (возврат — сторно продажи, а не услуга; правило единое на всех вкладках «Отчётов МП»).
 // У ВБ сюда же входит СПП: скидку ВБ делает из нашей цены, и до нас эта часть не доходит.
 // Площадки, которой у выбранного юрлица нет (Маркет у Дисквэра), плашки не будет.
@@ -198,11 +217,15 @@ const HOLD_NOTE={wb:'СПП + комиссия + логистика, хране�
                  ozon:'комиссия + логистика, продвижение, услуги',
                  yandex:'комиссия + доставка, буст, полка, отзывы'};
 function holdTiles(b){
-  return [['wb','🟣 Комиссии ВБ'],['ozon','🟦 Комиссии Ozon'],['yandex','🟡 Комиссии Маркета']]
+  const t=b.total||{};
+  const total=['Комиссии и услуги МП · всего',
+    `<span class="warn">${rub(t.hold)}</span> <span class="muted" style="font-size:13px">${pct(t.hold_pct)} оборота</span>`+
+    `<div class="muted" style="font-size:11px;margin-top:2px">все удержания площадок, без возвратов</div>`,''];
+  return [total,...[['ozon','🟦 Комиссии Ozon'],['wb','🟣 Комиссии ВБ'],['yandex','🟡 Комиссии Маркета']]
     .filter(([k])=>b[k]&&b[k].hold!=null)
     .map(([k,l])=>[l,
       `<span class="warn">${rub(b[k].hold)}</span> <span class="muted" style="font-size:13px">${pct(b[k].hold_pct)} оборота</span>`+
-      `<div class="muted" style="font-size:11px;margin-top:2px">${HOLD_NOTE[k]}, без возвратов</div>`,'']);
+      `<div class="muted" style="font-size:11px;margin-top:2px">${HOLD_NOTE[k]}, без возвратов</div>`,''])];
 }
 
 const MP_LBL={ozon:'🟦 На счёте Ozon',wb:'🟣 На счёте ВБ',yandex:'🟡 На счёте Маркета'};
@@ -221,6 +244,17 @@ function mpMoneyTiles(m){
       (k==='wb'&&late?
         `<div class="muted" style="font-size:11px;margin-top:2px">на счёте: ${mpRub(m.wb_account_balance)}<br><span class="warn">просрочено: ${mpRub(late)}</span> · ${m.wb_overdue_count} выплаты по Кэшфлоу</div>`:
         `<div class="muted" style="font-size:11px;margin-top:2px">ещё не выплачено нам${org?'':', обе фирмы'}</div>`),''])];
+}
+
+function bankMoneyTiles(m){
+  if(!m) return [];
+  const asOf=d=>d?d.slice(8,10)+'.'+d.slice(5,7):'—';
+  const detail=(m.accounts||[]).map(a=>`${esc(a.bank_name)} …${esc(a.account_last4)} на ${asOf(a.as_of)}`).join(' · ');
+  const missing=(m.missing||[]).length;
+  return [['💳 Остаток на наших счетах',`<span class="pos">${mpRub(m.total)}</span>`+
+    `<div class="muted" style="font-size:11px;margin-top:2px">последние известные остатки по Кэшфлоу · ${detail||'нет подтверждённых остатков'}`+
+    (missing?` · <span class="warn">${missing} сч. без опорного остатка не учтено</span>`:'')+
+    ` · <a href="/cashflow" style="color:var(--acc)">детали</a></div>`,'']];
 }
 
 async function load(){
@@ -247,12 +281,13 @@ async function load(){
   const un=b.opex_unassigned||{}, pu=b.purchases||{};
   const ofRev=v=>(v==null||!t.revenue)?'':` <span class="muted" style="font-size:13px">${(v/t.revenue*100).toFixed(1)}% оборота</span>`;
   const stats=[
-    ['Оборот (наша цена)',rub(t.revenue),deltaHtml(dl.total_revenue,true,false)],
     ['Себестоимость',`${rub(t.cogs)} <span class="muted" style="font-size:13px">${pct(t.cogs_pct)}</span>`+
       (t.cogs_actual?`<div class="muted" style="font-size:11px;margin-top:2px">учётная (Цифровой): ${rub(t.cogs_actual)}</div>`:''),''],
     ['Чистая прибыль',`<span class="${mc(t.net)}">${rub(t.net)}</span>`,deltaHtml(dl.total_net,true,false)],
     ['Маржа',pct(t.margin_pct),deltaHtml(dl.total_margin,true,true)],
   ];
+  const bankMoney=bankMoneyTiles(b.bank_money);
+  const turnover=turnoverTiles(b,dl);
   const holds=holdTiles(b);
   const mpMoney=mpMoneyTiles(b.mp_money);
   const rest=[
@@ -264,7 +299,8 @@ async function load(){
       `<div class="muted" style="font-size:11px;margin-top:2px">${pu.docs||0} приёмок, с НДС${org?' · по всему бизнесу':''}</div>`,''],
   ];
   const tiles=a=>a.map(([l,v,d])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${d||''}</div>`).join('');
-  $('#big').innerHTML=[stats,holds,mpMoney,rest].filter(a=>a.length).map(a=>`<div class="row">${tiles(a)}</div>`).join('');
+  $('#big').innerHTML=[bankMoney,turnover,holds,mpMoney,stats,rest]
+    .filter(a=>a.length).map(a=>`<div class="row${a.length===4?' four':''}">${tiles(a)}</div>`).join('');
 
   const wb=b.wb||{}, oz=b.ozon||{}, ya=b.yandex;
   $('#plats').innerHTML=

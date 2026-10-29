@@ -953,6 +953,42 @@ def _mp_money(org=""):
     return compose_mp_money(rows, overdue, _CF_ACC_ORG, org)
 
 
+def _bank_money(org=""):
+    """Последние известные остатки наших банковских счетов из Кэшфлоу.
+
+    API-остаток берём на дату последней банковской сводки; Озон Банк — от
+    введённого опорного остатка с проведёнными операциями. Счёт без опоры
+    исключаем из суммы: расчёт «от нуля» не является известным остатком.
+    """
+    import datetime as dt
+    from web.cashflow_api import Balances, BANK_NAMES
+
+    today = dt.date.today()
+    accounts, missing = [], []
+    for inn in ([org] if org else ORG_ORDER):
+        balances = Balances(inn)
+        for key in sorted(balances.accounts()):
+            bank, account = key
+            anchors = balances.api.get(key) or balances.manual.get(key) or []
+            anchors = [(day, amount) for day, amount in anchors if day <= today]
+            if not anchors:
+                missing.append({"org_inn": inn, "bank": bank, "account_last4": account[-4:]})
+                continue
+            amount, _ = balances.at(key, today)
+            if amount is None:
+                missing.append({"org_inn": inn, "bank": bank, "account_last4": account[-4:]})
+                continue
+            anchor_day = anchors[-1][0]
+            last_known = anchor_day if balances.kind(key) == "api" else max(
+                anchor_day, min(today, balances.last_txn.get(key, anchor_day)))
+            accounts.append({"org_inn": inn, "bank": bank,
+                             "bank_name": BANK_NAMES.get(bank, bank),
+                             "account_last4": account[-4:], "balance": round(amount, 2),
+                             "as_of": last_known.isoformat()})
+    return {"total": round(sum(a["balance"] for a in accounts), 2) if accounts else None,
+            "accounts": accounts, "missing": missing}
+
+
 @app.get("/api/business")
 def business(period: str = "", org: str = ""):
     """Главный экран: показатели за месяц + расходы + динамика к прошлому месяцу.
@@ -1004,6 +1040,7 @@ def business(period: str = "", org: str = ""):
                     "cogs_actual": round(ca, 2) if ca and not org else None,
                     "with_market": bool(mp_ya)}
     cur["mp_money"] = _mp_money(org)   # «Наши деньги на МП» — остатки лицевых счетов площадок
+    cur["bank_money"] = _bank_money(org)  # счета наших юрлиц, из Кэшфлоу
     op = _opex_total(period, org)  # с 08.2026 — факт из размеченной выписки, раньше — ручной снапшот
     cur["opex"] = round(op, 2)
     # По юрлицам расходы делит только факт по банку; на ручном снапшоте цифра общая — честно
