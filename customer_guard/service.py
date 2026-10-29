@@ -26,6 +26,8 @@ MESSAGES = {
     "supplier_overhead_unverified": "Требуется проверка накладных расходов оприходования",
 }
 
+HANDOFF_POLL_MINUTES = 30
+
 
 @contextmanager
 def exclusive():
@@ -342,7 +344,7 @@ def observe_handoff_window(accounts, now=None):
     now = now or utcnow()
     if not 16 <= now.astimezone(ZoneInfo('Europe/Moscow')).hour < 19:
         return dict(refreshed=0, outside_window=True)
-    cutoff = now - timedelta(minutes=5)
+    cutoff = now - timedelta(minutes=HANDOFF_POLL_MINUTES)
     total = 0
     with exclusive() as pulse:
         for account in accounts:

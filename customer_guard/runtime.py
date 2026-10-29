@@ -75,7 +75,7 @@ def tick():
 
         from zoneinfo import ZoneInfo
         if 16 <= now.astimezone(ZoneInfo('Europe/Moscow')).hour < 19:
-            extra_check('handoff_window',timedelta(minutes=5),
+            extra_check('handoff_window',timedelta(minutes=service.HANDOFF_POLL_MINUTES),
                         lambda:service.observe_handoff_window(accounts,now))
         if db.query("SELECT to_regclass('customer_guard_cancel_review') name")[0]['name']:
             extra_check('cancel_followup',timedelta(hours=2),
