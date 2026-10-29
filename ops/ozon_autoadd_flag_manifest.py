@@ -18,7 +18,9 @@ from ops.ozon_autoadd_flag_audit import scan_account
 DEFAULT_DIR = Path('/opt/mp-analytics/logs/ozon_autoadd_preflight')
 ACCOUNTS = ('oz_acc1', 'oz_acc2')
 PRICE_FIELDS = ('price', 'old_price', 'min_price', 'currency_code',
-                'auto_action_enabled', 'auto_add_to_ozon_actions_list_enabled')
+                'auto_action_enabled', 'auto_add_to_ozon_actions_list_enabled',
+                'declared_price', 'marketing_seller_price', 'net_price',
+                'retail_price', 'vat')
 
 
 def build_manifest(accounts=ACCOUNTS):
