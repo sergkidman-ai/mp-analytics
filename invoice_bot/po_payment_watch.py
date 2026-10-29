@@ -7,8 +7,9 @@
 Работаем ТОЛЬКО по организации «Цифровой квадрат» (BUYER_INN): счета на Дисквэр в этот контур
 не входят — его р/с в Сбере, Альфа-интеграция его не видит.
 
-Только чтение МойСклад + запись в Postgres (payment_draft_queue/po_payment_status). К банку не
-обращается вообще. Дневной крон, отдельный лог.
+Чтение МойСклад + запись в Postgres (payment_draft_queue/po_payment_status). Для явно
+зарегистрированных переплат supplier_payment_credit перед расчётом долга переносит остаток
+исходящего платежа на приёмки ТОЙ ЖЕ организации и поставщика. К банку не обращается. Дневной крон, отдельный лог.
 
 Черновик снимается в 'paid' («проведён»), когда деньги видны в МС: по заказам — когда оплачены
 все covers_po_ids, по авансу — когда нашёлся paymentout на ту же сумму (`mark_executed_drafts`).
@@ -150,6 +151,9 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
     Для предоплаты (prepayment_*) гейт ВЫКЛЮЧЕН: там платёж по определению идёт ДО приёмки."""
     since = date.today() - timedelta(days=LOOKBACK_DAYS)
     orders = _fetch_purchase_orders(inn, since, agent_id)
+    from invoice_bot.supplier_credit import settle
+    if orders and settle(BUYER_INN, inn, [o['id'] for o in orders]):
+        orders = _fetch_purchase_orders(inn, since, agent_id)
     if not orders:
         return []
     tracked = {r["po_id"]: r for r in db.query(
@@ -237,6 +241,7 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
     return new_ids
 
 
+
 def process_prepayment_per_order(inn, agent_id=None):
     new_ids = _sync_pending(inn, deferral_days=0, agent_id=agent_id)
     if not new_ids:
@@ -244,6 +249,8 @@ def process_prepayment_per_order(inn, agent_id=None):
     n = 0
     for po_id in new_ids:
         row = db.query("SELECT amount FROM po_payment_status WHERE po_id=%s", (po_id,))[0]
+        from invoice_bot.payment_integrity import inspect_orders
+        inspect_orders([po_id], BUYER_INN)
         with db.get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status)
@@ -255,6 +262,7 @@ def process_prepayment_per_order(inn, agent_id=None):
         n += 1
     print(f"[{inn}] prepayment_per_order: {n} новых черновиков")
     return n
+
 
 
 def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
@@ -298,6 +306,8 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
         binding = "не урезано (весь долг влез)"
     note = (f"кап: {binding}" + (f" {limit:.0f}₽" if limit != float("inf") else "") +
             (f"; ПРЕВЫШЕН на {total-limit:.0f}₽ — один заказ дороже лимита" if over else ""))
+    from invoice_bot.payment_integrity import inspect_orders
+    inspect_orders(picked, BUYER_INN)
     with db.get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status, note)
@@ -312,6 +322,7 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
           f"{'; ПРЕВЫШЕНИЕ — один заказ дороже лимита' if over else ''}); "
           f"не влезло {len(pending)-len(picked)}")
     return len(picked)
+
 
 
 def _advances_str(rows):
@@ -549,6 +560,14 @@ def run(only_inn=None, methods=None, close_only=False):
             mark_executed_drafts(inn, agent_id=agent_id)   # деньги видны в МС → черновик 'paid'
         except Exception as e:
             print(f"[{inn}] ОШИБКА ({method}): {type(e).__name__}: {e}")
+            from invoice_bot.payment_integrity import PaymentIntegrityError
+            if isinstance(e, PaymentIntegrityError):
+                try:
+                    from invoice_bot.payment_integrity_alert import notify_assignment
+                    notify_assignment(BUYER_INN, t.get('name') or inn, str(e))
+                except Exception as alert_error:
+                    # Уведомление не должно скрывать исходную ошибку подготовки оплаты.
+                    print(f"[{inn}] ОШИБКА уведомления PRC: {type(alert_error).__name__}", flush=True)
 
 
 def main():

@@ -261,6 +261,8 @@ def base_payment(draft, extid_ns, docs=None):
     (сверенные с карточкой МС ещё на разборе, см. `rent_core.payee_mismatch`), `purpose_text` —
     назначение, продиктованное договором. Обоих полей нет у платежей поставщикам — там прежний
     путь: реквизиты из МС, назначение собирается из заказов."""
+    from invoice_bot.payment_integrity import validate_draft
+    validate_draft(draft)
     docs = po_docs(draft.get("covers_po_ids")) if docs is None else docs
     payee = draft.get("payee") or payee_block(draft["inn"], draft)
     return {
