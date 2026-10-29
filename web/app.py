@@ -32,12 +32,14 @@ STATIC = BASE_DIR / "web" / "static"
 
 from web.diary_api import router as diary_router  # noqa: E402  дневник событий (поток ev)
 from web.warehouse_loss_api import router as wh_loss_router  # noqa: E402  пострадавшие склады (ev)
+from web.mp_inventory_api import router as mp_inventory_router  # поток: fin
 from web.cashflow_api import router as cashflow_router  # noqa: E402  кэшфлоу (cf)
 from web.turnover_api import router as turnover_router  # noqa: E402
 from web.kudir_api import router as kudir_router  # поток: fin
 
 app.include_router(diary_router)
 app.include_router(wh_loss_router)
+app.include_router(mp_inventory_router)
 app.include_router(cashflow_router)
 app.include_router(turnover_router)
 app.include_router(kudir_router)

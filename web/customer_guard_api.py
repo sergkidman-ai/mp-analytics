@@ -24,11 +24,16 @@ def page():
 
 @router.get("/api/customer-orders")
 def data(status: str = "", signal: str = "", search: str = "", product_code: str = "", account: str = "",
+         cancel_category: str = "",
          limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
     if not installed():
         return dict(installed=False, rows=[], total=0, sync=[], queue={})
     if account and account not in ACCOUNTS:
         raise HTTPException(422,'Неизвестный кабинет')
+    from customer_guard.cancellation import CATEGORIES
+    if cancel_category and cancel_category not in CATEGORIES:
+        raise HTTPException(422,'Неизвестный статус отмены')
+    review_installed=bool(db.query("SELECT to_regclass('customer_guard_cancel_review') name")[0]['name'])
     bases={}
     for acc in ACCOUNTS:
         try:bases[acc]=get_basis(acc)
@@ -39,6 +44,9 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
     if status:
         where.append("(o.ms_status=%s OR o.mp_status=%s)")
         params.extend([status, status])
+    if cancel_category:
+        where.append('r.category=%s' if review_installed else 'false')
+        if review_installed: params.append(cancel_category)
     if signal == "non_positive_profit":
         where.append("""c.generation=o.generation AND j.error IS NULL
           AND c.result->>'rule_version'=(%s::jsonb->>o.account)
@@ -64,12 +72,16 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
     condition = " AND ".join(where)
     base = """FROM customer_guard_orders o
       LEFT JOIN customer_guard_checks c ON c.id=o.latest_check_id
-      LEFT JOIN customer_guard_jobs j ON j.order_id=o.id """
+      LEFT JOIN customer_guard_jobs j ON j.order_id=o.id """ + (
+      "LEFT JOIN customer_guard_cancel_review r ON r.order_id=o.id " if review_installed else '')
+    review_cols=("r.category cancel_category,r.first_handoff_at,r.first_cancelled_at,r.buyer_received_at,"
+      if review_installed else "NULL::text cancel_category,NULL::timestamptz first_handoff_at,"
+        "NULL::timestamptz first_cancelled_at,NULL::timestamptz buyer_received_at,")
     received_at = """coalesce(nullif(o.mp_payload->>'in_process_at','')::timestamptz,
       nullif(o.mp_payload->>'created_at','')::timestamptz)"""
     total = db.query("SELECT count(*) n " + base + "WHERE " + condition, tuple(params))[0]["n"]
     rows = db.query("""SELECT o.id,o.platform,o.account,o.posting_number,o.parent_number,o.mp_status,o.ms_status,o.ms_store,
-      o.first_seen_at,o.observed_at,o.ms_due_at,o.ms_checked_at,o.ms_id,
+      o.first_seen_at,o.observed_at,o.ms_due_at,o.ms_checked_at,o.ms_id,"""+review_cols+"""
       o.mp_payload->'products' products,c.result,c.calculated_at,
       coalesce(c.generation=o.generation,false) current,
       j.state job_state,j.error job_error,j.due_at retry_at, """ + received_at + " mp_received_at " + base +
@@ -103,5 +115,13 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
 def history(order_id: int):
     if not installed():
         raise HTTPException(503, "Хранилище ещё не установлено")
+    reviews=(db.query("""SELECT category,observed_at,evidence
+        FROM customer_guard_cancel_review_history WHERE order_id=%s ORDER BY id""", (order_id,))
+        if db.query("SELECT to_regclass('customer_guard_cancel_review_history') name")[0]['name'] else [])
     return dict(rows=db.query("""SELECT id,generation,calculated_at,result
-      FROM customer_guard_checks WHERE order_id=%s ORDER BY id DESC LIMIT 50""", (order_id,)))
+      FROM customer_guard_checks WHERE order_id=%s ORDER BY id DESC LIMIT 50""", (order_id,)),
+      market_statuses=db.query("""SELECT substatus,status,min(fetched_at) first_seen_at
+        FROM (SELECT payload->>'substatus' substatus,payload->>'status' status,fetched_at
+          FROM customer_guard_snapshots WHERE order_id=%s) s
+        GROUP BY substatus,status ORDER BY first_seen_at""", (order_id,)),
+      cancel_reviews=reviews)

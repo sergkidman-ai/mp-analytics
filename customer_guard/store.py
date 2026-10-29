@@ -1,7 +1,7 @@
 # поток: fin
 """Transactional observations, leased first checks and durable incidents."""
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import timedelta, timezone
 from decimal import Decimal
 from uuid import uuid4
 
@@ -9,6 +9,7 @@ from psycopg2.extras import Json, RealDictCursor
 from core import db
 from customer_guard.domain import ACTIVE, TERMINAL, digest, initial_due, posting_snapshot, posting_hash, sale
 from customer_guard.domain import economics, composition, non_positive_profit, market
+from customer_guard import cancellation
 from core.profit_floor import POLICY_VERSION
 
 
@@ -130,6 +131,10 @@ def observe(cur, post, observed_at, received_at, api_version="fbs/list/v4"):
     cur.execute("""INSERT INTO customer_guard_snapshots
        (order_id,source,api_version,fetched_at,hash,payload) VALUES(%s,%s,%s,%s,%s,%s)""",
        (order["id"],platform,api_version if platform=='ozon' else ('business/orders/v1' if platform=='yandex' else 'fbs/orders+status/v3'), observed_at, fingerprint, Json(post)))
+    if changed and (post['status'] == 'cancelled' or old and old['mp_status'] == 'cancelled'):
+        cur.execute("SELECT to_regclass('customer_guard_cancel_review') present")
+        if cur.fetchone()['present']:
+            cancellation.review(cur, order['id'], platform, observed_at)
     if changed and post["status"] in ACTIVE:
         due = max(order["ms_due_at"], received_at)
         cur.execute("""INSERT INTO customer_guard_jobs(order_id,generation,due_at,kind)
@@ -176,22 +181,86 @@ def ingest(posts, started_at, received_at, window_from, window_to, *, mirror_raw
           (scope, started_at, received_at, window_from, window_to, len(posts)))
 
 
-def schedule_rechecks(now):
-    """Only finished, still-active pre-shipment checks; never shorten a retry lease."""
+def schedule_rechecks(now, repeat_minutes=120):
+    """Recheck unfinished costs; a current actual delivery needs only MP-change jobs."""
+    if not isinstance(repeat_minutes, int) or repeat_minutes < 1:
+        raise ValueError("invalid_repeat_minutes")
     with transaction() as cur:
         cur.execute("""UPDATE customer_guard_jobs j SET state='pending',kind='hourly_ms_check',
           due_at=%s,attempts=0,error=NULL,lease_token=NULL,lease_until=NULL
           FROM customer_guard_orders o LEFT JOIN customer_guard_checks c ON c.id=o.latest_check_id
           WHERE j.order_id=o.id AND j.state='done' AND o.mp_status=ANY(%s)
-          AND o.ms_checked_at<=%s-interval '60 minutes'
+          AND o.ms_checked_at<=%s-(%s * interval '1 minute')
+          AND (o.mp_status<>'delivering' OR c.result->>'cost_kind' IS DISTINCT FROM 'actual'
+               OR c.generation IS DISTINCT FROM o.generation)
           AND (o.ms_status=ANY(%s) OR o.ms_id IS NULL OR
                o.ms_status='Ожидает подтверждения' OR c.result->>'cost_kind' IS DISTINCT FROM 'actual')""",
-          (now, list(ACTIVE), now, ["Подтвержден","Собирается","Неукомплектован"]))
+          (now, list(ACTIVE), now, repeat_minutes,
+           ["Подтвержден","Собирается","Неукомплектован"]))
         return cur.rowcount
+
+
+def reuse_confirmed_actual(now, limit=200):
+    """Close status-only marketplace revisions using the same proven shipment cost.
+
+    The original MS observation remains dated at ms_checked_at. Changed line data,
+    unproven cost, and pre-shipment orders stay in the normal MS queue.
+    """
+    if not isinstance(limit, int) or not 1 <= limit <= 500:
+        raise ValueError("invalid_local_reuse_limit")
+    completed = 0
+    with transaction() as cur:
+        cur.execute("""SELECT j.order_id,o.generation,o.mp_hash,o.ms_checked_at,
+          c.id AS check_id,c.result,c.input_hash
+          FROM customer_guard_jobs j
+          JOIN customer_guard_orders o ON o.id=j.order_id
+          JOIN customer_guard_checks c ON c.id=o.latest_check_id
+          JOIN LATERAL (
+            SELECT s.payload FROM customer_guard_snapshots s
+            WHERE s.order_id=o.id AND s.source=o.platform
+              AND s.fetched_at<=o.ms_checked_at
+            ORDER BY s.fetched_at DESC,s.id DESC LIMIT 1
+          ) prior ON true
+          WHERE j.kind='recalculate' AND j.state IN ('pending','retry')
+            AND j.due_at<=%s AND j.generation=o.generation
+            AND o.mp_status='delivering' AND o.ms_id IS NOT NULL
+            AND o.ms_checked_at IS NOT NULL AND c.generation<o.generation
+            AND c.result->>'cost_kind'='actual'
+            AND o.mp_payload->'products'=prior.payload->'products'
+          ORDER BY j.due_at,j.order_id FOR UPDATE OF j,o SKIP LOCKED LIMIT %s""",
+          (now, limit))
+        for row in cur.fetchall():
+            old = row["result"]
+            if (not isinstance(old.get("cost_sources"), list) or not old["cost_sources"]
+                    or old.get("cost") is None or not old.get("positions")):
+                continue
+            result = dict(old, recalculation="confirmed_actual_reuse",
+                          source_check_id=row["check_id"],
+                          cost_observed_at=row["ms_checked_at"].isoformat())
+            cur.execute("""INSERT INTO customer_guard_checks
+              (order_id,generation,calculated_at,result,input_hash)
+              VALUES(%s,%s,%s,%s,%s) RETURNING id""",
+              (row["order_id"], row["generation"], now, Json(result),
+               digest([row["input_hash"], row["mp_hash"], "confirmed_actual_reuse"])))
+            check_id = cur.fetchone()["id"]
+            cur.execute("UPDATE customer_guard_orders SET latest_check_id=%s WHERE id=%s",
+                        (check_id, row["order_id"]))
+            cur.execute("""UPDATE customer_guard_incidents SET resolved_at=%s,
+              delivery=CASE WHEN delivery='pending' THEN 'suppressed' ELSE delivery END
+              WHERE order_id=%s AND resolved_at IS NULL""", (now, row["order_id"]))
+            cur.execute("""UPDATE customer_guard_jobs SET state='done',error=NULL,
+              lease_token=NULL,lease_until=NULL WHERE order_id=%s""", (row["order_id"],))
+            completed += 1
+    return completed
 
 
 def claim(now, posting_number=None, account=None, accounts=None):
     token = str(uuid4())
+    # Keep the first check of a newly received order first. Overnight, give
+    # long-overdue revisions a turn ahead of routine hourly repeats without
+    # creating another worker or increasing the MySklad request rate.
+    hour_utc = now.astimezone(timezone.utc).hour
+    backlog_window = hour_utc >= 20 or hour_utc < 2  # 23:00–05:00 Moscow
     with transaction() as cur:
         scope = ""
         args = [now, now]
@@ -211,8 +280,9 @@ def claim(now, posting_number=None, account=None, accounts=None):
              OR (j.state='running' AND j.lease_until<%s))""" + scope +
           """ ORDER BY CASE
             WHEN o.mp_status IN ('awaiting_packaging','awaiting_deliver') AND o.ms_checked_at IS NULL THEN 0
-            WHEN o.mp_status IN ('awaiting_packaging','awaiting_deliver') THEN 1 ELSE 2 END,
-            j.due_at,j.order_id FOR UPDATE OF j SKIP LOCKED LIMIT 1""", tuple(args))
+            WHEN %s AND j.due_at<%s-interval '6 hours' THEN 1
+            WHEN o.mp_status IN ('awaiting_packaging','awaiting_deliver') THEN 2 ELSE 3 END,
+            j.due_at,j.order_id FOR UPDATE OF j SKIP LOCKED LIMIT 1""", tuple(args+[backlog_window,now]))
         row = cur.fetchone()
         if not row:
             return None

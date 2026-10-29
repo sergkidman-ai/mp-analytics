@@ -35,18 +35,18 @@ def fake_transport(monkeypatch, at):
     monkeypatch.setattr(n,"get_basis",lambda account:{"version":"test-basis"})
 
 
-def test_hourly_rechecks_do_not_poll_shipped_or_shorten_retry(pg):
+def test_two_hour_rechecks_do_not_poll_shipped_or_shorten_retry(pg):
     ready,at=checked(signal="ok",ms_state="Подтвержден",cost_kind="fifo_estimate")
     shipped,_=checked("123-001-2",status="delivering",signal="ok",ms_state="В пути",cost_kind="actual")
-    assert store.schedule_rechecks(at+timedelta(minutes=59,seconds=59))==0
-    assert store.schedule_rechecks(at+timedelta(minutes=60))==1
-    assert store.schedule_rechecks(at+timedelta(minutes=61))==0
+    assert store.schedule_rechecks(at+timedelta(minutes=119,seconds=59))==0
+    assert store.schedule_rechecks(at+timedelta(minutes=120))==1
+    assert store.schedule_rechecks(at+timedelta(minutes=121))==0
     states={r["order_id"]:r["state"] for r in db.query("SELECT order_id,state FROM customer_guard_jobs")}
     assert states=={ready:"pending",shipped:"done"}
-    job=store.claim(at+timedelta(minutes=61))
-    store.fail(job,"ms_429",at+timedelta(minutes=61),600)
-    assert store.schedule_rechecks(at+timedelta(minutes=65))==0
-    assert store.claim(at+timedelta(minutes=70)) is None
+    job=store.claim(at+timedelta(minutes=121))
+    store.fail(job,"ms_429",at+timedelta(minutes=121),600)
+    assert store.schedule_rechecks(at+timedelta(minutes=125))==0
+    assert store.claim(at+timedelta(minutes=130)) is None
 
 
 def test_initial_pre_shipment_checks_are_not_stuck_behind_historical_deliveries(pg):
@@ -209,8 +209,8 @@ def test_missing_ms_delivery_independent_of_basis_and_safely_gated(pg,monkeypatc
         text=post.call_args.kwargs["json"]["text"]
         assert "Заказ не найден в МС" in text and "Артикул Ozon: set" in text
         assert "чистая прибыль пока не определены" in text
-        assert store.schedule_rechecks(at+timedelta(minutes=60))==1
-        job=store.claim(at+timedelta(minutes=60))
-        assert store.refresh(job,posting(),at+timedelta(minutes=60))
-        assert store.finish(job,{"signal":"missing_ms"},at+timedelta(minutes=60))
+        assert store.schedule_rechecks(at+timedelta(minutes=120))==1
+        job=store.claim(at+timedelta(minutes=120))
+        assert store.refresh(job,posting(),at+timedelta(minutes=120))
+        assert store.finish(job,{"signal":"missing_ms"},at+timedelta(minutes=120))
         assert n.send_current(oid)=="none" and post.call_count==1

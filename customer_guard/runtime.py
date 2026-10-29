@@ -12,6 +12,7 @@ from customer_guard.domain import utcnow, enabled_accounts
 from customer_guard.notifications import recover_interrupted
 
 RUNTIME_LOCK = 7348201702
+WORK_LIMIT = 10
 
 
 @contextmanager
@@ -50,10 +51,35 @@ def tick():
                 result[name]=operation()
                 if isinstance(result[name],dict) and result[name].get("notification_errors"):
                     errors.append("notification:"+",".join(result[name]["notification_errors"]))
+                heartbeat(";".join(errors) or None)
+                return True
             except Exception as exc:
                 # Request exception strings may contain a token-bearing URL.
                 errors.append(name+":"+type(exc).__name__)
-            heartbeat(";".join(errors) or None)
+                heartbeat(";".join(errors) or None)
+                return False
+
+        settings=state.get('settings',{})
+        accounts=enabled_accounts(settings)
+        def extra_check(name, interval, operation):
+            scope='customer_guard/'+name
+            checkpoint=db.query('SELECT completed_at FROM customer_guard_sync_state WHERE scope=%s',(scope,))
+            if checkpoint and checkpoint[0]['completed_at'] and checkpoint[0]['completed_at']>now-interval:
+                return
+            if phase(name, operation):
+                db.execute("""INSERT INTO customer_guard_sync_state(scope,started_at,completed_at,row_count)
+                  VALUES(%s,%s,%s,%s) ON CONFLICT(scope) DO UPDATE SET
+                  started_at=excluded.started_at,completed_at=excluded.completed_at,
+                  row_count=excluded.row_count,error=NULL""",
+                  (scope,now,utcnow(),result[name].get('refreshed',0)))
+
+        from zoneinfo import ZoneInfo
+        if 16 <= now.astimezone(ZoneInfo('Europe/Moscow')).hour < 19:
+            extra_check('handoff_window',timedelta(minutes=service.HANDOFF_POLL_MINUTES),
+                        lambda:service.observe_handoff_window(accounts,now))
+        if db.query("SELECT to_regclass('customer_guard_cancel_review') name")[0]['name']:
+            extra_check('cancel_followup',timedelta(hours=2),
+                        lambda:service.observe_recent_cancellations(accounts,now))
 
         synced=db.query("SELECT started_at FROM customer_guard_sync_state WHERE scope='ozon/oz_acc2/fbs'")
         if not synced or synced[0]["started_at"] <= now-timedelta(minutes=10):
@@ -64,7 +90,6 @@ def tick():
             if not synced_wb or synced_wb[0]['started_at']<=now-timedelta(minutes=10):
                 phase('wb_orders',service.sync_wb)
                 phase('wb_old_status',lambda:service.refresh_wb(older_than=now-timedelta(minutes=10)))
-        settings=state.get('settings',{})
         if settings.get('digital_enabled',False):
             for acc, platform, operation in (
                 ('oz_acc1','ozon',lambda:service.sync(account='oz_acc1')),
@@ -80,8 +105,9 @@ def tick():
             phase('ya_acc1_old_status',lambda:service.refresh_yandex(3,older_than=now-timedelta(minutes=10)))
         # Old tracked active orders are point-refreshed, not forgotten outside the list window.
         phase("old_status",lambda:service.refresh(3,older_than=now-timedelta(minutes=10)))
-        phase("enqueue",lambda:store.schedule_rechecks(utcnow()))
-        phase("work",lambda:service.work(limit=5,budget=100,notify=state["notifications_enabled"],
+        phase("enqueue",lambda:store.schedule_rechecks(utcnow(),int(settings.get('repeat_minutes',120))))
+        phase("reuse_actual",lambda:store.reuse_confirmed_actual(utcnow()))
+        phase("work",lambda:service.work(limit=WORK_LIMIT,budget=100,notify=state["notifications_enabled"],
                                          accounts=enabled_accounts(settings)))
         # Basis changes do not require fresh MS reads and do not send old alerts.
         try:

@@ -107,6 +107,13 @@ main{padding:18px}
       <option>Неукомплектован</option><option>Подтвержден</option><option>Собирается</option>
       <option>Ожидает подтверждения</option><option>В пути</option><option>Доставлен</option>
       <option value="cancelled">Отменён на площадке</option></select>
+    <select id="cancel-category" aria-label="Статус отмены в Пульте"><option value="">Все статусы отмены</option>
+      <option>Отменён — товар не покидал наш склад</option>
+      <option>Отменён — путь товара выясняется</option>
+      <option>Отменён — передан МП, маршрут возврата выясняется</option>
+      <option>Невыкуп → наш склад</option><option>Невыкуп → склад МП</option>
+      <option>Возврат после вручения → наш склад</option><option>Возврат после вручения → склад МП</option>
+      <option>Возврат принят нами</option><option>Возврат принят складом МП</option></select>
     <select id="signal" aria-label="Результат проверки"><option value="">Все результаты</option>
       <option value="non_positive_profit">Убыточные / без прибыли (≤ 0 ₽)</option>
       <option value="below_floor">Ниже пола</option><option value="missing_ms">Нет в МС</option>
@@ -152,7 +159,7 @@ async function api(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)t
 async function load(){
   const n=++request;$('message').textContent='Загрузка…';
   try{
-    const q=new URLSearchParams({limit:50,offset,status:$('status').value,signal:$('signal').value,search:$('search').value,account:$('account').value,product_code:$('product-code').value.trim()});
+    const q=new URLSearchParams({limit:50,offset,status:$('status').value,cancel_category:$('cancel-category').value,signal:$('signal').value,search:$('search').value,account:$('account').value,product_code:$('product-code').value.trim()});
     const d=await api('/api/customer-orders?'+q);if(n!==request)return;
     total=d.total;
     const syncLabel=(d.sync||[]).filter(x=>x.scope.endsWith('/fbs')).map(x=>(({wb:'WB',ozon:'Ozon',yandex:'Маркет'}[x.scope.split('/')[0]]||'')+' '+(x.scope.includes('acc1')?'Цифровой: ':'Дисквэр: '))+dt(x.completed_at)).join(' · ');
@@ -177,7 +184,10 @@ async function load(){
       const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
       return `<tr><td data-label="Отправление · новые сверху"><button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?marketName+' · поступил':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
         <button class="small" data-history="${Number(row.id)}">История проверок</button></td>
-        <td data-label="Статусы"><div>${marketName} · ${company}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div><div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
+        <td data-label="Статусы"><div>${marketName} · ${company}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div>
+          ${row.cancel_category?`<div class="small"><b>Отмена в Пульте:</b> ${esc(row.cancel_category)}</div>`:row.mp_status==='cancelled'?'<div class="small">Отмена вне периода наблюдения</div>':''}
+          ${row.first_handoff_at?`<div class="small">Передача МП замечена: ${esc(dt(row.first_handoff_at))}</div>`:''}
+          <div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
         <td data-label="Выбранный товар / склад"><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>
           <div class="small">${hasMS?`Код МС: <b>${esc(p.code||'—')}</b> · Внешний код: ${esc(p.external_code||'—')}`:`Артикул ${marketName}: ${esc(p.offer_id||'—')}`}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>
@@ -193,7 +203,7 @@ async function load(){
   }catch(e){if(n===request){$('message').textContent=e.message;$('rows').innerHTML='';}}
 }
 $('refresh').onclick=()=>{offset=0;load();};
-for(const id of ['status','signal','account'])$(id).onchange=()=>{offset=0;load();};
+for(const id of ['status','cancel-category','signal','account'])$(id).onchange=()=>{offset=0;load();};
 for(const id of ['search','product-code'])$(id).onkeydown=e=>{if(e.key==='Enter'){offset=0;load();}};
 $('prev').onclick=()=>{offset=Math.max(0,offset-50);load();};
 $('next').onclick=()=>{offset+=50;load();};
@@ -218,11 +228,15 @@ $('rows').onclick=async e=>{
   const button=e.target.closest('[data-history]');if(!button)return;
   $('history').showModal();$('history-body').textContent='Загрузка…';
   try{const d=await api('/api/customer-orders/'+button.dataset.history+'/history');
-    $('history-body').innerHTML=d.rows.length?d.rows.map(x=>`<p><b>${esc(dt(x.calculated_at))}</b> · ${esc(signals[x.result.signal]||x.result.signal)}<br>
+    $('history-body').innerHTML='<h3>Статусы площадки</h3>'+
+      ((d.market_statuses||[]).map(x=>`<p>${esc(dt(x.first_seen_at))} · ${esc(x.status)} / ${esc(x.substatus||'—')}</p>`).join('')||'<p>Истории пока нет.</p>')+
+      '<h3>Классификация отмены в Пульте</h3>'+
+      ((d.cancel_reviews||[]).map(x=>`<p>${esc(dt(x.observed_at))} · ${esc(x.category)}</p>`).join('')||'<p>Классификация не назначена.</p>')+
+      '<h3>Проверки себестоимости</h3>'+(d.rows.length?d.rows.map(x=>`<p><b>${esc(dt(x.calculated_at))}</b> · ${esc(signals[x.result.signal]||x.result.signal)}<br>
       ${esc(kinds[x.result.cost_kind]||'Стоимость не определена')}: ${esc(money(x.result.cost))} · Пол: ${esc(money(x.result.floor))}<br>
       Расчётная чистая прибыль: ${esc(money(x.result.estimated_net))}<br>${esc(x.result.note)}
       ${x.result.recalculation?`<br>${x.result.recalculation==='expense_basis_and_composition'?'Пересчёт базы и состава по справочнику ТК':'Пересчёт базы расходов'}; себестоимость проверена ${esc(dt(x.result.cost_observed_at))}`:''}
-      ${x.result.expense_period_from?`<br>База расходов: ${esc(x.result.expense_period_from)} — ${esc(x.result.expense_period_to)}`:''}</p>`).join(''):'Проверок пока нет.';
+      ${x.result.expense_period_from?`<br>База расходов: ${esc(x.result.expense_period_from)} — ${esc(x.result.expense_period_to)}`:''}</p>`).join(''):'Проверок пока нет.');
   }catch(e){$('history-body').textContent=e.message;}
 };
 load();
