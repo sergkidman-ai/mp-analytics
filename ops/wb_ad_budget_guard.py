@@ -4,7 +4,7 @@
 
 ЗАЧЕМ. 18.09.2026 нашли 14 рабочих cpc-кампаний (заказ по 34–166 ₽, в сумме 90 заказов на 8 269 ₽
 за 28 дней), которые стояли на нуле: автопополнения у ВБ нет, и никто этого не видел. Сторож каждый
-день читает баланс всех cpc-кампаний и пишет в PRC-бот, какие ВЫГОДНЫЕ кампании кончатся или уже
+день читает баланс всех cpc-кампаний и пишет Сергею в Dropbox-бот, какие ВЫГОДНЫЕ кампании кончатся или уже
 кончились, и на сколько их пополнить.
 
 ТОЛЬКО ЧТЕНИЕ. В ВБ сторож ничего не пишет: пополнение — деньги, решение за Сергеем (инвариант 8).
@@ -18,7 +18,7 @@
   прочие пустые кампании (дорогой заказ или нет заказов) перечисляются одной строкой без суммы.
 
   ./venv/bin/python -m ops.wb_ad_budget_guard --dry     # печать и файл, без телеграма
-  ./venv/bin/python -m ops.wb_ad_budget_guard           # + сообщение в PRC-бот
+  ./venv/bin/python -m ops.wb_ad_budget_guard           # + сообщение Сергею в Dropbox-бот
 """
 import sys
 import json
@@ -32,7 +32,7 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from ops.wb_ad_enroll import composition  # noqa: E402
 from ops.wb_ad_campaign_new import campaign_budget  # noqa: E402
-from ops.mkt_margin_watch import tg  # noqa: E402
+from ops.ad_alert_delivery import send_sergey  # noqa: E402
 
 CPO_OK = 200
 RUNWAY_DAYS = 3
@@ -103,7 +103,9 @@ def main():
     REPORT.write_text(text + "\n", encoding="utf-8")
     print(text)
     if not a.dry and total:
-        print("телеграм:", tg(text + "\n\nПополнение — только по вашему «да» с суммой."))
+        result = send_sergey(text + "\n\nПополнение — только по вашему «да» с суммой.")
+        print("телеграм Сергею в Dropbox-бот:",
+              "ok" if result.get("ok") else result.get("error", "delivery_not_confirmed"))
 
 
 if __name__ == "__main__":

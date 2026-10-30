@@ -8,7 +8,7 @@ Ozon с 31.08 ЕЖЕНЕДЕЛЬНО начисляет бонусы на про
   3) позиция НЕ продвигается в «Оплате за клик» и «Оплате за заказ»;
   4) на нашем складе не менее 5 единиц товара.
 
-Сторож делает две вещи и обе кладёт в одно сообщение в бот PRC:
+Сторож делает две вещи и обе кладёт в одно сообщение Сергею в Dropbox-бот:
   * СКОЛЬКО У НАС ПРОХОДИТ — воронка по каталогу на дату ближайшего начисления (не на сегодня:
     окно «≤7 дней» едет, и карточка, годная сегодня, к понедельнику из него выпадает);
   * ФАКТ НАЧИСЛЕНИЯ — появились ли кампании, которых мы не заводили, и бонусные строки
@@ -20,7 +20,6 @@ Ozon с 31.08 ЕЖЕНЕДЕЛЬНО начисляет бонусы на про
     ./venv/bin/python -m ops.ozon_promo_bonus_watch --on 2026-08-31   # окно на другую дату
 """
 import argparse
-import os
 import pathlib
 import sys
 import time
@@ -33,6 +32,7 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db                                                       # noqa: E402
 from collectors.ozon import _headers, PRODUCT_LIST_URL, PRODUCT_INFO_URL  # noqa: E402
 from ops import biz_diary                                                 # noqa: E402
+from ops.ad_alert_delivery import send_sergey                             # noqa: E402
 
 ACCOUNTS = ("oz_acc1", "oz_acc2")
 RATING_URL = "https://api-seller.ozon.ru/v1/product/rating-by-sku"
@@ -45,23 +45,9 @@ RATING_RISK = 70
 # Бонус приходит на рекламный счёт, а не в финансовые операции продавца, поэтому ищем ДВА следа.
 BONUS_WORDS = ("бонус", "балл", "продвижен", "бустинг")
 
-NOTIFY_IDS = [x.strip() for x in os.getenv("TG_PRC_NOTIFY_ID", "1031321444").split(",") if x.strip()]
-TG_TOKEN = os.getenv("TG_PRC_BOT_TOKEN", "").strip()
-
-
 def tg(text):
-    if not TG_TOKEN:
-        return "нет TG_PRC_BOT_TOKEN"
-    for chat in NOTIFY_IDS:
-        try:
-            r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                              json={"chat_id": chat, "text": text,
-                                    "disable_web_page_preview": True}, timeout=30)
-            if r.status_code != 200:
-                return f"telegram {r.status_code}"
-        except requests.RequestException as e:
-            return f"telegram: {e}"
-    return "ok"
+    result = send_sergey(text)
+    return "ok" if result.get('ok') else result.get('error', 'delivery_not_confirmed')
 
 
 def next_accrual(today=None):
