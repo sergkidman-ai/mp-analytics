@@ -132,13 +132,24 @@ def stock_history(platform: str, account: str, sku: str, warehouse: str):
       FROM mp_stock_history WHERE platform=%s AND account=%s AND sku=%s AND warehouse=%s
       ORDER BY captured_at DESC LIMIT 180""",(platform,account,sku,warehouse))
     links=[]
+    intraday=[]
     if platform == 'wb':
         links=db.query("""SELECT l.previous_capture,l.current_capture,l.quantity,l.evidence,
           o.posting_number,o.created_at,o.mp_status
           FROM mp_fbo_stock_link_candidates l JOIN mp_fbo_orders o ON o.id=l.order_id
           WHERE l.account=%s AND l.sku=%s AND l.source_warehouse=%s
           ORDER BY l.current_capture DESC LIMIT 30""",(account,sku,warehouse))
-    return dict(rows=rows,links=links)
+        if account == 'wb_acc1':
+            intraday=db.query("""SELECT c.completed_at,c.source_rows,
+              coalesce(sum(i.quantity),0) quantity,
+              coalesce(sum(i.in_way_to_client),0) in_way_to_client,
+              coalesce(sum(i.in_way_from_client),0) in_way_from_client
+              FROM (SELECT id,completed_at,source_rows FROM wb_fbo_intraday_capture
+                    WHERE account=%s ORDER BY completed_at DESC LIMIT 30) c
+              LEFT JOIN wb_fbo_intraday_item i ON i.capture_id=c.id AND i.nm_id=%s
+              GROUP BY c.id,c.completed_at,c.source_rows
+              ORDER BY c.completed_at DESC""",(account,int(sku))) if sku.isdigit() and len(sku)<=18 else []
+    return dict(rows=rows,links=links,intraday=intraday)
 
 
 @router.get("/api/warehouse/marketplace-returns")
