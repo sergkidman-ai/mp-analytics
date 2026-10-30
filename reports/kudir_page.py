@@ -115,12 +115,12 @@ def _tax_summary(tax):
 
 
 def html_for(quarter=None, org="cifrovoi"):
-    quarter = quarter if quarter is not None else (3 if org == "diskver" else 2)
+    quarter = quarter if quarter is not None else 3
     data = dict(kudir_report.load(quarter, org))
     data['income_confirmation'] = kudir_tax.confirmed_income(data)
     tax = kudir_tax.load(org, quarter)
     available = kudir_report.quarters(org)
-    summary_quarters = (1, 2, 3) if org == "diskver" else (1, 2)
+    summary_quarters = (1, 2, 3)
     both = [kudir_report.load(q, org) for q in summary_quarters]
     audit = json.loads(AUDIT_PATH.read_text(encoding="utf-8"))
     h1 = {key: sum(Decimal(q["calculated"][key]) for q in both) for key in ("income", "expense")}
@@ -143,6 +143,13 @@ def html_for(quarter=None, org="cifrovoi"):
             alert += '<p class="k-note">Все три строки относятся к отчёту Маркета от 30.06.2026. Сумма 1 284 991,43 ₽ совпадает с июньским покупательским оборотом после возвратов без НДС 5%. Назначения 2 561 ₽ и 534,56 ₽ в XLS не расшифрованы. Учёт этих сумм в расчёте налога по двум файлам установить нельзя.</p>'
     else:
         alert = '<p class="k-note">Итоги квартала совпадают с суммой строк до копейки. Проверка арифметики не подтверждает полноту налогового учёта.</p>'
+    if org == 'cifrovoi' and quarter == 3:
+        alert += ('<div class="k-alert" role="status"><b>Внешняя сверка III квартала не закрыта.</b> '
+                  'Доходы Ozon в книге отличаются от суммы продаж и возвратов в отчёте о реализации Ozon; '
+                  'особенно требуется сверить баллы за скидки, зачёты и НДС. '
+                  'У WB есть расхождения за август и сентябрь. '
+                  'Суммы источников имеют разную основу и сами по себе не доказывают пропуск в КУДиР. '
+                  'Проверьте их с бухгалтером по отчётам агента и первичным документам.</div>')
     if data.get('is_partial'):
         end = date.fromisoformat(data['document_date_range']['to']).strftime('%d.%m.%Y')
         alert += f'<div class="k-alert"><b>IV квартал ещё не завершён.</b> В книге представлены операции по {end}. Эти суммы не включены в итог за 9 месяцев.</div>'
@@ -154,13 +161,13 @@ def html_for(quarter=None, org="cifrovoi"):
     observed = ''.join(f'<li>{escape(s)}</li>' for s in audit['accountant_formation_observed'])
     legal = ''.join(f'<li><a href="{escape(s["url"], quote=True)}" target="_blank" rel="noopener noreferrer">{escape(s["title"])}</a></li>' for s in audit['legal_sources'])
     title = labels[quarter]
-    summary_label = "9 месяцев" if org == "diskver" else "Полугодие"
+    summary_label = "9 месяцев"
     status_note = "Сохранённые итоги Excel требуют пересчёта" if org == "diskver" else "Итоги II квартала требуют сверки"
     if org == 'cifrovoi' and kudir_tax.confirmed_income(both[1]):
         status_note = 'Три доходные строки учтут в годовом отчёте'
     if data.get('manual_verification'):
         status_note = "Итоги сверены вручную"
-    description = 'Раздел I «Доходы и расходы» из книги бухгалтера за 2026 год. Доступны четыре квартала; IV квартал заполнен частично.' if org == "diskver" else 'Раздел I «Доходы и расходы» из файлов бухгалтера за I и II кварталы.'
+    description = 'Раздел I «Доходы и расходы» из книги бухгалтера за 2026 год. Доступны четыре квартала; IV квартал заполнен частично.' if org == "diskver" else 'Раздел I «Доходы и расходы» из файлов бухгалтера за I–III кварталы.'
     download = f'/reports/kudir/file/{quarter}?org={org}'
     download_label = 'Скачать оригинал книги XLSX · 2026' if org == 'diskver' else f'Скачать оригинал XLS · {title} квартал'
     source_note = 'Юрлицо и ИНН подтверждены титульным листом. Объект — доходы, уменьшенные на величину расходов. Оригинал содержит также титул и дополнительные разделы; в Пульте показаны строки раздела I.' if org == 'diskver' else 'Юрлицо привязано по вашему поручению: в этих файлах только раздел I, без титульного листа. Налог рассчитан по заданной вами ставке 15% на основе сумм всех строк.'
