@@ -62,20 +62,13 @@ def message(row):
     if row["kind"] != "non_positive_profit" or not non_positive_profit(r):
         raise ValueError("notification_outside_profit_policy")
     rub = lambda key: f"{Decimal(r[key]):.2f} ₽"
-    expense_note = (f"по фиксированной доле {(Decimal(r['expense_retention'])*100).normalize():g}%"
-                    if r.get('expense_basis_kind')=='fixed' else 'по средней доле кабинета')
-    title = "Расчётный убыток" if Decimal(r["estimated_net"]) < 0 else "Заказ без прибыли"
+    title = ("🚨 СРОЧНО: УБЫТОЧНЫЙ ЗАКАЗ" if Decimal(r['estimated_net']) < 0
+             else "🚨 ВАЖНО: ЗАКАЗ БЕЗ ПРИБЫЛИ")
     return (f"{title}\n{label} · {company} · {row['posting_number']}\n"
             f"МС: {row['ms_status']}\n{product_codes(r)}"
             f"Цена: {rub('price')}; себестоимость: {rub('cost')} "
             f"({'факт отгрузки' if r['cost_kind']=='actual' else 'предварительная оценка'}).\n"
-            f"Пол: {rub('floor')}; отклонение: {rub('gap')}.\n"
-            f"Расчётная чистая прибыль: {rub('estimated_net')}.\n"
-            f"Цена {'МС' if label in ('WB','Маркет') else 'Ozon'} минус себестоимость и расходы {label} {expense_note}. "
-            "Оценка по текущим данным; начисления по заказу могут отличаться.\n"+
-            ("Соответствие состава не подтверждено; проверен общий итог.\n"
-             if r.get("allocation")!="single_market_line" else "")+
-            "Пульт → Склад → Заказы покупателей.")
+            f"Расчётная чистая прибыль: {rub('estimated_net')}.")
 
 
 def claim(order_id, recipient, now):

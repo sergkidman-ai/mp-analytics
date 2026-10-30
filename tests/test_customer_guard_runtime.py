@@ -118,7 +118,9 @@ def test_profit_threshold_and_message(pg,monkeypatch,net,expected):
     assert post.called==expected
     if expected:
         text=post.call_args.kwargs["json"]["text"]
-        assert "Расчётная чистая прибыль:" in text and "по средней доле кабинета" in text
+        assert "Расчётная чистая прибыль:" in text
+        assert text.startswith("🚨 СРОЧНО: УБЫТОЧНЫЙ ЗАКАЗ" if float(net) < 0
+                               else "🚨 ВАЖНО: ЗАКАЗ БЕЗ ПРИБЫЛИ")
         assert "предварительная оценка" in text
 
 

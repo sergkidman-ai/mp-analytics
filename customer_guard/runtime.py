@@ -10,6 +10,7 @@ from core.ozon_expense_basis import BasisUnavailable
 from customer_guard import service, store
 from customer_guard.domain import utcnow, enabled_accounts
 from customer_guard.notifications import recover_interrupted
+from customer_guard.extra_loss_notify import recover_interrupted as recover_extra, send_pending
 
 RUNTIME_LOCK = 7348201702
 WORK_LIMIT = 10
@@ -43,6 +44,7 @@ def tick():
         now=utcnow()
         heartbeat()
         recover_interrupted(now)
+        recover_extra(now)
         result={}
         errors=[]
 
@@ -109,6 +111,8 @@ def tick():
         phase("reuse_actual",lambda:store.reuse_confirmed_actual(utcnow()))
         phase("work",lambda:service.work(limit=WORK_LIMIT,budget=100,notify=state["notifications_enabled"],
                                          accounts=enabled_accounts(settings)))
+        if state['notifications_enabled']:
+            phase('extra_loss_notifications',send_pending)
         # Basis changes do not require fresh MS reads and do not send old alerts.
         try:
             result["reprice"]=service.reprice()
