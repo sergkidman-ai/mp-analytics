@@ -94,7 +94,12 @@ document.onclick=async e=>{const b=e.target.closest('button[data-stock],button[d
  const q=new URLSearchParams({platform:b.dataset.platform,account:b.dataset.account,sku:b.dataset.sku,warehouse:b.dataset.warehouse});
  d=await get('/api/warehouse/marketplace-stock/history?'+q);
  $('history-title').textContent='Остаток '+b.dataset.sku+' · '+b.dataset.warehouse;
- const links=(d.links||[]).map(x=>`<p><b>Связь по уникальному совпадению с ФБО-заказом ${esc(x.posting_number)}</b><br><span class="small">Заказ: ${esc(dt(x.created_at))}, сейчас ${esc(x.mp_status)} · изменение ${esc(x.previous_capture)} → ${esc(x.current_capture)}: ${fmt(x.quantity)} шт. Основание: один заказ на этот товар и количество в интервале снимков, остаток снизился, «в пути к клиенту» выросло. Номер заказа в движении WB отсутствует; себестоимость не назначена.</span></p>`).join('');
+ const links=(d.links||[]).map(x=>{
+   const cross=x.evidence?.kind==='unique_order_cross_source_stock_out';
+   const before=cross?dt(x.evidence.previous_observed_at):x.previous_capture;
+   const after=cross?dt(x.evidence.current_observed_at):x.current_capture;
+   return `<p><b>Связь по уникальному совпадению с ФБО-заказом ${esc(x.posting_number)}</b><br><span class="small">Заказ: ${esc(dt(x.created_at))}, сейчас ${esc(x.mp_status)} · изменение ${esc(before)} → ${esc(after)}: ${fmt(x.quantity)} шт. Основание: один заказ на этот товар и количество в интервале снимков, остаток снизился, «в пути к клиенту» выросло.${cross?' Снимки получены разными методами WB, связь установлена по совпадению, а не по идентификатору движения.':''} Номер заказа в движении WB отсутствует; себестоимость не назначена.</span></p>`;
+ }).join('');
  const intraday=(d.intraday||[]).map(x=>`<p>${esc(dt(x.completed_at))} · WB: <b>${fmt(x.quantity)}</b> · к клиенту ${fmt(x.in_way_to_client)} · от клиента ${fmt(x.in_way_from_client)}</p>`).join('');
  const daily=d.rows.map((x,i)=>`<p>${esc(x.captured_at)} · к продаже <b>${fmt(x.usable_available)}</b>${i+1<d.rows.length?' · '+delta(Number(x.usable_available)-Number(d.rows[i+1].usable_available)):''}</p>`).join('')||'Снимков нет.';
  $('history-body').innerHTML=links+(intraday?'<h3>Внутридневные снимки WB</h3><p class="small">Время получения ответа; WB обновляет данные раз в 30 минут. Количество нового метода не смешивается с дневным остатком.</p>'+intraday:'')+'<h3>Дневная история</h3>'+daily;
