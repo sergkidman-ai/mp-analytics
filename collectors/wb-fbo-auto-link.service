@@ -1,0 +1,19 @@
+# поток: fin
+[Unit]
+Description=Infer WB acc1 FBO orders from timestamped stock movements (local DB only)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics/runtime/wb-fbo-auto-link-current
+ExecStart=/opt/mp-analytics/venv/bin/python -m collectors.wb_fbo_auto_link
+TimeoutStartSec=120
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

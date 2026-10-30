@@ -1,0 +1,12 @@
+# поток: fin
+[Unit]
+Description=Match WB acc1 FBO orders after hourly order sync
+
+[Timer]
+OnCalendar=*-*-* 04..21:56:00 UTC
+AccuracySec=30s
+Persistent=false
+Unit=wb-fbo-auto-link.service
+
+[Install]
+WantedBy=timers.target

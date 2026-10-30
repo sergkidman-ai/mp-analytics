@@ -146,6 +146,15 @@ def stock_history(platform: str, account: str, sku: str, warehouse: str):
           JOIN mp_fbo_orders o ON o.id=l.order_id
           WHERE l.account=%s AND l.sku=%s AND l.source_warehouse=%s
           ORDER BY c.completed_at DESC LIMIT 30""",(account,sku,warehouse)))
+        links.extend(db.query("""SELECT p.completed_at previous_capture,
+          c.completed_at current_capture,l.quantity,l.evidence,
+          o.posting_number,o.created_at,o.mp_status
+          FROM mp_fbo_intraday_link_candidates l
+          JOIN wb_fbo_intraday_capture p ON p.id=l.previous_capture_id
+          JOIN wb_fbo_intraday_capture c ON c.id=l.current_capture_id
+          JOIN mp_fbo_orders o ON o.id=l.order_id
+          WHERE l.account=%s AND l.sku=%s AND l.source_warehouse=%s
+          ORDER BY c.completed_at DESC LIMIT 30""",(account,sku,warehouse)))
         if account == 'wb_acc1':
             intraday=db.query("""SELECT c.completed_at,c.source_rows,
               coalesce(sum(i.quantity),0) quantity,
