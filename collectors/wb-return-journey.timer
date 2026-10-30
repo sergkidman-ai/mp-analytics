@@ -1,0 +1,12 @@
+# поток: fin
+[Unit]
+Description=Review WB return routes after order, stock and MS receipt sync
+
+[Timer]
+OnCalendar=*-*-* 04..21:58:00 UTC
+AccuracySec=30s
+Persistent=false
+Unit=wb-return-journey.service
+
+[Install]
+WantedBy=timers.target

@@ -133,6 +133,7 @@ def stock_history(platform: str, account: str, sku: str, warehouse: str):
       ORDER BY captured_at DESC LIMIT 180""",(platform,account,sku,warehouse))
     links=[]
     intraday=[]
+    return_journey=[]
     if platform == 'wb':
         links=db.query("""SELECT l.previous_capture,l.current_capture,l.quantity,l.evidence,
           o.posting_number,o.created_at,o.mp_status
@@ -155,6 +156,11 @@ def stock_history(platform: str, account: str, sku: str, warehouse: str):
           JOIN mp_fbo_orders o ON o.id=l.order_id
           WHERE l.account=%s AND l.sku=%s AND l.source_warehouse=%s
           ORDER BY c.completed_at DESC LIMIT 30""",(account,sku,warehouse)))
+        return_journey=db.query("""SELECT posting_number,order_kind,stage,source_kind,
+          previous_observed_at,current_observed_at,transit_before,transit_after,
+          destination_observed_at,evidence
+          FROM wb_return_journey_candidate WHERE account=%s AND sku=%s
+          ORDER BY current_observed_at DESC LIMIT 30""",(account,sku))
         if account == 'wb_acc1':
             intraday=db.query("""SELECT c.completed_at,c.source_rows,
               coalesce(sum(i.quantity),0) quantity,
@@ -165,7 +171,34 @@ def stock_history(platform: str, account: str, sku: str, warehouse: str):
               LEFT JOIN wb_fbo_intraday_item i ON i.capture_id=c.id AND i.nm_id=%s
               GROUP BY c.id,c.completed_at,c.source_rows
               ORDER BY c.completed_at DESC""",(account,int(sku))) if sku.isdigit() and len(sku)<=18 else []
-    return dict(rows=rows,links=links,intraday=intraday)
+    return dict(rows=rows,links=links,intraday=intraday,return_journey=return_journey)
+
+
+@router.get("/api/warehouse/wb-return-journeys")
+def wb_return_journeys(account: str = "", stage: str = "", search: str = "",
+                       limit: int = Query(50,ge=1,le=200), offset: int = Query(0,ge=0)):
+    if account not in ("", "wb_acc1", "wb_acc2"):
+        raise HTTPException(422,"Неизвестный кабинет WB")
+    if stage not in ("", "in_transit_candidate", "received_wb", "received_seller"):
+        raise HTTPException(422,"Неизвестная стадия возврата WB")
+    where=["true"];params=[]
+    if account:
+        where.append("account=%s");params.append(account)
+    if stage:
+        where.append("stage=%s");params.append(stage)
+    if search.strip():
+        where.append("(sku ILIKE %s OR posting_number ILIKE %s)")
+        term='%'+search.strip()[:80].replace('%','\\%').replace('_','\\_')+'%'
+        params.extend((term,term))
+    condition=' AND '.join(where)
+    total=db.query("SELECT count(*) n FROM wb_return_journey_candidate WHERE "+condition,
+                   tuple(params))[0]['n']
+    rows=db.query("""SELECT account,order_kind,posting_number,sku,stage,source_kind,
+      previous_observed_at,current_observed_at,transit_before,transit_after,
+      destination_observed_at,evidence FROM wb_return_journey_candidate
+      WHERE """+condition+" ORDER BY current_observed_at DESC,id DESC LIMIT %s OFFSET %s",
+      tuple(params+[limit,offset]))
+    return dict(total=total,rows=rows)
 
 
 @router.get("/api/warehouse/marketplace-returns")

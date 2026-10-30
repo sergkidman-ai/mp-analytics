@@ -1,0 +1,19 @@
+# поток: fin
+[Unit]
+Description=Infer WB return journey from local Pult, inventory, and MS receipt tables
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics/runtime/wb-return-journey-current
+ExecStart=/opt/mp-analytics/venv/bin/python -m collectors.wb_return_journey
+TimeoutStartSec=120
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

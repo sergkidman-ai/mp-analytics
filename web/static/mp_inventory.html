@@ -37,6 +37,12 @@ dialog{background:var(--card);color:var(--txt);border:1px solid var(--line);bord
 <p class="small" id="return-error"></p>
 <div class="tablewrap"><table><thead><tr><th>Площадка · организация</th><th>Заказ / возврат</th><th>Тип</th><th>Статус МП</th><th>Место / цель</th><th>Последнее наблюдение</th></tr></thead><tbody id="return-rows"></tbody></table></div>
 <div class="pager"><button id="return-prev">Назад</button><span id="return-page"></span><button id="return-next">Дальше</button></div>
+<h2>WB · путь отменённых заказов</h2>
+<p class="note">Совпадение отмены с ростом «в пути от клиента» — предварительная связь. Приёмка на нашем складе подтверждается документом МС; приёмка на WB выводится из следующего однозначного изменения остатков. Номер движения WB отсутствует, себестоимость не назначается.</p>
+<div class="filters"><label>Кабинет WB<select id="journey-account"><option value="">Оба</option><option value="wb_acc1">Цифровой</option><option value="wb_acc2">Дисквер</option></select></label><label>Этап<select id="journey-stage"><option value="">Все</option><option value="in_transit_candidate">Вероятно в пути</option><option value="received_wb">Принято на WB по остаткам</option><option value="received_seller">Принято у нас по МС</option></select></label><label>SKU / заказ<input id="journey-search" type="search" placeholder="SKU или номер"></label></div>
+<p class="small error" id="journey-error"></p>
+<div class="tablewrap"><table><thead><tr><th>Кабинет · схема</th><th>Заказ</th><th>SKU</th><th>Этап</th><th>Наблюдение</th><th>Основание</th></tr></thead><tbody id="journey-rows"></tbody></table></div>
+<div class="pager"><button id="journey-prev">Назад</button><span id="journey-page"></span><button id="journey-next">Дальше</button></div>
 <h2>Маркет · приёмка возвратов в МС</h2>
 <p class="note">Маркет возвращает товары на наш склад. Его статус помогает увидеть незавершённый путь, но подтверждением приёмки здесь служит проведённый документ «Возврат покупателя», связанный с исходной отгрузкой МС. Отмены в доставке без записи возврата МП тоже показаны как кандидаты на проверку. Для склада «Брак» приёмка подтверждается, но товар не считается продаваемым.</p>
 <div class="filters"><label>Результат сверки<select id="market-state"><option value="unconfirmed">Без подтверждения МС</option><option value="in_transit">В пути без подтверждения</option><option value="received">Принято по МС</option><option value="unknown">Вне охвата МС</option><option value="all">Все</option></select></label><label>Номер заказа / возврата<input id="market-search" type="search" placeholder="Номер"></label></div>
@@ -49,7 +55,7 @@ const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g
 const platformName={ozon:'Ozon',wb:'WB',yandex:'Маркет'}, orgName=a=>a.endsWith('acc1')?'Цифровой':'Дисквер';
 const fmt=v=>Number(v||0).toLocaleString('ru-RU'), delta=v=>`<span class="${Number(v)>0?'pos':Number(v)<0?'neg':''}">${Number(v)>0?'+':''}${fmt(v)}</span>`;
 const dt=v=>v?new Date(v).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}):'—';
-let stockOffset=0,returnOffset=0,marketOffset=0,stockTotal=0,returnTotal=0,marketTotal=0;
+let stockOffset=0,returnOffset=0,marketOffset=0,journeyOffset=0,stockTotal=0,returnTotal=0,marketTotal=0,journeyTotal=0;
 function account(){return $('account').value}
 async function get(url){const r=await fetch(url);if(!r.ok)throw Error('HTTP '+r.status);return r.json()}
 function fillOptions(select,values,old){select.innerHTML='<option value="">Все '+(select.id==='warehouse'?'склады':'статусы')+'</option>'+values.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');if(values.some(x=>x.value===old))select.value=old}
@@ -71,6 +77,13 @@ async function loadReturns(){try{
  $('return-rows').innerHTML=d.rows.map(x=>`<tr><td>${esc(platformName[x.platform])}<div class="small">${esc(orgName(x.account))} · ${esc(x.source)}</div></td><td><button data-return="1" data-platform="${esc(x.platform)}" data-account="${esc(x.account)}" data-id="${esc(x.return_id)}">${esc(x.posting_number||x.order_number||x.return_id)}</button><div class="small">Возврат ${esc(x.return_id)}</div></td><td>${esc(x.return_type||'—')}<div class="small">${esc(x.scheme||'')}</div></td><td>${esc(x.status_name||x.status_raw||'—')}<div class="small">${esc(x.status_raw||'')} · ${esc(x.stage)}</div></td><td>${esc(x.pvz_name||x.where_now||'—')}</td><td>${esc(dt(x.last_seen))}</td></tr>`).join('')||'<tr><td colspan="6">Возвратов по фильтру нет.</td></tr>';
  $('return-page').textContent=`${returnTotal?returnOffset+1:0}–${Math.min(returnOffset+50,returnTotal)} из ${returnTotal}`;$('return-prev').disabled=!returnOffset;$('return-next').disabled=returnOffset+50>=returnTotal;$('return-error').textContent='';
 }catch(e){$('return-error').textContent='Возвраты недоступны: '+e.message}}
+const journeyLabel={in_transit_candidate:'Вероятно в пути от клиента',received_wb:'Принято на WB по остаткам',received_seller:'Принято у нас по МС'};
+async function loadJourneys(){try{
+ const q=new URLSearchParams({account:$('journey-account').value,stage:$('journey-stage').value,search:$('journey-search').value,limit:50,offset:journeyOffset});
+ const d=await get('/api/warehouse/wb-return-journeys?'+q);journeyTotal=d.total;
+ $('journey-rows').innerHTML=d.rows.map(x=>`<tr><td>WB · ${esc(orgName(x.account))}<div class="small">${x.order_kind==='fbs'?'ФБС':'ФБО'}</div></td><td>${esc(x.posting_number)}</td><td>${esc(x.sku)}</td><td>${esc(journeyLabel[x.stage]||x.stage)}${x.destination_observed_at?'<div class="small">'+esc(dt(x.destination_observed_at))+'</div>':''}</td><td>${esc(dt(x.current_observed_at))}<div class="small">От клиента: ${fmt(x.transit_before)} → ${fmt(x.transit_after)} · ${x.source_kind==='intraday'?'внутридневной':'дневной'} снимок</div></td><td class="small">${x.stage==='received_seller'?'Документ МС · '+esc(x.evidence.store||''):x.stage==='received_wb'?'Остаток WB +1, в пути 1 → 0':'Единственная отмена SKU в интервале; пункт назначения неизвестен'}</td></tr>`).join('')||'<tr><td colspan="6">Совпадений по фильтру нет.</td></tr>';
+ $('journey-page').textContent=`${journeyTotal?journeyOffset+1:0}–${Math.min(journeyOffset+50,journeyTotal)} из ${journeyTotal}`;$('journey-prev').disabled=!journeyOffset;$('journey-next').disabled=journeyOffset+50>=journeyTotal;$('journey-error').textContent='';
+}catch(e){$('journey-error').textContent='Пути возвратов WB недоступны: '+e.message}}
 const marketLabel={received:'Принято по МС',waiting:'Нет связанного документа МС',draft:'Документ МС не проведён',other_store:'Документ на другом складе',mismatch:'Связана другая отгрузка',unknown:'Нет полного охвата МС'};
 async function loadMarket(){try{
  const q=new URLSearchParams({state:$('market-state').value,search:$('market-search').value,limit:50,offset:marketOffset});
@@ -80,6 +93,9 @@ async function loadMarket(){try{
  $('market-page').textContent=`${marketTotal?marketOffset+1:0}–${Math.min(marketOffset+50,marketTotal)} из ${marketTotal}`;$('market-prev').disabled=!marketOffset;$('market-next').disabled=marketOffset+50>=marketTotal;$('market-error').textContent='';
 }catch(e){$('market-error').textContent='Сверка МС недоступна: '+e.message}}
 function reload(){stockOffset=0;returnOffset=0;loadStock();loadReturns()}
+$('journey-account').onchange=()=>{journeyOffset=0;loadJourneys()};$('journey-stage').onchange=()=>{journeyOffset=0;loadJourneys()};
+$('journey-search').oninput=()=>{clearTimeout(timer);timer=setTimeout(()=>{journeyOffset=0;loadJourneys()},350)};
+$('journey-prev').onclick=()=>{journeyOffset=Math.max(0,journeyOffset-50);loadJourneys()};$('journey-next').onclick=()=>{journeyOffset+=50;loadJourneys()};
 for(const id of ['platform','org','account'])$(id).onchange=reload;
 for(const id of ['on','warehouse'])$(id).onchange=()=>{stockOffset=0;loadStock()};
 for(const id of ['source','status','stage'])$(id).onchange=()=>{returnOffset=0;loadReturns()};
@@ -101,12 +117,13 @@ document.onclick=async e=>{const b=e.target.closest('button[data-stock],button[d
    const after=cross||intradayLink?dt(x.evidence.current_observed_at):x.current_capture;
    return `<p><b>Связь по уникальному совпадению с ФБО-заказом ${esc(x.posting_number)}</b><br><span class="small">Заказ: ${esc(dt(x.created_at))}, сейчас ${esc(x.mp_status)} · изменение ${esc(before)} → ${esc(after)}: ${fmt(x.quantity)} шт. Основание: один заказ на этот товар и количество в интервале снимков, остаток снизился, «в пути к клиенту» выросло.${cross?' Снимки получены разными методами WB, связь установлена по совпадению, а не по идентификатору движения.':''}${intradayLink?' Оба снимка получены одним методом WB; связь установлена по совпадению.':''} Номер заказа в движении WB отсутствует; себестоимость не назначена.</span></p>`;
  }).join('');
+ const journey=(d.return_journey||[]).map(x=>`<p><b>${esc(journeyLabel[x.stage]||x.stage)} · ${x.order_kind==='fbs'?'ФБС':'ФБО'} ${esc(x.posting_number)}</b><br><span class="small">От клиента ${fmt(x.transit_before)} → ${fmt(x.transit_after)} · ${esc(dt(x.previous_observed_at))} → ${esc(dt(x.current_observed_at))}. ${x.stage==='received_seller'?'Документ МС, склад '+esc(x.evidence.store||''):x.stage==='received_wb'?'Приёмка выведена из изменения остатка WB':'Место приёмки пока неизвестно'}. Себестоимость не назначена.</span></p>`).join('');
  const intraday=(d.intraday||[]).map(x=>`<p>${esc(dt(x.completed_at))} · WB: <b>${fmt(x.quantity)}</b> · к клиенту ${fmt(x.in_way_to_client)} · от клиента ${fmt(x.in_way_from_client)}</p>`).join('');
  const daily=d.rows.map((x,i)=>`<p>${esc(x.captured_at)} · к продаже <b>${fmt(x.usable_available)}</b>${i+1<d.rows.length?' · '+delta(Number(x.usable_available)-Number(d.rows[i+1].usable_available)):''}</p>`).join('')||'Снимков нет.';
- $('history-body').innerHTML=links+(intraday?'<h3>Внутридневные снимки WB</h3><p class="small">Время получения ответа; WB обновляет данные раз в 30 минут. Количество нового метода не смешивается с дневным остатком.</p>'+intraday:'')+'<h3>Дневная история</h3>'+daily;
+ $('history-body').innerHTML=links+(journey?'<h3>Путь возврата WB</h3>'+journey:'')+(intraday?'<h3>Внутридневные снимки WB</h3><p class="small">Время получения ответа; WB обновляет данные раз в 30 минут. Количество нового метода не смешивается с дневным остатком.</p>'+intraday:'')+'<h3>Дневная история</h3>'+daily;
 }
  else{d=await get('/api/warehouse/marketplace-returns/'+encodeURIComponent(b.dataset.platform)+'/'+encodeURIComponent(b.dataset.account)+'/'+encodeURIComponent(b.dataset.id)+'/history');$('history-title').textContent='Возврат '+b.dataset.id;$('history-body').innerHTML=d.rows.map(x=>`<p><b>${esc(x.status_name||x.status_raw||'—')}</b> · ${esc(x.status_raw||'')}<br><span class="small">Наблюдали ${esc(dt(x.observed_at))}${x.is_baseline?' · исходный снимок':''}${x.source_changed_at?' · МП: '+esc(x.source_changed_at):''}</span><br>${esc(x.place_name||'')} ${x.target_name?'→ '+esc(x.target_name):''}<br><span class="small">Подстатусы: ${esc(JSON.stringify(x.status_evidence||{}))}</span></p>`).join('')||'История ещё не собрана.'}
  $('history').showModal();
 }catch(error){$('history-title').textContent='Ошибка';$('history-body').textContent=error.message;$('history').showModal()}};
-reload();loadMarket();
+reload();loadJourneys();loadMarket();
 </script></body></html>
