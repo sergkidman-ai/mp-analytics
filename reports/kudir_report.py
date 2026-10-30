@@ -16,6 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SOURCES = {
     1: "20261014_115803_Natalie_Pro_natalya_КУДиР_1_квартал_2026_г_Раздел_I_Доходы_и_расходы_за_1_кв_.xls",
     2: "20261014_115808_Natalie_Pro_natalya_КУДиР_2_квартал_2026_г_Раздел_I_Доходы_и_расходы_за_2_кв_.xls",
+    3: "20261030_081424_Natalie_Pro_natalya_КУДиР_3_квартал_2026_г_Раздел_I_Доходы_и_расходы_за_3_кв_.xls",
 }
 CENT = Decimal("0.01")
 ORGANISATIONS = {"cifrovoi": "Цифровой квадрат", "diskver": "Дисквер"}
@@ -24,7 +25,7 @@ ORGANISATIONS = {"cifrovoi": "Цифровой квадрат", "diskver": "Ди
 def quarters(org="cifrovoi"):
     if org not in ORGANISATIONS:
         raise KeyError(org)
-    return (1, 2, 3, 4) if org == "diskver" else (1, 2)
+    return (1, 2, 3, 4) if org == "diskver" else (1, 2, 3)
 
 
 def money(value):
@@ -66,11 +67,12 @@ def formulas(path, book):
 
 
 def category(text):
-    if "Себестоимость" in text:
+    lower = text.casefold()
+    if "себестоимость" in lower:
         return "Себестоимость (месячные ручные строки)"
-    if text.startswith("Отчет"):
-        for needle, label in (("Интернет Решения", "Ozon"), ("РВБ", "WB"), ("Яндекс", "Маркет")):
-            if needle in text:
+    if lower.startswith(("отчет", "очет")) or lower.startswith("ооо яндекс маркет"):
+        for needle, label in (("интернет решения", "Ozon"), ("рвб", "WB"), ("вб", "WB"), ("яндекс", "Маркет")):
+            if needle in lower:
                 return "Отчёты " + label
         return "Отчёты прочие"
     if "Прочий приход денежных средств" in text:

@@ -15,7 +15,7 @@ Organisation = Literal["cifrovoi", "diskver"]
 
 def _quarter(org, quarter):
     if quarter is None:
-        return 3 if org == "diskver" else 2
+        return 3
     if quarter not in kudir_report.quarters(org):
         raise HTTPException(404, "КУДиР за этот квартал для выбранного юрлица нет")
     return quarter

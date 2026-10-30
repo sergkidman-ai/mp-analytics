@@ -29,6 +29,22 @@ def test_second_quarter_detects_three_income_lines_omitted_by_excel():
     assert len(data["operations"]) == 324  # No quarter/cumulative/tax footer as postings.
 
 
+@unittest.skipUnless(report.source_path(3).exists(), "Local accountant source not attached")
+def test_third_quarter_matches_accountant_and_classifies_all_marketplace_costs():
+    data = report.load(3)
+    assert len(data["operations"]) == 283
+    assert data["accountant"]["income_formula"] == "SUM(E7:E290)"
+    assert data["accountant"]["expense_formula"] == "SUM(F7:F290)"
+    assert data["calculated"] == {"income": "28106913.24", "expense": "22965282.97"}
+    assert data["delta"] == {"income": "0.00", "expense": "0.00"}
+    assert data["income_rows_outside_formula"] == []
+    assert data["outside_document_dates"] == []
+    groups = {group["category"]: group for group in data["groups"]}
+    assert groups["Отчёты WB"]["income"] == "4859005.38"
+    assert groups["Отчёты Маркет"]["expense"] == "2048591.68"
+    assert groups["Себестоимость (месячные ручные строки)"]["expense"] == "10307272.16"
+
+
 @unittest.skipUnless(report.source_path(2).exists(), "Local accountant source not attached")
 def test_source_document_dates_are_not_silently_corrected():
     data = report.load(2)
@@ -63,7 +79,7 @@ def test_report_and_original_downloads():
     app = FastAPI()
     app.include_router(router)
     with TestClient(app) as client:
-        for q, count in [(1, 243), (2, 324)]:
+        for q, count in [(1, 243), (2, 324), (3, 283)]:
             page = client.get(f"/reports/kudir?quarter={q}")
             assert page.status_code == 200
             assert page.text.count("data-operation") == count + 1  # + selector in script
@@ -76,8 +92,12 @@ def test_report_and_original_downloads():
             assert original.status_code == 200
             assert hashlib.sha256(original.content).hexdigest() == data['sha256']
             assert original.headers['cache-control'] == 'private, no-store'
-        assert client.get('/reports/kudir/file/3').status_code == 404
-        assert client.get('/reports/kudir?quarter=3').status_code == 404
+        assert client.get('/reports/kudir/file/4').status_code == 404
+        assert client.get('/reports/kudir?quarter=4').status_code == 404
+        latest = client.get('/api/reports/kudir').json()
+        assert latest['quarter'] == 3
+        assert latest['tax']['current']['income'] == '82807413.95'
+        assert 'Внешняя сверка III квартала не закрыта' in client.get('/reports/kudir').text
         assert client.get('/api/reports/kudir?quarter=0').status_code == 422
 
 
