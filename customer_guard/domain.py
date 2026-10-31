@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import hashlib
 import json
+from zoneinfo import ZoneInfo
 
 from shipment_guard.economics import number
 from core.profit_floor import POLICY_VERSION
@@ -13,6 +14,11 @@ ACTIVE = frozenset(("awaiting_packaging", "awaiting_deliver", "delivering"))
 TERMINAL = frozenset(("cancelled", "delivered"))
 READY = frozenset(("Неукомплектован", "Подтвержден", "Собирается"))
 ACCOUNTS = {"oz_acc2":"ozon", "wb_acc2":"wb", "oz_acc1":"ozon", "wb_acc1":"wb", "ya_acc1":"yandex"}
+BUSINESS_TZ = ZoneInfo('Europe/Moscow')
+
+
+def business_date(moment):
+    return moment.astimezone(BUSINESS_TZ).date()
 
 def organization(account):
     if account not in ACCOUNTS:
@@ -159,7 +165,7 @@ def economics(post, cost, kind, rule, now, allocation_verified=False, price_over
     if not rule or not rule.get("enabled") or rule.get("account") != account:
         result["note"] = "Нет действующего правила пола"
         return result
-    if (rule["valid_until"] < now.date() or rule["platform"] != platform
+    if (rule["valid_until"] < business_date(now) or rule["platform"] != platform
             or str(rule["organization_id"]) != organization(account)):
         result["note"] = "Правило пола просрочено или относится к другому кабинету"
         return result

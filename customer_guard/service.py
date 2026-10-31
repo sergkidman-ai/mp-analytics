@@ -14,7 +14,7 @@ from customer_guard.rules import get_rule as shipment_rule
 from shipment_guard.ms import SourceError
 from shipment_guard.worker import LOCK_ID
 from customer_guard import store
-from customer_guard.domain import ACTIVE, READY, composition, economics, sale, utcnow, non_positive_profit, market, ACCOUNTS
+from customer_guard.domain import ACTIVE, READY, composition, economics, sale, utcnow, non_positive_profit, market, ACCOUNTS, business_date
 from customer_guard.sources import CustomerMS, get_posting
 
 MESSAGES = {
@@ -177,7 +177,7 @@ def work(limit=5, budget=100, clock=utcnow, client=None, get=get_posting, postin
                 client.evidence = []
                 document = client.find_order(post["posting_number"])
                 try:
-                    rule = shipment_rule(job_account, as_of=clock().date())
+                    rule = shipment_rule(job_account, as_of=business_date(clock()))
                 except BasisUnavailable:
                     rule = None
                 result = evaluate(post, document, client, rule, clock())
@@ -229,7 +229,7 @@ def bootstrap(days=90, account="oz_acc2"):
 def reprice(refresh_composition=False, account='oz_acc2'):
     """New local calculations; never present stored MS evidence as newly fetched."""
     now = utcnow()
-    rule = shipment_rule(account, as_of=now.date())
+    rule = shipment_rule(account, as_of=business_date(now))
     resolver = None
     if refresh_composition:
         from shipment_guard.bundles import Catalogue
