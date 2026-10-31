@@ -164,6 +164,9 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
     if cancel_category and cancel_category not in CATEGORIES:
         raise HTTPException(422,'Неизвестный статус отмены')
     review_installed=bool(db.query("SELECT to_regclass('customer_guard_cancel_review') name")[0]['name'])
+    status_seen_installed=bool(db.query("""SELECT EXISTS (SELECT 1 FROM pg_attribute
+      WHERE attrelid='customer_guard_orders'::regclass AND attname='ms_status_seen_at'
+        AND NOT attisdropped) present""")[0]['present'])
     if scheme not in ('','fbs','fbo'):
         raise HTTPException(422,'Неизвестная схема отгрузки')
     (negative_fbs, negative_fbs_params), (negative_fbo, negative_fbo_params) = negative_filter(negative_status)
@@ -225,7 +228,9 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
     total_fbs = (db.query("SELECT count(*) n " + base + "WHERE " + condition, tuple(params))[0]["n"]
                  if scheme!='fbo' else 0)
     rows = db.query("""SELECT o.id,o.platform,o.account,o.posting_number,o.parent_number,o.mp_status,o.ms_status,o.ms_store,
-      o.first_seen_at,o.observed_at,o.ms_due_at,o.ms_checked_at,o.ms_id,"""+review_cols+"""
+      o.first_seen_at,o.observed_at,o.ms_due_at,o.ms_checked_at,o.ms_id,"""+
+      ("o.ms_status_seen_at," if status_seen_installed else "NULL::timestamptz ms_status_seen_at,")+
+      review_cols+"""
       o.mp_payload->'products' products,o.mp_payload->>'substatus' source_status,c.result,c.calculated_at,
       coalesce(c.generation=o.generation,false) current,
       j.state job_state,j.error job_error,j.due_at retry_at, """ + received_at + " mp_received_at " + base +

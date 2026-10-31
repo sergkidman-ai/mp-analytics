@@ -266,12 +266,14 @@ async function load(){
       const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар '+marketName+'; состав МС ещё не проверен';
       const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
       const returnMovement=(row.return_movements||[]).map(x=>`${movementName[x.direction]||x.direction}: SKU ${x.sku} · ${x.quantity} шт.`).join('; ');
+      const msSeen=row.ms_status_seen_at||row.ms_checked_at;
+      const msBeforeCancel=row.mp_status==='cancelled'&&row.first_cancelled_at&&msSeen&&Date.parse(msSeen)<Date.parse(row.first_cancelled_at);
       return `<tr><td data-label="Отправление · новые сверху"><span class="badge">ФБС</span> <button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?marketName+' · поступил':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
         <button class="small" data-history="${Number(row.id)}">История статусов и проверок</button></td>
         <td data-label="Статусы"><div>${marketName} · ${company}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div>${negative(row)?`<div class="small">Код МП: ${esc(row.mp_status)}${detail(row)!==row.mp_status?' · '+esc(detail(row)):''}</div>`:''}
           ${row.cancel_category?`<div class="small"><b>Отмена в Пульте:</b> ${esc(row.cancel_category)}</div>`:row.mp_status==='cancelled'?'<div class="small">Отмена вне периода наблюдения</div>':''}
           ${row.first_handoff_at?`<div class="small">Передача МП замечена: ${esc(dt(row.first_handoff_at))}</div>`:''}
-          <div class="small">МС: ${esc(row.ms_status||'Не проверено')}</div></td>
+          <div class="small">МС: ${esc(row.ms_status||'Не проверено')}${msSeen?' · '+esc(dt(msSeen)):''}${msBeforeCancel?' · статус до отмены':''}</div></td>
         <td data-label="Выбранный товар / склад"><div class="small">${esc(compositionNote)}</div>${products.map(p=>`<div>${esc(p.name||p.code||p.external_code||'Товар')} × ${esc(p.quantity)}</div>
           <div class="small">${hasMS?`Код МС: <b>${esc(p.code||'—')}</b> · Внешний код: ${esc(p.external_code||'—')}`:`Артикул ${marketName}: ${esc(p.offer_id||'—')}`}</div>`).join('')}
           <div class="small">${esc(row.ms_store||'Склад не подтверждён')}</div></td>

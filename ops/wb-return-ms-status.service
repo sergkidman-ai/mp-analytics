@@ -1,0 +1,19 @@
+# поток: fin
+[Unit]
+Description=Refresh MS status for WB cancelled FBS orders linked to return movement
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics/runtime/wb-return-ms-status-current
+ExecStart=/opt/mp-analytics/venv/bin/python -m customer_guard.ms_status_watch --limit 2
+TimeoutStartSec=180
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

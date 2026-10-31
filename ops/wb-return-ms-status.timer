@@ -1,0 +1,12 @@
+# поток: fin
+[Unit]
+Description=Observe MS status of linked WB returns with two reads per hour
+
+[Timer]
+OnCalendar=*-*-* *:45:00 UTC
+AccuracySec=30s
+Persistent=false
+Unit=wb-return-ms-status.service
+
+[Install]
+WantedBy=timers.target
