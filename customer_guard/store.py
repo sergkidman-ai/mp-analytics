@@ -338,8 +338,12 @@ def finish(job, result, now, document=None, evidence=None):
                   VALUES(%s,'demand',%s,%s,%s) ON CONFLICT(order_id,entity_type,entity_id)
                   DO UPDATE SET checked_at=excluded.checked_at,version=excluded.version""",
                   (job["order_id"], source["entity_id"], now, source.get("version")))
-        kind = "missing_ms" if result.get("signal")=="missing_ms" else "non_positive_profit"
-        actionable = (kind=="missing_ms" and document is None) or (non_positive_profit(result) and
+        partial_demand = (result.get('reason') == 'partial_demand_coverage'
+                          and bool((document or {}).get('demands'))
+                          and job['order']['mp_status'] in ACTIVE)
+        kind = ('partial_demand_coverage' if partial_demand else
+                'missing_ms' if result.get("signal")=="missing_ms" else "non_positive_profit")
+        actionable = partial_demand or (kind=="missing_ms" and document is None) or (non_positive_profit(result) and
             job["order"]["mp_status"] in ("awaiting_packaging", "awaiting_deliver") and
             (document or {}).get("state", {}).get("name") in ("Подтвержден","Собирается","Неукомплектован"))
         if actionable:

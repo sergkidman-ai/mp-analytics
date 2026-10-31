@@ -59,6 +59,12 @@ def message(row):
                 ("\n".join(codes)+"\n" if codes else "")+
                 "Код товара МС, себестоимость и чистая прибыль пока не определены.\n"
                 "Пульт → Склад → Заказы покупателей.")
+    if row['kind'] == 'partial_demand_coverage' and r.get('reason') == 'partial_demand_coverage':
+        return (f"⚠️ ОТГРУЗКА НЕ ПОКРЫВАЕТ ЗАКАЗ\n{label} · {company} · {row['posting_number']}\n"
+                f"МС: {row['ms_status']}\n{product_codes(r)}"
+                "Отгрузка создана, но её позиции или количество не совпадают с заказом МС. "
+                "Полная себестоимость и чистая прибыль пока не рассчитаны.\n"
+                "Проверьте состав отгрузки в МС. Пульт → Склад → Заказы покупателей.")
     if row["kind"] != "non_positive_profit" or not non_positive_profit(r):
         raise ValueError("notification_outside_profit_policy")
     rub = lambda key: f"{Decimal(r[key]):.2f} ₽"
@@ -93,6 +99,8 @@ def claim(order_id, recipient, now):
           AND o.mp_status=ANY(%s) AND o.observed_at>=%s AND o.ms_checked_at>=%s
           AND o.ms_due_at<=%s
           AND (i.kind='missing_ms' AND c.result->>'signal'='missing_ms' AND o.ms_id IS NULL
+            OR i.kind='partial_demand_coverage' AND c.result->>'reason'='partial_demand_coverage'
+              AND o.ms_id IS NOT NULL
             OR i.kind='non_positive_profit' AND c.result->>'rule_version'=%s
               AND o.ms_status=ANY(%s) AND o.mp_status IN ('awaiting_packaging','awaiting_deliver'))
           FOR UPDATE OF i,o SKIP LOCKED LIMIT 1""",
@@ -117,7 +125,7 @@ def send_current(order_id):
     # Do not call Telegram at all when there is nothing eligible to deliver.
     candidates=db.query("""SELECT 1 FROM customer_guard_incidents i
       CROSS JOIN customer_guard_runtime r WHERE i.order_id=%s AND i.delivery='pending'
-      AND i.kind IN ('non_positive_profit','missing_ms')
+      AND i.kind IN ('non_positive_profit','missing_ms','partial_demand_coverage')
       AND i.resolved_at IS NULL AND r.enabled AND r.notifications_enabled LIMIT 1""", (order_id,))
     if not candidates:
         return "none"

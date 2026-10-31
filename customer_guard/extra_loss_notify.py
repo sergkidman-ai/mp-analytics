@@ -1,5 +1,5 @@
 # поток: fin
-"""Independent PRC delivery of new loss alerts to an additional private recipient."""
+"""Independent PRC delivery of loss and incomplete-shipment alerts to dragon."""
 import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -47,14 +47,17 @@ def _candidate_exists(recipient, since, now):
       JOIN customer_guard_orders o ON o.id=i.order_id
       JOIN customer_guard_checks c ON c.id=o.latest_check_id
       CROSS JOIN customer_guard_runtime r
-      WHERE i.kind='non_positive_profit' AND i.delivery IN ('sent','uncertain')
+      WHERE i.kind IN ('non_positive_profit','partial_demand_coverage')
+      AND i.delivery IN ('sent','uncertain')
       AND i.opened_at>=%s AND i.resolved_at IS NULL AND i.check_id=c.id
       AND c.generation=o.generation AND c.calculated_at>=r.activated_at
       AND r.enabled AND r.notifications_enabled AND o.mp_status=ANY(%s)
       AND (o.account='oz_acc2' OR o.account='wb_acc2' AND coalesce((r.settings->>'wb_enabled')::boolean,false)
         OR o.account IN ('oz_acc1','wb_acc1','ya_acc1')
           AND coalesce((r.settings->>'digital_enabled')::boolean,false))
-      AND o.ms_status=ANY(%s) AND o.observed_at>=%s AND o.ms_checked_at>=%s
+      AND (i.kind='partial_demand_coverage' AND c.result->>'reason'='partial_demand_coverage'
+        OR i.kind='non_positive_profit' AND o.ms_status=ANY(%s))
+      AND o.observed_at>=%s AND o.ms_checked_at>=%s
       AND NOT EXISTS (SELECT 1 FROM customer_guard_extra_delivery e
         WHERE e.incident_id=i.id AND e.recipient=%s) LIMIT 1""",
       (since, list(ACTIVE), ['Подтвержден','Собирается','Неукомплектован'],
@@ -67,14 +70,17 @@ def _claim(recipient, since, now):
           FROM customer_guard_incidents i JOIN customer_guard_orders o ON o.id=i.order_id
           JOIN customer_guard_checks c ON c.id=o.latest_check_id
           JOIN customer_guard_jobs j ON j.order_id=o.id CROSS JOIN customer_guard_runtime r
-          WHERE i.kind='non_positive_profit' AND i.delivery IN ('sent','uncertain')
+          WHERE i.kind IN ('non_positive_profit','partial_demand_coverage')
+          AND i.delivery IN ('sent','uncertain')
           AND i.opened_at>=%s AND i.resolved_at IS NULL AND i.check_id=c.id
           AND c.generation=o.generation AND c.calculated_at>=r.activated_at
           AND r.enabled AND r.notifications_enabled AND j.state='done' AND j.error IS NULL
           AND (o.account='oz_acc2' OR o.account='wb_acc2' AND coalesce((r.settings->>'wb_enabled')::boolean,false)
             OR o.account IN ('oz_acc1','wb_acc1','ya_acc1')
               AND coalesce((r.settings->>'digital_enabled')::boolean,false))
-          AND o.mp_status=ANY(%s) AND o.ms_status=ANY(%s)
+          AND o.mp_status=ANY(%s)
+          AND (i.kind='partial_demand_coverage' AND c.result->>'reason'='partial_demand_coverage'
+            OR i.kind='non_positive_profit' AND o.ms_status=ANY(%s))
           AND o.observed_at>=%s AND o.ms_checked_at>=%s
           AND NOT EXISTS (SELECT 1 FROM customer_guard_extra_delivery e
             WHERE e.incident_id=i.id AND e.recipient=%s)
@@ -82,7 +88,9 @@ def _claim(recipient, since, now):
           (since,list(ACTIVE),['Подтвержден','Собирается','Неукомплектован'],
            now-timedelta(minutes=5),now-timedelta(minutes=5),recipient))
         row=cur.fetchone()
-        if not row or not non_positive_profit(row['result']):
+        if not row or not (row['kind']=='partial_demand_coverage'
+                           and row['result'].get('reason')=='partial_demand_coverage'
+                           or row['kind']=='non_positive_profit' and non_positive_profit(row['result'])):
             return None
         cur.execute("""INSERT INTO customer_guard_extra_delivery
           (incident_id,recipient,delivery,attempted_at) VALUES(%s,%s,'sending',%s)
@@ -117,10 +125,12 @@ def send_pending(limit=3, now=None):
         row=_claim(recipient,since,now)
         if not row:
             break
-        try:
-            fresh=expense_basis(row['account'])['version']==row['result']['rule_version']
-        except BasisUnavailable:
-            fresh=False
+        fresh=True
+        if row['kind']=='non_positive_profit':
+            try:
+                fresh=expense_basis(row['account'])['version']==row['result']['rule_version']
+            except BasisUnavailable:
+                fresh=False
         valid=bool(db.query("""SELECT 1 FROM customer_guard_incidents i
           JOIN customer_guard_orders o ON o.id=i.order_id
           JOIN customer_guard_checks c ON c.id=o.latest_check_id CROSS JOIN customer_guard_runtime r
@@ -129,7 +139,9 @@ def send_pending(limit=3, now=None):
           AND (o.account='oz_acc2' OR o.account='wb_acc2' AND coalesce((r.settings->>'wb_enabled')::boolean,false)
             OR o.account IN ('oz_acc1','wb_acc1','ya_acc1')
               AND coalesce((r.settings->>'digital_enabled')::boolean,false))
-          AND o.mp_status=ANY(%s) AND o.ms_status=ANY(%s)
+          AND o.mp_status=ANY(%s)
+          AND (i.kind='partial_demand_coverage' AND c.result->>'reason'='partial_demand_coverage'
+            OR i.kind='non_positive_profit' AND o.ms_status=ANY(%s))
           AND o.observed_at>=%s AND o.ms_checked_at>=%s LIMIT 1""",
           (row['id'],list(ACTIVE),['Подтвержден','Собирается','Неукомплектован'],
            now-timedelta(minutes=5),now-timedelta(minutes=5))))

@@ -186,6 +186,7 @@ def work(limit=5, budget=100, clock=utcnow, client=None, get=get_posting, postin
                     if latest.get("updated") != document.get("updated"):
                         raise SourceError("ms_order_changed_during_check", 600)
                 if notify and (result["signal"]=="missing_ms" or
+                    result.get('reason')=='partial_demand_coverage' or
                     non_positive_profit(result) and post["status"]!="delivering"
                     and (document or {}).get("state",{}).get("name") in READY):
                     # Reconfirm price/composition/status after cost reads, before an external alert.
