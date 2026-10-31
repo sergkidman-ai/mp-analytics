@@ -12,6 +12,21 @@ from customer_guard.rules import expense_basis as get_basis
 router = APIRouter(tags=["Заказы покупателей"])
 NEGATIVE_CODES = "('cancelled','returned','returned_defective')"
 FBS_DETAIL = "coalesce(nullif(o.mp_payload->>'substatus',''),o.mp_status)"
+MOVEMENT_SIGNALS = ('fbo_with_movement', 'fbo_without_movement')
+
+
+def fbo_movement_exists_sql():
+    """Use the same link sources as the FBO movement shown in the order row."""
+    tables = ('mp_fbo_stock_link_candidates', 'mp_fbo_cross_source_link_candidates',
+              'mp_fbo_intraday_link_candidates', 'wb_return_journey_candidate')
+    available = {r['name'] for r in db.query("""SELECT name FROM unnest(%s::text[]) name
+      WHERE to_regclass(name) IS NOT NULL""", (list(tables),))}
+    clauses = [f"EXISTS (SELECT 1 FROM {table} link WHERE link.order_id=mp_fbo_orders.id)"
+               for table in tables[:3] if table in available]
+    if tables[3] in available:
+        clauses.append("""EXISTS (SELECT 1 FROM wb_return_journey_candidate link
+          WHERE link.order_kind='fbo' AND link.order_id=mp_fbo_orders.id)""")
+    return '(' + ' OR '.join(clauses) + ')' if clauses else 'false'
 
 
 def fbo_stock_movements(order_ids):
@@ -147,6 +162,8 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
           AND CASE WHEN c.result->>'estimated_net' ~ '^-?[0-9]+([.][0-9]+)?$'
               THEN (c.result->>'estimated_net')::numeric <= 0 ELSE false END""")
         params.append(__import__('json').dumps({a:bases[a]['version'] if bases[a] else None for a in ACCOUNTS}))
+    elif signal in MOVEMENT_SIGNALS:
+        where.append('false')
     elif signal:
         where.append("c.generation=o.generation AND c.result->>'signal'=%s")
         params.append(signal)
@@ -205,7 +222,10 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
                 fwhere.append("mp_status IN ('returned','returned_defective')")
             else:
                 fwhere.append('mp_status=%s');fparams.append(normalized)
-        if signal and signal!='cost_unconfirmed':
+        if signal in MOVEMENT_SIGNALS:
+            exists_sql=fbo_movement_exists_sql()
+            fwhere.append(exists_sql if signal=='fbo_with_movement' else 'NOT '+exists_sql)
+        elif signal and signal!='cost_unconfirmed':
             fwhere.append('false')
         if search:
             fwhere.append('strpos(posting_number,%s)>0');fparams.append(search[:80])

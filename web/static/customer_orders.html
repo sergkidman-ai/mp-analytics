@@ -147,6 +147,8 @@ main{padding:18px}
     <select id="signal" aria-label="Результат проверки"><option value="">Все результаты</option>
       <option value="non_positive_profit">Убыточные / без прибыли (≤ 0 ₽)</option>
       <option value="cost_unconfirmed">ФБО: себестоимость не подтверждена</option>
+      <option value="fbo_with_movement">ФБО: есть связь с движением</option>
+      <option value="fbo_without_movement">ФБО: связь с движением не найдена</option>
       <option value="below_floor">Ниже пола</option><option value="missing_ms">Нет в МС</option>
       <option value="unknown">Недостаточно данных</option>
       <option value="aggregate_only">Проверен итог заказа</option><option value="ok">Выше пола</option><option value="draft">Черновик</option></select>
@@ -230,7 +232,7 @@ async function load(){
       <div class="bi sync fbs"><div class="l">Последнее получение ФБС</div><div class="v">${syncLabel}</div></div>
       <div class="bi sync"><div class="l">Последнее получение ФБО</div><div class="v">${fboSync}</div></div>`;
     $('message').textContent=!d.installed?'Хранилище пилота ещё не установлено.':!total?
-      ($('signal').value==='non_positive_profit'?'По текущим проверенным данным заказов с чистой прибылью ≤ 0 ₽ по выбранным условиям нет. Непроверенные заказы в этот результат не входят.':$('negative-status').value?'Заказов с таким отрицательным статусом в сохранённых данных пока нет.':'Заказов по этим условиям пока нет.') : '';
+      ($('signal').value==='non_positive_profit'?'По текущим проверенным данным заказов с чистой прибылью ≤ 0 ₽ по выбранным условиям нет. Непроверенные заказы в этот результат не входят.':$('signal').value==='fbo_with_movement'?'ФБО-заказов с найденной связью движения по этим условиям нет.':$('signal').value==='fbo_without_movement'?'ФБО-заказов без найденной связи движения по этим условиям нет.':$('negative-status').value?'Заказов с таким отрицательным статусом в сохранённых данных пока нет.':'Заказов по этим условиям пока нет.') : '';
     $('rows').innerHTML=d.rows.map(row=>{
       const r=row.result||{},valid=row.current&&!row.job_error;
       const isWB=row.platform==='wb',msPrice=['wb','yandex'].includes(row.platform),marketName={wb:'WB',ozon:'Ozon',yandex:'Маркет'}[row.platform]||row.platform,company=row.account.endsWith('acc1')?'Цифровой':'Дисквэр';
