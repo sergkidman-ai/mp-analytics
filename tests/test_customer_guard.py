@@ -247,6 +247,25 @@ def test_floor_policy_reprice_without_ms_or_expense_basis_change(pg):
     assert db.query('SELECT ms_checked_at FROM customer_guard_orders')[0]['ms_checked_at']==checked
 
 
+def test_reprice_repairs_cached_single_line_composition_without_ms_read(pg):
+    ingest([posting()])
+    checked = NOW + timedelta(minutes=10)
+    job = store.claim(checked)
+    old = domain.economics(posting(), Decimal('100'), 'actual', rule(), checked)
+    old['composition'] = {'verified': True, 'expected': {'sku': '1'}, 'selected': {'sku': '1'}}
+    assert store.finish(job, old, checked)
+    assert store.reprice(rule(), checked + timedelta(minutes=1)) == 1
+    rows = db.query('SELECT result FROM customer_guard_checks ORDER BY id')
+    assert rows[0]['result']['allocation'] == 'order_total'
+    assert rows[1]['result']['allocation'] == 'single_market_line'
+    assert rows[1]['result']['signal'] == 'ok'
+    assert rows[1]['result']['note'] == 'Состав и количество подтверждены по справочнику ТК'
+    assert all(rows[1]['result'][key] == rows[0]['result'][key]
+               for key in ('price', 'cost', 'floor', 'gap', 'estimated_net'))
+    assert store.reprice(rule(), checked + timedelta(minutes=2)) == 0
+    assert db.query('SELECT ms_checked_at FROM customer_guard_orders')[0]['ms_checked_at'] == checked
+
+
 def test_tc_structured_component_codes_and_cached_recheck(pg):
     from shipment_guard.bundles import component_counts
     from shipment_guard.ms import SourceError

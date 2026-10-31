@@ -25,7 +25,10 @@ def reprice(rule, now, resolver=None):
           WHERE o.account=%s AND c.generation=o.generation AND j.state='done'
           AND c.result->>'cost' IS NOT NULL
           AND (c.result->>'rule_version' IS DISTINCT FROM %s
-            OR c.result->>'floor_policy' IS DISTINCT FROM %s OR %s)
+            OR c.result->>'floor_policy' IS DISTINCT FROM %s OR %s
+            OR (c.result->'composition'->>'verified'='true'
+              AND jsonb_array_length(o.mp_payload->'products')=1
+              AND c.result->>'allocation' IS DISTINCT FROM 'single_market_line'))
           ORDER BY o.id FOR UPDATE OF o,j""", (rule["account"],rule["version"], POLICY_VERSION, resolver is not None))
         for row in cur.fetchall():
             old = row["result"]
@@ -33,11 +36,12 @@ def reprice(rule, now, resolver=None):
                          for p in old.get("positions", [])]
             proof = (composition(row["mp_payload"], positions, resolver)
                      if resolver else old.get("composition"))
+            verified = (bool(proof.get("verified")) and len(row["mp_payload"]["products"]) == 1
+                        if proof is not None else old.get("allocation") == "single_market_line")
             if (old.get("rule_version") == rule["version"] and old.get("floor_policy") == POLICY_VERSION
-                    and proof == old.get("composition")):
+                    and proof == old.get("composition")
+                    and verified == (old.get("allocation") == "single_market_line")):
                 continue
-            verified = (proof.get("verified", False) and len(row["mp_payload"]["products"]) == 1
-                        if resolver else old.get("allocation") == "single_market_line")
             fresh = economics(row["mp_payload"], Decimal(old["cost"]), old["cost_kind"],
                               rule, now, allocation_verified=verified,
                               price_override=old.get("ms_price") if rule["platform"] in ("wb","yandex") else None)
