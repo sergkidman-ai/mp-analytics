@@ -1,0 +1,3 @@
+# mkt: 05:00 UTC = 08:00 МСК. После ночного массового снятия флага Ozon.
+# Только чтение /v5/product/info/prices; отправка сводки в чат сторожа акций.
+0 5 * * * flock -n /tmp/ozon-autoadd-flag-audit.lock bash -c 'cd /opt/mp-analytics/.claude/worktrees/mkt-ozon-autoadd-flag-20261028 && ./venv/bin/python -m ops.ozon_autoadd_flag_audit --notify >> /opt/mp-analytics/logs/ozon_autoadd_flag_audit.log 2>&1'
