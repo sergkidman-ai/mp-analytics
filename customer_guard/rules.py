@@ -1,15 +1,15 @@
 # поток: fin
 """Read existing, explicitly published expense rules for each supported cabinet."""
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
-from customer_guard.domain import ACCOUNTS, organization
+from customer_guard.domain import ACCOUNTS, organization, business_date
 from core import db
 from core.ozon_expense_basis import BasisUnavailable, get_basis, shipment_rule
 from shipment_guard.economics import number
 
 
 def get_rule(account, *, as_of=None):
-    today = as_of or date.today()
+    today = as_of or business_date(datetime.now(timezone.utc))
     if account in ('oz_acc1','oz_acc2'):
         return shipment_rule(account, as_of=today)
     if account == 'ya_acc1':
