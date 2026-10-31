@@ -2,7 +2,8 @@
 
 Default mode is read-only. --apply requires a Moscow-date guard, performs one
 pilot per account, verifies all price fields, then processes bounded batches.
-Any API ambiguity or price movement stops the run before the next batch.
+Per-item rejections are logged and retried once; malformed API responses or
+price movement stop the run before the next batch.
 """
 
 import argparse
@@ -12,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import time
 from zoneinfo import ZoneInfo
 
@@ -23,6 +25,7 @@ from ops.ozon_autoadd_flag_manifest import PRICE_FIELDS, build_manifest, save_ma
 ROOT = Path(__file__).resolve().parents[1]
 WRITE_PATH = '/v1/product/import/prices'
 LOG = Path('/opt/mp-analytics/logs/ozon_autoadd_night_runs.jsonl')
+ATTEMPTS = Path('/opt/mp-analytics/logs/ozon_autoadd_write_attempts')
 BATCH_SIZE = 50
 VERIFY_DELAYS = (2, 3, 5, 8, 13, 21)
 PRICE_COMPARE = ('price', 'old_price', 'min_price', 'currency_code',
@@ -112,15 +115,56 @@ def _assert_unchanged(before, after):
         raise StopRun('price fields changed: ' + ','.join(differences))
 
 
-def _response_ok(code, data, expected):
+def _response_results(code, data, targets):
     if code != 200:
         raise StopRun(f'price import HTTP {code}')
     results = data.get('result')
-    if not isinstance(results, list) or len(results) != expected:
+    if not isinstance(results, list) or len(results) != len(targets):
         raise StopRun('price import result shape/count is unexpected')
+    by_id = {}
     for item in results:
-        if item.get('updated') is not True or item.get('errors'):
-            raise StopRun('price import returned an error or non-updated item')
+        product_id = str(item.get('product_id') or '')
+        if not product_id or product_id in by_id:
+            raise StopRun('price import result has missing/duplicate product id')
+        by_id[product_id] = item
+    if set(by_id) != {str(target['product_id']) for target in targets}:
+        raise StopRun('price import result product ids do not match request')
+    updated, rejected = [], []
+    for target in targets:
+        item = by_id[str(target['product_id'])]
+        (updated if item.get('updated') is True and not item.get('errors') else rejected).append(target)
+    return updated, rejected
+
+
+def _price_problem(item):
+    price = item.get('price') or {}
+    if price.get('price') in (None, ''):
+        return 'missing_price'
+    if price.get('min_price') not in (None, ''):
+        try:
+            if Decimal(str(price['price'])) < Decimal(str(price['min_price'])):
+                return 'price_below_min_price'
+        except InvalidOperation:
+            return 'invalid_price_number'
+    return None
+
+
+def _save_attempt(account, label, targets, body, code, data):
+    # Persist the complete response BEFORE validation: Ozon may partially apply a batch.
+    ATTEMPTS.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(ATTEMPTS, 0o700)
+    record = {'at': datetime.now(MSK).isoformat(), 'account': account, 'stage': label,
+              'before': targets, 'request': body, 'http': code, 'response': data}
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=ATTEMPTS,
+                                     prefix=f'{account}-{label}-', suffix='.json',
+                                     delete=False) as stream:
+        os.chmod(stream.name, 0o600)
+        json.dump(record, stream, ensure_ascii=False)
+        stream.flush()
+        os.fsync(stream.fileno())
+        path = stream.name
+    _log({'at': record['at'], 'account': account, 'stage': 'write_response',
+          'batch': label, 'count': len(targets), 'http': code, 'artifact': path})
 
 
 def _wait_verify(api, before_items):
@@ -141,7 +185,7 @@ def _wait_verify(api, before_items):
     raise StopRun(f'flag verification timeout: {last_error}')
 
 
-def _write_batch(api, items, label):
+def _write_batch(api, items, label, retry=True):
     # Re-read each bounded batch immediately before it is written.
     latest_by_id = _fetch_ids(api, [str(item['product_id']) for item in items])
     targets = []
@@ -149,6 +193,14 @@ def _write_batch(api, items, label):
         latest = latest_by_id[str(item['product_id'])]
         flag = (latest.get('price') or {}).get('auto_add_to_ozon_actions_list_enabled')
         if flag is True:
+            problem = _price_problem(latest)
+            if problem:
+                _log({'at': datetime.now(MSK).isoformat(), 'account': api.account,
+                      'stage': 'skipped_invalid_price', 'batch': label,
+                      'product_id': latest['product_id'], 'reason': problem,
+                      'price': (latest.get('price') or {}).get('price'),
+                      'min_price': (latest.get('price') or {}).get('min_price')})
+                continue
             targets.append(latest)
         elif flag is False:
             continue  # another process already removed it; nothing to write
@@ -158,11 +210,22 @@ def _write_batch(api, items, label):
         return 0
     body = {'prices': [_price_payload(item) for item in targets]}
     code, data = api.post(WRITE_PATH, body)
-    _response_ok(code, data, len(targets))
-    _wait_verify(api, targets)
-    _log({'at': datetime.now(MSK).isoformat(), 'account': api.account,
-          'stage': label, 'count': len(targets), 'status': 'verified'})
-    return len(targets)
+    _save_attempt(api.account, label, targets, body, code, data)
+    updated, rejected = _response_results(code, data, targets)
+    if updated:
+        _wait_verify(api, updated)
+        _log({'at': datetime.now(MSK).isoformat(), 'account': api.account,
+              'stage': label, 'count': len(updated), 'status': 'verified'})
+    if rejected:
+        _log({'at': datetime.now(MSK).isoformat(), 'account': api.account,
+              'stage': 'rejected', 'batch': label,
+              'product_ids': [item['product_id'] for item in rejected]})
+    changed = len(updated)
+    if rejected and retry:
+        for item in rejected:
+            time.sleep(2)
+            changed += _write_batch(api, [item], f'{label}-retry', retry=False)
+    return changed
 
 
 def apply(run_date):
@@ -188,7 +251,8 @@ def apply(run_date):
         item = _fetch_ids(apis[account], [str(pilot['product_id'])])[str(pilot['product_id'])]
         if (item.get('price') or {}).get('auto_add_to_ozon_actions_list_enabled') is not True:
             raise StopRun(f'{account}: pilot target changed before write')
-        _write_batch(apis[account], [item], 'pilot')
+        if _write_batch(apis[account], [item], 'pilot') != 1:
+            raise StopRun(f'{account}: pilot did not verify')
         pilot_count += 1
         pending[account] = pending[account][1:]
         print(f'{account}: pilot verified; remaining={len(pending[account])}', flush=True)
@@ -205,6 +269,11 @@ def apply(run_date):
                 print(f'{account}: verified_batch={batch_no} changed={count} total={total}', flush=True)
     final = build_manifest()
     leftovers = sum(row['enabled'] for row in final['rows'])
+    _log({'at': datetime.now(MSK).isoformat(), 'stage': 'final_scan',
+          'enabled_remaining': leftovers, 'rows': final['rows']})
+    for row in final['rows']:
+        print(f"{row['account']}: enabled_remaining={row['enabled']} "
+              f"unknown={row['unknown']}", flush=True)
     if any(row['unknown'] for row in final['rows']) or leftovers:
         raise StopRun(f'final verification incomplete: enabled={leftovers}')
     _log({'at': datetime.now(MSK).isoformat(), 'stage': 'complete',
@@ -213,15 +282,65 @@ def apply(run_date):
     print(f'complete: bulk_verified={total}; enabled_remaining={leftovers}', flush=True)
 
 
+def pilot_only():
+    """Write and verify exactly one eligible product in each Ozon account."""
+    manifest = build_manifest()
+    manifest_path, digest = save_manifest(manifest)
+    _log({'at': datetime.now(MSK).isoformat(), 'stage': 'pilot_preflight',
+          'manifest': str(manifest_path), 'sha256': digest, 'rows': manifest['rows']})
+    if any(row['unknown'] for row in manifest['rows']):
+        raise StopRun('unknown flags in fresh complete scan')
+
+    apis = {account: Api(account) for account in oz.ACCOUNTS}
+    selected = {}
+    for account in oz.ACCOUNTS:
+        candidates = [row for row in manifest['targets'] if row['account'] == account]
+        if not candidates:
+            raise StopRun(f'{account}: no enabled product available for pilot')
+        for candidate in candidates:
+            product_id = str(candidate['product_id'])
+            item = _fetch_ids(apis[account], [product_id])[product_id]
+            flag = (item.get('price') or {}).get('auto_add_to_ozon_actions_list_enabled')
+            if flag is True:
+                if _write_batch(apis[account], [item], 'pilot-only') != 1:
+                    raise StopRun(f'{account}: pilot did not verify')
+                selected[account] = product_id
+                print(f'{account}: one pilot write verified; price fields unchanged', flush=True)
+                break
+            if flag is not False:
+                raise StopRun(f'{account}: pilot flag is unknown before write')
+        if account not in selected:
+            raise StopRun(f'{account}: no enabled product remained for pilot')
+
+    final = build_manifest()
+    still_enabled = {(row['account'], str(row['product_id'])) for row in final['targets']}
+    for account, product_id in selected.items():
+        if (account, product_id) in still_enabled:
+            raise StopRun(f'{account}: pilot still appears enabled in final scan')
+    _log({'at': datetime.now(MSK).isoformat(), 'stage': 'pilot_complete',
+          'changed': len(selected), 'enabled_remaining': final['rows']})
+    for row in final['rows']:
+        print(f"{row['account']}: enabled_remaining={row['enabled']} total={row['total']}",
+              flush=True)
+    print('pilot complete: 2 writes verified; no bulk writes', flush=True)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Guarded Ozon auto-add flag removal')
-    parser.add_argument('--apply', action='store_true', help='write Ozon flag after pilots')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--apply', action='store_true', help='write Ozon flag after pilots')
+    mode.add_argument('--pilot-only', action='store_true',
+                      help='write and verify one product per account; no bulk writes')
     parser.add_argument('--run-date', help='required Moscow date YYYY-MM-DD for --apply')
     args = parser.parse_args(argv)
     if args.apply:
         if not args.run_date:
             parser.error('--apply requires --run-date')
         apply(args.run_date)
+    elif args.pilot_only:
+        if args.run_date:
+            parser.error('--run-date applies only to --apply')
+        pilot_only()
     else:
         manifest = build_manifest()
         print('read_only_preflight')
