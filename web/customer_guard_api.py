@@ -13,6 +13,7 @@ router = APIRouter(tags=["Заказы покупателей"])
 NEGATIVE_CODES = "('cancelled','returned','returned_defective')"
 FBS_DETAIL = "coalesce(nullif(o.mp_payload->>'substatus',''),o.mp_status)"
 MOVEMENT_SIGNALS = ('fbo_with_movement', 'fbo_without_movement')
+RETURN_SIGNALS = ('wb_fbs_return_linked', 'wb_fbs_return_unlinked')
 
 
 def fbo_movement_exists_sql():
@@ -68,11 +69,12 @@ def fbo_stock_movements(order_ids):
                 movements[row['order_id']].append(row)
     if 'wb_return_journey_candidate' in available:
         for row in db.query("""SELECT order_id,sku,stage,previous_observed_at from_at,
-          current_observed_at to_at,destination_observed_at,evidence
+          current_observed_at to_at,destination_observed_at,transit_before,transit_after,evidence
           FROM wb_return_journey_candidate WHERE order_kind='fbo' AND order_id=ANY(%s)""",
           (order_ids,)):
             base = dict(order_id=row['order_id'],sku=row['sku'],quantity=1,
-                        source_warehouse=None,evidence=row['evidence'])
+                        source_warehouse=None,evidence=row['evidence'],
+                        transit_before=row['transit_before'],transit_after=row['transit_after'])
             movements[row['order_id']].append(dict(base,direction='from_client',
                 from_at=row['from_at'],to_at=row['to_at']))
             if row['stage'] in ('received_wb','received_seller') and row['destination_observed_at']:
@@ -82,6 +84,31 @@ def fbo_stock_movements(order_ids):
     for rows in movements.values():
         rows.sort(key=lambda row: row['to_at'])
     return movements
+
+
+def fbs_return_movements(order_ids):
+    """Persisted WB return stages for FBS orders, including MS receipt evidence."""
+    if not order_ids:
+        return {}
+    result = {order_id: [] for order_id in order_ids}
+    installed_tables = db.query("""SELECT to_regclass('wb_return_journey_candidate') candidate,
+      to_regclass('wb_return_journey_event') event""")[0]
+    if not installed_tables['candidate'] or not installed_tables['event']:
+        return result
+    rows = db.query("""SELECT c.order_id,c.sku,c.transit_before,c.transit_after,
+      c.previous_observed_at,c.current_observed_at,e.stage,e.observed_at,e.evidence
+      FROM wb_return_journey_candidate c JOIN wb_return_journey_event e
+        ON e.candidate_id=c.id WHERE c.order_kind='fbs' AND c.order_id=ANY(%s)
+      ORDER BY e.observed_at,e.id""", (order_ids,))
+    for row in rows:
+        first = row['stage'] == 'in_transit_candidate'
+        result[row['order_id']].append(dict(
+            direction='from_client' if first else row['stage'],sku=row['sku'],quantity=1,
+            from_at=row['previous_observed_at'] if first else row['current_observed_at'],
+            to_at=row['current_observed_at'] if first else row['observed_at'],
+            transit_before=row['transit_before'] if first else None,
+            transit_after=row['transit_after'] if first else None,evidence=row['evidence']))
+    return result
 
 
 def installed():
@@ -164,6 +191,12 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
         params.append(__import__('json').dumps({a:bases[a]['version'] if bases[a] else None for a in ACCOUNTS}))
     elif signal in MOVEMENT_SIGNALS:
         where.append('false')
+    elif signal in RETURN_SIGNALS:
+        where.append("o.platform='wb' AND o.mp_status='cancelled'")
+        available = db.query("SELECT to_regclass('wb_return_journey_candidate') name")[0]['name']
+        linked = """EXISTS (SELECT 1 FROM wb_return_journey_candidate link
+          WHERE link.order_kind='fbs' AND link.order_id=o.id)""" if available else 'false'
+        where.append(linked if signal=='wb_fbs_return_linked' else 'NOT '+linked)
     elif signal:
         where.append("c.generation=o.generation AND c.result->>'signal'=%s")
         params.append(signal)
@@ -251,9 +284,13 @@ def data(status: str = "", signal: str = "", search: str = "", product_code: str
     rows.sort(key=lambda r:(r['mp_received_at'] or r['first_seen_at'],r['scheme'],r['id']),reverse=True)
     rows=rows[offset:offset+limit]
     movements=fbo_stock_movements([r['id'] for r in rows if r['scheme']=='fbo'])
+    fbs_returns=fbs_return_movements([r['id'] for r in rows
+                                     if r['scheme']=='fbs' and r['platform']=='wb'])
     for row in rows:
         if row['scheme']=='fbo':
             row['stock_movements']=movements[row['id']]
+        elif row['platform']=='wb':
+            row['return_movements']=fbs_returns[row['id']]
     total=total_fbs+total_fbo
     queue = db.query("""SELECT count(*) FILTER(WHERE state IN ('pending','retry','running')) pending,
       count(*) FILTER(WHERE state='error') errors,min(due_at) FILTER(WHERE state IN ('pending','retry')) next_due
@@ -291,7 +328,8 @@ def history(order_id: int):
     reviews=(db.query("""SELECT category,observed_at,evidence
       FROM customer_guard_cancel_review_history WHERE order_id=%s ORDER BY id""",(order_id,))
       if db.query("SELECT to_regclass('customer_guard_cancel_review_history') name")[0]['name'] else [])
-    return dict(rows=checks,statuses=statuses,cancel_reviews=reviews)
+    return dict(rows=checks,statuses=statuses,cancel_reviews=reviews,
+                return_movements=fbs_return_movements([order_id]).get(order_id, []))
 
 
 @router.get("/api/customer-orders/fbo/{order_id}/history")

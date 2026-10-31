@@ -149,6 +149,8 @@ main{padding:18px}
       <option value="cost_unconfirmed">ФБО: себестоимость не подтверждена</option>
       <option value="fbo_with_movement">ФБО: есть связь с движением</option>
       <option value="fbo_without_movement">ФБО: связь с движением не найдена</option>
+      <option value="wb_fbs_return_linked">WB ФБС отмены: обратный путь найден</option>
+      <option value="wb_fbs_return_unlinked">WB ФБС отмены: обратный путь не найден</option>
       <option value="below_floor">Ниже пола</option><option value="missing_ms">Нет в МС</option>
       <option value="unknown">Недостаточно данных</option>
       <option value="aggregate_only">Проверен итог заказа</option><option value="ok">Выше пола</option><option value="draft">Черновик</option></select>
@@ -178,6 +180,15 @@ const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>v==null?'—':Number(v).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
 const dt=v=>v?new Date(v).toLocaleString('ru-RU',{timeZone:'Europe/Moscow',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+' МСК':'—';
+const movementName={to_client:'К клиенту',from_client:'Вероятно от клиента',received_wb:'Принято на WB по остаткам',received_seller:'Принято нами по документу МС'};
+function movementHistory(x){
+  const interval=x.from_at?`между ${dt(x.from_at)} и ${dt(x.to_at)}`:dt(x.to_at);
+  const transit=x.direction==='from_client'&&x.transit_before!=null?` · «в пути от клиента» ${x.transit_before} → ${x.transit_after}`:'';
+  const store=x.direction==='received_seller'&&x.evidence?.store?` · склад ${x.evidence.store}`:'';
+  const basis=x.direction==='received_seller'?'Приёмка подтверждена документом МС.':
+    x.direction==='received_wb'?'Приёмка выведена по изменению остатка WB.':'Связь выведена по совпадению заказа и изменения остатков; движение конкретной единицы не подтверждено.';
+  return `<p><b>${esc(movementName[x.direction]||x.direction)}</b> · ${esc(interval)}<br>SKU ${esc(x.sku)} · ${esc(x.quantity)} шт.${esc(transit)}${esc(store)}<br><span class="small">${esc(basis)} Себестоимость ФБО не назначена.</span></p>`;
+}
 const mp={awaiting_packaging:'Ожидает сборки',awaiting_deliver:'Ожидает отгрузки',delivering:'В пути',delivered:'Доставлен',cancelled:'Отменён',created:'Создан',returned:'Возврат',returned_defective:'Возврат: брак',status_unknown:'Статус не подтверждён'};
 const kinds={actual:'Факт отгрузки',purchase_estimate:'Оценка закупки',fifo_estimate:'Предварительный FIFO'};
 const signals={below_floor:'Ниже пола',missing_ms:'Нет в МС',unknown:'Недостаточно данных',aggregate_only:'Проверен только итог',draft:'Черновик',ok:'Выше пола'};
@@ -239,7 +250,7 @@ async function load(){
       if(row.scheme==='fbo'){
         const goods=(row.products||[]).map(p=>`<div>${esc(p.name||p.offer_id||'Товар')} × ${esc(p.quantity)}</div><div class="small">Артикул: ${esc(p.offer_id||'—')} · SKU: ${esc(p.sku||'—')}</div>`).join('');
         const priceNote=row.price_source==='wb_order_feed_seller_price'?'Цена продавца WB':row.price_source==='wb_orders_price_with_disc'?'Цена из статистики WB':'Цена из заказа Ozon';
-        const movement=(row.stock_movements||[]).map(x=>`${{to_client:'К клиенту',from_client:'От клиента',received_wb:'На склад WB',received_seller:'На наш склад'}[x.direction]||x.direction}: SKU ${x.sku} · ${x.quantity} шт.`).join('; ');
+        const movement=(row.stock_movements||[]).map(x=>`${movementName[x.direction]||x.direction}: SKU ${x.sku} · ${x.quantity} шт.`).join('; ');
         return `<tr><td data-label="Отправление · новые сверху"><span class="badge">ФБО</span> <button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа">${esc(row.posting_number)} ⧉</button><div class="small">Заказ ${esc(dt(row.mp_received_at))}</div><button class="small" data-history="${Number(row.id)}" data-scheme="fbo">История статусов</button></td>
           <td data-label="Статусы"><div>${esc(marketName)} · ${esc(company)}: ${esc(mp[row.mp_status]||row.source_status||row.mp_status)}</div>${negative(row)?`<div class="small">Код МП: ${esc(row.source_status||row.mp_status)}${row.source_evidence?.substatus?' · '+esc(row.source_evidence.substatus):''}</div>`:''}<div class="small">Склад площадки</div></td>
           <td data-label="Товар / склад">${goods}<div class="small">${esc(row.warehouse||'Склад МП не указан')}</div></td>
@@ -254,6 +265,7 @@ async function load(){
       const products=hasMS?r.positions:row.products?.map(p=>({name:p.name,quantity:p.quantity,offer_id:p.offer_id}))||[];
       const compositionNote=hasMS?(valid?'Выбранный состав МС':'Последний состав МС; требует обновления'):'Товар '+marketName+'; состав МС ещё не проверен';
       const cls=valid&&r.signal==='missing_ms'||economicValid&&r.signal==='below_floor'?'danger':economicValid&&r.signal==='ok'?'pos':'warning';
+      const returnMovement=(row.return_movements||[]).map(x=>`${movementName[x.direction]||x.direction}: SKU ${x.sku} · ${x.quantity} шт.`).join('; ');
       return `<tr><td data-label="Отправление · новые сверху"><span class="badge">ФБС</span> <button data-copy="${esc(row.posting_number)}" title="Скопировать номер заказа" aria-label="Скопировать номер ${esc(row.posting_number)}">${esc(row.posting_number)} ⧉</button><div class="small">${row.mp_received_at?marketName+' · поступил':'Получен Пультом'} ${esc(dt(row.mp_received_at||row.first_seen_at))}</div>
         <button class="small" data-history="${Number(row.id)}">История статусов и проверок</button></td>
         <td data-label="Статусы"><div>${marketName} · ${company}: ${esc(isWB&&row.mp_status==='awaiting_deliver'?'Собирается':mp[row.mp_status]||row.mp_status)}</div>${negative(row)?`<div class="small">Код МП: ${esc(row.mp_status)}${detail(row)!==row.mp_status?' · '+esc(detail(row)):''}</div>`:''}
@@ -267,7 +279,7 @@ async function load(){
         <td data-label="Себестоимость" class="money">${esc(money(r.cost))}<div class="small">${esc(kinds[r.cost_kind]||'Нет данных')}${valid?'':' · неактуально'}</div></td>
         <td data-label="Чистая прибыль · расчёт" class="money ${economicValid&&r.estimated_net!=null?(Number(r.estimated_net)<=0?'danger':'pos'):''}">${esc(money(economicValid?r.estimated_net:null))}</td>
         <td data-label="Пол" class="money">${esc(money(economicValid?r.floor:null))}<div class="small">${esc(valid&&r.expense_basis_kind==='fixed'?'Расходы МП: '+(Number(r.expense_retention)*100).toLocaleString('ru-RU')+'% · фикс.':valid&&r.expense_period_from?'База: '+r.expense_period_from+' — '+r.expense_period_to:'')}</div></td><td data-label="Отклонение" class="money ${cls}">${esc(money(economicValid?r.gap:null))}</td>
-        <td data-label="Результат"><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div></td>
+        <td data-label="Результат"><span class="badge ${cls}">${esc(state(row))}</span><div class="small">${esc(valid?r.note:row.job_error?'Ошибка источника; ожидается повтор':`Ожидает проверки; доступна с ${dt(row.retry_at||row.ms_due_at)}`)}</div>${returnMovement?`<div class="small"><b>Обратный путь WB:</b> ${esc(returnMovement)}</div>`:''}</td>
         <td data-label="Проверено в МС" class="nowrap">${esc(dt(row.ms_checked_at))}</td></tr>`;
     }).join('');
     $('count').textContent=total?`${offset+1}–${Math.min(offset+50,total)} из ${total}`:'0 заказов';
@@ -302,11 +314,7 @@ $('rows').onclick=async e=>{
   try{const fbo=button.dataset.scheme==='fbo';const d=await api(fbo?'/api/customer-orders/fbo/'+button.dataset.history+'/history':'/api/customer-orders/'+button.dataset.history+'/history');
     if(fbo){
       const stages=[...d.rows.map(x=>({at:x.status_at||x.observed_at,html:`<p><b>${esc(dt(x.status_at||x.observed_at))}</b> · Статус МП: ${esc(mp[x.mp_status]||x.source_status)}<br>Код МП: ${esc(x.source_status||x.mp_status)}${x.source_evidence?.substatus?' · '+esc(x.source_evidence.substatus):''}<br>${esc(x.warehouse||'Склад не указан')} · ${esc(money(x.mp_price))}</p>`})),
-        ...(d.stock_movements||[]).map(x=>{
-          const label={to_client:'К клиенту',from_client:'От клиента',received_wb:'На склад WB',received_seller:'На наш склад'}[x.direction]||x.direction;
-          const when=x.from_at?`наблюдалось между ${dt(x.from_at)} и ${dt(x.to_at)}`:dt(x.to_at);
-          return {at:x.to_at,html:`<p><b>${esc(label)}</b> · ${esc(when)}<br>SKU ${esc(x.sku)} · ${esc(x.quantity)} шт.${x.source_warehouse?' · '+esc(x.source_warehouse):''}<br><span class="small">Связь выведена по совпадению изменений остатков; точное время движения и себестоимость не подтверждены.</span></p>`};
-        })];
+        ...(d.stock_movements||[]).map(x=>({at:x.to_at,html:movementHistory(x)}))];
       stages.sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
       $('history-body').innerHTML=stages.length?'<h3>Статусы и движение товара</h3>'+stages.map(x=>x.html).join(''):'Истории пока нет.';
       return;
@@ -318,7 +326,9 @@ $('rows').onclick=async e=>{
       ${x.result.recalculation?`<br>${x.result.recalculation==='expense_basis_and_composition'?'Пересчёт базы и состава по справочнику ТК':'Пересчёт базы расходов'}; себестоимость проверена ${esc(dt(x.result.cost_observed_at))}`:''}
       ${x.result.expense_period_from?`<br>База расходов: ${esc(x.result.expense_period_from)} — ${esc(x.result.expense_period_to)}`:''}</p>`).join(''):'Проверок пока нет.';
     const cancelHistory=(d.cancel_reviews||[]).map(x=>`<p>${esc(dt(x.observed_at))} · ${esc(x.category)}</p>`).join('');
+    const returnHistory=(d.return_movements||[]).map(movementHistory).join('');
     $('history-body').innerHTML='<h3>Статусы площадки</h3>'+(statusHistory||'Истории статусов пока нет.')+
+      (returnHistory?'<h3>Движение товара по WB</h3>'+returnHistory:'')+
       '<h3>Отмена в Пульте</h3>'+(cancelHistory||'Классификация не назначена.')+
       '<h3>Проверки себестоимости</h3>'+checks;
   }catch(e){$('history-body').textContent=e.message;}
