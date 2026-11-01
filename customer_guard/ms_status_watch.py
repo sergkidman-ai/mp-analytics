@@ -2,6 +2,7 @@
 """Bounded MS status-only reads for WB FBS cancellations linked to return movement."""
 import argparse
 import json
+import time
 from datetime import datetime, timezone
 
 from core import db
@@ -28,6 +29,18 @@ def run(limit=2, posting_number=None):
     rows=due_orders(limit,posting_number)
     if not rows:
         return dict(checked=0,changed=0)
+    for attempt in range(7):
+        try:
+            return check_rows(rows,limit)
+        except RuntimeError as exc:
+            if str(exc)!='shipment_or_customer_worker_busy':
+                raise
+            if attempt==6:
+                return dict(checked=0,changed=0,busy=True)
+            time.sleep(5)
+
+
+def check_rows(rows,limit):
     checked=changed=0
     with exclusive() as pulse:
         clients={}
