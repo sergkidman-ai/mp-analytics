@@ -24,7 +24,7 @@ class SharedPriceTests(unittest.TestCase):
                       date_end='2099-10-31T00:00:00Z')
         product = dict(id=1, action_price=146, action_price_limit=72,
                        max_action_price=72, stock=1, min_stock=0)
-        with patch.object(oz, 'keep_ratio', return_value=(.5, 'test')), \
+        with patch.object(guard, 'september_keep_ratio', return_value=(.5, 'test')), \
              patch.object(oz, 'actions', return_value=[action]), \
              patch.object(oz, 'is_whitelisted', return_value=False), \
              patch.object(oz, 'participants', return_value=[product]), \
@@ -72,6 +72,8 @@ class SharedPriceTests(unittest.TestCase):
                 [future], [dict(id=30)], .5, 'test')), \
              patch.object(oz, 'floor_price', return_value=87), \
              patch.object(oz, 'bundle_quantity', return_value=1), \
+             patch('ops.promo_ordinary_scope.ordinary_codes', return_value={'0001'}), \
+             patch('ops.promo_ordinary_scope.confirmed', return_value=True), \
              patch.object(guard, 'read_shared_caps', return_value={1: 146}):
             guard._run_account('oz_acc1', args, [], rows)
         self.assertEqual(rows[0]['mode'], 'watch_future')

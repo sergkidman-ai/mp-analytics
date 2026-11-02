@@ -25,7 +25,6 @@ import invoice_to_po as pipe          # счёт → «Заказ поставщ
 import upd_to_supply as upd_pipe       # УПД  → «Приёмка»
 import gtd_text                        # реестр ГТД текстом → графа 11 в готовой приёмке
 import proc_log
-import reports.ozon_removal_candidates as ozrem   # /vyvoz — кандидаты на вывоз со склада Ozon
 
 # Роутинг по имени файла: «УПД»/«upd»/«…передаточный документ»/имя ЭДО-титула или .xml/.zip
 # → приёмка, иначе → заказ по счёту. «передаточн» уникально для УПД (в счетах не встречается).
@@ -154,6 +153,7 @@ def send_long(chat_id, text, reply_to=None):
 
 def ozon_removal_report():
     """Пересобрать (DB-only) и вернуть текст кандидатов на вывоз со склада Ozon на сегодня."""
+    import reports.ozon_removal_candidates as ozrem
     import datetime
     d = datetime.date.today()
     for a in ("oz_acc1", "oz_acc2"):
@@ -187,6 +187,7 @@ def handle(msg):
     raw = (msg.get("text") or "").strip()
     cmd0 = raw.split()[0].lower() if raw else ""
     if cmd0 in ("/oformleno", "/оформлено", "/vyvezeno"):
+        import reports.ozon_removal_candidates as ozrem
         import datetime as _dt
         codes = raw.split()[1:]
         marked = ozrem.mark_submitted(_dt.date.today(), codes or None)
@@ -202,6 +203,7 @@ def handle(msg):
         return
 
     if cmd0 in ("/vyvoz_reset", "/вывоз_сброс"):
+        import reports.ozon_removal_candidates as ozrem
         codes = raw.split()[1:]
         if not codes:
             send(chat_id, "Укажи артикулы: /vyvoz_reset 5698 4526", mid)

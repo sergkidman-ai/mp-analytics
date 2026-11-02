@@ -1,0 +1,13 @@
+[Unit]
+Description=Import new FBS customer orders into MoySklad
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.fbs_ms_import_pipeline
+TimeoutStartSec=1200
+Restart=no
+Nice=10

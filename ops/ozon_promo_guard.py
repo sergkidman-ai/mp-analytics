@@ -79,9 +79,18 @@ def _save_run(account, args, rows, issues):
     return status
 
 
+def september_keep_ratio(account):
+    """Use the already published September basis for this guard only."""
+    from core.ozon_expense_basis import get_basis, decimal
+    basis = get_basis(account, require_current=False)
+    if (basis.get('period_from'), basis.get('period_to')) != ('2026-09-01', '2026-09-30'):
+        raise RuntimeError('ozon_guard_september_basis_missing')
+    return decimal(basis['keep']), f"{basis['period_from']}..{basis['period_to']} {basis['version']}"
+
+
 def snapshot(account, *, issues=None):
     """Все участники небелых акций: одна строка на товар×акцию, с себестом и полом."""
-    keep, keep_src = oz.keep_ratio(account)
+    keep, keep_src = september_keep_ratio(account)
     acts = [a for a in oz.actions(account)
             if a.get("is_participating") and not oz.is_whitelisted(a.get("title"))]
     rows = []
@@ -149,7 +158,7 @@ def cost_map(offers, quantities=None):
             continue
         self_rec = stock.get(code) or {}
         comps = sets_.get(code) or {code: 1}
-        if len(comps) == 1:
+        if code not in sets_:
             price, src, branch = w.unit_cost(code, links, stock, need=mult)
             if price is None:
                 out[off] = (None, "нет в наличии нигде" if branch == "none" else "поставщик без цены")
@@ -157,7 +166,10 @@ def cost_map(offers, quantities=None):
                 out[off] = (float(price) * mult, src + (f"_x{mult}" if mult > 1 else ""))
             continue
         # набор
-        if self_rec.get("qty_own", 0) >= mult and self_rec.get("cost_own"):
+        set_market = [float(p) for p in (self_rec.get("supplier_min"), self_rec.get("tc_price")) if p]
+        own_set_valid = (self_rec.get("cost_own") and
+                         (not set_market or float(self_rec["cost_own"]) >= w.OWN_COST_MIN_SHARE * min(set_market)))
+        if self_rec.get("qty_own", 0) >= mult and own_set_valid:
             out[off] = (float(self_rec["cost_own"]) * mult, "set_own_stock" + (f"_x{mult}" if mult > 1 else ""))
             continue
         total, branches, gap = 0.0, set(), False
@@ -168,17 +180,15 @@ def cost_map(offers, quantities=None):
                 gap = True
             else:
                 total += price * qty
-        if "none" in branches:
+        if "none" in branches or gap:
             out[off] = (None, "набор: компонента нет в наличии")
             continue
         own_price = self_rec.get("tc_price") or self_rec.get("supplier_min")
         if own_price:
-            v, src = float(own_price), "set_own_price"
-        elif not gap:
-            v, src = total, "set_components"
+            v = max(float(own_price), total)
+            src = "set_components" if total > float(own_price) else "set_own_price"
         else:
-            out[off] = (None, "набор: нет цены компонента")
-            continue
+            v, src = total, "set_components"
         out[off] = (v * mult, src + (f"_x{mult}" if mult > 1 else ""))
     return out
 
@@ -223,6 +233,10 @@ def coordinate_shared_prices(rows):
     for r in rows:
         by_product[r["product_id"]].append(r)
     for group in by_product.values():
+        if any(r['mode'] == 'skip_unverified' for r in group):
+            for r in group:
+                r['mode'], r['reason'] = 'skip_unverified', 'общий SKU: есть неподтверждённая позиция'
+            continue
         current = [r for r in group if r.get("is_current", True) and not r.get("is_future")]
         if len(group) < 2 or not any(r["mode"] in ("raise", "remove") for r in current):
             continue
@@ -568,8 +582,21 @@ def _run_account(acc, a, issues, rows):
     print(f"\n=== {acc} ===", flush=True)
     observed, acts, keep, keep_src = snapshot(acc, issues=issues)
     rows.extend(observed)
+    from ops.promo_ordinary_scope import ordinary_codes, verified_set_codes, confirmed, confirmed_set
+    allowed = ordinary_codes()
+    sets_allowed = verified_set_codes()
     for r in rows:
-        decide(r)
+        r['floor_price'] = r['new_price'] = None
+        bundle_code = re.fullmatch(r'\d{4}[Xх](\d{1,2})', r.get('offer_id') or '', re.I)
+        quantity_verified = (not bundle_code or
+                             oz.bundle_quantity(r.get('offer_id'), r.get('name')) == int(bundle_code.group(1)))
+        if not (confirmed(r.get('offer_id'), r.get('name'), allowed) or
+                (quantity_verified and confirmed_set(r.get('offer_id'), sets_allowed, r.get('name')))):
+            r['mode'], r['reason'] = 'skip_unverified', 'набор или обычный товар не подтверждён МС'
+        elif r.get('cogs') is None:
+            r['mode'], r['reason'] = 'skip_unverified', 'себестоимость товара не подтверждена'
+        else:
+            decide(r)
         r["status"], r["note"] = "dry", None
     watch = [r for r in rows if r["mode"] == "watch_future"]
     if watch:
@@ -600,7 +627,7 @@ def _run_account(acc, a, issues, rows):
     _cut(rows, a.limit)
     if a.apply:
         for r in rows:
-            if r["mode"] in ("ok", "ok_future", "ok_future_special", "ok_past", "ok_deferred"):
+            if r["mode"] in ("ok", "ok_future", "ok_future_special", "ok_past", "ok_deferred", "skip_unverified"):
                 r["status"] = "skip"
             elif r["mode"] == "watch_future":
                 r["status"] = "watch"
@@ -647,7 +674,10 @@ def main():
                     else:
                         notice += f"\nАкция {issue['action_id'] or '—'}: ошибка чтения или обработки."
             try:
-                oz.send(notice[:3900])
+                from ops.wb_promo_guard import tg
+                delivered = tg(notice[:3900])
+                if delivered != 'ok':
+                    _issue(issues, 'notification', None, delivered)
             except Exception as exc:
                 _issue(issues, 'notification', None, type(exc).__name__)
         try:

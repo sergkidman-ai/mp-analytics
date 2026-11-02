@@ -51,9 +51,9 @@ CAL_API = "https://dp-calendar-api.wildberries.ru/api/v1/calendar/promotions"
 TOKEN_ENV = {"wb_acc1": "WB_TOKEN_PRICES_ACC1", "wb_acc2": "WB_TOKEN_PRICES_ACC2"}
 ACC_NAME = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр"}
 
-# Доля удержаний МП от оборота, страница «Отчёты МП» за август-2026 (значения дал Сергей).
-# ОБНОВЛЯТЬ ЕЖЕМЕСЯЧНО: с новым закрытым месяцем цифры едут, а от них зависит весь пол.
-RETENTION = {"wb_acc1": 0.569, "wb_acc2": 0.554}
+# Сентябрь-2026, закрытый reports/data/mp_wb_hist.json, по явному решению
+# пользователя 02.11.2026. Октябрь здесь не пересчитываем.
+RETENTION = {"wb_acc1": 0.5323431064681289, "wb_acc2": 0.5402871026755824}
 
 MIN_NET = 300.0        # ₽ чистой на единицу — нижняя планка
 MIN_NET_PCT = 0.10     # либо 10 % от себестоимости, что больше
@@ -440,6 +440,7 @@ def cogs_map(acc, goods=None):
         # 3443). Действие то же, что при отсутствии себестоимости, но причина другая.
         rec = {"cogs": None, "source": None, "branch": ("none" if code else "unmapped"),
                "external_code": raw or None, "vendor_code": r["vendor_code"],
+               "title": (cards.get(int(r["nm_id"])) or {}).get("title"),
                "n_comp": 0, "is_set": code in sets_, "mapped_external_code": mapped_raw or None,
                "bundle": mult, "code_from": ("vendor_code" if from_vc else "external_code")}
         if code:
@@ -487,7 +488,7 @@ def cogs_map(acc, goods=None):
             else:
                 rec["branch"] = "own" if "own" in branches else "remote"
                 own_price = self_rec.get("tc_price") or self_rec.get("supplier_min")
-                if own_price:
+                if own_price and not gap:
                     # Полная закупочная комплекта и сумма доступных компонентов —
                     # два независимых основания. Не занижаем цену более дешёвой строкой.
                     use_components = not gap and total > float(own_price)
@@ -743,14 +744,16 @@ def task_err(acc, uid):
 def save(rows):
     if not rows:
         return
+    from psycopg2.extras import execute_values
     cols = ["account", "nm_id", "vendor_code", "external_code", "wave", "promo_ids",
             "price_before", "disc_before", "buyer_before", "prepromo_price", "cogs", "cogs_source",
             "stock_branch", "retention", "floor_net", "floor_price", "net_before", "target_price",
             "status", "reason", "err", "price_after"]
-    sql = f"INSERT INTO wb_promo_guard_log ({','.join(cols)}) VALUES ({','.join(['%s'] * len(cols))})"
+    sql = f"INSERT INTO wb_promo_guard_log ({','.join(cols)}) VALUES %s"
     with db.get_conn() as conn:
         with conn.cursor() as cur:
-            cur.executemany(sql, [tuple(r.get(c) for c in cols) for r in rows])
+            execute_values(cur, sql, [tuple(r.get(c) for c in cols) for r in rows],
+                           page_size=1000)
 
 
 def tg(text):
@@ -758,11 +761,13 @@ def tg(text):
         return "нет TG_PRC_BOT_TOKEN"
     for cid in NOTIFY_IDS:
         try:
-            requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                          json={"chat_id": cid, "text": text, "disable_web_page_preview": True},
-                          timeout=30)
+            response = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+                                     json={"chat_id": cid, "text": text,
+                                           "disable_web_page_preview": True}, timeout=30)
+            if not response.ok or not response.json().get("ok"):
+                return f"Telegram HTTP {response.status_code}"
         except Exception as e:
-            return str(e)[:120]
+            return type(e).__name__
     return "ok"
 
 
@@ -805,6 +810,7 @@ def main():
     ap.add_argument("--all", action="store_true",
                     help="снять защиту: править ВСЁ, что ниже пола, а не только уронённое акцией")
     ap.add_argument("--no-tg", action="store_true")
+    ap.add_argument("--no-log", action="store_true", help="не писать локальный журнал (разведка)")
     a = ap.parse_args()
     apply = a.apply and not a.dry
 
@@ -823,7 +829,7 @@ def main():
         cycle_start = promo_start or datetime.now(MSK).replace(hour=0, minute=0, second=0, microsecond=0)
         goods = fetch_goods(acc)
         cogs = cogs_map(acc, goods)
-        audit_context[acc] = {"cogs": cogs, "mps": {}, "rows": []}
+        audit_context[acc] = {"cogs": cogs, "mps": {}, "rows": [], "goods": goods}
         # Доступность решает остаток, который мы САМИ передаём на ВБ, а не штуки на складе
         # поставщика. Правило Сергея от 12.09.2026 на примере 5801/5368: на Удаленном складе
         # они есть, но поставщик временно не отгружает — остаток обнулили, продавать нечего.
@@ -862,6 +868,21 @@ def main():
                                               active_promo_names=[p[1] for p in promos])
         rows = decide(acc, goods, cogs, pre, ret, touched_only=not a.all,
                       floor_controlled=controlled)
+        from ops.promo_ordinary_scope import ordinary_codes, verified_set_codes, confirmed, confirmed_set
+        allowed = ordinary_codes()
+        sets_allowed = verified_set_codes()
+        for row in rows:
+            card = cogs.get(row['nm_id']) or {}
+            is_ordinary = confirmed(row['external_code'] or row['vendor_code'], card.get('title'), allowed)
+            bundle_code = re.fullmatch(r'\d{4}[Xх](\d{1,2})', row['vendor_code'] or '', re.I)
+            quantity_verified = not bundle_code or card.get('bundle') == int(bundle_code.group(1))
+            is_verified_set = (card.get('is_set') and card.get('branch') != 'none'
+                               and quantity_verified
+                               and confirmed_set(row['vendor_code'], sets_allowed, card.get('title')))
+            if not (is_ordinary or is_verified_set):
+                row['status'], row['reason'] = 'skip', 'набор или обычный товар не подтверждён МС'
+            elif not row['cogs']:
+                row['status'], row['reason'] = 'skip', 'себестоимость товара не подтверждена'
         pid = ",".join(str(p[0]) for p in promos)
         for r in rows:
             r["wave"], r["promo_ids"] = a.wave, pid
@@ -895,6 +916,7 @@ def main():
                       f"{'отправлена' if ok else 'ОШИБКА ' + err[:80]}", flush=True)
             time.sleep(90)                            # ВБ применяет цены не мгновенно
             after = fetch_goods(acc)                  # подтверждение перечиткой, не «отправили = сделали»
+            audit_context[acc]["goods"] = after
             for r in todo:
                 got = after.get(r["nm_id"])
                 if got:
@@ -911,14 +933,15 @@ def main():
         all_rows += rows
         audit_context[acc]["rows"] = rows
 
-    save(all_rows)
+    if not a.no_log:
+        save(all_rows)
 
     # Отдельный последний этап: свежая цена и независимый расчёт из первичных строк.
     # Ошибка аудита не скрывает результат уже отправленных исправлений.
     from ops.wb_promo_discount_audit import audit_account
-    for acc, ctx in audit_context.items():
+    for acc, ctx in (audit_context.items() if apply else []):
         try:
-            final_goods = fetch_goods(acc)
+            final_goods = ctx["goods"]
             result = audit_account(acc, final_goods, ctx["cogs"], ctx["rows"], ctx["mps"])
             audit_path = f"{REPORTS}/wb_discount_audit_{stamp}_{acc}.json"
             with open(audit_path, "w", encoding="utf-8") as audit_file:
@@ -957,7 +980,9 @@ def main():
     text = "\n".join(lines)
     print(text, flush=True)
     if apply and not a.no_tg:
-        tg(text)
+        delivered = tg(text)
+        if delivered != "ok":
+            print(f"Telegram notification failed: {delivered}", flush=True)
     return 0
 
 

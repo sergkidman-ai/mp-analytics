@@ -41,7 +41,8 @@ from prices import features as F  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
 
-URL = "https://thecartridge.ru/api/catalog/cartridge_models"
+URL = os.getenv("CARTRIDGE_CATALOG_API_URL",
+                "https://thecartridge.ru/api/catalog/cartridge_models")
 LIMIT = 200        # потолок API для поля limit
 MAX_PAGES = 60     # предохранитель от бесконечного цикла (на 13.08.2026 хватало 34 страниц)
 PAUSE = 1.0        # пауза между страницами — у них рабочие процессы, не долбим

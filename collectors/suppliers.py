@@ -60,8 +60,14 @@ def last_supplier_map():
         SELECT ms_id, supplier, buy_price FROM supplier_stock
         WHERE supplier IS NOT NULL AND captured_at = (
             SELECT max(captured_at) FROM supplier_stock WHERE supplier IS NOT NULL)""")
-    return {r["ms_id"]: (r["supplier"],
-            float(r["buy_price"]) if r["buy_price"] is not None else None) for r in rows}
+    if rows:
+        return {r["ms_id"]: (r["supplier"],
+                float(r["buy_price"]) if r["buy_price"] is not None else None) for r in rows}
+    # На новом VPS старого снимка может не быть. Полный каталог МС уже содержит
+    # актуальную закупочную цену; имя поставщика для расчёта сторожа не требуется.
+    products = db.query("SELECT ms_id, buy_price FROM ms_product "
+                        "WHERE NOT archived AND buy_price > 0")
+    return {r["ms_id"]: (None, float(r["buy_price"])) for r in products}
 
 
 def fetch_stock_store(store_href):
@@ -97,7 +103,7 @@ def fetch_turnover(days=30):
     return out
 
 
-def main(captured=None, with_suppliers=True):
+def main(captured=None, with_suppliers=True, with_turnover=True):
     """Снимок остатков по складам МС + поставщик каждой позиции.
 
     with_suppliers=True  — поставщика/закупочную тянем из МС (`supplier_map`, тяжёлый
@@ -114,8 +120,8 @@ def main(captured=None, with_suppliers=True):
         sup = supplier_map()
     else:
         sup = last_supplier_map()
-        print(f"  поставщики перенесены из последнего снимка: {len(sup)} товаров", flush=True)
-    turn = fetch_turnover()
+        print(f"  закупочные данные из снимка/каталога МС: {len(sup)} товаров", flush=True)
+    turn = fetch_turnover() if with_turnover else {}
     print(f"  оборачиваемость: {len(turn)} товаров с продажами/30д", flush=True)
     fresh = {}
     stores = {s["name"]: s["meta"]["href"] for s in _ms("entity/store", limit=100).get("rows", [])}
@@ -164,5 +170,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--light", action="store_true",
                     help="поставщика/закупочную не тянуть из МС, перенести из последнего снимка")
+    ap.add_argument("--no-turnover", action="store_true",
+                    help="не собирать оборачиваемость (для снимка себестоимости сторожей)")
     a = ap.parse_args()
-    main(with_suppliers=not a.light)
+    main(with_suppliers=not a.light, with_turnover=not a.no_turnover)

@@ -8,8 +8,8 @@
 Решения Сергея 17.09.2026:
   пол   = (себест + общая цель прибыли: 200 ₽ до 150 ₽, иначе max(300 ₽, 10 %)) / доля продавца. Себестоимость —
           та же цепочка, что у сторожей ВБ и Ozon (наличие СЕЙЧАС), через ozon_promo_guard.cost_map;
-  доля  = ПЛОСКАЯ за последний закрытый месяц (price_quarantine.retention()['ya_acc1'], авг-2026
-          удержания 66,65 % → нам остаётся 33,35 %), не по диапазонам цены;
+  доля  = временное согласованное правило: удержания 72 %, нам остаётся 28 %.
+          Финансовую базу при восстановлении не обновляем;
   ход   = promoPrice ниже пола → поднять promoPrice до пола, если пол ≤ maxPromoPrice;
           иначе (и когда себестоимости нет) — убрать товар из акции;
   цены каталога НЕ трогаем: minimumForBestseller не ставим (решение «только сторож»).
@@ -60,6 +60,7 @@ BATCH = 500                          # потолок товаров в update/d
 PACE = 0.8                           # лимиты: 1000 запросов/ч на список акций, 5000/ч на товары
 PRICE_EPS = 0.5
 MAX_DISCOUNT_SHARE = 0.95            # promoPrice не выше 95 % зачёркнутой цены — правило Маркета
+GUARD_RETENTION = Decimal('0.72')    # решение пользователя 02.11.2026; финансовую базу не обновлять
 COGS_MIN_SHARE = 0.5                 # себест известен меньше чем у половины — цепочка сломана
 COGS_MIN_ROWS = 20
 
@@ -105,7 +106,7 @@ def promo_offers(promo_id):
 
 def snapshot():
     """Строки «товар × акция» с себестоимостью и полом. Возвращает (rows, promos, keep)."""
-    rate, month = q.yandex_retention()
+    rate, month = GUARD_RETENTION, 'ручное правило 72% от 02.11.2026'
     keep = Decimal(1) - rate
     acts = promos()
     rows, skipped = [], []
@@ -159,6 +160,23 @@ def decide(r):
         r["reason"] = (f"пол {floor:.0f} > потолок {cap:.0f}" if editable
                        else f"механику {r['mechanics']} править нельзя, пол {floor:.0f}")
     return r
+
+
+def _cut(rows, limit):
+    """Limit marketplace writes by offer, including offers in several promotions."""
+    if limit is None:
+        return
+    candidates = {}
+    for row in rows:
+        if row['mode'] in ('raise', 'remove'):
+            offer = row['offer_id']
+            gap = float(row.get('floor_price') or 0) - float(row.get('promo_price') or 0)
+            candidates[offer] = max(candidates.get(offer, float('-inf')), gap)
+    keep = set(sorted(candidates, key=lambda offer: candidates[offer], reverse=True)[:limit])
+    for row in rows:
+        if row['mode'] in ('raise', 'remove') and row['offer_id'] not in keep:
+            row['mode'] = 'ok_deferred'
+            row['reason'] += f' · отложено --limit {limit}'
 
 
 def push(rows):
@@ -272,8 +290,18 @@ def main():
     ap.add_argument("--no-tg", action="store_true", help="не слать сводку в бот")
     a = ap.parse_args()
     rows, acts, skipped, keep, month = snapshot()
+    from ops.promo_ordinary_scope import ordinary_codes, verified_set_codes, confirmed, confirmed_set
+    allowed = ordinary_codes()
+    sets_allowed = verified_set_codes()
     for r in rows:
-        decide(r)
+        r['floor_price'] = r['new_price'] = None
+        if not (confirmed(r.get('offer_id'), None, allowed) or
+                confirmed_set(r.get('offer_id'), sets_allowed)):
+            r['mode'], r['reason'] = 'skip_unverified', 'набор или обычный товар не подтверждён МС'
+        elif r.get('cogs') is None:
+            r['mode'], r['reason'] = 'skip_unverified', 'себестоимость товара не подтверждена'
+        else:
+            decide(r)
         r["status_row"], r["note"] = "dry", None
     if not a.no_log:
         verify_previous(rows, a.wave)
@@ -283,12 +311,15 @@ def main():
                f"цепочка себеста сломана, прогон пропущен")
         print(msg.replace("*", ""), flush=True)
         if a.apply and not a.no_tg:
-            oz.send(msg)
+            from ops.wb_promo_guard import tg
+            delivered = tg(msg)
+            if delivered != 'ok':
+                print(f'Telegram notification failed: {delivered}', flush=True)
         return
-    g._cut(rows, a.limit)
+    _cut(rows, a.limit)
     if a.apply:
         for r in rows:
-            if r["mode"] in ("ok", "ok_deferred"):
+            if r["mode"] in ("ok", "ok_deferred", "skip_unverified"):
                 r["status_row"] = "skip"
         push(rows)
     if not a.no_log:
@@ -296,7 +327,10 @@ def main():
     txt = summary(rows, acts, skipped, keep, month, a.apply)
     print(txt.replace("*", ""), flush=True)
     if a.apply and not a.no_tg and any(r["mode"] in ("raise", "remove") for r in rows):
-        oz.send(txt)
+        from ops.wb_promo_guard import tg
+        delivered = tg(txt)
+        if delivered != 'ok':
+            print(f'Telegram notification failed: {delivered}', flush=True)
     if a.csv and rows:
         head = ["promo_name", "mechanics", "offer_id", "status", "price", "promo_price",
                 "max_promo_price", "cogs", "cogs_source", "floor_price", "new_price", "mode",

@@ -37,6 +37,34 @@ class OzonBundleFloorTests(unittest.TestCase):
         self.assertEqual(row['mode'], 'remove')
         self.assertIsNone(row['new_price'])
 
+    def test_verified_kit_uses_higher_of_own_price_and_complete_components(self):
+        from ops import wb_promo_guard as w
+        with patch.object(w, 'sets_map', return_value={'4297': {'2860': 1, '2861': 1}}), \
+             patch.object(w, 'links_map', return_value={}), \
+             patch.object(w, 'stock_map', return_value={'4297': {'tc_price': 100}}), \
+             patch.object(w, 'unit_cost', side_effect=[(80, 'supplier_min', 'remote'),
+                                                       (70, 'supplier_min', 'remote')]):
+            self.assertEqual(guard.cost_map(['4297'])['4297'], (150, 'set_components'))
+
+    def test_kit_with_missing_component_price_has_no_cost(self):
+        from ops import wb_promo_guard as w
+        with patch.object(w, 'sets_map', return_value={'4297': {'2860': 1, '2861': 1}}), \
+             patch.object(w, 'links_map', return_value={}), \
+             patch.object(w, 'stock_map', return_value={'4297': {'tc_price': 100}}), \
+             patch.object(w, 'unit_cost', side_effect=[(80, 'supplier_min', 'remote'),
+                                                       (None, None, 'remote')]):
+            self.assertIsNone(guard.cost_map(['4297'])['4297'][0])
+
+    def test_anomalously_cheap_own_kit_does_not_lower_floor(self):
+        from ops import wb_promo_guard as w
+        with patch.object(w, 'sets_map', return_value={'4297': {'2860': 1, '2861': 1}}), \
+             patch.object(w, 'links_map', return_value={}), \
+             patch.object(w, 'stock_map', return_value={'4297': {'qty_own': 1, 'cost_own': 1,
+                                                                 'tc_price': 100}}), \
+             patch.object(w, 'unit_cost', side_effect=[(80, 'supplier_min', 'remote'),
+                                                       (70, 'supplier_min', 'remote')]):
+            self.assertEqual(guard.cost_map(['4297'])['4297'], (150, 'set_components'))
+
     def test_ladder_uses_bundle_floor_for_stock_and_regional(self):
         for undercut in (False, True):
             with self.subTest(undercut=undercut):

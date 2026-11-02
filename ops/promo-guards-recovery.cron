@@ -1,0 +1,14 @@
+# Restored promotion guards. All times UTC (MSK = UTC+3).
+SHELL=/bin/bash
+MAILTO=""
+
+# Nightly MS catalog and stock snapshot; price guards fail closed on stale stock.
+10 21 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-promo-stock.lock /bin/bash -c './venv/bin/python collectors/ms_products.py && ./venv/bin/python collectors/suppliers.py --light --no-turnover' >> logs/promo-ms-snapshot.log 2>&1
+
+# WB baseline precedes the next promotion wave. No --all catalog repricing.
+10 20 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-promo-wb-baseline.lock ./venv/bin/python -m ops.wb_promo_guard --baseline >> logs/promo-wb-baseline.log 2>&1
+0 23,1,5,8,12,16 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-promo-wb-guard.lock ./venv/bin/python -m ops.wb_promo_guard --apply --limit 300 --wave scheduled >> logs/promo-wb-guard.log 2>&1
+
+# Existing Ozon/Market guard windows, with ordinary products only in code.
+30 3,10 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-promo-ozon-guard.lock ./venv/bin/python -m ops.ozon_promo_guard --apply --limit 300 --wave scheduled >> logs/promo-ozon-guard.log 2>&1
+35 3,10 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-promo-ya-guard.lock ./venv/bin/python -m ops.ya_promo_guard --apply --limit 100 --wave scheduled >> logs/promo-ya-guard.log 2>&1
