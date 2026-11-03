@@ -29,6 +29,7 @@ LOCK = RUNTIME / 'lock'
 MAX_WRITES = 10
 WAITING = {'Ожидает подтверждения'}
 STATE = {'Подтвержден': '7bc95b1a-f436-11e9-0a80-055c0021dca1',
+         'Собирается': '477d431f-32c5-487b-ba8d-c6e452a4a1d4',
          'Неукомплектован': 'd0bef805-f468-11e2-9e2e-7054d21a8d1e'}
 
 
@@ -42,11 +43,10 @@ def atomic_save(path: Path, data: dict) -> None:
 
 def planned_day(status: str, now: datetime) -> str:
     msk = now.astimezone(ZoneInfo('Europe/Moscow'))
-    if msk < datetime(2026, 11, 3, 12, tzinfo=ZoneInfo('Europe/Moscow')):
-        day = msk.date() if status == 'Подтвержден' and msk.date() >= datetime(2026, 11, 3).date() else (
-            datetime(2026, 11, 3).date() if status == 'Подтвержден' else datetime(2026, 11, 5).date())
-    elif msk < datetime(2026, 11, 5, tzinfo=ZoneInfo('Europe/Moscow')):
-        day = datetime(2026, 11, 5).date()
+    if msk < datetime(2026, 11, 5, tzinfo=ZoneInfo('Europe/Moscow')):
+        ready_today = (status in {'Подтвержден', 'Собирается'} and
+                       msk < datetime(2026, 11, 3, 15, tzinfo=ZoneInfo('Europe/Moscow')))
+        day = datetime(2026, 11, 3 if ready_today else 5).date()
     else:
         day = msk.date() + timedelta(days=msk.hour >= 16)
     return day.isoformat()
@@ -134,12 +134,14 @@ def desired(order: dict, proof: dict, stock: dict[str, dict],
         return None, None, {'reason': 'already_processed_or_payment_pending'}
     available, evidence = all_available(order, stock, promised)
     if available:
-        target = 'Подтвержден'
+        target = 'Собирается'
     elif priced:
         target = 'Неукомплектован'
     else:
         return None, None, {'reason': 'shortage_without_price_proof', 'stock': evidence}
     day = planned_day(target, now)
+    if target == 'Собирается' and day > now.astimezone(ZoneInfo('Europe/Moscow')).date().isoformat():
+        target = 'Подтвержден'
     return target, day, {'reason': 'eligible', 'stock': evidence,
                          'price_selected': priced, 'available': available}
 
