@@ -73,14 +73,14 @@ class FulfillmentTests(TestCase):
         o = order(); before = deepcopy(o)
         payload = ozon_payload(o)
         payload.json.return_value['result']['products'].append({'sku': 102, 'offer_id': '101', 'quantity': 3})
-        session, request = self.session([payload, response({'result': [o['name']]})])
+        session, request = self.session([payload, response({'result': [o['name']]}), ozon_payload(o,'awaiting_deliver')])
         result = session.fulfill(o, self.folder)
         self.assertEqual(result['result'], 'ready')
-        self.assertEqual(request.call_count, 2)
-        body = request.call_args.kwargs['json']
+        self.assertEqual(request.call_count, 3)
+        body = request.call_args_list[1].kwargs['json']
         self.assertEqual(body['packages'], [{'products': [{'product_id': 101, 'quantity': 1}, {'product_id': 102, 'quantity': 3}]}])
         self.assertEqual(session.fulfill(o, self.folder), result)
-        self.assertEqual(request.call_count, 2)
+        self.assertEqual(request.call_count, 3)
         self.assertEqual(o, before)
         self.assertEqual(self.folder.stat().st_mode & 0o777, 0o700)
         for p in self.folder.iterdir():
@@ -101,6 +101,22 @@ class FulfillmentTests(TestCase):
         self.assertEqual(session.fulfill(o, self.folder)['result'], 'ready')
         self.assertEqual(sum('/ship' in c.args[1] for c in request.call_args_list), 1)
         self.assertEqual(request.call_count, 3)
+
+    def test_ship_success_response_without_status_transition_is_not_ready(self):
+        o=order()
+        session,request=self.session([ozon_payload(o),response({'result':[o['name']]}),
+            ozon_payload(o),ozon_payload(o),ozon_payload(o)])
+        result=session.fulfill(o,self.folder)
+        self.assertEqual(result['result'],'blocked')
+        self.assertEqual(result['reason'],'ozon_still_awaiting_packaging')
+        self.assertEqual(sum('/ship' in c.args[1] for c in request.call_args_list),1)
+
+    def test_short_ozon_transition_delay_can_finish_successfully(self):
+        o=order()
+        session,request=self.session([ozon_payload(o),response({'result':[o['name']]}),
+                                      ozon_payload(o),ozon_payload(o,'awaiting_deliver')])
+        self.assertEqual(session.fulfill(o,self.folder)['result'],'ready')
+        self.assertEqual(sum('/ship' in c.args[1] for c in request.call_args_list),1)
 
     def test_unconfirmed_timeout_is_sticky_without_blind_retry(self):
         o = order()
@@ -130,13 +146,14 @@ class FulfillmentTests(TestCase):
         self.assertEqual(request.call_count, 1)
         self.assertIn('/fbs/get', request.call_args.args[1])
 
-    def test_crash_after_success_uses_saved_response_without_api(self):
+    def test_crash_after_success_checks_actual_status_without_resending(self):
         o = order(); self.folder.mkdir()
         f._save(self.folder / 'mut_ship_intent.json', {'body': {'posting_number': o['name']}}, exclusive=True)
         f._save(self.folder / 'ship_response.json', {'http': 200, 'body': {'result': [o['name']]}})
-        session, request = self.session([])
+        session, request = self.session([ozon_payload(o,'awaiting_deliver')])
         self.assertEqual(session.fulfill(o, self.folder)['result'], 'ready')
-        request.assert_not_called()
+        self.assertEqual(request.call_count, 1)
+        self.assertIn('/fbs/get',request.call_args.args[1])
 
     def test_real_single_gtd_is_validated_before_ship(self):
         gtd = '10702070/100326/5092739'; o = order(gtd=gtd)
@@ -144,11 +161,11 @@ class FulfillmentTests(TestCase):
             response({'posting_number': o['name'], 'products': [{'product_id': 101, 'quantity': 1, 'exemplars': [{'exemplar_id': 50}]}]}),
             response({}), response({'products': [{'product_id': 101, 'exemplars': [
                 {'exemplar_id': 50, 'gtd': gtd, 'gtd_check_status': 'passed', 'gtd_error_codes': []}]}]}),
-            response({'result': [o['name']]})])
+            response({'result': [o['name']]}),ozon_payload(o,'awaiting_deliver')])
         self.assertEqual(session.fulfill(o, self.folder)['result'], 'ready')
         set_body = request.call_args_list[2].kwargs['json']
         self.assertEqual(set_body['products'][0]['exemplars'], [{'exemplar_id': 50, 'gtd': gtd, 'is_gtd_absent': False}])
-        self.assertEqual(request.call_count, 5)
+        self.assertEqual(request.call_count, 6)
 
     def ambiguous_component_order(self):
         first = order(gtd='10132160/080726/5263446')
@@ -179,7 +196,7 @@ class FulfillmentTests(TestCase):
                        'exemplars': [{'exemplar_id': 50}]}]}), response({}),
             response({'products': [{'product_id': 101, 'exemplars': [
                 {'exemplar_id': 50, 'gtd': gtd, 'gtd_check_status': 'passed', 'gtd_error_codes': []}]}]}),
-            response({'result': [o['name']]})])
+            response({'result': [o['name']]}),ozon_payload(o,'awaiting_deliver')])
         self.assertEqual(session.fulfill(o, self.folder)['result'], 'ready')
         self.assertEqual(request.call_args_list[2].kwargs['json']['products'][0]['exemplars'],
                          [{'exemplar_id': 50, 'gtd': gtd, 'is_gtd_absent': False}])
@@ -214,7 +231,7 @@ class FulfillmentTests(TestCase):
                       'exemplars': [{'exemplar_id': 50}]}]}), response({}),
             response({'products': [{'product_id': 101, 'exemplars': [{'exemplar_id': 50,
                       'gtd': '', 'is_gtd_absent': True, 'gtd_check_status': 'passed', 'gtd_error_codes': []}]}]}),
-            response({'result': [o['name']]})])
+            response({'result': [o['name']]}),ozon_payload(o,'awaiting_deliver')])
         self.assertEqual(session.fulfill(o, self.folder)['result'], 'ready')
         exemplar = request.call_args_list[2].kwargs['json']['products'][0]['exemplars'][0]
         self.assertEqual(exemplar, {'exemplar_id': 50, 'is_gtd_absent': True})

@@ -1,7 +1,8 @@
 # поток: inv
 """Marketplace readiness after the caller has confirmed the matching MS shipment.
 
-No MS/supplier/stock writes or reads. ``folder`` is a private, per-order checkpoint.
+The API session has no MS/supplier/stock writes or reads. Public entrypoints also
+record confirmed Ozon assembly failures as a status-only MS change.
 An unresolved mutation is reconciled once and is never automatically repeated.
 The 03.11 WB supplies are explicit scope, never created/closed/delivered here.
 """
@@ -31,6 +32,7 @@ GTD_ATTR = 'b5a757d4-85ca-11f1-0a80-184f000fc818'
 HOSTS = {'ozon': 'https://api-seller.ozon.ru', 'wb': 'https://marketplace-api.wildberries.ru',
          'yandex': 'https://api.partner.market.yandex.ru'}
 READY = {'ready', 'already_ready'}
+OZON_READY = {'awaiting_deliver', 'acceptance_in_progress', 'delivering', 'delivered'}
 
 
 class Blocked(ValueError):
@@ -381,8 +383,18 @@ class FulfillmentSession:
         except Uncertain:
             return self._recover(order, folder, base, seed, lease)
         if http == 200 and _returned(response) == [base['number']]:
-            return self._finish(folder, base, 'ready', 'ozon_ship_api_confirmed', http=http,
-                                status='awaiting_deliver', returned_postings=_returned(response))
+            for attempt in range(3):
+                current = self._ozon_get(folder, base, lease, 'ozon_ship_check_' + str(attempt))
+                state = current.get('status')
+                if state in OZON_READY:
+                    return self._finish(folder, base, 'ready', 'ozon_posting_status_confirmed',
+                                        http=http, status=state)
+                if state != 'awaiting_packaging':
+                    return self._finish(folder, base, 'blocked', 'ozon_ship_status_' + str(state), status=state)
+                if attempt < 2:
+                    self.sleep(2)
+            return self._finish(folder, base, 'blocked', 'ozon_still_awaiting_packaging',
+                                http=http, status='awaiting_packaging')
         if http >= 500 or http < 400 or 'ALREADY_SHIPPED' in str(response):
             return self._recover(order, folder, base, seed, lease)
         return self._finish(folder, base, 'blocked', 'ozon_ship_rejected', http=http)
@@ -549,8 +561,6 @@ class FulfillmentSession:
                 continue
             saved = _load(response)
             http, body = saved['http'], saved['body']
-            if label == 'ship' and http == 200 and _returned(body) == [base['number']]:
-                return self._finish(folder, base, 'ready', 'saved_ozon_ship_api_confirmed', http=http, status='awaiting_deliver')
             if label == 'status':
                 changed = body.get('order', {})
                 if 200 <= http < 300 and str(changed.get('id')) == base['number'] and (changed.get('status'), changed.get('substatus')) == ('PROCESSING', 'READY_TO_SHIP'):
@@ -564,7 +574,7 @@ class FulfillmentSession:
         try:
             if base['platform'] == 'ozon':
                 current = self._ozon_get(folder, base, lease, 'ozon_reconciliation')
-                ready = current.get('status') == 'awaiting_deliver'
+                ready = current.get('status') in OZON_READY
                 proof = {'status': current.get('status')}
             elif base['platform'] == 'yandex':
                 fresh = dict(seed)
@@ -654,8 +664,13 @@ _DEFAULT = FulfillmentSession()
 
 
 def fulfill(order: dict, folder: Path) -> dict:
-    return _DEFAULT.fulfill(order, folder)
+    from ops.fbs_ozon_failure_status import sync_failure_status
+    return sync_failure_status(order, folder, _DEFAULT.fulfill(order, folder), _DEFAULT)
 
 
 def fulfill_many(orders, folder: Path) -> dict:
-    return _DEFAULT.fulfill_many(orders, folder)
+    from ops.fbs_ozon_failure_status import sync_failure_status
+    orders = list(orders)
+    results = _DEFAULT.fulfill_many(orders, folder)
+    return {order['id']: sync_failure_status(order, Path(folder)/order['id'], results[order['id']], _DEFAULT)
+            for order in orders}

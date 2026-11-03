@@ -88,6 +88,37 @@ class ImportSetIntegrationTests(TestCase):
         self.assertTrue(importer._confirmed_set_offer('0168msk', '0168', [ordinary, kit]))
         self.assertFalse(importer._confirmed_set_offer('01681', '0168', [ordinary, kit]))
 
+    def test_dsk_generated_set_alias_uses_exact_parent_without_name_guess(self):
+        parent = dict(product('6282'), code='6282dsk', name='Картриджи лазерные')
+        self.assertTrue(importer._confirmed_set_offer('6282AMUGB99G','6282',[parent],account='acc2'))
+        self.assertFalse(importer._confirmed_set_offer('6282AMUGB99G','6282',[parent],account='acc1'))
+        self.assertFalse(importer._confirmed_set_offer('6282AMUGB99G','6282',[],account='acc2'))
+        self.assertFalse(importer._confirmed_set_offer('628212345678','6282',[parent],account='acc2'))
+        ordinary = dict(product('6282'),code='6282AMUGB99G',name='Одиночный картридж')
+        self.assertFalse(importer._confirmed_set_offer('6282AMUGB99G','6282',[parent,ordinary],account='acc2'))
+
+    def test_dsk_generated_alias_enters_component_stock_and_status_path(self):
+        source = {'platform':'ozon','account':'acc2','number':'123-0001-1',
+                  'created_at':'2026-11-03T10:00:00+03:00','status':'awaiting_packaging',
+                  'lines':[{'market_code':'6282AMUGB99G','quantity':2,
+                            'price_kopeks':100000,'discount_percent':'10'}]}
+        def cards(code):
+            if code=='6282':return [dict(product(code),code=code+'dsk',name='Картриджи лазерные')]
+            return [product(code)]
+        def stock(store, cards):
+            self.assertIn(store,(STORE['acc2'],STORE_REMOTE))
+            return {c['id']:{'stock':2,'reserve':0} for c in cards}
+        with patch.object(importer,'source',return_value=source), \
+             patch.dict(os.environ,{'FBS_SET_SPLIT_ENABLED':'1'}), \
+             patch.object(importer,'find_customerorder',return_value=None), \
+             patch.object(importer,'set_components',return_value=[('2860',1),('2861',1)]), \
+             patch.object(importer,'product_cards',side_effect=cards), \
+             patch.object(importer,'warehouse_stock',side_effect=stock):
+            result=importer.inspect({'number':source['number']},{},{'id-2860':20000,'id-2861':30000},'digest')
+        self.assertEqual(len(result['payload']['positions']),4)
+        self.assertTrue(all(s.get('component_of')=='6282' and s['available'] for s in result['selected']))
+        self.assertEqual(result['total_kopeks'],180000)
+
     def test_promised_component_is_not_allocated_twice_in_batch(self):
         def cards(code):
             return [product(code)]

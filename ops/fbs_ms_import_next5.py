@@ -63,13 +63,24 @@ def _unreserved_promises(selected: list[dict], positions: list[dict],
     return {key: max(Decimal(0), qty) for key, qty in result.items()}
 
 
-def _confirmed_set_offer(market_code: str, base: str, cards: list[dict]) -> bool:
+def _confirmed_set_offer(market_code: str, base: str, cards: list[dict],
+                         account: str | None = None) -> bool:
     """A four-digit set family may also contain unrelated supplier variants."""
     if market_code == base or market_code.lower() in (base + 'msk', base + 'dsk'):
         return True
     exact = [c for c in cards if (c.get('code') or '').lower() == market_code.lower()]
-    return (len(exact) == 1 and
-            bool(re.search(r'\b(?:набор\w*|комплект\w*)\b', exact[0].get('name') or '', re.I)))
+    if exact:
+        return (len(exact) == 1 and
+                bool(re.search(r'\b(?:набор\w*|комплект\w*)\b', exact[0].get('name') or '', re.I)))
+    # Dsquare publishes TC set copies as <four-digit externalCode><8-char ID>.
+    # The verified TC composition is checked by the caller. Require the exact
+    # existing dsk parent too; arbitrary supplier/numeric variants stay manual.
+    parents = [c for c in cards if c.get('externalCode') == base
+               and (c.get('code') or '').lower() == base + 'dsk'
+               and not c.get('archived')]
+    return (account == 'acc2' and len(parents) == 1
+            and bool(re.fullmatch(re.escape(base) + r'[A-Z0-9]{8}', market_code))
+            and bool(re.search(r'[A-Z]', market_code[4:])))
 
 
 def _kit_lines(item: dict, code: str, account: str, prices: dict[str, int],
@@ -297,7 +308,8 @@ def inspect(row, stats, prices, digest, promised=None):
         manual_parent = False
         if composition:
             if (os.getenv('FBS_SET_SPLIT_ENABLED') != '1' or
-                    not _confirmed_set_offer(item['market_code'], code, cards)):
+                    not _confirmed_set_offer(item['market_code'], code, cards,
+                                             account=account)):
                 manual_parent = True
             else:
                 try:
