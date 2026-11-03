@@ -10,3 +10,4 @@ fastapi
 uvicorn[standard]
 fpdf2==2.8.8
 Pillow
+pypdf==6.21.4

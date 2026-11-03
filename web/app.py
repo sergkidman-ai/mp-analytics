@@ -49,6 +49,8 @@ from web.shipment_guard_api import router as shipment_guard_router  # поток
 app.include_router(shipment_guard_router)
 from web.customer_guard_api import router as customer_guard_router  # поток: fin
 app.include_router(customer_guard_router)
+from web.print_api import router as print_router  # поток: print
+app.include_router(print_router)
 
 
 # ── Ограниченный доступ: сотрудник раздела «Новинки» (поток prc) ───────────────

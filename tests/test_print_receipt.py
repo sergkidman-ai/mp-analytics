@@ -1,0 +1,88 @@
+# поток: print
+from io import BytesIO
+import unittest
+
+from fpdf import FPDF
+from PIL import Image, ImageDraw
+from pypdf import PdfReader
+from pypdf.generic import ContentStream
+
+from print_service.domain import PrintBlocked
+from print_service.receipt import annotate_receipt
+
+
+def receipt(*, signature=True, barcode=True, narrow_barcode=False):
+    pdf = FPDF(unit='pt', format=(612, 792))
+    pdf.add_font('Print', fname='/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
+    pdf.set_auto_page_break(False)
+    pdf.add_page()
+    pdf.set_font('Print', size=9)
+    pdf.text(60, 140, 'Товарный чек № TEST-123')
+    pdf.text(80, 170, 'Артикул')
+    pdf.text(370, 170, 'Кол-во')
+    pdf.text(80, 205, 'TEST-SKU')
+    pdf.text(374, 205, '10')
+    if signature:
+        pdf.text(410, 400, 'Простакова Н.Ю.')
+    if barcode:
+        # Layout fixture only; not a barcode used for a real shipment.
+        img = Image.new('1', (800, 320 if narrow_barcode else 100), 1)
+        draw = ImageDraw.Draw(img)
+        for x in range(0, 800, 8): draw.rectangle((x, 0, x+3, img.height-1), fill=0)
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        pdf.image(BytesIO(buffer.getvalue()), x=340, y=80, w=160, h=30)
+    data = bytes(pdf.output())
+    for font in pdf.fonts.values():
+        if hasattr(font, 'ttfont'):
+            font.ttfont.close()
+    return data
+
+
+class PrintReceiptTests(unittest.TestCase):
+    def test_short_wb_barcode_is_identified_by_bars_not_image_ratio(self):
+        data = annotate_receipt(receipt(narrow_barcode=True), code='7654321', last_four='0789')
+        text = PdfReader(BytesIO(data)).pages[0].extract_text()
+        self.assertIn('7654321', text)
+        self.assertIn('0789', text)
+
+    def test_ozon_tail_on_separate_line_large_bold_and_black_warehouse(self):
+        data = annotate_receipt(receipt(), code='ii50116951429',
+                                color={'short': 'Син', 'css': '#0000ff'})
+        reader = PdfReader(BytesIO(data))
+        spans = []
+        def visit(text, cm, tm, font, size):
+            if text.strip(): spans.append((text.strip(), str((font or {}).get('/BaseFont', '')), size, tm[5]))
+        text = reader.pages[0].extract_text(visitor_text=visit)
+        self.assertIn('ii5011695', text)
+        self.assertIn('1429', text)
+        self.assertIn('Син', text)
+        self.assertNotIn('ii50116951429', text)
+        prefix = next(s for s in spans if s[0] == 'ii5011695')
+        tail = next(s for s in spans if s[0] == '1429')
+        self.assertIn('Bold', tail[1])
+        self.assertEqual(tail[2], 22)
+        self.assertLess(tail[3], prefix[3])
+        for args, op in ContentStream(reader.pages[0].get_contents(), reader).operations:
+            if op in (b'rg', b'RG'):
+                self.assertEqual(tuple(float(x) for x in args), (0, 0, 0))
+
+    def test_diskver_signature_code_quantity_without_warehouse_color(self):
+        data = annotate_receipt(receipt(), diskver=True, code='7654321', last_four='0789',
+                                color={'short': 'Син', 'css': '#0000ff'}, quantities={'TEST-SKU': 10})
+        result = PdfReader(BytesIO(data))
+        text = result.pages[0].extract_text()
+        self.assertIn('Терещенко С.С.', text)
+        self.assertIn('7654321', text)
+        self.assertIn('0789', text)
+        self.assertNotIn('Син', text)
+        self.assertIn('TEST-123', text)
+        self.assertEqual(len(result.pages[0].images), 1)
+
+    def test_mismatched_quantity_and_unrecognized_layout_block_printing(self):
+        with self.assertRaises(PrintBlocked):
+            annotate_receipt(receipt(), quantities={'TEST-SKU': 11})
+        with self.assertRaises(PrintBlocked):
+            annotate_receipt(receipt(signature=False), diskver=True)
+        with self.assertRaises(PrintBlocked):
+            annotate_receipt(receipt(barcode=False), code='7654321')

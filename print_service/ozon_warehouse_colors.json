@@ -1,0 +1,16 @@
+{
+  "oz_acc1": {
+    "1020001070971000": {"name": "Звездный BT-PL", "color": "orange"},
+    "1020001418549000": {"name": "Москва Ozon", "color": "black"},
+    "1020001685869000": {"name": "Москва наличие", "color": "blue"},
+    "1020001788395000": {"name": "Москва Блоссом", "color": "green"},
+    "1020001848205000": {"name": "Изи + Спринт", "color": "violet"}
+  },
+  "oz_acc2": {
+    "1020005000064305": {"name": "FBS-MSK", "color": "blue"},
+    "1020005000064313": {"name": "SUP-MSK", "color": "orange"},
+    "1020005000222888": {"name": "BLS-MSK", "color": "green"},
+    "1020005005745590": {"name": "ZVZ-AQUA+SF", "color": "gray"},
+    "1020005005745680": {"name": "ZVZ-IZI+SP", "color": "pink"}
+  }
+}
