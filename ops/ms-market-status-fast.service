@@ -1,0 +1,16 @@
+[Unit]
+Description=MS transit statuses from Pult and FBO sources (rolling 90 days)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+EnvironmentFile=/opt/mp-analytics/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.ms_market_status_live --mode fast --apply
+TimeoutStartSec=1500
+UMask=0077
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true

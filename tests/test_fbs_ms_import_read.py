@@ -38,6 +38,27 @@ class ReadTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'stock_response_identity'):
             warehouse_stock('store-id', [c], wrong)
 
+    def test_fully_reserved_stock_remains_available_to_its_own_order(self):
+        from ops import ms_supply_fulfillment as worker
+        card = {'id': 'a', 'meta': {'href': 'https://example/product/a'}}
+
+        def report(path, params):
+            # MS defaults to quantityMode=nonEmpty: stock=reserve is omitted.
+            rows = ([{'meta': card['meta'], 'stock': 1, 'reserve': 1, 'quantity': 0}]
+                    if 'quantityMode=all' in params['filter'] else [])
+            return {'meta': {'size': len(rows)}, 'rows': rows}
+
+        stock = warehouse_stock('store-id', [card], report)
+        order = {'store': {'meta': {'href': 'https://example/store/store-id'}},
+                 'positions': {'meta': {'size': 1}, 'rows': [
+                     {'assortment': card, 'quantity': 1, 'reserve': 1}]}}
+        ready, evidence = worker.availability(order, {'stock': stock, 'stock_sequence': 0},
+                                             {'active': {}, 'posted': []})
+        self.assertTrue(ready)
+        self.assertEqual(evidence['a']['stock'], '1')
+        self.assertEqual(evidence['a']['all_reserve'], '1')
+        self.assertEqual(evidence['a']['free_for_order'], '1')
+
 
 if __name__ == '__main__':
     unittest.main()

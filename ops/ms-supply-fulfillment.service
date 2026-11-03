@@ -1,0 +1,20 @@
+[Unit]
+Description=MS accepted supply asynchronous fulfillment queue
+After=network-online.target ms-supply-receiver.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mp-analytics
+EnvironmentFile=/opt/mp-analytics/.env
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.ms_supply_queue --worker
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

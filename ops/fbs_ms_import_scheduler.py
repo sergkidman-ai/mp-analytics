@@ -11,7 +11,6 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import fcntl
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -23,8 +22,8 @@ from core import ms_api
 from ops.fbs_ms_import_pilot import save
 from ops.fbs_ms_import_read import find_customerorder, product_cards
 from ops.fbs_ms_set_catalog import catalog as set_catalog, components as set_components
-from ops.fbs_ms_import_wb_pilot import DOC_KEYS, DOC_RE, current_purchase_prices
-from prices.profiles import STORE_REMOTE
+from ops.fbs_ms_import_wb_pilot import (current_purchase_documents,
+                                     purchase_documents_digest, current_purchase_prices)
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'docs/reports/fbs_ms_recovery_20261102/all_import'
@@ -123,26 +122,7 @@ def exact_ms_numbers(rows: list[dict]) -> set[str]:
 
 
 def enter_digest() -> str:
-    store = ms_api.ref('store', STORE_REMOTE)['meta']['href']
-    response = ms_api.get('/entity/enter', {'limit': 1000,
-        'filter': [f'store={store}', 'moment>=2026-10-30 00:00:00']})
-    if response['meta']['size'] != len(response['rows']):
-        raise RuntimeError('enter_list_incomplete')
-    groups = {}
-    for doc in response['rows']:
-        match = DOC_RE.match(doc.get('name', ''))
-        if not match or match['key'] not in DOC_KEYS:
-            continue
-        key, day = match['key'], match['day']
-        if key not in groups or day > groups[key][0]:
-            groups[key] = (day, [doc])
-        elif day == groups[key][0]:
-            groups[key][1].append(doc)
-    if 'rapid' not in groups or 'easy_print' not in groups:
-        raise RuntimeError('supplier_enter_group_missing')
-    provenance = [(key, groups[key][0], doc['id'], doc['updated'])
-                  for key in DOC_KEYS if key in groups for doc in groups[key][1]]
-    return hashlib.sha256(json.dumps(sorted(provenance)).encode()).hexdigest()
+    return purchase_documents_digest(current_purchase_documents())
 
 
 def prices_for(rows: list[dict]) -> tuple[dict[str, int], str]:

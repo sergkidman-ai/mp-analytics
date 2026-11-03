@@ -1,0 +1,12 @@
+[Unit]
+Description=Sync marketplace transit statuses to MS every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:10,40:00
+Persistent=true
+AccuracySec=30s
+RandomizedDelaySec=0
+Unit=ms-market-status-fast.service
+
+[Install]
+WantedBy=timers.target

@@ -174,3 +174,8 @@ data/mpstats_probe/*/derived/actual_*.csv
 
 # Старые версии выгрузок — локальный runtime, не исходники.
 /reports/data/**/*.previous
+
+# Private API snapshots and mutation journals of the 03.11 dispatch wave.
+/.private/ms_order_dispatch_20261103/
+/.private/ms_supply_fulfillment/
+/.private/ms_market_status_continuous/

@@ -1,0 +1,21 @@
+[Unit]
+Description=MS accepted supply webhook receiver
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mp-analytics
+EnvironmentFile=/opt/mp-analytics/.env
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStart=/opt/mp-analytics/venv/bin/python -m uvicorn web.ms_supply_receiver:app --host 127.0.0.1 --port 8094 --no-access-log --no-server-header
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/mp-analytics/.private/ms_supply_fulfillment
+
+[Install]
+WantedBy=multi-user.target

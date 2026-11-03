@@ -52,7 +52,8 @@ def warehouse_stock(store_id: str, cards: list[dict], get=ms_api.get) -> dict[st
     offset = 0
     while True:
         result = get('/report/stock/all', {'limit': 100, 'offset': offset,
-                     'filter': [f'store={store}', 'stockMode=all'] +
+                     # The default quantityMode=nonEmpty hides fully reserved stock.
+                     'filter': [f'store={store}', 'stockMode=all', 'quantityMode=all'] +
                                [f"product={c['meta']['href']}" for c in cards]})
         page = result.get('rows', [])
         for row in page:

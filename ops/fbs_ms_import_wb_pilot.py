@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import os
@@ -20,8 +20,7 @@ from prices.profiles import STORE_REMOTE
 
 ORDER_ID = '6176116763'
 SOURCE_START = datetime(2026, 11, 1, 21, tzinfo=timezone.utc)
-DOC_KEYS = ('easy_print', 'odissey', 'rapid', 'kaktus_msk')
-DOC_RE = re.compile(r'^(?P<key>.+)_(?P<day>\d{4}-\d{2}-\d{2})_p\d+$')
+DOC_RE = re.compile(r'^(?P<key>.+)_(?P<day>\d{4}-\d{2}-\d{2})(?:_p\d+)?$')
 
 
 def wb_order(number: str) -> dict:
@@ -83,53 +82,88 @@ def wb_order(number: str) -> dict:
             'buyer_price_kopeks': order.get('price'), 'price_kopeks': int(kopeks)}
 
 
-def current_purchase_prices(card_ids: set[str] | None) -> tuple[dict[str, int], str]:
+def current_purchase_documents() -> list[tuple[str, str, dict]]:
+    """Latest active Remote receipts for every supplier, without a date cutoff.
+
+    Supplier eligibility is checked on the product card by the selection policy.
+    Do not hide Sakura, Bulat or other suppliers behind a receipt-name allowlist.
+    """
     store = ms_api.ref('store', STORE_REMOTE)['meta']['href']
-    response = ms_api.get('/entity/enter', {'limit': 1000,
-        'filter': [f'store={store}', 'moment>=2026-10-30 00:00:00']})
-    if response['meta']['size'] != len(response['rows']):
-        raise RuntimeError('enter_list_incomplete')
+    docs = []
+    offset = 0
+    while True:
+        response = ms_api.get('/entity/enter', {'limit': 1000, 'offset': offset,
+                                              'filter': f'store={store}'})
+        page = response.get('rows', [])
+        size = response.get('meta', {}).get('size')
+        if (not isinstance(size, int) or offset + len(page) > size
+                or (offset < size and not page)):
+            raise RuntimeError('enter_list_incomplete')
+        docs.extend(page)
+        offset += len(page)
+        if offset == size:
+            break
+        if offset >= 10000:
+            raise RuntimeError('enter_page_budget')
+    if len({d['id'] for d in docs}) != len(docs):
+        raise RuntimeError('enter_list_duplicate')
     groups = {}
-    for doc in response['rows']:
+    for doc in docs:
         match = DOC_RE.match(doc.get('name', ''))
-        if not match or match['key'] not in DOC_KEYS:
+        if (not match or '_old' in doc.get('name', '')
+                or doc.get('applicable') is False):
             continue
+        doc_store = ms_api.meta_id(doc, 'store')
+        if doc_store and doc_store != STORE_REMOTE:
+            raise RuntimeError('enter_store_mismatch')
         key, day = match['key'], match['day']
         if key not in groups or day > groups[key][0]:
             groups[key] = (day, [doc])
         elif day == groups[key][0]:
             groups[key][1].append(doc)
-    if 'rapid' not in groups or 'easy_print' not in groups:
+    if not groups:
         raise RuntimeError('supplier_enter_group_missing')
+    return [(key, day, doc) for key, (day, latest) in sorted(groups.items())
+            for doc in sorted(latest, key=lambda d: d['id'])]
+
+
+def purchase_documents_digest(documents: list[tuple[str, str, dict]]) -> str:
+    # Invalidate the old four-supplier cache even when those receipts are unchanged.
+    provenance = [(key, day, doc['id'], doc['updated']) for key, day, doc in documents]
+    return hashlib.sha256(json.dumps(['all-supplier-prices-v2', sorted(provenance)]).encode()).hexdigest()
+
+
+def current_purchase_prices(card_ids: set[str] | None) -> tuple[dict[str, int], str]:
+    documents = current_purchase_documents()
     prices = {}
     ambiguous = set()
-    provenance = []
-    for key in DOC_KEYS:
-        if key not in groups:
-            continue
-        day, docs = groups[key]
-        for doc in docs:
-            page = ms_api.get('/entity/enter/' + doc['id'] + '/positions', {'limit': 1000})
-            if page['meta']['size'] != len(page['rows']):
-                raise RuntimeError('enter_positions_incomplete')
-            provenance.append((key, day, doc['id'], doc['updated']))
-            for pos in page['rows']:
-                pid = pos.get('assortment', {}).get('meta', {}).get('href', '').rsplit('/', 1)[-1]
-                if card_ids is not None and pid not in card_ids:
-                    continue
+    for _, _, doc in documents:
+        page = ms_api.get('/entity/enter/' + doc['id'] + '/positions', {'limit': 1000})
+        if page['meta']['size'] != len(page['rows']):
+            raise RuntimeError('enter_positions_incomplete')
+        for pos in page['rows']:
+            pid = pos.get('assortment', {}).get('meta', {}).get('href', '').rsplit('/', 1)[-1]
+            if card_ids is not None and pid not in card_ids:
+                continue
+            try:
                 amount = Decimal(str(pos.get('price')))
-                if amount <= 0 or amount != amount.to_integral_value():
-                    if card_ids is not None:
-                        raise RuntimeError('enter_price_invalid')
-                    continue
-                if pid in prices and prices[pid] != int(amount):
-                    if card_ids is not None:
-                        raise RuntimeError('enter_price_conflict')
-                    ambiguous.add(pid)
-                    prices.pop(pid, None)
-                elif pid not in ambiguous:
-                    prices[pid] = int(amount)
-    digest = hashlib.sha256(json.dumps(sorted(provenance)).encode()).hexdigest()
+                valid = amount.is_finite() and amount > 0 and amount == amount.to_integral_value()
+            except (InvalidOperation, ValueError):
+                valid = False
+            if not valid:
+                if card_ids is not None:
+                    raise RuntimeError('enter_price_invalid')
+                ambiguous.add(pid)
+                prices.pop(pid, None)
+                continue
+            if pid in prices and prices[pid] != int(amount):
+                if card_ids is not None:
+                    raise RuntimeError('enter_price_conflict')
+                ambiguous.add(pid)
+                prices.pop(pid, None)
+            elif pid not in ambiguous:
+                prices[pid] = int(amount)
+    digest = purchase_documents_digest(documents)
     return prices, digest
 
 

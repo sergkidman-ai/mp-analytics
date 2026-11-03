@@ -12,6 +12,7 @@ from decimal import Decimal
 from itertools import combinations
 
 from invoice_bot.supplier_groups import ID2GROUP
+from ops.ms_supplier_priorities import supplier_priority, choose_with_premium
 
 
 SPECIAL = {
@@ -67,25 +68,31 @@ def _verified(cards: list[Card], external_code: str) -> list[Card]:
     return result
 
 
-def choose_card(cards: list[Card], external_code: str, quantity: Decimal) -> tuple[Card, bool]:
-    """Choose an in-stock variant, otherwise lowest current price in earliest tier.
+def priority(card: Card) -> int | None:
+    return supplier_priority(card.supplier_id)
 
-    Returns (card, fully_available). A caller must reserve the selected stock in
-    its local allocation pool before considering another order.
-    """
+
+def _choose_priced(cards):
+    return choose_with_premium(cards, priority=priority,
+                              price=lambda c: c.purchase_kopeks, identity=lambda c: c.id)
+
+
+def choose_card(cards: list[Card], external_code: str, quantity: Decimal,
+                remote: list[Card] | None = None) -> tuple[Card, bool]:
+    """Own stock first; otherwise verified supplier stock with priority + 20%."""
     quantity = Decimal(quantity)
     if quantity <= 0:
         raise SelectionError('invalid_quantity')
     exact = _verified(cards, external_code)
-    in_stock = [c for c in exact if c.available >= quantity and tier(c) is not None]
+    in_stock = [c for c in exact if c.available >= quantity and priority(c) is not None]
     if in_stock:
-        # Existing fulfillment planner prefers greatest availability; deterministic tie.
-        return sorted(in_stock, key=lambda c: (-c.available, tier(c), c.id))[0], True
-    priced = [c for c in exact if tier(c) is not None
-              and isinstance(c.purchase_kopeks, int) and c.purchase_kopeks > 0]
+        return sorted(in_stock, key=lambda c: (-c.available, priority(c), c.id))[0], True
+    source = _verified(remote, external_code) if remote else []
+    priced = [c for c in source if priority(c) is not None and c.available >= quantity
+              and type(c.purchase_kopeks) is int and c.purchase_kopeks > 0]
     if not priced:
         raise SelectionError('current_purchase_price_missing')
-    return min(priced, key=lambda c: (tier(c), c.purchase_kopeks, c.id)), False
+    return _choose_priced(priced), False
 
 
 class AllocationPool:
@@ -97,66 +104,25 @@ class AllocationPool:
     """
 
     def __init__(self):
-        self.promised: dict[str, Decimal] = defaultdict(Decimal)
+        self.promised: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
 
     def choose(self, cards: list[Card], external_code: str,
-               quantity: Decimal) -> tuple[Card, bool]:
+               quantity: Decimal, remote: list[Card] | None = None) -> tuple[Card, bool]:
         from dataclasses import replace
 
-        adjusted = [replace(c, reserve=c.reserve + self.promised[c.id]) for c in cards]
-        chosen, available = choose_card(adjusted, external_code, quantity)
-        original = next(c for c in cards if c.id == chosen.id)
-        if available:
-            self.promised[chosen.id] += Decimal(quantity)
+        adjusted = [replace(c, reserve=c.reserve + self.promised[('own', c.id)]) for c in cards]
+        remote_adjusted = [replace(c, reserve=c.reserve + self.promised[('remote', c.id)])
+                           for c in (remote or [])]
+        chosen, available = choose_card(adjusted, external_code, quantity, remote_adjusted)
+        originals = cards if available else remote
+        original = next(c for c in originals if c.id == chosen.id)
+        self.promised[('own' if available else 'remote', chosen.id)] += Decimal(quantity)
         return original, available
 
 
 def choose_bundle(components: list[tuple[str, Decimal]], cards: list[Card]) -> list[tuple[Card, Decimal]]:
-    """Choose exact components, preferably one supplier-brand pair, at most two.
-
-    This function requires full stock for every component. If no such composition
-    exists, the caller must keep the parent item for manual review.
-    """
-    if not components or any(Decimal(q) <= 0 for _, q in components):
-        raise SelectionError('invalid_bundle')
-    pool = defaultdict(Decimal)
-    for code, qty in components:
-        pool[code] += Decimal(qty)
-    options = {}
-    for code, qty in pool.items():
-        options[code] = [c for c in _verified(cards, code)
-                         if c.available >= qty and tier(c) is not None]
-        if not options[code]:
-            raise SelectionError('bundle_component_unavailable')
-    pairs = { (c.supplier_id, c.brand) for rows in options.values() for c in rows }
-    for pair in sorted(pairs):
-        if all(any((c.supplier_id, c.brand) == pair for c in options[code]) for code in pool):
-            return [(max((c for c in options[code] if (c.supplier_id, c.brand) == pair),
-                         key=lambda c: (c.available, -tier(c), c.id)), qty)
-                    for code, qty in pool.items()]
-    # Small bounded search: sets are normally short. Reject if there is no <=2-pair plan.
-    best = None
-    codes = list(pool)
-
-    def visit(index, chosen, used_pairs):
-        nonlocal best
-        if index == len(codes):
-            suppliers = {c.supplier_id for c in chosen}
-            brands = {c.brand for c in chosen}
-            if len(suppliers) <= 2 and len(brands) <= 2:
-                score = (len(used_pairs), tuple((tier(c), c.purchase_kopeks or 10**15, c.id) for c in chosen))
-                if best is None or score < best[0]:
-                    best = (score, tuple(chosen))
-            return
-        for c in sorted(options[codes[index]], key=lambda x: (tier(x), x.purchase_kopeks or 10**15, x.id)):
-            pair = (c.supplier_id, c.brand)
-            if len(used_pairs | {pair}) <= 2:
-                visit(index + 1, chosen + [c], used_pairs | {pair})
-
-    visit(0, [], set())
-    if best is None:
-        raise SelectionError('bundle_exceeds_two_supplier_brand_pairs')
-    return list(zip(best[1], (pool[code] for code in codes)))
+    """Complete own-stock kit, at most two supplier-brand pairs."""
+    return [(card, quantity) for card, quantity, _ in choose_bundle_plan(components, cards, [])]
 
 
 def choose_bundle_plan(components: list[tuple[str, Decimal]], own: list[Card],
@@ -184,16 +150,16 @@ def choose_bundle_plan(components: list[tuple[str, Decimal]], own: list[Card],
         if len({c.id for c in own_exact}) != len(own_exact) or len({c.id for c in remote_exact}) != len(remote_exact):
             raise SelectionError('duplicate_card_id')
         choices = [(card, True) for card in own_exact
-                   if card.available >= 1 and tier(card) is not None]
+                   if card.available >= 1 and priority(card) is not None]
         choices += [(card, False) for card in remote_exact
-                    if card.available >= 1 and tier(card) is not None
-                    and isinstance(card.purchase_kopeks, int) and card.purchase_kopeks > 0]
+                    if card.available >= 1 and priority(card) is not None
+                    and type(card.purchase_kopeks) is int and card.purchase_kopeks > 0]
         if sum(int(card.available) for card, _ in choices) < quantity:
             raise SelectionError('bundle_component_unavailable:' + code)
         options[code] = choices
     pairs = sorted({(card.supplier_id, card.brand)
                     for choices in options.values() for card, _ in choices})
-    best = None
+    plans = []
     codes = sorted(needs)
     for size in (1, 2):
         for pairset in combinations(pairs, size):
@@ -203,10 +169,16 @@ def choose_bundle_plan(components: list[tuple[str, Decimal]], own: list[Card],
                           if (card.supplier_id, card.brand) in pairset]
                 # Fill order-warehouse stock first. A component can be split
                 # across cards, but the full kit still uses at most two pairs.
-                usable.sort(key=lambda x: (not x[1], tier(x[0]),
-                                              x[0].purchase_kopeks or 10**15, x[0].id))
+                own_usable = sorted((c for c, own in usable if own),
+                                    key=lambda c: (-c.available, priority(c), c.id))
+                remote_usable = [c for c, own in usable if not own]
+                ranked = [(c, True) for c in own_usable]
+                while remote_usable:
+                    card = _choose_priced(remote_usable)
+                    ranked.append((card, False))
+                    remote_usable.remove(card)
                 remaining = needs[code]
-                for card, is_own in usable:
+                for card, is_own in ranked:
                     take = min(remaining, int(card.available))
                     if take > 0:
                         selected.append((card, take, is_own))
@@ -221,12 +193,14 @@ def choose_bundle_plan(components: list[tuple[str, Decimal]], own: list[Card],
             if len(used) > 2:
                 continue
             remote_count = sum(int(q) for _, q, is_own in selected if not is_own)
-            score = (remote_count, len(used),
-                     tuple(sorted(tier(c) for c, _, _ in selected)),
-                     sum((c.purchase_kopeks or 10**15) * int(q) for c, q, _ in selected),
-                     remote_count, tuple(c.id for c, _, _ in selected))
-            if best is None or score < best[0]:
-                best = (score, selected)
-    if best is None:
+            plans.append((remote_count, len(used), selected))
+    if not plans:
         raise SelectionError('bundle_exceeds_two_supplier_brand_pairs')
-    return best[1]
+    structure = min((count, pairs) for count, pairs, _ in plans)
+    feasible = [plan for count, pairs, plan in plans if (count, pairs) == structure]
+    selected = choose_with_premium(feasible,
+        priority=lambda plan: tuple(sorted(priority(c) for c, q, own in plan
+                                          if not own for _ in range(int(q)))),
+        price=lambda plan: sum(c.purchase_kopeks * int(q) for c, q, own in plan if not own),
+        identity=lambda plan: tuple(c.id for c, _, _ in plan))
+    return selected

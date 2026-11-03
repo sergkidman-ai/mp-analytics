@@ -1,0 +1,21 @@
+{
+	servers {
+		protocols h1 h2
+	}
+	log {
+		exclude http.log.access http.log.error
+	}
+}
+
+89-207-255-54.sslip.io {
+	@receiver path /health /hooks/ms-supply/*
+	handle @receiver {
+		request_body {
+			max_size 2MB
+		}
+		reverse_proxy 127.0.0.1:8094
+	}
+	handle {
+		respond 404
+	}
+}

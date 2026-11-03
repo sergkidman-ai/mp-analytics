@@ -304,6 +304,10 @@ def single_apply(number, sleep=time.sleep):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) >= 2 and sys.argv[1] == 'confirmed-dispatch':
+        from tools.customer_order_dispatch_wave import run
+        run('--apply' in sys.argv, resume='--resume' in sys.argv)
+        raise SystemExit(0)
     if len(sys.argv) == 3 and sys.argv[1] in ('single-check', 'single-apply'):
         import json
         try:

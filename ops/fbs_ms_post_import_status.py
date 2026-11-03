@@ -2,13 +2,13 @@
 """Status-only step for customerorders created by the FBS recovery importer.
 
 Runs after the import service. It never creates a demand, changes positions,
-or writes to a marketplace. An MS PUT is one-shot with intent and readback.
+or writes to a marketplace. An MS PUT is one-shot with its response as proof.
 """
 from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import fcntl
 import json
 import os
@@ -20,6 +20,8 @@ from zoneinfo import ZoneInfo
 from core import ms_api
 from ops.fbs_ms_import_pilot import save
 from ops.fbs_ms_import_read import warehouse_stock
+from ops.ms_supplier_priorities import POLICY_VERSION, supplier_priority
+from prices.profiles import STORE_REMOTE
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'docs/reports/fbs_ms_recovery_20261102/all_import'
@@ -29,7 +31,13 @@ LOCK = RUNTIME / 'lock'
 MAX_WRITES = 10
 WAITING = {'Ожидает подтверждения'}
 STATE = {'Подтвержден': '7bc95b1a-f436-11e9-0a80-055c0021dca1',
+         'Собирается': '477d431f-32c5-487b-ba8d-c6e452a4a1d4',
          'Неукомплектован': 'd0bef805-f468-11e2-9e2e-7054d21a8d1e'}
+Promised = dict[tuple[str, str], Decimal]
+
+
+class StatusPutUncertain(RuntimeError):
+    """The pass must stop after a write whose result is uncertain."""
 
 
 def atomic_save(path: Path, data: dict) -> None:
@@ -42,11 +50,10 @@ def atomic_save(path: Path, data: dict) -> None:
 
 def planned_day(status: str, now: datetime) -> str:
     msk = now.astimezone(ZoneInfo('Europe/Moscow'))
-    if msk < datetime(2026, 11, 3, 12, tzinfo=ZoneInfo('Europe/Moscow')):
-        day = msk.date() if status == 'Подтвержден' and msk.date() >= datetime(2026, 11, 3).date() else (
-            datetime(2026, 11, 3).date() if status == 'Подтвержден' else datetime(2026, 11, 5).date())
-    elif msk < datetime(2026, 11, 5, tzinfo=ZoneInfo('Europe/Moscow')):
-        day = datetime(2026, 11, 5).date()
+    if msk < datetime(2026, 11, 5, tzinfo=ZoneInfo('Europe/Moscow')):
+        ready_today = (status in {'Подтвержден', 'Собирается'} and
+                       msk < datetime(2026, 11, 3, 15, tzinfo=ZoneInfo('Europe/Moscow')))
+        day = datetime(2026, 11, 3 if ready_today else 5).date()
     else:
         day = msk.date() + timedelta(days=msk.hour >= 16)
     return day.isoformat()
@@ -72,13 +79,38 @@ def proof_signature(proof: dict) -> dict[str, Decimal]:
     return dict(result)
 
 
+def supplier_selection_proof(item: dict) -> bool:
+    if type(item.get('purchase_kopeks')) is not int or item['purchase_kopeks'] <= 0:
+        return False
+    if 'selection_policy' not in item:
+        return type(item.get('tier')) is int and item['tier'] in (1, 2, 3)
+    if (item['selection_policy'] != POLICY_VERSION or type(item.get('priority')) is not int
+            or item['priority'] != supplier_priority(item.get('supplier_id'))
+            or item.get('stock_store_id') != STORE_REMOTE):
+        return False
+    try:
+        quantity = Decimal(str(item['quantity']))
+        available = Decimal(str(item['supplier_available']))
+        return quantity.is_finite() and available.is_finite() and quantity > 0 and available >= quantity
+    except (KeyError, ValueError, ArithmeticError):
+        return False
+
+
 def provenance(proof: dict) -> tuple[bool, bool]:
     selected = proof['selected']
     manual = any(x.get('manual_fallback') or x.get('manual_parent') for x in selected)
     short = [x for x in selected if not x['available']]
-    price_selected = (bool(short) and not manual and all(
-        isinstance(x.get('purchase_kopeks'), int) and x['purchase_kopeks'] > 0
-        for x in short))
+    price_selected = bool(short) and not manual and all(supplier_selection_proof(x) for x in short)
+    if price_selected:
+        units = defaultdict(Decimal)
+        limits = {}
+        for item in short:
+            if item.get('selection_policy') == POLICY_VERSION:
+                cid = item.get('card_id')
+                units[cid] += Decimal(str(item['quantity']))
+                available = Decimal(str(item['supplier_available']))
+                limits[cid] = min(limits.get(cid, available), available)
+        price_selected = all(quantity <= limits[cid] for cid, quantity in units.items())
     return manual, price_selected
 
 
@@ -92,7 +124,7 @@ def stock_for(order: dict) -> dict[str, dict]:
     return found
 
 
-def all_available(order: dict, stock: dict[str, dict], promised: dict[str, Decimal]) -> tuple[bool, dict]:
+def all_available(order: dict, stock: dict[str, dict], promised: dict) -> tuple[bool, dict]:
     quantities: dict[str, Decimal] = defaultdict(Decimal)
     own_reserves: dict[str, Decimal] = defaultdict(Decimal)
     for position in order['positions']['rows']:
@@ -102,21 +134,49 @@ def all_available(order: dict, stock: dict[str, dict], promised: dict[str, Decim
         own_reserves[cid] += Decimal(str(position.get('reserve') or 0))
     evidence = {}
     all_ready = True
+    store_id = ms_api.meta_id(order, 'store')
     for cid, qty in quantities.items():
         own = min(qty, own_reserves[cid])
         total = Decimal(str(stock[cid]['stock']))
         reserved = Decimal(str(stock[cid]['reserve']))
-        free_for_order = total - reserved + own - promised[cid]
+        # Legacy dispatch callers still pass a pool keyed only by card id.
+        allocated = promised.get((store_id, cid), promised.get(cid, Decimal(0)))
+        free_for_order = total - reserved + own - allocated
         evidence[cid] = {'quantity': str(qty), 'own_reserve': str(own),
                          'stock': str(total), 'all_reserve': str(reserved),
-                         'free_for_order': str(free_for_order)}
+                         'free_for_order': str(free_for_order), 'promised': str(allocated)}
         if total < qty or free_for_order < qty:
             all_ready = False
     return all_ready, evidence
 
 
+def imported_availability(proof: dict) -> tuple[bool | None, dict]:
+    """Reuse the importer's availability decision for exactly its chosen lines."""
+    selected = proof.get('selected') or []
+    quantities: dict[str, Decimal] = defaultdict(Decimal)
+    evidence = {}
+    store_id = ms_api.meta_id(proof['payload'], 'store')
+    try:
+        for item in selected:
+            cid, qty = item['card_id'], Decimal(str(item['quantity']))
+            if not cid or not qty.is_finite() or qty <= 0 or not isinstance(item.get('available'), bool):
+                return None, {'reason': 'import_stock_proof_incomplete'}
+            if item['available'] and item.get('stock_store_id') not in (None, store_id):
+                return None, {'reason': 'import_stock_warehouse_mismatch'}
+            quantities[cid] += qty
+            snapshot = evidence.setdefault(cid, {'quantity': '0', 'snapshots': []})
+            snapshot['quantity'] = str(quantities[cid])
+            snapshot['snapshots'].append({k: item.get(k) for k in
+                                          ('quantity', 'available', 'stock', 'stock_store_id')})
+    except (KeyError, TypeError, InvalidOperation):
+        return None, {'reason': 'import_stock_proof_incomplete'}
+    if not selected or dict(quantities) != proof_signature(proof):
+        return None, {'reason': 'import_positions_proof_mismatch'}
+    return all(item['available'] for item in selected), evidence
+
+
 def desired(order: dict, proof: dict, stock: dict[str, dict],
-            promised: dict[str, Decimal], now: datetime) -> tuple[str | None, str | None, dict]:
+            promised: dict, now: datetime) -> tuple[str | None, str | None, dict]:
     if order.get('demands'):
         return None, None, {'reason': 'linked_demand_exists'}
     if ms_api.meta_id(order, 'store') != proof['payload']['store']['meta']['href'].rsplit('/', 1)[-1]:
@@ -126,22 +186,29 @@ def desired(order: dict, proof: dict, stock: dict[str, dict],
     positions = order.get('positions', {}).get('rows') or []
     if not positions or pos_signature(positions) != proof_signature(proof):
         return None, None, {'reason': 'positions_changed'}
-    manual, priced = provenance(proof)
-    if manual:
-        return None, None, {'reason': 'manual_product_choice'}
     status = order['state']['name']
     if status not in WAITING:
         return None, None, {'reason': 'already_processed_or_payment_pending'}
-    available, evidence = all_available(order, stock, promised)
+    # stock/promised stay in the signature for existing callers; the regular
+    # step trusts the importer and never repeats its inventory/reserve reads.
+    available, evidence = imported_availability(proof)
+    if available is None:
+        return None, None, evidence
+    manual, priced = provenance(proof)
+    if manual:
+        return None, None, {'reason': 'manual_product_choice', 'stock': evidence}
     if available:
-        target = 'Подтвержден'
+        target = 'Собирается'
     elif priced:
         target = 'Неукомплектован'
     else:
         return None, None, {'reason': 'shortage_without_price_proof', 'stock': evidence}
     day = planned_day(target, now)
+    if target == 'Собирается' and day > now.astimezone(ZoneInfo('Europe/Moscow')).date().isoformat():
+        target = 'Подтвержден'
     return target, day, {'reason': 'eligible', 'stock': evidence,
-                         'price_selected': priced, 'available': available}
+                         'price_selected': priced, 'available': available,
+                         'store_id': ms_api.meta_id(order, 'store'), 'source': 'import_preflight'}
 
 
 def imported_proofs() -> dict[str, dict]:
@@ -182,16 +249,17 @@ def record_handled(handled: set[str]) -> None:
     atomic_save(HANDLED, {'numbers': sorted(handled)})
 
 
-def apply_one(order: dict, proof: dict, promised: dict[str, Decimal], now: datetime,
+def apply_one(order: dict, proof: dict, promised: Promised, now: datetime,
               apply: bool) -> dict:
     number = order['name']
-    # One fresh order read and one stock read immediately before a possible PUT.
+    # Read identity/state/positions only; availability is already proved by import.
     fresh = ms_api.get('/entity/customerorder/' + order['id'],
                        {'expand': 'state,store,positions.assortment'})
     if fresh['name'] != number:
         raise RuntimeError('order_identity_changed')
-    stock = stock_for(fresh)
-    target, day, evidence = desired(fresh, proof, stock, promised, now)
+    if fresh['state']['name'] not in WAITING:
+        return {'number': number, 'result': 'unchanged', 'reason': 'already_processed_or_payment_pending'}
+    target, day, evidence = desired(fresh, proof, {}, promised, now)
     if target is None:
         return {'number': number, 'result': 'unchanged', **evidence}
     if fresh['state']['name'] == target and str(fresh.get('deliveryPlannedMoment') or '')[:10] == day:
@@ -212,36 +280,39 @@ def apply_one(order: dict, proof: dict, promised: dict[str, Decimal], now: datet
                   'decision': evidence, 'payload': payload}, exclusive=True)
     try:
         response = requests.put(ms_api.BASE + '/entity/customerorder/' + fresh['id'],
+            params={'expand': 'state,store,positions.assortment'},
             headers={'Authorization': 'Bearer ' + os.environ['MOYSKLAD_TOKEN'],
                      'Content-Type': 'application/json'}, json=payload, timeout=(5, 45))
+        body = response.json() if response.ok else response.text[:1000]
         save(folder / 'response.json', {'status': response.status_code,
-                                       'body': response.json() if response.ok else response.text[:1000]})
+                                       'body': body})
     except (requests.Timeout, requests.ConnectionError) as exc:
-        actual = ms_api.get('/entity/customerorder/' + fresh['id'], {'expand': 'state'})
-        save(folder / 'uncertain.json', {'error': type(exc).__name__,
-                                        'actual_state': actual['state']['name'],
-                                        'actual_plan': actual.get('deliveryPlannedMoment')})
-        raise RuntimeError('status_put_uncertain_reconcile_before_retry') from None
+        uncertainty = {'error': type(exc).__name__}
+        try:
+            actual = ms_api.get('/entity/customerorder/' + fresh['id'], {'expand': 'state'})
+            uncertainty.update(actual_state=actual['state']['name'],
+                               actual_plan=actual.get('deliveryPlannedMoment'))
+        except Exception as check_exc:
+            uncertainty['actual_check_error'] = type(check_exc).__name__
+        save(folder / 'uncertain.json', uncertainty)
+        raise StatusPutUncertain('status_put_uncertain_reconcile_before_retry') from None
     if response.status_code not in (200, 201):
         raise RuntimeError('status_put_rejected')
-    after = ms_api.get('/entity/customerorder/' + fresh['id'],
-                       {'expand': 'state,store,positions.assortment'})
-    save(folder / 'readback.json', {'name': after['name'], 'id': after['id'],
-                                   'state': after['state']['name'],
-                                   'planned': after.get('deliveryPlannedMoment'),
-                                   'sum': after['sum'], 'updated': after['updated'],
-                                   'positions': [(card_id(p), p['quantity']) for p in after['positions']['rows']]})
-    if (after['name'] != number or after['state']['name'] != target or
+    after = body
+    if (after['id'] != fresh['id'] or after['name'] != number or after['state']['name'] != target or
             str(after.get('deliveryPlannedMoment') or '')[:10] != day or
+            ms_api.meta_id(after, 'store') != ms_api.meta_id(fresh, 'store') or
             pos_signature(after['positions']['rows']) != proof_signature(proof) or
             Decimal(str(after['sum'])) != Decimal(str(proof['total_kopeks']))):
         raise RuntimeError('status_readback_mismatch')
-    if target == 'Подтвержден':
-        for position in fresh['positions']['rows']:
-            cid = card_id(position)
-            qty = Decimal(str(position['quantity']))
-            own = min(qty, Decimal(str(position.get('reserve') or 0)))
-            promised[cid] += max(Decimal(0), qty - own)
+    readback = {'name': after['name'], 'id': after['id'], 'state': after['state']['name'],
+                'planned': after.get('deliveryPlannedMoment'), 'sum': after['sum'],
+                'updated': after['updated'],
+                'positions': [(card_id(p), p['quantity']) for p in after['positions']['rows']]}
+    if target == 'Собирается':
+        readback.update(shipment_due=True, changed_at=datetime.now(timezone.utc).isoformat(),
+                        store_id=ms_api.meta_id(fresh, 'store'))
+    atomic_save(folder / 'readback.json', readback)
     return {'number': number, 'result': 'updated', 'from': fresh['state']['name'],
             'to': target, 'planned': day, 'url': after['meta'].get('uuidHref')}
 
@@ -261,10 +332,11 @@ def run(apply: bool) -> dict:
         pending = sorted(set(proofs) - handled)
         orders = current_orders(pending)
         now = datetime.now(timezone.utc)
-        promised: dict[str, Decimal] = defaultdict(Decimal)
+        promised: Promised = defaultdict(Decimal)
         results = []
         writes = 0
         for number in sorted(pending, key=lambda n: (orders[n]['moment'], n)):
+            stop_after_error = False
             order, proof = orders[number], proofs[number]
             if order['state']['name'] not in WAITING:
                 result = {'number': number, 'result': 'unchanged', 'reason': 'already_processed_or_payment_pending'}
@@ -272,10 +344,11 @@ def run(apply: bool) -> dict:
                 result = {'number': number, 'result': 'deferred_limit'}
             else:
                 try:
-                    result = apply_one(order, proof, promised, now, apply)
+                    result = apply_one(order, proof, promised, datetime.now(timezone.utc), apply)
                 except Exception as exc:
                     result = {'number': number, 'result': 'error',
                               'reason': type(exc).__name__ + ':' + str(exc)[:160]}
+                    stop_after_error = isinstance(exc, StatusPutUncertain)
             results.append(result)
             if result['result'] in ('updated', 'already_target'):
                 if result['result'] == 'updated':
@@ -289,6 +362,8 @@ def run(apply: bool) -> dict:
                 atomic_save(RUNTIME / 'latest.json', {'at': now.isoformat(), 'results': results})
             if result['result'] in ('updated', 'error', 'would_update'):
                 print(json.dumps(result, ensure_ascii=False), flush=True)
+            if stop_after_error:
+                break
         summary = {'scanned': len(pending), 'updated': sum(r['result'] == 'updated' for r in results),
                    'would_update': sum(r['result'] == 'would_update' for r in results),
                    'deferred': sum(r['result'] == 'deferred_limit' for r in results),

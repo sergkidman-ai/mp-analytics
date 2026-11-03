@@ -1,5 +1,6 @@
 # поток: inv
 from decimal import Decimal
+from dataclasses import replace
 import unittest
 
 from ops.fbs_ms_import_policy import AllocationPool, Card, SelectionError, choose_bundle, choose_bundle_plan, choose_card
@@ -20,20 +21,19 @@ class PolicyTests(unittest.TestCase):
         stocked = card('a', stock=3, reserve=2)
         empty = card('b', stock=0, price=100)
         self.assertEqual(choose_card([stocked, empty], '0019', Decimal(1)), (stocked, True))
-        self.assertEqual(choose_card([stocked, empty], '0019', Decimal(2)), (empty, False))
+        remote = replace(empty, stock=Decimal(3))
+        self.assertEqual(choose_card([stocked, empty], '0019', Decimal(2), [remote]), (remote, False))
 
-    def test_earliest_supplier_tier_then_lowest_current_price(self):
-        first_expensive = card('a', supplier=ODYSSEY_WB, brand='wb', price=20000)
-        first_cheap = card('b', supplier=ODYSSEY_WB, brand='wb', price=15000)
-        later_cheap = card('c', supplier=BLOSSOM, price=100)
-        self.assertEqual(choose_card([later_cheap, first_expensive, first_cheap], '0019', 1),
-                         (first_cheap, False))
+    def test_priority_can_be_overridden_by_more_than_twenty_percent(self):
+        first = card('a', supplier=ODYSSEY_WB, brand='wb', price=20000, stock=10)
+        later = card('b', supplier=BLOSSOM, price=10000, stock=10)
+        self.assertEqual(choose_card([replace(first, stock=Decimal(0))], '0019', 1,
+                                     [first, later]), (later, False))
 
-    def test_wrong_special_brand_is_regular_tier(self):
-        special_wrong_brand = card('a', supplier=ODYSSEY_WB, brand='at', price=100)
-        regular = card('b', supplier=ODYSSEY, price=200)
-        self.assertEqual(choose_card([regular, special_wrong_brand], '0019', 1),
-                         (special_wrong_brand, False))
+    def test_priority_comes_from_supplier_id_not_brand_suffix(self):
+        from ops.fbs_ms_import_policy import priority
+        self.assertEqual(priority(card('a', supplier=ODYSSEY_WB, brand='at')), 15)
+        self.assertEqual(priority(card('a', supplier='bdd618ae-308f-11f0-0a80-153200050962', brand='oem')), 20)
 
     def test_missing_exact_card_or_price_blocks(self):
         with self.assertRaisesRegex(SelectionError, 'exact_product_card_missing'):
@@ -110,8 +110,11 @@ class PolicyTests(unittest.TestCase):
         pool = AllocationPool()
         cards = [card('a', stock=1), card('b', price=50)]
         self.assertEqual(pool.choose(cards, '0019', 1), (cards[0], True))
-        self.assertEqual(pool.choose(cards, '0019', 1), (cards[1], False))
-        self.assertEqual(pool.promised['a'], 1)
+        remote = [replace(cards[1], stock=Decimal(1))]
+        self.assertEqual(pool.choose(cards, '0019', 1, remote), (remote[0], False))
+        self.assertEqual(pool.promised[('own', 'a')], 1)
+        with self.assertRaises(SelectionError):
+            pool.choose(cards, '0019', 1, remote)
 
 
 if __name__ == '__main__':

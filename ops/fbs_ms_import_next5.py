@@ -18,7 +18,8 @@ from zoneinfo import ZoneInfo
 from core import ms_api
 from ops.fbs_ms_import_batch10 import base_code
 from ops.fbs_ms_import_pilot import save
-from ops.fbs_ms_import_policy import Card, SelectionError, choose_bundle_plan, choose_card, tier
+from ops.fbs_ms_import_policy import Card, SelectionError, choose_bundle_plan, choose_card, tier, priority
+from ops.ms_supplier_priorities import POLICY_VERSION
 from ops.fbs_ms_import_read import find_customerorder, product_cards, warehouse_stock
 from ops.fbs_ms_set_catalog import components as set_components
 from ops.fbs_ms_set_prices import split_kit_price
@@ -115,7 +116,10 @@ def _kit_lines(item: dict, code: str, account: str, prices: dict[str, int],
                           'supplier_id': card.supplier_id, 'brand': card.brand,
                           'stock': source_stock[card.id], 'available': available,
                           'quantity': '1',
-                          'tier': tier(card), 'purchase_kopeks': card.purchase_kopeks,
+                          'tier': tier(card), 'priority': priority(card),
+                          'selection_policy': POLICY_VERSION,
+                          'supplier_available': str(card.available),
+                          'purchase_kopeks': card.purchase_kopeks,
                           'manual_fallback': False,
                           'stock_store_id': STORE[account] if available else STORE_REMOTE})
     return lines, proof
@@ -317,15 +321,26 @@ def inspect(row, stats, prices, digest, promised=None):
         domain = [Card(c.id, c.external_code, c.supplier_id, c.brand, c.purchase_kopeks,
                        c.stock, c.reserve + promised.get((STORE[account], c.id), 0), c.archived)
                   for c in domain]
+        remote_stock, remote_domain = {}, []
+        required = Decimal(item['quantity'])
+        if not manual_parent and not any(c.available >= required and priority(c) is not None for c in domain):
+            remote_stock = _stock(cards, STORE_REMOTE)
+            remote_domain = [Card(c.id, c.external_code, c.supplier_id, c.brand, c.purchase_kopeks,
+                Decimal(str(remote_stock[c.id]['stock'])),
+                Decimal(str(remote_stock[c.id]['reserve'])) + promised.get((STORE_REMOTE, c.id), 0),
+                c.archived) for c in domain]
+        remote_by_id = {c.id: c for c in remote_domain}
         candidate_evidence = [
             {'id': c.id, 'code': next(x.get('code') for x in cards if x['id'] == c.id),
              'stock': stock[c.id], 'available': str(c.available),
-             'tier': tier(c), 'purchase_kopeks': c.purchase_kopeks}
+             'tier': tier(c), 'priority': priority(c),
+             'purchase_kopeks': c.purchase_kopeks,
+             'supplier_available': str(remote_by_id[c.id].available) if c.id in remote_by_id else None}
             for c in domain
         ]
         manual_fallback = False
         try:
-            chosen, available = choose_card(domain, code, Decimal(item['quantity']))
+            chosen, available = choose_card(domain, code, Decimal(item['quantity']), remote_domain)
         except SelectionError as exc:
             # An existing msk/dsk parent is a confirmed same-code product for a
             # set whose composition is unavailable; leave it for human review.
@@ -359,10 +374,14 @@ def inspect(row, stats, prices, digest, promised=None):
                          'card_id': chosen.id, 'card_code': next(c.get('code') for c in cards if c['id'] == chosen.id),
                          'quantity': str(item['quantity']),
                          'stock': stock[chosen.id], 'available': available,
-                         'tier': tier(chosen), 'purchase_kopeks': chosen.purchase_kopeks,
+                         'tier': tier(chosen), 'priority': priority(chosen),
+                         'supplier_id': chosen.supplier_id, 'selection_policy': POLICY_VERSION,
+                         'supplier_available': str(remote_by_id[chosen.id].available) if chosen.id in remote_by_id else None,
+                         'supplier_stock': remote_stock.get(chosen.id),
+                         'purchase_kopeks': chosen.purchase_kopeks,
                          'manual_fallback': manual_fallback,
                          'manual_parent': manual_parent,
-                         'stock_store_id': STORE[account] if available else None,
+                         'stock_store_id': STORE[account] if available else (STORE_REMOTE if not manual_fallback else None),
                          'candidate_evidence': candidate_evidence})
         lines.append(Line(chosen.id, Decimal(item['quantity']), item['price_kopeks'],
                           Decimal(item['discount_percent'])))
@@ -386,7 +405,7 @@ def create_one(row, stats, prices, digest, promised=None):
     second = inspect(row, stats, prices, digest, promised)
     if any(first[key] != second[key] for key in ('market', 'selected', 'total_kopeks', 'prices_digest')):
         raise RuntimeError('source_or_goods_changed_before_post')
-    if any(x.get('component_of') and not x['available'] for x in second['selected']):
+    if any(not x['available'] and not x.get('manual_fallback') for x in second['selected']):
         from ops.fbs_ms_import_scheduler import enter_digest
         if enter_digest() != digest:
             raise RuntimeError('set_purchase_receipt_changed_before_post')
