@@ -179,3 +179,4 @@ data/mpstats_probe/*/derived/actual_*.csv
 /.private/ms_order_dispatch_20261103/
 /.private/ms_supply_fulfillment/
 /.private/ms_market_status_continuous/
+/.private/print_handoff_20261103
