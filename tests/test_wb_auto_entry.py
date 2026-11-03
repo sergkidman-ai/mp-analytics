@@ -242,6 +242,56 @@ def test_stale_legacy_plan_never_lowers_current_price(tmp_path, monkeypatch):
     client.request.assert_not_called()
 
 
+@pytest.mark.parametrize('cost,cap,target,discount,expected', [
+    (500, 1150, 1150, 54, 'floor'),
+    (100, 1100, 1150, 54, 'cap'),
+    (100, 1400, 1200, 52, '15%'),
+    (None, 1150, 1150, 54, 'complete cost'),
+])
+def test_plan_raise_revalidates_floor_cap_and_step(tmp_path, monkeypatch, cost, cap, target, discount, expected):
+    from contextlib import nullcontext
+    monkeypatch.setattr(runner, 'ROOT', tmp_path)
+    monkeypatch.setattr(runner, 'writer_lock', nullcontext)
+    monkeypatch.setattr(runner, 'barrier', lambda account: tmp_path / (account + '.pending'))
+    monkeypatch.setattr(runner.guard, 'cogs_map', lambda *args: {1: {'cogs': cost}})
+    import ops.promo_ordinary_scope as scope
+    monkeypatch.setattr(scope, 'ordinary_codes', lambda: {'0001'})
+    monkeypatch.setattr(scope, 'verified_set_codes', lambda: set())
+    client = Mock()
+    client.goods.return_value = ({1: (2500, 60, 1000, '0001')}, {})
+    monkeypatch.setattr(runner, 'Client', lambda *args: client)
+    ok, error = runner.legacy_push('wb_acc1', [{'nm_id': 1, 'wave': 'plan_raise',
+        'send_price': 2500, 'send_disc': discount, 'target_price': target,
+        'price_before': 2500, 'cap': cap}])
+    assert not ok and expected in error
+    client.request.assert_not_called()
+
+
+def test_legacy_local_wave_keeps_small_durable_marketplace_uploads(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    import ops.promo_ordinary_scope as scope
+    monkeypatch.setattr(runner, 'ROOT', tmp_path)
+    monkeypatch.setattr(runner, 'writer_lock', nullcontext)
+    monkeypatch.setattr(scope, 'ordinary_codes', lambda: {'0001'})
+    monkeypatch.setattr(scope, 'verified_set_codes', lambda: set())
+    before = {nm: (2500, 60, 1000, '0001') for nm in range(101)}
+    after = {nm: (2500, 56, 1100, '0001') for nm in before}
+    costs = {nm: {'cogs': 100, 'branch': 'remote'} for nm in before}
+    monkeypatch.setattr(runner.guard, 'cogs_map', lambda *args: costs)
+    client = Mock()
+    client.goods.side_effect = [(before, {}), (after, {})]
+    client.remaining.return_value = 120
+    monkeypatch.setattr(runner, 'Client', lambda *args: client)
+    monkeypatch.setattr(runner, 'recover', lambda *args: True)
+    monkeypatch.setattr(runner.time, 'sleep', lambda *args: None)
+    upload = Mock(return_value=True)
+    monkeypatch.setattr(runner, 'submit', upload)
+    batch = [{'nm_id': nm, 'wave': 'plan_raise', 'cap': 1100, 'send_price': 2500,
+              'send_disc': 56, 'price_before': 2500, 'target_price': 1100} for nm in before]
+    assert runner.legacy_push('wb_acc1', batch) == (True, '')
+    assert [len(call.args[3]) for call in upload.call_args_list] == [100, 1]
+
+
 def test_quarantine_cannot_lower_below_new_common_floor(tmp_path, monkeypatch):
     from contextlib import nullcontext
     monkeypatch.setattr(runner, 'ROOT', tmp_path)

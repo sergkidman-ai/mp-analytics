@@ -25,6 +25,7 @@
 import argparse
 import math
 import pathlib
+import json
 import sys
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -37,7 +38,34 @@ MAX_STEP = 0.15          # не больше +15 % цены покупателя
                          # для участия: у части карточек плановая вдвое выше текущей цены, и
                          # разовый подъём в 2 раза — это и обвал спроса, и риск карантина цен.
                          # Идём ступенями: каждый прогон ближе к плановой, пока она держится.
-BATCH = 100              # столько строк в одной задаче ВБ (как у сторожа)
+BATCH = 1000             # локальная волна; общий writer отправляет задачи по 100 товаров
+
+
+def verify_calendar_coverage(acc):
+    """New auto campaigns need a matching export before the scheduled price raise."""
+    from ops.wb_auto_entry import Client
+    from core.wb_auto_entry import instant
+    from datetime import datetime, timezone
+    import re
+    config = BASE_DIR / 'runtime/wb_plan_raise_coverage.json'
+    if not config.exists():
+        raise RuntimeError('Нет подтверждённого полного набора выгрузок акций; отправка запрещена')
+    known = json.loads(config.read_text())['generations'][acc]
+    def key(value):
+        return re.sub(r'[^а-яa-z0-9]', '', value.lower().replace('скидки', ''))
+    loaded = {key(r['promo_key']) for r in db.query('''select distinct promo_key
+        from wb_promo_plan_price where account=%s
+        and valid_from <= (now() at time zone 'Europe/Moscow')::date
+        and valid_to >= (now() at time zone 'Europe/Moscow')::date''', (acc,))}
+    now = datetime.now(timezone.utc)
+    missing = []
+    for p in Client(acc, 90).calendar().values():
+        generation = [int(p['id']), p['startDateTime'], p['endDateTime']]
+        if (p['type'] == 'auto' and instant(p['startDateTime']) <= now <= instant(p['endDateTime'])
+                and generation not in known and key(p['name']) not in loaded):
+            missing.append(p['name'])
+    if missing:
+        raise RuntimeError('Нужны выгрузки новых автоакций: ' + '; '.join(missing))
 
 
 def plan_to_discount(base, target):
@@ -45,65 +73,85 @@ def plan_to_discount(base, target):
 
     Зеркало `wb_promo_guard.raise_plan`: там floor (цель — не упасть ниже пола), здесь ceil
     (цель — не превысить потолок участия). База не трогается."""
-    base, target = float(base), float(target)
-    if base <= target:
+    from core.wb_auto_entry import number
+    from decimal import ROUND_CEILING
+    base, target = number(base), number(target)
+    if base < target:
         return None, None                       # база и так ниже плановой — поднимать нечем
-    disc = int(math.ceil(100.0 * (1.0 - target / base)))
+    disc = int((100 * (1 - target / base)).to_integral_value(rounding=ROUND_CEILING))
     return int(math.ceil(base)), max(disc, 0)
 
 
-def candidates(acc):
+def candidates(acc, *, goods=None, costs=None, max_step=MAX_STEP):
+    from core.wb_auto_entry import number, sale
+    from core.profit_floor import minimum_profit
     # Потолок — минимум планов ТОЛЬКО среди акций, где карточка СЕЙЧАС проходит по цене
     # (plan >= текущая цена покупателя). Акции с планом ниже нашей цены мы уже покинули —
     # учитывать их в минимуме нельзя: 5422 на acc2 из-за этого выпал из кандидатов, хотя в
     # своих акциях у него 1 415 ₽ запаса (разбор Натальи 23.09.2026).
-    rows = db.query("""
-        select p.nm_id, min(p.plan_price) cap, count(*) promos,
-               pr.vendor_code, pr.price base, pr.discount_pct disc, pr.discounted_price now
-          from wb_promo_plan_price p
-          join wb_price pr on pr.account = p.account and pr.nm_id = p.nm_id
-         where p.account = %s and p.in_promo and pr.discounted_price > 0
-           and p.plan_price >= pr.discounted_price        -- акция, в которой мы сейчас стоим
-         group by p.nm_id, pr.vendor_code, pr.price, pr.discount_pct, pr.discounted_price
-        having min(p.plan_price) > pr.discounted_price + 1     -- есть запас
-           and min(p.plan_price) <= pr.price + 1               -- хватает уменьшить скидку
+    if goods is None:
+        from ops.wb_auto_entry import Client
+        goods, _ = Client(acc, 300).goods()
+    plans = db.query("""
+        with latest as (
+          select distinct on (promo_key, nm_id) * from wb_promo_plan_price
+          where account = %s and valid_from <= (now() at time zone 'Europe/Moscow')::date
+          order by promo_key, nm_id, valid_from desc, loaded_at desc
+        ) select nm_id, plan_price, promo_key from latest
+          where in_promo and valid_to >= (now() at time zone 'Europe/Moscow')::date
         """, (acc,))
+    grouped = {}
+    for p in plans:
+        nm = int(p['nm_id'])
+        g = goods.get(nm)
+        if g and 0 < g[2] <= float(p['plan_price']):
+            grouped.setdefault(nm, []).append(p)
+    rows = [dict(nm_id=nm, cap=min(float(p['plan_price']) for p in ps), promos=len(ps),
+                 vendor_code=goods[nm][3], base=goods[nm][0], disc=goods[nm][1], now=goods[nm][2])
+            for nm, ps in grouped.items()]
     # Та же себестоимость и проверенная кратность, что у основного сторожа WB.
     goods = {int(r["nm_id"]): (r["base"], r["disc"], r["now"], r["vendor_code"])
              for r in rows}
-    cost = w.cogs_map(acc, goods=goods) if rows else {}
+    cost = costs if costs is not None else (w.cogs_map(acc, goods=goods) if rows else {})
     keep = 1 - w.RETENTION[acc]
     out = []
     for r in rows:
+        if r['cap'] > r['base']:
+            continue
         rec = cost.get(int(r["nm_id"])) or {}
         v, src = rec.get("cogs"), rec.get("source")
         if v is None:
             continue                                     # нет себеста = нет наличия, не трогаем
         quantity = rec.get("bundle", 1)
-        floor = (v + w.min_net(v, quantity)) / keep
-        target = float(r["cap"])
+        floor = (number(v) + minimum_profit(number(v), quantity)) / (1 - number(w.RETENTION[acc]))
+        target = number(r["cap"])
         if target < floor:                               # потолок ниже пола — дело сторожа, не наше
             continue
-        step_cap = float(r["now"]) * (1 + MAX_STEP)
+        step_cap = number(r["now"]) * (1 + number(max_step))
         target = min(target, step_cap)               # шаг не больше MAX_STEP за прогон
         price, disc = plan_to_discount(r["base"], target)
         if price is None:
             continue
-        new_buyer = float(price) * (1 - disc / 100.0)
-        gain = new_buyer - float(r["now"])
-        if gain < MIN_GAIN or new_buyer > float(r["cap"]) + 0.5 or new_buyer < floor - 0.5:
+        new_buyer = sale(price, disc)
+        gain = new_buyer - number(r["now"])
+        if gain < MIN_GAIN or new_buyer > float(r["cap"]) or new_buyer < floor:
             continue
         out.append({"account": acc, "nm_id": int(r["nm_id"]), "vendor_code": r["vendor_code"],
                     "external_code": None, "wave": "plan_raise", "promo_ids": None,
                     "price_before": float(r["base"]), "disc_before": float(r["disc"] or 0),
                     "buyer_before": float(r["now"]), "prepromo_price": None,
                     "cogs": v, "cogs_source": src, "stock_branch": None,
-                    "retention": w.RETENTION[acc], "floor_net": None, "floor_price": round(floor, 2),
+                    "retention": w.RETENTION[acc], "floor_net": None, "floor_price": float(round(floor, 2)),
                     "net_before": round(float(r["now"]) * keep - v, 2),
-                    "target_price": round(new_buyer, 2), "status": "dry", "reason": None,
+                    "target_price": float(new_buyer), "status": "dry", "reason": None,
                     "err": None, "price_after": None,
                     "send_price": price, "send_disc": disc, "cap": float(r["cap"]),
-                    "promos": int(r["promos"]), "gain": round(gain, 2)})
+                    "promos": int(r["promos"]), "gain": float(round(gain, 2))})
+    if costs is None and out:
+        from ops.promo_ordinary_scope import ordinary_codes, verified_set_codes, confirmed_wb_cost
+        allowed, known_sets = ordinary_codes(), verified_set_codes()
+        out = [r for r in out if confirmed_wb_cost(r['vendor_code'], cost.get(r['nm_id'], {}),
+                                                 allowed, known_sets)]
     out.sort(key=lambda x: -x["gain"])
     return out
 
@@ -115,9 +163,20 @@ def main():
     ap.add_argument("--limit", type=int, help="не больше N карточек на кабинет")
     ap.add_argument("--csv", help="построчный расчёт в файл")
     a = ap.parse_args()
+    if a.limit is not None and a.limit <= 0:
+        ap.error('--limit must be positive')
     allrows = []
+    failed = False
     for acc in ([a.account] if a.account else list(w.RETENTION)):
+        if a.apply:
+            verify_calendar_coverage(acc)
         rows = candidates(acc)
+        handled = {int(r['nm_id']) for r in db.query('''
+            select distinct nm_id from wb_promo_guard_log
+            where account=%s and status='confirmed'
+              and ts >= date_trunc('day', now() at time zone 'Europe/Moscow') at time zone 'Europe/Moscow'
+              and (wave='plan_raise' or wave like 'recovery_floor%%')''', (acc,))}
+        rows = [r for r in rows if r['nm_id'] not in handled]
         take = rows[:a.limit] if a.limit else rows
         gain = sum(r["gain"] for r in take)
         print(f"{acc}: кандидатов {len(rows)}, берём {len(take)}, прибавка {gain:,.0f} ₽ "
@@ -133,16 +192,21 @@ def main():
                                    f"(скидка {r['disc_before']:.0f}% → {r['send_disc']}%)")
                 print(f"  пачка {k // BATCH + 1}: {len(batch)} шт — {'отправлена' if ok else 'ОШИБКА ' + err[:80]}",
                       flush=True)
-            w.save([{k: v for k, v in r.items() if k not in ("send_price", "send_disc", "cap", "promos", "gain")}
-                    for r in take])
+                w.save([{key: value for key, value in r.items()
+                         if key not in ('send_price', 'send_disc', 'cap', 'promos', 'gain')}
+                        for r in batch])
+                if not ok:
+                    failed = True
+                    break
         allrows += take
     if a.csv and allrows:
         head = ["account", "nm_id", "vendor_code", "price_before", "disc_before", "buyer_before",
-                "cap", "target_price", "send_disc", "floor_price", "cogs", "promos", "gain"]
+                "cap", "target_price", "send_disc", "floor_price", "cogs", "promos", "gain", "status", "err"]
         pathlib.Path(a.csv).write_text(
             "\n".join([";".join(head)] + [";".join(str(r.get(c, "")) for c in head) for r in allrows]),
             encoding="utf-8")
         print(f"построчно → {a.csv}", flush=True)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

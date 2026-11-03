@@ -35,8 +35,8 @@ COLS = {"nm": "Артикул WB", "vc": "Артикул поставщика", 
         "inp": "Товар уже участвует в акции", "brand": "Бренд"}
 
 
-def read_file(path):
-    d = pd.read_excel(path)
+def read_file(path, nrows=None):
+    d = pd.read_excel(path, dtype={COLS['vc']: str}, nrows=nrows)
     d.columns = [str(c).strip() for c in d.columns]
     miss = [v for v in COLS.values() if v not in d.columns]
     if miss:
@@ -52,11 +52,90 @@ def read_file(path):
     m = re.search(r"(?:Все товары подходящие для акции|Товары для акции|Товары для исключения из акции)\s*(.+)$", base)
     m = (m.group(1) if m else base)
     m = re.sub(r"\s*\d{2}[. ]\d{2}[. ]\d{4}.*$", "", m).strip(" _")   # хвост «20.09.2026 11.34.52» (бот меняет _ на пробел)
+    m = re.sub(r"\s+\d{2}[. ]\d{2}$", "", m)  # ручной хвост даты «03_11»
+    m = re.sub(r"(автоматические(?: скидки)?)\s+\d{1,2}$", r"\1", m, flags=re.I)
     return acc, (m or base)[:120], d
+
+
+def promotion_window(account, name):
+    """Resolve the LK export against the live calendar; never invent expiry dates."""
+    from ops.wb_auto_entry import Client
+    from ops.wb_promo_guard import CAL_API
+    from zoneinfo import ZoneInfo
+    now = dt.datetime.now(dt.timezone.utc)
+    def key(value):
+        return re.sub(r'[^а-яa-z0-9]', '', value.lower().replace('скидки', ''))
+    value = Client(account, 90).get('', url=CAL_API, params={
+        'startDateTime': (now - dt.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'endDateTime': (now + dt.timedelta(days=14)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'allPromo': 'false', 'limit': 100})
+    matches = [p for p in value.get('data', {}).get('promotions', [])
+               if key(p['name']) == key(name)
+               and dt.datetime.fromisoformat(p['endDateTime'].replace('Z', '+00:00')) >= now]
+    if len(matches) != 1:
+        raise RuntimeError('Не найден единственный действующий срок акции в календаре WB')
+    p = matches[0]
+    local = ZoneInfo('Europe/Moscow')
+    start, end = [dt.datetime.fromisoformat(p[k].replace('Z', '+00:00')).astimezone(local).date()
+                  for k in ('startDateTime', 'endDateTime')]
+    return start.isoformat(), end.isoformat()
+
+
+def load_regular(account):
+    """Regular campaigns expose exact membership/caps via API; include their lower caps."""
+    from ops.wb_auto_entry import Client
+    from ops.wb_promo_guard import CAL_API
+    from zoneinfo import ZoneInfo
+    client = Client(account, 180)
+    now = dt.datetime.now(dt.timezone.utc)
+    local = ZoneInfo('Europe/Moscow')
+    for promo in client.calendar().values():
+        start, end = [dt.datetime.fromisoformat(promo[k].replace('Z', '+00:00'))
+                      for k in ('startDateTime', 'endDateTime')]
+        if promo['type'] != 'regular' or not start <= now <= end:
+            continue
+        data = []
+        for offset in range(0, 100000, 1000):
+            value = client.get('', url=CAL_API + '/nomenclatures', params={
+                'promotionID': promo['id'], 'inAction': 'true', 'limit': 1000, 'offset': offset})
+            client.raw(f"regular_{promo['id']}_{offset}", value)
+            page = value.get('data', {}).get('nomenclatures')
+            if not isinstance(page, list):
+                raise RuntimeError('Incomplete regular campaign response')
+            data.extend(page)
+            if len(page) < 1000:
+                break
+        else:
+            raise RuntimeError('Regular campaign page bound exceeded')
+        if len({int(r['id']) for r in data}) != len(data):
+            raise RuntimeError('Regular campaign pagination duplicate')
+        rows = []
+        for r in data:
+            if r.get('currencyCode') != 'RUB':
+                raise RuntimeError('Regular campaign cap is not in RUB')
+            if not r.get('inAction') or not r.get('planPrice') or float(r['planPrice']) <= 0:
+                raise RuntimeError('Regular campaign participant missing valid cap')
+            rows.append(dict(account=account, promo_key=promo['name'][:120], nm_id=int(r['id']),
+                vendor_code=None, plan_price=float(r['planPrice']), retail_price=r.get('price'),
+                disc_pct=r.get('discount'), in_promo=True, promo_name=promo['name'][:200],
+                valid_from=start.astimezone(local).date().isoformat(),
+                valid_to=end.astimezone(local).date().isoformat(), source_file=f"api:calendar:{promo['id']}"))
+        if rows:
+            db.upsert('wb_promo_plan_price', rows,
+                conflict_cols=['account', 'promo_key', 'nm_id', 'valid_from'],
+                update_cols=['plan_price', 'retail_price', 'disc_pct', 'in_promo', 'valid_to', 'source_file', 'loaded_at'])
+        db.execute('''update wb_promo_plan_price set in_promo=false
+                      where account=%s and promo_key=%s and not (nm_id=any(%s::bigint[]))''',
+                   (account, promo['name'][:120], [r['nm_id'] for r in rows]))
+        print(f"  {account} API · {promo['name']}: участников {len(rows)}", flush=True)
 
 
 def load(path, valid_from, valid_to):
     acc, promo, d = read_file(path)
+    if not valid_to:
+        valid_from, valid_to = promotion_window(acc, promo)
+    if str(valid_to) < str(valid_from):
+        raise ValueError('Дата конца акции раньше начала')
     rows = []
     for r in d.itertuples(index=False):
         rec = dict(zip(d.columns, r))
@@ -129,8 +208,19 @@ def auto(valid_to=None, days=7):
                 continue
             for inner in sorted(glob.glob(os.path.join(tmp, "**", "*.xls*"), recursive=True)):
                 todo.append((inner, base, m.group(0)))
-    n = 0
+    # source_file on a plan is replaced by newer exports. Loading an older file
+    # merely because its name disappeared from the table would roll prices back.
+    latest = {}
     for path, mark, stamp in todo:
+        try:
+            account, promo, _ = read_file(path, nrows=5)
+        except Exception:
+            continue
+        key = (account, promo)
+        if key not in latest or (mark, path) > (latest[key][1], latest[key][0]):
+            latest[key] = (path, mark, stamp)
+    n = 0
+    for path, mark, stamp in sorted(latest.values()):
         if os.path.basename(path)[:200] in known or mark in known:
             continue
         vf = f"{stamp[0:4]}-{stamp[4:6]}-{stamp[6:8]}"
@@ -143,6 +233,8 @@ def auto(valid_to=None, days=7):
             if dt.date(*map(int, (stamp[0:4], stamp[4:6], stamp[6:8]))) >= dt.date.today() - dt.timedelta(days=2):
                 print(f"  ПРОПУСК {os.path.basename(path)[:44]}: {e}", flush=True)
     print(f"автозагрузка: новых файлов {n}", flush=True)
+    for account in BRAND_ACC.values():
+        load_regular(account)
 
 
 def main():

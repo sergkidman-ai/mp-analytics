@@ -81,12 +81,12 @@ class BundleDetectionTests(unittest.TestCase):
         self.assertEqual(value, 1200)
 
     def test_wb_plan_raise_rejects_cap_below_suffix_bundle_floor(self):
-        row = dict(nm_id=1, cap=4000, promos=1, vendor_code='3933X6HHWDS8',
-                   base=10000, disc=70, now=3000)
+        row = dict(nm_id=1, plan_price=4000, promo_key='active')
         with patch.object(raise_plan.db, 'query', return_value=[row]), \
              patch.object(raise_plan.w, 'cogs_map', return_value={1: dict(
                  cogs=1200, source='supplier_min_x6', bundle=6)}) as cost:
-            self.assertEqual(raise_plan.candidates('wb_acc2'), [])
+            self.assertEqual(raise_plan.candidates('wb_acc2', goods={
+                1: (10000, 70, 3000, '3933X6HHWDS8')}), [])
         self.assertEqual(cost.call_args.args, ('wb_acc2',))
         self.assertEqual(cost.call_args.kwargs['goods'][1][3], '3933X6HHWDS8')
 

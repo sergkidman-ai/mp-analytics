@@ -65,3 +65,18 @@ def looks_like_set(offer_code: str | None, name: str | None) -> bool:
     raw = str(offer_code or '').strip()
     return bool(BUNDLE_CODE.match(raw) or SET_SUFFIX.match(raw) or
                 SET_WORD.search(str(name or '')) or SET_WORD.search(raw))
+
+
+def confirmed_wb_cost(vendor, cost, allowed, known_sets):
+    """WB price optimization requires a complete kit or a verified bundle multiplier."""
+    if not cost.get('cogs') or cost.get('branch') in ('none', 'unmapped', 'no_mp_stock'):
+        return False
+    raw = str(vendor or '').strip()
+    match = re.match(r'^\d{4}[xх](\d{1,2})(?=\D|$)', raw, re.I)
+    if match and int(match.group(1)) != int(cost.get('bundle', 1)):
+        return False
+    if cost.get('is_set'):
+        return confirmed_set(raw, known_sets, cost.get('title'))
+    if match:
+        return raw[:4] in allowed and int(cost.get('bundle', 1)) > 1
+    return confirmed(cost.get('external_code') or raw, cost.get('title'), allowed)

@@ -690,7 +690,7 @@ def decide(acc, goods, cogs, prepromo, ret, touched_only=True, floor_controlled=
             row["floor_net"] = round(floor_net, 2)
             row["floor_price"] = round(floor_price, 2)
             row["net_before"] = round(cur * (1.0 - ret) - cg, 2)
-            if cur >= floor_price - 0.5:
+            if cur >= floor_price:
                 row["reason"] = "проходит по полу"
                 rows.append(row)
                 continue

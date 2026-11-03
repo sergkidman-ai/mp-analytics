@@ -562,12 +562,16 @@ def legacy_push(account, batch):
     """Durable writer used by old guard/plan_raise, with fresh-price safety checks."""
     try:
         with writer_lock():
-            client = Client(account, 120)
+            client = Client(account, min(900, max(120, 120 + len(batch) // 10)))
             journal = Journal(ROOT / 'journal.sqlite3')
             goods, _ = client.goods()
             if not recover(client, journal, account, goods):
                 return False, 'Prior WB upload unresolved; deferred without resending'
             costs = guard.cogs_map(account, goods)
+            plan_scope = None
+            if any(r.get('wave') == 'plan_raise' for r in batch):
+                from ops.promo_ordinary_scope import ordinary_codes, verified_set_codes, confirmed_wb_cost
+                plan_scope = ordinary_codes(), verified_set_codes()
             keep = Decimal(1) - number(guard.RETENTION[account])
             rows, satisfied = [], []
             manifest_path = ROOT / 'manifest.json'
@@ -589,12 +593,23 @@ def legacy_push(account, batch):
                 cost = costs.get(nm) or {}
                 amount, floor = None, None
                 units = max(1, int(cost.get('bundle', 1)))
+                if old.get('wave') == 'plan_raise' and not cost.get('cogs'):
+                    return False, 'Plan raise requires a fresh complete cost; no upload sent'
+                if old.get('wave') == 'plan_raise' and plan_scope is not None and not confirmed_wb_cost(
+                        got[3], cost, *plan_scope):
+                    return False, 'Plan raise requires a confirmed full kit/bundle cost; no upload sent'
                 if cost.get('cogs'):
                     amount = number(cost['cogs'])
                     floor = (amount + minimum_profit(amount, units)) / keep
                     if target < floor:
+                        if old.get('wave') == 'plan_raise':
+                            return False, 'Fresh floor exceeds planned target; recalculate before upload'
                         base, discount = protection(got[0], got[1], floor)
                         target = sale(base, discount)
+                if old.get('wave') == 'plan_raise' and (target > number(old['cap']) or base != int(got[0])):
+                    return False, 'Plan raise exceeds cap or changes retail base; no upload sent'
+                if old.get('wave') == 'plan_raise' and target > number(got[2]) * Decimal('1.15'):
+                    return False, 'Live price changed: plan raise exceeds 15% step; recalculate'
                 if number(got[2]) >= target:
                     satisfied.append(nm)
                     continue
@@ -607,10 +622,13 @@ def legacy_push(account, batch):
                              'units': units, 'cost_source': cost.get('source')})
             if not rows:
                 return True, ''
-            if not submit(client, journal, account, rows):
-                if not journal.pending(account):
-                    barrier(account).unlink(missing_ok=True)
-                return False, 'WB upload not accepted; durable journal retained'
+            # Reuse one fresh snapshot/cost calculation for a bounded local wave.
+            # Marketplace uploads retain the established 100-product request size.
+            for offset in range(0, len(rows), 100):
+                if not submit(client, journal, account, rows[offset:offset + 100]):
+                    if not journal.pending(account):
+                        barrier(account).unlink(missing_ok=True)
+                    return False, 'WB upload not accepted; durable journal retained'
             while client.remaining() > 35:
                 time.sleep(5)
                 after, _ = client.goods()

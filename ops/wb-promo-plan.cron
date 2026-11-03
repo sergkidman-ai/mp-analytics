@@ -1,0 +1,14 @@
+# Restored existing WB LK importer and discount optimizer. All times UTC (MSK +3).
+SHELL=/bin/bash
+MAILTO=""
+
+# Read-only WB API; local plan import every two hours.
+25 */2 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-wb-plan-import.lock ./venv/bin/python -m ops.wb_promo_plan_import --auto >> logs/wb-promo-plan-import.log 2>&1
+
+# Refresh WB titles, which confirm quantities in suffixed bundle articles.
+20 21 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-wb-cards.lock /usr/bin/timeout 1800 ./venv/bin/python -c 'from collectors.wb import collect_cards; print({a:collect_cards(a) for a in ("wb_acc1","wb_acc2")})' >> logs/wb-promo-cards.log 2>&1
+
+# Checkpoints at 01:00 and 08:40 MSK; one confirmed 15% step per card per MSK day.
+# Missing new-auto export or stale MS snapshot blocks the optimizer. Shared durable WB writer.
+0 22 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-wb-plan-import.lock /bin/bash -c './venv/bin/python -m ops.wb_promo_plan_import --auto && ./venv/bin/python -m ops.wb_plan_raise --apply' >> logs/wb-plan-raise.log 2>&1
+40 5 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-wb-plan-import.lock /bin/bash -c './venv/bin/python -m ops.wb_promo_plan_import --auto && ./venv/bin/python -m ops.wb_plan_raise --apply' >> logs/wb-plan-raise.log 2>&1
