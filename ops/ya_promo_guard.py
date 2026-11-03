@@ -276,7 +276,9 @@ def summary(rows, acts, skipped, keep, month, apply):
     for k, n in sorted(why.items(), key=lambda x: -x[1])[:4]:
         lines.append(f"  – {k}: {n}")
     if apply:
-        lines.append("отправлено, Маркет применит через 4–6 ч; сверит следующий прогон")
+        lines.append("отправлено, Маркет применит через 4–6 ч; сверит следующий прогон"
+                     if m.get('raise', 0) or m.get('remove', 0)
+                     else "ценовых изменений нет")
     return "\n".join(lines)
 
 
@@ -326,7 +328,7 @@ def main():
         save(rows, a.wave)
     txt = summary(rows, acts, skipped, keep, month, a.apply)
     print(txt.replace("*", ""), flush=True)
-    if a.apply and not a.no_tg and any(r["mode"] in ("raise", "remove") for r in rows):
+    if a.apply and not a.no_tg:
         from ops.wb_promo_guard import tg
         delivered = tg(txt)
         if delivered != 'ok':
@@ -341,5 +343,20 @@ def main():
         print(f"\nпострочно → {a.csv}", flush=True)
 
 
+def run_cli():
+    try:
+        main()
+    except Exception as exc:
+        if '--apply' in sys.argv and '--no-tg' not in sys.argv:
+            from ops.wb_promo_guard import tg
+            reason = type(exc).__name__
+            if str(exc).startswith('promo_'):
+                reason += ': ' + str(exc)
+            delivered = tg('⚠️ Маркет: сторож акций не завершился — ' + reason)
+            if delivered != 'ok':
+                print(f'Telegram failure notification failed: {delivered}', flush=True)
+        raise
+
+
 if __name__ == "__main__":
-    main()
+    run_cli()

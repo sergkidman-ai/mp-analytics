@@ -11,6 +11,7 @@ import sys
 import time
 import pathlib
 import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
@@ -22,6 +23,13 @@ from core import db  # noqa: E402
 load_dotenv(BASE_DIR / ".env")
 MS = "https://api.moysklad.ru/api/remap/1.2"
 H = {"Authorization": f"Bearer {os.getenv('MOYSKLAD_TOKEN')}", "Accept-Encoding": "gzip"}
+MSK = ZoneInfo("Europe/Moscow")
+
+
+def snapshot_day(now=None):
+    """Date a stock snapshot by the business day in Moscow, not server UTC."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    return now.astimezone(MSK).date().isoformat()
 
 
 def _ms(path, **params):
@@ -113,7 +121,7 @@ def main(captured=None, with_suppliers=True, with_turnover=True):
                            дёргаем этим тяжёлым проходом. Так /suppliers и /brak не пустеют,
                            а «Наш сток»/неликвид (считаются от cost_seb) обновляются ежедневно.
     Ручной/CLI-запуск по умолчанию полный (with_suppliers=True)."""
-    captured = captured or datetime.date.today().isoformat()
+    captured = captured or snapshot_day()
     print(f"Остатки по складам МС на {captured} "
           f"({'полный: поставщики из МС' if with_suppliers else 'лёгкий: поставщики из БД'})", flush=True)
     if with_suppliers:

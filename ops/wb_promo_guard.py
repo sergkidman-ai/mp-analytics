@@ -986,6 +986,20 @@ def main():
     return 0
 
 
-if __name__ == "__main__":
+def run_cli():
     from core.wb_price_writer import legacy_main
-    sys.exit(legacy_main(main))
+    try:
+        return legacy_main(main)
+    except Exception as exc:
+        if '--apply' in sys.argv and '--no-tg' not in sys.argv:
+            reason = type(exc).__name__
+            if str(exc).startswith('promo_'):
+                reason += ': ' + str(exc)
+            delivered = tg('⚠️ WB: сторож акций не завершился — ' + reason)
+            if delivered != 'ok':
+                print(f'Telegram failure notification failed: {delivered}', flush=True)
+        raise
+
+
+if __name__ == "__main__":
+    sys.exit(run_cli())
