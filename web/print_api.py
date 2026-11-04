@@ -22,13 +22,21 @@ def production_service():
     return PrintService()
 
 
-def make_router(get_service=production_service):
+def make_router(get_service=production_service, *, standalone=False):
     router = APIRouter(tags=['Печать заказов'])
 
     @router.get('/warehouse/print', response_class=HTMLResponse)
     def page():
-        return HTMLResponse(Path(__file__).with_name('static').joinpath('print_orders.html').read_text(),
-                            headers={'Cache-Control': 'no-store'})
+        html = Path(__file__).with_name('static').joinpath('print_orders.html').read_text()
+        if standalone:
+            # This host serves printing alone; links to other Pult sections
+            # stay in the dashboard version of the same page.
+            from re import sub
+            aside = '<aside><a class="brand" href="/warehouse/print">Пульт бизнеса</a><a class="current" href="/warehouse/print">Печать заказов</a></aside>'
+            tabs = '<nav class="tabs"><a class="current" href="/warehouse/print">Печать заказов</a></nav>'
+            html = sub(r'<aside>.*?</aside>', lambda _: aside, html, count=1)
+            html = sub(r'<nav class="tabs">.*?</nav>', lambda _: tabs, html, count=1)
+        return HTMLResponse(html, headers={'Cache-Control': 'no-store'})
 
     @router.get('/api/print')
     def data():

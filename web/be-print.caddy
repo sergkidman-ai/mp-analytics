@@ -1,0 +1,36 @@
+# поток: print
+# Imported in place of the former be.beyindi.com placeholder only.
+# The separate auth snippet is server-local; never commit credentials.
+be.beyindi.com {
+	header X-Robots-Tag "noindex, nofollow, noarchive"
+
+	handle /robots.txt {
+		header Content-Type "text/plain; charset=utf-8"
+		respond "User-agent: *
+Disallow: /
+" 200
+	}
+
+	@print path / /warehouse/print /warehouse/print/ /api/print /api/print/*
+	handle @print {
+		header Cache-Control "no-store"
+		route {
+			import /etc/caddy/private/mp-print-auth.caddy
+			@home path /
+			redir @home /warehouse/print 302
+			@trailing path /warehouse/print/
+			redir @trailing /warehouse/print 308
+			reverse_proxy 127.0.0.1:8095 {
+				header_up -Authorization
+				header_up X-Pult-User {http.auth.user.id}
+			}
+		}
+	}
+
+	# Preserve the former service response for unrelated paths.
+	handle {
+		header Content-Type "text/plain; charset=utf-8"
+		respond "Beyindi service endpoint.
+" 200
+	}
+}

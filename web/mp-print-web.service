@@ -1,0 +1,17 @@
+# поток: print
+[Unit]
+Description=mp-analytics print-only web application
+After=network.target docker.service
+
+[Service]
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/uvicorn web.print_app:app --host 127.0.0.1 --port 8095 --no-access-log
+Environment=PRINT_SCHEMA=print_ops
+Environment=PRINT_DATA_ROOT=/opt/mp-analytics/.private/print_runtime
+UMask=0077
+Restart=on-failure
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target

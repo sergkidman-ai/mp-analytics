@@ -6,8 +6,40 @@
 ветки, схема `print_ops` установлена. `mp-print-worker` включён и запущен,
 `mp-dashboard` перезапущен. Боевой режим задаёт systemd drop-in
 `/etc/systemd/system/mp-print-worker.service.d/production.conf`:
-`PRINT_EXPORT_UNPRINTED=1`. Адрес: https://bi.metaverseworld.ru/warehouse/print.
+`PRINT_EXPORT_UNPRINTED=1`. Текущий адрес: https://be.beyindi.com/warehouse/print.
 При развёртывании экспорт форм и создание заданий этикеток не запускались.
+
+## Вход через be.beyindi.com
+
+04.11.2026 по поручению пользователя подключён поддомен:
+https://be.beyindi.com → после входа `/warehouse/print`.
+Он использует отдельный `mp-print-web` на 127.0.0.1:8095,
+`web.print_app:app` содержит только страницу и API печати.
+Другие разделы Пульта через это приложение недоступны. На общей странице
+дашборда сохранена прежняя полная навигация. Worker и хранилище общие.
+
+Шаблон unit — `web/mp-print-web.service`. Caddy-конфигурация —
+`web/be-print.caddy`, импортирована вместо заглушки be.beyindi.com
+из `/srv/beyindi/config/Beyindi.caddy`. Остальные виртуальные хосты сохранены.
+После изменения шаблона выполнить `caddy validate --config /etc/caddy/Caddyfile`,
+затем `systemctl reload caddy`. После изменения кода отдельного приложения —
+`systemctl restart mp-print-web`; общий dashboard перезапускать не требуется.
+
+Страница/API защищены Basic Auth на HTTPS. Учётные данные — только в
+`.private/print_web_access/.env` (0600, каталог 0700), вне Git и публичных
+маршрутов. Хеш для импорта Caddy — `/etc/caddy/private/mp-print-auth.caddy`
+(root:caddy, 0640). Не передавать пароль аргументом команды и не выводить
+в чат или журнал. Для смены входа обновить закрытый env и хеш, проверить
+конфигурацию и выполнить reload. Веб-приложение слушает только loopback;
+не открывать его порт наружу в обход HTTPS и входа.
+
+HTTPS проверен запросами и в Chromium: 401 без входа, 200 после входа,
+корректный Content-Type HTML, рабочий API и отсутствие JS-ошибок.
+Проверки не нажимают рабочие счётчики и не экспортируют формы.
+Резервная копия прокси до изменения —
+`.private/print_domain_20261104/Beyindi.caddy.before`; при откате восстановить
+только эту сохранённую конфигурацию и выполнить Caddy validate/reload.
+Служба `mp-print-web` добавлена в автозапуск. На 04.11 — 39 print-тестов OK.
 
 ## Поведение
 
