@@ -67,6 +67,16 @@ class PrintReceiptTests(unittest.TestCase):
             if op in (b'rg', b'RG'):
                 self.assertEqual(tuple(float(x) for x in args), (0, 0, 0))
 
+    def test_numeric_ozon_qr_payload_keeps_exact_prefix_and_bold_tail(self):
+        data=annotate_receipt(receipt(),code='855800012341000')
+        spans=[]
+        def visit(text,cm,tm,font,size):
+            if text.strip():spans.append((text.strip(),str((font or {}).get('/BaseFont','')),size))
+        text=PdfReader(BytesIO(data)).pages[0].extract_text(visitor_text=visit)
+        self.assertIn('85580001234',text);self.assertIn('1000',text)
+        tail=next(s for s in spans if s[0]=='1000')
+        self.assertIn('Bold',tail[1]);self.assertEqual(tail[2],22)
+
     def test_diskver_signature_code_quantity_without_warehouse_color(self):
         data = annotate_receipt(receipt(), diskver=True, code='7654321', last_four='0789',
                                 color={'short': 'Син', 'css': '#0000ff'}, quantities={'TEST-SKU': 10})

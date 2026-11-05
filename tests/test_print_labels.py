@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from pypdf import PdfWriter
 
-from print_service.clients import MS
+from print_service.clients import MS, PrintClients
 from print_service.domain import PrintBlocked
 from print_service.labels import LabelPrefetcher
 from print_service.preparer import Preparer
@@ -119,6 +119,30 @@ class LabelPrefetchTests(unittest.TestCase):
             queue.batch_id=None;clients.order['state']['name']='Отгружен'
             with self.assertRaises(PrintBlocked): warmer.one(clients.row,now=NOW)
             self.assertEqual(clients.downloads,0);self.assertEqual(clients.exports,0)
+
+    def test_empty_scanit_qr_payload_is_shared_by_prefetch_and_foreground_receipt(self):
+        with TemporaryDirectory() as directory:
+            clients,queue=SavedLabels('ozon'),SavedQueue()
+            code='855800012341000'
+            post=dict(posting_number=clients.row['external_id'],status='awaiting_deliver',scanit='',
+                      barcodes=dict(upper_barcode=code,lower_barcode=code),multi_box_qty=1,
+                      delivery_method={'warehouse_id':123})
+            class Response:
+                status_code=200
+                def json(self):return {'result':post}
+            reader=PrintClients(audit_root=Path(directory)/'raw',request=lambda *a,**k:Response(),delays=False)
+            clients.ozon_posting=reader.ozon_posting
+            LabelPrefetcher(queue,clients,root=directory).one(clients.row,now=NOW)
+            label=queue.labels[0][1]['path'];before=label.read_bytes()
+            self.assertEqual(clients.exports,0);self.assertFalse(clients.demand['printed'])
+            member=dict(account=clients.row['account'],external_id=clients.row['external_id'],
+                        ms_order_id=clients.row['id'],ms_demand_id=clients.row['demand_id'])
+            with patch('print_service.preparer.warehouse_color',return_value={'short':'Чрн','css':'#000000'}), \
+                 patch('print_service.preparer.annotate_receipt',side_effect=lambda data,**kwargs:data) as annotate:
+                result=Preparer(queue,clients,root=directory,allow_unprinted=True)._one(member,NOW.date())
+            self.assertEqual(annotate.call_args.kwargs['code'],code)
+            self.assertEqual(clients.downloads,1);self.assertEqual(clients.exports,1)
+            self.assertEqual(Path(result.label_files[0]).read_bytes(),before)
 
     def test_failed_background_order_does_not_stop_other_labels_or_create_receipts(self):
         from print_service.service import PrintService

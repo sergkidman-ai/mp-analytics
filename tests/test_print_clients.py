@@ -110,6 +110,29 @@ class PrintClientTests(unittest.TestCase):
         self.assertEqual(starts[:4],[100,100.25,100.5,100.75])
         self.assertEqual(starts[4:],[101,102])
 
+    def test_empty_scanit_uses_agreeing_barcode_payload_without_changing_raw_evidence(self):
+        post={'posting_number':'123-0001-1','scanit':'','barcodes':{
+            'upper_barcode':'855800012341000','lower_barcode':'855800012341000'}}
+        c=PrintClients(audit_root=self.root/'raw',request=lambda *a,**k:Response({'result':post}),delays=False)
+        result=c.ozon_posting('oz_acc2',post['posting_number'])
+        self.assertEqual(result['scanit'],'855800012341000')
+        self.assertEqual(result['scanit_source'],'barcodes.lower_barcode')
+        self.assertEqual(post['scanit'],'')
+        import json
+        saved=json.loads(next((self.root/'raw').rglob('*.json')).read_text())
+        self.assertEqual(saved['response']['result']['scanit'],'')
+
+    def test_scanit_is_preserved_and_missing_code_never_guessed_from_conflicting_barcodes(self):
+        for code,upper,lower,expected in (
+            ('ii1234567890','855800012341000','855800012341000','ii1234567890'),
+            ('','855800012341000','855800012342000',''),
+            ('',None,'855800012341000',''),
+            ('','invalid','invalid','')):
+            with self.subTest(scanit=code,upper=upper,lower=lower):
+                post={'posting_number':'123-0001-1','scanit':code,'barcodes':{'upper_barcode':upper,'lower_barcode':lower}}
+                c=PrintClients(audit_root=self.root/'raw',request=lambda *a,**k:Response({'result':post}),delays=False)
+                self.assertEqual(c.ozon_posting('oz_acc2',post['posting_number'])['scanit'],expected)
+
     def test_read_retry_is_allowed_but_uncertain_label_task_is_not_repeated(self):
         calls=[]
         def read(method,url,**kwargs):

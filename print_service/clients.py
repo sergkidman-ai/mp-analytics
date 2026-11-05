@@ -142,6 +142,14 @@ class PrintClients:
         post = data.get('result', {})
         if post.get('posting_number') != number:
             raise PrintBlocked('ozon_posting_identity_mismatch')
+        # Some native QR labels have no scanit. Both barcode fields carry
+        # the same actual QR payload; never guess between conflicting codes.
+        if post.get('scanit') in (None, ''):
+            barcodes = post.get('barcodes') or {}
+            code = barcodes.get('lower_barcode')
+            if (isinstance(code, str) and code == barcodes.get('upper_barcode')
+                    and re.fullmatch(r'[A-Za-z0-9]{1,76}\d{4}', code)):
+                return dict(post, scanit=code, scanit_source='barcodes.lower_barcode')
         return post
 
     def wb_status(self, account, number):
