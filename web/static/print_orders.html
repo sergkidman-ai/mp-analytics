@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Печать заказов · Пульт бизнеса</title>
 <style>
+.sync-status-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.sync-status progress{display:block;width:100%;height:11px;margin:10px 0;accent-color:var(--blue)}.sync-status p{font-size:13px}
 :root{--ink:#182330;--muted:#64748b;--line:#dfe5eb;--green:#16834b;--red:#b64040;--blue:#176bba}
 *{box-sizing:border-box}body{margin:0;background:#f2f5f8;color:var(--ink);font:14px/1.45 system-ui,Segoe UI,sans-serif;display:flex;min-height:100vh}
 aside{width:216px;flex:0 0 216px;background:#111d29;color:#b5c2d1;padding:25px 16px;position:sticky;top:0;height:100vh}aside a{color:inherit;display:block;padding:10px 12px;text-decoration:none;border-radius:7px}aside .brand{color:white;font-weight:750;margin-bottom:24px}aside .current{color:white;background:#24374b}
@@ -25,6 +26,7 @@ button,.file-link{font:inherit;cursor:pointer;border:0;border-radius:7px;padding
 <div class="heading"><div><h1>Печать заказов</h1><p class="muted" id="date">Загрузка…</p></div><div class="actions"><span class="badge" id="automatic">Автосинхронизация · 30 минут</span><button class="primary" id="sync">Синхронизация с МС</button></div></div>
 <div id="demo" class="notice hidden">Предпросмотр на сохранённых образцах. Работа с площадками в этом стенде отключена.</div>
 <div id="message" class="notice" role="status" aria-live="polite"></div>
+<div id="sync-status" class="notice sync-status hidden"><div class="sync-status-head"><strong id="sync-phase" role="status" aria-live="polite"></strong><span id="sync-elapsed" class="muted" aria-hidden="true"></span></div><p id="sync-detail"></p><progress id="sync-progress" aria-label="Ход синхронизации"></progress><p class="muted">Список ниже обновится автоматически после завершения.</p></div>
 <div class="counters" id="counters"></div>
 <section class="section"><div class="section-head"><h2>Готовые файлы</h2><span class="muted">Можно открыть повторно и распечатать</span></div><div id="ready-columns" class="org-columns ready-columns"></div><div class="legend">ТЧ — A4. ЭТ — исходные 58 × 40 мм, без масштабирования. Порядок заказов в обоих файлах одинаковый.</div></section>
 <section class="section"><div class="section-head"><div><h2>Все заказы на сегодня <span class="muted" id="total"></span></h2><p class="muted">Плановая дата — сегодня, статус в МС — «Собирается»</p></div><div class="filters"><input id="search" aria-label="Поиск заказа" placeholder="Поиск в таблице"><select id="filter" aria-label="Отбор по готовности"><option value="all">Все заказы</option><option value="red">Не распечатаны</option><option value="green">Распечатаны</option></select></div></div><div id="orders-columns" class="org-columns orders-columns"></div><div class="legend">✓ — файл получен и готов к печати. Зелёные строки уже включены в готовую пару; красные остаются в очереди. Поиск меняет только таблицу ниже.</div></section>
@@ -37,7 +39,15 @@ const when=value=>value?new Date(value).toLocaleString('ru-RU',{timeZone:'Europe
 let model=null,loading=false,timer=null,noticeError=false,watchedJob=null,watchedSync=null;const inFlight=new Set();
 const ORGANIZATIONS=[{id:'digital',name:'Цифровой квадрат',accounts:['oz_acc1','wb_acc1','ya_acc1']},{id:'diskver',name:'Дисквер',accounts:['oz_acc2','wb_acc2']}];
 const forOrganization=(items,org)=>items.filter(item=>org.accounts.includes(item.account||item.counter_key?.split('|')[0]));
-async function api(url,body){const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'Не удалось выполнить запрос. Обновите страницу.');return d}
+async function api(url,body){
+ const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),15000);
+ try{
+  const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:controller.signal});
+  if(r.status===401)throw Error('Нужно повторно войти на страницу. Обновите вкладку.');
+  const d=await r.json();if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'Не удалось выполнить запрос. Обновите страницу.');return d;
+ }catch(e){if(e.name==='AbortError')throw Error('Сервер долго не отвечает. Страница продолжит проверять статус.');throw e}
+ finally{clearTimeout(deadline)}
+}
 function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);noticeError=error}
 function direction(d){const color=d?.color?.css;return (color&&/^#[0-9a-f]{6}$/i.test(color)?`<span class="dot" style="background:${color}" title="${esc(d.color.short)}"></span>`:'')+`<span>${esc(d?.direction||'Направление не определено')}</span>`}
 function renderCounters(){
@@ -91,9 +101,40 @@ function renderOrders(){
   return `<section class="org-panel" id="orders-${org.id}"><div class="org org-heading"><span>${org.name}</span><span class="muted">Заказов: ${count}</span></div><div class="scroll"><table class="orders-table"><thead><tr><th>Заказ</th><th>Площадка / направление</th><th>Склад МС</th><th>ТЧ</th><th>ЭТ</th><th>Печать</th></tr></thead><tbody>${rows.map(orderRow).join('')||'<tr><td colspan="6" class="empty">Заказов по этому отбору нет</td></tr>'}</tbody></table></div></section>`;
  }).join('');
 }
-function render(){if(watchedJob){const ready=model.ready_batches.find(b=>b.id===watchedJob),failed=model.jobs.find(b=>b.id===watchedJob&&b.state==='failed');if(ready){message('Оба файла готовы. Заказы исключены из счётчика.');watchedJob=null}else if(failed){message(failed.error_message,true);watchedJob=null}}if(watchedSync&&model.sync?.id===watchedSync&&model.sync.state==='ready'){message('Заказы и счётчики обновлены.');watchedSync=null}const syncing=model.sync&&['pending','running'].includes(model.sync.state);$('date').textContent=`${model.day.split('-').reverse().join('.')} · время Москвы`;$('automatic').textContent=model.worker_healthy?'Автосинхронизация · 30 минут':'Автосинхронизация не подключена';$('automatic').classList.toggle('live',model.worker_healthy);$('sync').disabled=!model.installed||!model.worker_healthy||syncing;$('sync').textContent=syncing?'Синхронизация…':'Синхронизация с МС';$('demo').classList.toggle('hidden',!model.demo);$('updated').textContent=`Последняя синхронизация с МС: ${when(model.last_sync)} · МСК`;if(!model.installed)message('Подключение страницы ещё не завершено. Подготовка файлов пока недоступна.');else if(model.sync?.state==='failed'&&!noticeError)message(model.sync.error_message||'Не удалось обновить список. Показаны данные последней успешной синхронизации.',true);renderCounters();renderFiles();renderOrders()}
+function renderSyncProgress(){
+ const job=model?.sync,active=job&&['pending','running'].includes(job.state);
+ $('sync-status').classList.toggle('hidden',!active);if(!active)return;
+ const p=job.progress||{},processed=Math.max(0,Number(p.processed)||0),total=Math.max(0,Number(p.total)||0);
+ let phase='Читаем заказы из МС',detail='Ожидаем данные МС…';
+ if(job.state==='pending'){phase='Синхронизация в очереди';detail='Ожидаем начало обновления…'}
+ else if(p.stage==='orders'){detail=`Получено заказов из МС: ${Math.max(0,Number(p.loaded)||0)}`}
+ else if(['postings','warehouses'].includes(p.stage)){
+  phase=p.stage==='postings'?'Проверяем направления складов Ozon':'Проверяем заказы';
+  detail=`Обработано: ${processed} из ${total}`;
+ }else if(['saving','complete'].includes(p.stage)){phase='Обновляем список и счётчики';detail=`Получено заказов: ${total}`}
+ if($('sync-phase').textContent!==phase)$('sync-phase').textContent=phase;
+ $('sync-detail').textContent=detail;
+ const elapsed=Math.max(0,Math.floor((Date.now()-new Date(job.started_at||job.created_at).getTime())/1000));
+ $('sync-elapsed').textContent=Number.isFinite(elapsed)?(elapsed<60?`${elapsed} с`:`${Math.floor(elapsed/60)} мин ${elapsed%60} с`):'';
+ const bar=$('sync-progress');
+ if(total>0){bar.max=total;bar.value=Math.min(processed,total)}else{bar.removeAttribute('value')}
+}
+function render(){
+ if(watchedJob){const ready=model.ready_batches.find(b=>b.id===watchedJob),failed=model.jobs.find(b=>b.id===watchedJob&&b.state==='failed');if(ready){message('Оба файла готовы. Заказы исключены из счётчика.');watchedJob=null}else if(failed){message(failed.error_message,true);watchedJob=null}}
+ if(watchedSync&&model.sync?.id===watchedSync&&model.sync.state==='ready'){message(`Заказы и счётчики обновлены. Заказов: ${model.rows.length}.`);watchedSync=null}
+ const syncing=model.sync&&['pending','running'].includes(model.sync.state);
+ $('date').textContent=`${model.day.split('-').reverse().join('.')} · время Москвы`;
+ $('automatic').textContent=model.worker_healthy?'Автосинхронизация · 30 минут':'Автосинхронизация не подключена';$('automatic').classList.toggle('live',model.worker_healthy);
+ $('sync').disabled=!model.installed||!model.worker_healthy||syncing;$('sync').textContent=syncing?'Синхронизация…':'Синхронизация с МС';
+ $('demo').classList.toggle('hidden',!model.demo);
+ const finished=model.sync?.state==='ready'&&model.sync.finished_at;
+ $('updated').textContent=`Последняя синхронизация с МС: ${when(finished||model.last_sync)} · МСК`;
+ if(!model.installed)message('Подключение страницы ещё не завершено. Подготовка файлов пока недоступна.');else if(model.sync?.state==='failed'&&!noticeError)message(model.sync.error_message||'Не удалось обновить список. Показаны данные последней успешной синхронизации.',true);
+ renderSyncProgress();renderCounters();renderFiles();renderOrders();
+}
 async function load(){if(loading)return;loading=true;try{model=await api('/api/print');render()}catch(e){message(e.message,true)}finally{loading=false;clearTimeout(timer);timer=setTimeout(load,model&&(model.jobs.some(j=>j.state==='building')||model.sync&&['pending','running'].includes(model.sync.state))?3000:15000)}}
 async function prepare(counter){if(inFlight.has(counter))return;inFlight.add(counter);renderCounters();message('Подготавливаем оба файла. Новые поступления будут учтены следующим счётчиком.');try{watchedJob=(await api('/api/print/counter',{counter_key:counter,request_key:crypto.randomUUID()})).id}catch(e){message(e.message,true)}finally{inFlight.delete(counter);await load()}}
 $('sync').addEventListener('click',async()=>{ $('sync').disabled=true;message('Обновляем заказы и счётчики из МС…');try{watchedSync=(await api('/api/print/sync',{})).id}catch(e){message(e.message,true)}await load()});$('search').addEventListener('input',renderOrders);$('filter').addEventListener('change',renderOrders);load();
+setInterval(renderSyncProgress,1000);
 </script>
 </body></html>

@@ -66,6 +66,22 @@ class PrintClientTests(unittest.TestCase):
             clients.export_receipt(order['id'],demand['id'],self.root,expected_account='oz_acc2',expected_number=order['name'])
         self.assertNotIn('POST',calls)
 
+    def test_faster_read_budget_does_not_accelerate_label_methods(self):
+        clock=[100.0];starts=[]
+        def request(*args,**kwargs):
+            starts.append(clock[0]);return Response({})
+        def sleep(seconds):clock[0]+=seconds
+        clients=PrintClients(audit_root=self.root/'raw',request=request)
+        clients._next={}
+        with patch('print_service.clients.time.monotonic',side_effect=lambda:clock[0]), \
+                patch('print_service.clients.time.sleep',side_effect=sleep):
+            for _ in range(4):
+                clients._call('ozon','oz_acc1','POST','https://api-seller.ozon.ru/v3/posting/fbs/get')
+            for _ in range(2):
+                clients._call('ozon','oz_acc1','POST','https://api-seller.ozon.ru/v3/posting/fbs/package-label/create')
+        self.assertEqual(starts[:4],[100,100.25,100.5,100.75])
+        self.assertEqual(starts[4:],[101,102])
+
     def test_read_retry_is_allowed_but_uncertain_label_task_is_not_repeated(self):
         calls=[]
         def read(method,url,**kwargs):

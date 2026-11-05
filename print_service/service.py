@@ -1,6 +1,7 @@
 # поток: print
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+import json
 import os
 import traceback
 from uuid import uuid4
@@ -64,6 +65,13 @@ class PrintService:
             return base | dict(installed=False, rows=[], counters={}, ready_batches=[], jobs=[],
                                sync=None, last_sync=None, worker_healthy=False)
         data = self.queue.view(now=now)
+        if data['sync']:
+            try:
+                progress = json.loads((self.root / 'sync_progress' / (str(data['sync']['id']) + '.json')).read_text())
+                data['sync']['progress'] = {key: progress[key] for key in
+                    ('stage', 'loaded', 'processed', 'total', 'updated_at') if key in progress}
+            except (OSError, ValueError, TypeError):
+                data['sync']['progress'] = {}
         for row in data['rows']:
             row['error_message'] = error_message(row['source_error']) if row['source_error'] else None
             for field in ('receipt_path','receipt_sha','label_path','label_sha','artifact_demand_id','snapshot_id'):
@@ -92,13 +100,22 @@ class PrintService:
                    'frames':[{'file':f.filename,'line':f.lineno,'function':f.name}
                              for f in traceback.extract_tb(exc.__traceback__)]})
 
+    def _sync_progress(self, sync_id, **fields):
+        try:
+            save_json(self.root / 'sync_progress' / (str(sync_id) + '.json'),
+                      dict(fields, updated_at=self.clock().isoformat()))
+        except OSError:
+            pass  # Progress display must not prevent a valid snapshot.
+
     def run_sync(self, sync_id):
         now = self.clock()
         try:
-            rows = self.collector.collect(now=now)
+            rows = self.collector.collect(now=now, on_progress=lambda **fields: self._sync_progress(sync_id, **fields))
+            self._sync_progress(sync_id, stage='saving', processed=len(rows), total=len(rows))
             self.clients.lease_check()
             self.queue.sync_snapshot(rows, started_at=now, complete=True)
             self.queue.finish_sync(sync_id)
+            self._sync_progress(sync_id, stage='complete', processed=len(rows), total=len(rows))
         except Exception as exc:
             self._record_error(exc, sync_id)
             self.clients.lease_check()

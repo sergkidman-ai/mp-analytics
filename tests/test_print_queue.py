@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import threading
 import tempfile
 import unittest
 from uuid import uuid4
@@ -73,6 +74,63 @@ class PrintQueueTests(unittest.TestCase):
 
     def reserve(self, request='click'):
         return self.queue.reserve_counter(self.counter, request_key=request, now=NOW)
+
+    def test_sync_progress_is_visible_while_running_and_completes_with_snapshot(self):
+        from print_service.service import PrintService
+        started, release = threading.Event(), threading.Event()
+        rows = self.rows
+
+        class NoNetwork:
+            lease_check = staticmethod(lambda: None)
+
+        class PausedCollector:
+            def collect(self, *, now, on_progress):
+                on_progress(stage='warehouses', processed=1, total=len(rows))
+                started.set()
+                if not release.wait(5): raise TimeoutError('test_release_timeout')
+                return rows
+
+        service = PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,
+                               clock=lambda: NOW+timedelta(seconds=1))
+        service.collector = PausedCollector()
+        sid = self.queue.enqueue_sync();self.queue.start_sync()
+        worker = threading.Thread(target=service.run_sync,args=(sid,))
+        worker.start()
+        try:
+            self.assertTrue(started.wait(5))
+            status = service.status()
+            self.assertEqual(status['sync']['state'],'running')
+            self.assertEqual(status['sync']['progress']['processed'],1)
+            self.assertEqual(status['sync']['progress']['total'],len(rows))
+            self.assertEqual(len(status['rows']),len(rows))
+        finally:
+            release.set();worker.join(5)
+        self.assertFalse(worker.is_alive())
+        status = service.status()
+        self.assertEqual(status['sync']['state'],'ready')
+        self.assertEqual(status['sync']['progress']['stage'],'complete')
+        self.assertEqual(len(status['rows']),len(rows))
+
+    def test_unwritable_progress_does_not_fail_sync(self):
+        from print_service.service import PrintService
+        from unittest.mock import patch
+        rows = self.rows
+
+        class NoNetwork:
+            lease_check = staticmethod(lambda: None)
+
+        class SavedCollector:
+            def collect(self, *, now, on_progress):
+                on_progress(stage='orders',loaded=len(rows))
+                return rows
+
+        service = PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,
+                               clock=lambda: NOW+timedelta(seconds=1))
+        service.collector = SavedCollector()
+        sid=self.queue.enqueue_sync();self.queue.start_sync()
+        with patch('print_service.service.save_json',side_effect=OSError('unavailable')):
+            service.run_sync(sid)
+        self.assertEqual(service.status()['sync']['state'],'ready')
 
     def test_two_files_turn_rows_green_new_arrivals_accumulate_and_reopening_is_read_only(self):
         before = self.queue.view(now=NOW)

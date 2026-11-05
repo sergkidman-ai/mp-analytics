@@ -1,6 +1,7 @@
 # поток: print
 """Complete narrow MS snapshot. Never requests print forms or MP labels."""
 from datetime import timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from uuid import UUID
 
 from shipment_guard.config import ORGS, identity
@@ -13,7 +14,25 @@ class Collector:
     def __init__(self, clients):
         self.clients = clients
 
-    def collect(self, *, now):
+    def _ozon_postings(self, found, report):
+        selected = {oid: (raw, account) for oid, (raw, platform, account) in found.items() if platform == 'ozon'}
+        if not selected: return {}
+        report(stage='postings', processed=0, total=len(selected))
+        pool, results = ThreadPoolExecutor(max_workers=4), {}
+        try:
+            pending = {pool.submit(self.clients.ozon_posting, account, raw['name']): oid
+                       for oid, (raw, account) in selected.items()}
+            for future in as_completed(pending):
+                try: results[pending[future]] = future.result()
+                except PrintBlocked as error: results[pending[future]] = error
+                report(stage='postings', processed=len(results), total=len(selected))
+        finally:
+            pool.shutdown(wait=True, cancel_futures=True)
+        return results
+
+    def collect(self, *, now, on_progress=None):
+        report = on_progress or (lambda **fields: None)
+        report(stage='orders', loaded=0)
         day = now.astimezone(MOSCOW).date()
         metadata = self.clients.ms_get('/entity/customerorder/metadata')
         states = [s for s in metadata.get('states', []) if s.get('name') == 'Собирается']
@@ -42,11 +61,14 @@ class Collector:
                     if not selected_order(row, account, now): raise PrintBlocked('ms_sync_scope_changed')
                     if row['id'] in found: raise PrintBlocked('ms_sync_duplicate_order')
                     found[row['id']] = (row, platform, account)
+                report(stage='orders', loaded=len(found))
                 offset += len(rows)
                 if offset >= size: break
             else: raise PrintBlocked('ms_sync_page_limit')
+        postings = self._ozon_postings(found, report)
         output = []
-        for raw, platform, account in found.values():
+        report(stage='warehouses', processed=0, total=len(found))
+        for processed, (raw, platform, account) in enumerate(found.values(), 1):
             error, did, store_id = None, None, None
             try:
                 store_id = reference_id(raw.get('store'), 'store')
@@ -58,7 +80,8 @@ class Collector:
             direction_id, direction, color = platform, {'wb': 'WB', 'yandex': 'FBS Маркет', 'ozon': 'Ozon — направление не определено'}[platform], None
             if platform == 'ozon':
                 try:
-                    posting = self.clients.ozon_posting(account, raw['name'])
+                    posting = postings[raw['id']]
+                    if isinstance(posting, PrintBlocked): raise posting
                     method = posting.get('delivery_method', {})
                     warehouse = method.get('warehouse_id')
                     if warehouse is None or not method.get('warehouse'): raise PrintBlocked('ozon_direction_missing')
@@ -74,4 +97,5 @@ class Collector:
                              store=raw.get('store', {}).get('name') or 'Склад не определён', store_id=store_id,
                              direction=direction, direction_id=direction_id, color=color,
                              planned_at=raw['deliveryPlannedMoment'])))
+            report(stage='warehouses', processed=processed, total=len(found))
         return output

@@ -79,6 +79,10 @@ class PrintClients:
         self.lease_check()
         if self.delays:
             interval = {'ms': .15, 'ozon': 1, 'wb': .3, 'yandex': 1, 'download': 0}[platform]
+            # Bounded concurrency is for exact read-only posting lookups only.
+            # Label creation/polling keep the original one-second pacing.
+            if platform == 'ozon' and method == 'POST' and url == 'https://api-seller.ozon.ru/v3/posting/fbs/get':
+                interval = .25
             key = platform, account
             with self._mutex:
                 pause = max(0, self._next.get(key, 0) - time.monotonic())
