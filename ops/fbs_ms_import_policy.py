@@ -95,6 +95,22 @@ def choose_card(cards: list[Card], external_code: str, quantity: Decimal,
     return _choose_priced(priced), False
 
 
+def choose_ready_set(cards: list[Card], external_code: str, quantity: Decimal) -> Card | None:
+    """An existing whole set on our warehouse precedes component allocation.
+
+    A physical MSK/DSK assembled set does not need a purchase price or a known
+    supplier priority: the exact external code and free own stock prove it.
+    """
+    quantity = Decimal(quantity)
+    if not quantity.is_finite() or quantity <= 0:
+        raise SelectionError('invalid_quantity')
+    if not cards:
+        return None
+    ready = [card for card in _verified(cards, external_code) if card.available >= quantity]
+    return min(ready, key=lambda card: (-card.available,
+               priority(card) if priority(card) is not None else 10**9, card.id)) if ready else None
+
+
 class AllocationPool:
     """Track locally promised units until MS stock/reserves can be reread.
 
