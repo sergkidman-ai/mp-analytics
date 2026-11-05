@@ -143,7 +143,8 @@ class PrintQueue:
                 result = self._batch(cursor, previous['batch_id'])
                 if result['counter_key'] != counter_key:
                     raise PrintBlocked('request_key_reused_for_other_counter')
-                if selected is not None and {m['ms_order_id'] for m in result['orders']} != set(selected):
+                requested = result['display'].get('requested_order_ids', [m['ms_order_id'] for m in result['orders']])
+                if selected is not None and set(requested) != set(selected):
                     raise PrintBlocked('request_key_reused_for_other_orders')
                 return result
             cursor.execute("SELECT id FROM batches WHERE counter_key=%s AND day=%s AND state='building'", (counter_key, day))
@@ -165,15 +166,15 @@ class PrintQueue:
                     raise PrintBlocked('selected_orders_changed')
                 if not orders:
                     raise PrintBlocked('counter_empty')
-                if any(o['source_error'] or not o['demand_id'] for o in orders):
-                    raise PrintBlocked('counter_has_blocked_orders')
                 bid = str(uuid4())
                 display = dict(orders[0]['display'])
+                display['blocked_orders'] = {str(o['id']): o['source_error'] or 'linked_demand_missing'
+                                             for o in orders if o['source_error'] or not o['demand_id']}
                 cursor.execute("INSERT INTO batches(id,counter_key,day,state,display) VALUES (%s,%s,%s,'building',%s)",
                                (bid, counter_key, day, Json(display)))
                 for ordinal, order in enumerate(orders):
                     identity = dict(account=order['account'], external_id=order['external_id'],
-                                    ms_order_id=str(order['id']), ms_demand_id=str(order['demand_id']))
+                                    ms_order_id=str(order['id']), ms_demand_id=str(order['demand_id']) if order['demand_id'] else None)
                     cursor.execute('INSERT INTO members VALUES (%s,%s,%s,%s)', (bid, order['id'], ordinal, Json(identity)))
                     cursor.execute('INSERT INTO claims VALUES (%s,%s)', (order['id'], bid))
             cursor.execute('INSERT INTO requests VALUES (%s,%s)', (request_key, bid))
@@ -299,6 +300,59 @@ class PrintQueue:
                 display=(display-'error_order_id') || %s WHERE id=%s""", (str(error)[:200], Json(context), batch_id))
             cursor.execute('DELETE FROM claims WHERE batch_id=%s', (batch_id,))
 
+    def exclude_failed_orders(self, batch_id, *, generation, failures):
+        """Keep successful members in the requested pair; retain each failure.
+
+        Publication still checks one exact frozen sequence. Failed members move
+        to failed child jobs and become available to the counter atomically.
+        If none succeeded, the original job retains one failure for its caller.
+        """
+        errors = {str(UUID(str(f['ms_order_id']))): str(f['error'])[:200] for f in failures}
+        if not errors or len(errors) != len(failures): raise ValueError('invalid_failed_print_orders')
+        with self.transaction() as cursor:
+            cursor.execute('SELECT snapshot_id FROM current_snapshot FOR UPDATE')
+            cursor.execute('SELECT * FROM batches WHERE id=%s FOR UPDATE', (batch_id,))
+            batch = cursor.fetchone()
+            if not batch or batch['state'] != 'building' or batch['generation'] != generation:
+                raise PrintBlocked('stale_print_worker')
+            cursor.execute('''SELECT m.*,c.batch_id AS claim_batch_id FROM members m
+                LEFT JOIN claims c ON c.order_id=m.order_id WHERE m.batch_id=%s ORDER BY m.ordinal''', (batch_id,))
+            members = cursor.fetchall()
+            if not set(errors) <= {str(m['order_id']) for m in members}:
+                raise PrintBlocked('error_order_not_in_batch')
+            if any(str(m['claim_batch_id']) != str(batch_id) for m in members):
+                raise PrintBlocked('pair_artifacts_or_claims_changed')
+            all_failed = len(errors) == len(members)
+            anchor = str(members[0]['order_id']) if all_failed else None
+            display = dict(batch['display'])
+            display.setdefault('requested_order_ids', [str(m['order_id']) for m in members])
+            excluded = {e['ms_order_id']: e for e in display.get('excluded_orders', [])}
+            for member in members:
+                oid = str(member['order_id'])
+                if oid not in errors: continue
+                identity = member['identity']
+                excluded[oid] = dict(identity, error=errors[oid])
+                cursor.execute('DELETE FROM claims WHERE order_id=%s AND batch_id=%s', (oid, batch_id))
+                if oid == anchor: continue
+                child = str(uuid4())
+                child_display = {k:v for k,v in batch['display'].items()
+                                 if k not in ('requested_order_ids','excluded_orders','blocked_orders','error_order_id')}
+                child_display.update(parent_batch_id=str(batch_id), error_order_id=oid)
+                cursor.execute('''INSERT INTO batches(id,counter_key,day,state,display,error)
+                    VALUES (%s,%s,%s,'failed',%s,%s)''',
+                    (child, batch['counter_key'], batch['day'], Json(child_display), errors[oid]))
+                cursor.execute('INSERT INTO members VALUES (%s,%s,0,%s)', (child, oid, Json(identity)))
+                cursor.execute('DELETE FROM members WHERE batch_id=%s AND order_id=%s', (batch_id, oid))
+            display['excluded_orders'] = list(excluded.values())
+            if all_failed:
+                display['error_order_id'] = anchor
+                cursor.execute("UPDATE batches SET state='failed',error=%s,display=%s WHERE id=%s",
+                               (errors[anchor], Json(display), batch_id))
+            else:
+                display.pop('error_order_id', None)
+                cursor.execute('UPDATE batches SET display=%s WHERE id=%s', (Json(display), batch_id))
+            return dict(state='failed' if all_failed else 'building', excluded=len(errors))
+
     def recover_batch(self, batch_id, *, generation):
         with self.transaction() as cursor:
             cursor.execute("""UPDATE batches SET generation=generation+1 WHERE id=%s
@@ -371,7 +425,7 @@ class PrintQueue:
                         OR b.display->>'error_order_id'=m.order_id::text)
                 ) problem ON true
                 WHERE b.state='building' OR (b.state='failed' AND problem.orders IS NOT NULL)
-                ORDER BY b.created_at DESC,b.id DESC LIMIT 30""", (day, day))
+                ORDER BY b.created_at DESC,b.id DESC""", (day, day))
             jobs = [dict(r) for r in cursor.fetchall()]
             seen = set()
             for job in jobs:

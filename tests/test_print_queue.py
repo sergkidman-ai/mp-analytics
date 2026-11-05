@@ -59,18 +59,17 @@ class PrintQueueTests(unittest.TestCase):
         self.queue.sync_snapshot(self.rows, started_at=NOW, complete=True)
 
     def prepare(self, batch):
-        files = []
-        for member in batch['orders']:
-            oid, did = member['ms_order_id'], member['ms_demand_id']
-            receipt = self.root / (oid + '-receipt.pdf')
-            label = self.root / (oid + '-label.pdf')
-            if not receipt.exists(): pdf(receipt)
-            if not label.exists(): pdf(label, 164.25, 113.25)
-            self.queue.mark_artifact(oid, demand_id=did, kind='receipt', path=receipt)
-            self.queue.mark_artifact(oid, demand_id=did, kind='label', path=label)
-            files.append(OrderPrintFiles(member['account'], member['external_id'], oid, did,
-                                        (str(receipt),), (str(label),)))
+        files = [self.prepared_order(member) for member in batch['orders']]
         return build_pair(tuple(files), shipment_date=batch['day'], output_root=self.root / 'pairs')
+
+    def prepared_order(self, member):
+        oid,did=member['ms_order_id'],member['ms_demand_id']
+        receipt=self.root/(oid+'-receipt.pdf');label=self.root/(oid+'-label.pdf')
+        if not receipt.exists():pdf(receipt)
+        if not label.exists():pdf(label,164.25,113.25)
+        self.queue.mark_artifact(oid,demand_id=did,kind='receipt',path=receipt)
+        self.queue.mark_artifact(oid,demand_id=did,kind='label',path=label)
+        return OrderPrintFiles(member['account'],member['external_id'],oid,did,(str(receipt),),(str(label),))
 
     def reserve(self, request='click'):
         return self.queue.reserve_counter(self.counter, request_key=request, now=NOW)
@@ -268,21 +267,122 @@ class PrintQueueTests(unittest.TestCase):
             lease_check=staticmethod(lambda:None)
         batch=self.reserve()
         service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
-        with patch.object(Preparer,'_one',side_effect=[object(),PrintBlocked('order_changed_since_counter_click')]):
-            service.run_batch(batch)
         failed_id=batch['orders'][1]['ms_order_id']
-        failed=self.queue.batch(batch['id'])
-        self.assertEqual(failed['display']['error_order_id'],failed_id)
+        def prepare(member,day):
+            if member['ms_order_id']==failed_id:raise PrintBlocked('order_changed_since_counter_click')
+            return self.prepared_order(member)
+        with patch.object(Preparer,'_one',side_effect=prepare):
+            service.run_batch(batch)
+        parent=self.queue.batch(batch['id'])
+        self.assertEqual(parent['state'],'ready')
+        self.assertEqual(parent['display']['excluded_orders'][0]['ms_order_id'],failed_id)
         job=self.queue.view(now=NOW)['jobs'][0]
         self.assertEqual([o['ms_order_id'] for o in job['orders']],[failed_id])
         for row in self.rows:
             if row['raw']['id']==failed_id:row['display']={'ms_demand_printed':True}
         self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
         self.assertEqual(len(self.queue.view(now=NOW)['jobs']),1)
-        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],2)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],1)
         done=self.queue.reserve_counter(self.counter,request_key='resolved',now=NOW,order_ids=[failed_id])
         pair=self.prepare(done);self.queue.publish_pair(done['id'],generation=1,pair_dir=pair)
         self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
+
+    def test_partial_batch_keeps_order_sequence_counter_errors_and_request_idempotency(self):
+        from unittest.mock import patch
+        from print_service.preparer import Preparer
+        from print_service.service import PrintService
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        self.rows.extend([order('100-0003-1'),order('100-0004-1')])
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        selected=[r['raw']['id'] for r in self.rows]
+        batch=self.queue.reserve_counter(self.counter,request_key='partial',now=NOW,order_ids=selected)
+        bad={batch['orders'][0]['ms_order_id'],batch['orders'][-1]['ms_order_id']}
+        def prepare(member,day):
+            if member['ms_order_id'] in bad:raise PrintBlocked('receipt_quantity_cell_too_small')
+            return self.prepared_order(member)
+        service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        with patch.object(Preparer,'_one',side_effect=prepare):service.run_batch(batch)
+        ready=self.queue.batch(batch['id']);self.assertEqual(ready['state'],'ready')
+        expected=[m['ms_order_id'] for m in batch['orders'] if m['ms_order_id'] not in bad]
+        self.assertEqual([m['ms_order_id'] for m in ready['orders']],expected)
+        manifest=ready['manifest'];self.assertEqual([m['ms_order_id'] for m in manifest['orders']],expected)
+        self.assertEqual(len(ready['display']['excluded_orders']),2)
+        view=service.status();self.assertEqual(view['counters'][self.counter]['count'],2)
+        self.assertEqual({o['ms_order_id'] for j in view['jobs'] for o in j['orders']},bad)
+        self.assertTrue(all(r['preparation_error']=='receipt_quantity_cell_too_small' for r in view['rows'] if str(r['id']) in bad))
+        repeated=self.queue.reserve_counter(self.counter,request_key='partial',now=NOW,order_ids=selected)
+        self.assertEqual(str(repeated['id']),str(batch['id']))
+        self.assertEqual(len(self.queue.view(now=NOW)['ready_batches']),1)
+
+    def test_all_failed_orders_release_claims_and_preserve_individual_errors(self):
+        from unittest.mock import patch
+        from print_service.preparer import Preparer
+        from print_service.service import PrintService
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        batch=self.reserve();service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        with patch.object(Preparer,'_one',side_effect=PrintBlocked('receipt_quantity_cell_too_small')):
+            service.run_batch(batch)
+        self.assertEqual(self.queue.batch(batch['id'])['state'],'failed')
+        view=self.queue.view(now=NOW);self.assertEqual(view['ready_batches'],[])
+        self.assertEqual(view['counters'][self.counter]['count'],2)
+        self.assertEqual(len(view['jobs']),2)
+        with self.queue.transaction() as c:
+            c.execute('SELECT count(*) AS n FROM claims');self.assertEqual(c.fetchone()['n'],0)
+
+    def test_known_blocked_order_does_not_prevent_other_orders_from_printing(self):
+        from unittest.mock import patch
+        from print_service.preparer import Preparer
+        from print_service.service import PrintService
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        bad=self.rows[0]['raw']['id'];self.rows[0].update(demand_id=None,source_error='linked_demand_missing')
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        batch=self.reserve();service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        def prepare(member,day):
+            self.assertNotEqual(member['ms_order_id'],bad)
+            return self.prepared_order(member)
+        with patch.object(Preparer,'_one',side_effect=prepare):service.run_batch(batch)
+        self.assertEqual(self.queue.batch(batch['id'])['state'],'ready')
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],1)
+        self.assertEqual(self.queue.view(now=NOW)['jobs'][0]['orders'][0]['ms_order_id'],bad)
+
+    def test_every_excluded_order_keeps_its_error_in_a_large_batch(self):
+        from unittest.mock import patch
+        from print_service.preparer import Preparer
+        from print_service.service import PrintService
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        self.rows=[order(f'200-{i:04d}-1') for i in range(35)]
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        batch=self.reserve();service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        with patch.object(Preparer,'_one',side_effect=PrintBlocked('receipt_quantity_cell_too_small')):
+            service.run_batch(batch)
+        status=service.status()
+        self.assertEqual(len(status['jobs']),35)
+        self.assertEqual(sum(bool(r['preparation_error']) for r in status['rows']),35)
+        self.assertEqual(status['counters'][self.counter]['count'],35)
+
+    def test_partial_selection_survives_worker_recovery_and_rejects_stale_generation(self):
+        from unittest.mock import patch
+        from print_service.preparer import Preparer
+        from print_service.service import PrintService
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        batch=self.reserve();failed=batch['orders'][1]['ms_order_id']
+        self.prepared_order(batch['orders'][0])
+        self.queue.exclude_failed_orders(batch['id'],generation=1,
+            failures=[dict(ms_order_id=failed,error='receipt_quantity_cell_too_small')])
+        generation=self.queue.recover_batch(batch['id'],generation=1)
+        with self.assertRaises(PrintBlocked):
+            self.queue.exclude_failed_orders(batch['id'],generation=1,
+                failures=[dict(ms_order_id=batch['orders'][0]['ms_order_id'],error='stale')])
+        resumed=self.queue.batch(batch['id']);self.assertEqual(resumed['generation'],generation)
+        service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        with patch.object(Preparer,'_one',side_effect=lambda m,day:self.prepared_order(m)):service.run_batch(resumed)
+        self.assertEqual(self.queue.batch(batch['id'])['state'],'ready')
         self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],1)
 
     def test_repeated_failed_jobs_only_show_latest_error_per_order(self):

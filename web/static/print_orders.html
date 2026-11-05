@@ -75,7 +75,7 @@ function renderCounters(){
      const c=item?model.counters[item.counter_key]:null;
      if(!c||c.count===0){html+=`<td><span class="empty-number">${c?'0':'—'}</span></td>`;continue}
      const busy=c.building||inFlight.has(item.counter_key),disabled=busy||!model.worker_healthy||!model.installed;
-     html+=`<td><button type="button" class="counter${c.blocked?' blocked':''}${busy?' busy':''}" data-counter="${esc(item.counter_key)}" ${disabled?'disabled':''} title="${c.blocked?'Проверьте ошибки в красных строках':'Сформировать ТЧ и ЭТ для заказов этого счётчика'}">${busy?'Готовится…':esc(c.count)}</button></td>`;
+     html+=`<td><button type="button" class="counter${c.blocked?' blocked':''}${busy?' busy':''}" data-counter="${esc(item.counter_key)}" ${disabled?'disabled':''} title="${c.blocked?'Сформировать файлы для остальных заказов; проблемные останутся в счётчике':'Сформировать ТЧ и ЭТ для заказов этого счётчика'}">${busy?'Готовится…':esc(c.count)}</button></td>`;
     }
     html+='</tr>';
    }
@@ -96,7 +96,7 @@ function renderFiles(){
   const batches=forOrganization(model.ready_batches,org),jobs=forOrganization(model.jobs,org);
   const active=jobs.filter(j=>j.state==='building'),failed=jobs.filter(j=>j.state==='failed').slice(0,3);
   const progress=[...active.map(j=>'<div class="job">Подготавливаем ТЧ и ЭТ…</div>'),...failed.map(failedJob)].join('');
-  const files=batches.map(b=>`<div class="ready-row"><div><div class="ready-title">${esc([b.display.direction,b.display.store].filter(Boolean).join(' · '))}</div><div class="muted">${when(b.published_at)} · Заказов: ${esc(b.order_count)}</div></div><div class="actions"><a class="file-link" target="_blank" rel="noopener" href="/api/print/batches/${encodeURIComponent(b.id)}/files/receipts">ТЧ · PDF</a><a class="file-link" target="_blank" rel="noopener" href="/api/print/batches/${encodeURIComponent(b.id)}/files/labels">ЭТ · PDF</a></div></div>`).join('');
+  const files=batches.map(b=>`<div class="ready-row"><div><div class="ready-title">${esc([b.display.direction,b.display.store].filter(Boolean).join(' · '))}</div><div class="muted">${when(b.published_at)} · Заказов: ${esc(b.order_count)}${b.display.excluded_orders?.length?` · Не вошло: ${b.display.excluded_orders.length}`:''}</div></div><div class="actions"><a class="file-link" target="_blank" rel="noopener" href="/api/print/batches/${encodeURIComponent(b.id)}/files/receipts">ТЧ · PDF</a><a class="file-link" target="_blank" rel="noopener" href="/api/print/batches/${encodeURIComponent(b.id)}/files/labels">ЭТ · PDF</a></div></div>`).join('');
   return `<section class="org-panel" id="ready-${org.id}"><div class="org org-heading"><span>${org.name}</span><span class="muted">Пар: ${batches.length}</span></div><div class="jobs">${progress}</div>${files?`<div class="ready-list">${files}</div>`:'<div class="empty">Готовых файлов пока нет</div>'}</section>`;
  }).join('');
 }
@@ -108,6 +108,11 @@ function receiptIndicator(r){
 function orderReadiness(r,busy){
  if(r.printed)return {text:'Файлы готовы',color:'green'};
  if(busy)return {text:'Готовится',color:'muted'};
+ if(r.preparation_error){
+  if(/^(receipt_|diskver_|shipment_|ms_export_|linked_demand_)/.test(r.preparation_error))return {text:'Не готов ТЧ',color:'red'};
+  if(/^(ozon_|wb_|market_|yandex_|native_label_|label_)/.test(r.preparation_error))return {text:'Не готова ЭТ',color:'red'};
+  return {text:'Не готов ТЧ/ЭТ',color:'red'};
+ }
  const missingReceipt=!hasDemand(r),missingLabel=!r.label_ready;
  if(missingReceipt&&missingLabel)return {text:'Не готовы ТЧ и ЭТ',color:'red'};
  if(missingReceipt)return {text:'Не готов ТЧ',color:'red'};
@@ -152,7 +157,7 @@ function renderSyncProgress(){
  if(total>0){bar.max=total;bar.value=Math.min(processed,total)}else{bar.removeAttribute('value')}
 }
 function render(){
- if(watchedJob){const ready=model.ready_batches.find(b=>b.id===watchedJob),failed=model.jobs.find(b=>b.id===watchedJob&&b.state==='failed');if(ready){message('Оба файла готовы. Заказы исключены из счётчика.');watchedJob=null}else if(failed){message(failed.error_message,true);watchedJob=null}}
+ if(watchedJob){const ready=model.ready_batches.find(b=>b.id===watchedJob),failed=model.jobs.find(b=>b.id===watchedJob&&b.state==='failed');if(ready){const skipped=ready.display.excluded_orders?.length||0;message(skipped?`Файлы готовы для ${ready.order_count} заказов. Не вошло: ${skipped} — проверьте ошибки ниже.`:'Оба файла готовы. Заказы исключены из счётчика.');watchedJob=null}else if(failed){message(failed.error_message,true);watchedJob=null}}
  if(watchedSync&&model.sync?.id===watchedSync&&model.sync.state==='ready'){message(`Заказы и счётчики обновлены. Заказов: ${model.rows.length}.`);watchedSync=null}
  const syncing=model.sync&&['pending','running'].includes(model.sync.state);
  $('date').textContent=`${model.day.split('-').reverse().join('.')} · время Москвы`;

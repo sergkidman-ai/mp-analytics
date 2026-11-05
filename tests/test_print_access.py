@@ -159,5 +159,9 @@ class PrintAccessTests(unittest.TestCase):
             'rows':[],'ready_batches':[],'counters':{}}
         scoped=access_for_user('tolkachev').status(data)
         self.assertEqual([o['external_id'] for o in scoped['jobs'][0]['orders']],['diskver-order'])
+        data['ready_batches']=[dict(counter_key='oz_acc2|x|y',display={'excluded_orders':data['jobs'][0]['orders']})]
+        scoped=access_for_user('tolkachev').status(data)
+        self.assertEqual([o['external_id'] for o in scoped['ready_batches'][0]['display']['excluded_orders']],['diskver-order'])
+        self.assertEqual(len(data['ready_batches'][0]['display']['excluded_orders']),2)
         data['jobs'][0]['orders']=data['jobs'][0]['orders'][:1]
         self.assertEqual(access_for_user('tolkachev').status(data)['jobs'],[])

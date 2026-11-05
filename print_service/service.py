@@ -13,7 +13,7 @@ from print_service.collector import Collector
 from print_service.labels import LabelPrefetcher
 from print_service.domain import MOSCOW, PrintBlocked
 from print_service.preparer import Preparer
-from print_service.pdf import extract_order_pair
+from print_service.pdf import build_pair, extract_order_pair
 from print_service.queue import PrintQueue
 from print_service.storage import save_json
 
@@ -22,6 +22,7 @@ ERRORS = {
     'counter_already_reserved': 'Для этого счётчика уже формируются файлы. Дождитесь завершения.',
     'selected_orders_changed': 'Этот заказ уже включён в файлы или больше не входит в текущий список. Обновите страницу.',
     'counter_empty': 'В счётчике нет новых заказов. Обновите страницу.',
+    'receipt_quantity_cell_too_small': 'Не удалось безопасно выделить количество в ТЧ. Заказ оставлен в счётчике.',
     'counter_has_blocked_orders': 'У части заказов нет необходимых данных. Проверьте красные строки ниже.',
     'sample_requires_previously_printed_demand': 'Тестовый режим: новая выгрузка этого чека из МС пока отключена.',
     'pair_not_ready': 'Оба файла ещё не готовы.',
@@ -51,12 +52,38 @@ def error_message(error):
 
 
 class OrderTrackingPreparer(Preparer):
+    def __init__(self, *args, on_order_error=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.on_order_error = on_order_error or (lambda exc, oid: None)
+
     def _one(self, member, day):
         try:
             return super()._one(member, day)
         except Exception as exc:
             exc.print_order_id = member['ms_order_id']
             raise
+
+    def prepare(self, batch):
+        files, failures = [], []
+        for member in batch['orders']:
+            self.clients.lease_check()
+            try:
+                blocked = batch['display'].get('blocked_orders', {}).get(member['ms_order_id'])
+                if blocked: raise PrintBlocked(blocked)
+                files.append(self._one(member, batch['day']))
+            except Exception as exc:
+                self.clients.lease_check()
+                self.on_order_error(exc, member['ms_order_id'])
+                failures.append(dict(ms_order_id=member['ms_order_id'],
+                                     error=str(exc) if isinstance(exc, PrintBlocked) else 'prepare_internal_error'))
+        if failures:
+            self.clients.lease_check()
+            self.queue.exclude_failed_orders(batch['id'], generation=batch['generation'], failures=failures)
+        if not files: return None
+        path = build_pair(tuple(files), shipment_date=batch['day'], output_root=self.root / 'pairs')
+        self.clients.lease_check()
+        self.queue.publish_pair(batch['id'], generation=batch['generation'], pair_dir=path)
+        return path
 
 
 class PrintService:
@@ -68,7 +95,8 @@ class PrintService:
         self.clients = clients or PrintClients(audit_root=self.root / 'raw')
         self.collector = Collector(self.clients)
         if allow_unprinted is None: allow_unprinted = os.getenv('PRINT_EXPORT_UNPRINTED', '0') == '1'
-        self.preparer = OrderTrackingPreparer(self.queue, self.clients, root=self.root, allow_unprinted=allow_unprinted)
+        self.preparer = OrderTrackingPreparer(self.queue, self.clients, root=self.root, allow_unprinted=allow_unprinted,
+                                             on_order_error=self._record_error)
         self.labels = LabelPrefetcher(self.queue, self.clients, root=self.root)
         self.demo = demo
 
@@ -86,15 +114,25 @@ class PrintService:
                     ('stage', 'loaded', 'processed', 'total', 'updated_at') if key in progress}
             except (OSError, ValueError, TypeError):
                 data['sync']['progress'] = {}
+        failed = {order['ms_order_id']: job['error'] for job in reversed(data['jobs']) if job['state']=='failed'
+                  for order in job.get('orders', [])}
         for row in data['rows']:
             # Drop obsolete MS print annotations from persisted old snapshots.
             for field in ('ms_order_printed', 'ms_demand_printed'):
                 row['display'].pop(field, None)
             row['error_message'] = error_message(row['source_error']) if row['source_error'] else None
+            row['preparation_error'] = failed.get(str(row['id'])) if row['batch_state'] != 'building' else None
+            if row['preparation_error'] and not row['source_error']:
+                row['error_message'] = error_message(row['preparation_error'])
+                if not row['printed']:
+                    data['counters'][row['counter_key']]['blocked'] += 1
             for field in ('receipt_path','receipt_sha','label_path','label_sha','artifact_demand_id','snapshot_id'):
                 row.pop(field, None)
         for job in data['jobs']:
             job['error_message'] = error_message(job['error']) if job['error'] else None
+        for batch in data['ready_batches']:
+            for field in ('blocked_orders', 'requested_order_ids'):
+                batch['display'].pop(field, None)
         if data['sync'] and data['sync']['error']:
             data['sync']['error_message'] = error_message(data['sync']['error'])
         return base | dict(installed=True) | data
