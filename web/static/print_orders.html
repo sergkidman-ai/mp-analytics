@@ -33,7 +33,7 @@ button,.file-link{font:inherit;cursor:pointer;border:0;border-radius:7px;padding
 <div id="sync-status" class="notice sync-status hidden"><div class="sync-status-head"><strong id="sync-phase" role="status" aria-live="polite"></strong><span id="sync-elapsed" class="muted" aria-hidden="true"></span></div><p id="sync-detail"></p><progress id="sync-progress" aria-label="Ход синхронизации"></progress><p class="muted">Список ниже обновится автоматически после завершения.</p></div>
 <div class="counters" id="counters"></div>
 <section class="section"><div class="section-head"><h2>Готовые файлы</h2><span class="muted">Можно открыть повторно и распечатать</span></div><div id="ready-columns" class="org-columns ready-columns"></div><div class="legend">ТЧ — A4. ЭТ — исходные 58 × 40 мм, без масштабирования. Порядок заказов в обоих файлах одинаковый.</div></section>
-<section class="section"><div class="section-head"><div><h2>Все заказы на сегодня <span class="muted" id="total"></span></h2><p class="muted">Плановая дата — сегодня, статус в МС — «Собирается»</p></div><div class="filters"><input id="search" aria-label="Поиск заказа" placeholder="Поиск в таблице"><select id="filter" aria-label="Отбор по готовности"><option value="all">Все заказы</option><option value="red">Без готовой пары</option><option value="green">Файлы готовы</option></select></div></div><div id="orders-columns" class="org-columns orders-columns"></div><div class="legend">В счётчиках — заказы, для которых на этой странице ещё не сформированы оба файла. ТЧ + ЭТ можно сформировать отдельно в строке. Часы в ТЧ — ожидание формирования по нажатию. Этикетки загружаются заранее; галочка означает, что документ получен. Зелёные строки — готовая пара файлов.</div></section>
+<section class="section"><div class="section-head"><div><h2>Все заказы на сегодня <span class="muted" id="total"></span></h2><p class="muted">Плановая дата — сегодня, статус в МС — «Собирается»</p></div><div class="filters"><input id="search" aria-label="Поиск заказа" placeholder="Поиск в таблице"><select id="filter" aria-label="Отбор по готовности"><option value="all">Все заказы</option><option value="red">Без готовой пары</option><option value="green">Файлы готовы</option></select></div></div><div id="orders-columns" class="org-columns orders-columns"></div><div class="legend">В счётчиках — заказы, для которых на этой странице ещё не сформированы оба файла. ТЧ + ЭТ можно сформировать отдельно в строке. Крестик ТЧ — нет связанной отгрузки в МС; часы — отгрузка есть, чек будет получен по нажатию. «Готово к печати» — есть отгрузка и получена этикетка. Галочка — документ получен. Зелёные строки — готовая пара файлов.</div></section>
 <div class="footer" id="updated"></div>
 </main>
 <script id="print-organizations" type="application/json">[{"id":"digital","name":"Цифровой квадрат","accounts":["oz_acc1","wb_acc1","ya_acc1"]},{"id":"diskver","name":"Дисквер","accounts":["oz_acc2","wb_acc2"]}]</script>
@@ -100,14 +100,26 @@ function renderFiles(){
   return `<section class="org-panel" id="ready-${org.id}"><div class="org org-heading"><span>${org.name}</span><span class="muted">Пар: ${batches.length}</span></div><div class="jobs">${progress}</div>${files?`<div class="ready-list">${files}</div>`:'<div class="empty">Готовых файлов пока нет</div>'}</section>`;
  }).join('');
 }
-function receiptIndicator(ready){
- return ready?'<span class="document yes" title="ТЧ получен" aria-label="ТЧ получен">✓</span>':'<span class="document wait" title="ТЧ будет получен при формировании файлов" aria-label="ТЧ ожидает формирования"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+function hasDemand(r){return Boolean(r.demand_id)&&!['linked_demand_missing','linked_demand_ambiguous'].includes(r.source_error)}
+function receiptIndicator(r){
+ if(!hasDemand(r))return '<span class="document no" title="Нет единственной связанной отгрузки в МС — ТЧ недоступен" aria-label="ТЧ недоступен: нет связанной отгрузки">×</span>';
+ return r.receipt_ready?'<span class="document yes" title="ТЧ получен" aria-label="ТЧ получен">✓</span>':'<span class="document wait" title="Отгрузка в МС есть. ТЧ будет получен при формировании файлов" aria-label="ТЧ ожидает формирования"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+}
+function orderReadiness(r,busy){
+ if(r.printed)return {text:'Файлы готовы',color:'green'};
+ if(busy)return {text:'Готовится',color:'muted'};
+ const missingReceipt=!hasDemand(r),missingLabel=!r.label_ready;
+ if(missingReceipt&&missingLabel)return {text:'Не готовы ТЧ и ЭТ',color:'red'};
+ if(missingReceipt)return {text:'Не готов ТЧ',color:'red'};
+ if(missingLabel)return {text:'Не готова ЭТ',color:'red'};
+ return r.source_error?{text:'Не готов ТЧ/ЭТ',color:'red'}:{text:'Готово к печати',color:'green'};
 }
 function orderRow(r){
  const showError=r.error_message&&!['linked_demand_missing','linked_demand_ambiguous'].includes(r.source_error);
  const busy=r.batch_state==='building'||orderInFlight.has(r.id),counterBusy=model.counters[r.counter_key]?.building;
+ const readiness=orderReadiness(r,busy);
  const files=r.printed?`<div class="order-files"><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/receipts">ТЧ</a><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/labels">ЭТ</a></div>`:`<button class="order-pair" data-order="${esc(r.id)}" ${busy||counterBusy||!model.worker_healthy||r.source_error?'disabled':''} title="Сформировать ТЧ и ЭТ только этого заказа">${busy?'Готовится…':'ТЧ + ЭТ'}</button>`;
- return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span><div class="ms-order-status" title="Статус заказа в МойСкладе на момент последней синхронизации">МС: ${esc(r.display.ms_status||'Не получен')}</div>${showError?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${esc(r.display.direction||'')}</td><td>${esc(r.display.store||'')}</td><td>${receiptIndicator(r.receipt_ready)}</td><td><span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span></td><td><span class="state ${r.printed?'green':'red'}">${r.printed?'Файлы готовы':r.batch_state==='building'?'Готовится':'Нет пары'}</span></td><td>${files}</td></tr>`;
+ return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span><div class="ms-order-status" title="Статус заказа в МойСкладе на момент последней синхронизации">МС: ${esc(r.display.ms_status||'Не получен')}</div>${showError?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${esc(r.display.direction||'')}</td><td>${esc(r.display.store||'')}</td><td>${receiptIndicator(r)}</td><td><span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span></td><td><span class="state ${readiness.color}">${esc(readiness.text)}</span></td><td>${files}</td></tr>`;
 }
 function renderOrders(){
  if(!model)return;
@@ -117,7 +129,7 @@ function renderOrders(){
  $('orders-columns').innerHTML=ORGANIZATIONS.map(org=>{
   const rows=forOrganization(visible,org),total=forOrganization(model.rows,org).length;
   const count=rows.length===total?`${total}`:`${rows.length} из ${total}`;
-  return `<section class="org-panel" id="orders-${org.id}"><div class="org org-heading"><span>${org.name}</span><span class="muted">Заказов: ${count}</span></div><div class="scroll"><table class="orders-table"><thead><tr><th>Заказ</th><th>Площадка / направление</th><th>Склад МС</th><th>ТЧ</th><th>ЭТ</th><th>Файлы</th><th>Печать заказа</th></tr></thead><tbody>${rows.map(orderRow).join('')||'<tr><td colspan="7" class="empty">Заказов по этому отбору нет</td></tr>'}</tbody></table></div></section>`;
+  return `<section class="org-panel" id="orders-${org.id}"><div class="org org-heading"><span>${org.name}</span><span class="muted">Заказов: ${count}</span></div><div class="scroll"><table class="orders-table"><thead><tr><th>Заказ</th><th>Площадка / направление</th><th>Склад МС</th><th>ТЧ</th><th>ЭТ</th><th>Готовность</th><th>Печать заказа</th></tr></thead><tbody>${rows.map(orderRow).join('')||'<tr><td colspan="7" class="empty">Заказов по этому отбору нет</td></tr>'}</tbody></table></div></section>`;
  }).join('');
  for(const button of $('orders-columns').querySelectorAll('button[data-order]'))button.addEventListener('click',()=>prepareOrder(button.dataset.order));
 }
