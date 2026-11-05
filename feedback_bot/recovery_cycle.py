@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 from core import db
 from collectors import feedback_recovery as collect
 from feedback_bot import tg_moderation as bot, recovery_runtime as runtime
-from reports import recovery_budget
+from reports import recovery_budget, publish_gate
 
 OUT = Path('/root/rev-recovery')
 
@@ -136,12 +136,14 @@ def send_cards(sample_limit=10):
     selected += [r for r in pending if r.get('draft_route') in ('human','review') and r['id'] not in known]
     sent = []
     for row in selected:
+        allow_send, reasons = publish_gate.verdict(row)
+        allow_send = allow_send and row.get('draft_route') != 'human'
+        allow_override = publish_gate.can_override(reasons)
         if not (row.get('draft_text') or '').strip():
             row = dict(row, draft_text='Черновик не готов: нужны подтверждённые факты и/или LLM-контур. Ответьте через «Править».')
             allow_send = False
-        else:
-            allow_send = True
-        markup = bot._kb(row['id'],allow_send=allow_send,allow_override=False)
+            allow_override = False
+        markup = bot._kb(row['id'],allow_send=allow_send,allow_override=allow_override)
         if row.get('tg_msg_id') and str(row.get('tg_chat_id')) == str(bot.NOTIFY_IDS[0]):
             response = bot.edit_text(row['tg_chat_id'],row['tg_msg_id'],bot._card(row),reply_markup=markup)
             mid = row['tg_msg_id'] if (response or {}).get('ok') else None

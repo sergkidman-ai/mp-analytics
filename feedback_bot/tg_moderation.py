@@ -264,7 +264,7 @@ def _published_today_line(account):
     return f"📤 Опубликовано сегодня: <b>{total}</b>\n"
 
 
-def _mode_banner(account):
+def _mode_banner(account, allow_send=True):
     """ЧЕСТНЫЙ статус режима ДЛЯ ЭТОЙ карточки: что реально произойдёт по кнопке ✅.
 
     Раньше баннер смотрел только на глобальный fs._live() и врал в обе стороны: показывал «DRY-RUN»
@@ -282,6 +282,8 @@ def _mode_banner(account):
         return "🧪 <b>DRY-RUN</b> (реальной отправки нет: FEEDBACK_LIVE_SEND выключен)\n" + fact
     if account and account not in fs._live_accounts():
         return f"🧪 <b>DRY-RUN</b> (канал {html.escape(str(account))} вне списка живых)\n" + fact
+    if not allow_send:
+        return "🔴 <b>БОЕВОЙ РЕЖИМ</b>\n" + fact
     return "🔴 <b>БОЕВОЙ РЕЖИМ</b> — по ✅ ответ уйдёт покупателю сразу (без дневного лимита)\n" + fact
 
 
@@ -321,8 +323,8 @@ def _card(row):
         src = g.get("source") or ("веб" if g.get("web") else "")
         if src or g.get("note"):
             note = f"\n<i>источник: {e(src or '—')}{'; ' + e((g.get('note') or '')) if g.get('note') else ''}</i>"
-    banner = _mode_banner(row.get("account"))
     allow_pub, why, trace = publish_gate.verdict_full(row)
+    banner = _mode_banner(row.get("account"), allow_send=allow_pub)
     if row.get("draft_route") == "human":          # домен-фильтр / ошибка парсинга — только вручную
         banner += "⚠️ <b>НА ЧЕЛОВЕКА</b> — авто-ответа нет, ответьте через «✏️ Ответить вручную»\n"
     elif not allow_pub:
