@@ -19,6 +19,10 @@ class CounterRequest(BaseModel):
     request_key: UUID
 
 
+class OrderRequest(BaseModel):
+    request_key: UUID
+
+
 @lru_cache(maxsize=1)
 def production_service():
     return PrintService()
@@ -90,6 +94,30 @@ def make_router(get_service=production_service, *, standalone=False):
         return FileResponse(path, media_type='application/pdf',
                             filename=f'{kind}_{str(batch_id)[:8]}.pdf', content_disposition_type='inline',
                             headers={'Cache-Control': 'private, no-cache'})
+
+    def checked_order(service, order_id, access):
+        try: order = service.queue.order(str(order_id))
+        except PrintBlocked: raise HTTPException(404, 'Заказ не найден.') from None
+        if not access.allows(order['account']): raise HTTPException(404, 'Заказ не найден.')
+        if access.restricted and order['batch_state'] == 'ready':
+            if not access.allows_batch(service.queue.batch(str(order['batch_id']))):
+                raise HTTPException(404, 'Заказ не найден.')
+        return order
+
+    @router.post('/api/print/orders/{order_id}/pair')
+    def single_order(order_id: UUID, request: OrderRequest, access: PrintAccess = Depends(current_access)):
+        service = get_service(); checked_order(service, order_id, access)
+        try: return service.request_order(str(order_id), str(request.request_key))
+        except PrintBlocked as exc:
+            raise HTTPException(409, error_message(exc)) from None
+
+    @router.get('/api/print/orders/{order_id}/files/{kind}')
+    def single_file(order_id: UUID, kind: Literal['receipts', 'labels'], access: PrintAccess = Depends(current_access)):
+        service = get_service(); checked_order(service, order_id, access)
+        try: path = service.order_files(str(order_id))[kind]
+        except PrintBlocked as exc: raise HTTPException(409, error_message(exc)) from None
+        return FileResponse(path, media_type='application/pdf', filename=f'{kind}_{str(order_id)[:8]}.pdf',
+                            content_disposition_type='inline', headers={'Cache-Control':'private, no-cache'})
 
     return router
 

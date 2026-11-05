@@ -48,7 +48,7 @@ class Collector:
             for _ in range(1000):
                 page = self.clients.ms_get('/entity/customerorder', params={
                     'limit': 20, 'offset': offset, 'filter': filters, 'order': 'id,asc',
-                    'expand': 'state,store,organization,agent'})
+                    'expand': 'state,store,organization,agent,demands'})
                 rows, size = page.get('rows', []), page.get('meta', {}).get('size')
                 if type(size) is not int or (expected is not None and expected != size):
                     raise PrintBlocked('ms_sync_changed_during_pagination')
@@ -96,6 +96,8 @@ class Collector:
                 display=dict(platform=platform, organization='Цифровой квадрат' if account.endswith('1') else 'Дисквер',
                              store=raw.get('store', {}).get('name') or 'Склад не определён', store_id=store_id,
                              direction=direction, direction_id=direction_id, color=color,
-                             planned_at=raw['deliveryPlannedMoment'])))
+                             planned_at=raw['deliveryPlannedMoment'],
+                             ms_order_printed=raw.get('printed'),
+                             ms_demand_printed=raw.get('demands',[{}])[0].get('printed') if did else None)))
             report(stage='warehouses', processed=processed, total=len(found))
         return output

@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 MOSCOW = ZoneInfo('Europe/Moscow')
 ACCOUNTS = frozenset({'oz_acc1', 'oz_acc2', 'wb_acc1', 'wb_acc2', 'ya_acc1'})
+MS_PRINTED_SOURCE = 'ms_demand_printed'
 OZON_COLORS = {
     'orange': ('Орж', '#f59e0b'), 'black': ('Чрн', '#000000'),
     'blue': ('Син', '#0000ff'), 'green': ('Злн', '#008000'),

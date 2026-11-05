@@ -11,7 +11,7 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.generic import RectangleObject
 
 from print_service.domain import OrderPrintFiles, PrintBlocked
-from print_service.pdf import A4, build_pair
+from print_service.pdf import A4, build_pair, extract_order_pair
 
 
 def document(path, pages):
@@ -24,6 +24,32 @@ def document(path, pages):
 
 
 class PrintPdfTests(unittest.TestCase):
+    def test_single_order_is_extracted_from_published_pages_without_source_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);r1,r2,l1,l2=[root/name for name in ('r1.pdf','r2.pdf','l1.pdf','l2.pdf')]
+            document(r1,[(612,792,None)]*2);document(r2,[(612,792,None)])
+            document(l1,[(164.25,113.25,[1,2,163,112])]);document(l2,[(113,164,None)]*2)
+            writer=PdfWriter();reader=PdfReader(l2)
+            for page in reader.pages:writer.add_page(page).rotate(90)
+            writer.write(l2)
+            items=(OrderPrintFiles('oz_acc1','one','o1','d1',(str(r1),),(str(l1),)),
+                   OrderPrintFiles('oz_acc1','two','o2','d2',(str(r2),),(str(l2),)))
+            group=build_pair(items,shipment_date=date(2026,11,5),output_root=root/'groups')
+            for path in (r1,r2,l1,l2):path.unlink()
+            selected=extract_order_pair(group,'o2',output_root=root/'single')
+            self.assertEqual(len(PdfReader(selected/'receipts.pdf').pages),1)
+            pages=PdfReader(selected/'labels.pdf').pages
+            self.assertEqual(len(pages),2)
+            originals=PdfReader(group/'labels.pdf').pages[1:]
+            for actual,original in zip(pages,originals):
+                self.assertEqual(actual.mediabox,original.mediabox)
+                self.assertEqual(actual.cropbox,original.cropbox)
+                self.assertEqual(actual.rotation,original.rotation)
+            before=(selected/'labels.pdf').read_bytes()
+            self.assertEqual(selected,extract_order_pair(group,'o2',output_root=root/'single'))
+            self.assertEqual(before,(selected/'labels.pdf').read_bytes())
+            with self.assertRaises(PrintBlocked):extract_order_pair(group,'missing',output_root=root/'single')
+
     def test_native_labels_and_common_order_with_different_page_counts(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

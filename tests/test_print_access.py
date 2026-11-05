@@ -19,6 +19,7 @@ class PrintAccessTests(unittest.TestCase):
         self.root = Path(directory.name)
         self.digital, self.diskver, self.mixed = (str(uuid4()) for _ in range(3))
         self.calls = []
+        self.digital_order,self.diskver_order,self.mixed_order=(str(uuid4()) for _ in range(3))
         batches = {
             self.digital: dict(counter_key='oz_acc1|digital-secret|store', orders=[{'account':'oz_acc1'}]),
             self.diskver: dict(counter_key='oz_acc2|diskver|store', orders=[{'account':'oz_acc2'}]),
@@ -27,8 +28,15 @@ class PrintAccessTests(unittest.TestCase):
         for bid, content in ((self.digital,b'digital-secret'),(self.diskver,b'diskver-document')):
             (self.root/(bid+'.pdf')).write_bytes(content)
         root,calls=self.root,self.calls
+        order_map={self.digital_order:dict(account='oz_acc1',batch_id=self.digital,batch_state='ready'),
+                   self.diskver_order:dict(account='oz_acc2',batch_id=self.diskver,batch_state='ready'),
+                   self.mixed_order:dict(account='oz_acc2',batch_id=self.mixed,batch_state='ready')}
 
         class Queue:
+            def order(self, oid):
+                if oid not in order_map:raise PrintBlocked('print_order_missing')
+                return order_map[oid]
+
             def batch(self, bid):
                 if bid not in batches: raise PrintBlocked('print_batch_missing')
                 return batches[bid]
@@ -50,6 +58,13 @@ class PrintAccessTests(unittest.TestCase):
             def request_sync(self):
                 calls.append(('sync',))
                 return 'sync-id'
+
+            def request_order(self,oid,key):
+                calls.append(('order',oid));return dict(id='cached',state='ready',count=1)
+
+            def order_files(self,oid):
+                calls.append(('order_files',oid))
+                return self.queue.ready_files(order_map[oid]['batch_id'])
 
         self.service=Service()
         self.service.data=dict(day='2026-11-05',demo=False,installed=True,worker_healthy=True,
@@ -125,3 +140,14 @@ class PrintAccessTests(unittest.TestCase):
     def test_diskver_user_can_request_synchronization(self):
         self.assertEqual(self.client.post('/api/print/sync').status_code,200)
         self.assertEqual(self.calls,[('sync',)])
+
+    def test_individual_order_routes_enforce_organization_and_all_batch_members(self):
+        for oid in (self.digital_order,self.mixed_order,str(uuid4())):
+            self.assertEqual(self.client.post(f'/api/print/orders/{oid}/pair',json={'request_key':str(uuid4())}).status_code,404)
+            self.assertEqual(self.client.get(f'/api/print/orders/{oid}/files/receipts').status_code,404)
+        self.assertEqual(self.calls,[])
+        self.assertEqual(self.client.post(f'/api/print/orders/{self.diskver_order}/pair',json={'request_key':str(uuid4())}).status_code,200)
+        for kind in ('receipts','labels'):
+            response=self.client.get(f'/api/print/orders/{self.diskver_order}/files/{kind}')
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.content,b'diskver-document')

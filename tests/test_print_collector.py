@@ -49,6 +49,14 @@ class CollectorTests(unittest.TestCase):
     def test_partial_changed_snapshot_is_rejected(self):
         with self.assertRaises(PrintBlocked):Collector(SavedMS(changed=True)).collect(now=NOW)
 
+    def test_print_flags_come_from_order_and_expanded_linked_demand(self):
+        source=SavedMS();raw=next(iter(source.orders.values()))[0]
+        raw['printed']=False;raw['demands'][0]['printed']=True
+        rows=Collector(source).collect(now=NOW);row=next(r for r in rows if r['raw']['id']==raw['id'])
+        self.assertFalse(row['display']['ms_order_printed'])
+        self.assertTrue(row['display']['ms_demand_printed'])
+        self.assertTrue(all('demands' in params['expand'].split(',') for path,params in source.calls if path=='/entity/customerorder'))
+
     def test_bounded_parallel_ozon_reads_keep_all_rows_and_individual_errors(self):
         source=SavedMS();agent=next(k for k,v in AGENTS.items() if v=='ozon')
         for org in source.orders:

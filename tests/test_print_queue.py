@@ -203,6 +203,75 @@ class PrintQueueTests(unittest.TestCase):
         with self.assertRaises(PrintBlocked):
             self.queue.reserve_counter(self.counter,request_key='duplicate',now=NOW,order_ids=chosen)
 
+    def test_ms_printed_orders_are_tagged_excluded_and_individually_printable(self):
+        self.rows[0]['display']={'ms_demand_printed':True,'ms_order_printed':False}
+        self.rows[1]['display']={'ms_demand_printed':False}
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        view=self.queue.view(now=NOW)
+        self.assertEqual(view['counters'][self.counter]['count'],1)
+        self.assertEqual(view['counters'][self.counter]['ms_printed'],1)
+        tagged=next(r for r in view['rows'] if str(r['id'])==self.rows[0]['raw']['id'])
+        self.assertTrue(tagged['ms_printed']);self.assertFalse(tagged['printed'])
+        bulk=self.reserve('bulk');self.assertEqual(len(bulk['orders']),1)
+        self.assertEqual(bulk['orders'][0]['ms_order_id'],self.rows[1]['raw']['id'])
+        pair=self.prepare(bulk);self.queue.publish_pair(bulk['id'],generation=1,pair_dir=pair)
+        individual=self.queue.reserve_counter(self.counter,request_key='one',now=NOW,order_ids=[self.rows[0]['raw']['id']])
+        self.assertEqual(len(individual['orders']),1)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
+
+    def test_ms_flag_set_during_build_does_not_remove_unpublished_bulk_orders(self):
+        batch=self.reserve()
+        for row in self.rows:row['display']={'ms_demand_printed':True}
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],2)
+        pair=self.prepare(batch);self.queue.publish_pair(batch['id'],generation=1,pair_dir=pair)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
+
+    def test_single_order_pair_and_cached_download_never_repeat_provider_requests(self):
+        from fastapi.testclient import TestClient
+        from print_service.service import PrintService
+        from web.print_app import create_app
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        self.queue.heartbeat(NOW)
+        oid=self.rows[0]['raw']['id']
+        with TestClient(create_app(lambda:service),headers={'X-Pult-User':'print'}) as client:
+            response=client.post(f'/api/print/orders/{oid}/pair',json={'request_key':str(uuid4())})
+            self.assertEqual(response.status_code,200)
+            batch=self.queue.batch(response.json()['id'])
+            self.assertEqual([m['ms_order_id'] for m in batch['orders']],[oid])
+            pair=self.prepare(batch);self.queue.publish_pair(batch['id'],generation=1,pair_dir=pair)
+            for kind in ('receipts','labels'):
+                url=f'/api/print/orders/{oid}/files/{kind}'
+                first=client.get(url);again=client.get(url)
+                self.assertEqual(first.status_code,200);self.assertEqual(first.content,again.content)
+                from io import BytesIO
+                from pypdf import PdfReader
+                self.assertEqual(len(PdfReader(BytesIO(first.content)).pages),1)
+            result=client.post(f'/api/print/orders/{oid}/pair',json={'request_key':str(uuid4())})
+            self.assertEqual(result.json()['state'],'ready')
+            self.assertEqual(len(self.queue.view(now=NOW)['ready_batches']),1)
+            self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],1)
+
+    def test_individual_reprint_from_a_group_does_not_create_another_batch(self):
+        from print_service.service import PrintService
+        from io import BytesIO
+        from pypdf import PdfReader
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        group=self.reserve();pair=self.prepare(group)
+        self.queue.publish_pair(group['id'],generation=1,pair_dir=pair)
+        service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        oid=self.rows[1]['raw']['id']
+        result=service.request_order(oid,str(uuid4()))
+        self.assertEqual(result['state'],'ready')
+        files=service.order_files(oid)
+        self.assertEqual(len(PdfReader(files['receipts']).pages),1)
+        self.assertEqual(len(PdfReader(files['labels']).pages),1)
+        self.assertEqual(len(self.queue.view(now=NOW)['ready_batches']),1)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
+
     def test_unavailable_selected_order_does_not_reserve_the_remaining_order(self):
         with self.assertRaises(PrintBlocked):
             self.queue.reserve_counter(self.counter,request_key='missing',now=NOW,

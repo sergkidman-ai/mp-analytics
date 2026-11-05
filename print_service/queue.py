@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 from psycopg2 import sql
 from psycopg2.extras import Json, RealDictCursor
 
-from print_service.domain import ACCOUNTS, MOSCOW, PrintBlocked, selected_order
+from print_service.domain import ACCOUNTS, MOSCOW, MS_PRINTED_SOURCE, PrintBlocked, selected_order
 from print_service.pdf import pdf_reader
 
 
@@ -118,6 +118,15 @@ class PrintQueue:
         with self.transaction() as cursor:
             return self._batch(cursor, batch_id)
 
+    def order(self, order_id):
+        with self.transaction() as cursor:
+            cursor.execute('''SELECT o.*,c.batch_id,b.state AS batch_state FROM orders o
+                LEFT JOIN claims c ON c.order_id=o.id LEFT JOIN batches b ON b.id=c.batch_id
+                WHERE o.id=%s''', (str(UUID(str(order_id))),))
+            result = cursor.fetchone()
+            if result is None: raise PrintBlocked('print_order_missing')
+            return dict(result)
+
     def reserve_counter(self, counter_key, *, request_key, now, order_ids=None):
         day = moscow_day(now)
         selected = None if order_ids is None else [str(UUID(str(value))) for value in order_ids]
@@ -150,7 +159,9 @@ class PrintQueue:
                     WHERE o.snapshot_id=%s AND s.day=%s AND o.counter_key=%s
                     AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id=o.id)
                     AND (%s::uuid[] IS NULL OR o.id=ANY(%s::uuid[]))
-                    ORDER BY o.external_id,o.id FOR UPDATE OF o''', (snapshot, day, counter_key, selected, selected))
+                    AND (%s OR o.display->>%s IS DISTINCT FROM 'true')
+                    ORDER BY o.external_id,o.id FOR UPDATE OF o''', (snapshot, day, counter_key, selected, selected,
+                                                                  selected is not None, MS_PRINTED_SOURCE))
                 orders = cursor.fetchall()
                 if selected is not None and len(orders) != len(selected):
                     raise PrintBlocked('selected_orders_changed')
@@ -159,8 +170,10 @@ class PrintQueue:
                 if any(o['source_error'] or not o['demand_id'] for o in orders):
                     raise PrintBlocked('counter_has_blocked_orders')
                 bid = str(uuid4())
+                display = dict(orders[0]['display'], ms_printed_at_selection={
+                    str(o['id']): o['display'].get(MS_PRINTED_SOURCE) is True for o in orders})
                 cursor.execute("INSERT INTO batches(id,counter_key,day,state,display) VALUES (%s,%s,%s,'building',%s)",
-                               (bid, counter_key, day, Json(orders[0]['display'])))
+                               (bid, counter_key, day, Json(display)))
                 for ordinal, order in enumerate(orders):
                     identity = dict(account=order['account'], external_id=order['external_id'],
                                     ms_order_id=str(order['id']), ms_demand_id=str(order['demand_id']))
@@ -287,7 +300,7 @@ class PrintQueue:
     def view(self, *, now):
         day = moscow_day(now)
         with self.transaction() as cursor:
-            cursor.execute('''SELECT o.*,b.state AS batch_state,c.batch_id,a.receipt_path,a.receipt_sha,
+            cursor.execute('''SELECT o.*,b.state AS batch_state,c.batch_id,b.display AS reservation_display,a.receipt_path,a.receipt_sha,
                 a.label_path,a.label_sha,a.demand_id AS artifact_demand_id
                 FROM current_snapshot v JOIN snapshots s ON s.id=v.snapshot_id
                 JOIN orders o ON o.snapshot_id=s.id LEFT JOIN claims c ON c.order_id=o.id
@@ -312,7 +325,10 @@ class PrintQueue:
             worker = cursor.fetchone()
         counters = {}
         for row in rows:
+            reservation = row.pop('reservation_display') or {}
             row['printed'] = row['batch_state'] == 'ready'
+            row['ms_printed'] = row['display'].get(MS_PRINTED_SOURCE) is True
+            row['ms_printed_source'] = MS_PRINTED_SOURCE
             row['color'] = 'green' if row['printed'] else 'red'
             for kind in ('receipt', 'label'):
                 try:
@@ -322,10 +338,13 @@ class PrintQueue:
                     row[kind + '_ready'] = True
                 except PrintBlocked:
                     row[kind + '_ready'] = False
-            counter = counters.setdefault(row['counter_key'], dict(count=0, building=False, blocked=0))
-            if not row['printed']:
+            counter = counters.setdefault(row['counter_key'], dict(count=0, building=False, blocked=0, ms_printed=0))
+            counter['building'] |= row['batch_state'] == 'building'
+            counter['ms_printed'] += row['ms_printed']
+            was_ms_printed = reservation.get('ms_printed_at_selection', {}).get(str(row['id']), row['ms_printed'])
+            in_flight_new = row['batch_state'] == 'building' and not was_ms_printed
+            if not row['printed'] and (not row['ms_printed'] or in_flight_new):
                 counter['count'] += 1
-                counter['building'] |= row['batch_state'] == 'building'
                 counter['blocked'] += bool(row['source_error'])
         return dict(rows=rows, counters=counters, ready_batches=ready,
                     jobs=jobs, last_sync=snapshot['started_at'], snapshot_day=snapshot['day'], sync=dict(sync) if sync else None,

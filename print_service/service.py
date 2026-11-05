@@ -12,12 +12,15 @@ from print_service.clients import PrintClients
 from print_service.collector import Collector
 from print_service.domain import MOSCOW, PrintBlocked
 from print_service.preparer import Preparer
+from print_service.pdf import extract_order_pair
 from print_service.queue import PrintQueue
 from print_service.storage import save_json
 
 
 ERRORS = {
-    'counter_empty': 'Заказы этого счётчика уже включены в готовые файлы. Обновите страницу.',
+    'counter_already_reserved': 'Для этого счётчика уже формируются файлы. Дождитесь завершения.',
+    'selected_orders_changed': 'Этот заказ уже включён в файлы или больше не входит в текущий список. Обновите страницу.',
+    'counter_empty': 'В счётчике нет новых заказов. Отмеченные в МС заказы доступны для отдельной печати в строках списка.',
     'counter_has_blocked_orders': 'У части заказов нет необходимых данных. Проверьте красные строки ниже.',
     'sample_requires_previously_printed_demand': 'Тестовый режим: новая выгрузка этого чека из МС пока отключена.',
     'pair_not_ready': 'Оба файла ещё не готовы.',
@@ -93,6 +96,24 @@ class PrintService:
     def request_counter(self, counter, key):
         self.require_worker()
         return self.queue.reserve_counter(counter, request_key=key, now=self.clock())
+
+    def request_order(self, order_id, key):
+        order = self.queue.order(order_id)
+        if order['batch_state'] == 'ready':
+            self.order_files(order_id)
+            return dict(id=order['batch_id'], state='ready', count=1)
+        self.require_worker()
+        batch = self.queue.reserve_counter(order['counter_key'], request_key=key,
+                                           now=self.clock(), order_ids=[str(order_id)])
+        return dict(id=batch['id'], state=batch['state'], count=1)
+
+    def order_files(self, order_id):
+        order = self.queue.order(order_id)
+        if order['batch_state'] != 'ready': raise PrintBlocked('pair_not_ready')
+        self.queue.ready_files(str(order['batch_id']))
+        batch = self.queue.batch(str(order['batch_id']))
+        path = extract_order_pair(batch['pair_dir'], str(order_id), output_root=self.root / 'individual_pairs')
+        return dict(receipts=path / 'receipts.pdf', labels=path / 'labels.pdf')
 
     def _record_error(self, exc, task_id):
         save_json(self.root / 'errors' / (uuid4().hex + '.json'),

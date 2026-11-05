@@ -122,3 +122,49 @@ def build_pair(orders, *, shipment_date: date, output_root):
             if temporary.exists():
                 shutil.rmtree(temporary)
         return target
+
+
+def extract_order_pair(pair_dir, order_id, *, output_root):
+    """Extract one frozen order from published PDFs, without provider calls.
+
+    Page ranges come from the checked group manifest. Source order files are
+    not needed; all page geometry and encoded content are retained verbatim.
+    """
+    pair_dir, root = Path(pair_dir), Path(output_root)
+    manifest = json.loads((pair_dir / 'manifest.json').read_text())
+    matches = [row for row in manifest['orders'] if row['ms_order_id'] == order_id]
+    if len(matches) != 1: raise PrintBlocked('single_order_not_in_pair')
+    selected = matches[0]
+    plan = dict(profile='single_order_from_published_v1', order=selected,
+                source_sha256=manifest['output_sha256'])
+    key = sha256(json.dumps(plan, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with directory_lock(root):
+        target = root / key
+        if target.exists():
+            cached = json.loads((target / 'manifest.json').read_text())
+            for name, digest in cached['output_sha256'].items():
+                if sha256((target / name).read_bytes()).hexdigest() != digest:
+                    raise PrintBlocked('cached_pdf_checksum_mismatch')
+            return target
+        temporary = Path(tempfile.mkdtemp(prefix='.building-', dir=root))
+        try:
+            plan['output_sha256'] = {}
+            for name, field in (('receipts.pdf', 'receipt_pages'), ('labels.pdf', 'label_pages')):
+                data = (pair_dir / name).read_bytes()
+                if sha256(data).hexdigest() != manifest['output_sha256'][name]:
+                    raise PrintBlocked('published_file_checksum_mismatch')
+                reader, writer = pdf_reader(data), PdfWriter()
+                start, end = selected[field]
+                if type(start) is not int or type(end) is not int or not 1 <= start <= end <= len(reader.pages):
+                    raise PrintBlocked('single_order_page_range_invalid')
+                for index in range(start - 1, end): writer.add_page(reader.pages[index])
+                path = temporary / name
+                writer.write(str(path)); path.chmod(0o600)
+                plan['output_sha256'][name] = sha256(path.read_bytes()).hexdigest()
+            path = temporary / 'manifest.json'
+            path.write_text(json.dumps(plan, ensure_ascii=False, indent=2) + '\n'); path.chmod(0o600)
+            temporary.rename(target)
+        finally:
+            if temporary.exists(): shutil.rmtree(temporary)
+        return target
