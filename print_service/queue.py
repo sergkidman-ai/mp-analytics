@@ -180,6 +180,56 @@ class PrintQueue:
             cursor.execute('INSERT INTO requests VALUES (%s,%s)', (request_key, bid))
             return self._batch(cursor, bid)
 
+    def reserve_orders(self, order_ids, *, account, request_key, now, title):
+        """Freeze an explicitly requested file/list across one account's counters."""
+        selected = [str(UUID(str(oid))) for oid in order_ids]
+        if not selected or len(set(selected)) != len(selected) or account not in ACCOUNTS:
+            raise ValueError('invalid_print_selection')
+        if not isinstance(request_key, str) or not request_key or len(request_key) > 100:
+            raise ValueError('print_request_key_required')
+        if not isinstance(title, str) or not title.strip() or len(title) > 160:
+            raise ValueError('print_selection_title_required')
+        day = moscow_day(now)
+        key = account + '|selection|' + sha256(json.dumps(sorted(selected)).encode()).hexdigest()
+        with self.transaction() as cursor:
+            cursor.execute('SELECT snapshot_id FROM current_snapshot FOR UPDATE')
+            snapshot = cursor.fetchone()['snapshot_id']
+            cursor.execute('SELECT batch_id FROM requests WHERE request_key=%s', (request_key,))
+            previous = cursor.fetchone()
+            if previous:
+                result = self._batch(cursor, previous['batch_id'])
+                if result['counter_key'] != key or set(result['display'].get('requested_order_ids', [])) != set(selected):
+                    raise PrintBlocked('request_key_reused_for_other_orders')
+                return result
+            cursor.execute('''SELECT o.* FROM orders o JOIN snapshots s ON s.id=o.snapshot_id
+                WHERE o.snapshot_id=%s AND s.day=%s AND o.id=ANY(%s::uuid[])
+                ORDER BY array_position(%s::uuid[],o.id) FOR UPDATE OF o''', (snapshot, day, selected, selected))
+            orders = cursor.fetchall()
+            if len(orders) != len(selected) or any(o['account'] != account for o in orders):
+                raise PrintBlocked('selected_orders_changed')
+            cursor.execute('SELECT 1 FROM claims WHERE order_id=ANY(%s::uuid[]) LIMIT 1', (selected,))
+            if cursor.fetchone(): raise PrintBlocked('selected_orders_changed')
+            cursor.execute("SELECT 1 FROM batches WHERE state='building' AND day=%s AND counter_key=ANY(%s) LIMIT 1",
+                           (day, list({o['counter_key'] for o in orders} | {key})))
+            if cursor.fetchone(): raise PrintBlocked('counter_already_reserved')
+            display = dict(orders[0]['display'])
+            display.update(direction=title, direction_id='selection', color=None,
+                           requested_order_ids=selected,
+                           blocked_orders={str(o['id']): o['source_error'] or 'linked_demand_missing'
+                                           for o in orders if o['source_error'] or not o['demand_id']})
+            if len({o['display'].get('store_id') for o in orders}) > 1:
+                display.update(store='Несколько складов МС', store_id='selection')
+            bid = str(uuid4())
+            cursor.execute("INSERT INTO batches(id,counter_key,day,state,display) VALUES (%s,%s,%s,'building',%s)",
+                           (bid, key, day, Json(display)))
+            for ordinal, order in enumerate(orders):
+                identity = dict(account=account, external_id=order['external_id'], ms_order_id=str(order['id']),
+                                ms_demand_id=str(order['demand_id']) if order['demand_id'] else None)
+                cursor.execute('INSERT INTO members VALUES (%s,%s,%s,%s)', (bid, order['id'], ordinal, Json(identity)))
+                cursor.execute('INSERT INTO claims VALUES (%s,%s)', (order['id'], bid))
+            cursor.execute('INSERT INTO requests VALUES (%s,%s)', (request_key, bid))
+            return self._batch(cursor, bid)
+
     def label_candidates(self, *, now):
         with self.transaction() as cursor:
             cursor.execute('''SELECT o.*,a.label_path,a.label_sha,a.demand_id AS artifact_demand_id

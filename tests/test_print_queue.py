@@ -365,6 +365,33 @@ class PrintQueueTests(unittest.TestCase):
         self.assertEqual(sum(bool(r['preparation_error']) for r in status['rows']),35)
         self.assertEqual(status['counters'][self.counter]['count'],35)
 
+    def test_explicit_file_selection_combines_counters_preserves_file_order_and_is_idempotent(self):
+        self.rows[1]['counter_key']='oz_acc1|other|store'
+        self.rows.append(order('100-0003-1',counter='oz_acc1|third|store'))
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        selected=[self.rows[i]['raw']['id'] for i in (2,0,1)]
+        batch=self.queue.reserve_orders(selected,account='oz_acc1',request_key='file',now=NOW,title='Ozon из файла')
+        self.assertEqual([m['ms_order_id'] for m in batch['orders']],selected)
+        pair=self.prepare(batch);self.queue.publish_pair(batch['id'],generation=1,pair_dir=pair)
+        view=self.queue.view(now=NOW)
+        self.assertEqual(sum(c['count'] for c in view['counters'].values()),0)
+        self.assertEqual(len(view['ready_batches']),1)
+        repeated=self.queue.reserve_orders(selected,account='oz_acc1',request_key='file',now=NOW,title='Ozon из файла')
+        self.assertEqual(str(repeated['id']),str(batch['id']))
+        with self.assertRaises(PrintBlocked):
+            self.queue.reserve_orders(selected,account='oz_acc1',request_key='again',now=NOW,title='Ozon из файла')
+
+    def test_file_selection_rejects_foreign_missing_or_claimed_members_atomically(self):
+        ids=[r['raw']['id'] for r in self.rows]
+        for account,selected in (('oz_acc2',ids),('oz_acc1',ids+[str(uuid4())])):
+            with self.assertRaises(PrintBlocked):
+                self.queue.reserve_orders(selected,account=account,request_key=str(uuid4()),now=NOW,title='Выборка')
+        batch=self.queue.reserve_counter(self.counter,request_key='one',now=NOW,order_ids=ids[:1])
+        with self.assertRaises(PrintBlocked):
+            self.queue.reserve_orders(ids,account='oz_acc1',request_key='file',now=NOW,title='Выборка')
+        self.assertEqual(len(self.queue.batch(batch['id'])['orders']),1)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],2)
+
     def test_partial_selection_survives_worker_recovery_and_rejects_stale_generation(self):
         from unittest.mock import patch
         from print_service.preparer import Preparer
