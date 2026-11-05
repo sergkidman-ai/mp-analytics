@@ -118,8 +118,11 @@ class PrintQueue:
         with self.transaction() as cursor:
             return self._batch(cursor, batch_id)
 
-    def reserve_counter(self, counter_key, *, request_key, now):
+    def reserve_counter(self, counter_key, *, request_key, now, order_ids=None):
         day = moscow_day(now)
+        selected = None if order_ids is None else [str(UUID(str(value))) for value in order_ids]
+        if selected is not None and (not selected or len(selected) != len(set(selected))):
+            raise ValueError('selected_order_ids_invalid')
         if not isinstance(request_key, str) or not request_key or len(request_key) > 100:
             raise ValueError('print_request_key_required')
         with self.transaction() as cursor:
@@ -131,17 +134,26 @@ class PrintQueue:
                 result = self._batch(cursor, previous['batch_id'])
                 if result['counter_key'] != counter_key:
                     raise PrintBlocked('request_key_reused_for_other_counter')
+                if selected is not None and {m['ms_order_id'] for m in result['orders']} != set(selected):
+                    raise PrintBlocked('request_key_reused_for_other_orders')
                 return result
             cursor.execute("SELECT id FROM batches WHERE counter_key=%s AND day=%s AND state='building'", (counter_key, day))
             active = cursor.fetchone()
             if active:
                 bid = str(active['id'])
+                if selected is not None:
+                    active_batch = self._batch(cursor, bid)
+                    if {m['ms_order_id'] for m in active_batch['orders']} != set(selected):
+                        raise PrintBlocked('counter_already_reserved')
             else:
                 cursor.execute('''SELECT o.* FROM orders o JOIN snapshots s ON s.id=o.snapshot_id
                     WHERE o.snapshot_id=%s AND s.day=%s AND o.counter_key=%s
                     AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id=o.id)
-                    ORDER BY o.external_id,o.id FOR UPDATE OF o''', (snapshot, day, counter_key))
+                    AND (%s::uuid[] IS NULL OR o.id=ANY(%s::uuid[]))
+                    ORDER BY o.external_id,o.id FOR UPDATE OF o''', (snapshot, day, counter_key, selected, selected))
                 orders = cursor.fetchall()
+                if selected is not None and len(orders) != len(selected):
+                    raise PrintBlocked('selected_orders_changed')
                 if not orders:
                     raise PrintBlocked('counter_empty')
                 if any(o['source_error'] or not o['demand_id'] for o in orders):

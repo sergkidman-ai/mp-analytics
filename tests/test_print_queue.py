@@ -185,6 +185,33 @@ class PrintQueueTests(unittest.TestCase):
         self.queue.publish_pair(retry['id'], generation=1, pair_dir=pair)
         self.assertEqual(len(self.queue.view(now=NOW)['ready_batches']), 1)
 
+    def test_explicit_ready_subset_leaves_other_orders_in_counter(self):
+        self.rows.append(order('100-0003-1'))
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        chosen=[self.rows[0]['raw']['id'],self.rows[2]['raw']['id']]
+        batch=self.queue.reserve_counter(self.counter,request_key='selected',now=NOW,order_ids=chosen)
+        self.assertEqual({m['ms_order_id'] for m in batch['orders']},set(chosen))
+        repeated=self.queue.reserve_counter(self.counter,request_key='selected',now=NOW,order_ids=list(reversed(chosen)))
+        self.assertEqual(batch['id'],repeated['id'])
+        with self.assertRaises(PrintBlocked):
+            self.queue.reserve_counter(self.counter,request_key='selected',now=NOW,order_ids=[self.rows[1]['raw']['id']])
+        pair=self.prepare(batch)
+        self.queue.publish_pair(batch['id'],generation=1,pair_dir=pair)
+        view=self.queue.view(now=NOW)
+        self.assertEqual(sum(r['printed'] for r in view['rows']),2)
+        self.assertEqual(view['counters'][self.counter]['count'],1)
+        with self.assertRaises(PrintBlocked):
+            self.queue.reserve_counter(self.counter,request_key='duplicate',now=NOW,order_ids=chosen)
+
+    def test_unavailable_selected_order_does_not_reserve_the_remaining_order(self):
+        with self.assertRaises(PrintBlocked):
+            self.queue.reserve_counter(self.counter,request_key='missing',now=NOW,
+                order_ids=[self.rows[0]['raw']['id'],str(uuid4())])
+        with self.queue.transaction() as cursor:
+            cursor.execute('SELECT count(*) AS count FROM claims')
+            self.assertEqual(cursor.fetchone()['count'],0)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],2)
+
     def test_retry_failed_batch_keeps_frozen_members_and_new_arrivals_queued(self):
         batch=self.reserve()
         self.queue.fail_batch(batch['id'],generation=1,error='order_changed_since_counter_click')
