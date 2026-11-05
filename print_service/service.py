@@ -50,6 +50,15 @@ def error_message(error):
     return 'Не удалось подготовить все файлы. Заказы остаются в очереди; уже полученные документы сохранены.'
 
 
+class OrderTrackingPreparer(Preparer):
+    def _one(self, member, day):
+        try:
+            return super()._one(member, day)
+        except Exception as exc:
+            exc.print_order_id = member['ms_order_id']
+            raise
+
+
 class PrintService:
     def __init__(self, *, queue=None, clients=None, root=None, clock=None, allow_unprinted=None, demo=False):
         load_dotenv(Path(__file__).resolve().parents[1] / '.env')
@@ -59,7 +68,7 @@ class PrintService:
         self.clients = clients or PrintClients(audit_root=self.root / 'raw')
         self.collector = Collector(self.clients)
         if allow_unprinted is None: allow_unprinted = os.getenv('PRINT_EXPORT_UNPRINTED', '0') == '1'
-        self.preparer = Preparer(self.queue, self.clients, root=self.root, allow_unprinted=allow_unprinted)
+        self.preparer = OrderTrackingPreparer(self.queue, self.clients, root=self.root, allow_unprinted=allow_unprinted)
         self.labels = LabelPrefetcher(self.queue, self.clients, root=self.root)
         self.demo = demo
 
@@ -152,7 +161,8 @@ class PrintService:
             self.clients.lease_check()
             try:
                 self.queue.fail_batch(batch['id'], generation=batch['generation'],
-                                      error=str(exc) if isinstance(exc, PrintBlocked) else 'prepare_internal_error')
+                                      error=str(exc) if isinstance(exc, PrintBlocked) else 'prepare_internal_error',
+                                      order_id=getattr(exc, 'print_order_id', None))
             except PrintBlocked:
                 pass  # A newer worker or an already published pair owns the result.
 

@@ -151,3 +151,13 @@ class PrintAccessTests(unittest.TestCase):
             response=self.client.get(f'/api/print/orders/{self.diskver_order}/files/{kind}')
             self.assertEqual(response.status_code,200)
             self.assertEqual(response.content,b'diskver-document')
+
+    def test_error_order_numbers_cannot_expose_another_organization(self):
+        from print_service.access import access_for_user
+        data={'jobs':[dict(id='mixed',counter_key='oz_acc2|x|y',state='failed',orders=[
+            dict(account='oz_acc1',external_id='digital-secret'),dict(account='oz_acc2',external_id='diskver-order')])],
+            'rows':[],'ready_batches':[],'counters':{}}
+        scoped=access_for_user('tolkachev').status(data)
+        self.assertEqual([o['external_id'] for o in scoped['jobs'][0]['orders']],['diskver-order'])
+        data['jobs'][0]['orders']=data['jobs'][0]['orders'][:1]
+        self.assertEqual(access_for_user('tolkachev').status(data)['jobs'],[])

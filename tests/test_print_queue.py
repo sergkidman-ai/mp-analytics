@@ -244,6 +244,49 @@ class PrintQueueTests(unittest.TestCase):
         self.assertFalse(self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW))
         self.assertEqual(len(self.queue.view(now=NOW)['ready_batches']),1)
 
+    def test_failed_jobs_hide_ms_printed_ready_and_out_of_scope_orders(self):
+        failed=self.reserve('failed')
+        self.queue.fail_batch(failed['id'],generation=1,error='order_changed_since_counter_click')
+        jobs=self.queue.view(now=NOW)['jobs']
+        self.assertEqual({o['external_id'] for o in jobs[0]['orders']},{r['raw']['name'] for r in self.rows})
+        self.rows[0]['display']={'ms_demand_printed':True}
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        jobs=self.queue.view(now=NOW)['jobs']
+        self.assertEqual([o['external_id'] for o in jobs[0]['orders']],[self.rows[1]['raw']['name']])
+        done=self.reserve('done');pair=self.prepare(done)
+        self.queue.publish_pair(done['id'],generation=1,pair_dir=pair)
+        self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
+        self.queue.sync_snapshot([],started_at=NOW+timedelta(seconds=2),complete=True)
+        self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
+
+    def test_preparation_records_the_failing_order_and_hides_its_resolved_error(self):
+        from unittest.mock import patch
+        from print_service.preparer import Preparer
+        from print_service.service import PrintService
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        batch=self.reserve()
+        service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        with patch.object(Preparer,'_one',side_effect=[object(),PrintBlocked('order_changed_since_counter_click')]):
+            service.run_batch(batch)
+        failed_id=batch['orders'][1]['ms_order_id']
+        failed=self.queue.batch(batch['id'])
+        self.assertEqual(failed['display']['error_order_id'],failed_id)
+        job=self.queue.view(now=NOW)['jobs'][0]
+        self.assertEqual([o['ms_order_id'] for o in job['orders']],[failed_id])
+        for row in self.rows:
+            if row['raw']['id']==failed_id:row['display']={'ms_demand_printed':True}
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],1)
+
+    def test_repeated_failed_jobs_only_show_latest_error_per_order(self):
+        old=self.reserve('old');self.queue.fail_batch(old['id'],generation=1,error='old')
+        latest=self.reserve('latest');self.queue.fail_batch(latest['id'],generation=1,error='latest')
+        jobs=self.queue.view(now=NOW)['jobs']
+        self.assertEqual([str(j['id']) for j in jobs],[str(latest['id'])])
+        self.assertEqual(jobs[0]['error'],'latest')
+
     def test_ms_flag_set_during_build_does_not_remove_unpublished_bulk_orders(self):
         batch=self.reserve()
         for row in self.rows:row['display']={'ms_demand_printed':True}

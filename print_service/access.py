@@ -42,7 +42,14 @@ class PrintAccess:
         result['rows'] = [row for row in source.get('rows', []) if self.allows(row.get('account'))]
         result['counters'] = {key: value for key, value in source.get('counters', {}).items() if self.allows_counter(key)}
         result['ready_batches'] = [batch for batch in source.get('ready_batches', []) if self.allows_counter(batch.get('counter_key'))]
-        result['jobs'] = [job for job in source.get('jobs', []) if self.allows_counter(job.get('counter_key'))]
+        result['jobs'] = []
+        for job in source.get('jobs', []):
+            if not self.allows_counter(job.get('counter_key')): continue
+            scoped = dict(job)
+            if 'orders' in job:
+                scoped['orders'] = [order for order in job['orders'] if self.allows(order.get('account'))]
+                if job['state'] == 'failed' and not scoped['orders']: continue
+            result['jobs'].append(scoped)
         sync = source.get('sync')
         result['sync'] = None if sync is None else {key: sync[key] for key in
             ('id', 'state', 'created_at', 'started_at', 'finished_at', 'error', 'error_message') if key in sync}

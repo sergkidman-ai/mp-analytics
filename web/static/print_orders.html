@@ -85,11 +85,16 @@ function renderCounters(){
  $('counters').innerHTML=html;
  for(const b of $('counters').querySelectorAll('button[data-counter]'))b.addEventListener('click',()=>prepare(b.dataset.counter));
 }
+function failedJob(job){
+ const numbers=[...new Set((job.orders||[]).map(order=>order.external_id).filter(Boolean))];
+ const orderText=numbers.length?`${numbers.length===1?'Заказ':'Заказы'}: ${numbers.map(esc).join(', ')}. `:'';
+ return `<div class="job failed">${orderText}${esc(job.error_message)} <span class="muted">${when(job.created_at)}</span></div>`;
+}
 function renderFiles(){
  $('ready-columns').innerHTML=ORGANIZATIONS.map(org=>{
   const batches=forOrganization(model.ready_batches,org),jobs=forOrganization(model.jobs,org);
   const active=jobs.filter(j=>j.state==='building'),failed=jobs.filter(j=>j.state==='failed').slice(0,3);
-  const progress=[...active.map(j=>'<div class="job">Подготавливаем ТЧ и ЭТ…</div>'),...failed.map(j=>`<div class="job failed">${esc(j.error_message)} <span class="muted">${when(j.created_at)}</span></div>`)].join('');
+  const progress=[...active.map(j=>'<div class="job">Подготавливаем ТЧ и ЭТ…</div>'),...failed.map(failedJob)].join('');
   const files=batches.map(b=>`<div class="ready-row"><div><div class="ready-title">${esc([b.display.direction,b.display.store].filter(Boolean).join(' · '))}</div><div class="muted">${when(b.published_at)} · Заказов: ${esc(b.order_count)}</div></div><div class="actions"><a class="file-link" target="_blank" rel="noopener" href="/api/print/batches/${encodeURIComponent(b.id)}/files/receipts">ТЧ · PDF</a><a class="file-link" target="_blank" rel="noopener" href="/api/print/batches/${encodeURIComponent(b.id)}/files/labels">ЭТ · PDF</a></div></div>`).join('');
   return `<section class="org-panel" id="ready-${org.id}"><div class="org org-heading"><span>${org.name}</span><span class="muted">Пар: ${batches.length}</span></div><div class="jobs">${progress}</div>${files?`<div class="ready-list">${files}</div>`:'<div class="empty">Готовых файлов пока нет</div>'}</section>`;
  }).join('');

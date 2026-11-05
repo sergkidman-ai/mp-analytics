@@ -285,7 +285,7 @@ class PrintQueue:
             cursor.execute("""UPDATE batches SET state='ready',pair_dir=%s,manifest=%s,published_at=now(),error=NULL
                 WHERE id=%s""", (path, Json(manifest), batch_id))
 
-    def fail_batch(self, batch_id, *, generation, error):
+    def fail_batch(self, batch_id, *, generation, error, order_id=None):
         with self.transaction() as cursor:
             cursor.execute('SELECT state,generation FROM batches WHERE id=%s FOR UPDATE', (batch_id,))
             batch = cursor.fetchone()
@@ -293,7 +293,14 @@ class PrintQueue:
                 raise PrintBlocked('stale_print_worker')
             # No ready list ever exposed these files. Keep per-order artifacts
             # for retry; release only the unpublished reservation.
-            cursor.execute("UPDATE batches SET state='failed',error=%s WHERE id=%s", (str(error)[:200], batch_id))
+            context = {}
+            if order_id is not None:
+                order_id = str(UUID(str(order_id)))
+                cursor.execute('SELECT 1 FROM members WHERE batch_id=%s AND order_id=%s', (batch_id, order_id))
+                if not cursor.fetchone(): raise PrintBlocked('error_order_not_in_batch')
+                context['error_order_id'] = order_id
+            cursor.execute("""UPDATE batches SET state='failed',error=%s,
+                display=(display-'error_order_id') || %s WHERE id=%s""", (str(error)[:200], Json(context), batch_id))
             cursor.execute('DELETE FROM claims WHERE batch_id=%s', (batch_id,))
 
     def recover_batch(self, batch_id, *, generation):
@@ -352,12 +359,30 @@ class PrintQueue:
             snapshot = cursor.fetchone()
             cursor.execute('SELECT * FROM sync_runs ORDER BY created_at DESC LIMIT 1')
             sync = cursor.fetchone()
-            cursor.execute("""SELECT b.id,b.counter_key,b.state,b.error,b.created_at FROM batches b
-                WHERE b.state='building' OR (b.state='failed' AND EXISTS (
-                    SELECT 1 FROM members m LEFT JOIN claims c ON c.order_id=m.order_id
-                    LEFT JOIN batches done ON done.id=c.batch_id WHERE m.batch_id=b.id
-                    AND done.state IS DISTINCT FROM 'ready')) ORDER BY b.created_at DESC LIMIT 30""")
+            cursor.execute("""SELECT b.id,b.counter_key,b.state,b.error,b.created_at,
+                COALESCE(problem.orders,'[]'::jsonb) AS orders FROM batches b
+                LEFT JOIN LATERAL (
+                    SELECT jsonb_agg(jsonb_build_object('ms_order_id',m.order_id::text,
+                        'external_id',m.identity->>'external_id','account',m.identity->>'account')
+                        ORDER BY m.ordinal) AS orders
+                    FROM members m JOIN orders o ON o.id=m.order_id
+                    JOIN current_snapshot v ON v.snapshot_id=o.snapshot_id
+                    JOIN snapshots s ON s.id=v.snapshot_id
+                    LEFT JOIN claims c ON c.order_id=o.id
+                    WHERE m.batch_id=b.id AND b.state='failed' AND b.day=%s AND s.day=%s
+                    AND c.batch_id IS NULL AND o.display->>%s IS DISTINCT FROM 'true'
+                    AND (b.display->>'error_order_id' IS NULL
+                        OR b.display->>'error_order_id'=m.order_id::text)
+                ) problem ON true
+                WHERE b.state='building' OR (b.state='failed' AND problem.orders IS NOT NULL)
+                ORDER BY b.created_at DESC,b.id DESC LIMIT 30""", (day, day, MS_PRINTED_SOURCE))
             jobs = [dict(r) for r in cursor.fetchall()]
+            seen = set()
+            for job in jobs:
+                if job['state'] == 'failed':
+                    job['orders'] = [order for order in job['orders'] if order['ms_order_id'] not in seen]
+                    seen.update(order['ms_order_id'] for order in job['orders'])
+            jobs = [job for job in jobs if job['state'] != 'failed' or job['orders']]
             cursor.execute('SELECT last_seen FROM worker_status WHERE singleton=true')
             worker = cursor.fetchone()
         counters = {}
