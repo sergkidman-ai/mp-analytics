@@ -94,10 +94,12 @@ function failedJob(job){
 function renderFiles(){
  $('ready-columns').innerHTML=ORGANIZATIONS.map(org=>{
   const batches=forOrganization(model.ready_batches,org),jobs=forOrganization(model.jobs,org);
+  const printed={ozon:0,wb:0};
+  for(const batch of batches){const account=batch.account||batch.counter_key?.split('|')[0]||'',count=Number(batch.order_count)||0;if(account.startsWith('oz_'))printed.ozon+=count;else if(account.startsWith('wb_'))printed.wb+=count}
   const active=jobs.filter(j=>j.state==='building'),failed=jobs.filter(j=>j.state==='failed').slice(0,3);
   const progress=[...active.map(j=>'<div class="job">Подготавливаем ТЧ и ЭТ…</div>'),...failed.map(failedJob)].join('');
   const files=batches.map(b=>`<div class="ready-row"><div><div class="ready-title">${esc([b.display.direction,b.display.store].filter(Boolean).join(' · '))}</div><div class="muted">${when(b.published_at)} · Заказов: ${esc(b.order_count)}${b.display.excluded_orders?.length?` · Не вошло: ${b.display.excluded_orders.length}`:''}</div></div><div class="actions"><a class="file-link" target="_blank" rel="noopener" href="/api/print/batches/${encodeURIComponent(b.id)}/files/receipts">ТЧ · PDF</a><a class="file-link" target="_blank" rel="noopener" href="/api/print/batches/${encodeURIComponent(b.id)}/files/labels">ЭТ · PDF</a></div></div>`).join('');
-  return `<section class="org-panel" id="ready-${org.id}"><div class="org org-heading"><span>${org.name}</span><span class="muted">Пар: ${batches.length}</span></div><div class="jobs">${progress}</div>${files?`<div class="ready-list">${files}</div>`:'<div class="empty">Готовых файлов пока нет</div>'}</section>`;
+  return `<section class="org-panel" id="ready-${org.id}"><div class="org org-heading"><span>${org.name}</span><span class="muted printed-summary">Напечатано: Ozon — ${printed.ozon} · WB — ${printed.wb}</span></div><div class="jobs">${progress}</div>${files?`<div class="ready-list">${files}</div>`:'<div class="empty">Готовых файлов пока нет</div>'}</section>`;
  }).join('');
 }
 function hasDemand(r){return Boolean(r.demand_id)&&!['linked_demand_missing','linked_demand_ambiguous'].includes(r.source_error)}
