@@ -8,10 +8,10 @@ from pypdf import PdfReader
 from pypdf.generic import ContentStream
 
 from print_service.domain import PrintBlocked
-from print_service.receipt import annotate_receipt
+from print_service.receipt import annotate_receipt, quantity_plan, word_pages
 
 
-def receipt(*, signature=True, barcode=True, narrow_barcode=False):
+def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quantity=False):
     pdf = FPDF(unit='pt', format=(612, 792))
     pdf.add_font('Print', fname='/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
     pdf.set_auto_page_break(False)
@@ -22,6 +22,7 @@ def receipt(*, signature=True, barcode=True, narrow_barcode=False):
     pdf.text(370, 170, 'Кол-во')
     pdf.text(80, 205, 'TEST-SKU')
     pdf.text(374, 205, '10')
+    if compact_quantity:pdf.text(388,205,'шт')
     if signature:
         pdf.text(410, 400, 'Простакова Н.Ю.')
     if barcode:
@@ -40,6 +41,24 @@ def receipt(*, signature=True, barcode=True, narrow_barcode=False):
 
 
 class PrintReceiptTests(unittest.TestCase):
+    def test_tight_quantity_column_uses_bold_without_frame_and_keeps_unit(self):
+        source=receipt(signature=False,barcode=False,compact_quantity=True)
+        words=word_pages(source)[0];word=next(w for w in words if w['text']=='10')
+        header=next(w for w in words if w['text']=='Кол-во')
+        self.assertFalse(quantity_plan(word,words,header['xMin']-4)['frame'])
+        result=annotate_receipt(source,quantities={'TEST-SKU':10});reader=PdfReader(BytesIO(result))
+        spans=[]
+        def visit(text,cm,tm,font,size):
+            if text.strip():spans.append((text.strip(),str((font or {}).get('/BaseFont','')),size))
+        text=reader.pages[0].extract_text(visitor_text=visit)
+        self.assertIn('шт',text);self.assertTrue(any(t=='10' and 'Bold' in f for t,f,s in spans))
+        self.assertFalse(any(op in (b'B',b'B*',b'S') for args,op in ContentStream(reader.pages[0].get_contents(),reader).operations))
+
+    def test_quantity_frame_is_kept_when_it_fits(self):
+        source=receipt(signature=False,barcode=False)
+        result=annotate_receipt(source,quantities={'TEST-SKU':10});reader=PdfReader(BytesIO(result))
+        self.assertTrue(any(op==b'B' for args,op in ContentStream(reader.pages[0].get_contents(),reader).operations))
+
     def test_short_wb_barcode_is_identified_by_bars_not_image_ratio(self):
         data = annotate_receipt(receipt(narrow_barcode=True), code='7654321', last_four='0789')
         text = PdfReader(BytesIO(data)).pages[0].extract_text()

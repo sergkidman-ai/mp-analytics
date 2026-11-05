@@ -19,6 +19,9 @@ class LabelPrefetcher:
     def candidates(self, now):
         result = []
         for row in self.queue.label_candidates(now=now):
+            if row.get('label_retry_needed'):
+                result.append(row)
+                continue
             try:
                 if row['artifact_demand_id'] != row['demand_id'] or not row['label_path']:
                     raise PrintBlocked('label_not_cached')
@@ -72,4 +75,6 @@ class LabelPrefetcher:
                 sticker = json.loads((label_dir / 'label_source.json').read_text())
                 if sticker.get('orderId') != int(number): raise PrintBlocked('wb_cached_label_identity_mismatch')
             self.clients.lease_check()
-            return self.queue.mark_prefetched_label(oid, demand_id=did, path=label, now=now)
+            marked = self.queue.mark_prefetched_label(oid, demand_id=did, path=label, now=now)
+            if marked: self.queue.resolve_label_errors(oid, demand_id=did, now=now)
+            return marked

@@ -19,6 +19,12 @@ from psycopg2.extras import Json, RealDictCursor
 from print_service.domain import ACCOUNTS, MOSCOW, PrintBlocked, selected_order
 from print_service.pdf import pdf_reader
 
+LABEL_AVAILABILITY_ERRORS = (
+    'wb_order_not_ready_for_label', 'ozon_posting_not_ready_for_label',
+    'market_order_not_ready_for_label', 'ozon_scanit_missing',
+    'ozon_label_still_generating', 'ozon_label_generation_failed',
+)
+
 
 def checked_file(path, expected_sha=None):
     path = Path(path).resolve()
@@ -232,13 +238,41 @@ class PrintQueue:
 
     def label_candidates(self, *, now):
         with self.transaction() as cursor:
-            cursor.execute('''SELECT o.*,a.label_path,a.label_sha,a.demand_id AS artifact_demand_id
+            cursor.execute('''SELECT o.*,a.label_path,a.label_sha,a.demand_id AS artifact_demand_id,
+                EXISTS (SELECT 1 FROM members m JOIN batches b ON b.id=m.batch_id
+                    WHERE m.order_id=o.id AND m.identity->>'ms_demand_id'=o.demand_id::text
+                    AND b.state='failed' AND b.error=ANY(%s)
+                    AND NOT (COALESCE(b.display->'resolved_orders','{}'::jsonb) ? o.id::text)) AS label_retry_needed
                 FROM current_snapshot v JOIN snapshots s ON s.id=v.snapshot_id
                 JOIN orders o ON o.snapshot_id=s.id LEFT JOIN artifacts a ON a.order_id=o.id
                 WHERE s.day=%s AND o.demand_id IS NOT NULL AND o.source_error IS NULL
                 AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id=o.id)
-                ORDER BY o.counter_key,o.external_id''', (moscow_day(now),))
+                ORDER BY o.counter_key,o.external_id''', (list(LABEL_AVAILABILITY_ERRORS), moscow_day(now)))
             return [dict(row) for row in cursor.fetchall()]
+
+    def resolve_label_errors(self, order_id, *, demand_id, now):
+        """Resolve past label-availability errors after a fresh successful check."""
+        with self.transaction() as cursor:
+            cursor.execute('SELECT snapshot_id FROM current_snapshot FOR UPDATE')
+            snapshot = cursor.fetchone()['snapshot_id']
+            cursor.execute('''SELECT o.demand_id,a.demand_id AS artifact_demand_id,a.label_path,a.label_sha
+                FROM orders o JOIN artifacts a ON a.order_id=o.id
+                WHERE o.id=%s AND o.snapshot_id=%s FOR UPDATE OF o''', (order_id, snapshot))
+            row = cursor.fetchone()
+            if not row or str(row['demand_id']) != str(demand_id) or str(row['artifact_demand_id']) != str(demand_id):
+                return 0
+            cursor.execute('SELECT 1 FROM claims WHERE order_id=%s', (order_id,))
+            if cursor.fetchone() or not row['label_path']: return 0
+            checked_file(row['label_path'], row['label_sha'])
+            marker = Json({str(order_id): {'kind':'label', 'at':now.isoformat()}})
+            cursor.execute('''UPDATE batches b SET display=jsonb_set(b.display,'{resolved_orders}',
+                    COALESCE(b.display->'resolved_orders','{}'::jsonb) || %s)
+                WHERE b.state='failed' AND b.error=ANY(%s) AND b.created_at<=%s
+                AND (b.display->>'error_order_id' IS NULL OR b.display->>'error_order_id'=%s)
+                AND EXISTS (SELECT 1 FROM members m WHERE m.batch_id=b.id AND m.order_id=%s
+                    AND m.identity->>'ms_demand_id'=%s)''',
+                (marker, list(LABEL_AVAILABILITY_ERRORS), now, str(order_id), order_id, str(demand_id)))
+            return cursor.rowcount
 
     def mark_prefetched_label(self, order_id, *, demand_id, path, now):
         path, digest = checked_file(path)
@@ -306,7 +340,7 @@ class PrintQueue:
         expected = self.batch(batch_id)['orders']
         path, manifest = self._check_pair(pair_dir, expected)
         with self.transaction() as cursor:
-            cursor.execute('SELECT state,generation,pair_dir,manifest FROM batches WHERE id=%s FOR UPDATE', (batch_id,))
+            cursor.execute('SELECT state,generation,pair_dir,manifest,display FROM batches WHERE id=%s FOR UPDATE', (batch_id,))
             batch = cursor.fetchone()
             if batch['state'] == 'ready':
                 if batch['pair_dir'] == path and batch['manifest'] == manifest:
@@ -329,8 +363,13 @@ class PrintQueue:
                 checked_file(row['label_path'], row['label_sha'])
             if len(records) != len(expected):
                 raise PrintBlocked('print_batch_incomplete')
-            cursor.execute("""UPDATE batches SET state='ready',pair_dir=%s,manifest=%s,published_at=now(),error=NULL
-                WHERE id=%s""", (path, Json(manifest), batch_id))
+            display=dict(batch['display']);included={m['ms_order_id'] for m in expected}
+            previous=[e for e in display.get('excluded_orders',[]) if e['ms_order_id'] in included]
+            if previous:
+                display['past_exclusions']=display.get('past_exclusions',[])+previous
+                display['excluded_orders']=[e for e in display['excluded_orders'] if e['ms_order_id'] not in included]
+            cursor.execute("""UPDATE batches SET state='ready',pair_dir=%s,manifest=%s,published_at=now(),error=NULL,display=%s
+                WHERE id=%s""", (path, Json(manifest), Json(display), batch_id))
 
     def fail_batch(self, batch_id, *, generation, error, order_id=None):
         with self.transaction() as cursor:
@@ -347,7 +386,7 @@ class PrintQueue:
                 if not cursor.fetchone(): raise PrintBlocked('error_order_not_in_batch')
                 context['error_order_id'] = order_id
             cursor.execute("""UPDATE batches SET state='failed',error=%s,
-                display=(display-'error_order_id') || %s WHERE id=%s""", (str(error)[:200], Json(context), batch_id))
+                display=(display-'error_order_id'-'resolved_orders') || %s WHERE id=%s""", (str(error)[:200], Json(context), batch_id))
             cursor.execute('DELETE FROM claims WHERE batch_id=%s', (batch_id,))
 
     def exclude_failed_orders(self, batch_id, *, generation, failures):
@@ -375,6 +414,7 @@ class PrintQueue:
             all_failed = len(errors) == len(members)
             anchor = str(members[0]['order_id']) if all_failed else None
             display = dict(batch['display'])
+            display.pop('resolved_orders', None)
             display.setdefault('requested_order_ids', [str(m['order_id']) for m in members])
             excluded = {e['ms_order_id']: e for e in display.get('excluded_orders', [])}
             for member in members:
@@ -386,7 +426,7 @@ class PrintQueue:
                 if oid == anchor: continue
                 child = str(uuid4())
                 child_display = {k:v for k,v in batch['display'].items()
-                                 if k not in ('requested_order_ids','excluded_orders','blocked_orders','error_order_id')}
+                                 if k not in ('requested_order_ids','excluded_orders','blocked_orders','error_order_id','resolved_orders')}
                 child_display.update(parent_batch_id=str(batch_id), error_order_id=oid)
                 cursor.execute('''INSERT INTO batches(id,counter_key,day,state,display,error)
                     VALUES (%s,%s,%s,'failed',%s,%s)''',
@@ -471,6 +511,7 @@ class PrintQueue:
                     LEFT JOIN claims c ON c.order_id=o.id
                     WHERE m.batch_id=b.id AND b.state='failed' AND b.day=%s AND s.day=%s
                     AND c.batch_id IS NULL
+                    AND NOT (COALESCE(b.display->'resolved_orders','{}'::jsonb) ? m.order_id::text)
                     AND (b.display->>'error_order_id' IS NULL
                         OR b.display->>'error_order_id'=m.order_id::text)
                 ) problem ON true

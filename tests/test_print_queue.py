@@ -229,6 +229,47 @@ class PrintQueueTests(unittest.TestCase):
         candidates=LabelPrefetcher(self.queue,object(),root=self.root).candidates(NOW)
         self.assertEqual([str(r['id']) for r in candidates],[self.rows[1]['raw']['id']])
 
+    def test_successful_label_check_resolves_only_past_matching_label_errors(self):
+        from print_service.labels import LabelPrefetcher
+        batch=self.reserve();oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']
+        self.queue.fail_batch(batch['id'],generation=1,error='wb_order_not_ready_for_label')
+        with self.queue.transaction() as c:c.execute('UPDATE batches SET created_at=%s WHERE id=%s',(NOW,batch['id']))
+        label=self.root/'verified.pdf';pdf(label,164.25,113.25)
+        self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW)
+        self.assertIn(oid,[str(r['id']) for r in LabelPrefetcher(self.queue,object(),root=self.root).candidates(NOW)])
+        self.assertEqual(self.queue.resolve_label_errors(oid,demand_id=str(uuid4()),now=NOW+timedelta(seconds=1)),0)
+        self.assertEqual(self.queue.resolve_label_errors(oid,demand_id=did,now=NOW+timedelta(seconds=1)),1)
+        jobs=self.queue.view(now=NOW)['jobs']
+        self.assertEqual([o['ms_order_id'] for o in jobs[0]['orders']],[self.rows[1]['raw']['id']])
+        self.assertNotIn(oid,[str(r['id']) for r in LabelPrefetcher(self.queue,object(),root=self.root).candidates(NOW)])
+        retry=self.queue.retry_failed_batch(batch['id'],generation=1)
+        self.queue.fail_batch(retry['id'],generation=retry['generation'],error='wb_order_not_ready_for_label',order_id=oid)
+        self.assertEqual(self.queue.view(now=NOW)['jobs'][0]['orders'][0]['ms_order_id'],oid)
+
+    def test_label_confirmation_does_not_hide_receipt_failures_or_newer_label_failures(self):
+        batch=self.reserve();oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']
+        self.queue.fail_batch(batch['id'],generation=1,error='receipt_quantity_cell_too_small',order_id=oid)
+        label=self.root/'verified.pdf';pdf(label,164.25,113.25)
+        self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW)
+        self.assertEqual(self.queue.resolve_label_errors(oid,demand_id=did,now=NOW+timedelta(seconds=1)),0)
+        self.assertEqual(len(self.queue.view(now=NOW)['jobs']),1)
+        retry=self.queue.retry_failed_batch(batch['id'],generation=1)
+        self.queue.fail_batch(retry['id'],generation=retry['generation'],error='wb_order_not_ready_for_label',order_id=oid)
+        with self.queue.transaction() as c:c.execute('UPDATE batches SET created_at=%s WHERE id=%s',(NOW+timedelta(seconds=5),batch['id']))
+        self.assertEqual(self.queue.resolve_label_errors(oid,demand_id=did,now=NOW),0)
+        self.assertEqual(len(self.queue.view(now=NOW)['jobs']),1)
+
+    def test_recovered_order_is_not_counted_as_excluded_in_its_published_pair(self):
+        oid=self.rows[0]['raw']['id']
+        batch=self.queue.reserve_counter(self.counter,request_key='single',now=NOW,order_ids=[oid])
+        self.queue.exclude_failed_orders(batch['id'],generation=1,
+            failures=[dict(ms_order_id=oid,error='receipt_quantity_cell_too_small')])
+        retry=self.queue.retry_failed_batch(batch['id'],generation=1)
+        pair=self.prepare(retry);self.queue.publish_pair(retry['id'],generation=retry['generation'],pair_dir=pair)
+        display=self.queue.batch(batch['id'])['display']
+        self.assertEqual(display['excluded_orders'],[])
+        self.assertEqual(display['past_exclusions'][0]['ms_order_id'],oid)
+
     def test_background_labels_cannot_overwrite_claimed_or_obsolete_orders(self):
         oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']
         label=self.root/'prefetched.pdf';pdf(label,164.25,113.25)

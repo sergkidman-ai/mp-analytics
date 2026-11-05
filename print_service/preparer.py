@@ -17,6 +17,8 @@ from print_service.receipt import annotate_receipt
 from print_service.storage import atomic_bytes, file_lock, save_json
 from print_service.warehouse_colors import warehouse_color
 
+LEGACY_RENDER_PROFILES = ('5657e411bd5b189e58f2c90397ad978e88167d000a3c101b239356411aa65ba3',)
+
 
 def fingerprint(value):
     return sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -42,6 +44,23 @@ class Preparer:
     def __init__(self, queue, clients, *, root, allow_unprinted=False):
         self.queue, self.clients, self.root = queue, clients, Path(root)
         self.allow_unprinted = allow_unprinted
+
+    def _reuse_export(self, folder, target, source, member):
+        """Import the exact old export/journal into a rendering-independent cache."""
+        if any((target/name).exists() for name in ('receipt_ms.pdf','ms_export_intent.json')):return
+        for profile in LEGACY_RENDER_PROFILES:
+            previous=folder/'receipts'/fingerprint(dict(source,profile=profile))
+            intent=previous/'ms_export_intent.json'
+            if not intent.exists():continue
+            saved=json.loads(intent.read_text())
+            if saved.get('order_id')!=member['ms_order_id'] or saved.get('demand_id')!=member['ms_demand_id']:
+                raise PrintBlocked('ms_export_cache_identity_mismatch')
+            if (previous/'receipt_ms.pdf').exists():pdf_reader((previous/'receipt_ms.pdf').read_bytes())
+            save_json(target/'imported_from.json',{'source_key':previous.name,'profile':profile})
+            for name in ('ms_export_response.json','receipt_ms.pdf','ms_export_intent.json'):
+                path=previous/name
+                if path.exists():atomic_bytes(target/name,path.read_bytes())
+            return
 
     def _positions(self, demand_id):
         result, expected, offset = [], None, 0
@@ -115,16 +134,20 @@ class Preparer:
                 sticker = json.loads((label_dir / 'label_source.json').read_text())
                 if sticker.get('orderId') != int(number): raise PrintBlocked('wb_cached_label_identity_mismatch')
                 code, last_four = sticker['partA'], sticker['partB']
-            source_key = fingerprint(dict(profile=profile_key(), order={k: order.get(k) for k in
+            source = dict(profile=profile_key(), order={k: order.get(k) for k in
                 ('id','name','moment','deliveryPlannedMoment','organization','store','attributes')},
                 demand={k: demand.get(k) for k in ('id','name','moment','sum','organization','agent','store','vatEnabled','vatIncluded')},
-                positions=lines, code=code, last_four=last_four, color=color, label=label_identity))
+                positions=lines, code=code, last_four=last_four, color=color, label=label_identity)
+            source_key = fingerprint(source)
             self.queue.mark_artifact(oid, demand_id=did, kind='label', path=label, source_key=source_key)
             receipt_dir = folder / 'receipts' / source_key
             receipt_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
             receipt = receipt_dir / 'receipt_ready.pdf'
             if not receipt.exists():
-                raw = self.clients.export_receipt(oid, did, receipt_dir, expected_account=account,
+                export_dir=folder/'receipt_sources'/fingerprint({k:source[k] for k in ('order','demand','positions')})
+                export_dir.mkdir(mode=0o700,parents=True,exist_ok=True)
+                self._reuse_export(folder,export_dir,source,member)
+                raw = self.clients.export_receipt(oid, did, export_dir, expected_account=account,
                                                   expected_number=number, expected_day=day, allow_unprinted=self.allow_unprinted)
                 modified = annotate_receipt(raw, diskver=account.endswith('2'), code=code,
                                             last_four=last_four, color=color, quantities=quantities)

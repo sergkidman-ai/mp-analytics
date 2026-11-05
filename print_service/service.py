@@ -131,7 +131,7 @@ class PrintService:
         for job in data['jobs']:
             job['error_message'] = error_message(job['error']) if job['error'] else None
         for batch in data['ready_batches']:
-            for field in ('blocked_orders', 'requested_order_ids'):
+            for field in ('blocked_orders', 'requested_order_ids', 'past_exclusions'):
                 batch['display'].pop(field, None)
         if data['sync'] and data['sync']['error']:
             data['sync']['error_message'] = error_message(data['sync']['error'])

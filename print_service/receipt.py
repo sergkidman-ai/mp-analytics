@@ -12,6 +12,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 from fpdf import FPDF
+from fontTools.ttLib import TTFont
 from pypdf import PdfReader, PdfWriter
 from pypdf.generic import ContentStream
 
@@ -19,6 +20,45 @@ from print_service.domain import PrintBlocked
 from print_service.pdf import pdf_reader
 
 FONT = Path('/usr/share/fonts/truetype/dejavu')
+
+
+def quantity_plan(word, words, left):
+    """Fit a bold quantity inside its column; omit the frame when space is tight."""
+    with TTFont(str(FONT / 'DejaVuSans-Bold.ttf')) as font:
+        cmap, glyf, metrics = font.getBestCmap(), font['glyf'], font['hmtx'].metrics
+        units, pen, bounds = font['head'].unitsPerEm, 0, []
+        for char in word['text']:
+            name = cmap[ord(char)];glyph = glyf[name]
+            glyph.recalcBounds(glyf)
+            bounds.append((pen + glyph.xMin, glyph.yMin, pen + glyph.xMax, glyph.yMax))
+            pen += metrics[name][0]
+    advance = pen / units
+    gx0,gy0 = min(b[0] for b in bounds)/units,min(b[1] for b in bounds)/units
+    gx1,gy1 = max(b[2] for b in bounds)/units,max(b[3] for b in bounds)/units
+    nearby = [w for w in words if w is not word]
+    right = min(((word['xMax']+w['xMin'])/2-.5 for w in nearby if w['xMin']>=word['xMax']
+                 and abs(w['yMin']-word['yMin'])<4),default=left+42)
+    center_x,center_y = (word['xMin']+word['xMax'])/2,(word['yMin']+word['yMax'])/2
+    def collides(box):
+        x0,y0,x1,y1=box
+        return any(w['xMin']<x1 and w['xMax']>x0 and w['yMin']<y1 and w['yMax']>y0 for w in nearby)
+    size=14;box_width=max(24,advance*size+8)
+    if box_width<=right-left:
+        x=max(left,min(center_x-box_width/2,right-box_width));y=center_y-10
+        if not collides((x,y,x+box_width,y+20)):
+            return dict(frame=True,x=x,y=y,width=box_width,height=20,size=size,
+                        tx=x+(box_width-advance*size)/2,baseline=center_y+(gy0+gy1)*size/2)
+    # A frame must never prevent printing an otherwise valid receipt. Keep
+    # the text bold and fit its actual glyph bounds without covering a unit.
+    fallback=min(8,(word['xMax']-word['xMin'])/advance,
+                 (word['yMax']-word['yMin'])/(gy1-gy0))
+    for size in (14,13,12,11,10,9,8,fallback):
+        width=advance*size
+        if width>right-left:continue
+        x=max(left,min(center_x-width/2,right-width));baseline=center_y+(gy0+gy1)*size/2
+        if not collides((x+gx0*size,baseline-gy1*size,x+gx1*size,baseline-gy0*size)):
+            return dict(frame=False,size=size,tx=x,baseline=baseline)
+    raise PrintBlocked('receipt_quantity_text_does_not_fit')
 
 
 def word_pages(data):
@@ -110,10 +150,7 @@ def annotate_receipt(data, *, diskver=False, code=None, last_four=None, color=No
             except InvalidOperation: pass
         if len(exact) != 1: raise PrintBlocked('receipt_quantity_does_not_match_shipment')
         word = exact[0]
-        neighbors = [w for w in pages[i] if left <= w['xMin'] <= left + 42
-                     and w is not word and abs(w['yMin'] - word['yMin']) < 20]
-        if neighbors: raise PrintBlocked('receipt_quantity_cell_too_small')
-        marks[i].append(word)
+        marks[i].append((word, quantity_plan(word, pages[i], left)))
     signatures = [(i, w) for i, words in enumerate(pages) for w in words if w['text'] == 'Простакова']
     if diskver and len(signatures) != 1: raise PrintBlocked('diskver_signature_layout_ambiguous')
     writer = PdfWriter()
@@ -135,12 +172,13 @@ def annotate_receipt(data, *, diskver=False, code=None, last_four=None, color=No
             stamp.set_fill_color(255)
             stamp.rect(word['xMin'] - 1, word['yMin'] - 2, right - word['xMin'] + 4, word['yMax'] - word['yMin'] + 5, style='F')
             stamp.text(word['xMin'], word['yMax'] - 1, 'Терещенко С.С.')
-        for word in marks[i]:
+        for word, plan in marks[i]:
             stamp.set_fill_color(255)
-            stamp.set_font('Print', style='B', size=14)
-            box_width = max(24, stamp.get_string_width(word['text']) + 8)
-            stamp.rect(word['xMin'] - 4, word['yMin'] - 4, box_width, 20, style='DF')
-            stamp.text(word['xMin'], word['yMin'] + 11, word['text'])
+            stamp.rect(word['xMin'],word['yMin'],word['xMax']-word['xMin'],word['yMax']-word['yMin'],style='F')
+            stamp.set_font('Print', style='B', size=plan['size'])
+            if plan['frame']:
+                stamp.rect(plan['x'],plan['y'],plan['width'],plan['height'],style='DF')
+            stamp.text(plan['tx'],plan['baseline'],word['text'])
         if i == 0 and (code or color):
             x, top, bw, bh = barcode_box(source, reader)
             if code:

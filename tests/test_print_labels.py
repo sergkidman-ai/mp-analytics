@@ -67,10 +67,11 @@ class SavedLabels:
         save_json(folder/'label_source.json', dict(orderId=int(number), partA='123456', partB='7890'))
 
     def export_receipt(self, oid, did, folder, **kwargs):
+        if (folder/'receipt_ms.pdf').exists():return (folder/'receipt_ms.pdf').read_bytes()
         self.exports += 1
         self.demand['printed'] = True
         writer = PdfWriter();writer.add_blank_page(width=595.276, height=841.89)
-        path = folder/'raw.pdf';writer.write(path)
+        path = folder/'receipt_ms.pdf';writer.write(path)
         return path.read_bytes()
 
 
@@ -78,6 +79,7 @@ class SavedQueue:
     def __init__(self): self.batch_id = None;self.labels=[];self.artifacts=[]
     def order(self, oid): return dict(batch_id=self.batch_id)
     def mark_prefetched_label(self, oid, **kwargs): self.labels.append((oid,kwargs));return True
+    def resolve_label_errors(self, oid, **kwargs): return 0
     def mark_artifact(self, oid, **kwargs): self.artifacts.append((oid,kwargs))
 
 
@@ -119,6 +121,20 @@ class LabelPrefetchTests(unittest.TestCase):
             queue.batch_id=None;clients.order['state']['name']='Отгружен'
             with self.assertRaises(PrintBlocked): warmer.one(clients.row,now=NOW)
             self.assertEqual(clients.downloads,0);self.assertEqual(clients.exports,0)
+
+    def test_rendering_change_reuses_the_same_source_receipt_export(self):
+        with TemporaryDirectory() as directory:
+            clients,queue=SavedLabels('wb'),SavedQueue()
+            member=dict(account=clients.row['account'],external_id=clients.row['external_id'],
+                        ms_order_id=clients.row['id'],ms_demand_id=clients.row['demand_id'])
+            preparer=Preparer(queue,clients,root=directory,allow_unprinted=True)
+            with patch('print_service.preparer.annotate_receipt',side_effect=lambda data,**kwargs:data):
+                first=preparer._one(member,NOW.date())
+                with patch('print_service.preparer.profile_key',return_value='another-rendering-profile'):
+                    second=preparer._one(member,NOW.date())
+            self.assertEqual(clients.exports,1)
+            self.assertNotEqual(first.receipt_files,second.receipt_files)
+            self.assertEqual(Path(first.receipt_files[0]).read_bytes(),Path(second.receipt_files[0]).read_bytes())
 
     def test_empty_scanit_qr_payload_is_shared_by_prefetch_and_foreground_receipt(self):
         with TemporaryDirectory() as directory:
