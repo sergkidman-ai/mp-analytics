@@ -16,7 +16,7 @@ class PrintWebTests(unittest.TestCase):
                 return {'installed': True, 'rows': []}
 
         service = SavedStatus()
-        with TestClient(create_app(lambda: service)) as client:
+        with TestClient(create_app(lambda: service),headers={'X-Pult-User':'print'}) as client:
             page = client.get('/warehouse/print')
             self.assertEqual(page.status_code, 200)
             for path in ('/suppliers', '/reports', '/warehouse/customer-orders'):

@@ -5,6 +5,7 @@
 <title>Печать заказов · Пульт бизнеса</title>
 <style>
 .sync-status-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.sync-status progress{display:block;width:100%;height:11px;margin:10px 0;accent-color:var(--blue)}.sync-status p{font-size:13px}
+.single-organization .counters,.single-organization .org-columns{grid-template-columns:minmax(0,1fr)}
 :root{--ink:#182330;--muted:#64748b;--line:#dfe5eb;--green:#16834b;--red:#b64040;--blue:#176bba}
 *{box-sizing:border-box}body{margin:0;background:#f2f5f8;color:var(--ink);font:14px/1.45 system-ui,Segoe UI,sans-serif;display:flex;min-height:100vh}
 aside{width:216px;flex:0 0 216px;background:#111d29;color:#b5c2d1;padding:25px 16px;position:sticky;top:0;height:100vh}aside a{color:inherit;display:block;padding:10px 12px;text-decoration:none;border-radius:7px}aside .brand{color:white;font-weight:750;margin-bottom:24px}aside .current{color:white;background:#24374b}
@@ -32,12 +33,13 @@ button,.file-link{font:inherit;cursor:pointer;border:0;border-radius:7px;padding
 <section class="section"><div class="section-head"><div><h2>Все заказы на сегодня <span class="muted" id="total"></span></h2><p class="muted">Плановая дата — сегодня, статус в МС — «Собирается»</p></div><div class="filters"><input id="search" aria-label="Поиск заказа" placeholder="Поиск в таблице"><select id="filter" aria-label="Отбор по готовности"><option value="all">Все заказы</option><option value="red">Не распечатаны</option><option value="green">Распечатаны</option></select></div></div><div id="orders-columns" class="org-columns orders-columns"></div><div class="legend">✓ — файл получен и готов к печати. Зелёные строки уже включены в готовую пару; красные остаются в очереди. Поиск меняет только таблицу ниже.</div></section>
 <div class="footer" id="updated"></div>
 </main>
+<script id="print-organizations" type="application/json">[{"id":"digital","name":"Цифровой квадрат","accounts":["oz_acc1","wb_acc1","ya_acc1"]},{"id":"diskver","name":"Дисквер","accounts":["oz_acc2","wb_acc2"]}]</script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const when=value=>value?new Date(value).toLocaleString('ru-RU',{timeZone:'Europe/Moscow',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'ещё не было';
 let model=null,loading=false,timer=null,noticeError=false,watchedJob=null,watchedSync=null;const inFlight=new Set();
-const ORGANIZATIONS=[{id:'digital',name:'Цифровой квадрат',accounts:['oz_acc1','wb_acc1','ya_acc1']},{id:'diskver',name:'Дисквер',accounts:['oz_acc2','wb_acc2']}];
+const ORGANIZATIONS=JSON.parse(document.getElementById('print-organizations').textContent);
 const forOrganization=(items,org)=>items.filter(item=>org.accounts.includes(item.account||item.counter_key?.split('|')[0]));
 async function api(url,body){
  const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),15000);
@@ -107,11 +109,11 @@ function renderSyncProgress(){
  const p=job.progress||{},processed=Math.max(0,Number(p.processed)||0),total=Math.max(0,Number(p.total)||0);
  let phase='Читаем заказы из МС',detail='Ожидаем данные МС…';
  if(job.state==='pending'){phase='Синхронизация в очереди';detail='Ожидаем начало обновления…'}
- else if(p.stage==='orders'){detail=`Получено заказов из МС: ${Math.max(0,Number(p.loaded)||0)}`}
+ else if(p.stage==='orders'){detail=p.loaded===undefined?'Читаем заказы из МС…':`Получено заказов из МС: ${Math.max(0,Number(p.loaded)||0)}`}
  else if(['postings','warehouses'].includes(p.stage)){
   phase=p.stage==='postings'?'Проверяем направления складов Ozon':'Проверяем заказы';
-  detail=`Обработано: ${processed} из ${total}`;
- }else if(['saving','complete'].includes(p.stage)){phase='Обновляем список и счётчики';detail=`Получено заказов: ${total}`}
+  detail=total>0?`Обработано: ${processed} из ${total}`:'Проверяем данные площадок…';
+ }else if(['saving','complete'].includes(p.stage)){phase='Обновляем список и счётчики';detail=p.total===undefined?'Сохраняем обновления…':`Получено заказов: ${total}`}
  if($('sync-phase').textContent!==phase)$('sync-phase').textContent=phase;
  $('sync-detail').textContent=detail;
  const elapsed=Math.max(0,Math.floor((Date.now()-new Date(job.started_at||job.created_at).getTime())/1000));

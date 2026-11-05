@@ -262,6 +262,35 @@ class PrintQueueTests(unittest.TestCase):
             sid=client.post('/api/print/sync',json={}).json()['id']
             self.assertEqual(client.post('/api/print/sync',json={}).json()['id'],sid)
 
+    def test_diskver_login_cannot_download_another_organizations_stored_pair(self):
+        from fastapi.testclient import TestClient
+        from print_service.service import PrintService
+        from web.print_app import create_app
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        self.rows[0]['counter_key']='oz_acc1|digital|store'
+        diskver=order('200-0001-1',counter='oz_acc2|diskver|store')
+        diskver['account']='oz_acc2'
+        self.rows=[self.rows[0],diskver]
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        bids={}
+        for row in self.rows:
+            batch=self.queue.reserve_counter(row['counter_key'],request_key=str(uuid4()),now=NOW)
+            pair=self.prepare(batch)
+            self.queue.publish_pair(batch['id'],generation=batch['generation'],pair_dir=pair)
+            bids[row['account']]=batch['id']
+        service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        with TestClient(create_app(lambda:service),headers={'X-Pult-User':'tolkachev'}) as client:
+            status=client.get('/api/print').json()
+            self.assertEqual([r['account'] for r in status['rows']],['oz_acc2'])
+            self.assertEqual([b['id'] for b in status['ready_batches']],[str(bids['oz_acc2'])])
+            for kind in ('receipts','labels'):
+                digital=f"/api/print/batches/{bids['oz_acc1']}/files/{kind}"
+                diskver=f"/api/print/batches/{bids['oz_acc2']}/files/{kind}"
+                self.assertEqual(client.get(digital).status_code,404)
+                self.assertEqual(client.get(diskver).status_code,200)
+                self.assertEqual(client.get(digital,headers={'X-Pult-User':'print'}).status_code,200)
+
     def test_changed_demand_cannot_publish_a_stale_pair(self):
         batch=self.reserve();pair=self.prepare(batch)
         self.rows[0]['demand_id']=str(uuid4())
