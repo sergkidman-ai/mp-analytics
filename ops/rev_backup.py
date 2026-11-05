@@ -135,9 +135,12 @@ def code_snapshot(root,dest):
                     p.suffix in ('.py','.sql','.service','.timer') or p.name in ('requirements.txt','requirements-recovery.txt')):
                     allowed.append(p)
     for name in ('requirements.txt','AGENTS.md','CLAUDE.md','docs/REV_RULES.md','docs/BRIEF_REV.md','docs/rev/RECOVERY_RUNBOOK.md',
-                 'docs/handoff/archive/rev_2026-09-10.md','docs/reports/rev_gold_set.md'):
+                 'docs/handoff/archive/rev_2026-09-10.md','docs/reports/rev_gold_set.md',
+                 'feedback_bot/rev-backup-public.caddy','web/rev_backup_public/index.html',
+                 'web/rev_backup_public/privacy/index.html','web/rev_backup_public/terms/index.html',
+                 'web/rev_backup_public/robots.txt'):
         p=Path(root)/name
-        if p.is_file():allowed.append(p)
+        if p.is_file() and not p.is_symlink():allowed.append(p)
     # Provenance sources are private: include all nested Rev Markdown only in this
     # encrypted recovery payload; Git deployment export has its own strict whitelist.
     notes=Path(root)/'docs/rev'

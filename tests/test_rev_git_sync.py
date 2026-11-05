@@ -99,6 +99,9 @@ class GitSyncTests(unittest.TestCase):
                      'docs/handoff/archive/rev_2026-09-10.md','docs/reports/rev_gold_set.md'):
             self.assertFalse(sync.export_allowed(name),name)
         self.assertTrue(sync.export_allowed('docs/rev/RECOVERY_RUNBOOK.md'))
+        self.assertTrue(sync.export_allowed('web/rev_backup_public/privacy/index.html'))
+        self.assertFalse(sync.export_allowed('web/rev_backup_public/credentials.json'))
+        self.assertFalse(sync.export_allowed('web/other-app/index.html'))
         with tempfile.TemporaryDirectory() as tmp:
             root,base=self.make_repo(tmp);notes=root/'docs/rev';notes.mkdir(parents=True)
             (notes/'brand_notes_2026-09-21.md').write_text('private expert provenance')

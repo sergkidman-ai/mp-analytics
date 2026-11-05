@@ -1,0 +1,14 @@
+# поток: rev. Only the three public OAuth information pages are served here.
+redir /rev-backup /rev-backup/ 308
+@rev_backup_pages path /rev-backup/ /rev-backup/privacy/ /rev-backup/terms/
+handle @rev_backup_pages {
+	root * /opt/mp-analytics/.claude/worktrees/rev-recovery-20261103/web/rev_backup_public
+	uri strip_prefix /rev-backup
+	rewrite * {path}index.html
+	header X-Robots-Tag "noindex, follow"
+	header Cache-Control "public, max-age=300"
+	header X-Content-Type-Options "nosniff"
+	header Referrer-Policy "no-referrer"
+	header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+	file_server
+}

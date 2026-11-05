@@ -196,6 +196,9 @@ def export_allowed(name):
     p=Path(name)
     if path_violation(name):return False
     if name in ('docs/REV_RULES.md','docs/rev/RECOVERY_RUNBOOK.md'):return True
+    if name in ('feedback_bot/rev-backup-public.caddy','web/rev_backup_public/index.html',
+                'web/rev_backup_public/privacy/index.html','web/rev_backup_public/terms/index.html',
+                'web/rev_backup_public/robots.txt'):return True
     if len(p.parts)!=2:return False
     directory,filename=p.parts
     if directory=='collectors':return filename in EXPORT_COLLECTORS

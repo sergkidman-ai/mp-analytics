@@ -52,6 +52,16 @@ class RecoverySafetyTests(unittest.TestCase):
                 self.assertEqual(set(archive.getnames()),set(expected))
                 for name,text in expected.items():self.assertEqual(archive.extractfile(name).read().decode(),text)
 
+    def test_public_oauth_pages_are_recoverable_without_adjacent_private_web_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);web=root/'web/rev_backup_public';web.mkdir(parents=True)
+            (web/'index.html').write_text('<h1>Rev Backup</h1>')
+            (web/'credentials.json').write_text('private fixture')
+            (root/'web/other.html').write_text('unrelated application')
+            archive=root/'code.tar';backup.code_snapshot(root,archive)
+            with tarfile.open(archive) as t:
+                self.assertEqual(t.getnames(),['web/rev_backup_public/index.html'])
+
     def test_retention_preserves_unreceipted_and_failed_offsite_copies(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)

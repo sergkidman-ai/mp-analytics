@@ -251,3 +251,59 @@ SHA-256 полного encrypted bundle и отдельная копия клю�
 План измерения: новый VPS/зависимости ≤20мин; загрузка и checksum ≤10мин;
 restore/checks ≤10мин; API/Telegram/цикл и исключение дублей ≤20мин.
 Это целевые интервалы, а не результат проведённого fresh-VPS испытания.
+
+
+## OAuth Branding и публичные страницы — 05.11.2026
+
+Для External Desktop-клиента rev-backups фактический запрос сервера:
+`openid email https://www.googleapis.com/auth/drive.file`. `email` —
+короткое имя Google OpenID scope `https://www.googleapis.com/auth/userinfo.email`.
+Приложение проверяет подтверждённую почту владельца и создаёт собственную
+папку/архивы; полный Drive scope не запрашивается.
+
+Публичные ссылки (HTTPS, без логина):
+- Homepage: https://bi.beyindi.com/rev-backup/
+- Privacy: https://bi.beyindi.com/rev-backup/privacy/
+- Terms: https://bi.beyindi.com/rev-backup/terms/
+- Authorized domain: beyindi.com (Google Search Console ownership не проверено).
+- App name: Rev Backup; support/developer contact: beyindi.befree@gmail.com.
+- Logo необязателен. User type: External; Desktop redirect loopback не менять.
+
+Документация Google:
+https://support.google.com/cloud/answer/15549049
+https://support.google.com/cloud/answer/13807376
+https://developers.google.com/identity/protocols/oauth2/production-readiness/overview
+https://developers.google.com/workspace/drive/api/guides/api-specific-auth
+
+Google документирует app-domain links для External production. Publish app
+(In production) и верификация бренда — разные состояния. drive.file относится
+к non-sensitive scopes; проверка sensitive/restricted scopes не требуется
+для этого набора, но Branding/authorized-domain требования проверяются отдельно.
+Сообщение «complete your configuration on Branding» подтверждает незавершённую
+Branding-конфигурацию, но не доказывает, какое единственное поле блокирует кнопку.
+Содержимое остальных полей, ошибки Save, фактический статус Production и
+Search Console требуют проверки в аккаунте владельца; агент не имеет доступа
+к Google Cloud UI. Не выдавать личное использование за автоматический обход
+ограничений Testing: Drive refresh token в Testing ограничен 7 днями.
+
+Исходники страниц: `web/rev_backup_public/`; маршрут —
+`feedback_bot/rev-backup-public.caddy`, импортированный внутри существующего
+BI virtual host в `/opt/mp-analytics/web/bi.caddy`. Изменены только public
+path matcher и robots: Allow /rev-backup/, Disallow /. Остальные BI handlers
+и auth import сохранены. Снимок до изменения и HTTP-проверки — приватно
+`/root/rev-recovery/branding-20261105/`. Этот системный hook не коммитится
+поверх чужого infra-файла; для восстановления импорт повторить явно,
+обновив root static-пути под фактический восстановленный каталог, выполнить
+`caddy validate`, затем reload. Проверить 200 для трёх страниц и 401 для
+BI/marketing/API/произвольных путей.
+
+Текущая локальная ротация после нехватки диска: две последние копии
+(KEEP_RECENT=2, KEEP_DAYS=1). Предыдущие настройки в разделе выше исторические.
+OAuth-клиент хранится в закрытом root config; секреты не публикуются.
+Один раз после подтверждённого Production нужно открыть через SSH tunnel
+http://127.0.0.1:53682/start, выбрать нужный аккаунт, проверить callback,
+refresh-token обмен, приватность папки, фактический upload (size+md5),
+штатный запуск feedback-rev-backup.service с offsite.verified=true и timer.
+Только после этих проверок считать внешний регулярный контур включённым;
+Production убирает фиксированное тестовое ограничение 7 дней, но не исключает
+отзыв или истечение разрешения по другим правилам Google.
