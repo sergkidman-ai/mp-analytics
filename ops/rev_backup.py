@@ -34,10 +34,30 @@ UNITS=('feedback-moderation.service','feedback-recovery-cycle.service','feedback
        'feedback-recovery-review.service','feedback-recovery-review.timer','feedback-rev-backup.service',
        'feedback-rev-backup.timer')
 class BackupError(RuntimeError):pass
+MIN_FREE_BYTES=512*1024*1024
 
 
-def run(command,*,env=None,timeout=1800):
-    result=subprocess.run(command,env=env,capture_output=True,timeout=timeout)
+def run(command,*,env=None,timeout=1800,space_guard=None):
+    if space_guard is None:
+        result=subprocess.run(command,env=env,capture_output=True,timeout=timeout)
+    else:
+        process=subprocess.Popen(command,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        deadline=time.monotonic()+timeout
+        try:
+            while True:
+                if shutil.disk_usage(space_guard).free<MIN_FREE_BYTES:
+                    raise BackupError('Backup writer stopped to preserve free disk space')
+                remaining=deadline-time.monotonic()
+                if remaining<=0:raise subprocess.TimeoutExpired(command,timeout)
+                try:
+                    stdout,stderr=process.communicate(timeout=min(.5,remaining));break
+                except subprocess.TimeoutExpired:continue
+            result=subprocess.CompletedProcess(command,process.returncode,stdout,stderr)
+        except BaseException:
+            process.terminate()
+            try:process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:process.kill();process.communicate()
+            raise
     if result.returncode:
         raise BackupError(Path(command[0]).name+' failed; exit='+str(result.returncode))
     return result.stdout
@@ -114,9 +134,9 @@ def key_path(cfg,create=False):
     return private_file(path)
 
 
-def encrypt(source,dest,key):
+def encrypt(source,dest,key,space_guard=None):
     run(['gpg','--batch','--yes','--pinentry-mode','loopback','--passphrase-file',str(private_file(key)),
-         '--symmetric','--cipher-algo','AES256','--compress-algo','none','--output',str(dest),str(source)])
+         '--symmetric','--cipher-algo','AES256','--compress-algo','none','--output',str(dest),str(source)],space_guard=space_guard)
 
 
 def decrypt(source,dest,key):
@@ -243,6 +263,45 @@ def retention(directory,keep_recent=12,keep_days=7):
                 path.unlink();receipt.unlink()
 
 
+def ensure_backup_space(directory,database_bytes):
+    """Keep the last verified local+offsite copy while rotating older generated copies."""
+    directory=Path(directory)
+    required=database_bytes*2+MIN_FREE_BYTES
+    # pg_database_size includes indexes/bloat; staging contains compressed files.
+    # Use a verified recent encrypted archive for the staging estimate. Writers
+    # independently stop if the filesystem reserve is threatened.
+    try:
+        previous=json.loads((directory/'latest.json').read_text());p=Path(previous['bundle'])
+        if (p.parent.resolve()==directory.resolve() and not p.is_symlink()
+                and p.is_file() and previous.get('bundle_sha256')==sha256(p)):
+            required=min(required,max(1024*1024*1024,p.stat().st_size*4+MIN_FREE_BYTES))
+    except (OSError,ValueError,KeyError,TypeError):pass
+    if shutil.disk_usage(directory).free>=required:return
+    try:
+        latest=json.loads((directory/'latest.json').read_text())
+        path=Path(latest['bundle'])
+        can_rotate=(latest.get('offsite',{}).get('verified') is True
+            and path.parent.resolve()==directory.resolve() and not path.is_symlink()
+            and re.fullmatch(r'rev-backup-[0-9]{8}T[0-9]{6}Z\.tar\.gz\.gpg',path.name)
+            and path.is_file() and latest.get('bundle_sha256')==sha256(path))
+        newest=max(directory.glob('rev-backup-*.tar.gz.gpg'),default=None)
+        if can_rotate and path==newest:
+            # The existing receipt/checksum guards apply; never delete the newest copy.
+            retention(directory,1,1)
+    except (OSError,ValueError,KeyError,TypeError):pass
+    if shutil.disk_usage(directory).free<required:
+        raise BackupError('Insufficient free space for a safe backup/drill')
+
+
+class SpaceCheckedWriter:
+    def __init__(self,stream,directory):self.stream=stream;self.directory=directory
+    def write(self,data):
+        if shutil.disk_usage(self.directory).free-len(data)<MIN_FREE_BYTES:
+            raise BackupError('Backup packaging stopped to preserve free disk space')
+        return self.stream.write(data)
+    def __getattr__(self,name):return getattr(self.stream,name)
+
+
 def backup(root=ROOT,cfg=None,local_only=False,include_runtime=True):
     os.umask(0o077);root=Path(root).resolve();cfg=cfg or config();started=time.monotonic()
     directory=Path(cfg.get('REV_BACKUP_DIR','/root/rev-recovery/backups'));directory.mkdir(mode=0o700,parents=True,exist_ok=True)
@@ -260,10 +319,10 @@ def backup(root=ROOT,cfg=None,local_only=False,include_runtime=True):
                 with conn.cursor() as cur:
                     cur.execute('SELECT pg_export_snapshot(),current_database(),pg_database_size(current_database())')
                     snapshot,database,size=cur.fetchone()
-                    if shutil.disk_usage(directory).free<size*2+512*1024*1024:raise BackupError('Insufficient free space for a safe backup/drill')
+                    ensure_backup_space(directory,size)
                     tables=fingerprint(cur)
                     run(['pg_dump','--format=custom','--compress=6','--no-owner','--no-acl','--lock-wait-timeout=30000',
-                         '--snapshot='+snapshot,'--file='+str(dump)],env=pg_environment(params))
+                         '--snapshot='+snapshot,'--file='+str(dump)],env=pg_environment(params),space_guard=directory)
             run(['pg_restore','--list',str(dump)],timeout=120)
             code=tmp/'code.tar';code_snapshot(root,code)
             manifest={'version':1,'created_at_utc':stamp,'hostname':socket.gethostname(),'source_root':str(root),
@@ -276,7 +335,7 @@ def backup(root=ROOT,cfg=None,local_only=False,include_runtime=True):
             requirements=tmp/'requirements-installed.txt'
             requirements.write_text('\n'.join(sorted(d.metadata['Name']+'=='+d.version for d in importlib.metadata.distributions() if d.metadata.get('Name')))+'\n')
             package=tmp/'recovery.tar.gz'
-            with tarfile.open(package,'w:gz',compresslevel=6) as tar:
+            with package.open('wb') as raw,tarfile.open(fileobj=SpaceCheckedWriter(raw,directory),mode='w:gz',compresslevel=6) as tar:
                 for file in [dump,code,manifest_file,requirements]:tar.add(file,arcname=file.name,recursive=False)
                 tar.add(private_file(root/'.env'),arcname='secrets/runtime.env',recursive=False)
                 backup_config=Path('/root/.config/rev-recovery/backup.env')
@@ -296,7 +355,10 @@ def backup(root=ROOT,cfg=None,local_only=False,include_runtime=True):
                     if p.is_file():tar.add(p,arcname='recovery-tools/ops/'+p.name,recursive=False)
                 for p in (root/'ops').glob('rev_restore*'):
                     if p.is_file():tar.add(p,arcname='recovery-tools/ops/'+p.name,recursive=False)
-            partial=target.with_suffix(target.suffix+'.partial');encrypt(package,partial,key);partial.replace(target)
+            partial=target.with_suffix(target.suffix+'.partial')
+            try:encrypt(package,partial,key,space_guard=directory);partial.replace(target)
+            finally:
+                if partial.exists():partial.unlink()
         result={'bundle':str(target),'bytes':target.stat().st_size,'bundle_sha256':sha256(target),
                 'source_snapshot_utc':stamp,'git_commit':manifest['git_commit'],'local_only':local_only,
                 'offsite':{'verified':False},'backup_seconds':round(time.monotonic()-started,3)}

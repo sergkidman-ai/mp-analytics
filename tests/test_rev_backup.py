@@ -76,6 +76,50 @@ class RecoverySafetyTests(unittest.TestCase):
     def test_missing_offsite_never_reports_verified(self):
         with self.assertRaises(backup.BackupError):backup.upload(Path('unused'),{})
 
+    def test_low_space_rotation_requires_verified_offsite_and_preserves_latest(self):
+        for verified in (True,False):
+            with self.subTest(verified=verified),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);paths=[]
+                for hour in ('010000','020000'):
+                    p=root/('rev-backup-20260101T'+hour+'Z.tar.gz.gpg');p.write_bytes(b'ciphertext')
+                    row={'bundle':str(p),'bundle_sha256':backup.sha256(p),'local_only':True,'offsite':{'verified':verified}}
+                    p.with_suffix('.gpg.json').write_text(json.dumps(row));paths.append(p)
+                (root/'latest.json').write_text(json.dumps(row))
+                with patch.object(backup.shutil,'disk_usage',side_effect=lambda p:Mock(free=0 if paths[0].exists() else 10**12)):
+                    if verified:backup.ensure_backup_space(root,100)
+                    else:
+                        with self.assertRaises(backup.BackupError):backup.ensure_backup_space(root,100)
+                self.assertTrue(paths[1].exists())
+                self.assertEqual(paths[0].exists(),not verified)
+
+    def test_low_space_never_rotates_if_latest_integrity_differs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);p=root/'rev-backup-20260101T020000Z.tar.gz.gpg';p.write_bytes(b'ciphertext')
+            (root/'latest.json').write_text(json.dumps({'bundle':str(p),'bundle_sha256':'mismatch','offsite':{'verified':True}}))
+            with patch.object(backup.shutil,'disk_usage',return_value=Mock(free=0)),patch.object(backup,'retention') as rotation:
+                with self.assertRaises(backup.BackupError):backup.ensure_backup_space(root,100)
+            rotation.assert_not_called();self.assertTrue(p.exists())
+
+    def test_verified_recent_compressed_copy_sets_staging_estimate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);p=root/'rev-backup-20260101T020000Z.tar.gz.gpg';p.write_bytes(b'fixture-ciphertext')
+            (root/'latest.json').write_text(json.dumps({'bundle':str(p),'bundle_sha256':backup.sha256(p)}))
+            with patch.object(backup.shutil,'disk_usage',return_value=Mock(free=1500*1024*1024)),patch.object(backup,'retention') as rotation:
+                backup.ensure_backup_space(root,2*1024*1024*1024)
+            rotation.assert_not_called();self.assertTrue(p.exists())
+
+    def test_running_writer_stops_if_reserve_is_threatened(self):
+        process=Mock();process.communicate.return_value=(b'',b'')
+        with patch.object(backup.subprocess,'Popen',return_value=process),patch.object(backup.shutil,'disk_usage',return_value=Mock(free=backup.MIN_FREE_BYTES-1)):
+            with self.assertRaises(backup.BackupError):backup.run(['fixture-command'],space_guard=Path('/unused'))
+        process.terminate.assert_called_once();process.communicate.assert_called_once()
+
+    def test_archive_writer_checks_reserve_before_writing(self):
+        stream=io.BytesIO();writer=backup.SpaceCheckedWriter(stream,Path('/unused'))
+        with patch.object(backup.shutil,'disk_usage',return_value=Mock(free=backup.MIN_FREE_BYTES+2)):
+            with self.assertRaises(backup.BackupError):writer.write(b'abc')
+        self.assertEqual(stream.getvalue(),b'')
+
     def test_ssh_checksum_mismatch_never_renames_or_reports_success(self):
         with tempfile.TemporaryDirectory() as tmp:
             file=Path(tmp)/'encrypted.gpg';file.write_bytes(b'ciphertext')
