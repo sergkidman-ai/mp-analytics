@@ -66,6 +66,34 @@ class PrintClientTests(unittest.TestCase):
             clients.export_receipt(order['id'],demand['id'],self.root,expected_account='oz_acc2',expected_number=order['name'])
         self.assertNotIn('POST',calls)
 
+    def test_single_order_reads_expand_state_without_mutating_query(self):
+        oid=str(uuid4());queries=[]
+        def request(method,url,**kwargs):
+            queries.append(kwargs.get('params'))
+            state={'meta':{'href':MS+'/entity/customerorder/metadata/states/'+str(uuid4())}}
+            if 'state' in (kwargs.get('params') or {}).get('expand','').split(','):state['name']='Собирается'
+            return Response({'id':oid,'state':state})
+        clients=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+        result=clients.ms_get('/entity/customerorder/'+oid)
+        self.assertEqual(result['state']['name'],'Собирается')
+        self.assertEqual(queries[-1],{'expand':'state'})
+        query={'expand':'store,agent'}
+        clients.ms_get('/entity/customerorder/'+oid,params=query)
+        self.assertEqual(query,{'expand':'store,agent'})
+        self.assertEqual(queries[-1],{'expand':'store,agent,state'})
+
+    def test_genuinely_changed_order_status_still_blocks_export(self):
+        order,demand=self.source(True);order['state']['name']='Отгружен';calls=[]
+        def request(method,url,**kwargs):
+            calls.append(method)
+            if '/customtemplate/' in url:return Response({'name':TEMPLATE_NAME,'meta':{'type':'customtemplate'}})
+            return Response(order if '/customerorder/' in url else demand)
+        clients=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+        with self.assertRaisesRegex(PrintBlocked,'order_changed_since_counter_click'):
+            clients.export_receipt(order['id'],demand['id'],self.root,expected_account='oz_acc2',
+                expected_number=order['name'],expected_day=date(2026,11,3))
+        self.assertNotIn('POST',calls)
+
     def test_faster_read_budget_does_not_accelerate_label_methods(self):
         clock=[100.0];starts=[]
         def request(*args,**kwargs):
@@ -108,7 +136,12 @@ class PrintClientTests(unittest.TestCase):
                     if '/customtemplate/' in url:return Response({'name':TEMPLATE_NAME,'meta':{'type':'customtemplate','href':MS+'/entity/demand/metadata/customtemplate/'+TEMPLATE_ID}})
                     if method=='POST':return Response(status=303,headers={'Location':'https://print-prod.moysklad.ru/sample.pdf'})
                     if url.startswith('https://print-prod.'):return Response(content=pdf())
-                    return Response(order if '/customerorder/' in url else demand)
+                    if '/customerorder/' in url:
+                        response=dict(order,state={'meta':{'type':'state'}})
+                        if 'state' in (kwargs.get('params') or {}).get('expand','').split(','):
+                            response['state']=order['state']
+                        return Response(response)
+                    return Response(demand)
                 clients=PrintClients(audit_root=folder/'raw',request=request,delays=False)
                 options=dict(expected_account='oz_acc2',expected_number=order['name'],expected_day=date(2026,11,3),allow_unprinted=allow)
                 raw=clients.export_receipt(order['id'],demand['id'],folder,**options)

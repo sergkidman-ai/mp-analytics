@@ -125,6 +125,13 @@ class PrintClients:
             path = path[len(MS):]
         if not path.startswith('/entity/') or '?' in path or '..' in path:
             raise PrintBlocked('ms_read_path_invalid')
+        if re.fullmatch(r'/entity/customerorder/[0-9a-f-]{36}', path):
+            # A single-document GET otherwise returns state.meta only. Both
+            # preparation and export must validate the fresh state's name.
+            params = dict(params or {})
+            expand = [field for field in str(params.get('expand') or '').split(',') if field]
+            if 'state' not in expand: expand.append('state')
+            params['expand'] = ','.join(expand)
         return self._read_json('ms', '', 'GET', MS + path, params=params)
 
     def ozon_posting(self, account, number):

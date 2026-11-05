@@ -243,6 +243,26 @@ class PrintQueue:
                 raise PrintBlocked('stale_print_worker')
             return result['generation']
 
+    def retry_failed_batch(self, batch_id, *, generation):
+        """Resume an already requested unpublished pair with its frozen members."""
+        with self.transaction() as cursor:
+            cursor.execute('SELECT snapshot_id FROM current_snapshot FOR UPDATE')
+            cursor.execute('SELECT state,generation,counter_key,day FROM batches WHERE id=%s FOR UPDATE', (batch_id,))
+            batch = cursor.fetchone()
+            if not batch or batch['state'] != 'failed' or batch['generation'] != generation:
+                raise PrintBlocked('stale_print_worker')
+            cursor.execute("SELECT 1 FROM batches WHERE counter_key=%s AND day=%s AND state='building'",
+                           (batch['counter_key'], batch['day']))
+            if cursor.fetchone(): raise PrintBlocked('counter_already_reserved')
+            cursor.execute('SELECT count(*) AS count FROM members WHERE batch_id=%s', (batch_id,))
+            if not cursor.fetchone()['count']: raise PrintBlocked('print_batch_empty')
+            cursor.execute('''SELECT 1 FROM members m JOIN claims c ON c.order_id=m.order_id
+                              WHERE m.batch_id=%s LIMIT 1''', (batch_id,))
+            if cursor.fetchone(): raise PrintBlocked('counter_already_reserved')
+            cursor.execute('INSERT INTO claims SELECT order_id,batch_id FROM members WHERE batch_id=%s', (batch_id,))
+            cursor.execute("UPDATE batches SET state='building',generation=generation+1,error=NULL WHERE id=%s", (batch_id,))
+            return self._batch(cursor, batch_id)
+
     def ready_files(self, batch_id):
         batch = self.batch(batch_id)
         if batch['state'] != 'ready':

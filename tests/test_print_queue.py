@@ -185,6 +185,33 @@ class PrintQueueTests(unittest.TestCase):
         self.queue.publish_pair(retry['id'], generation=1, pair_dir=pair)
         self.assertEqual(len(self.queue.view(now=NOW)['ready_batches']), 1)
 
+    def test_retry_failed_batch_keeps_frozen_members_and_new_arrivals_queued(self):
+        batch=self.reserve()
+        self.queue.fail_batch(batch['id'],generation=1,error='order_changed_since_counter_click')
+        self.rows.append(order('100-0003-1'))
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        resumed=self.queue.retry_failed_batch(batch['id'],generation=1)
+        self.assertEqual(resumed['orders'],batch['orders'])
+        self.assertEqual(resumed['generation'],2)
+        with self.assertRaises(PrintBlocked):self.queue.retry_failed_batch(batch['id'],generation=1)
+        pair=self.prepare(resumed)
+        self.queue.publish_pair(resumed['id'],generation=2,pair_dir=pair)
+        view=self.queue.view(now=NOW)
+        self.assertEqual(sum(r['printed'] for r in view['rows']),2)
+        self.assertEqual(view['counters'][self.counter]['count'],1)
+        self.assertEqual(len(view['ready_batches']),1)
+
+    def test_retry_failed_batch_cannot_take_orders_claimed_by_another_pair(self):
+        original=self.reserve()
+        self.queue.fail_batch(original['id'],generation=1,error='sample')
+        other=self.reserve('new-click')
+        with self.assertRaises(PrintBlocked):self.queue.retry_failed_batch(original['id'],generation=1)
+        pair=self.prepare(other)
+        self.queue.publish_pair(other['id'],generation=1,pair_dir=pair)
+        with self.assertRaises(PrintBlocked):self.queue.retry_failed_batch(original['id'],generation=1)
+        self.assertEqual(self.queue.batch(original['id'])['state'],'failed')
+        self.assertEqual(len(self.queue.view(now=NOW)['ready_batches']),1)
+
     def test_missing_second_pdf_never_marks_any_order_printed(self):
         batch = self.reserve()
         pair = self.prepare(batch)
