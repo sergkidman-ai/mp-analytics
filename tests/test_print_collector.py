@@ -39,6 +39,7 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(len(rows),42)
         self.assertEqual({r['account'] for r in rows},{'wb_acc1','wb_acc2'})
         self.assertTrue(all(r['demand_id'] for r in rows))
+        self.assertTrue(all(r['display']['ms_status']=='Собирается' for r in rows))
         self.assertTrue(all(path in ('/entity/customerorder/metadata','/entity/customerorder') for path,_ in source.calls))
         self.assertTrue(any(params and params['offset']==20 for _,params in source.calls))
         self.assertEqual(progress[0],dict(stage='orders',loaded=0))
@@ -88,6 +89,7 @@ class CollectorTests(unittest.TestCase):
         rows=Collector(source).collect(now=NOW)
         self.assertEqual(len(rows),42)
         self.assertTrue(any(r['source_error']=='linked_demand_ambiguous' for r in rows))
+        self.assertTrue(all(r['display']['ms_status']=='Собирается' for r in rows))
 
     def test_half_hour_deadline_and_moscow_midnight(self):
         state={'started_at':NOW,'day':NOW.date()}

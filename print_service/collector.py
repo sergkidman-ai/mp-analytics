@@ -96,6 +96,6 @@ class Collector:
                 display=dict(platform=platform, organization='Цифровой квадрат' if account.endswith('1') else 'Дисквер',
                              store=raw.get('store', {}).get('name') or 'Склад не определён', store_id=store_id,
                              direction=direction, direction_id=direction_id, color=color,
-                             planned_at=raw['deliveryPlannedMoment'])))
+                             planned_at=raw['deliveryPlannedMoment'], ms_status=raw.get('state', {}).get('name'))))
             report(stage='warehouses', processed=processed, total=len(found))
         return output

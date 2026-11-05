@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Печать заказов · Пульт бизнеса</title>
 <style>
+.ms-order-status{margin-top:4px;font-size:11px;color:var(--muted);font-weight:500}
 .document.wait{background:#e9eef3;color:#66788a}.document.wait svg{width:14px;height:14px}
 .sync-status-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.sync-status progress{display:block;width:100%;height:11px;margin:10px 0;accent-color:var(--blue)}.sync-status p{font-size:13px}
 .single-organization .counters,.single-organization .org-columns{grid-template-columns:minmax(0,1fr)}
@@ -103,9 +104,10 @@ function receiptIndicator(ready){
  return ready?'<span class="document yes" title="ТЧ получен" aria-label="ТЧ получен">✓</span>':'<span class="document wait" title="ТЧ будет получен при формировании файлов" aria-label="ТЧ ожидает формирования"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
 }
 function orderRow(r){
+ const showError=r.error_message&&!['linked_demand_missing','linked_demand_ambiguous'].includes(r.source_error);
  const busy=r.batch_state==='building'||orderInFlight.has(r.id),counterBusy=model.counters[r.counter_key]?.building;
  const files=r.printed?`<div class="order-files"><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/receipts">ТЧ</a><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/labels">ЭТ</a></div>`:`<button class="order-pair" data-order="${esc(r.id)}" ${busy||counterBusy||!model.worker_healthy||r.source_error?'disabled':''} title="Сформировать ТЧ и ЭТ только этого заказа">${busy?'Готовится…':'ТЧ + ЭТ'}</button>`;
- return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span>${r.error_message?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${esc(r.display.direction||'')}</td><td>${esc(r.display.store||'')}</td><td>${receiptIndicator(r.receipt_ready)}</td><td><span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span></td><td><span class="state ${r.printed?'green':'red'}">${r.printed?'Файлы готовы':r.batch_state==='building'?'Готовится':'Нет пары'}</span></td><td>${files}</td></tr>`;
+ return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span><div class="ms-order-status" title="Статус заказа в МойСкладе на момент последней синхронизации">МС: ${esc(r.display.ms_status||'Не получен')}</div>${showError?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${esc(r.display.direction||'')}</td><td>${esc(r.display.store||'')}</td><td>${receiptIndicator(r.receipt_ready)}</td><td><span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span></td><td><span class="state ${r.printed?'green':'red'}">${r.printed?'Файлы готовы':r.batch_state==='building'?'Готовится':'Нет пары'}</span></td><td>${files}</td></tr>`;
 }
 function renderOrders(){
  if(!model)return;
