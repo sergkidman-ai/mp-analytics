@@ -1,9 +1,10 @@
 # поток: print
-"""One owned worker, two task slots; sync starts every 30 minutes and on request.
+"""One owned worker; independent sync, requested pairs and label-only warming.
 
 Run only after explicit schema installation/deployment. It never creates tables.
 """
 from concurrent.futures import ThreadPoolExecutor
+from collections import deque
 from datetime import datetime, timezone, timedelta
 import threading
 import time
@@ -39,9 +40,10 @@ def run(service=None):
         with queue.transaction() as cursor:
             cursor.execute("UPDATE batches SET generation=generation+1 WHERE state='building'")
             cursor.execute("UPDATE sync_runs SET state='pending' WHERE state='running'")
-        sync_future = batch_future = None
+        sync_future = batch_future = label_future = None
+        label_snapshot, label_rows = None, deque()
         last_heartbeat = last_scheduled = 0
-        with ThreadPoolExecutor(max_workers=2) as pool:
+        with ThreadPoolExecutor(max_workers=3) as pool:
             while True:
                 check()
                 now = service.clock()
@@ -61,6 +63,13 @@ def run(service=None):
                     if batch_future: batch_future.result()
                     batch = queue.pending_batch()
                     batch_future = pool.submit(service.run_batch, batch) if batch else None
+                if label_future is None or label_future.done():
+                    if label_future: label_future.result()
+                    snapshot = (status['started_at'], status['day'])
+                    if snapshot != label_snapshot:
+                        label_rows = deque(service.labels.candidates(now))
+                        label_snapshot = snapshot
+                    label_future = pool.submit(service.run_label_prefetch, label_rows.popleft()) if label_rows else None
                 time.sleep(2)
 
 

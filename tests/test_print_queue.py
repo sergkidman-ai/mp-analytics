@@ -219,6 +219,31 @@ class PrintQueueTests(unittest.TestCase):
         self.assertEqual(len(individual['orders']),1)
         self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
 
+    def test_prefetched_label_does_not_reserve_orders_export_receipts_or_change_counters(self):
+        oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']
+        label=self.root/'prefetched.pdf';pdf(label,164.25,113.25)
+        self.assertEqual(len(self.queue.label_candidates(now=NOW)),2)
+        self.assertTrue(self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW))
+        view=self.queue.view(now=NOW);row=next(r for r in view['rows'] if str(r['id'])==oid)
+        self.assertTrue(row['label_ready']);self.assertFalse(row['receipt_ready']);self.assertFalse(row['printed'])
+        self.assertEqual(view['counters'][self.counter]['count'],2)
+        self.assertEqual(view['ready_batches'],[])
+        from print_service.labels import LabelPrefetcher
+        candidates=LabelPrefetcher(self.queue,object(),root=self.root).candidates(NOW)
+        self.assertEqual([str(r['id']) for r in candidates],[self.rows[1]['raw']['id']])
+
+    def test_background_labels_cannot_overwrite_claimed_or_obsolete_orders(self):
+        oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']
+        label=self.root/'prefetched.pdf';pdf(label,164.25,113.25)
+        self.assertFalse(self.queue.mark_prefetched_label(oid,demand_id=str(uuid4()),path=label,now=NOW))
+        self.assertFalse(self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW+timedelta(days=1)))
+        batch=self.reserve();pair=self.prepare(batch)
+        self.assertEqual(self.queue.label_candidates(now=NOW),[])
+        self.assertFalse(self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW))
+        self.queue.publish_pair(batch['id'],generation=1,pair_dir=pair)
+        self.assertFalse(self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW))
+        self.assertEqual(len(self.queue.view(now=NOW)['ready_batches']),1)
+
     def test_ms_flag_set_during_build_does_not_remove_unpublished_bulk_orders(self):
         batch=self.reserve()
         for row in self.rows:row['display']={'ms_demand_printed':True}

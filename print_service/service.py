@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from print_service.clients import PrintClients
 from print_service.collector import Collector
+from print_service.labels import LabelPrefetcher
 from print_service.domain import MOSCOW, PrintBlocked
 from print_service.preparer import Preparer
 from print_service.pdf import extract_order_pair
@@ -59,6 +60,7 @@ class PrintService:
         self.collector = Collector(self.clients)
         if allow_unprinted is None: allow_unprinted = os.getenv('PRINT_EXPORT_UNPRINTED', '0') == '1'
         self.preparer = Preparer(self.queue, self.clients, root=self.root, allow_unprinted=allow_unprinted)
+        self.labels = LabelPrefetcher(self.queue, self.clients, root=self.root)
         self.demo = demo
 
     def status(self):
@@ -153,3 +155,10 @@ class PrintService:
                                       error=str(exc) if isinstance(exc, PrintBlocked) else 'prepare_internal_error')
             except PrintBlocked:
                 pass  # A newer worker or an already published pair owns the result.
+
+    def run_label_prefetch(self, row):
+        try:
+            self.labels.one(row, now=self.clock())
+        except Exception as exc:
+            self._record_error(exc, str(row['id']))
+            self.clients.lease_check()

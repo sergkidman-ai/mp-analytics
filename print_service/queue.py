@@ -182,6 +182,43 @@ class PrintQueue:
             cursor.execute('INSERT INTO requests VALUES (%s,%s)', (request_key, bid))
             return self._batch(cursor, bid)
 
+    def label_candidates(self, *, now):
+        with self.transaction() as cursor:
+            cursor.execute('''SELECT o.*,a.label_path,a.label_sha,a.demand_id AS artifact_demand_id
+                FROM current_snapshot v JOIN snapshots s ON s.id=v.snapshot_id
+                JOIN orders o ON o.snapshot_id=s.id LEFT JOIN artifacts a ON a.order_id=o.id
+                WHERE s.day=%s AND o.demand_id IS NOT NULL AND o.source_error IS NULL
+                AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id=o.id)
+                ORDER BY (o.display->>%s='true') NULLS FIRST,o.counter_key,o.external_id''',
+                (moscow_day(now), MS_PRINTED_SOURCE))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def mark_prefetched_label(self, order_id, *, demand_id, path, now):
+        path, digest = checked_file(path)
+        with self.transaction() as cursor:
+            # Recheck scope and claims under the same snapshot lock as a
+            # counter reservation. Background work must never replace files
+            # belonging to an in-flight/published pair.
+            cursor.execute('SELECT snapshot_id FROM current_snapshot FOR UPDATE')
+            snapshot = cursor.fetchone()['snapshot_id']
+            cursor.execute('''SELECT o.demand_id FROM orders o JOIN snapshots s ON s.id=o.snapshot_id
+                WHERE o.id=%s AND o.snapshot_id=%s AND s.day=%s FOR UPDATE OF o''',
+                (order_id, snapshot, moscow_day(now)))
+            order = cursor.fetchone()
+            if not order or str(order['demand_id']) != str(demand_id): return False
+            cursor.execute('SELECT 1 FROM claims WHERE order_id=%s', (order_id,))
+            if cursor.fetchone(): return False
+            cursor.execute('''SELECT demand_id,label_path,label_sha FROM artifacts WHERE order_id=%s''', (order_id,))
+            existing = cursor.fetchone()
+            if existing and str(existing['demand_id']) == str(demand_id) and existing['label_path'] == path and existing['label_sha'] == digest:
+                return True
+            cursor.execute('''INSERT INTO artifacts(order_id,demand_id,source_key,label_path,label_sha)
+                VALUES (%s,%s,'',%s,%s) ON CONFLICT(order_id) DO UPDATE SET
+                demand_id=EXCLUDED.demand_id,source_key='',label_path=EXCLUDED.label_path,
+                label_sha=EXCLUDED.label_sha,receipt_path=NULL,receipt_sha=NULL''',
+                (order_id, demand_id, path, digest))
+            return True
+
     def mark_artifact(self, order_id, *, demand_id, kind, path, source_key=''):
         if kind not in ('receipt', 'label'):
             raise ValueError('unknown_print_artifact')
