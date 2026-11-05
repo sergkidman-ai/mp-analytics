@@ -136,21 +136,37 @@ def annotate_receipt(data, *, diskver=False, code=None, last_four=None, color=No
     for article, quantity in quantities.items():
         if Decimal(str(quantity)) <= 1: continue
         matches = [(i, w) for i, words in enumerate(pages) for w in words if w['text'] == article]
-        if len(matches) != 1: raise PrintBlocked('receipt_article_missing_or_ambiguous')
-        i, article_word = matches[0]
-        headers = [w for w in pages[i] if w['text'] == 'Кол-во']
-        if len(headers) != 1: raise PrintBlocked('receipt_quantity_header_ambiguous')
-        left = headers[0]['xMin'] - 4
-        candidates = [w for w in pages[i] if left <= w['xMin'] <= left + 42
-                      and abs(w['yMin'] - article_word['yMin']) < 4]
-        exact = []
-        for w in candidates:
-            try:
-                if Decimal(w['text'].replace(',', '.')) == Decimal(str(quantity)): exact.append(w)
-            except InvalidOperation: pass
-        if len(exact) != 1: raise PrintBlocked('receipt_quantity_does_not_match_shipment')
-        word = exact[0]
-        marks[i].append((word, quantity_plan(word, pages[i], left)))
+        rows = {}
+        for i, article_word in matches:
+            headers = [w for w in pages[i] if w['text'] == 'Кол-во']
+            if len(headers) != 1: raise PrintBlocked('receipt_quantity_header_ambiguous')
+            left = headers[0]['xMin'] - 4
+            article_headers = [w for w in pages[i] if w['text'] == 'Артикул']
+            if len(article_headers) > 1: raise PrintBlocked('receipt_article_missing_or_ambiguous')
+            if article_headers:
+                header = article_headers[0]
+                adjacent = [w for w in pages[i] if abs(w['yMin']-header['yMin'])<4]
+                before = [w['xMax'] for w in adjacent if w['xMax']<header['xMin']]
+                after = [w['xMin'] for w in adjacent if w['xMin']>header['xMax']]
+                start = (max(before)+header['xMin'])/2 if before else 0
+                end = (header['xMax']+min(after))/2 if after else left
+                if article_word['yMin']<=header['yMax'] or not start<=article_word['xMin']<end:
+                    continue  # A repeated code in a description/footer is not another item.
+            candidates = {}
+            for word in pages[i]:
+                if not (left<=word['xMin']<=left+42 and abs(word['yMin']-article_word['yMin'])<4):continue
+                try: value=Decimal(word['text'].replace(',','.'))
+                except InvalidOperation:continue
+                if value.is_finite() and value>0:
+                    key=(i,word['xMin'],word['yMin'],word['xMax'],word['yMax'])
+                    candidates[key]=(word,value,left)
+            if len(candidates)!=1:raise PrintBlocked('receipt_quantity_does_not_match_shipment')
+            rows.update(candidates)
+        if not rows:raise PrintBlocked('receipt_article_missing_or_ambiguous')
+        if sum(value for word,value,left in rows.values())!=Decimal(str(quantity)):
+            raise PrintBlocked('receipt_quantity_does_not_match_shipment')
+        for key,(word,value,left) in rows.items():
+            if value>1:marks[key[0]].append((word,quantity_plan(word,pages[key[0]],left)))
     signatures = [(i, w) for i, words in enumerate(pages) for w in words if w['text'] == 'Простакова']
     if diskver and len(signatures) != 1: raise PrintBlocked('diskver_signature_layout_ambiguous')
     writer = PdfWriter()

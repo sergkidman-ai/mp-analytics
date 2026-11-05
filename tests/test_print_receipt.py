@@ -11,7 +11,7 @@ from print_service.domain import PrintBlocked
 from print_service.receipt import annotate_receipt, quantity_plan, word_pages
 
 
-def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quantity=False):
+def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quantity=False, row_quantities=None, duplicate_description=False):
     pdf = FPDF(unit='pt', format=(612, 792))
     pdf.add_font('Print', fname='/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
     pdf.set_auto_page_break(False)
@@ -19,10 +19,13 @@ def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quant
     pdf.set_font('Print', size=9)
     pdf.text(60, 140, 'Товарный чек № TEST-123')
     pdf.text(80, 170, 'Артикул')
+    if duplicate_description:pdf.text(180,170,'Наименование')
     pdf.text(370, 170, 'Кол-во')
-    pdf.text(80, 205, 'TEST-SKU')
-    pdf.text(374, 205, '10')
-    if compact_quantity:pdf.text(388,205,'шт')
+    for i,quantity in enumerate(row_quantities or [10]):
+        y=205+i*35
+        pdf.text(80,y,'TEST-SKU');pdf.text(374,y,str(quantity))
+        if compact_quantity:pdf.text(388,y,'шт')
+        if duplicate_description:pdf.text(180,y,'TEST-SKU')
     if signature:
         pdf.text(410, 400, 'Простакова Н.Ю.')
     if barcode:
@@ -41,6 +44,28 @@ def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quant
 
 
 class PrintReceiptTests(unittest.TestCase):
+    def test_repeated_article_rows_keep_their_actual_quantities(self):
+        source=receipt(row_quantities=[1,1],signature=False,barcode=False)
+        result=annotate_receipt(source,quantities={'TEST-SKU':2})
+        words=word_pages(result)[0]
+        self.assertEqual(sum(w['text']=='1' for w in words),2)
+        self.assertFalse(any(w['text']=='2' for w in words))
+        self.assertEqual(sum(w['text']=='TEST-SKU' for w in words),2)
+
+    def test_repeated_article_highlights_each_row_and_checks_the_total(self):
+        source=receipt(row_quantities=[2,3],signature=False,barcode=False)
+        result=annotate_receipt(source,quantities={'TEST-SKU':5});spans=[]
+        def visit(t,cm,tm,font,size):
+            if t.strip():spans.append((t.strip(),str((font or {}).get('/BaseFont',''))))
+        PdfReader(BytesIO(result)).pages[0].extract_text(visitor_text=visit)
+        self.assertEqual({t for t,f in spans if 'Bold' in f},{'2','3'})
+        with self.assertRaisesRegex(PrintBlocked,'receipt_quantity_does_not_match_shipment'):
+            annotate_receipt(source,quantities={'TEST-SKU':6})
+
+    def test_article_in_description_is_not_counted_as_an_extra_item(self):
+        source=receipt(duplicate_description=True,signature=False,barcode=False)
+        annotate_receipt(source,quantities={'TEST-SKU':10})
+
     def test_tight_quantity_column_uses_bold_without_frame_and_keeps_unit(self):
         source=receipt(signature=False,barcode=False,compact_quantity=True)
         words=word_pages(source)[0];word=next(w for w in words if w['text']=='10')
