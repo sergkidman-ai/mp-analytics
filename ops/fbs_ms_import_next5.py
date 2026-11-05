@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 from core import ms_api
 from ops.fbs_ms_import_batch10 import base_code
 from ops.fbs_ms_import_pilot import save
-from ops.fbs_ms_import_policy import Card, SelectionError, choose_bundle_plan, choose_card, tier, priority
+from ops.fbs_ms_import_policy import Card, SelectionError, choose_bundle_plan, choose_card, choose_ready_set, tier, priority
 from ops.ms_supplier_priorities import POLICY_VERSION
 from ops.fbs_ms_import_read import find_customerorder, product_cards, warehouse_stock
 from ops.fbs_ms_set_catalog import components as set_components
@@ -134,6 +134,32 @@ def _kit_lines(item: dict, code: str, account: str, prices: dict[str, int],
                           'manual_fallback': False,
                           'stock_store_id': STORE[account] if available else STORE_REMOTE})
     return lines, proof
+
+
+def _ready_set_lines(item: dict, code: str, account: str, cards: list[dict],
+                     prices: dict[str, int], promised: dict) -> tuple[list[Line], list[dict]] | None:
+    if not cards:
+        return None
+    store = STORE[account]
+    stock = _stock(cards, store)
+    domain = [Card(c['id'], c['externalCode'], ms_api.meta_id(c, 'supplier') or '',
+                   (c.get('code') or '').removeprefix(code).lower(), prices.get(c['id']),
+                   Decimal(str(stock[c['id']]['stock'])),
+                   Decimal(str(stock[c['id']]['reserve'])) + promised.get((store, c['id']), 0),
+                   c.get('archived', False)) for c in cards]
+    chosen = choose_ready_set(domain, code, Decimal(item['quantity']))
+    if chosen is None:
+        return None
+    proof = {'market_code': item['market_code'], 'base_code': code, 'card_id': chosen.id,
+             'card_code': next(c.get('code') for c in cards if c['id'] == chosen.id),
+             'quantity': str(item['quantity']), 'stock': stock[chosen.id], 'available': True,
+             'stock_store_id': store, 'supplier_id': chosen.supplier_id,
+             'tier': tier(chosen), 'priority': priority(chosen), 'purchase_kopeks': chosen.purchase_kopeks,
+             'selection_policy': POLICY_VERSION, 'manual_fallback': False, 'manual_parent': False,
+             'whole_set': True}
+    line = Line(chosen.id, Decimal(item['quantity']), item['price_kopeks'],
+                Decimal(item['discount_percent']))
+    return [line], [proof]
 
 
 def source_index():
@@ -293,7 +319,14 @@ def source(row, stats):
 def inspect(row, stats, prices, digest, promised=None):
     market = source(row, stats)
     account = market['account']
-    promised = promised or {}
+    # Per-order allocations are local: two pre-POST inspections must not mutate
+    # the batch promises. Selected units also cannot be reused by another line.
+    promised = defaultdict(Decimal, promised or {})
+    def remember(items):
+        for selected_item in items:
+            store = selected_item.get('stock_store_id')
+            if store:
+                promised[(store, selected_item['card_id'])] += Decimal(selected_item['quantity'])
     if find_customerorder(row['number']):
         raise RuntimeError('already_in_ms')
     selected = []
@@ -305,6 +338,16 @@ def inspect(row, stats, prices, digest, promised=None):
             composition = set_components(code)
         except Exception:
             composition = None
+        is_set = bool(composition) or any(re.search(r'\b(?:набор\w*|комплект\w*)\b',
+                                                  c.get('name') or '', re.I) for c in cards)
+        if is_set:
+            whole = _ready_set_lines(item, code, account, cards, prices, promised)
+            if whole is not None:
+                whole_lines, whole_proof = whole
+                lines.extend(whole_lines)
+                selected.extend(whole_proof)
+                remember(whole_proof)
+                continue
         manual_parent = False
         if composition:
             if (os.getenv('FBS_SET_SPLIT_ENABLED') != '1' or
@@ -319,6 +362,7 @@ def inspect(row, stats, prices, digest, promised=None):
                 else:
                     lines.extend(kit_lines)
                     selected.extend(kit_proof)
+                    remember(kit_proof)
                     continue
         if not cards:
             raise RuntimeError('exact_base_product_card_missing:' + code)
@@ -397,6 +441,7 @@ def inspect(row, stats, prices, digest, promised=None):
                          'candidate_evidence': candidate_evidence})
         lines.append(Line(chosen.id, Decimal(item['quantity']), item['price_kopeks'],
                           Decimal(item['discount_percent'])))
+        remember([selected[-1]])
     total = sum(line_total(x) for x in lines)
     payload = build_payload(platform=market['platform'], account=account,
         external_id=row['number'], lines=lines, expected_kopeks=total, available=False,

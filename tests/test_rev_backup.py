@@ -31,6 +31,27 @@ class RecoverySafetyTests(unittest.TestCase):
             dest=root/'code.tar';backup.code_snapshot(root,dest)
             with tarfile.open(dest) as archive:self.assertEqual(archive.getnames(),['feedback_bot/main.py'])
 
+    def test_private_recursive_notes_survive_encrypted_source_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);notes=root/'docs/rev';(notes/'nested').mkdir(parents=True)
+            files={'brand_notes_2026-09-21.md':'scoped brand note; provenance=original',
+                   'nested/manual_rules.md':'manual rule; source=confirmed expert'}
+            for name,text in files.items():(notes/name).write_text(text)
+            (root/'outside.md').write_text('must not follow a link')
+            (notes/'linked.md').symlink_to(root/'outside.md')
+            originals={'docs/handoff/archive/rev_2026-09-10.md':'original handoff provenance',
+                       'docs/reports/rev_gold_set.md':'original approved-answer provenance'}
+            for name,text in originals.items():
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text)
+            plain=root/'code.tar';backup.code_snapshot(root,plain)
+            key=root/'key';key.write_bytes(b'fixture-key-only\n');key.chmod(0o600)
+            encrypted=root/'code.gpg';backup.encrypt(plain,encrypted,key)
+            decoded=root/'decoded.tar';backup.decrypt(encrypted,decoded,key)
+            with tarfile.open(decoded) as archive:
+                expected=dict(originals,**{'docs/rev/'+name:text for name,text in files.items()})
+                self.assertEqual(set(archive.getnames()),set(expected))
+                for name,text in expected.items():self.assertEqual(archive.extractfile(name).read().decode(),text)
+
     def test_retention_preserves_unreceipted_and_failed_offsite_copies(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)

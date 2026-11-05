@@ -125,7 +125,7 @@ def decrypt(source,dest,key):
 
 
 def code_snapshot(root,dest):
-    """Capture deployed code (including pending fixes), never data or dotenv files."""
+    """Capture deployed code and private provenance notes for the encrypted bundle only."""
     allowed=[]
     for directory in ('core','collectors','reports','feedback_bot','migrations','ops'):
         base=Path(root)/directory
@@ -134,9 +134,17 @@ def code_snapshot(root,dest):
                 if p.is_file() and not p.is_symlink() and '__pycache__' not in p.parts and (
                     p.suffix in ('.py','.sql','.service','.timer') or p.name in ('requirements.txt','requirements-recovery.txt')):
                     allowed.append(p)
-    for name in ('requirements.txt','AGENTS.md','CLAUDE.md','docs/REV_RULES.md','docs/BRIEF_REV.md','docs/rev/RECOVERY_RUNBOOK.md'):
+    for name in ('requirements.txt','AGENTS.md','CLAUDE.md','docs/REV_RULES.md','docs/BRIEF_REV.md','docs/rev/RECOVERY_RUNBOOK.md',
+                 'docs/handoff/archive/rev_2026-09-10.md','docs/reports/rev_gold_set.md'):
         p=Path(root)/name
         if p.is_file():allowed.append(p)
+    # Provenance sources are private: include all nested Rev Markdown only in this
+    # encrypted recovery payload; Git deployment export has its own strict whitelist.
+    notes=Path(root)/'docs/rev'
+    if notes.exists():
+        for p in notes.rglob('*.md'):
+            linked_parent=any(parent.is_symlink() for parent in p.parents if parent==notes or notes in parent.parents)
+            if p.is_file() and not p.is_symlink() and not linked_parent:allowed.append(p)
     if not allowed:raise BackupError('No Rev source files found')
     with tarfile.open(dest,'w') as archive:
         for p in sorted(set(allowed)):archive.add(p,arcname=str(p.relative_to(root)),recursive=False)

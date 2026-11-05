@@ -92,6 +92,23 @@ class GitSyncTests(unittest.TestCase):
             self.assertEqual(command(root,'status','--porcelain'),status)
             self.assertEqual(command(root,'rev-parse','HEAD'),source)
 
+    def test_private_provenance_markdown_is_excluded_from_public_export(self):
+        for name in ('docs/rev/brand_notes_2026-09-21.md',
+                     'docs/rev/recovered_manual_rules_2026-11-04.md',
+                     'docs/rev/nested/manual_rules.md',
+                     'docs/handoff/archive/rev_2026-09-10.md','docs/reports/rev_gold_set.md'):
+            self.assertFalse(sync.export_allowed(name),name)
+        self.assertTrue(sync.export_allowed('docs/rev/RECOVERY_RUNBOOK.md'))
+        with tempfile.TemporaryDirectory() as tmp:
+            root,base=self.make_repo(tmp);notes=root/'docs/rev';notes.mkdir(parents=True)
+            (notes/'brand_notes_2026-09-21.md').write_text('private expert provenance')
+            (notes/'RECOVERY_RUNBOOK.md').write_text('public operating instructions')
+            command(root,'add','.');command(root,'commit','-qm','private and public documentation')
+            plan=sync.build_export_tree(root,command(root,'rev-parse','HEAD'),base)
+            self.assertFalse(plan['blocked'])
+            self.assertEqual([entry['path'] for entry in plan['changes']],['docs/rev/RECOVERY_RUNBOOK.md'])
+            self.assertNotIn('docs/rev/brand_notes_2026-09-21.md',command(root,'ls-tree','-r','--name-only',plan['tree']).splitlines())
+
     def test_export_includes_both_recovery_dependencies(self):
         for name in ('reports/rev_archive_fact_recovery.py','reports/rev_delivery_recovery.py'):
             self.assertTrue(sync.export_allowed(name),name)

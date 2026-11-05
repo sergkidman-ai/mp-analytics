@@ -58,7 +58,7 @@ class ImportSetIntegrationTests(TestCase):
             return [product(code)] if code in ('2860', '4297') else []
 
         def stock(store, cards):
-            return {c['id']: {'stock': 1 if store == STORE['acc1'] else 0,
+            return {c['id']: {'stock': 1 if store == STORE['acc1'] and c['externalCode'] != '4297' else 0,
                               'reserve': 0} for c in cards}
 
         with patch.object(importer, 'source', return_value=source), \
@@ -107,7 +107,7 @@ class ImportSetIntegrationTests(TestCase):
             return [product(code)]
         def stock(store, cards):
             self.assertIn(store,(STORE['acc2'],STORE_REMOTE))
-            return {c['id']:{'stock':2,'reserve':0} for c in cards}
+            return {c['id']:{'stock':0 if c['externalCode']=='6282' else 2,'reserve':0} for c in cards}
         with patch.object(importer,'source',return_value=source), \
              patch.dict(os.environ,{'FBS_SET_SPLIT_ENABLED':'1'}), \
              patch.object(importer,'find_customerorder',return_value=None), \
