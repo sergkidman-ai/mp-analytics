@@ -21,7 +21,7 @@ from print_service.storage import save_json
 ERRORS = {
     'counter_already_reserved': 'Для этого счётчика уже формируются файлы. Дождитесь завершения.',
     'selected_orders_changed': 'Этот заказ уже включён в файлы или больше не входит в текущий список. Обновите страницу.',
-    'counter_empty': 'В счётчике нет новых заказов. Отмеченные в МС заказы доступны для отдельной печати в строках списка.',
+    'counter_empty': 'В счётчике нет новых заказов. Обновите страницу.',
     'counter_has_blocked_orders': 'У части заказов нет необходимых данных. Проверьте красные строки ниже.',
     'sample_requires_previously_printed_demand': 'Тестовый режим: новая выгрузка этого чека из МС пока отключена.',
     'pair_not_ready': 'Оба файла ещё не готовы.',
@@ -87,6 +87,9 @@ class PrintService:
             except (OSError, ValueError, TypeError):
                 data['sync']['progress'] = {}
         for row in data['rows']:
+            # Drop obsolete MS print annotations from persisted old snapshots.
+            for field in ('ms_order_printed', 'ms_demand_printed'):
+                row['display'].pop(field, None)
             row['error_message'] = error_message(row['source_error']) if row['source_error'] else None
             for field in ('receipt_path','receipt_sha','label_path','label_sha','artifact_demand_id','snapshot_id'):
                 row.pop(field, None)

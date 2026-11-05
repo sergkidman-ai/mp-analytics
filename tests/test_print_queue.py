@@ -203,20 +203,18 @@ class PrintQueueTests(unittest.TestCase):
         with self.assertRaises(PrintBlocked):
             self.queue.reserve_counter(self.counter,request_key='duplicate',now=NOW,order_ids=chosen)
 
-    def test_ms_printed_orders_are_tagged_excluded_and_individually_printable(self):
+    def test_ms_print_flags_do_not_exclude_orders_from_counters_or_reservation(self):
         self.rows[0]['display']={'ms_demand_printed':True,'ms_order_printed':False}
         self.rows[1]['display']={'ms_demand_printed':False}
         self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
         view=self.queue.view(now=NOW)
-        self.assertEqual(view['counters'][self.counter]['count'],1)
-        self.assertEqual(view['counters'][self.counter]['ms_printed'],1)
+        self.assertEqual(view['counters'][self.counter]['count'],2)
+        self.assertNotIn('ms_printed',view['counters'][self.counter])
         tagged=next(r for r in view['rows'] if str(r['id'])==self.rows[0]['raw']['id'])
-        self.assertTrue(tagged['ms_printed']);self.assertFalse(tagged['printed'])
-        bulk=self.reserve('bulk');self.assertEqual(len(bulk['orders']),1)
-        self.assertEqual(bulk['orders'][0]['ms_order_id'],self.rows[1]['raw']['id'])
+        self.assertNotIn('ms_printed',tagged);self.assertFalse(tagged['printed'])
+        bulk=self.reserve('bulk');self.assertEqual(len(bulk['orders']),2)
+        self.assertEqual({o['ms_order_id'] for o in bulk['orders']},{r['raw']['id'] for r in self.rows})
         pair=self.prepare(bulk);self.queue.publish_pair(bulk['id'],generation=1,pair_dir=pair)
-        individual=self.queue.reserve_counter(self.counter,request_key='one',now=NOW,order_ids=[self.rows[0]['raw']['id']])
-        self.assertEqual(len(individual['orders']),1)
         self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
 
     def test_prefetched_label_does_not_reserve_orders_export_receipts_or_change_counters(self):
@@ -244,7 +242,7 @@ class PrintQueueTests(unittest.TestCase):
         self.assertFalse(self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW))
         self.assertEqual(len(self.queue.view(now=NOW)['ready_batches']),1)
 
-    def test_failed_jobs_hide_ms_printed_ready_and_out_of_scope_orders(self):
+    def test_failed_jobs_ignore_ms_print_flags_and_hide_ready_or_out_of_scope_orders(self):
         failed=self.reserve('failed')
         self.queue.fail_batch(failed['id'],generation=1,error='order_changed_since_counter_click')
         jobs=self.queue.view(now=NOW)['jobs']
@@ -252,11 +250,14 @@ class PrintQueueTests(unittest.TestCase):
         self.rows[0]['display']={'ms_demand_printed':True}
         self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
         jobs=self.queue.view(now=NOW)['jobs']
+        self.assertEqual(len(jobs[0]['orders']),2)
+        self.queue.sync_snapshot(self.rows[1:],started_at=NOW+timedelta(seconds=2),complete=True)
+        jobs=self.queue.view(now=NOW)['jobs']
         self.assertEqual([o['external_id'] for o in jobs[0]['orders']],[self.rows[1]['raw']['name']])
         done=self.reserve('done');pair=self.prepare(done)
         self.queue.publish_pair(done['id'],generation=1,pair_dir=pair)
         self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
-        self.queue.sync_snapshot([],started_at=NOW+timedelta(seconds=2),complete=True)
+        self.queue.sync_snapshot([],started_at=NOW+timedelta(seconds=3),complete=True)
         self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
 
     def test_preparation_records_the_failing_order_and_hides_its_resolved_error(self):
@@ -277,6 +278,10 @@ class PrintQueueTests(unittest.TestCase):
         for row in self.rows:
             if row['raw']['id']==failed_id:row['display']={'ms_demand_printed':True}
         self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        self.assertEqual(len(self.queue.view(now=NOW)['jobs']),1)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],2)
+        done=self.queue.reserve_counter(self.counter,request_key='resolved',now=NOW,order_ids=[failed_id])
+        pair=self.prepare(done);self.queue.publish_pair(done['id'],generation=1,pair_dir=pair)
         self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
         self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],1)
 

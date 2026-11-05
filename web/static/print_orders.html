@@ -7,7 +7,7 @@
 .document.wait{background:#e9eef3;color:#66788a}.document.wait svg{width:14px;height:14px}
 .sync-status-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.sync-status progress{display:block;width:100%;height:11px;margin:10px 0;accent-color:var(--blue)}.sync-status p{font-size:13px}
 .single-organization .counters,.single-organization .org-columns{grid-template-columns:minmax(0,1fr)}
-.ms-printed-badge{display:inline-block;margin-top:5px;padding:2px 6px;border-radius:4px;background:#fff0c5;color:#765312;font-size:10px;font-weight:650}.order-pair{font-size:12px;padding:6px 8px;background:#edf4fb;color:#155a98;border:1px solid #cfe0f1}.order-files{display:flex;gap:5px;flex-wrap:wrap}.order-files .file-link{padding:5px 7px;font-size:11px}.counter-ms{font-size:10px;color:var(--muted);margin-top:4px}
+.order-pair{font-size:12px;padding:6px 8px;background:#edf4fb;color:#155a98;border:1px solid #cfe0f1}.order-files{display:flex;gap:5px;flex-wrap:wrap}.order-files .file-link{padding:5px 7px;font-size:11px}
 :root{--ink:#182330;--muted:#64748b;--line:#dfe5eb;--green:#16834b;--red:#b64040;--blue:#176bba}
 *{box-sizing:border-box}body{margin:0;background:#f2f5f8;color:var(--ink);font:14px/1.45 system-ui,Segoe UI,sans-serif;display:flex;min-height:100vh}
 aside{width:216px;flex:0 0 216px;background:#111d29;color:#b5c2d1;padding:25px 16px;position:sticky;top:0;height:100vh}aside a{color:inherit;display:block;padding:10px 12px;text-decoration:none;border-radius:7px}aside .brand{color:white;font-weight:750;margin-bottom:24px}aside .current{color:white;background:#24374b}
@@ -32,7 +32,7 @@ button,.file-link{font:inherit;cursor:pointer;border:0;border-radius:7px;padding
 <div id="sync-status" class="notice sync-status hidden"><div class="sync-status-head"><strong id="sync-phase" role="status" aria-live="polite"></strong><span id="sync-elapsed" class="muted" aria-hidden="true"></span></div><p id="sync-detail"></p><progress id="sync-progress" aria-label="Ход синхронизации"></progress><p class="muted">Список ниже обновится автоматически после завершения.</p></div>
 <div class="counters" id="counters"></div>
 <section class="section"><div class="section-head"><h2>Готовые файлы</h2><span class="muted">Можно открыть повторно и распечатать</span></div><div id="ready-columns" class="org-columns ready-columns"></div><div class="legend">ТЧ — A4. ЭТ — исходные 58 × 40 мм, без масштабирования. Порядок заказов в обоих файлах одинаковый.</div></section>
-<section class="section"><div class="section-head"><div><h2>Все заказы на сегодня <span class="muted" id="total"></span></h2><p class="muted">Плановая дата — сегодня, статус в МС — «Собирается»</p></div><div class="filters"><input id="search" aria-label="Поиск заказа" placeholder="Поиск в таблице"><select id="filter" aria-label="Отбор по готовности"><option value="all">Все заказы</option><option value="red">Без готовой пары</option><option value="green">Файлы готовы</option><option value="ms">Напечатано в МС</option></select></div></div><div id="orders-columns" class="org-columns orders-columns"></div><div class="legend">«Напечатано в МС» — отметка связанной отгрузки. Такие заказы исключены из общих счётчиков; ТЧ + ЭТ можно сформировать отдельно в строке. Часы в ТЧ — ожидание формирования по нажатию. Этикетки загружаются заранее; галочка означает, что документ получен. Зелёные строки — готовая пара файлов.</div></section>
+<section class="section"><div class="section-head"><div><h2>Все заказы на сегодня <span class="muted" id="total"></span></h2><p class="muted">Плановая дата — сегодня, статус в МС — «Собирается»</p></div><div class="filters"><input id="search" aria-label="Поиск заказа" placeholder="Поиск в таблице"><select id="filter" aria-label="Отбор по готовности"><option value="all">Все заказы</option><option value="red">Без готовой пары</option><option value="green">Файлы готовы</option></select></div></div><div id="orders-columns" class="org-columns orders-columns"></div><div class="legend">В счётчиках — заказы, для которых на этой странице ещё не сформированы оба файла. ТЧ + ЭТ можно сформировать отдельно в строке. Часы в ТЧ — ожидание формирования по нажатию. Этикетки загружаются заранее; галочка означает, что документ получен. Зелёные строки — готовая пара файлов.</div></section>
 <div class="footer" id="updated"></div>
 </main>
 <script id="print-organizations" type="application/json">[{"id":"digital","name":"Цифровой квадрат","accounts":["oz_acc1","wb_acc1","ya_acc1"]},{"id":"diskver","name":"Дисквер","accounts":["oz_acc2","wb_acc2"]}]</script>
@@ -72,7 +72,7 @@ function renderCounters(){
     for(const [storeId,label] of stores){
      const item=group.items.find(r=>(r.display.store_id||r.display.store||'unknown')===storeId);
      const c=item?model.counters[item.counter_key]:null;
-     if(!c||c.count===0){html+=`<td><span class="empty-number">${c?'0':'—'}</span>${c?.ms_printed?`<div class="counter-ms">В МС: ${c.ms_printed}</div>`:''}</td>`;continue}
+     if(!c||c.count===0){html+=`<td><span class="empty-number">${c?'0':'—'}</span></td>`;continue}
      const busy=c.building||inFlight.has(item.counter_key),disabled=busy||!model.worker_healthy||!model.installed;
      html+=`<td><button type="button" class="counter${c.blocked?' blocked':''}${busy?' busy':''}" data-counter="${esc(item.counter_key)}" ${disabled?'disabled':''} title="${c.blocked?'Проверьте ошибки в красных строках':'Сформировать ТЧ и ЭТ для заказов этого счётчика'}">${busy?'Готовится…':esc(c.count)}</button></td>`;
     }
@@ -105,12 +105,12 @@ function receiptIndicator(ready){
 function orderRow(r){
  const busy=r.batch_state==='building'||orderInFlight.has(r.id),counterBusy=model.counters[r.counter_key]?.building;
  const files=r.printed?`<div class="order-files"><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/receipts">ТЧ</a><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/labels">ЭТ</a></div>`:`<button class="order-pair" data-order="${esc(r.id)}" ${busy||counterBusy||!model.worker_healthy||r.source_error?'disabled':''} title="Сформировать ТЧ и ЭТ только этого заказа">${busy?'Готовится…':'ТЧ + ЭТ'}</button>`;
- return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span>${r.ms_printed?'<div><span class="ms-printed-badge" title="У связанной отгрузки МС установлена отметка печати">Напечатано в МС</span></div>':''}${r.error_message?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${esc(r.display.direction||'')}</td><td>${esc(r.display.store||'')}</td><td>${receiptIndicator(r.receipt_ready)}</td><td><span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span></td><td><span class="state ${r.printed?'green':'red'}">${r.printed?'Файлы готовы':r.batch_state==='building'?'Готовится':'Нет пары'}</span></td><td>${files}</td></tr>`;
+ return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span>${r.error_message?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${esc(r.display.direction||'')}</td><td>${esc(r.display.store||'')}</td><td>${receiptIndicator(r.receipt_ready)}</td><td><span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span></td><td><span class="state ${r.printed?'green':'red'}">${r.printed?'Файлы готовы':r.batch_state==='building'?'Готовится':'Нет пары'}</span></td><td>${files}</td></tr>`;
 }
 function renderOrders(){
  if(!model)return;
  const search=$('search').value.trim().toLowerCase(),filter=$('filter').value;
- const visible=model.rows.filter(r=>(!search||r.external_id.toLowerCase().includes(search))&&(filter==='all'||(filter==='ms'?r.ms_printed:r.color===filter)));
+ const visible=model.rows.filter(r=>(!search||r.external_id.toLowerCase().includes(search))&&(filter==='all'||r.color===filter));
  $('total').textContent=`· ${model.rows.length}`;
  $('orders-columns').innerHTML=ORGANIZATIONS.map(org=>{
   const rows=forOrganization(visible,org),total=forOrganization(model.rows,org).length;
