@@ -1,0 +1,15 @@
+# поток: rev
+[Unit]
+Description=Audit and push committed Rev code snapshot with isolated deploy key
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+WorkingDirectory=/opt/mp-analytics/.claude/worktrees/rev-recovery-20261103
+ExecStart=/opt/mp-analytics/venv/bin/python ops/rev_git_sync.py --export
+TimeoutStartSec=10min
+Nice=10
+NoNewPrivileges=yes

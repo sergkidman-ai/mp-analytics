@@ -1,0 +1,85 @@
+# поток: rev
+"""DeepSeek Search API evidence, cached and covered by the shared daily budget.
+
+API/pricing: https://api-docs.deepseek.com/guides/search/ (verified 2026-11-03).
+Only evidence is returned here. Anthropic Batch synthesizes and verifies the answer.
+"""
+import hashlib
+import os
+import re
+from urllib.parse import urlparse
+import requests
+from psycopg2.extras import Json
+from core import db
+from reports import recovery_budget
+from reports.prompt_privacy import public_name
+
+
+def legacy_cache_key(question, product_name):
+    query = ((question or '').strip()+' '+public_name(product_name or '')).strip()[:128]
+    return query,hashlib.sha256(query.encode()).hexdigest()
+
+
+def cache_key(question, product_name):
+    # Preserve both sides of the comparison before the API's 128-character truncation.
+    name=public_name(product_name or '')
+    pattern=r'\b[A-Za-z]{1,6}(?:[- ][A-Za-z]{1,6})?[- ]?\d{2,6}[A-Za-z]{0,8}\b'
+    asked=re.findall(pattern,question or '')[:3]
+    sold=re.findall(pattern,name)[:2]
+    if not asked and not sold:
+        return legacy_cache_key(question,product_name)
+    brands=re.findall(r'\b(?:Brother|Canon|HP|Epson|Samsung|Kyocera|Xerox|Pantum|Ricoh|OKI)\b',
+                      (question or '')+' '+name,re.I)[:1]
+    entities=list(dict.fromkeys(brands+asked+sold))
+    query=(' '.join(entities)+' '+name+' '+(question or '').strip()).strip()[:128]
+    return query,hashlib.sha256(query.encode()).hexdigest()
+
+
+def cached_primary(question, product_name):
+    if not db.query("SELECT to_regclass('rev_search_cache') AS name")[0]['name']:
+        return None
+    _, key = cache_key(question,product_name)
+    _,legacy=legacy_cache_key(question,product_name)
+    rows=db.query("""SELECT evidence FROM rev_search_cache WHERE query_key=ANY(%s)
+        AND cached_at>now()-interval '7 days' ORDER BY (query_key=%s) DESC""",([key,legacy],key))
+    return next((row['evidence'] for row in rows if row['evidence'].get('validated_primary') is True),None)
+
+
+def facts(question, product_name):
+    token = os.getenv('DEEPSEEK_API_KEY')
+    if not token or os.getenv('FEEDBACK_LLM_PIPELINE_READY', '0') != '1':
+        raise RuntimeError('DeepSeek search credentials/pipeline not validated')
+    query,key = cache_key(question,product_name)
+    db.execute('''CREATE TABLE IF NOT EXISTS rev_search_cache (
+        query_key text PRIMARY KEY, evidence jsonb NOT NULL, cached_at timestamptz DEFAULT now())''')
+    rows = db.query("SELECT evidence FROM rev_search_cache WHERE query_key=%s AND cached_at>now()-interval '7 days'", (key,))
+    if rows:
+        return rows[0]['evidence']
+    recovery_budget.setup()
+    day = db.query("SELECT (now() AT TIME ZONE 'Europe/Moscow')::date::text AS day")[0]['day']
+    reservation = 'deepseek-search:' + day + ':' + key
+    if not recovery_budget.reserve(reservation, 'deepseek-search', '0.00075'):
+        raise RuntimeError('Previous search outcome unconfirmed; no automatic paid retry')
+    # Separate search endpoint: never append /tools/search to an Anthropic-compatible URL.
+    endpoint = os.getenv('DEEPSEEK_SEARCH_URL', 'https://api.deepseek.com/v1/tools/search')
+    base = urlparse(os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/anthropic'))
+    if base.hostname != 'api.deepseek.com' and not os.getenv('DEEPSEEK_SEARCH_URL'):
+        raise RuntimeError('Custom DeepSeek provider needs an explicit search endpoint')
+    parsed = urlparse(endpoint)
+    if parsed.scheme != 'https' or parsed.username or parsed.password:
+        raise RuntimeError('Unsafe search endpoint')
+    response = requests.post(endpoint, headers={'Authorization':'Bearer '+token},
+                             json={'query':query,'ori_question':(question or '')[:128],
+                                   'count':5,'need_content':True}, timeout=(8,45))
+    if not response.ok:
+        raise RuntimeError('DeepSeek search HTTP '+str(response.status_code))
+    results = response.json().get('results') or []
+    sources = [{'title':r.get('title',''),'url':r.get('url','')} for r in results]
+    evidence = {'answer':'\n\n'.join((r.get('title','')+'\n'+r.get('url','')+'\n'+
+                 (r.get('content') or r.get('summary') or r.get('snippet') or '')[:5000]) for r in results),
+                'sources':sources,'note':'DeepSeek Search: external evidence, not product-card facts',
+                'verdict':'unclear','reply':''}
+    db.execute('''INSERT INTO rev_search_cache(query_key,evidence) VALUES(%s,%s)
+        ON CONFLICT(query_key) DO UPDATE SET evidence=EXCLUDED.evidence,cached_at=now()''', (key,Json(evidence)))
+    db.execute('UPDATE rev_llm_budget SET actual_usd=%s WHERE request_key=%s', ('0.00075' if results else '0',reservation))
+    return evidence

@@ -54,17 +54,23 @@ def client_for(model):
     if prov in _CACHE:
         return _CACHE[prov]
     from anthropic import Anthropic
-    import httpx
+    # Anthropic 2.x uses httpx2; 1.x and older accept httpx clients.
+    from importlib.metadata import version
+    if int(version('anthropic').split('.')[0]) >= 2:
+        import httpx2 as httpx
+    else:
+        import httpx
     if prov == "deepseek":
         key = os.environ.get("DEEPSEEK_API_KEY")
         if not key:
             raise RuntimeError("DEEPSEEK_API_KEY не задан в .env — модель deepseek-* недоступна")
-        c = Anthropic(api_key=key, base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/anthropic"),
+        c = Anthropic(api_key=key, max_retries=0, base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/anthropic"),
                       http_client=httpx.Client(timeout=180))
     else:
         key = os.environ["ANTHROPIC_API_KEY"]
         base = os.environ.get("ANTHROPIC_BASE_URL")
-        c = (Anthropic(api_key=key, base_url=base, http_client=httpx.Client(verify=False, timeout=180))
-             if base else Anthropic(api_key=key, http_client=httpx.Client(timeout=180)))
+        c = (Anthropic(api_key=key, max_retries=0, base_url=base,
+                       http_client=httpx.Client(verify=os.getenv('ANTHROPIC_CA_BUNDLE') or True, timeout=180))
+             if base else Anthropic(api_key=key, max_retries=0, http_client=httpx.Client(timeout=180)))
     _CACHE[prov] = c
     return c

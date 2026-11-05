@@ -1,0 +1,12 @@
+# поток: rev
+[Unit]
+Description=Hourly encrypted offsite Rev recovery snapshot
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=120
+Persistent=true
+Unit=feedback-rev-backup.service
+
+[Install]
+WantedBy=timers.target

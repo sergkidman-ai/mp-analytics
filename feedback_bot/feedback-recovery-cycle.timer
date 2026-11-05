@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Rev recovery processing every two hours
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=2h
+RandomizedDelaySec=1min
+Persistent=true
+Unit=feedback-recovery-cycle.service
+
+[Install]
+WantedBy=timers.target

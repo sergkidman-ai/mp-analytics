@@ -68,10 +68,10 @@ class synchronous:
         return False
 
 
-def _key(model, purpose, r, content):
+def _key(model, purpose, r, content, system_text=''):
     h = hashlib.md5()
     for part in (model, purpose, str((r or {}).get("platform")), str((r or {}).get("account")),
-                 str((r or {}).get("kind")), str((r or {}).get("ext_id")), content):
+                 str((r or {}).get("kind")), str((r or {}).get("ext_id")), content, system_text):
         h.update((part or "").encode("utf-8", "replace"))
         h.update(b"\x00")
     return h.hexdigest()
@@ -82,7 +82,9 @@ def ask(model, system_text, content, max_tokens, r, purpose="draft"):
 
     Порядок: готовый результат → уже стоит в очереди → поставить в очередь. Вызов API здесь
     не делается никогда: батч отправляет только `flush_if_due()`."""
-    k = _key(model, purpose, r, content)
+    from reports.archive_question_policy import require_paid_model_allowed
+    require_paid_model_allowed(r or {})
+    k = _key(model, purpose, r, content, system_text)
     got = db.query("SELECT raw FROM feedback_llm_result WHERE req_key=%s", (k,))
     if got and (got[0]["raw"] or "").strip():
         db.execute("UPDATE feedback_llm_result SET used_at=now() WHERE req_key=%s", (k,))
@@ -105,7 +107,7 @@ def pending_count():
 def _due():
     """Пора ли отправлять: набралось BATCH_MIN или самый старый ждёт дольше BATCH_MAX_WAIT_MIN."""
     row = db.query("""SELECT count(*) n, min(created_at) oldest
-                        FROM feedback_llm_queue WHERE batch_id IS NULL""")[0]
+                        FROM feedback_llm_queue WHERE batch_id IS NULL AND submission_key IS NULL""")[0]
     if not row["n"]:
         return False, 0
     waited = db.query("SELECT EXTRACT(EPOCH FROM (now()-%s))/60 m", (row["oldest"],))[0]["m"]
@@ -114,14 +116,25 @@ def _due():
 
 def flush_if_due(force=False, verbose=True):
     """Отправить накопившуюся очередь одним батчем на модель. → id батча или None."""
+    if os.getenv('FEEDBACK_LLM_PIPELINE_READY', '0') != '1':
+        if verbose:
+            print('Batch blocked: credentials, search capability and budget pricing require validation', flush=True)
+        return None
+    db.execute('ALTER TABLE feedback_llm_queue ADD COLUMN IF NOT EXISTS submission_key text')
     due, n = _due()
     if not n or not (due or force):
         if verbose and n:
             print(f"  батч: в очереди {n} — рано (порог {BATCH_MIN} шт / {BATCH_MAX_WAIT_MIN} мин)",
                   flush=True)
         return None
-    rows = db.query("""SELECT * FROM feedback_llm_queue WHERE batch_id IS NULL
+    rows = db.query("""SELECT * FROM feedback_llm_queue WHERE batch_id IS NULL AND submission_key IS NULL
                         ORDER BY created_at LIMIT %s""", (BATCH_CAP,))
+    if not rows:
+        return None
+    from reports.archive_question_policy import is_archive_question
+    rows=[row for row in rows if not is_archive_question(row)]
+    if not rows:
+        return None
     # Один батч = одна модель: у Anthropic модель задаётся в каждом запросе, но разбор стоимости
     # и статус батча читаются по модели, поэтому берём самую массовую и остальных ждём следующим.
     model = max({r["model"] for r in rows}, key=lambda m: sum(x["model"] == m for x in rows))
@@ -138,6 +151,31 @@ def flush_if_due(force=False, verbose=True):
                             params=MessageCreateParamsNonStreaming(
                                 model=model, max_tokens=int(r["max_tokens"]), system=sysparam,
                                 messages=[{"role": "user", "content": r["content"]}])))
+    from reports import recovery_budget
+    from decimal import Decimal
+    recovery_budget.setup()
+    prices = llm_pricing.PRICING.get(model)
+    if not prices:
+        raise RuntimeError('Unpriced model blocked before batch submission')
+    def upper(row):
+        return ((len((row['system_text']+row['content']).encode('utf-8'))+4096)*prices[0]*1.25
+                +int(row['max_tokens'])*prices[1])/1e6*llm_pricing.BATCH_DISCOUNT
+    spent = recovery_budget.status()
+    available = Decimal(os.getenv('FEEDBACK_LLM_DAILY_TARGET_USD', '1')) - Decimal(str(spent['spent_usd'])) - Decimal(str(spent['reserved_usd']))
+    selected, upper_cost = [], 0.0
+    for row in rows:
+        if Decimal(str(upper_cost+upper(row))) <= available:
+            selected.append(row)
+            upper_cost += upper(row)
+    if not selected:
+        return None
+    rows = selected
+    reqs = [request for request in reqs if request['custom_id'] in {r['req_key'] for r in rows}]
+    reservation = hashlib.sha256('|'.join(sorted(r['req_key'] for r in rows)).encode()).hexdigest()
+    if not recovery_budget.reserve(reservation, 'anthropic', upper_cost):
+        return None  # previous submission may have succeeded; reconcile instead of paying twice
+    db.execute('UPDATE feedback_llm_queue SET submission_key=%s WHERE req_key=ANY(%s)',
+               (reservation,[r['req_key'] for r in rows]))
     batch = client.messages.batches.create(requests=reqs)
     db.execute("INSERT INTO feedback_llm_batch (batch_id, model, n_req) VALUES (%s,%s,%s)",
                (batch.id, model, len(reqs)))
@@ -170,6 +208,8 @@ def collect(verbose=True):
                 print(f"  батч {b['batch_id']}: ещё считается", flush=True)
             continue
         ok = err = tin = tout = 0
+        actual_cost = 0.0
+        saved_results = []
         for res in client.messages.batches.results(b["batch_id"]):
             if getattr(res.result, "type", "") != "succeeded":
                 err += 1
@@ -180,17 +220,42 @@ def collect(verbose=True):
             to = getattr(u, "output_tokens", 0) or 0
             tin += ti
             tout += to
-            db.execute("""INSERT INTO feedback_llm_result
+            pin, pout = llm_pricing.PRICING[b['model']]
+            actual_cost += ((ti + (getattr(u, 'cache_creation_input_tokens', 0) or 0) * 1.25
+                             + (getattr(u, 'cache_read_input_tokens', 0) or 0) * 0.1) * pin
+                            + to * pout) / 1e6 * llm_pricing.BATCH_DISCOUNT
+            saved_results.append((res.custom_id, b['batch_id'], getattr(msg, 'model', b['model']),
+                                  _text_of(msg), ti, to))
+            ok += 1
+        # Results, spend and queue removal commit together; a restart cannot count spend twice.
+        with db.get_conn() as conn:
+          with conn.cursor() as cur:
+            cur.execute("SELECT status FROM feedback_llm_batch WHERE batch_id=%s FOR UPDATE", (b['batch_id'],))
+            if cur.fetchone()[0] == 'ended':
+                continue
+            for saved in saved_results:
+              cur.execute("""INSERT INTO feedback_llm_result
                             (req_key, batch_id, model, raw, tokens_in, tokens_out)
                           VALUES (%s,%s,%s,%s,%s,%s)
                           ON CONFLICT (req_key) DO UPDATE SET raw=EXCLUDED.raw,
                             tokens_in=EXCLUDED.tokens_in, tokens_out=EXCLUDED.tokens_out""",
-                       (res.custom_id, b["batch_id"], b["model"], _text_of(msg), ti, to))
-            ok += 1
-        _log_cost(b["model"] + llm_pricing.BATCH_SUFFIX, ok, tin, tout)
-        db.execute("""UPDATE feedback_llm_batch SET status='ended', ended_at=now(), n_ok=%s, n_err=%s
+                       saved)
+            cur.execute("SELECT req_key FROM feedback_llm_queue WHERE batch_id=%s ORDER BY req_key", (b['batch_id'],))
+            keys = [row[0] for row in cur.fetchall()]
+            reservation = hashlib.sha256('|'.join(keys).encode()).hexdigest()
+            if ok + err == b['n_req']:
+                cur.execute('UPDATE rev_llm_budget SET actual_usd=%s WHERE request_key=%s',
+                            (actual_cost, reservation))
+            cur.execute("""INSERT INTO feedback_llm_cost_log(day,model,calls,tokens_in,tokens_out,cost_usd)
+                VALUES(current_date,%s,%s,%s,%s,%s) ON CONFLICT(day,model) DO UPDATE SET
+                calls=feedback_llm_cost_log.calls+EXCLUDED.calls,
+                tokens_in=feedback_llm_cost_log.tokens_in+EXCLUDED.tokens_in,
+                tokens_out=feedback_llm_cost_log.tokens_out+EXCLUDED.tokens_out,
+                cost_usd=feedback_llm_cost_log.cost_usd+EXCLUDED.cost_usd""",
+                (b['model']+llm_pricing.BATCH_SUFFIX,ok,tin,tout,actual_cost))
+            cur.execute("""UPDATE feedback_llm_batch SET status='ended', ended_at=now(), n_ok=%s, n_err=%s
                        WHERE batch_id=%s""", (ok, err, b["batch_id"]))
-        db.execute("DELETE FROM feedback_llm_queue WHERE batch_id=%s", (b["batch_id"],))
+            cur.execute("DELETE FROM feedback_llm_queue WHERE batch_id=%s", (b["batch_id"],))
         got += ok
         if verbose:
             c = llm_pricing.cost(b["model"] + llm_pricing.BATCH_SUFFIX, tin, tout)

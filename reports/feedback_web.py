@@ -64,6 +64,9 @@ WEB_MAX_USES = int(os.environ.get("FEEDBACK_WEB_MAX_USES", "1"))
 
 
 def web_compat(client, question, product_name, card_summary, model=None):
+    if os.getenv('FEEDBACK_SEARCH_PROVIDER', 'deepseek') == 'deepseek':
+        from reports.deepseek_search import facts
+        return facts(question, product_name)
     """Веб-проверка совместимости. client — тот же Anthropic(relay). None если недоступно/пусто."""
     model = model or WEB_MODEL
     # наружу (веб-поиск) уходит только опубликованное: имя без складских пометок + факты карточки
@@ -128,6 +131,9 @@ FACT_SYSTEM = """Ты — специалист поддержки магазин
 
 
 def web_fact(client, question, product_name, card_summary, model=None, draft=""):
+    if os.getenv('FEEDBACK_SEARCH_PROVIDER', 'deepseek') == 'deepseek':
+        from reports.deepseek_search import facts
+        return facts(question, product_name)
     """Веб-поиск ФАКТА по ТТХ / подбор картриджа / процедурный вопрос. draft — уже готовая часть ответа
     (совместимость): при наличии веб дополняет её, не повторяя. → {answer, sources[], note} | error."""
     model = model or WEB_MODEL

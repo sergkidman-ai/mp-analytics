@@ -1,0 +1,12 @@
+# поток: rev
+[Unit]
+Description=Hourly bounded retry of confirmed Market rejections within existing quota
+
+[Timer]
+OnCalendar=*-*-* *:15:00
+RandomizedDelaySec=60
+Persistent=true
+Unit=feedback-rev-delivery.service
+
+[Install]
+WantedBy=timers.target

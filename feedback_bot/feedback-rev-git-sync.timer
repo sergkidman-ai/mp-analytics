@@ -1,0 +1,12 @@
+# поток: rev
+[Unit]
+Description=Sync committed Rev recovery branch every 15 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00/15:00
+RandomizedDelaySec=30
+Persistent=true
+Unit=feedback-rev-git-sync.service
+
+[Install]
+WantedBy=timers.target

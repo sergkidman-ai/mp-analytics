@@ -113,6 +113,14 @@ class SendPathTest(unittest.TestCase):
     def setUp(self):
         from collectors import feedback_send as fs
         self.fs = fs
+        from feedback_bot import recovery_runtime
+        patches = [mock.patch.object(fs, '_reload_env'),
+                   mock.patch.object(fs.db, 'query', return_value=[{'is_answered':False,'posted_ok':None}]),
+                   mock.patch.object(recovery_runtime, 'publication_block', return_value=''),
+                   mock.patch.dict('os.environ', {'FEEDBACK_RESTORE_HOLD':'0'})]
+        for patcher in patches:
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def test_post_answer_держит_плохой_черновик_до_всех_прочих_проверок(self):
         # причина взята из Q_BLOCKING: послабление 10.09.2026 серверную проверку не отменяет

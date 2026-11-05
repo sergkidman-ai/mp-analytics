@@ -35,7 +35,7 @@ from dotenv import load_dotenv                       # noqa: E402
 load_dotenv(BASE_DIR / ".env")
 from core import db
 from reports import publish_gate                                  # noqa: E402
-from collectors.wb import _token as _wb_token        # noqa: E402
+from collectors.wb_feedbacks import feedback_token as _wb_token  # noqa: E402
 from collectors.ozon import _headers as _oz_headers  # noqa: E402
 
 WB_QUESTIONS_URL = "https://feedbacks-api.wildberries.ru/api/v1/questions"
@@ -118,8 +118,14 @@ def _sent_today():
 def backlog_sent_today(platform, account):
     """Сколько авто-ответов по бэклогу отзывов ушло сегодня (Москва) в ЭТОМ канале — база лимита.
     Считаем по факту публикации: успех + отзыв + старше границы + маршрут auto."""
+    registered = db.query("SELECT to_regclass('rev_archive_publication') AS name")
+    archive_clause = (""" OR EXISTS(SELECT 1 FROM rev_archive_publication a
+        WHERE (a.platform,a.account,a.kind,a.ext_id)=
+              (raw_feedback.platform,raw_feedback.account,raw_feedback.kind,raw_feedback.ext_id))"""
+        if registered and registered[0].get('name') else '')
     r = db.query(f"""SELECT count(*) AS n FROM raw_feedback
-        WHERE posted_ok=true AND {MSK_TODAY_SQL} AND kind='review' AND draft_route='auto'
+        WHERE posted_ok=true AND {MSK_TODAY_SQL} AND kind='review'
+          AND (draft_route='auto'{archive_clause})
           AND platform=%s AND account=%s
           AND created_at < now() - make_interval(days => %s)""",
         (platform, account, backlog_days()))
@@ -334,13 +340,13 @@ def _retriable(e):
             повторять нельзя, площадка могла ответ принять.
     """
     if isinstance(e, requests.HTTPError) and e.response is not None:
-        return True
+        return e.response.status_code in (400, 401, 403, 404, 405, 420, 422, 429)
     if isinstance(e, requests.exceptions.ConnectTimeout):
         return True                                  # соединение не установилось
     if isinstance(e, requests.exceptions.ReadTimeout):
         return False                                 # запрос ушёл, ответа не дождались
     if isinstance(e, requests.exceptions.ConnectionError):
-        return True                                  # reset/aborted/DNS — запрос не обработан
+        return False                                 # reset may happen after acceptance
     return False
 
 
@@ -382,6 +388,23 @@ def post_answer(row, text, apply_cap=False, override=None):
     override — причина, по которой машинный запрет неприменим: текст написал человек, и судить
     сигналами о ЧЕРНОВИКЕ уже нечего. Пустой override = гейт обязателен.
     → (ok: bool, detail: str). В dry-run реально не шлёт и НЕ помечает posted."""
+    _reload_env()
+    if os.getenv("FEEDBACK_RESTORE_HOLD", "1") != "0":
+        return False, "восстановление: публикации выключены"
+    stored = db.query("""SELECT is_answered, posted_ok, recovery_active_unanswered, skipped_no_api FROM raw_feedback
+        WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
+        (row["platform"], row["account"], row["kind"], row["ext_id"]))
+    if not stored:
+        return False, "нет обращения в базе"
+    if stored[0]["is_answered"] or stored[0]["posted_ok"]:
+        return False, "ответ уже есть; повторная публикация запрещена"
+    if stored[0].get('recovery_active_unanswered') is False:
+        return False, "Обращение отсутствует в актуальной очереди площадки; повтор запрещён"
+    if stored[0].get('skipped_no_api'):
+        return False, "Путь ответа недоступен; публикация запрещена"
+    from feedback_bot import recovery_runtime as runtime
+    if runtime.publication_block():
+        return False, runtime.publication_block()
     text = (text or "").strip()
     if not text:
         return False, "пустой текст"
@@ -411,6 +434,20 @@ def post_answer(row, text, apply_cap=False, override=None):
         return True, "dry-run"
     # Стоп-кран: после SEND_MAX_ATTEMPTS неудач подряд повторы прекращены (⛔ уже ушло в Telegram).
     # Снять — DELETE из feedback_send_attempts по ключу (после починки причины).
+    from collectors import feedback_preflight
+    try:
+        already_answered, observed_text = feedback_preflight.refresh(row)
+    except Exception as error:
+        return False, 'Сверка площадки не выполнена: ' + type(error).__name__ + '; публикация не начата'
+    if already_answered:
+        previous = db.query('''SELECT final_text FROM rev_publication_attempt
+            WHERE (platform,account,kind,ext_id)=(%s,%s,%s,%s)''', _key(row))
+        if previous and observed_text.strip() and observed_text.strip() == previous[0]['final_text'].strip():
+            _mark_posted(row, observed_text, True)
+            runtime.publication_result(row,'confirmed')
+            _clear_attempts(row)
+            return True, 'sent:confirmed-by-readback'
+        return False, 'already_answered_on_platform: ответ уже существует; повтор запрещён'
     n_att, blocked = attempts_state(row)
     if blocked:
         _log(f"BLOCKED {plat}/{acc} {kind}={ext}: отправка застряла ({n_att} неудач), повтор не делаем")
@@ -425,6 +462,8 @@ def post_answer(row, text, apply_cap=False, override=None):
             _log(f"DRY-RUN(cap) {plat}/{acc} {kind}={ext}: лимит бэклога канала {used}/{cap} исчерпан")
             return True, "dry-run:daily-cap"
 
+    if not runtime.claim_publication(row, text):
+        return False, "Исход предыдущей отправки требует сверки с площадкой; повтор запрещён"
     try:
         payload = row.get("payload") or {}
         if plat == "wb":
@@ -450,6 +489,7 @@ def post_answer(row, text, apply_cap=False, override=None):
             return False, f"неизвестная площадка {plat}"
     except Exception as e:
         detail = f"{type(e).__name__}: {str(e)[:200]}"
+        runtime.publication_result(row, "rejected" if _retriable(e) else "unknown")
         # тело ответа площадки — часто полезно для разбора формата
         http = isinstance(e, requests.HTTPError) and e.response is not None
         if http:
@@ -469,6 +509,7 @@ def post_answer(row, text, apply_cap=False, override=None):
 
     _log(f"SENT {plat}/{acc} {kind}={ext}: «{text[:80]}»")
     _mark_posted(row, text, True)
+    runtime.publication_result(row, "confirmed")
     _clear_attempts(row)
     return True, "sent"
 

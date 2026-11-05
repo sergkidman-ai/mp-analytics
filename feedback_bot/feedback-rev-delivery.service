@@ -1,0 +1,14 @@
+# поток: rev
+[Unit]
+Description=Bounded recovery of five proven Yandex review rejections
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/mp-analytics/.claude/worktrees/rev-recovery-20261103
+ExecStart=/opt/mp-analytics/venv/bin/python -m reports.rev_delivery_recovery --retry-known404
+UMask=0077
+TimeoutStartSec=25min
+Nice=10

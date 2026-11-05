@@ -132,6 +132,11 @@ def _candidates():
         body,pros,cons,draft_grounding,draft_route,draft_confidence,
         draft_text,created_at FROM raw_feedback
         WHERE draft_route='auto' AND is_answered=false AND posted_at IS NULL
+          AND coalesce(recovery_active_unanswered,true)
+          AND draft_grounding->>'verify'='PASS'
+          AND NOT EXISTS (SELECT 1 FROM feedback_moderation m
+              WHERE (m.platform,m.account,m.kind,m.ext_id)=(raw_feedback.platform,raw_feedback.account,raw_feedback.kind,raw_feedback.ext_id)
+              AND (m.final_text IS NOT NULL OR m.decided_at IS NOT NULL OR m.state IN ('skipped','edited','snoozed')))
         AND draft_text IS NOT NULL AND NOT skipped_old AND NOT skipped_no_text
         AND NOT skipped_no_api
         ORDER BY created_at DESC""")

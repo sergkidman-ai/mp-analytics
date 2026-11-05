@@ -108,7 +108,7 @@ def lookup(brand, question, card_text="", limit=_LIMIT_BRAND):
     return common + brand_hits[:limit]
 
 
-def covers(brand, question):
+def covers(brand, question, card_text=''):
     """Есть ли НАШЕ знание по бренду и теме обращения → веб-поиск не нужен (пункт 3).
 
     Общие правила здесь не считаются: они про позицию магазина, а не про технику конкретной серии.
@@ -118,8 +118,8 @@ def covers(brand, question):
     tops = topics_of(question)
     if not tops:
         return False
-    rows = db.query("SELECT topic FROM brand_notes WHERE brand=%s", (brand,))
-    return any(r["topic"] in tops for r in rows)
+    rows = lookup(brand, question, card_text)
+    return any(r['brand'] == brand and r["topic"] in tops for r in rows)
 
 
 def block(notes):
@@ -157,7 +157,7 @@ def upsert(brand, series_pattern, topic, text, source="manual"):
                 source))
 
 
-def load_file(path):
+def load_file(path, preserve_existing=False):
     """Загрузка выгрузки «бренд | серия | тема | текст» (разделы `## Бренд`). → (загружено, пропущено).
 
     Разделитель раздела определяет бренд по умолчанию, но бренд из самой строки главнее: в файле он
@@ -184,7 +184,15 @@ def load_file(path):
         if not text:
             skip += 1
             continue
-        upsert(b, series, topic, text)
+        if preserve_existing:
+            count = db.execute('''INSERT INTO brand_notes(brand,series_pattern,topic,text,source)
+                VALUES(%s,%s,%s,%s,'manual') ON CONFLICT(brand,topic,series_pattern) DO NOTHING''',
+                (b,series,topic.lower(),text))
+            if not count:
+                skip+=1
+                continue
+        else:
+            upsert(b, series, topic, text)
         ok += 1
     return ok, skip
 

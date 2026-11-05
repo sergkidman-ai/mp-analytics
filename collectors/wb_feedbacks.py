@@ -20,6 +20,12 @@ from core import db                          # noqa: E402
 
 BASE = "https://feedbacks-api.wildberries.ru/api/v1"
 _TOKENS = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}
+_FEEDBACK_TOKENS = {"wb_acc1": "WB_TOKEN_FEEDBACK_ACC1", "wb_acc2": "WB_TOKEN_FEEDBACK_ACC2"}
+
+
+def feedback_token(account):
+    """Use a dedicated questions/reviews token, retaining the shared-token fallback."""
+    return os.environ.get(_FEEDBACK_TOKENS[account]) or os.environ[_TOKENS[account]]
 
 
 def _get(path, token, params):
@@ -75,7 +81,7 @@ _COLS = ["item_id", "article", "product_name", "rating", "body", "pros", "cons",
 
 
 def main(account="wb_acc1"):
-    token = os.environ[_TOKENS[account]]
+    token = feedback_token(account)
     print(f"WB отзывы+вопросы {account}", flush=True)
     fb = [_feedback_rec(account, it) for it in _pages("/feedbacks", token)]
     q = [_question_rec(account, it) for it in _pages("/questions", token)]

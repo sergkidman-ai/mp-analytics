@@ -34,14 +34,16 @@ import traceback
 import subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, "/opt/mp-analytics")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_ROOT)
 from dotenv import load_dotenv
-load_dotenv("/opt/mp-analytics/.env")
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 from core import db
 import collectors.feedback_send as fs
 from reports import publish_gate
 from reports import answer_cache as ac
 from reports import brand_notes as bn
+from feedback_bot import recovery_runtime as runtime
 
 TOKEN = (os.getenv("TG_FEEDBACK_BOT_TOKEN") or os.getenv("TG_BOT_TOKEN") or "").strip()
 _DEDICATED = bool(os.getenv("TG_FEEDBACK_BOT_TOKEN"))
@@ -54,19 +56,33 @@ API = f"https://api.telegram.org/bot{TOKEN}"
 POLL_QUEUE_SEC = int(os.getenv("FEEDBACK_QUEUE_POLL_SEC", "15"))
 
 # from_id -> mod_id, ожидание исправленного текста после «✏️ Править»
-PENDING_EDIT = {}
+PENDING_EDIT = runtime.DurableEdits()
 
 
 def log(msg):
+    if TOKEN:
+        msg = str(msg).replace(TOKEN, "[REDACTED]")
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 
 def api(method, params=None, timeout=60):
+    if params and params.get("reply_markup"):
+        params = dict(params, reply_markup=runtime.scoped_markup(params["reply_markup"]))
     data = json.dumps(params or {}).encode()
     req = urllib.request.Request(f"{API}/{method}", data=data,
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as error:
+        if method == 'editMessageText' and error.code == 400:
+            try:
+                description=json.loads(error.read()).get('description','')
+            except Exception:
+                description=''
+            if 'message is not modified' in description.lower():
+                return {'ok':True,'result':True}
+        raise
 
 
 # Канал до Telegram с этого сервера рвётся: замер 07.09.2026 — половина соединений падает с
@@ -124,7 +140,7 @@ def edit_text(chat_id, message_id, text, reply_markup=None):
          "parse_mode": "HTML", "disable_web_page_preview": True}
     if reply_markup:
         p["reply_markup"] = reply_markup
-    _api_retry("editMessageText", p, f"chat={chat_id} msg={message_id}")
+    return _api_retry("editMessageText", p, f"chat={chat_id} msg={message_id}")
 
 
 def answer_cb(cb_id, text=""):
@@ -150,7 +166,7 @@ def _pending(limit=5, days=None, kind=None):
     return db.query("""SELECT m.id, m.platform, m.account, m.kind, m.ext_id,
         f.product_name, f.body, f.pros, f.cons, f.rating, f.created_at,
         f.item_id, f.article, f.draft_text, f.draft_route, f.draft_grounding,
-        f.draft_confidence
+        f.draft_confidence, m.tg_chat_id, m.tg_msg_id
         FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
              AND f.kind=m.kind AND f.ext_id=m.ext_id
@@ -163,6 +179,11 @@ def _pending(limit=5, days=None, kind=None):
           -- уже отвеченное на площадке (или отправленное нами, но ещё не подтверждённое площадкой)
           -- в карточки не тянем: очередь модерации живёт дольше, чем актуальность вопроса
           AND COALESCE(f.is_answered, false) = false AND f.posted_at IS NULL
+          AND NOT f.skipped_old AND NOT f.skipped_no_api
+          AND coalesce(f.recovery_active_unanswered,true)
+          AND (length(trim(coalesce(f.draft_text,'')))>0
+               OR (f.draft_route='human' AND f.draft_grounding ? 'fact_block'))
+          AND coalesce(f.draft_grounding->>'verify','')<>'pending'
           AND f.created_at >= now() - make_interval(days => %s)
           AND (%s IS NULL OR m.kind = %s)
         ORDER BY f.created_at DESC LIMIT %s""", (days, kind, kind, limit))
@@ -170,7 +191,8 @@ def _pending(limit=5, days=None, kind=None):
 
 def _mod(mod_id):
     r = db.query("""SELECT m.id, m.platform, m.account, m.kind, m.ext_id, m.state,
-        m.tg_chat_id, m.tg_msg_id, f.product_name, f.body, f.draft_text
+        m.tg_chat_id, m.tg_msg_id, m.final_text, m.recovery_revision,
+        f.product_name, f.body, f.draft_text
         FROM feedback_moderation m
         JOIN raw_feedback f ON f.platform=m.platform AND f.account=m.account
              AND f.kind=m.kind AND f.ext_id=m.ext_id
@@ -185,7 +207,7 @@ def _fr(m):
     класса обращения в grounding нет, и «претензию» (A1.1) он считает по тексту покупателя."""
     r = db.query("""SELECT platform,account,kind,ext_id,item_id,article,request_class,payload,
         body,pros,cons,rating,product_name,created_at,
-        draft_text,draft_route,draft_confidence,draft_grounding FROM raw_feedback
+        draft_text,draft_route,draft_confidence,draft_grounding,is_answered,posted_ok FROM raw_feedback
         WHERE platform=%s AND account=%s AND kind=%s AND ext_id=%s""",
         (m["platform"], m["account"], m["kind"], m["ext_id"]))
     return r[0] if r else None
@@ -216,6 +238,10 @@ def _kb(mod_id, allow_send=True, allow_override=False):
     До 10.09 второго состояния не было, и хороший черновик с мягким блоком (уверенность,
     grounded, полярность) оператор мог отправить только перепечатав его руками.
     """
+    current = db.query('SELECT recovery_revision FROM feedback_moderation WHERE id=%s', (mod_id,))
+    revision = current[0].get('recovery_revision') if current else None
+    if revision:
+        mod_id = f'{mod_id}.{revision}'
     top = ([{"text": "✅ Отправить", "callback_data": f"snd:{mod_id}"},
             {"text": "✏️ Править", "callback_data": f"edt:{mod_id}"}]
            if allow_send else
@@ -250,6 +276,8 @@ def _mode_banner(account):
     прислал руками, уходит сразу в ближайшем цикле. Показывать «⏸ лимит дня» на такой карточке было бы
     прямой ложью. Второй строкой — ФАКТ публикаций за сегодня (Москва) по этому каналу и всего."""
     fact = _published_today_line(account)
+    if runtime.publication_block():
+        return "⏸ <b>ПУБЛИКАЦИЯ ЗАБЛОКИРОВАНА</b> — " + html.escape(runtime.publication_block()) + "\n✅ сохраняет подтверждение, ✏️ — вашу правку. Покупателю пока не отправляем.\n" + fact
     if not fs._live():
         return "🧪 <b>DRY-RUN</b> (реальной отправки нет: FEEDBACK_LIVE_SEND выключен)\n" + fact
     if account and account not in fs._live_accounts():
@@ -384,7 +412,11 @@ def send_batch(limit=5, days=None, kind=None):
                                    allow_override=publish_gate.can_override(_why))
         canon = None                              # первый успешный (chat_id,msg_id) — канонический для правок
         for cid in NOTIFY_IDS:
-            mid = send(cid, card, reply_markup=kb)
+            if row.get("tg_msg_id") and str(row.get("tg_chat_id")) == str(cid):
+                response = edit_text(cid, row["tg_msg_id"], card, reply_markup=kb)
+                mid = row["tg_msg_id"] if (response or {}).get("ok") else None
+            else:
+                mid = send(cid, card, reply_markup=kb)
             if mid and canon is None:
                 canon = (cid, mid)
         if canon:
@@ -650,7 +682,7 @@ def _hold_card(mod_id, fr, ec, em, why, head):
         mod_id, allow_send=False, allow_override=publish_gate.can_override(why)))
 
 
-def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False):
+def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False, operator_edit=False):
     """Общий путь отправки (кнопка ✅, кнопка «отправить как есть» или правленый текст).
 
     override_block=True — оператор нажал «✅ Отправить как есть» на заблокированной карточке:
@@ -669,13 +701,24 @@ def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False):
     # каноническую сохранённую карточку.
     ec = chat_id if message_id else (m["tg_chat_id"] or chat_id)
     em = message_id or m["tg_msg_id"]
+    if fr.get("is_answered") or fr.get("posted_ok"):
+        _set(mod_id, "external_answered", error=None)
+        edit_text(ec, em, "✅ На площадке уже есть ответ. Повторная отправка отключена.")
+        return "Уже отвечено на площадке"
+    if runtime.publication_block():
+        _set(mod_id, "approved_blocked", final_text=text,
+             error=runtime.publication_block(), decided_at="now()", decided_by=int(from_id))
+        edit_text(ec, em, "⏸ <b>Ответ сохранён, покупателю НЕ отправлен</b>\n"
+                  + html.escape(runtime.publication_block()) + "\n\n<b>Ответ:</b>\n"
+                  + html.escape(text[:1500]), reply_markup=_kb(mod_id, allow_send=True))
+        return "Сохранено. Публикация заблокирована: старый отправщик не исключён"
     # apply_cap НЕ передаём: решение оператора дневным лимитом не режется (лимит — только для
     # авто-ответов на старый бэклог отзывов, см. collectors/feedback_send.py). Поэтому ветки
     # 'deferred' здесь больше нет: одобренное уходит в этом же вызове либо честно падает в 'failed'.
     # Текст, отличный от черновика, написал человек — машинный вердикт о ЧЕРНОВИКЕ к нему
     # неприменим, но факт обхода запрета записывается (кем и что именно ушло).
     override = None
-    if (text or "").strip() != ((fr.get("draft_text") or "").strip()):
+    if operator_edit or (text or "").strip() != ((fr.get("draft_text") or "").strip()):
         override = f"правка оператора {from_id}"
     # Замечание №1 ревью 08.09.2026: кнопка ✅ показывается только при разрешающем вердикте
     # (см. send_batch), но карточка живёт в чате дольше вердикта — за это время кэш мог протухнуть,
@@ -706,6 +749,10 @@ def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False):
                        + "\nНапишите свой ответ через «✏️ Править» — уйдёт он.")
             return "⛔ машинный текст заблокирован, напишите свой"
     ok, detail = fs.post_answer(fr, text, override=override)
+    if not ok and detail.startswith('already_answered_on_platform:'):
+        _set(mod_id,'external_answered',final_text=text,error=None)
+        edit_text(ec,em,'✅ На площадке уже есть ответ. Повторная отправка отключена.')
+        return 'Уже отвечено на площадке'
     if ok and detail.startswith("dry-run"):
         # Боевая отправка выключена. Помечать карточку 'sent' нельзя: ответ покупателю НЕ ушёл,
         # а карточка больше не покажется. Кладём в 'deferred' — досылается flush_deferred()
@@ -728,10 +775,12 @@ def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False):
         # он идёт в approved_answers и (для совместимости) в compat_ref. Гейт при записи не
         # спрашиваем — он и есть то, что оператор осознанно обошёл.
         _cache_remember(fr, text, "override" if ovr_reason else ("edit" if override else "send"),
-                        check_gate=not ovr_reason)
-        edit_text(ec, em,
+                        check_gate=not bool(override))
+        updated = edit_text(ec, em,
                   f"✅ Отправлено\n\n<b>Вопрос:</b> {html.escape((m.get('body') or '')[:300])}\n"
                   f"<b>Ответ:</b> {html.escape(text[:800])}")
+        if updated and updated.get('ok'):
+            _set(mod_id,'sent',recovery_sent_card_ok=True)
         return "✅ Отправлено"
     # final_text сохраняем и при провале: иначе правленый оператором текст теряется и досыл после
     # починки причины воспроизвести его уже не может (инцидент 03.08, вопрос ЯМ 28227084).
@@ -743,8 +792,18 @@ def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False):
 # ---------- обработка апдейтов ----------
 
 def handle_callback(cb):
+    # Restoration hold: numeric callback IDs from the old database are unsafe.
+    # Keep enabled until Telegram message-to-record bindings are verified.
+    if os.getenv("FEEDBACK_RESTORE_HOLD", "1") != "0":
+        answer_cb(cb["id"], "Модерация приостановлена: восстанавливаем привязки. Старые кнопки отключены.")
+        return
     from_id = str(cb.get("from", {}).get("id", ""))
     data = cb.get("data", "")
+    prefix = runtime.callback_prefix()
+    if not data.startswith(prefix):
+        answer_cb(cb["id"], "Старая кнопка отключена. Используйте новую карточку Rev.")
+        return
+    data = data[len(prefix):]
     msg = cb.get("message", {})
     chat_id = msg.get("chat", {}).get("id")
     message_id = msg.get("message_id")
@@ -757,29 +816,40 @@ def handle_callback(cb):
         cnt = send_batch(n)
         answer_cb(cb["id"], f"Отправлено: {cnt}" if cnt else "За окно нет новых карточек")
         return
+    sid, _, revision = sid.partition('.')
     try:
         mod_id = int(sid)
     except Exception:
         answer_cb(cb["id"], "?")
         return
 
+    bound = _mod(mod_id)
+    if (not bound or str(bound.get("tg_chat_id")) != str(chat_id)
+            or bound.get("tg_msg_id") != message_id):
+        answer_cb(cb["id"], "Старая кнопка отключена: привязка карточки не подтверждена.")
+        return
+
+    if revision != (bound.get('recovery_revision') or ''):
+        answer_cb(cb['id'], 'Ответ обновлён. Проверьте новый текст в этой карточке и нажмите кнопку ещё раз.')
+        return
+
     if action == "snd":
-        m = _mod(mod_id)
+        m = bound
         if not m:
             answer_cb(cb["id"], "нет записи"); return
-        res = _do_send(mod_id, from_id, (m.get("draft_text") or ""), chat_id, message_id)
+        res = _do_send(mod_id, from_id, (m.get('final_text') or m.get("draft_text") or ""), chat_id, message_id)
         answer_cb(cb["id"], res)
     elif action == "ovr":                         # «✅ Отправить как есть» — обход блока человеком
-        m = _mod(mod_id)
+        m = bound
         if not m:
             answer_cb(cb["id"], "нет записи"); return
-        res = _do_send(mod_id, from_id, (m.get("draft_text") or ""), chat_id, message_id,
+        res = _do_send(mod_id, from_id, (m.get('final_text') or m.get("draft_text") or ""), chat_id, message_id,
                        override_block=True)
         answer_cb(cb["id"], res)
     elif action == "edt":
         PENDING_EDIT[from_id] = mod_id
         answer_cb(cb["id"], "Пришли исправленный текст ответа")
-        send(chat_id, "✏️ Пришли исправленный текст ответа одним сообщением — отправлю его.")
+        send(chat_id, "✏️ Пришли исправленный текст ответа одним сообщением — сразу отправлю его покупателю. Отмена: /cancel.")
     elif action == "lat":
         m = _mod(mod_id)
         if m and m["state"] in ("sent", "skipped", "failed"):
@@ -811,7 +881,15 @@ def handle_message(msg):
     text = (msg.get("text") or "").strip()
     mod_id = PENDING_EDIT.pop(from_id, None)
     if mod_id is not None:
+        if text.startswith('/'):
+            if text.split()[0].split('@')[0].lower() == '/cancel':
+                PENDING_EDIT.finish(from_id)
+                send(chat_id, 'Правка отменена. Ответ покупателю не отправлен.')
+            else:
+                send(chat_id, 'Сейчас ожидаю текст ответа покупателю. Для отмены правки: /cancel. Команда покупателю не отправлена.')
+            return
         if not text:
+            PENDING_EDIT.finish(from_id)
             send(chat_id, "Пустой текст — правка отменена.")
             return
         clean, why = clean_operator_text(text)
@@ -824,8 +902,19 @@ def handle_message(msg):
         if clean != text:
             log(f"правка mod={mod_id}: вырезана служебная разметка карточки "
                 f"({len(text)} → {len(clean)} симв.)")
-        res = _do_send(mod_id, from_id, clean, chat_id, None)
-        send(chat_id, f"Правка: {res}")
+        import uuid
+        m = _mod(mod_id)
+        if not m or m['state'] in ('sent','skipped','external_answered'):
+            PENDING_EDIT.finish(from_id)
+            send(chat_id, 'Правка не применена: обращение уже закрыто.')
+            return
+        if str(m.get('tg_chat_id')) != str(chat_id):
+            send(chat_id,'Текст правки нужно отправить в тот же личный чат, где показана карточка.')
+            return
+        _set(mod_id, 'edited', final_text=clean, decided_by=int(from_id),
+             decided_at='now()',recovery_revision=uuid.uuid4().hex[:10],recovery_edit_card_ok=False)
+        _do_send(mod_id,from_id,clean,chat_id,None,operator_edit=True)
+        PENDING_EDIT.finish(from_id)
         return
     if text == "/next":
         cnt = send_batch(5)
@@ -884,11 +973,14 @@ def handle_message(msg):
 
 
 def main():
+    runtime.setup()
     if not TOKEN:
         raise SystemExit("Нет TG_FEEDBACK_BOT_TOKEN/TG_BOT_TOKEN в /opt/mp-analytics/.env")
     if not NOTIFY:
         raise SystemExit("Нет TG_NOTIFY_ID в .env — некуда слать карточки")
     me = api("getMe")["result"]
+    if me.get("username", "").lower() != "reviewswbozon2_bot":
+        raise SystemExit("Refusing to start a different Telegram bot")
     if not _DEDICATED:
         log("⚠️  TG_FEEDBACK_BOT_TOKEN не задан — использую TG_BOT_TOKEN (конфликт с invoice-bot! "
             "останови invoice-bot или заведи отдельного бота).")
@@ -913,27 +1005,13 @@ def main():
         f"allowed={sorted(ALLOWED) or 'ПУСТО'} "
         f"notify={NOTIFY} · карточки этот бот шлёт только по кнопке; авто-порции — отдельный цикл "
         f"feedback_cycle.py (send_batch по таймеру)")
-    offset = None
     while True:
         try:
-            params = {"timeout": 20, "allowed_updates": ["message", "callback_query"]}
-            if offset is not None:
-                params["offset"] = offset
-            upd = api("getUpdates", params, timeout=30)
-            res = upd.get("result", [])
-            for u in res:
-                offset = u["update_id"] + 1
-                try:
-                    if "callback_query" in u:
-                        handle_callback(u["callback_query"])
-                    elif "message" in u:
-                        handle_message(u["message"])
-                except Exception:
-                    log("update error: " + traceback.format_exc())
-        except urllib.error.HTTPError as e:
-            log(f"HTTP {e.code} на getUpdates; пауза 5с"); time.sleep(5)
-        except Exception as e:
-            log(f"loop error: {e}; пауза 5с"); time.sleep(5)
+            runtime.poll_once(api, handle_callback, handle_message)
+        except Exception as error:
+            log("Telegram poll failed: " + type(error).__name__)
+            time.sleep(5)
+
 
 
 if __name__ == "__main__":

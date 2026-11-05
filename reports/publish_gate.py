@@ -42,7 +42,7 @@ CARD_CLASSES = ("характеристики", "производитель", "�
 # есть» отправляет ТЕКСТ ЧЕРНОВИКА, а «⚠️ на человека» — не текст ответа, и покупателю он уйти
 # не может физически.
 NO_OVERRIDE = ("обещание в черновике", "претензия, ручной ответ",
-               "маркер-заглушка")
+               "маркер-заглушка", "неподтверждённый факт", "контролёр не подтвердил")
 
 
 def _card_sourced(g):
@@ -217,8 +217,18 @@ def verdict_full(row, text=None):
     kind = row.get("kind")
     g = _ground(row)
     body = (text if text is not None else row.get("draft_text")) or ""
+    from reports.compatibility_evidence import absence_denial
+    if kind=='question' and absence_denial(body):
+        reasons.append('неподтверждённый факт: отсутствие модели в списке не доказывает несовместимость')
 
     # --- жёсткие: детерминированные факты конвейера ---
+    if g.get('fact_block'):
+        reasons.append('неподтверждённый факт: ' + str(g['fact_block'])[:160])
+    from reports.archive_question_policy import is_archive_question
+    source_verified=(g.get('archive_no_anthropic') and g.get('deterministic_verified')
+                     and g.get('verification_method')=='source_rules_no_llm' and is_archive_question(row))
+    if kind=='question' and (g.get('recovery') or g.get('recovery_reprocessed') or g.get('historical_analysis')) and g.get('verify')!='PASS' and not source_verified:
+        reasons.append('контролёр не подтвердил восстановленный технический ответ')
     if row.get("draft_route") == "human":
         reasons.append("маршрут human (домен-фильтр или битый JSON модели)")
     if body.strip().startswith("⚠️"):

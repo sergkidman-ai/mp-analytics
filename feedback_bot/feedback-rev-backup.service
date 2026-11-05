@@ -1,0 +1,18 @@
+# поток: rev
+[Unit]
+Description=Encrypted Rev recovery backup with verified offsite transfer
+After=postgresql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+EnvironmentFile=-/root/.config/rev-recovery/backup.env
+WorkingDirectory=/opt/mp-analytics/.claude/worktrees/rev-recovery-20261103
+ExecStart=/opt/mp-analytics/venv/bin/python ops/rev_backup.py
+TimeoutStartSec=45min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=yes
