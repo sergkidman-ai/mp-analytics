@@ -137,6 +137,16 @@ class PrintService:
             data['sync']['error_message'] = error_message(data['sync']['error'])
         return base | dict(installed=True) | data
 
+    def archive(self, *, day=None, accounts=None):
+        data = self.queue.archive(now=self.clock(), day=day, accounts=accounts)
+        for batch in data['ready_batches']:
+            for field in ('blocked_orders', 'requested_order_ids', 'past_exclusions', 'resolved_orders'):
+                batch['display'].pop(field, None)
+            if accounts is not None and 'excluded_orders' in batch['display']:
+                batch['display']['excluded_orders'] = [order for order in batch['display']['excluded_orders']
+                                                      if order.get('account') in accounts]
+        return data | dict(archive=True, demo=self.demo, installed=True)
+
     def require_worker(self):
         if not self.queue.installed() or not self.queue.worker_healthy(self.clock()):
             raise PrintBlocked('worker_unavailable')

@@ -584,11 +584,92 @@ class PrintQueueTests(unittest.TestCase):
         self.queue.sync_snapshot([], started_at=tomorrow, complete=True)
         view = self.queue.view(now=tomorrow)
         self.assertEqual(view['rows'], [])
-        self.assertEqual(len(view['ready_batches']), 1)
+        self.assertEqual(view['ready_batches'], [])
+        self.assertEqual(len(self.queue.archive(now=tomorrow)['ready_batches']), 1)
         self.assertTrue(self.queue.ready_files(batch['id'])['receipts'].is_file())
         for row in self.rows: row['raw']['deliveryPlannedMoment'] = '2026-11-04 12:00:00'
         self.queue.sync_snapshot(self.rows, started_at=tomorrow + timedelta(minutes=1), complete=True)
         self.assertEqual(self.queue.view(now=tomorrow)['counters'][self.counter]['count'], 0)
+
+    def test_archive_preserves_removed_and_rescheduled_orders_and_native_files(self):
+        from copy import deepcopy
+        from hashlib import sha256
+        self.rows[0]['raw']['store'] = {'name': 'Вчерашний склад'}
+        self.queue.sync_snapshot(self.rows, started_at=NOW+timedelta(seconds=1), complete=True)
+        batch = self.queue.reserve_counter(self.counter, request_key='one', now=NOW,
+                                           order_ids=[self.rows[0]['raw']['id']])
+        self.queue.publish_pair(batch['id'], generation=1, pair_dir=self.prepare(batch))
+        paths = self.queue.ready_files(batch['id'])
+        hashes = {key: sha256(path.read_bytes()).hexdigest() for key,path in paths.items()}
+        # The second order disappears even from the last snapshot of the day.
+        self.queue.sync_snapshot(self.rows[:1], started_at=NOW+timedelta(minutes=1), complete=True)
+        tomorrow = NOW+timedelta(days=1)
+        moved = deepcopy(self.rows[:1])
+        moved[0]['raw']['deliveryPlannedMoment'] = '2026-11-04 12:00:00'
+        moved[0]['raw']['store']['name'] = 'Новый склад'
+        moved[0]['display'] = dict(direction='Новое направление', store='Новый склад')
+        self.queue.sync_snapshot(moved, started_at=tomorrow, complete=True)
+        archive = self.queue.archive(now=tomorrow)
+        self.assertEqual(archive['day'], NOW.date())
+        self.assertEqual([(d['order_count'],d['printed_count']) for d in archive['days']], [(2,1)])
+        rows = {r['external_id']:r for r in archive['rows']}
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(rows['100-0001-1']['printed'])
+        self.assertEqual(rows['100-0001-1']['display']['store'], 'Вчерашний склад')
+        self.assertEqual(rows['100-0001-1']['display']['ms_status'], 'Собирается')
+        self.assertFalse(rows['100-0002-1']['printed'])
+        self.assertEqual(self.queue.view(now=tomorrow)['ready_batches'], [])
+        self.assertEqual(hashes, {key:sha256(path.read_bytes()).hexdigest() for key,path in paths.items()})
+
+    def test_archive_dates_scope_month_boundary_and_moscow_midnight(self):
+        from copy import deepcopy
+        diskver = order('DISKVER', counter='oz_acc2|direction|store', day='2026-11-04')
+        diskver['account'] = 'oz_acc2'
+        self.queue.sync_snapshot([diskver], started_at=NOW+timedelta(days=1), complete=True)
+        next_month = datetime(2026,12,1,0,tzinfo=timezone.utc)
+        digital = deepcopy(self.rows[0]);digital['raw']['deliveryPlannedMoment'] = '2026-11-30 12:00:00'
+        self.queue.sync_snapshot([digital], started_at=next_month-timedelta(days=1), complete=True)
+        self.assertEqual([str(d['day']) for d in self.queue.archive(now=next_month)['days']],
+                         ['2026-11-30','2026-11-04','2026-11-03'])
+        restricted = self.queue.archive(now=next_month, accounts={'oz_acc2','wb_acc2'})
+        self.assertEqual([str(d['day']) for d in restricted['days']], ['2026-11-04'])
+        self.assertEqual([r['external_id'] for r in restricted['rows']], ['DISKVER'])
+        hidden = self.queue.archive(now=next_month, day=NOW.date(), accounts={'oz_acc2','wb_acc2'})
+        self.assertEqual(hidden['rows'], []);self.assertEqual(hidden['ready_batches'], [])
+        # 21:00 UTC is the start of the next Moscow business day.
+        before = datetime(2026,11,3,20,59,tzinfo=timezone.utc)
+        after = before+timedelta(minutes=1)
+        self.assertEqual(self.queue.archive(now=before)['days'], [])
+        self.assertEqual(str(self.queue.archive(now=after)['days'][0]['day']), '2026-11-03')
+        with self.assertRaises(ValueError): self.queue.archive(now=before, day=NOW.date())
+        self.assertEqual(self.queue.archive(now=next_month, accounts=set())['days'], [])
+
+    def test_archive_http_is_scoped_read_only_and_rejects_current_or_invalid_dates(self):
+        from fastapi.testclient import TestClient
+        from print_service.service import PrintService
+        from web.print_app import create_app
+        class NoNetwork:
+            def __getattr__(self, name): raise AssertionError('provider_called:'+name)
+        batch = self.reserve()
+        self.queue.publish_pair(batch['id'], generation=1, pair_dir=self.prepare(batch))
+        service = PrintService(queue=self.queue, clients=NoNetwork(), root=self.root,
+                               clock=lambda:NOW+timedelta(days=1))
+        with TestClient(create_app(lambda:service), headers={'X-Pult-User':'print'}) as client:
+            data = client.get('/api/print/archive').json()
+            self.assertEqual(len(data['ready_batches']), 1)
+            self.assertEqual(data['days'][0]['printed_count'], 2)
+            for day in ('2026-11-04','2026-11-05','not-a-date'):
+                self.assertEqual(client.get('/api/print/archive', params={'day':day}).status_code, 422)
+            scoped = client.get('/api/print/archive', headers={'X-Pult-User':'tolkachev'}).json()
+            self.assertEqual(scoped['days'], []);self.assertEqual(scoped['rows'], [])
+            for path in ('/warehouse/print/archive','/api/print/archive'):
+                self.assertEqual(client.get(path, headers={'X-Pult-User':'unknown'}).status_code, 403)
+            response = client.get(f"/api/print/batches/{batch['id']}/files/labels")
+            self.assertEqual(response.status_code, 200)
+            page = client.get('/warehouse/print/archive', headers={'X-Pult-User':'tolkachev'})
+            self.assertNotIn('Цифровой квадрат', page.text)
+            self.assertIn('class="current" href="/warehouse/print/archive"', page.text)
+        self.assertEqual(self.queue.batch(batch['id'])['generation'], 1)
 
     def test_artifact_version_change_invalidates_old_partner_file(self):
         row=self.rows[0];oid=row['raw']['id'];did=row['demand_id'];path=self.root/'artifact.pdf';pdf(path)

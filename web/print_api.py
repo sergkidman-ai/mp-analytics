@@ -1,5 +1,6 @@
 # поток: print
 from functools import lru_cache
+from datetime import date
 import json
 from pathlib import Path
 from typing import Literal
@@ -38,7 +39,8 @@ def make_router(get_service=production_service, *, standalone=False):
             raise HTTPException(403, 'Нет доступа к странице печати.') from None
 
     @router.get('/warehouse/print', response_class=HTMLResponse)
-    def page(access: PrintAccess = Depends(current_access)):
+    @router.get('/warehouse/print/archive', response_class=HTMLResponse)
+    def page(request: Request, access: PrintAccess = Depends(current_access)):
         from re import sub
         html = Path(__file__).with_name('static').joinpath('print_orders.html').read_text()
         organizations = json.dumps(access.organizations, ensure_ascii=False).replace('<', '\\u003c')
@@ -51,15 +53,25 @@ def make_router(get_service=production_service, *, standalone=False):
         if standalone:
             # This host serves printing alone; links to other Pult sections
             # stay in the dashboard version of the same page.
-            aside = '<aside><a class="brand" href="/warehouse/print">Пульт бизнеса</a><a class="current" href="/warehouse/print">Печать заказов</a></aside>'
-            tabs = '<nav class="tabs"><a class="current" href="/warehouse/print">Печать заказов</a></nav>'
+            aside = '<aside><a class="brand" href="/warehouse/print">Пульт бизнеса</a><a class="current" href="/warehouse/print">Печать заказов</a><a href="/warehouse/print/archive">Архив</a></aside>'
+            tabs = '<nav class="tabs"><a class="current" href="/warehouse/print">Печать заказов</a><a href="/warehouse/print/archive">Архив</a></nav>'
             html = sub(r'<aside>.*?</aside>', lambda _: aside, html, count=1)
             html = sub(r'<nav class="tabs">.*?</nav>', lambda _: tabs, html, count=1)
+        if request.url.path.endswith('/archive'):
+            html = html.replace('class="current" href="/warehouse/print"', 'href="/warehouse/print"')
+            html = html.replace('href="/warehouse/print/archive"', 'class="current" href="/warehouse/print/archive"')
         return HTMLResponse(html, headers={'Cache-Control': 'no-store'})
 
     @router.get('/api/print')
     def data(access: PrintAccess = Depends(current_access)):
         return access.status(get_service().status())
+
+    @router.get('/api/print/archive')
+    def archive(day: date | None = None, access: PrintAccess = Depends(current_access)):
+        try:
+            return get_service().archive(day=day, accounts=access.accounts)
+        except ValueError:
+            raise HTTPException(422, 'В архиве доступны только прошедшие дни по Москве.') from None
 
     @router.post('/api/print/sync')
     def synchronize(access: PrintAccess = Depends(current_access)):

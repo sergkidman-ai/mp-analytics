@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Печать заказов · Пульт бизнеса</title>
 <style>
+.archive-months{display:flex;flex-wrap:wrap;gap:12px;padding:16px 20px}.archive-month{border:1px solid var(--line);border-radius:8px;min-width:220px;flex:1;max-width:420px}.archive-month summary{padding:12px;cursor:pointer;font-weight:650}.archive-days{display:flex;flex-wrap:wrap;gap:8px;padding:0 12px 12px}.archive-day{display:block;text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:8px 12px;color:var(--ink)}.archive-day.current{border-color:var(--blue);background:#edf4fb}.archive-day small{display:block;color:var(--muted);font-size:11px}
 .ms-order-status{margin-top:4px;font-size:11px;color:var(--muted);font-weight:500}
 .document.wait{background:#e9eef3;color:#66788a}.document.wait svg{width:14px;height:14px}
 .sync-status-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.sync-status progress{display:block;width:100%;height:11px;margin:10px 0;accent-color:var(--blue)}.sync-status p{font-size:13px}
@@ -24,12 +25,13 @@ button,.file-link{font:inherit;cursor:pointer;border:0;border-radius:7px;padding
 </style>
 </head>
 <body>
-<aside><a class="brand" href="/">Пульт бизнеса</a><a href="/warehouse" class="current">Склад</a><a href="/suppliers">Поставщики</a><a href="/warehouse/customer-orders">Заказы покупателей</a><a href="/reports">Отчёты МП</a></aside>
+<aside><a class="brand" href="/">Пульт бизнеса</a><a href="/warehouse" class="current">Склад</a><a href="/warehouse/print/archive">Архив</a><a href="/suppliers">Поставщики</a><a href="/warehouse/customer-orders">Заказы покупателей</a><a href="/reports">Отчёты МП</a></aside>
 <main>
-<nav class="tabs"><a href="/warehouse">Остатки складов</a><a href="/warehouse/customer-orders">Заказы покупателей</a><a class="current" href="/warehouse/print">Печать заказов</a><a href="/warehouse/marketplace-inventory">Остатки и возвраты МП</a></nav>
+<nav class="tabs"><a href="/warehouse">Остатки складов</a><a href="/warehouse/customer-orders">Заказы покупателей</a><a class="current" href="/warehouse/print">Печать заказов</a><a href="/warehouse/print/archive">Архив</a><a href="/warehouse/marketplace-inventory">Остатки и возвраты МП</a></nav>
 <div class="heading"><div><h1>Печать заказов</h1><p class="muted" id="date">Загрузка…</p></div><div class="actions"><span class="badge" id="automatic">Автосинхронизация · 30 минут</span><button class="primary" id="sync">Синхронизация с МС</button></div></div>
 <div id="demo" class="notice hidden">Предпросмотр на сохранённых образцах. Работа с площадками в этом стенде отключена.</div>
 <div id="message" class="notice" role="status" aria-live="polite"></div>
+<section id="archive-browser" class="section hidden"><div class="section-head"><h2>По месяцам и дням</h2><span class="muted">Готовые PDF можно открыть и распечатать повторно</span></div><div id="archive-months" class="archive-months"></div></section>
 <div id="sync-status" class="notice sync-status hidden"><div class="sync-status-head"><strong id="sync-phase" role="status" aria-live="polite"></strong><span id="sync-elapsed" class="muted" aria-hidden="true"></span></div><p id="sync-detail"></p><progress id="sync-progress" aria-label="Ход синхронизации"></progress><p class="muted">Список ниже обновится автоматически после завершения.</p></div>
 <div class="counters" id="counters"></div>
 <section class="section"><div class="section-head"><h2>Готовые файлы</h2><span class="muted">Можно открыть повторно и распечатать</span></div><div id="ready-columns" class="org-columns ready-columns"></div><div class="legend">ТЧ — A4. ЭТ — исходные 58 × 40 мм, без масштабирования. Порядок заказов в обоих файлах одинаковый.</div></section>
@@ -44,7 +46,24 @@ const when=value=>value?new Date(value).toLocaleString('ru-RU',{timeZone:'Europe
 let model=null,loading=false,timer=null,noticeError=false,watchedJob=null,watchedSync=null;const inFlight=new Set();
 const orderInFlight=new Set();
 const ORGANIZATIONS=JSON.parse(document.getElementById('print-organizations').textContent);
+const ARCHIVE=location.pathname==='/warehouse/print/archive';
+if(ARCHIVE){
+ document.title='Архив печати';$('archive-browser').classList.remove('hidden');
+ document.querySelector('h1').textContent=ORGANIZATIONS.length===1?'Архив печати · '+ORGANIZATIONS[0].name:'Архив печати';
+ $('sync').classList.add('hidden');$('automatic').classList.add('hidden');$('counters').classList.add('hidden');
+ const ordersSection=$('orders-columns').closest('.section');
+ ordersSection.querySelector('h2').firstChild.textContent='Заказы за день ';
+ ordersSection.querySelector('.section-head p').textContent='Заказы, попадавшие в отбор за выбранный день. Статус МС — на момент последнего появления в списке за этот день.';
+ ordersSection.querySelector('.legend').textContent='Зелёные строки — оба файла сформированы за выбранный день. Красные — пара за этот день не сформирована. Архивные PDF можно открыть повторно.';
+}
 const forOrganization=(items,org)=>items.filter(item=>org.accounts.includes(item.account||item.counter_key?.split('|')[0]));
+function renderArchive(){
+ const months=new Map();for(const day of model.days){const month=day.day.slice(0,7);if(!months.has(month))months.set(month,[]);months.get(month).push(day)}
+ $('archive-months').innerHTML=[...months].map(([month,days])=>{
+  const title=new Date(month+'-01T12:00:00+03:00').toLocaleDateString('ru-RU',{timeZone:'Europe/Moscow',month:'long',year:'numeric'});
+  return `<details class="archive-month" ${month===(model.day||'').slice(0,7)?'open':''}><summary>${esc(title)}</summary><div class="archive-days">${days.map(day=>`<a class="archive-day${day.day===model.day?' current':''}" ${day.day===model.day?'aria-current="date"':''} href="/warehouse/print/archive?day=${encodeURIComponent(day.day)}">${esc(day.day.split('-').reverse().join('.'))}<small>Заказов: ${day.order_count} · Файлы готовы: ${day.printed_count}</small></a>`).join('')}</div></details>`;
+ }).join('')||'<div class="empty">Прошедших дней пока нет</div>';
+}
 async function api(url,body){
  const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),15000);
  try{
@@ -124,9 +143,11 @@ function orderReadiness(r,busy){
 function orderRow(r){
  const showError=r.error_message&&!['linked_demand_missing','linked_demand_ambiguous'].includes(r.source_error);
  const busy=r.batch_state==='building'||orderInFlight.has(r.id),counterBusy=model.counters[r.counter_key]?.building;
- const readiness=orderReadiness(r,busy);
- const files=r.printed?`<div class="order-files"><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/receipts">ТЧ</a><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/labels">ЭТ</a></div>`:`<button class="order-pair" data-order="${esc(r.id)}" ${busy||counterBusy||!model.worker_healthy||r.source_error?'disabled':''} title="Сформировать ТЧ и ЭТ только этого заказа">${busy?'Готовится…':'ТЧ + ЭТ'}</button>`;
- return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span><div class="ms-order-status" title="Статус заказа в МойСкладе на момент последней синхронизации">МС: ${esc(r.display.ms_status||'Не получен')}</div>${showError?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${esc(r.display.direction||'')}</td><td>${esc(r.display.store||'')}</td><td>${receiptIndicator(r)}</td><td><span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span></td><td><span class="state ${readiness.color}">${esc(readiness.text)}</span></td><td>${files}</td></tr>`;
+ const readiness=ARCHIVE?{text:r.printed?'Файлы готовы':'Не сформированы',color:r.printed?'green':'muted'}:orderReadiness(r,busy);
+ const files=r.printed?`<div class="order-files"><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/receipts">ТЧ</a><a class="file-link" target="_blank" rel="noopener" href="/api/print/orders/${encodeURIComponent(r.id)}/files/labels">ЭТ</a></div>`:ARCHIVE?'<span class="muted">Нет готовой пары</span>':`<button class="order-pair" data-order="${esc(r.id)}" ${busy||counterBusy||!model.worker_healthy||r.source_error?'disabled':''} title="Сформировать ТЧ и ЭТ только этого заказа">${busy?'Готовится…':'ТЧ + ЭТ'}</button>`;
+ const receipt=ARCHIVE?`<span class="document ${r.printed?'yes':'wait'}" title="${r.printed?'ТЧ в готовой паре':'ТЧ не сформирован в готовую пару'}">${r.printed?'✓':'—'}</span>`:receiptIndicator(r);
+ const label=ARCHIVE?`<span class="document ${r.printed?'yes':'wait'}" title="${r.printed?'ЭТ в готовой паре':'ЭТ не сформирована в готовую пару'}">${r.printed?'✓':'—'}</span>`:`<span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span>`;
+ return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span><div class="ms-order-status" title="Статус заказа в МойСкладе на момент последней синхронизации">МС: ${esc(r.display.ms_status||'Не получен')}</div>${showError?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${esc(r.display.direction||'')}</td><td>${esc(r.display.store||'')}</td><td>${receipt}</td><td>${label}</td><td><span class="state ${readiness.color}">${esc(readiness.text)}</span></td><td>${files}</td></tr>`;
 }
 function renderOrders(){
  if(!model)return;
@@ -162,16 +183,16 @@ function render(){
  if(watchedJob){const ready=model.ready_batches.find(b=>b.id===watchedJob),failed=model.jobs.find(b=>b.id===watchedJob&&b.state==='failed');if(ready){const skipped=ready.display.excluded_orders?.length||0;message(skipped?`Файлы готовы для ${ready.order_count} заказов. Не вошло: ${skipped} — проверьте ошибки ниже.`:'Оба файла готовы. Заказы исключены из счётчика.');watchedJob=null}else if(failed){message(failed.error_message,true);watchedJob=null}}
  if(watchedSync&&model.sync?.id===watchedSync&&model.sync.state==='ready'){message(`Заказы и счётчики обновлены. Заказов: ${model.rows.length}.`);watchedSync=null}
  const syncing=model.sync&&['pending','running'].includes(model.sync.state);
- $('date').textContent=`${model.day.split('-').reverse().join('.')} · время Москвы`;
+ $('date').textContent=model.day?`${model.day.split('-').reverse().join('.')} · время Москвы`:'Архив пока пуст';
  $('automatic').textContent=model.worker_healthy?'Автосинхронизация · 30 минут':'Автосинхронизация не подключена';$('automatic').classList.toggle('live',model.worker_healthy);
  $('sync').disabled=!model.installed||!model.worker_healthy||syncing;$('sync').textContent=syncing?'Синхронизация…':'Синхронизация с МС';
  $('demo').classList.toggle('hidden',!model.demo);
  const finished=model.sync?.state==='ready'&&model.sync.finished_at;
  $('updated').textContent=`Последняя синхронизация с МС: ${when(finished||model.last_sync)} · МСК`;
  if(!model.installed)message('Подключение страницы ещё не завершено. Подготовка файлов пока недоступна.');else if(model.sync?.state==='failed'&&!noticeError)message(model.sync.error_message||'Не удалось обновить список. Показаны данные последней успешной синхронизации.',true);
- renderSyncProgress();renderCounters();renderFiles();renderOrders();
+ if(ARCHIVE)renderArchive();else{renderSyncProgress();renderCounters()}renderFiles();renderOrders();
 }
-async function load(){if(loading)return;loading=true;try{model=await api('/api/print');render()}catch(e){message(e.message,true)}finally{loading=false;clearTimeout(timer);timer=setTimeout(load,model&&(model.jobs.some(j=>j.state==='building')||model.sync&&['pending','running'].includes(model.sync.state))?3000:15000)}}
+async function load(){if(loading)return;loading=true;try{model=await api(ARCHIVE?'/api/print/archive'+location.search:'/api/print');render()}catch(e){message(e.message,true)}finally{loading=false;clearTimeout(timer);timer=setTimeout(load,ARCHIVE?60000:model&&(model.jobs.some(j=>j.state==='building')||model.sync&&['pending','running'].includes(model.sync.state))?3000:15000)}}
 async function prepare(counter){if(inFlight.has(counter))return;inFlight.add(counter);renderCounters();message('Подготавливаем оба файла. Новые поступления будут учтены следующим счётчиком.');try{watchedJob=(await api('/api/print/counter',{counter_key:counter,request_key:crypto.randomUUID()})).id}catch(e){message(e.message,true)}finally{inFlight.delete(counter);await load()}}
 async function prepareOrder(id){if(orderInFlight.has(id))return;orderInFlight.add(id);renderOrders();message('Подготавливаем ТЧ и ЭТ выбранного заказа…');try{const result=await api(`/api/print/orders/${encodeURIComponent(id)}/pair`,{request_key:crypto.randomUUID()});if(result.state==='ready')message('ТЧ и ЭТ этого заказа готовы. Откройте файлы в его строке.');else watchedJob=result.id}catch(e){message(e.message,true)}finally{orderInFlight.delete(id);await load()}}
 $('sync').addEventListener('click',async()=>{ $('sync').disabled=true;message('Обновляем заказы и счётчики из МС…');try{watchedSync=(await api('/api/print/sync',{})).id}catch(e){message(e.message,true)}await load()});$('search').addEventListener('input',renderOrders);$('filter').addEventListener('change',renderOrders);load();

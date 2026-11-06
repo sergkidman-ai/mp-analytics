@@ -493,7 +493,7 @@ class PrintQueue:
             rows = [dict(r) for r in cursor.fetchall()]
             cursor.execute("""SELECT b.id,b.counter_key,b.day,b.published_at,b.display,
                 (SELECT count(*) FROM members m WHERE m.batch_id=b.id) AS order_count
-                FROM batches b WHERE b.state='ready' ORDER BY b.published_at DESC""")
+                FROM batches b WHERE b.state='ready' AND b.day=%s ORDER BY b.published_at DESC""", (day,))
             ready = [dict(r) for r in cursor.fetchall()]
             cursor.execute('SELECT s.started_at,s.day FROM current_snapshot v LEFT JOIN snapshots s ON s.id=v.snapshot_id')
             snapshot = cursor.fetchone()
@@ -515,8 +515,8 @@ class PrintQueue:
                     AND (b.display->>'error_order_id' IS NULL
                         OR b.display->>'error_order_id'=m.order_id::text)
                 ) problem ON true
-                WHERE b.state='building' OR (b.state='failed' AND problem.orders IS NOT NULL)
-                ORDER BY b.created_at DESC,b.id DESC""", (day, day))
+                WHERE (b.state='building' AND b.day=%s) OR (b.state='failed' AND problem.orders IS NOT NULL)
+                ORDER BY b.created_at DESC,b.id DESC""", (day, day, day))
             jobs = [dict(r) for r in cursor.fetchall()]
             seen = set()
             for job in jobs:
@@ -546,6 +546,87 @@ class PrintQueue:
         return dict(rows=rows, counters=counters, ready_batches=ready,
                     jobs=jobs, last_sync=snapshot['started_at'], snapshot_day=snapshot['day'], sync=dict(sync) if sync else None,
                     worker_healthy=bool(worker and 0 <= (now - worker['last_seen']).total_seconds() < 90))
+
+    def archive(self, *, now, day=None, accounts=None):
+        """Read past business days without touching claims, exports or PDF files.
+
+        Orders can leave the live MS filter or move to another shipment day.
+        Recover their last observation *on each day* from immutable raw snapshots,
+        rather than treating the mutable orders table as historical state.
+        """
+        today = moscow_day(now)
+        if day is not None and day >= today:
+            raise ValueError('archive_requires_past_day')
+        allowed = list(ACCOUNTS if accounts is None else accounts)
+        with self.transaction() as cursor:
+            cursor.execute('''WITH seen AS (
+                SELECT s.day,o.id FROM snapshots s
+                CROSS JOIN LATERAL jsonb_array_elements(s.raw_orders) r(raw)
+                JOIN orders o ON o.id=(r.raw->>'id')::uuid
+                WHERE s.day<%s AND o.account=ANY(%s)
+                UNION
+                SELECT b.day,m.order_id FROM batches b JOIN members m ON m.batch_id=b.id
+                JOIN orders o ON o.id=m.order_id
+                WHERE b.day<%s AND b.state='ready' AND o.account=ANY(%s)
+            ) SELECT seen.day,count(*) AS order_count,
+                count(*) FILTER (WHERE EXISTS (
+                    SELECT 1 FROM members m JOIN batches b ON b.id=m.batch_id
+                    WHERE m.order_id=seen.id AND b.day=seen.day AND b.state='ready'
+                )) AS printed_count
+                FROM seen GROUP BY seen.day ORDER BY seen.day DESC''',
+                (today, allowed, today, allowed))
+            days = [dict(row) for row in cursor.fetchall()]
+            if day is None:
+                day = days[0]['day'] if days else None
+            result = dict(day=day, days=days, rows=[], counters={}, ready_batches=[], jobs=[],
+                          sync=None, last_sync=None, worker_healthy=False)
+            if day is None:
+                return result
+            cursor.execute('''SELECT b.id,b.counter_key,b.day,b.published_at,b.display,
+                (SELECT count(*) FROM members m WHERE m.batch_id=b.id) AS order_count
+                FROM batches b WHERE b.state='ready' AND b.day=%s
+                AND EXISTS (SELECT 1 FROM members m JOIN orders o ON o.id=m.order_id
+                            WHERE m.batch_id=b.id AND o.account=ANY(%s))
+                AND NOT EXISTS (SELECT 1 FROM members m JOIN orders o ON o.id=m.order_id
+                                WHERE m.batch_id=b.id AND NOT o.account=ANY(%s))
+                ORDER BY b.published_at DESC,b.id''', (day, allowed, allowed))
+            result['ready_batches'] = [dict(row) for row in cursor.fetchall()]
+            cursor.execute('''WITH observed AS (
+                SELECT DISTINCT ON (o.id) o.id,r.raw,s.started_at
+                FROM snapshots s CROSS JOIN LATERAL jsonb_array_elements(s.raw_orders) r(raw)
+                JOIN orders o ON o.id=(r.raw->>'id')::uuid
+                WHERE s.day=%s AND o.account=ANY(%s)
+                ORDER BY o.id,s.started_at DESC,s.id DESC
+            ), printed AS (
+                SELECT DISTINCT ON (m.order_id) m.order_id,b.id AS batch_id,b.counter_key,b.display
+                FROM batches b JOIN members m ON m.batch_id=b.id JOIN orders o ON o.id=m.order_id
+                WHERE b.day=%s AND b.state='ready' AND o.account=ANY(%s)
+                ORDER BY m.order_id,b.published_at DESC,b.id
+            ) SELECT o.id,o.account,o.external_id,h.raw,h.started_at,p.batch_id,
+                p.counter_key,p.display AS batch_display,
+                CASE WHEN s.day=%s THEN o.display ELSE '{}'::jsonb END AS observed_display
+                FROM observed h FULL JOIN printed p ON p.order_id=h.id
+                JOIN orders o ON o.id=COALESCE(h.id,p.order_id)
+                JOIN snapshots s ON s.id=o.snapshot_id
+                ORDER BY o.account,o.external_id,o.id''', (day, allowed, day, allowed, day))
+            for record in cursor.fetchall():
+                raw = record['raw'] or {}
+                display = record['observed_display'] or {}
+                batch_display = record['batch_display'] or {}
+                platform = {'oz': 'Ozon', 'wb': 'WB', 'ya': 'FBS Маркет'}[record['account'].split('_')[0]]
+                printed = record['batch_id'] is not None
+                result['rows'].append(dict(
+                    id=record['id'], account=record['account'], external_id=record['external_id'],
+                    counter_key=record['counter_key'] or record['account'] + '|archive',
+                    batch_id=record['batch_id'], batch_state='ready' if printed else None,
+                    printed=printed, color='green' if printed else 'red',
+                    receipt_ready=printed, label_ready=printed,
+                    display=dict(ms_status=raw.get('state', {}).get('name'),
+                        store=(raw.get('store') or {}).get('name') or display.get('store') or batch_display.get('store', ''),
+                        direction=display.get('direction') or batch_display.get('direction') or platform)))
+            cursor.execute('SELECT max(started_at) AS last_sync FROM snapshots WHERE day=%s', (day,))
+            result['last_sync'] = cursor.fetchone()['last_sync']
+        return result
 
     def heartbeat(self, now):
         with self.transaction() as cursor:

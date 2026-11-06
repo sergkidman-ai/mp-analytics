@@ -11,7 +11,7 @@ Disallow: /
 " 200
 	}
 
-	@print path / /warehouse/print /warehouse/print/ /api/print /api/print/*
+	@print path / /warehouse/print /warehouse/print/ /warehouse/print/archive /api/print /api/print/*
 	handle @print {
 		header Cache-Control "no-store"
 		route {
