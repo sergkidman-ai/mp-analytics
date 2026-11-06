@@ -86,9 +86,8 @@ class Collector:
                     warehouse = method.get('warehouse_id')
                     if warehouse is None or not method.get('warehouse'): raise PrintBlocked('ozon_direction_missing')
                     direction_id, direction = str(warehouse), 'Ozon · ' + method['warehouse']
-                    color = warehouse_color(account, str(warehouse))
+                    color = warehouse_color(account, str(warehouse), is_express=posting.get('is_express'))
                     if account == 'oz_acc1' and color is None: raise PrintBlocked('ozon_warehouse_color_unmapped')
-                    if posting.get('is_express') is True: raise PrintBlocked('ozon_express_outside_fbs_scope')
                 except PrintBlocked as exc:
                     error = error or str(exc)
             counter = '|'.join([account, direction_id, store_id or 'unknown'])

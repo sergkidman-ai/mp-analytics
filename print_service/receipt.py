@@ -108,8 +108,30 @@ def barcode_box(page, reader):
     return found[0]
 
 
-def annotate_receipt(data, *, diskver=False, code=None, last_four=None, color=None, quantities=None):
-    """code comes from Ozon scanit or WB partA, never from the order number.
+def express_receipt_code(data, posting_number):
+    """Use the native Express label's printed identity and highlighted digits.
+
+    Partner Express labels may contain no scanit at all. Never fabricate one
+    from an order number, or split a hyphenated posting into a fake code tail.
+    """
+    tails = set()
+    for page in pdf_reader(data).pages:
+        def collect(text, cm, tm, font, size):
+            value = text.strip()
+            if (len(value) == 4 and value.isdigit() and size >= 20
+                    and font and 'bold' in str(font.get('/BaseFont', '')).lower()):
+                tails.add(value)
+        text = page.extract_text(visitor_text=collect)
+        if posting_number not in text.split():
+            raise PrintBlocked('ozon_express_label_identity_mismatch')
+    if len(tails) > 1:
+        raise PrintBlocked('ozon_express_label_code_ambiguous')
+    return posting_number, next(iter(tails)) if tails else None
+
+
+def annotate_receipt(data, *, diskver=False, code=None, last_four=None, color=None, quantities=None,
+                     split_code_tail=True):
+    """code comes from scanit, WB partA, or the verified native Express label.
 
     Ozon's full scanit is split into prefix and final four digits; WB provides
     partA and partB separately. Both print the tail below in large bold type.
@@ -124,7 +146,7 @@ def annotate_receipt(data, *, diskver=False, code=None, last_four=None, color=No
         color = None
     if code is not None and (not isinstance(code, str) or not code.strip()):
         raise PrintBlocked('marketplace_code_invalid')
-    if code and last_four is None:
+    if code and last_four is None and split_code_tail:
         code, last_four = code[:-4], code[-4:]
     if last_four is not None and (not code or not isinstance(last_four, str) or len(last_four) != 4 or not last_four.isdigit()):
         raise PrintBlocked('wb_sticker_parts_invalid')

@@ -40,6 +40,17 @@ def selected_order(order: dict, account: str, now: datetime) -> bool:
             and planned_for_today(order.get('deliveryPlannedMoment'), now))
 
 
+def ozon_label_available(post: dict) -> bool:
+    """Ozon's explicit actions cover Express registration and delivery states."""
+    if post.get('status') in ('cancelled', 'canceled'):
+        return False
+    actions = post.get('available_actions')
+    if isinstance(actions, list):
+        return bool({'label_download', 'label_download_small'} & set(actions))
+    # Compatibility with ordinary FBS replies without an actions list.
+    return post.get('status') == 'awaiting_deliver' and post.get('is_express') is not True
+
+
 def ozon_warehouse_color(mapping: dict, account: str, warehouse_id: str):
     """Custom mapping uses account + Ozon warehouse ID, never the MS store/name.
 

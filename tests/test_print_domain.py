@@ -9,6 +9,17 @@ from print_service.warehouse_colors import load_config, warehouse_color
 
 
 class PrintDomainTests(unittest.TestCase):
+    def test_express_uses_available_actions_and_neutral_delivery_marker(self):
+        from print_service.domain import ozon_label_available
+        for status in ('delivering','awaiting_registration','awaiting_deliver'):
+            self.assertTrue(ozon_label_available(dict(status=status,is_express=True,available_actions=['label_download_small'])))
+        self.assertFalse(ozon_label_available(dict(status='cancelled',available_actions=['label_download'])))
+        self.assertFalse(ozon_label_available(dict(status='awaiting_packaging',available_actions=['cancel'])))
+        self.assertFalse(ozon_label_available(dict(status='awaiting_deliver',is_express=True)))
+        self.assertTrue(ozon_label_available(dict(status='awaiting_deliver')))
+        self.assertEqual(warehouse_color('oz_acc1','1020002587140000',is_express=True)['short'],'ЭКС')
+        self.assertIsNone(warehouse_color('oz_acc1','1020002587140000'))
+
     def test_confirmed_custom_warehouse_colors(self):
         config = load_config()
         self.assertEqual(sum(len(rows) for rows in config.values()), 10)

@@ -24,6 +24,7 @@ LABEL_AVAILABILITY_ERRORS = (
     'wb_order_not_ready_for_label', 'ozon_posting_not_ready_for_label',
     'market_order_not_ready_for_label', 'ozon_scanit_missing',
     'ozon_label_still_generating', 'ozon_label_generation_failed',
+    'ozon_express_outside_fbs_scope', 'ozon_warehouse_color_unmapped',
 )
 
 

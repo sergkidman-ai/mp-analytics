@@ -84,6 +84,34 @@ class SavedQueue:
 
 
 class LabelPrefetchTests(unittest.TestCase):
+    def test_express_label_cache_without_scanit_is_reused_when_counter_exports_receipt(self):
+        from fpdf import FPDF
+        for status,tail in (('delivering','1234'),('awaiting_registration',None)):
+            with self.subTest(status=status),TemporaryDirectory() as directory:
+                clients,queue=SavedLabels('ozon'),SavedQueue();number=clients.row['external_id']
+                post=dict(posting_number=number,status=status,is_express=True,
+                    available_actions=['label_download_small'],scanit=None,multi_box_qty=1,
+                    delivery_method={'warehouse_id':123})
+                pdf=FPDF(unit='pt',format=(164,114));pdf.set_auto_page_break(False);pdf.add_page()
+                pdf.set_font('Helvetica',size=9);pdf.text(5,20,number)
+                if tail:pdf.set_font('Helvetica',style='B',size=24);pdf.text(5,50,tail)
+                native=bytes(pdf.output())
+                def download(account,post,folder):
+                    clients.downloads+=1;(folder/'label.pdf').write_bytes(native)
+                with patch.object(clients,'ozon_posting',return_value=post),patch.object(clients,'ozon_label',side_effect=download):
+                    self.assertTrue(LabelPrefetcher(queue,clients,root=directory).one(clients.row,now=NOW))
+                    self.assertEqual(clients.exports,0)
+                    member=dict(account=clients.row['account'],external_id=number,
+                        ms_order_id=clients.row['id'],ms_demand_id=clients.row['demand_id'])
+                    with patch('print_service.preparer.annotate_receipt',side_effect=lambda data,**kwargs:data) as annotate:
+                        result=Preparer(queue,clients,root=directory,allow_unprinted=True)._one(member,NOW.date())
+                    self.assertEqual(annotate.call_args.kwargs['code'],number)
+                    self.assertEqual(annotate.call_args.kwargs['last_four'],tail)
+                    self.assertFalse(annotate.call_args.kwargs['split_code_tail'])
+                    self.assertEqual(annotate.call_args.kwargs['color']['short'],'ЭКС')
+                self.assertEqual(clients.downloads,1);self.assertEqual(clients.exports,1)
+                self.assertEqual(Path(result.label_files[0]).read_bytes(),native)
+
     def test_only_labels_are_downloaded_and_native_files_reused_for_all_platforms(self):
         for platform in ('ozon','wb','yandex'):
             with self.subTest(platform=platform), TemporaryDirectory() as directory:

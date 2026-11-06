@@ -44,6 +44,25 @@ def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quant
 
 
 class PrintReceiptTests(unittest.TestCase):
+    def test_native_express_identity_highlight_and_partner_without_scanit(self):
+        from print_service.receipt import express_receipt_code
+        number='0210482468-0008-1'
+        def label(tails):
+            pdf=FPDF(unit='pt',format=(164,114));pdf.set_auto_page_break(False);pdf.add_page()
+            pdf.set_font('Helvetica',size=8);pdf.text(8,20,number)
+            pdf.set_font('Helvetica',style='B',size=24)
+            for i,tail in enumerate(tails):pdf.text(8,50+i*25,tail)
+            return bytes(pdf.output())
+        self.assertEqual(express_receipt_code(label(['2468']),number),(number,'2468'))
+        self.assertEqual(express_receipt_code(label([]),number),(number,None))
+        with self.assertRaises(PrintBlocked):express_receipt_code(label(['2468']),'123-0001-1')
+        with self.assertRaises(PrintBlocked):express_receipt_code(label(['2468','9999']),number)
+        raw=receipt()
+        result=annotate_receipt(raw,code=number,split_code_tail=False)
+        self.assertIn(number,PdfReader(BytesIO(result)).pages[0].extract_text())
+        result=annotate_receipt(raw,code=number,last_four='2468',split_code_tail=False)
+        self.assertIn('2468',PdfReader(BytesIO(result)).pages[0].extract_text())
+
     def test_repeated_article_rows_keep_their_actual_quantities(self):
         source=receipt(row_quantities=[1,1],signature=False,barcode=False)
         result=annotate_receipt(source,quantities={'TEST-SKU':2})

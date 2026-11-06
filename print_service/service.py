@@ -31,6 +31,8 @@ ERRORS = {
     'linked_demand_ambiguous': 'В МС нет единственной связанной отгрузки.',
     'ozon_warehouse_color_unmapped': 'Для этого склада Ozon не задано буквенное обозначение.',
     'ozon_express_outside_fbs_scope': 'Заказ Ozon Express не входит в печать FBS.',
+    'ozon_express_label_identity_mismatch': 'Номер заказа на этикетке Ozon Express не совпадает с выбранным заказом.',
+    'ozon_express_label_code_ambiguous': 'На этикетке Ozon Express не удалось однозначно определить выделенные цифры.',
     'ozon_posting_not_ready_for_label': 'Ozon ещё не разрешает получение этикетки этого отправления.',
     'order_changed_since_counter_click': 'Данные или статус заказа изменились после нажатия на счётчик.',
     'ms_export_result_uncertain': 'Результат выгрузки МС не подтверждён. Повторный экспорт автоматически не выполняется.',

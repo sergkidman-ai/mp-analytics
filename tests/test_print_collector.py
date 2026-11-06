@@ -33,6 +33,18 @@ class SavedMS:
 
 
 class CollectorTests(unittest.TestCase):
+    def test_express_is_collected_without_unknown_color_or_fbs_exclusion(self):
+        source=SavedMS();agent=next(k for k,v in AGENTS.items() if v=='ozon')
+        for org in source.orders:
+            source.orders[org]=source.orders[org][:1]
+            source.orders[org][0]['agent']['meta']['href']=MS+'/entity/counterparty/'+agent
+        source.ozon_posting=lambda account,number:dict(is_express=True,
+            delivery_method=dict(warehouse_id=1020002587140000,warehouse='МСК экспресс'))
+        rows=Collector(source).collect(now=NOW)
+        self.assertEqual(len(rows),2)
+        self.assertTrue(all(r['source_error'] is None for r in rows))
+        self.assertTrue(all(r['display']['color']['short']=='ЭКС' for r in rows))
+
     def test_complete_pagination_and_no_export_or_labels(self):
         source=SavedMS();progress=[]
         rows=Collector(source).collect(now=NOW,on_progress=lambda **fields:progress.append(fields))

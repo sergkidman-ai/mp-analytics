@@ -11,13 +11,13 @@ import re
 from shipment_guard.config import identity
 from print_service.clients import reference_id
 from print_service.diskver_design import apply_diskver_design
-from print_service.domain import MOSCOW, OrderPrintFiles, PrintBlocked, guard_receipt_link, selected_order
+from print_service.domain import MOSCOW, OrderPrintFiles, PrintBlocked, guard_receipt_link, selected_order, ozon_label_available
 from print_service.pdf import build_pair, pdf_reader
-from print_service.receipt import annotate_receipt
+from print_service.receipt import annotate_receipt, express_receipt_code
 from print_service.storage import atomic_bytes, file_lock, save_json
 from print_service.warehouse_colors import warehouse_color
 
-LEGACY_RENDER_PROFILES = ('5657e411bd5b189e58f2c90397ad978e88167d000a3c101b239356411aa65ba3',)
+LEGACY_RENDER_PROFILES = ('5657e411bd5b189e58f2c90397ad978e88167d000a3c101b239356411aa65ba3', '93c6dac1478e1c00f6d071178f7057c90162bd51a9ee206cd3208ca5e71e6b60')
 
 
 def fingerprint(value):
@@ -103,13 +103,15 @@ class Preparer:
                 lines.append({k: row.get(k) for k in ('id','quantity','price','discount','vat','pack','gtd')} |
                              {'assortment': {k: assortment.get(k) for k in ('id','code','name')}})
             code, last_four, color = None, None, None
+            split_code_tail = True
             if platform == 'ozon':
                 post = self.clients.ozon_posting(account, number)
-                if post.get('status') != 'awaiting_deliver': raise PrintBlocked('ozon_posting_not_ready_for_label')
+                if not ozon_label_available(post): raise PrintBlocked('ozon_posting_not_ready_for_label')
                 code = post.get('scanit')
-                if not isinstance(code, str) or not code: raise PrintBlocked('ozon_scanit_missing')
+                if (not isinstance(code, str) or not code) and post.get('is_express') is not True:
+                    raise PrintBlocked('ozon_scanit_missing')
                 method = post.get('delivery_method', {})
-                color = warehouse_color(account, str(method.get('warehouse_id', '')))
+                color = warehouse_color(account, str(method.get('warehouse_id', '')), is_express=post.get('is_express'))
                 if account == 'oz_acc1' and color is None: raise PrintBlocked('ozon_warehouse_color_unmapped')
                 label_identity = dict(account=account, number=number, scanit=code, boxes=post.get('multi_box_qty'))
             elif platform == 'wb':
@@ -130,6 +132,9 @@ class Preparer:
             elif platform == 'wb':
                 self.clients.wb_status(account, number)
             validate_native_label(label)
+            if platform == 'ozon' and post.get('is_express') is True:
+                code, last_four = express_receipt_code(label.read_bytes(), number)
+                split_code_tail = False
             if platform == 'wb':
                 sticker = json.loads((label_dir / 'label_source.json').read_text())
                 if sticker.get('orderId') != int(number): raise PrintBlocked('wb_cached_label_identity_mismatch')
@@ -150,7 +155,8 @@ class Preparer:
                 raw = self.clients.export_receipt(oid, did, export_dir, expected_account=account,
                                                   expected_number=number, expected_day=day, allow_unprinted=self.allow_unprinted)
                 modified = annotate_receipt(raw, diskver=account.endswith('2'), code=code,
-                                            last_four=last_four, color=color, quantities=quantities)
+                                            last_four=last_four, color=color, quantities=quantities,
+                                            split_code_tail=split_code_tail)
                 if account.endswith('2'):
                     modified = apply_diskver_design(modified)
                 atomic_bytes(receipt, modified)

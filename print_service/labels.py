@@ -6,7 +6,7 @@ import re
 
 from shipment_guard.config import identity
 from print_service.clients import reference_id
-from print_service.domain import MOSCOW, PrintBlocked, selected_order
+from print_service.domain import MOSCOW, PrintBlocked, selected_order, ozon_label_available
 from print_service.preparer import fingerprint, validate_native_label
 from print_service.queue import checked_file
 from print_service.storage import file_lock
@@ -49,9 +49,10 @@ class LabelPrefetcher:
                 raise PrintBlocked('artifact_demand_identity_changed')
             if platform == 'ozon':
                 post = self.clients.ozon_posting(account, number)
-                if post.get('status') != 'awaiting_deliver': raise PrintBlocked('ozon_posting_not_ready_for_label')
+                if not ozon_label_available(post): raise PrintBlocked('ozon_posting_not_ready_for_label')
                 code = post.get('scanit')
-                if not isinstance(code, str) or not code: raise PrintBlocked('ozon_scanit_missing')
+                if (not isinstance(code, str) or not code) and post.get('is_express') is not True:
+                    raise PrintBlocked('ozon_scanit_missing')
                 label_identity = dict(account=account, number=number, scanit=code, boxes=post.get('multi_box_qty'))
             elif platform == 'wb':
                 label_identity = dict(account=account, number=number)

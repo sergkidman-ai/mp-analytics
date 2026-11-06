@@ -29,9 +29,14 @@ def load_config(path=None):
     return config
 
 
-def warehouse_color(account, warehouse_id, *, config=None):
+def warehouse_color(account, warehouse_id, *, config=None, is_express=False):
     if isinstance(warehouse_id, bool) or not isinstance(warehouse_id, (str, int)):
         raise ValueError('ozon_warehouse_identity_required')
+    if account not in ('oz_acc1', 'oz_acc2'):
+        raise ValueError('ozon_warehouse_identity_required')
+    if is_express is True:
+        # A delivery-type label, not an inferred custom warehouse color.
+        return {'key': 'express', 'short': 'ЭКС', 'css': '#000000'}
     config = load_config() if config is None else config
     mapping = {a: {wid: entry['color'] for wid, entry in rows.items()}
                for a, rows in config.items()}
