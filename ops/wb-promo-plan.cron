@@ -10,5 +10,5 @@ MAILTO=""
 
 # Checkpoints at 01:00 and 08:40 MSK; one confirmed 15% step per card per MSK day.
 # Missing new-auto export or stale MS snapshot blocks the optimizer. Shared durable WB writer.
-0 22 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-wb-plan-import.lock /bin/bash -c './venv/bin/python -m ops.wb_promo_plan_import --auto && ./venv/bin/python -m ops.wb_plan_raise --apply' >> logs/wb-plan-raise.log 2>&1
-40 5 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-wb-plan-import.lock /bin/bash -c './venv/bin/python -m ops.wb_promo_plan_import --auto && ./venv/bin/python -m ops.wb_plan_raise --apply' >> logs/wb-plan-raise.log 2>&1
+0 22 * * * root umask 077; cd /opt/mp-analytics && ./venv/bin/python -m ops.wb_plan_raise_report --apply >> logs/wb-plan-raise.log 2>&1
+40 5 * * * root umask 077; cd /opt/mp-analytics && ./venv/bin/python -m ops.wb_plan_raise_report --apply >> logs/wb-plan-raise.log 2>&1

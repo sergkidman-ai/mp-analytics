@@ -191,7 +191,8 @@ def main(argv=None):
     if not args.no_db:
         from . import catalog
         novelties = [{"name": r["name"], "article": r["article"],
-                      "price": price_rub(r["price_raw"], rate), "reason": r["reason"]}
+                      "price": price_rub(r["price_raw"], rate), "reason": r["reason"],
+                      "group":r.get("group"),"subgroup":r.get("subgroup")}
                      for r in skipped if r["reason"] in ("not_found", "ambiguous", "foreign")]
         matched, auto = catalog.sync(novelties, profile.key, profile.default_chip,
                                      profile.article_re)

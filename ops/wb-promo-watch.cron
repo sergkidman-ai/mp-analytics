@@ -1,0 +1,8 @@
+# Existing WB auto-promotion notices in @ds_prc_bot. UTC (MSK = UTC+3).
+SHELL=/bin/bash
+MAILTO=""
+
+# Warn on the day before the Moscow start date, grouping both accounts.
+41 6 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-wb-promo-watch.lock /usr/bin/timeout 600 ./venv/bin/python -m ops.wb_promo_watch >> logs/wb-promo-watch.log 2>&1
+# Keep reminding until the recipient presses the existing Done button.
+41 * * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-wb-promo-remind.lock /usr/bin/timeout 600 ./venv/bin/python -m ops.wb_promo_watch --remind-only >> logs/wb-promo-watch.log 2>&1

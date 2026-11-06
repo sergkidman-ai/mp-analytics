@@ -51,7 +51,7 @@ SKIP_REASONS = {
     "duplicate": "артикул повторяется в прайсе, остатки равны — цены разные",
     "duplicate_smaller": "артикул повторяется в прайсе, взята строка с бо́льшим остатком",
     "price_absurd": "цена вне разумного коридора (проверка аномалий)",
-    "category_off": "категория прайса нам не нужна",
+    "category_off": "товар не входит в наш ассортимент",
     "blacklisted": "артикул в чёрном списке (забраковали раньше)",
     # правило снято 09.08.2026, подписи нужны для строк прошлых прогонов
     "bulk_toner": "тонер больше 150 г — правило снято 09.08",
@@ -200,12 +200,8 @@ def filter_categories(rows, profile):
     стульев). Отсеиваем сразу: не дёргаем МС лишними артикулами и, главное, не тащим чужой
     ассортимент в список новинок — иначе шаг 2 предложит завести карточку на офисный стул.
     """
-    if not profile.keep_categories:
-        return rows, []
-    keep, dropped = [], []
-    for row in rows:
-        (keep if profile.keep_category(row) else dropped).append(row)
-    return keep, [{**r, "reason": "category_off"} for r in dropped]
+    from .assortment import filter_rows
+    return filter_rows(rows,profile)
 
 
 def archive_swaps(rows, cards, own):
@@ -253,6 +249,8 @@ def classify(rows, profile, rate):
     rows, off = filter_categories(rows, profile)
     rows, skipped = drop_duplicates(rows)
     skipped += off
+    if not rows:
+        return [],skipped
     cards = lookup_by_article([r["article"] for r in rows])
     own = own_ids(profile)
     swaps, archived_only = archive_swaps(rows, cards, own)

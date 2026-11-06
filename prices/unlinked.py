@@ -109,6 +109,9 @@ def collect(store=STORE_REMOTE):
         ext = (card.get("externalCode") or "").strip()
         if OUR_CODE_RE.match(ext):
             continue                      # наш 4-значный код — карточка сопоставлена
+        from .assortment import name_reason
+        if name_reason(card.get("name")) is not None:
+            continue
         out.append({**row,
                     "ms_code": (card.get("code") or "").strip() or None,
                     "article": (card.get("article") or "").strip() or None,

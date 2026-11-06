@@ -18,6 +18,14 @@ def process_updates(conn, updates):
         conn.commit()
 
 
+def ensure_cursor(conn):
+    """Restore the migration's singleton after a database recovery; retain existing offset."""
+    with conn.cursor() as cur:
+        cur.execute('''INSERT INTO prc_promo_callback_cursor(id) VALUES (1)
+            ON CONFLICT DO NOTHING''')
+    conn.commit()
+
+
 def main():
     load_dotenv('/opt/mp-analytics/.env')
     conn = psycopg2.connect(os.environ['DATABASE_URL'])
@@ -27,6 +35,7 @@ def main():
             if not cur.fetchone()[0]:
                 raise RuntimeError('Promo callback listener is already running')
         conn.commit()
+        ensure_cursor(conn)
         print('Promo callback listener started',flush=True)
         while True:
             try:
