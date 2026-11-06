@@ -41,6 +41,8 @@ class PrintAccess:
         result = {key: source[key] for key in STATUS_FIELDS if key in source}
         result['rows'] = [row for row in source.get('rows', []) if self.allows(row.get('account'))]
         result['counters'] = {key: value for key, value in source.get('counters', {}).items() if self.allows_counter(key)}
+        result['external_printed_counts'] = {account: count for account, count in source.get('external_printed_counts', {}).items()
+                                           if self.allows(account)}
         result['ready_batches'] = []
         for batch in source.get('ready_batches', []):
             if not self.allows_counter(batch.get('counter_key')): continue

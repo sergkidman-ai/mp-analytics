@@ -2,7 +2,8 @@
 """Persistent counter ledger in an isolated PostgreSQL schema.
 
 The UI term 'printed' means BOTH PDFs were published to the ready-file list,
-as explicitly requested by the user. No printer confirmation or MP/MS writes.
+or an explicit user confirmation was recorded in external_prints.
+No printer confirmation or MP/MS writes.
 Schema installation is explicit; importing this module never creates tables.
 """
 from contextlib import contextmanager
@@ -126,12 +127,41 @@ class PrintQueue:
 
     def order(self, order_id):
         with self.transaction() as cursor:
-            cursor.execute('''SELECT o.*,c.batch_id,b.state AS batch_state FROM orders o
+            cursor.execute('''SELECT o.*,c.batch_id,b.state AS batch_state,
+                (e.order_id IS NOT NULL) AS printed_externally FROM orders o
                 LEFT JOIN claims c ON c.order_id=o.id LEFT JOIN batches b ON b.id=c.batch_id
+                LEFT JOIN external_prints e ON e.order_id=o.id
                 WHERE o.id=%s''', (str(UUID(str(order_id))),))
             result = cursor.fetchone()
             if result is None: raise PrintBlocked('print_order_missing')
             return dict(result)
+
+    def mark_external_printed(self, order_ids, *, accounts, now, evidence):
+        """Record explicit user confirmation; serialize with sync and counter clicks."""
+        selected = [str(UUID(str(oid))) for oid in order_ids]
+        if not selected or len(selected) != len(set(selected)) or not evidence.get('sha256'):
+            raise ValueError('external_print_confirmation_required')
+        day = moscow_day(now)
+        with self.transaction() as cursor:
+            cursor.execute('SELECT snapshot_id FROM current_snapshot FOR UPDATE')
+            cursor.fetchone()
+            cursor.execute('''SELECT o.id,o.account,o.snapshot_id,s.day,b.state AS batch_state,
+                e.order_id AS already_external FROM orders o JOIN snapshots s ON s.id=o.snapshot_id
+                LEFT JOIN claims c ON c.order_id=o.id LEFT JOIN batches b ON b.id=c.batch_id
+                LEFT JOIN external_prints e ON e.order_id=o.id
+                WHERE o.id=ANY(%s::uuid[]) ORDER BY o.id FOR UPDATE OF o''', (selected,))
+            rows = cursor.fetchall()
+            if len(rows) != len(selected) or any(r['account'] not in accounts for r in rows):
+                raise PrintBlocked('selected_orders_changed')
+            if any(r['batch_state'] == 'building' for r in rows):
+                raise PrintBlocked('counter_already_reserved')
+            pending = [r for r in rows if r['batch_state'] != 'ready' and not r['already_external']]
+            if any(r['day'] != day for r in pending):
+                raise PrintBlocked('selected_orders_changed')
+            for row in pending:
+                cursor.execute('INSERT INTO external_prints VALUES (%s,%s,%s,%s)',
+                               (row['id'], day, now, Json(evidence)))
+            return dict(marked=[str(r['id']) for r in pending], already_printed=len(rows)-len(pending))
 
     def reserve_counter(self, counter_key, *, request_key, now, order_ids=None):
         day = moscow_day(now)
@@ -165,6 +195,7 @@ class PrintQueue:
                 cursor.execute('''SELECT o.* FROM orders o JOIN snapshots s ON s.id=o.snapshot_id
                     WHERE o.snapshot_id=%s AND s.day=%s AND o.counter_key=%s
                     AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id=o.id)
+                    AND NOT EXISTS (SELECT 1 FROM external_prints e WHERE e.order_id=o.id)
                     AND (%s::uuid[] IS NULL OR o.id=ANY(%s::uuid[]))
                     ORDER BY o.external_id,o.id FOR UPDATE OF o''', (snapshot, day, counter_key, selected, selected))
                 orders = cursor.fetchall()
@@ -215,6 +246,8 @@ class PrintQueue:
                 raise PrintBlocked('selected_orders_changed')
             cursor.execute('SELECT 1 FROM claims WHERE order_id=ANY(%s::uuid[]) LIMIT 1', (selected,))
             if cursor.fetchone(): raise PrintBlocked('selected_orders_changed')
+            cursor.execute('SELECT 1 FROM external_prints WHERE order_id=ANY(%s::uuid[]) LIMIT 1', (selected,))
+            if cursor.fetchone(): raise PrintBlocked('selected_orders_changed')
             cursor.execute("SELECT 1 FROM batches WHERE state='building' AND day=%s AND counter_key=ANY(%s) LIMIT 1",
                            (day, list({o['counter_key'] for o in orders} | {key})))
             if cursor.fetchone(): raise PrintBlocked('counter_already_reserved')
@@ -247,6 +280,7 @@ class PrintQueue:
                 JOIN orders o ON o.snapshot_id=s.id LEFT JOIN artifacts a ON a.order_id=o.id
                 WHERE s.day=%s AND o.demand_id IS NOT NULL AND o.source_error IS NULL
                 AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id=o.id)
+                AND NOT EXISTS (SELECT 1 FROM external_prints e WHERE e.order_id=o.id)
                 ORDER BY o.counter_key,o.external_id''', (list(LABEL_AVAILABILITY_ERRORS), moscow_day(now)))
             return [dict(row) for row in cursor.fetchall()]
 
@@ -288,6 +322,8 @@ class PrintQueue:
             order = cursor.fetchone()
             if not order or str(order['demand_id']) != str(demand_id): return False
             cursor.execute('SELECT 1 FROM claims WHERE order_id=%s', (order_id,))
+            if cursor.fetchone(): return False
+            cursor.execute('SELECT 1 FROM external_prints WHERE order_id=%s', (order_id,))
             if cursor.fetchone(): return False
             cursor.execute('''SELECT demand_id,label_path,label_sha FROM artifacts WHERE order_id=%s''', (order_id,))
             existing = cursor.fetchone()
@@ -468,6 +504,9 @@ class PrintQueue:
             cursor.execute('''SELECT 1 FROM members m JOIN claims c ON c.order_id=m.order_id
                               WHERE m.batch_id=%s LIMIT 1''', (batch_id,))
             if cursor.fetchone(): raise PrintBlocked('counter_already_reserved')
+            cursor.execute('''SELECT 1 FROM members m JOIN external_prints e ON e.order_id=m.order_id
+                              WHERE m.batch_id=%s LIMIT 1''', (batch_id,))
+            if cursor.fetchone(): raise PrintBlocked('selected_orders_changed')
             cursor.execute('INSERT INTO claims SELECT order_id,batch_id FROM members WHERE batch_id=%s', (batch_id,))
             cursor.execute("UPDATE batches SET state='building',generation=generation+1,error=NULL WHERE id=%s", (batch_id,))
             return self._batch(cursor, batch_id)
@@ -485,10 +524,12 @@ class PrintQueue:
         day = moscow_day(now)
         with self.transaction() as cursor:
             cursor.execute('''SELECT o.*,b.state AS batch_state,c.batch_id,a.receipt_path,a.receipt_sha,
-                a.label_path,a.label_sha,a.demand_id AS artifact_demand_id
+                a.label_path,a.label_sha,a.demand_id AS artifact_demand_id,
+                (e.order_id IS NOT NULL) AS printed_externally
                 FROM current_snapshot v JOIN snapshots s ON s.id=v.snapshot_id
                 JOIN orders o ON o.snapshot_id=s.id LEFT JOIN claims c ON c.order_id=o.id
                 LEFT JOIN batches b ON b.id=c.batch_id LEFT JOIN artifacts a ON a.order_id=o.id
+                LEFT JOIN external_prints e ON e.order_id=o.id
                 WHERE s.day=%s ORDER BY o.counter_key,o.external_id,o.id''', (day,))
             rows = [dict(r) for r in cursor.fetchall()]
             cursor.execute("""SELECT b.id,b.counter_key,b.day,b.published_at,b.display,
@@ -511,6 +552,7 @@ class PrintQueue:
                     LEFT JOIN claims c ON c.order_id=o.id
                     WHERE m.batch_id=b.id AND b.state='failed' AND b.day=%s AND s.day=%s
                     AND c.batch_id IS NULL
+                    AND NOT EXISTS (SELECT 1 FROM external_prints e WHERE e.order_id=o.id)
                     AND NOT (COALESCE(b.display->'resolved_orders','{}'::jsonb) ? m.order_id::text)
                     AND (b.display->>'error_order_id' IS NULL
                         OR b.display->>'error_order_id'=m.order_id::text)
@@ -526,9 +568,10 @@ class PrintQueue:
             jobs = [job for job in jobs if job['state'] != 'failed' or job['orders']]
             cursor.execute('SELECT last_seen FROM worker_status WHERE singleton=true')
             worker = cursor.fetchone()
+            external_counts = self._external_printed_counts(cursor, day)
         counters = {}
         for row in rows:
-            row['printed'] = row['batch_state'] == 'ready'
+            row['printed'] = row['batch_state'] == 'ready' or row['printed_externally']
             row['color'] = 'green' if row['printed'] else 'red'
             for kind in ('receipt', 'label'):
                 try:
@@ -543,9 +586,18 @@ class PrintQueue:
             if not row['printed']:
                 counter['count'] += 1
                 counter['blocked'] += bool(row['source_error'])
-        return dict(rows=rows, counters=counters, ready_batches=ready,
+        return dict(rows=rows, counters=counters, ready_batches=ready, external_printed_counts=external_counts,
                     jobs=jobs, last_sync=snapshot['started_at'], snapshot_day=snapshot['day'], sync=dict(sync) if sync else None,
                     worker_healthy=bool(worker and 0 <= (now - worker['last_seen']).total_seconds() < 90))
+
+    @staticmethod
+    def _external_printed_counts(cursor, day, accounts=None):
+        cursor.execute('''SELECT o.account,count(*) AS count FROM external_prints e
+            JOIN orders o ON o.id=e.order_id WHERE e.day=%s AND o.account=ANY(%s)
+            AND NOT EXISTS (SELECT 1 FROM claims c JOIN batches b ON b.id=c.batch_id
+                            WHERE c.order_id=o.id AND b.state='ready') GROUP BY o.account''',
+            (day, list(ACCOUNTS if accounts is None else accounts)))
+        return {row['account']: row['count'] for row in cursor.fetchall()}
 
     def archive(self, *, now, day=None, accounts=None):
         """Read past business days without touching claims, exports or PDF files.
@@ -568,20 +620,25 @@ class PrintQueue:
                 SELECT b.day,m.order_id FROM batches b JOIN members m ON m.batch_id=b.id
                 JOIN orders o ON o.id=m.order_id
                 WHERE b.day<%s AND b.state='ready' AND o.account=ANY(%s)
+                UNION
+                SELECT e.day,e.order_id FROM external_prints e JOIN orders o ON o.id=e.order_id
+                WHERE e.day<%s AND o.account=ANY(%s)
             ) SELECT seen.day,count(*) AS order_count,
                 count(*) FILTER (WHERE EXISTS (
                     SELECT 1 FROM members m JOIN batches b ON b.id=m.batch_id
                     WHERE m.order_id=seen.id AND b.day=seen.day AND b.state='ready'
-                )) AS printed_count
+                ) OR EXISTS (SELECT 1 FROM external_prints e
+                             WHERE e.order_id=seen.id AND e.day=seen.day)) AS printed_count
                 FROM seen GROUP BY seen.day ORDER BY seen.day DESC''',
-                (today, allowed, today, allowed))
+                (today, allowed, today, allowed, today, allowed))
             days = [dict(row) for row in cursor.fetchall()]
             if day is None:
                 day = days[0]['day'] if days else None
             result = dict(day=day, days=days, rows=[], counters={}, ready_batches=[], jobs=[],
-                          sync=None, last_sync=None, worker_healthy=False)
+                          sync=None, last_sync=None, worker_healthy=False, external_printed_counts={})
             if day is None:
                 return result
+            result['external_printed_counts'] = self._external_printed_counts(cursor, day, accounts)
             cursor.execute('''SELECT b.id,b.counter_key,b.day,b.published_at,b.display,
                 (SELECT count(*) FROM members m WHERE m.batch_id=b.id) AS order_count
                 FROM batches b WHERE b.state='ready' AND b.day=%s
@@ -602,25 +659,31 @@ class PrintQueue:
                 FROM batches b JOIN members m ON m.batch_id=b.id JOIN orders o ON o.id=m.order_id
                 WHERE b.day=%s AND b.state='ready' AND o.account=ANY(%s)
                 ORDER BY m.order_id,b.published_at DESC,b.id
+            ), external AS (
+                SELECT e.order_id FROM external_prints e JOIN orders o ON o.id=e.order_id
+                WHERE e.day=%s AND o.account=ANY(%s)
             ) SELECT o.id,o.account,o.external_id,h.raw,h.started_at,p.batch_id,
-                p.counter_key,p.display AS batch_display,
+                p.counter_key,p.display AS batch_display,(e.order_id IS NOT NULL) AS printed_externally,
                 CASE WHEN s.day=%s THEN o.display ELSE '{}'::jsonb END AS observed_display
                 FROM observed h FULL JOIN printed p ON p.order_id=h.id
-                JOIN orders o ON o.id=COALESCE(h.id,p.order_id)
+                FULL JOIN external e ON e.order_id=COALESCE(h.id,p.order_id)
+                JOIN orders o ON o.id=COALESCE(h.id,p.order_id,e.order_id)
                 JOIN snapshots s ON s.id=o.snapshot_id
-                ORDER BY o.account,o.external_id,o.id''', (day, allowed, day, allowed, day))
+                ORDER BY o.account,o.external_id,o.id''', (day, allowed, day, allowed, day, allowed, day))
             for record in cursor.fetchall():
                 raw = record['raw'] or {}
                 display = record['observed_display'] or {}
                 batch_display = record['batch_display'] or {}
                 platform = {'oz': 'Ozon', 'wb': 'WB', 'ya': 'FBS Маркет'}[record['account'].split('_')[0]]
-                printed = record['batch_id'] is not None
+                has_files = record['batch_id'] is not None
+                printed = has_files or record['printed_externally']
                 result['rows'].append(dict(
                     id=record['id'], account=record['account'], external_id=record['external_id'],
                     counter_key=record['counter_key'] or record['account'] + '|archive',
-                    batch_id=record['batch_id'], batch_state='ready' if printed else None,
+                    batch_id=record['batch_id'], batch_state='ready' if has_files else None,
                     printed=printed, color='green' if printed else 'red',
-                    receipt_ready=printed, label_ready=printed,
+                    printed_externally=record['printed_externally'],
+                    receipt_ready=has_files, label_ready=has_files,
                     display=dict(ms_status=raw.get('state', {}).get('name'),
                         store=(raw.get('store') or {}).get('name') or display.get('store') or batch_display.get('store', ''),
                         direction=display.get('direction') or batch_display.get('direction') or platform)))

@@ -25,6 +25,7 @@ ERRORS = {
     'receipt_quantity_cell_too_small': 'Не удалось безопасно выделить количество в ТЧ. Заказ оставлен в счётчике.',
     'counter_has_blocked_orders': 'У части заказов нет необходимых данных. Проверьте красные строки ниже.',
     'sample_requires_previously_printed_demand': 'Тестовый режим: новая выгрузка этого чека из МС пока отключена.',
+    'order_printed_externally': 'Заказ уже распечатан отдельно и исключён из счётчиков.',
     'pair_not_ready': 'Оба файла ещё не готовы.',
     'linked_demand_missing': 'В МС нет связанной отгрузки.',
     'linked_demand_ambiguous': 'В МС нет единственной связанной отгрузки.',
@@ -164,6 +165,8 @@ class PrintService:
         if order['batch_state'] == 'ready':
             self.order_files(order_id)
             return dict(id=order['batch_id'], state='ready', count=1)
+        if order.get('printed_externally'):
+            raise PrintBlocked('order_printed_externally')
         self.require_worker()
         batch = self.queue.reserve_counter(order['counter_key'], request_key=key,
                                            now=self.clock(), order_ids=[str(order_id)])

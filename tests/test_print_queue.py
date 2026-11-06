@@ -52,7 +52,7 @@ class PrintQueueTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         with self.queue.transaction() as cursor:
-            cursor.execute('TRUNCATE artifacts,requests,claims,members,batches,orders,current_snapshot,snapshots,sync_runs,worker_status')
+            cursor.execute('TRUNCATE external_prints,artifacts,requests,claims,members,batches,orders,current_snapshot,snapshots,sync_runs,worker_status')
             cursor.execute('INSERT INTO current_snapshot(singleton) VALUES(true)')
         self.rows = [order('100-0001-1'), order('100-0002-1')]
         self.counter = self.rows[0]['counter_key']
@@ -674,6 +674,79 @@ class PrintQueueTests(unittest.TestCase):
             self.assertNotIn('Цифровой квадрат', page.text)
             self.assertIn('class="current" href="/warehouse/print/archive"', page.text)
         self.assertEqual(self.queue.batch(batch['id'])['generation'], 1)
+
+    def test_external_print_confirmation_survives_sync_and_excludes_all_print_paths(self):
+        oid=self.rows[0]['raw']['id'];evidence={'sha256':'a'*64,'source':'screenshot'}
+        batch=self.queue.reserve_counter(self.counter,request_key='failed-one',now=NOW,order_ids=[oid])
+        self.queue.fail_batch(batch['id'],generation=1,error='ozon_scanit_missing')
+        result=self.queue.mark_external_printed([oid],accounts={'oz_acc1'},now=NOW,evidence=evidence)
+        self.assertEqual(result,dict(marked=[oid],already_printed=0))
+        repeat=self.queue.mark_external_printed([oid],accounts={'oz_acc1'},now=NOW,evidence=evidence)
+        self.assertEqual(repeat,dict(marked=[],already_printed=1))
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(minutes=1),complete=True)
+        view=self.queue.view(now=NOW+timedelta(minutes=1));row=next(r for r in view['rows'] if str(r['id'])==oid)
+        self.assertTrue(row['printed']);self.assertTrue(row['printed_externally'])
+        self.assertEqual(row['color'],'green');self.assertIsNone(row['batch_id'])
+        self.assertFalse(row['receipt_ready']);self.assertEqual(view['ready_batches'],[])
+        self.assertEqual(view['counters'][self.counter]['count'],1)
+        self.assertEqual(view['external_printed_counts'],{'oz_acc1':1})
+        self.assertEqual(view['jobs'],[])
+        self.assertNotIn(oid,[str(r['id']) for r in self.queue.label_candidates(now=NOW)])
+        with self.assertRaises(PrintBlocked):self.queue.retry_failed_batch(batch['id'],generation=1)
+        with self.assertRaises(PrintBlocked):self.queue.reserve_counter(self.counter,request_key='single',now=NOW,order_ids=[oid])
+        with self.assertRaises(PrintBlocked):self.queue.reserve_orders([oid],account='oz_acc1',request_key='file',now=NOW,title='Список')
+        remaining=self.reserve('others')
+        self.assertEqual([r['ms_order_id'] for r in remaining['orders']],[self.rows[1]['raw']['id']])
+
+    def test_external_confirmation_scope_is_atomic_and_never_replaces_published_files(self):
+        ids=[r['raw']['id'] for r in self.rows];evidence={'sha256':'a'*64}
+        with self.assertRaises(PrintBlocked):self.queue.mark_external_printed(ids,accounts={'oz_acc2'},now=NOW,evidence=evidence)
+        with self.assertRaises(PrintBlocked):self.queue.mark_external_printed(ids+[str(uuid4())],accounts={'oz_acc1'},now=NOW,evidence=evidence)
+        self.assertEqual(self.queue.view(now=NOW)['external_printed_counts'],{})
+        batch=self.reserve()
+        with self.assertRaises(PrintBlocked):self.queue.mark_external_printed(ids,accounts={'oz_acc1'},now=NOW,evidence=evidence)
+        self.queue.publish_pair(batch['id'],generation=1,pair_dir=self.prepare(batch))
+        result=self.queue.mark_external_printed(ids,accounts={'oz_acc1'},now=NOW,evidence=evidence)
+        self.assertEqual(result,dict(marked=[],already_printed=2))
+        self.assertEqual(self.queue.view(now=NOW)['external_printed_counts'],{})
+        self.assertTrue(self.queue.ready_files(batch['id'])['labels'].is_file())
+
+    def test_external_confirmation_and_counter_click_are_serialized_without_duplicates(self):
+        oid=self.rows[0]['raw']['id']
+        def mark():
+            try:return self.queue.mark_external_printed([oid],accounts={'oz_acc1'},now=NOW,evidence={'sha256':'b'*64})
+            except PrintBlocked as exc:
+                self.assertEqual(str(exc),'counter_already_reserved');return None
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            manual=pool.submit(mark);counter=pool.submit(self.reserve,'simultaneous')
+            result=manual.result();batch=counter.result()
+        members={r['ms_order_id'] for r in batch['orders']}
+        self.assertEqual(oid in members,result is None)
+        self.assertEqual(len(members)+(1 if result else 0),2)
+
+    def test_external_confirmation_archive_and_http_never_invent_ready_files(self):
+        from fastapi.testclient import TestClient
+        from print_service.service import PrintService
+        from web.print_app import create_app
+        oid=self.rows[0]['raw']['id']
+        self.queue.mark_external_printed([oid],accounts={'oz_acc1'},now=NOW,evidence={'sha256':'c'*64})
+        class NoNetwork:
+            def __getattr__(self,name):raise AssertionError('provider_called:'+name)
+        service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        with TestClient(create_app(lambda:service),headers={'X-Pult-User':'bersenev'}) as client:
+            data=client.get('/api/print').json();self.assertEqual(data['external_printed_counts'],{'oz_acc1':1})
+            self.assertEqual(client.post(f'/api/print/orders/{oid}/pair',json={'request_key':str(uuid4())}).status_code,409)
+            self.assertEqual(client.get(f'/api/print/orders/{oid}/files/receipts').status_code,409)
+            foreign=client.get('/api/print',headers={'X-Pult-User':'tolkachev'}).json()
+            self.assertEqual(foreign['external_printed_counts'],{})
+        archive=self.queue.archive(now=NOW+timedelta(days=1))
+        self.assertEqual(archive['days'][0]['printed_count'],1)
+        self.assertEqual(archive['external_printed_counts'],{'oz_acc1':1})
+        row=next(r for r in archive['rows'] if str(r['id'])==oid)
+        self.assertTrue(row['printed']);self.assertTrue(row['printed_externally'])
+        self.assertFalse(row['receipt_ready']);self.assertIsNone(row['batch_id'])
+        self.assertEqual(archive['ready_batches'],[])
+        self.assertEqual(self.queue.archive(now=NOW+timedelta(days=1),accounts={'oz_acc2'})['days'],[])
 
     def test_artifact_version_change_invalidates_old_partner_file(self):
         row=self.rows[0];oid=row['raw']['id'];did=row['demand_id'];path=self.root/'artifact.pdf';pdf(path)

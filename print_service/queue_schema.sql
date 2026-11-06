@@ -54,6 +54,13 @@ CREATE TABLE IF NOT EXISTS requests (
     request_key text PRIMARY KEY,
     batch_id uuid NOT NULL REFERENCES batches(id)
 );
+-- Explicit user confirmation of paper printed outside this page. No fake PDF batch.
+CREATE TABLE IF NOT EXISTS external_prints (
+    order_id uuid PRIMARY KEY REFERENCES orders(id),
+    day date NOT NULL,
+    recorded_at timestamptz NOT NULL,
+    evidence jsonb NOT NULL
+);
 CREATE TABLE IF NOT EXISTS artifacts (
     order_id uuid PRIMARY KEY REFERENCES orders(id),
     demand_id uuid NOT NULL,
