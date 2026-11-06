@@ -40,10 +40,13 @@ def selected_order(order: dict, account: str, now: datetime) -> bool:
             and planned_for_today(order.get('deliveryPlannedMoment'), now))
 
 
-def ozon_label_available(post: dict) -> bool:
+def ozon_label_available(post: dict, *, cached=False) -> bool:
     """Ozon's explicit actions cover Express registration and delivery states."""
     if post.get('status') in ('cancelled', 'canceled'):
         return False
+    if cached and post.get('status') in ('awaiting_deliver', 'awaiting_registration',
+                                        'delivering', 'driver_pickup', 'sent_by_seller', 'delivered'):
+        return True
     actions = post.get('available_actions')
     if isinstance(actions, list):
         return bool({'label_download', 'label_download_small'} & set(actions))

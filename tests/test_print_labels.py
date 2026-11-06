@@ -101,6 +101,8 @@ class LabelPrefetchTests(unittest.TestCase):
                 with patch.object(clients,'ozon_posting',return_value=post),patch.object(clients,'ozon_label',side_effect=download):
                     self.assertTrue(LabelPrefetcher(queue,clients,root=directory).one(clients.row,now=NOW))
                     self.assertEqual(clients.exports,0)
+                    post['available_actions']=[]
+                    self.assertTrue(LabelPrefetcher(queue,clients,root=directory).one(clients.row,now=NOW))
                     member=dict(account=clients.row['account'],external_id=number,
                         ms_order_id=clients.row['id'],ms_demand_id=clients.row['demand_id'])
                     with patch('print_service.preparer.annotate_receipt',side_effect=lambda data,**kwargs:data) as annotate:

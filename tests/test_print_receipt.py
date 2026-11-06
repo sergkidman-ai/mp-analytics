@@ -11,7 +11,8 @@ from print_service.domain import PrintBlocked
 from print_service.receipt import annotate_receipt, quantity_plan, word_pages
 
 
-def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quantity=False, row_quantities=None, duplicate_description=False):
+def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quantity=False, row_quantities=None, duplicate_description=False,
+            barcode_x=340, barcode_width=160):
     pdf = FPDF(unit='pt', format=(612, 792))
     pdf.add_font('Print', fname='/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
     pdf.set_auto_page_break(False)
@@ -35,7 +36,7 @@ def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quant
         for x in range(0, 800, 8): draw.rectangle((x, 0, x+3, img.height-1), fill=0)
         buffer = BytesIO()
         img.save(buffer, format='PNG')
-        pdf.image(BytesIO(buffer.getvalue()), x=340, y=80, w=160, h=30)
+        pdf.image(BytesIO(buffer.getvalue()), x=barcode_x, y=80, w=barcode_width, h=30)
     data = bytes(pdf.output())
     for font in pdf.fonts.values():
         if hasattr(font, 'ttfont'):
@@ -44,6 +45,20 @@ def receipt(*, signature=True, barcode=True, narrow_barcode=False, compact_quant
 
 
 class PrintReceiptTests(unittest.TestCase):
+    def test_long_express_code_moves_to_free_left_side_without_touching_barcode(self):
+        from print_service.receipt import barcode_box
+        source=receipt(barcode_x=364.8,barcode_width=167.2)
+        result=annotate_receipt(source,code='0210482468-0008-1',last_four='2468',split_code_tail=False,
+            color={'short':'ЭКС','css':'#000000'})
+        words=word_pages(result)[0]
+        code=next(w for w in words if w['text']=='0210482468-0008-1')
+        tail=next(w for w in words if w['text']=='2468')
+        self.assertLess(code['xMax'],364.8-65)
+        self.assertLess(tail['xMax'],364.8-65)
+        self.assertGreaterEqual(code['xMin'],8)
+        self.assertEqual(barcode_box(PdfReader(BytesIO(result)).pages[0],PdfReader(BytesIO(result))),
+                         barcode_box(PdfReader(BytesIO(source)).pages[0],PdfReader(BytesIO(source))))
+
     def test_native_express_identity_highlight_and_partner_without_scanit(self):
         from print_service.receipt import express_receipt_code
         number='0210482468-0008-1'

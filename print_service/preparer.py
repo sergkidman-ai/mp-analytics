@@ -106,7 +106,6 @@ class Preparer:
             split_code_tail = True
             if platform == 'ozon':
                 post = self.clients.ozon_posting(account, number)
-                if not ozon_label_available(post): raise PrintBlocked('ozon_posting_not_ready_for_label')
                 code = post.get('scanit')
                 if (not isinstance(code, str) or not code) and post.get('is_express') is not True:
                     raise PrintBlocked('ozon_scanit_missing')
@@ -125,6 +124,8 @@ class Preparer:
             label_dir = folder / 'labels' / fingerprint(label_identity)
             label_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
             label = label_dir / 'label.pdf'
+            if platform == 'ozon' and not ozon_label_available(post, cached=label.exists()):
+                raise PrintBlocked('ozon_posting_not_ready_for_label')
             if not label.exists():
                 if platform == 'ozon': self.clients.ozon_label(account, post, label_dir)
                 elif platform == 'wb': self.clients.wb_sticker(account, number, label_dir)

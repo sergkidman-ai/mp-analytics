@@ -14,6 +14,10 @@ class PrintDomainTests(unittest.TestCase):
         for status in ('delivering','awaiting_registration','awaiting_deliver'):
             self.assertTrue(ozon_label_available(dict(status=status,is_express=True,available_actions=['label_download_small'])))
         self.assertFalse(ozon_label_available(dict(status='cancelled',available_actions=['label_download'])))
+        self.assertFalse(ozon_label_available(dict(status='cancelled'),cached=True))
+        self.assertTrue(ozon_label_available(dict(status='delivering',available_actions=[]),cached=True))
+        self.assertFalse(ozon_label_available(dict(status='delivering',available_actions=[])))
+        self.assertFalse(ozon_label_available(dict(status='awaiting_packaging'),cached=True))
         self.assertFalse(ozon_label_available(dict(status='awaiting_packaging',available_actions=['cancel'])))
         self.assertFalse(ozon_label_available(dict(status='awaiting_deliver',is_express=True)))
         self.assertTrue(ozon_label_available(dict(status='awaiting_deliver')))

@@ -129,6 +129,28 @@ def express_receipt_code(data, posting_number):
     return posting_number, next(iter(tails)) if tails else None
 
 
+def receipt_code_plan(stamp, code, last_four, barcode, width, words, color):
+    """Keep the full readable code beside the barcode, using either free side."""
+    x, top, bw, bh = barcode
+    stamp.set_font('Print', style='B', size=22)
+    tail_width = stamp.get_string_width(last_four) if last_four else 0
+    for side in ('right', 'left'):
+        for size in (10, 8):
+            stamp.set_font('Print', size=size)
+            text_width = stamp.get_string_width(code)
+            block_width = max(text_width, tail_width)
+            right = x - (71 if color else 6)
+            tx = x + bw + 6 if side == 'right' else right - block_width
+            bottom = top + (36 if last_four else 12)
+            if tx < 8 or tx + block_width > width - 8:
+                continue
+            if any(w['xMin'] < tx + block_width + 1 and w['xMax'] > tx - 1
+                   and w['yMin'] < bottom and w['yMax'] > top for w in words):
+                continue
+            return tx, size
+    raise PrintBlocked('receipt_code_does_not_fit_next_to_barcode')
+
+
 def annotate_receipt(data, *, diskver=False, code=None, last_four=None, color=None, quantities=None,
                      split_code_tail=True):
     """code comes from scanit, WB partA, or the verified native Express label.
@@ -220,17 +242,11 @@ def annotate_receipt(data, *, diskver=False, code=None, last_four=None, color=No
         if i == 0 and (code or color):
             x, top, bw, bh = barcode_box(source, reader)
             if code:
-                tx = x + bw + 6
-                stamp.set_font('Print', size=10)
-                if stamp.get_string_width(code) > width - tx - 8:
-                    stamp.set_font('Print', size=8)
-                if stamp.get_string_width(code) > width - tx - 8:
-                    raise PrintBlocked('receipt_code_does_not_fit_next_to_barcode')
+                tx, size = receipt_code_plan(stamp, code, last_four, (x,top,bw,bh), width, pages[i], color)
+                stamp.set_font('Print', size=size)
                 stamp.text(tx, top + 10, code)
                 if last_four:
                     stamp.set_font('Print', style='B', size=22)
-                    if stamp.get_string_width(last_four) > width - tx - 8:
-                        raise PrintBlocked('receipt_code_tail_does_not_fit_next_to_barcode')
                     stamp.text(tx, top + 34, last_four)
             if color:
                 stamp.set_font('Print', style='B', size=14)
