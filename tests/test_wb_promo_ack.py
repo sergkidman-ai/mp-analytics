@@ -9,7 +9,7 @@ import psycopg2
 from psycopg2 import sql
 from ops import wb_promo_ack as ack
 from ops import wb_promo_watch as watch
-from ops.prc_promo_callbacks import process_updates
+from ops.prc_promo_callbacks import process_updates, ensure_cursor
 
 
 class PureTests(unittest.TestCase):
@@ -68,6 +68,21 @@ class DatabaseTests(unittest.TestCase):
         self.conn.commit()
         self.target=datetime.now(ack.MSK).date()+timedelta(days=1)
         self.natalia=ack.recipient()
+
+    def test_restore_missing_cursor_preserves_existing_offset(self):
+        with self.conn.cursor() as cur:
+            cur.execute('DELETE FROM prc_promo_callback_cursor')
+        self.conn.commit()
+        ensure_cursor(self.conn)
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT next_update_id FROM prc_promo_callback_cursor WHERE id=1')
+            self.assertEqual(cur.fetchone()[0], 0)
+            cur.execute('UPDATE prc_promo_callback_cursor SET next_update_id=123 WHERE id=1')
+        self.conn.commit()
+        ensure_cursor(self.conn)
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT next_update_id FROM prc_promo_callback_cursor WHERE id=1')
+            self.assertEqual(cur.fetchone()[0], 123)
 
     def queue(self,name='Новая акция',pid=123,account='wb_acc1'):
         p=dict(id=pid,type='auto',name=name,

@@ -156,18 +156,22 @@ def candidates(acc, *, goods=None, costs=None, max_step=MAX_STEP):
     return out
 
 
-def main():
+def main(report=None, argv=None):
     ap = argparse.ArgumentParser(description="ВБ: поднять цену до плановой цены акции")
     ap.add_argument("--account", choices=list(w.RETENTION), help="по умолчанию оба")
     ap.add_argument("--apply", action="store_true", help="отправить в ВБ (по умолчанию расчёт)")
     ap.add_argument("--limit", type=int, help="не больше N карточек на кабинет")
     ap.add_argument("--csv", help="построчный расчёт в файл")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     if a.limit is not None and a.limit <= 0:
         ap.error('--limit must be positive')
     allrows = []
     failed = False
     for acc in ([a.account] if a.account else list(w.RETENTION)):
+        stats = None
+        if report is not None:
+            stats = report.setdefault('accounts', {}).setdefault(acc, {})
+            report['stage'] = f'расчёт {acc}'
         if a.apply:
             verify_calendar_coverage(acc)
         rows = candidates(acc)
@@ -176,15 +180,24 @@ def main():
             where account=%s and status='confirmed'
               and ts >= date_trunc('day', now() at time zone 'Europe/Moscow') at time zone 'Europe/Moscow'
               and (wave='plan_raise' or wave like 'recovery_floor%%')''', (acc,))}
+        before_daily_filter = len(rows)
         rows = [r for r in rows if r['nm_id'] not in handled]
         take = rows[:a.limit] if a.limit else rows
         gain = sum(r["gain"] for r in take)
+        if stats is not None:
+            stats.update(candidates=before_daily_filter,
+                         daily_skipped=before_daily_filter-len(rows), selected=len(take),
+                         confirmed=0, unconfirmed=0, gain=0.0)
         print(f"{acc}: кандидатов {len(rows)}, берём {len(take)}, прибавка {gain:,.0f} ₽ "
               f"на одну штуку каждой".replace(",", " "), flush=True)
         if a.apply and take:
             for k in range(0, len(take), BATCH):
                 batch = take[k:k + BATCH]
                 ok, err = w.push(acc, batch)
+                if stats is not None:
+                    stats['confirmed' if ok else 'unconfirmed'] += len(batch)
+                    if ok:
+                        stats['gain'] += sum(r['gain'] for r in batch)
                 for r in batch:
                     r["status"] = "confirmed" if ok else "error"
                     r["err"] = None if ok else err[:200]
