@@ -51,7 +51,7 @@ def error_message(error):
         return 'Сохранённые файлы не прошли проверку целостности. Они не будут выданы как готовые.'
     if 'quantity' in code or 'article' in code or 'layout' in code:
         return 'Не удалось безопасно обработать разметку товарного чека. Заказ остаётся в очереди.'
-    return 'Не удалось подготовить все файлы. Заказы остаются в очереди; уже полученные документы сохранены.'
+    return 'Не удалось подготовить все файлы. Ошибки показаны в списке заказов; полученные документы сохранены.'
 
 
 class OrderTrackingPreparer(Preparer):
@@ -117,18 +117,13 @@ class PrintService:
                     ('stage', 'loaded', 'processed', 'total', 'updated_at') if key in progress}
             except (OSError, ValueError, TypeError):
                 data['sync']['progress'] = {}
-        failed = {order['ms_order_id']: job['error'] for job in reversed(data['jobs']) if job['state']=='failed'
-                  for order in job.get('orders', [])}
         for row in data['rows']:
             # Drop obsolete MS print annotations from persisted old snapshots.
             for field in ('ms_order_printed', 'ms_demand_printed'):
                 row['display'].pop(field, None)
             row['error_message'] = error_message(row['source_error']) if row['source_error'] else None
-            row['preparation_error'] = failed.get(str(row['id'])) if row['batch_state'] != 'building' else None
             if row['preparation_error'] and not row['source_error']:
                 row['error_message'] = error_message(row['preparation_error'])
-                if not row['printed']:
-                    data['counters'][row['counter_key']]['blocked'] += 1
             for field in ('receipt_path','receipt_sha','label_path','label_sha','artifact_demand_id','snapshot_id'):
                 row.pop(field, None)
         for job in data['jobs']:

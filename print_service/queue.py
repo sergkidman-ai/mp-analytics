@@ -200,6 +200,9 @@ class PrintQueue:
                     AND (%s::uuid[] IS NULL OR o.id=ANY(%s::uuid[]))
                     ORDER BY o.external_id,o.id FOR UPDATE OF o''', (snapshot, day, counter_key, selected, selected))
                 orders = cursor.fetchall()
+                if selected is None:
+                    failed = self._failed_orders(self._current_jobs(cursor, day))
+                    orders = [o for o in orders if o['demand_id'] and not o['source_error'] and not failed.get(str(o['id']))]
                 if selected is not None and len(orders) != len(selected):
                     raise PrintBlocked('selected_orders_changed')
                 if not orders:
@@ -521,6 +524,41 @@ class PrintQueue:
             raise PrintBlocked('published_manifest_changed')
         return dict(receipts=Path(path) / 'receipts.pdf', labels=Path(path) / 'labels.pdf')
 
+    @staticmethod
+    def _current_jobs(cursor, day):
+        cursor.execute("""SELECT b.id,b.counter_key,b.state,b.error,b.created_at,
+            COALESCE(problem.orders,'[]'::jsonb) AS orders FROM batches b
+            LEFT JOIN LATERAL (
+                SELECT jsonb_agg(jsonb_build_object('ms_order_id',m.order_id::text,
+                    'external_id',m.identity->>'external_id','account',m.identity->>'account')
+                    ORDER BY m.ordinal) AS orders
+                FROM members m JOIN orders o ON o.id=m.order_id
+                JOIN current_snapshot v ON v.snapshot_id=o.snapshot_id
+                JOIN snapshots s ON s.id=v.snapshot_id
+                LEFT JOIN claims c ON c.order_id=o.id
+                WHERE m.batch_id=b.id AND b.state='failed' AND b.day=%s AND s.day=%s
+                AND c.batch_id IS NULL
+                AND NOT EXISTS (SELECT 1 FROM external_prints e WHERE e.order_id=o.id)
+                AND NOT (COALESCE(b.display->'resolved_orders','{}'::jsonb) ? m.order_id::text)
+                AND (b.display->>'error_order_id' IS NULL
+                    OR b.display->>'error_order_id'=m.order_id::text)
+            ) problem ON true
+            WHERE (b.state='building' AND b.day=%s) OR (b.state='failed' AND problem.orders IS NOT NULL)
+            ORDER BY b.created_at DESC,b.id DESC""", (day, day, day))
+        jobs = [dict(r) for r in cursor.fetchall()]
+        seen = set()
+        for job in jobs:
+            if job['state'] == 'failed':
+                job['orders'] = [order for order in job['orders'] if order['ms_order_id'] not in seen]
+                seen.update(order['ms_order_id'] for order in job['orders'])
+        jobs = [job for job in jobs if job['state'] != 'failed' or job['orders']]
+        return jobs
+
+    @staticmethod
+    def _failed_orders(jobs):
+        return {order['ms_order_id']: job['error'] for job in reversed(jobs) if job['state']=='failed'
+                for order in job.get('orders', [])}
+
     def view(self, *, now):
         day = moscow_day(now)
         with self.transaction() as cursor:
@@ -541,39 +579,17 @@ class PrintQueue:
             snapshot = cursor.fetchone()
             cursor.execute('SELECT * FROM sync_runs ORDER BY created_at DESC LIMIT 1')
             sync = cursor.fetchone()
-            cursor.execute("""SELECT b.id,b.counter_key,b.state,b.error,b.created_at,
-                COALESCE(problem.orders,'[]'::jsonb) AS orders FROM batches b
-                LEFT JOIN LATERAL (
-                    SELECT jsonb_agg(jsonb_build_object('ms_order_id',m.order_id::text,
-                        'external_id',m.identity->>'external_id','account',m.identity->>'account')
-                        ORDER BY m.ordinal) AS orders
-                    FROM members m JOIN orders o ON o.id=m.order_id
-                    JOIN current_snapshot v ON v.snapshot_id=o.snapshot_id
-                    JOIN snapshots s ON s.id=v.snapshot_id
-                    LEFT JOIN claims c ON c.order_id=o.id
-                    WHERE m.batch_id=b.id AND b.state='failed' AND b.day=%s AND s.day=%s
-                    AND c.batch_id IS NULL
-                    AND NOT EXISTS (SELECT 1 FROM external_prints e WHERE e.order_id=o.id)
-                    AND NOT (COALESCE(b.display->'resolved_orders','{}'::jsonb) ? m.order_id::text)
-                    AND (b.display->>'error_order_id' IS NULL
-                        OR b.display->>'error_order_id'=m.order_id::text)
-                ) problem ON true
-                WHERE (b.state='building' AND b.day=%s) OR (b.state='failed' AND problem.orders IS NOT NULL)
-                ORDER BY b.created_at DESC,b.id DESC""", (day, day, day))
-            jobs = [dict(r) for r in cursor.fetchall()]
-            seen = set()
-            for job in jobs:
-                if job['state'] == 'failed':
-                    job['orders'] = [order for order in job['orders'] if order['ms_order_id'] not in seen]
-                    seen.update(order['ms_order_id'] for order in job['orders'])
-            jobs = [job for job in jobs if job['state'] != 'failed' or job['orders']]
+            jobs = self._current_jobs(cursor, day)
             cursor.execute('SELECT last_seen FROM worker_status WHERE singleton=true')
             worker = cursor.fetchone()
             external_counts = self._external_printed_counts(cursor, day)
         counters = {}
+        failed = self._failed_orders(jobs)
         for row in rows:
             row['printed'] = row['batch_state'] == 'ready' or row['printed_externally']
             row['color'] = 'green' if row['printed'] else 'red'
+            row['preparation_error'] = failed.get(str(row['id'])) if row['batch_state'] != 'building' else None
+            row['counter_eligible'] = not row['printed'] and bool(row['demand_id']) and not row['source_error'] and not row['preparation_error']
             for kind in ('receipt', 'label'):
                 try:
                     if row['demand_id'] != row['artifact_demand_id'] or not row[kind + '_path']:
@@ -585,8 +601,8 @@ class PrintQueue:
             counter = counters.setdefault(row['counter_key'], dict(count=0, building=False, blocked=0))
             counter['building'] |= row['batch_state'] == 'building'
             if not row['printed']:
-                counter['count'] += 1
-                counter['blocked'] += bool(row['source_error'])
+                counter['count'] += bool(row['counter_eligible'])
+                counter['blocked'] += not row['counter_eligible']
         return dict(rows=rows, counters=counters, ready_batches=ready, external_printed_counts=external_counts,
                     jobs=jobs, last_sync=snapshot['started_at'], snapshot_day=snapshot['day'], sync=dict(sync) if sync else None,
                     worker_healthy=bool(worker and 0 <= (now - worker['last_seen']).total_seconds() < 90))

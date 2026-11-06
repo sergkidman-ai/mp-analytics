@@ -74,6 +74,42 @@ class PrintQueueTests(unittest.TestCase):
     def reserve(self, request='click'):
         return self.queue.reserve_counter(self.counter, request_key=request, now=NOW)
 
+    def test_counter_excludes_known_errors_and_reserves_only_healthy_orders(self):
+        from unittest.mock import patch
+        from print_service.preparer import Preparer
+        from print_service.service import PrintService
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        self.rows.extend([order('100-0003-1'),order('100-0004-1')])
+        missing,failed=self.rows[2],self.rows[3]
+        missing.update(demand_id=None,source_error='linked_demand_missing')
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        old=self.queue.reserve_counter(self.counter,request_key='old-failure',now=NOW,order_ids=[failed['raw']['id']])
+        self.queue.fail_batch(old['id'],generation=1,error='wb_order_not_ready_for_label')
+        service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        status=service.status();counter=status['counters'][self.counter]
+        self.assertEqual(counter,dict(count=2,building=False,blocked=2))
+        self.assertEqual(sum(r['counter_eligible'] for r in status['rows']),2)
+        batch=self.reserve('healthy-click')
+        good={r['raw']['id'] for r in self.rows[:2]}
+        self.assertEqual({m['ms_order_id'] for m in batch['orders']},good)
+        self.assertEqual(batch['display']['blocked_orders'],{})
+        with patch.object(Preparer,'_one',side_effect=lambda m,day:self.prepared_order(m)) as prepare:
+            service.run_batch(batch)
+        self.assertEqual(prepare.call_count,2)
+        ready=self.queue.batch(batch['id']);self.assertEqual(ready['state'],'ready')
+        self.assertEqual({m['ms_order_id'] for m in ready['manifest']['orders']},good)
+        status=service.status();self.assertEqual(status['counters'][self.counter]['count'],0)
+        self.assertEqual(status['counters'][self.counter]['blocked'],2)
+        with self.assertRaises(PrintBlocked):self.reserve('all-errors')
+        # Corrected source data re-enters the counter without generating documents.
+        missing.update(demand_id=str(uuid4()),source_error=None)
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=2),complete=True)
+        self.assertEqual(service.status()['counters'][self.counter]['count'],1)
+        # A deliberate per-order retry is still available for an excluded failure.
+        retry=self.queue.reserve_counter(self.counter,request_key='individual-retry',now=NOW,order_ids=[failed['raw']['id']])
+        self.assertEqual([m['ms_order_id'] for m in retry['orders']],[failed['raw']['id']])
+
     def test_sync_progress_is_visible_while_running_and_completes_with_snapshot(self):
         from print_service.service import PrintService
         started, release = threading.Event(), threading.Event()
@@ -173,11 +209,12 @@ class PrintQueueTests(unittest.TestCase):
         self.queue.mark_artifact(member['ms_order_id'], demand_id=member['ms_demand_id'], kind='receipt', path=receipt)
         self.queue.fail_batch(batch['id'], generation=1, error='label_unavailable')
         view = self.queue.view(now=NOW)
-        self.assertEqual(view['counters'][self.counter]['count'], 2)
+        self.assertEqual(view['counters'][self.counter]['count'], 0)
+        self.assertEqual(view['counters'][self.counter]['blocked'],2)
         self.assertTrue(view['rows'][0]['receipt_ready'])
         self.assertFalse(view['rows'][0]['label_ready'])
         self.assertEqual(view['ready_batches'], [])
-        retry = self.reserve('retry-click')
+        retry = self.queue.reserve_counter(self.counter,request_key='retry-click',now=NOW,order_ids=[r['raw']['id'] for r in self.rows])
         pair = self.prepare(retry)
         with self.assertRaises(PrintBlocked):
             self.queue.publish_pair(batch['id'], generation=1, pair_dir=pair)
@@ -294,7 +331,7 @@ class PrintQueueTests(unittest.TestCase):
         self.queue.sync_snapshot(self.rows[1:],started_at=NOW+timedelta(seconds=2),complete=True)
         jobs=self.queue.view(now=NOW)['jobs']
         self.assertEqual([o['external_id'] for o in jobs[0]['orders']],[self.rows[1]['raw']['name']])
-        done=self.reserve('done');pair=self.prepare(done)
+        done=self.queue.reserve_counter(self.counter,request_key='done',now=NOW,order_ids=[self.rows[1]['raw']['id']]);pair=self.prepare(done)
         self.queue.publish_pair(done['id'],generation=1,pair_dir=pair)
         self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
         self.queue.sync_snapshot([],started_at=NOW+timedelta(seconds=3),complete=True)
@@ -323,7 +360,7 @@ class PrintQueueTests(unittest.TestCase):
             if row['raw']['id']==failed_id:row['display']={'ms_demand_printed':True}
         self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
         self.assertEqual(len(self.queue.view(now=NOW)['jobs']),1)
-        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],1)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
         done=self.queue.reserve_counter(self.counter,request_key='resolved',now=NOW,order_ids=[failed_id])
         pair=self.prepare(done);self.queue.publish_pair(done['id'],generation=1,pair_dir=pair)
         self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
@@ -350,7 +387,7 @@ class PrintQueueTests(unittest.TestCase):
         self.assertEqual([m['ms_order_id'] for m in ready['orders']],expected)
         manifest=ready['manifest'];self.assertEqual([m['ms_order_id'] for m in manifest['orders']],expected)
         self.assertEqual(len(ready['display']['excluded_orders']),2)
-        view=service.status();self.assertEqual(view['counters'][self.counter]['count'],2)
+        view=service.status();self.assertEqual(view['counters'][self.counter]['count'],0)
         self.assertEqual({o['ms_order_id'] for j in view['jobs'] for o in j['orders']},bad)
         self.assertTrue(all(r['preparation_error']=='receipt_quantity_cell_too_small' for r in view['rows'] if str(r['id']) in bad))
         repeated=self.queue.reserve_counter(self.counter,request_key='partial',now=NOW,order_ids=selected)
@@ -368,7 +405,7 @@ class PrintQueueTests(unittest.TestCase):
             service.run_batch(batch)
         self.assertEqual(self.queue.batch(batch['id'])['state'],'failed')
         view=self.queue.view(now=NOW);self.assertEqual(view['ready_batches'],[])
-        self.assertEqual(view['counters'][self.counter]['count'],2)
+        self.assertEqual(view['counters'][self.counter]['count'],0)
         self.assertEqual(len(view['jobs']),2)
         with self.queue.transaction() as c:
             c.execute('SELECT count(*) AS n FROM claims');self.assertEqual(c.fetchone()['n'],0)
@@ -381,14 +418,15 @@ class PrintQueueTests(unittest.TestCase):
             lease_check=staticmethod(lambda:None)
         bad=self.rows[0]['raw']['id'];self.rows[0].update(demand_id=None,source_error='linked_demand_missing')
         self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
-        batch=self.reserve();service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        batch=self.reserve();self.assertEqual([m['ms_order_id'] for m in batch['orders']],[self.rows[1]['raw']['id']]);service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
         def prepare(member,day):
             self.assertNotEqual(member['ms_order_id'],bad)
             return self.prepared_order(member)
         with patch.object(Preparer,'_one',side_effect=prepare):service.run_batch(batch)
         self.assertEqual(self.queue.batch(batch['id'])['state'],'ready')
-        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],1)
-        self.assertEqual(self.queue.view(now=NOW)['jobs'][0]['orders'][0]['ms_order_id'],bad)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['blocked'],1)
+        self.assertEqual(self.queue.view(now=NOW)['jobs'],[])
 
     def test_every_excluded_order_keeps_its_error_in_a_large_batch(self):
         from unittest.mock import patch
@@ -404,7 +442,7 @@ class PrintQueueTests(unittest.TestCase):
         status=service.status()
         self.assertEqual(len(status['jobs']),35)
         self.assertEqual(sum(bool(r['preparation_error']) for r in status['rows']),35)
-        self.assertEqual(status['counters'][self.counter]['count'],35)
+        self.assertEqual(status['counters'][self.counter]['count'],0)
 
     def test_explicit_file_selection_combines_counters_preserves_file_order_and_is_idempotent(self):
         self.rows[1]['counter_key']='oz_acc1|other|store'
@@ -451,11 +489,11 @@ class PrintQueueTests(unittest.TestCase):
         service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
         with patch.object(Preparer,'_one',side_effect=lambda m,day:self.prepared_order(m)):service.run_batch(resumed)
         self.assertEqual(self.queue.batch(batch['id'])['state'],'ready')
-        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],1)
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
 
     def test_repeated_failed_jobs_only_show_latest_error_per_order(self):
         old=self.reserve('old');self.queue.fail_batch(old['id'],generation=1,error='old')
-        latest=self.reserve('latest');self.queue.fail_batch(latest['id'],generation=1,error='latest')
+        latest=self.queue.reserve_counter(self.counter,request_key='latest',now=NOW,order_ids=[r['raw']['id'] for r in self.rows]);self.queue.fail_batch(latest['id'],generation=1,error='latest')
         jobs=self.queue.view(now=NOW)['jobs']
         self.assertEqual([str(j['id']) for j in jobs],[str(latest['id'])])
         self.assertEqual(jobs[0]['error'],'latest')
@@ -541,7 +579,7 @@ class PrintQueueTests(unittest.TestCase):
     def test_retry_failed_batch_cannot_take_orders_claimed_by_another_pair(self):
         original=self.reserve()
         self.queue.fail_batch(original['id'],generation=1,error='sample')
-        other=self.reserve('new-click')
+        other=self.queue.reserve_counter(self.counter,request_key='new-click',now=NOW,order_ids=[r['raw']['id'] for r in self.rows])
         with self.assertRaises(PrintBlocked):self.queue.retry_failed_batch(original['id'],generation=1)
         pair=self.prepare(other)
         self.queue.publish_pair(other['id'],generation=1,pair_dir=pair)
