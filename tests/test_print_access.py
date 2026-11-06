@@ -118,6 +118,57 @@ class PrintAccessTests(unittest.TestCase):
             self.assertEqual(response.status_code,200)
             self.assertEqual(response.content,b'diskver-document')
 
+    def test_bersenev_sees_only_digital_orders_counters_jobs_and_single_column_page(self):
+        headers={'X-Pult-User':'bersenev'}
+        data=self.client.get('/api/print',headers=headers).json()
+        self.assertEqual([r['account'] for r in data['rows']],['oz_acc1'])
+        self.assertEqual(list(data['counters']),['oz_acc1|digital-secret|store'])
+        self.assertEqual([b['id'] for b in data['ready_batches']],[self.digital])
+        self.assertEqual([j['counter_key'] for j in data['jobs']],['wb_acc1|digital-secret|store'])
+        self.assertNotIn('diskver',json.dumps(data))
+        self.assertNotIn('future_unscoped_field',data)
+        self.assertEqual(set(data['sync']['progress']),{'stage','updated_at'})
+        for path in ('/warehouse/print','/warehouse/print/archive'):
+            page=self.client.get(path,headers=headers)
+            self.assertEqual(page.status_code,200)
+            self.assertIn('<body class="single-organization">',page.text)
+            self.assertIn('Печать заказов · Цифровой квадрат',page.text)
+            self.assertNotIn('Дисквер',page.text)
+            self.assertNotIn('oz_acc2',page.text)
+        from print_service.access import access_for_user
+        for dashboard in (False,True):
+            access=access_for_user('BERSENEV',dashboard=dashboard)
+            self.assertEqual(access.accounts,frozenset({'oz_acc1','wb_acc1','ya_acc1'}))
+
+    def test_bersenev_cannot_prepare_or_open_diskver_or_mixed_documents(self):
+        from unittest.mock import patch
+        headers={'X-Pult-User':'bersenev'}
+        for account in ('oz_acc2','wb_acc2'):
+            response=self.client.post('/api/print/counter',headers=headers,
+                json={'counter_key':account+'|warehouse|store','request_key':str(uuid4())})
+            self.assertEqual(response.status_code,403)
+        for kind in ('receipts','labels'):
+            self.assertEqual(self.client.get(f'/api/print/batches/{self.diskver}/files/{kind}',headers=headers).status_code,404)
+            self.assertEqual(self.client.get(f'/api/print/orders/{self.diskver_order}/files/{kind}',headers=headers).status_code,404)
+        self.assertEqual(self.client.post(f'/api/print/orders/{self.diskver_order}/pair',headers=headers,
+            json={'request_key':str(uuid4())}).status_code,404)
+        # An allowed counter must not grant access to foreign batch members.
+        mixed=dict(counter_key='oz_acc1|mixed|store',orders=[{'account':'oz_acc1'},{'account':'oz_acc2'}])
+        with patch.object(self.service.queue,'batch',return_value=mixed):
+            self.assertEqual(self.client.get(f'/api/print/batches/{self.mixed}/files/receipts',headers=headers).status_code,404)
+            with patch.object(self.service.queue,'order',return_value=dict(account='oz_acc1',batch_id=self.mixed,batch_state='ready')):
+                self.assertEqual(self.client.get(f'/api/print/orders/{self.mixed_order}/files/labels',headers=headers).status_code,404)
+        self.assertEqual(self.calls,[])
+        for kind in ('receipts','labels'):
+            response=self.client.get(f'/api/print/batches/{self.digital}/files/{kind}',headers=headers)
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.content,b'digital-secret')
+        self.assertEqual(self.client.post(f'/api/print/orders/{self.digital_order}/pair',headers=headers,
+            json={'request_key':str(uuid4())}).status_code,200)
+        for account in ('oz_acc1','wb_acc1','ya_acc1'):
+            self.assertEqual(self.client.post('/api/print/counter',headers=headers,
+                json={'counter_key':account+'|warehouse|store','request_key':str(uuid4())}).status_code,200)
+
     def test_missing_or_unknown_proxy_identity_is_denied(self):
         for username in ('','unknown'):
             for path in ('/warehouse/print','/api/print'):

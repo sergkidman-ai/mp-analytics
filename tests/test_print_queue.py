@@ -662,6 +662,10 @@ class PrintQueueTests(unittest.TestCase):
                 self.assertEqual(client.get('/api/print/archive', params={'day':day}).status_code, 422)
             scoped = client.get('/api/print/archive', headers={'X-Pult-User':'tolkachev'}).json()
             self.assertEqual(scoped['days'], []);self.assertEqual(scoped['rows'], [])
+            digital = client.get('/api/print/archive', headers={'X-Pult-User':'bersenev'}).json()
+            self.assertEqual(digital['days'][0]['printed_count'],2)
+            self.assertEqual([b['id'] for b in digital['ready_batches']],[str(batch['id'])])
+            self.assertEqual({r['account'] for r in digital['rows']},{'oz_acc1'})
             for path in ('/warehouse/print/archive','/api/print/archive'):
                 self.assertEqual(client.get(path, headers={'X-Pult-User':'unknown'}).status_code, 403)
             response = client.get(f"/api/print/batches/{batch['id']}/files/labels")

@@ -47,9 +47,10 @@ def make_router(get_service=production_service, *, standalone=False):
         html = sub(r'(<script id="print-organizations" type="application/json">).*?(</script>)',
                    lambda match: match[1] + organizations + match[2], html, count=1)
         if access.restricted:
+            organization = access.organizations[0]['name']
             html = html.replace('<body>', '<body class="single-organization">', 1)
-            html = html.replace('<h1>Печать заказов</h1>', '<h1>Печать заказов · Дисквер</h1>', 1)
-            html = html.replace('<title>Печать заказов · Пульт бизнеса</title>', '<title>Печать заказов · Дисквер</title>', 1)
+            html = html.replace('<h1>Печать заказов</h1>', f'<h1>Печать заказов · {organization}</h1>', 1)
+            html = html.replace('<title>Печать заказов · Пульт бизнеса</title>', f'<title>Печать заказов · {organization}</title>', 1)
         if standalone:
             # This host serves printing alone; links to other Pult sections
             # stay in the dashboard version of the same page.

@@ -74,6 +74,8 @@ def access_for_user(username, *, dashboard=False):
     username = str(username or '').strip().lower()
     if username == 'tolkachev':
         return PrintAccess(frozenset({'oz_acc2', 'wb_acc2'}))
+    if username == 'bersenev':
+        return PrintAccess(frozenset({'oz_acc1', 'wb_acc1', 'ya_acc1'}))
     if username == 'print' or dashboard:
         return PrintAccess()
     raise PrintBlocked('print_access_denied')
