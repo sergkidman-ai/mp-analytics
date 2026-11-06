@@ -965,6 +965,10 @@ def sync(rows, supplier_key, default_chip=None, article_re=None):
     -> (сколько строк получили варианты, сколько закрылось само по артикулу).
     Строки — {name, article, price}; решение человека по уже разобранным строкам не трогаем.
     """
+    from .assortment import row_reason
+    from .profiles import PROFILES
+    profile=PROFILES.get(supplier_key)
+    rows=[r for r in rows if row_reason(r,profile,check_categories=bool(r.get("group"))) is None]
     if not rows:
         return 0, 0
     hits = analyze(rows, default_chip, article_re)

@@ -107,12 +107,13 @@ PICK_DEPTH = 4          # сколько последних писем смот�
 
 
 def _pick_by_content(found, profile):
-    """Из писем ОДНОГО дня берём файл, в котором профиль разобрал больше строк с остатком.
+    """Из писем ОДНОГО дня берём файл, в котором профиль разобрал больше разрешённых расходников с остатком.
 
     Разбор дешёвый (тот же, что на загрузке) и делается на уже скачанных вложениях —
     в почту повторно не ходим. Ничего не разобралось нигде — возвращаем самое свежее
     письмо, то есть прежнее поведение: решение о загрузке принимает загрузчик, а не почта.
     """
+    from .assortment import row_reason
     from .parser import parse       # локальный импорт: parser тянет профили, кругового не делаем
 
     def day(letter):
@@ -129,7 +130,7 @@ def _pick_by_content(found, profile):
     for letter in same:                               # остаётся свежее письмо
         try:
             rows, _ = parse(letter["content"], profile)
-            n = sum(1 for r in rows if r.get("qty") is not None)
+            n = sum(1 for r in rows if r.get("qty") and row_reason(r,profile) is None)
         except Exception:
             n = 0
         letter["pick_rows"] = n
