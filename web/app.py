@@ -2294,7 +2294,7 @@ def suppliers_payment_terms_queue(org: str | None = None):
     if org:
         where, params = "AND q.org_inn = %s", (org,)
     rows = db.query(f"""SELECT q.id, q.org_inn, q.inn, t.name, q.kind, q.amount::float amount,
-        q.covers_po_ids, q.status, q.alfa_external_id, q.note, q.created_at::text created_at
+        q.covers_po_ids, q.status, q.alfa_external_id, q.note, q.recovery_hold, q.created_at::text created_at
         FROM payment_draft_queue q
         LEFT JOIN supplier_payment_terms t USING (org_inn, inn)
         WHERE q.status <> 'sent_sandbox' {where}

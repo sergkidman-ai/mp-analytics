@@ -16,7 +16,7 @@ POST /api/jp/v2/payments БЕЗ digestSignatures → черновик, виде�
 Двойной предохранитель (зеркало ALFA_MS_APPLY для выписки, см. collectors/alfa_ms.py):
   • ALFA_PAYMENT_APPLY=1     — иначе dry-run (только печатает, что бы отправил).
   • ALFA_PAYMENT_PROD_READY=1 — прод ЖЁСТКО заблокирован программно, пока не выставлен
-    вручную (прод-скоуп `signature` банком пока НЕ выдан — см. docs/HANDOFF.md).
+    вручную после проверки реквизитов и явного разрешения пользователя.
 
 КОНТРАКТ ТЕЛА (подобран живьём в песочнице 2026-07-29, ответ 201; до этого слали неверный формат
 и получили бы 400 даже с выданным скоупом). Обязательны:
@@ -105,11 +105,19 @@ def _payer_block(buyer_inn, cfg):
 
 def build_payment(draft, cfg):
     payer = _payer_block(pd.buyer_inn_for_draft(draft), cfg)
-    return {
+    payload = {
         **pd.base_payment(draft, EXTID_NS),
         "urgencyCode": "NORMAL",
         **payer,
     }
+    rate = draft.get("vat_rate")
+    if rate is not None:
+        payload["vat"] = {"type": "INCLUDED" if rate else "NO_VAT", "rate": str(rate)}
+        if not rate:
+            payload["purpose"] = payload["purpose"].replace("Без НДС.", "НДС не облагается.")
+        if len(payload["purpose"]) > pd.PURPOSE_MAX:
+            raise ValueError("Назначение платежа с НДС превышает лимит банка")
+    return payload
 
 
 def _check_org(draft):
@@ -126,14 +134,18 @@ def send_one(draft, dry_run=True, cfg=None, session=None):
     Ничего не печатает: печать — дело вызывающего (CLI печатает, веб отдаёт JSON)."""
     cfg = cfg or _cfg()
     prod = cfg["env"] != "sandbox"
+    if not dry_run and draft.get("recovery_hold"):
+        raise RuntimeError("Восстановленный черновик требует сверки перед отправкой в Альфу")
     # Гейт прода стоит только на РЕАЛЬНОЙ отправке: dry-run банк не трогает, а проверить сборку
     # боевого payload (реквизиты плательщика/получателя) нужно ДО того, как банк выдаст скоуп.
     if prod and not dry_run and os.getenv("ALFA_PAYMENT_PROD_READY") != "1":
         raise RuntimeError(
-            "ALFA_ENV=prod для платежей ЗАБЛОКИРОВАН программно: банк ещё не выдал прод-скоуп "
-            "`signature`. Разблокировка вручную ТОЛЬКО после подтверждения банком — "
-            "выставить ALFA_PAYMENT_PROD_READY=1 в .env. См. docs/HANDOFF.md.")
+            "Отправка черновиков Альфы в промышленный банк заблокирована. После проверки "
+            "данных и явного разрешения пользователя требуется ALFA_PAYMENT_PROD_READY=1.")
     _check_org(draft)
+    if (prod and not dry_run and draft.get("kind") in ('advance', 'deferred_batch', 'prepayment_order')
+            and draft.get("vat_rate") is None):
+        raise RuntimeError("Не подтверждена ставка НДС поставщика; отправка в Альфу заблокирована")
     try:
         payload = build_payment(draft, cfg)
     except Exception as e:

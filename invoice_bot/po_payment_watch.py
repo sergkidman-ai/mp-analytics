@@ -152,7 +152,8 @@ def _sync_pending(inn, deferral_days, agent_id=None, require_receipt=False):
     since = date.today() - timedelta(days=LOOKBACK_DAYS)
     orders = _fetch_purchase_orders(inn, since, agent_id)
     from invoice_bot.supplier_credit import settle
-    if orders and settle(BUYER_INN, inn, [o['id'] for o in orders]):
+    if orders and settle(BUYER_INN, inn, [o['id'] for o in orders],
+                         allow_orders=not require_receipt):
         orders = _fetch_purchase_orders(inn, since, agent_id)
     if not orders:
         return []
@@ -249,8 +250,9 @@ def process_prepayment_per_order(inn, agent_id=None):
     n = 0
     for po_id in new_ids:
         row = db.query("SELECT amount FROM po_payment_status WHERE po_id=%s", (po_id,))[0]
-        from invoice_bot.payment_integrity import inspect_orders
-        inspect_orders([po_id], BUYER_INN)
+        from invoice_bot.payment_integrity import validate_draft
+        validate_draft({'org_inn': BUYER_INN, 'kind': 'prepayment_order',
+                        'covers_po_ids': [po_id], 'amount': row['amount']})
         with db.get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status)
@@ -306,8 +308,9 @@ def process_deferred(inn, deferral_days, payment_cap=None, agent_id=None):
         binding = "не урезано (весь долг влез)"
     note = (f"кап: {binding}" + (f" {limit:.0f}₽" if limit != float("inf") else "") +
             (f"; ПРЕВЫШЕН на {total-limit:.0f}₽ — один заказ дороже лимита" if over else ""))
-    from invoice_bot.payment_integrity import inspect_orders
-    inspect_orders(picked, BUYER_INN)
+    from invoice_bot.payment_integrity import validate_draft
+    validate_draft({'org_inn': BUYER_INN, 'kind': 'deferred_batch',
+                    'covers_po_ids': picked, 'amount': total})
     with db.get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""INSERT INTO payment_draft_queue(org_inn, inn, kind, amount, covers_po_ids, status, note)

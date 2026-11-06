@@ -21,7 +21,7 @@ def available_credit(payment, row):
                       int(payment.get('sum') or 0) - sum(current.values())))
 
 
-def settle(org_inn, inn, po_ids):
+def settle(org_inn, inn, po_ids, allow_orders=False):
     rows = db.query('SELECT * FROM supplier_payment_credit WHERE org_inn=%s AND inn=%s',
                     (org_inn, inn))
     if not rows or not po_ids:
@@ -34,6 +34,8 @@ def settle(org_inn, inn, po_ids):
             for row in rows:
                 path = '/entity/paymentout/' + str(row['ms_payment_id'])
                 payment = ms.get(path+'?expand=organization,agent,operations')
+                if payment.get('applicable') is not True:
+                    raise PaymentIntegrityError('Источник переплаты не проведён в МС')
                 if str(payment.get('organization', {}).get('inn')) != str(org_inn) or str(payment.get('agent', {}).get('inn')) != str(inn):
                     raise PaymentIntegrityError('Переплата относится к другой организации или поставщику')
                 left = available_credit(payment, row)
@@ -44,17 +46,26 @@ def settle(org_inn, inn, po_ids):
                 for po, supplies in inspect_orders(po_ids, org_inn):
                     if (po.get('agent') or {}).get('meta', {}).get('href') != payment['agent']['meta']['href']:
                         raise PaymentIntegrityError('Поставщик заказа отличается от источника переплаты')
-                    for supply in supplies:
-                        if linkable(supply):
-                            targets[supply['id']] = supply
+                    if allow_orders:
+                        # Prepayment must reduce the order debt before goods arrive.
+                        # Linking both the order and its receipt would count it twice.
+                        if po.get('applicable'):
+                            targets[po['id']] = po
+                    else:
+                        for supply in supplies:
+                            if linkable(supply):
+                                targets[supply['id']] = supply
                 operations = operations_map(payment.get('operations'))
                 used = 0
                 for supply in sorted(targets.values(), key=lambda s: (s.get('moment') or '', s['id'])):
                     # Reread the debt immediately before allocating real money.
-                    fresh = ms.get('/entity/supply/'+supply['id'])
+                    kind = supply['meta']['type']
+                    fresh = ms.get('/entity/'+kind+'/'+supply['id'])
                     for field in ('organization','store','agent','purchaseOrder'):
                         if fresh.get(field, {}).get('meta', {}).get('href') != supply.get(field, {}).get('meta', {}).get('href'):
                             raise PaymentIntegrityError('Приёмка изменилась во время зачёта переплаты')
+                    if not fresh.get('applicable') or (kind == 'supply' and not linkable(fresh)):
+                        raise PaymentIntegrityError('Документ больше не допускает зачёт переплаты')
                     take = min(left, max(0, int(fresh.get('sum') or 0) - int(fresh.get('payedSum') or 0)))
                     if take <= 0:
                         continue

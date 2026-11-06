@@ -69,15 +69,15 @@ class CreditTests(unittest.TestCase):
         self.data,self.get=fixture()
         old={'meta':{'href':ms.MS+'/entity/supply/old','type':'supply'},'linkedSum':447846}
         self.row={'ms_payment_id':'payment','credit_kop':53278,'baseline_operations':[old]}
-        self.payment={**ref('paymentout','payment'),'id':'payment','organization':self.data['/entity/organization/org'],'agent':self.data['/entity/counterparty/agent'],'sum':501124,'operations':[old]}
+        self.payment={**ref('paymentout','payment'),'id':'payment','applicable':True,'organization':self.data['/entity/organization/org'],'agent':self.data['/entity/counterparty/agent'],'sum':501124,'operations':[old]}
         self.data['/entity/paymentout/payment']=self.payment
         self.puts=0
     def put(self,path,payload):
         self.puts+=1;self.data[path]['operations']=copy.deepcopy(payload['operations'])
         return 200,copy.deepcopy(self.data[path])
-    def run_settle(self,put=None):
+    def run_settle(self,put=None,allow_orders=False):
         with patch.object(credit.db,'query',return_value=[self.row]),patch.object(credit.db,'get_conn',return_value=MagicMock()),patch.object(credit.ms,'get',side_effect=self.get),patch.object(credit.ms,'put',side_effect=put or self.put),patch('collectors.alfa_link.linkable',return_value=True):
-            return credit.settle(ORG,SUPPLIER,['po'])
+            return credit.settle(ORG,SUPPLIER,['po'],allow_orders=allow_orders)
     def test_credit_applies_exactly_once_preserving_original_links(self):
         self.assertEqual(self.run_settle(),53278)
         self.assertEqual(self.run_settle(),0);self.assertEqual(self.puts,1)
@@ -102,5 +102,31 @@ class CreditTests(unittest.TestCase):
     def test_credit_cannot_exceed_real_unallocated_money(self):
         self.payment['sum']=447946
         self.assertEqual(credit.available_credit(self.payment,self.row),100)
+
+    def test_prepayment_credit_reduces_order_without_receipt_once(self):
+        po=self.data['/entity/purchaseorder/po']
+        po.update(applicable=True,supplies=[],sum=421804,payedSum=0)
+        self.row.update(credit_kop=407473,baseline_operations=[])
+        self.payment.update(sum=407473,operations=[])
+        self.assertEqual(self.run_settle(allow_orders=True),407473)
+        self.assertEqual(self.run_settle(allow_orders=True),0)
+        self.assertEqual(self.payment['operations'][0]['meta']['type'],'purchaseorder')
+        self.assertEqual(self.payment['operations'][0]['linkedSum'],407473)
+
+    def test_prepayment_only_allocates_unpaid_order_remainder(self):
+        self.data['/entity/purchaseorder/po'].update(applicable=True,payedSum=99000)
+        self.assertEqual(self.run_settle(allow_orders=True),1000)
+        self.assertEqual(len(self.payment['operations']),2)
+        self.assertEqual(self.payment['operations'][-1]['meta']['type'],'purchaseorder')
+
+    def test_deferred_credit_waits_for_an_accepted_receipt(self):
+        self.data['/entity/purchaseorder/po'].update(applicable=True,supplies=[])
+        self.assertEqual(self.run_settle(),0)
+        self.assertEqual(self.puts,0)
+
+    def test_unposted_credit_source_is_rejected(self):
+        self.payment['applicable']=False
+        with self.assertRaises(integrity.PaymentIntegrityError):self.run_settle()
+        self.assertEqual(self.puts,0)
 
 if __name__=='__main__':unittest.main()

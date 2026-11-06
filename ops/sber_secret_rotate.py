@@ -72,8 +72,8 @@ ACTIVATED_DEFAULT = dt.date(2026, 8, 2)      # активация в ЛК (см.
 
 # ── утилиты ──────────────────────────────────────────────────────────────────
 def tail(s):
-    """Безопасное представление секрета для логов: длина + 4 последних символа."""
-    return f"len={len(s)}, …{s[-4:]}" if s else "пусто"
+    """Never include secret characters in logs or notifications."""
+    return f"len={len(s)}, скрыто" if s else "пусто"
 
 
 def new_secret(n=48):
@@ -156,7 +156,7 @@ def _refresh_works(secret):
         sa.refresh()
         return True                       # секрет рабочий — оставляем его в окружении
     except Exception as e:                                       # noqa: BLE001
-        print(f"  проверка не прошла: {str(e)[:160]}", flush=True)
+        print(f"  проверка не прошла: {type(e).__name__}", flush=True)
         os.environ[ENV_KEY] = old         # не тот — возвращаем как было
         return False
 
@@ -197,7 +197,7 @@ def rotate():
                               headers={"Accept": "*/*", "RqUID": uuid.uuid4().hex}, timeout=60)
         if r.status_code == 200:
             break
-        print(f"  отказ: HTTP {r.status_code} {r.text[:160]}")
+        print(f"  отказ: HTTP {r.status_code}")
         if r.status_code != 400:
             break                       # не про формат — второй заход бессмыслен
 

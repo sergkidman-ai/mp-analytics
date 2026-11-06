@@ -263,6 +263,16 @@ def run_sber(days):
 
 
 def main(argv):
+    if "--alfa-only" in argv and "--sber-only" in argv:
+        log("Нельзя одновременно выбрать --alfa-only и --sber-only")
+        return 2
+    if "--sber-only" in argv:
+        # Restore/run Diskver independently: no Alfa config, API or relinking.
+        try:
+            return 1 if run_sber(dates(argv)) else 0
+        except Exception as error:
+            log(f"ОШИБКА контура Сбера: {type(error).__name__}")
+            return 1
     apply, why = apply_mode()
     accs, days = accounts(), dates(argv)
     # `--today` — внутридневной прогон (крон каждые 30 мин): выписка за СЕГОДНЯ → МС → привязка
@@ -284,6 +294,13 @@ def main(argv):
                 failed += 1
                 log(f"ОШИБКА счёт {account} {date}: {type(e).__name__}: {e}")
                 traceback.print_exc()
+
+    if "--alfa-only" in argv:
+        # Bank-scoped schedule: run_day links newly imported payments itself.
+        # The legacy global relink/sber passes also touch the other organization.
+        log(f"финиш Альфы: операций {total_ops}, ошибок записи {total_err}, "
+            f"упавших прогонов {failed}")
+        return 1 if (failed or total_err) else 0
 
     try:
         relink(apply)

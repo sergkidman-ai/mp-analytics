@@ -175,7 +175,7 @@ const delivLabel=v=>(DELIV.find(([d])=>d===(v||1))||[0,(v||1)+' раб. дн.'])
 const grpTitle=r=>r.group?` title="Действует на всю группу «${esc(r.group)}» — счета любого её юрлица"`:'';
 
 // Метод очереди (payment_draft_queue.kind) — те же названия, что в условиях оплаты выше.
-const KINDS={deferred_batch:'Отсрочка',prepayment_order:'По счёту',advance:'Аванс/баланс'};
+const KINDS={deferred_batch:'Отсрочка',prepayment_order:'По счёту',advance:'Аванс/баланс',ms_payment:'Оплата из МС'};
 // «проведён» = деньги видны в МС (выписка привязалась к заказу / нашёлся платёж под аванс),
 // а не «банк принял черновик» — это 'отправлен'.
 // Цвет = стадия жизни платежа: жёлтый ждёт отправки, синий лежит в банке НЕПОДПИСАННЫМ,
@@ -359,7 +359,10 @@ function renderQueue(){
     // колонок очереди зафиксированы colgroup, лишний столбец ломает их раскладку.
     const who=org?esc(q.name||q.inn):`<span class="muted">${esc(orgShort(q.org_inn))} · </span>${esc(q.name||q.inn)}`;
     // Отправлять можно только запланированное: у отправленного/отменённого кнопки нет.
-    const act=q.status==='planned'
+    const held=Boolean(q.recovery_hold)||note.includes('ТРЕБУЕТСЯ СВЕРКА СО СБЕРОМ');
+    const act=q.status==='planned'&&held
+      ? '<span class="tag w" title="Завершить проверку НДС и остатков расчётов">сверить данные</span>'
+      : q.status==='planned'
       ? `<button class="ebtn" onclick="sendDraft(${q.id},this)">в банк</button>`
       : '<span class="muted">—</span>';
     return `<tr><td>${(q.created_at||'').slice(0,10)}</td><td>${who}</td>`

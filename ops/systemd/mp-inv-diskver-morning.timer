@@ -1,0 +1,11 @@
+[Unit]
+Description=Sber Diskver unsigned drafts at 07:55 MSK timer
+
+[Timer]
+OnCalendar=*-*-* 04:55:00 UTC
+Persistent=false
+AccuracySec=1s
+Unit=mp-inv-diskver-morning.service
+
+[Install]
+WantedBy=timers.target
