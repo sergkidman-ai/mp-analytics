@@ -207,6 +207,18 @@ class PrintAccessTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/print/sync').status_code,200)
         self.assertEqual(self.calls,[('sync',)])
 
+    def test_sharov_has_both_organizations_like_owner(self):
+        headers={'X-Pult-User':'sharov'}
+        data=self.client.get('/api/print',headers=headers)
+        self.assertEqual(data.status_code,200)
+        self.assertEqual(data.json(),self.client.get('/api/print',headers={'X-Pult-User':'print'}).json())
+        page=self.client.get('/warehouse/print',headers=headers)
+        self.assertEqual(page.status_code,200)
+        self.assertNotIn('<body class="single-organization">',page.text)
+        for batch in (self.digital,self.diskver):
+            self.assertEqual(self.client.get(f'/api/print/batches/{batch}/files/receipts',headers=headers).status_code,200)
+        self.assertEqual(self.client.post('/api/print/sync',headers=headers).status_code,200)
+
     def test_individual_order_routes_enforce_organization_and_all_batch_members(self):
         for oid in (self.digital_order,self.mixed_order,str(uuid4())):
             self.assertEqual(self.client.post(f'/api/print/orders/{oid}/pair',json={'request_key':str(uuid4())}).status_code,404)
