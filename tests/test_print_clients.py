@@ -1,12 +1,13 @@
 # поток: print
 import base64
+import json
 from datetime import date
 from io import BytesIO
 import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
 import requests
 
@@ -209,6 +210,48 @@ class PrintClientTests(unittest.TestCase):
         with self.assertRaisesRegex(PrintBlocked,'ozon_posting_not_ready_for_label'):c.ozon_label('oz_acc1',post,self.root)
         self.assertEqual(len(creates),1)
 
+    def test_expired_receipt_link_requires_confirmed_export_and_already_printed_shipment(self):
+        for printed,status in ((True,404),(True,410),(False,404),(True,403)):
+            with self.subTest(printed=printed,status=status):
+                order,demand=self.source(printed);folder=self.root/(str(printed)+'-'+str(status));folder.mkdir();calls=[]
+                (folder/'ms_export_intent.json').write_text(json.dumps(dict(order_id=order['id'],demand_id=demand['id'],state='sent')))
+                (folder/'ms_export_response.json').write_text(json.dumps(dict(http=303,location='https://print.moysklad.ru/expired.pdf')))
+                def request(method,url,**kwargs):
+                    calls.append((method,url))
+                    if url.endswith('/expired.pdf'):return Response(status=status)
+                    if url.endswith('/fresh.pdf'):return Response(content=pdf())
+                    if method=='POST':return Response(status=303,headers={'Location':'https://print.moysklad.ru/fresh.pdf'})
+                    if '/customtemplate/' in url:return Response({'name':TEMPLATE_NAME,'meta':{'type':'customtemplate'}})
+                    return Response(order if '/customerorder/' in url else demand)
+                client=PrintClients(audit_root=folder/'raw',request=request,delays=False)
+                options=dict(expected_account='oz_acc2',expected_number=order['name'],allow_unprinted=True)
+                if printed and status!=403:
+                    self.assertEqual(client.export_receipt(order['id'],demand['id'],folder,**options),pdf())
+                    self.assertEqual(sum(m=='POST' for m,u in calls),1)
+                    self.assertEqual(len(list(folder.glob('expired_download_*.json'))),1)
+                    self.assertEqual(json.loads((folder/'ms_export_response.json').read_text())['location'],'https://print.moysklad.ru/fresh.pdf')
+                else:
+                    with self.assertRaises(PrintBlocked):client.export_receipt(order['id'],demand['id'],folder,**options)
+                    self.assertFalse(any(m=='POST' for m,u in calls))
+
+    def test_lost_regenerated_export_response_cannot_reuse_the_old_303(self):
+        order,demand=self.source(True);calls=[]
+        (self.root/'ms_export_intent.json').write_text(json.dumps(dict(order_id=order['id'],demand_id=demand['id'],state='sent')))
+        (self.root/'ms_export_response.json').write_text(json.dumps(dict(http=303,location='https://print.moysklad.ru/expired.pdf')))
+        def request(method,url,**kwargs):
+            calls.append((method,url))
+            if url.endswith('/expired.pdf'):return Response(status=404)
+            if method=='POST':raise requests.Timeout()
+            if '/customtemplate/' in url:return Response({'name':TEMPLATE_NAME,'meta':{'type':'customtemplate'}})
+            return Response(order if '/customerorder/' in url else demand)
+        client=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+        options=dict(expected_account='oz_acc2',expected_number=order['name'],allow_unprinted=True)
+        with self.assertRaisesRegex(PrintBlocked,'ms_transport_error'):client.export_receipt(order['id'],demand['id'],self.root,**options)
+        self.assertFalse((self.root/'ms_export_response.json').exists())
+        count=len(calls)
+        with self.assertRaisesRegex(PrintBlocked,'ms_export_result_uncertain'):client.export_receipt(order['id'],demand['id'],self.root,**options)
+        self.assertEqual(len(calls),count);self.assertEqual(sum(m=='POST' for m,u in calls),1)
+
     def test_export_uses_real_link_anonymous_download_and_cached_repeat(self):
         for allow,printed in ((False,True),(True,False)):
             with self.subTest(allow_unprinted=allow):
@@ -265,6 +308,42 @@ class PrintClientTests(unittest.TestCase):
                 self.assertEqual(page.images[0].image.convert('RGB').tobytes(),image.convert('RGB').tobytes())
                 self.assertEqual(sticker['partB'],'0789')
                 self.assertTrue(all(method=='POST' for method,_,_ in calls))
+
+    def test_pdf_download_retries_only_transient_get_failures(self):
+        for failure in (requests.Timeout(),Response(status=429),Response(status=503)):
+            with self.subTest(failure=type(failure).__name__):
+                request=Mock(side_effect=[failure,Response(content=pdf())])
+                client=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+                self.assertEqual(client._download('https://print.moysklad.ru/file.pdf',allowed=('moysklad.ru',)),pdf())
+                self.assertEqual(request.call_count,2)
+                self.assertTrue(all(c.args[0]=='GET' and 'headers' not in c.kwargs for c in request.call_args_list))
+        for response,expected in ((requests.Timeout(),2),(Response(status=403),1)):
+            request=Mock(side_effect=response) if isinstance(response,Exception) else Mock(return_value=response)
+            client=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+            with self.assertRaises(PrintBlocked):client._download('https://print.moysklad.ru/file.pdf',allowed=('moysklad.ru',))
+            self.assertEqual(request.call_count,expected)
+
+    def test_market_express_uses_the_same_native_label_api(self):
+        calls=[]
+        def request(method,url,**kwargs):
+            calls.append((method,url,kwargs))
+            if '/businesses/' in url:
+                self.assertEqual(kwargs['json'],{'orderIds':[456],'programTypes':['FBS','EXPRESS'],'fake':False})
+                return Response({'orders':[{'orderId':456,'campaignId':789,'programType':'EXPRESS','fake':False}]})
+            if url.endswith('/data'):return Response({'result':{'placesNumber':1,'parcelBoxLabels':[{'boxId':1}]}})
+            return Response(content=pdf())
+        client=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+        client.yandex_label(client.yandex_order('456'),self.root)
+        self.assertEqual((self.root/'label.pdf').read_bytes(),pdf())
+        self.assertEqual(len(calls),3);self.assertEqual([c[0] for c in calls],['POST','GET','GET'])
+
+    def test_market_order_guards_remain_strict_for_other_programs_and_identities(self):
+        valid=dict(orderId=456,campaignId=789,programType='EXPRESS',fake=False)
+        for rows in ([dict(valid,programType='DBS')],[dict(valid,programType='FBY')],
+                     [dict(valid,fake=True)],[dict(valid,orderId=457)],[valid,valid],[]):
+            with self.subTest(rows=rows):
+                client=PrintClients(audit_root=self.root/'raw',request=lambda *a,**kw:Response({'orders':rows}),delays=False)
+                with self.assertRaisesRegex(PrintBlocked,'market_order_identity_mismatch'):client.yandex_order('456')
 
     def test_market_acc1_campaign_and_all_boxes_without_status_writes(self):
         calls=[]

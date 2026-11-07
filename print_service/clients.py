@@ -33,6 +33,12 @@ class APIRejected(PrintBlocked):
         super().__init__(platform + '_http_' + str(status))
 
 
+class PDFDownloadRejected(PrintBlocked):
+    def __init__(self, status):
+        self.status = status
+        super().__init__('pdf_download_failed')
+
+
 def reference_id(reference, entity):
     href = (reference or {}).get('meta', {}).get('href', '')
     value = href.rsplit('/', 1)[-1]
@@ -192,8 +198,17 @@ class PrintClients:
         if (parsed.scheme != 'https' or parsed.username or parsed.password
                 or not any(parsed.hostname == host or (parsed.hostname or '').endswith('.' + host) for host in allowed)):
             raise PrintBlocked('label_download_origin_invalid')
-        response = self._call('download', '', 'GET', url)
-        if response.status_code != 200 or len(response.content) > 20_000_000:
+        for attempt in range(2):
+            try:
+                response = self._call('download', '', 'GET', url)
+            except PrintBlocked as exc:
+                if attempt or str(exc) != 'download_transport_error': raise
+            else:
+                if attempt or response.status_code not in (429, 500, 502, 503, 504): break
+            if self.delays: time.sleep(1)
+        if response.status_code != 200:
+            raise PDFDownloadRejected(response.status_code)
+        if len(response.content) > 20_000_000:
             raise PrintBlocked('pdf_download_failed')
         pdf_reader(response.content)
         return response.content
@@ -274,10 +289,10 @@ class PrintClients:
         business = os.environ['YANDEX_BUSINESS_ID_ACC1']
         if not business.isdigit(): raise PrintBlocked('market_business_id_invalid')
         data = self._read_json('yandex', 'ya_acc1', 'POST', f'https://api.partner.market.yandex.ru/v1/businesses/{business}/orders',
-                          body={'orderIds': [int(number)], 'programTypes': ['FBS'], 'fake': False}, params={'limit': 20})
+                          body={'orderIds': [int(number)], 'programTypes': ['FBS', 'EXPRESS'], 'fake': False}, params={'limit': 20})
         orders = data.get('orders', [])
         if (len(orders) != 1 or orders[0].get('orderId') != int(number)
-                or orders[0].get('programType') != 'FBS' or orders[0].get('fake') is not False):
+                or orders[0].get('programType') not in ('FBS', 'EXPRESS') or orders[0].get('fake') is not False):
             raise PrintBlocked('market_order_identity_mismatch')
         return orders[0]
 
@@ -301,6 +316,7 @@ class PrintClients:
         if result.exists(): pdf_reader(result.read_bytes()); return result.read_bytes()
         intent = folder / 'ms_export_intent.json'
         response_file = folder / 'ms_export_response.json'
+        expired_download = None
         if intent.exists():
             previous = json.loads(intent.read_text())
             if previous.get('order_id') != order_id or previous.get('demand_id') != demand_id:
@@ -308,10 +324,16 @@ class PrintClients:
             if response_file.exists():
                 response = json.loads(response_file.read_text())
                 if response.get('http') == 303 and response.get('location'):
-                    raw = self._download(response['location'], allowed=('moysklad.ru',))
-                    atomic_bytes(result, raw)
-                    return raw
-            if previous.get('state') != 'rejected': raise PrintBlocked('ms_export_result_uncertain')
+                    try:
+                        raw = self._download(response['location'], allowed=('moysklad.ru',))
+                    except PDFDownloadRejected as exc:
+                        if exc.status not in (404,410): raise
+                        expired_download = exc.status
+                    else:
+                        atomic_bytes(result, raw)
+                        return raw
+            if expired_download is None and previous.get('state') != 'rejected':
+                raise PrintBlocked('ms_export_result_uncertain')
         template = self.ms_get('/entity/demand/metadata/customtemplate/' + TEMPLATE_ID)
         if template.get('name') != TEMPLATE_NAME or template.get('meta', {}).get('type') != 'customtemplate':
             raise PrintBlocked('ms_receipt_template_changed')
@@ -327,6 +349,14 @@ class PrintClients:
             guard_receipt_link(order, demand, linked_order_id=order_id)
         else:
             guard_sample_export(order, demand, linked_order_id=order_id)
+        if expired_download is not None:
+            # Only a confirmed old export and an already printed shipment may
+            # regenerate an expired PDF. Archive its response BEFORE a new POST:
+            # a lost new response must never be mistaken for the old 303.
+            guard_sample_export(order, demand, linked_order_id=order_id)
+            save_json(folder / ('expired_download_' + uuid4().hex + '.json'),
+                      {'intent':previous, 'response':response, 'download_http':expired_download})
+            response_file.unlink()
         save_json(folder / 'ms_before.json', {'order': order, 'demand': demand})
         payload = {'template': {'meta': template['meta']}, 'extension': 'pdf'}
         save_json(intent, {'order_id': order_id, 'demand_id': demand_id, 'request': payload, 'state': 'sent'})

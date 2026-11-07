@@ -19,6 +19,10 @@ from print_service.storage import save_json
 
 
 ERRORS = {
+    'ms_export_http_429': 'МойСклад ограничил частоту выгрузки ТЧ. Подождите минуту и повторите печать заказа.',
+    'download_transport_error': 'Скачивание PDF прервалось из-за ошибки связи. Повторите получение документа.',
+    'pdf_download_failed': 'Не удалось скачать PDF по ссылке площадки или МС. Повторите получение документа.',
+    'market_order_identity_mismatch': 'Маркет не вернул единственный подходящий заказ. Проверьте номер и кабинет заказа.',
     'artifact_demand_identity_changed': 'В МС изменилась связанная отгрузка. Нажмите «Синхронизация с МС», затем обновите этикетку.',
     'order_demand_ambiguous': 'В МС у заказа несколько связанных отгрузок. Проверьте связь и нажмите «Синхронизация с МС».',
     'label_refresh_internal_error': 'Не удалось обновить этикетку. Повторите запрос позже.',
@@ -50,7 +54,7 @@ def error_message(error):
     code = str(error)
     if code in ERRORS: return ERRORS[code]
     if '_http_' in code:
-        name = {'ms': 'МойСклад', 'ozon': 'Ozon', 'wb': 'WB', 'yandex': 'Маркет'}.get(code.split('_http_')[0], 'Площадка')
+        name = {'ms': 'МойСклад', 'ozon': 'Ozon', 'wb': 'WB', 'yandex': 'Маркет'}.get(code.split('_',1)[0], 'Площадка')
         return name + ': не удалось получить документ или данные. Повторите позже.'
     if 'checksum' in code or 'manifest' in code:
         return 'Сохранённые файлы не прошли проверку целостности. Они не будут выданы как готовые.'

@@ -350,6 +350,17 @@ class PrintQueueTests(unittest.TestCase):
         self.queue.fail_batch(retry['id'],generation=retry['generation'],error='wb_order_not_ready_for_label',order_id=oid)
         self.assertEqual(self.queue.view(now=NOW)['jobs'][0]['orders'][0]['ms_order_id'],oid)
 
+    def test_market_identity_failure_resolves_only_after_verified_matching_label(self):
+        batch=self.reserve();oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']
+        self.queue.fail_batch(batch['id'],generation=1,error='market_order_identity_mismatch',order_id=oid)
+        with self.queue.transaction() as c:c.execute('UPDATE batches SET created_at=%s WHERE id=%s',(NOW,batch['id']))
+        self.assertEqual(self.queue.resolve_label_errors(oid,demand_id=did,now=NOW+timedelta(seconds=1)),0)
+        label=self.root/'market-label.pdf';pdf(label,164.25,113.25)
+        self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW)
+        self.assertEqual(self.queue.resolve_label_errors(oid,demand_id=did,now=NOW+timedelta(seconds=1)),1)
+        row=next(r for r in self.queue.view(now=NOW)['rows'] if str(r['id'])==oid)
+        self.assertTrue(row['counter_eligible']);self.assertFalse(row['printed']);self.assertFalse(row['receipt_ready'])
+
     def test_label_confirmation_does_not_hide_receipt_failures_or_newer_label_failures(self):
         batch=self.reserve();oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']
         self.queue.fail_batch(batch['id'],generation=1,error='receipt_quantity_cell_too_small',order_id=oid)
