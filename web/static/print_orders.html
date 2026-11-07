@@ -187,12 +187,15 @@ function render(){
  if(watchedJob){const ready=model.ready_batches.find(b=>b.id===watchedJob),failed=model.jobs.find(b=>b.id===watchedJob&&b.state==='failed');if(ready){const skipped=ready.display.excluded_orders?.length||0;message(skipped?`Файлы готовы для ${ready.order_count} заказов. Не вошло: ${skipped} — проверьте ошибки ниже.`:'Оба файла готовы. Заказы исключены из счётчика.');watchedJob=null}else if(failed){message(failed.error_message,true);watchedJob=null}}
  if(watchedSync&&model.sync?.id===watchedSync&&model.sync.state==='ready'){message(`Заказы и счётчики обновлены. Заказов: ${model.rows.length}.`);watchedSync=null}
  const syncing=model.sync&&['pending','running'].includes(model.sync.state);
+ const finished=model.sync?.state==='ready'&&model.sync.finished_at;
+ const syncTime=finished||model.last_sync;
+ const syncText=`Последняя синхронизация с МС: ${syncTime?when(syncTime)+' МСК':'ещё не было'}`;
  $('date').textContent=model.day?`${model.day.split('-').reverse().join('.')} · время Москвы`:'Архив пока пуст';
+ if(!ARCHIVE)$('date').textContent+=' · '+syncText;
  $('automatic').textContent=model.worker_healthy?'Автосинхронизация · 30 минут':'Автосинхронизация не подключена';$('automatic').classList.toggle('live',model.worker_healthy);
  $('sync').disabled=!model.installed||!model.worker_healthy||syncing;$('sync').textContent=syncing?'Синхронизация…':'Синхронизация с МС';
  $('demo').classList.toggle('hidden',!model.demo);
- const finished=model.sync?.state==='ready'&&model.sync.finished_at;
- $('updated').textContent=`Последняя синхронизация с МС: ${when(finished||model.last_sync)} · МСК`;
+ $('updated').textContent=syncText;
  if(!model.installed)message('Подключение страницы ещё не завершено. Подготовка файлов пока недоступна.');else if(model.sync?.state==='failed'&&!noticeError)message(model.sync.error_message||'Не удалось обновить список. Показаны данные последней успешной синхронизации.',true);
  if(ARCHIVE)renderArchive();else{renderSyncProgress();renderCounters()}renderFiles();renderOrders();
 }
