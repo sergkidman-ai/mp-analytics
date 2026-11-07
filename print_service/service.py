@@ -19,6 +19,8 @@ from print_service.storage import save_json
 
 
 ERRORS = {
+    'label_refresh_internal_error': 'Не удалось обновить этикетку. Повторите запрос позже.',
+    'order_outside_print_scope': 'Заказ больше не входит в сегодняшний список «Собирается». Обновите данные МС.',
     'counter_already_reserved': 'Для этого счётчика уже формируются файлы. Дождитесь завершения.',
     'selected_orders_changed': 'Этот заказ уже включён в файлы или больше не входит в текущий список. Обновите страницу.',
     'counter_empty': 'В счётчике нет новых заказов. Обновите страницу.',
@@ -125,6 +127,11 @@ class PrintService:
             row['error_message'] = error_message(row['source_error']) if row['source_error'] else None
             if row['preparation_error'] and not row['source_error']:
                 row['error_message'] = error_message(row['preparation_error'])
+            if row.get('label_error') and not row['error_message']:
+                row['error_message'] = error_message(row['label_error'])
+            refresh = row.get('label_refresh')
+            if refresh and refresh['error']:
+                refresh['error_message'] = error_message(refresh['error'])
             for field in ('receipt_path','receipt_sha','label_path','label_sha','artifact_demand_id','snapshot_id'):
                 row.pop(field, None)
         for job in data['jobs']:
@@ -169,6 +176,27 @@ class PrintService:
         batch = self.queue.reserve_counter(order['counter_key'], request_key=key,
                                            now=self.clock(), order_ids=[str(order_id)])
         return dict(id=batch['id'], state=batch['state'], count=1)
+
+    def request_label(self, order_id, key):
+        self.require_worker()
+        return self.queue.enqueue_label_request(order_id, request_key=key, now=self.clock())
+
+    def run_label_request(self, request):
+        oid = str(request['order_id'])
+        try:
+            order = self.queue.order(oid)
+            if str(order['demand_id']) != str(request['demand_id']):
+                raise PrintBlocked('artifact_demand_identity_changed')
+            received = self.labels.one(order, now=self.clock())
+            if not received and self.queue.order(oid)['batch_state'] not in ('building','ready'):
+                raise PrintBlocked('order_changed_since_counter_click')
+            self.clients.lease_check()
+            self.queue.finish_label_request(request['id'], now=self.clock())
+        except Exception as exc:
+            self._record_error(exc, oid)
+            self.clients.lease_check()
+            self.queue.finish_label_request(request['id'], now=self.clock(),
+                error=str(exc) if isinstance(exc, PrintBlocked) else 'label_refresh_internal_error')
 
     def order_files(self, order_id):
         order = self.queue.order(order_id)

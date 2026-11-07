@@ -52,7 +52,7 @@ class PrintQueueTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         with self.queue.transaction() as cursor:
-            cursor.execute('TRUNCATE external_prints,artifacts,requests,claims,members,batches,orders,current_snapshot,snapshots,sync_runs,worker_status')
+            cursor.execute('TRUNCATE label_requests,external_prints,artifacts,requests,claims,members,batches,orders,current_snapshot,snapshots,sync_runs,worker_status')
             cursor.execute('INSERT INTO current_snapshot(singleton) VALUES(true)')
         self.rows = [order('100-0001-1'), order('100-0002-1')]
         self.counter = self.rows[0]['counter_key']
@@ -73,6 +73,51 @@ class PrintQueueTests(unittest.TestCase):
 
     def reserve(self, request='click'):
         return self.queue.reserve_counter(self.counter, request_key=request, now=NOW)
+
+    def test_manual_label_refresh_is_async_idempotent_and_never_prints_receipts(self):
+        from tests.test_print_labels import SavedLabels
+        from print_service.service import PrintService
+        clients=SavedLabels('ozon');clients.order['deliveryPlannedMoment']='2026-11-03 12:00:00'
+        row=dict(raw=clients.order,account=clients.row['account'],demand_id=clients.row['demand_id'],counter_key='oz_acc1|test|store')
+        clock=NOW+timedelta(seconds=1)
+        self.queue.sync_snapshot([row],started_at=clock,complete=True);self.queue.heartbeat(clock)
+        service=PrintService(queue=self.queue,clients=clients,root=self.root,clock=lambda:clock)
+        first=service.request_label(clients.order['id'],'refresh-one')
+        same=service.request_label(clients.order['id'],'refresh-two')
+        self.assertEqual(first['id'],same['id']);self.assertEqual(first['state'],'pending')
+        self.assertEqual(clients.downloads,0);self.assertEqual(clients.exports,0)
+        task=self.queue.start_label_request(now=clock);service.run_label_request(task)
+        status=service.status();result=status['rows'][0]
+        self.assertEqual(result['label_refresh']['state'],'ready')
+        self.assertTrue(result['label_ready']);self.assertFalse(result['receipt_ready']);self.assertFalse(result['printed'])
+        self.assertEqual(status['counters'][row['counter_key']]['count'],1)
+        self.assertEqual(status['ready_batches'],[]);self.assertEqual(clients.exports,0);self.assertEqual(clients.downloads,1)
+        self.assertEqual(self.queue.enqueue_label_request(clients.order['id'],request_key='refresh-one',now=clock)['id'],first['id'])
+        # A second explicit refresh verifies the already cached native label.
+        service.request_label(clients.order['id'],'refresh-three');service.run_label_request(self.queue.start_label_request(now=clock))
+        self.assertEqual(clients.downloads,1);self.assertEqual(clients.exports,0)
+        pair=self.queue.reserve_counter(row['counter_key'],request_key='warehouse-click',now=clock)
+        with self.assertRaises(PrintBlocked):service.request_label(clients.order['id'],'during-print')
+        self.assertEqual(len(pair['orders']),1)
+
+    def test_failed_label_refresh_is_visible_and_excluded_until_fresh_success(self):
+        from unittest.mock import patch
+        from print_service.service import PrintService
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        self.queue.heartbeat(NOW);service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        oid=self.rows[0]['raw']['id'];service.request_label(oid,'label-error')
+        with patch.object(service.labels,'one',side_effect=PrintBlocked('ozon_posting_not_ready_for_label')):
+            service.run_label_request(self.queue.start_label_request(now=NOW))
+        status=service.status();row=next(r for r in status['rows'] if str(r['id'])==oid)
+        self.assertEqual(row['label_error'],'ozon_posting_not_ready_for_label')
+        self.assertEqual(status['counters'][self.counter]['count'],1)
+        batch=self.reserve('healthy-other');self.assertEqual([m['ms_order_id'] for m in batch['orders']],[self.rows[1]['raw']['id']])
+        label=self.root/'fresh-label.pdf';pdf(label,164.25,113.25)
+        self.assertTrue(self.queue.mark_prefetched_label(oid,demand_id=self.rows[0]['demand_id'],path=label,now=NOW))
+        self.queue.resolve_label_errors(oid,demand_id=self.rows[0]['demand_id'],now=NOW)
+        row=next(r for r in service.status()['rows'] if str(r['id'])==oid)
+        self.assertIsNone(row['label_error']);self.assertTrue(row['counter_eligible'])
 
     def test_express_labels_have_priority_over_ordinary_orders(self):
         self.rows[1]['counter_key']='oz_acc1|z-express|store'

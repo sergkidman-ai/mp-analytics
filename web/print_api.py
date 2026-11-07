@@ -124,6 +124,15 @@ def make_router(get_service=production_service, *, standalone=False):
         except PrintBlocked as exc:
             raise HTTPException(409, error_message(exc)) from None
 
+    @router.post('/api/print/orders/{order_id}/label')
+    def refresh_label(order_id: UUID, request: OrderRequest, access: PrintAccess = Depends(current_access)):
+        service = get_service(); checked_order(service, order_id, access)
+        try:
+            job = service.request_label(str(order_id), str(request.request_key))
+            return dict(id=str(job['id']), state=job['state'])
+        except PrintBlocked as exc:
+            raise HTTPException(409, error_message(exc)) from None
+
     @router.get('/api/print/orders/{order_id}/files/{kind}')
     def single_file(order_id: UUID, kind: Literal['receipts', 'labels'], access: PrintAccess = Depends(current_access)):
         service = get_service(); checked_order(service, order_id, access)

@@ -202,7 +202,7 @@ class PrintQueue:
                     ORDER BY o.external_id,o.id FOR UPDATE OF o''', (snapshot, day, counter_key, selected, selected))
                 orders = cursor.fetchall()
                 if selected is None:
-                    failed = self._failed_orders(self._current_jobs(cursor, day))
+                    failed = self._label_failures(self._label_requests(cursor, day)) | self._failed_orders(self._current_jobs(cursor, day))
                     orders = [o for o in orders if o['demand_id'] and not o['source_error'] and not failed.get(str(o['id']))]
                 if selected is not None and len(orders) != len(selected):
                     raise PrintBlocked('selected_orders_changed')
@@ -312,7 +312,66 @@ class PrintQueue:
                 AND EXISTS (SELECT 1 FROM members m WHERE m.batch_id=b.id AND m.order_id=%s
                     AND m.identity->>'ms_demand_id'=%s)''',
                 (marker, list(LABEL_AVAILABILITY_ERRORS), now, str(order_id), order_id, str(demand_id)))
-            return cursor.rowcount
+            count = cursor.rowcount
+            cursor.execute("""UPDATE label_requests SET resolved_at=%s WHERE order_id=%s
+                AND demand_id=%s AND state='failed' AND finished_at<=%s AND resolved_at IS NULL""",
+                (now, order_id, demand_id, now))
+            return count + cursor.rowcount
+
+    def enqueue_label_request(self, order_id, *, request_key, now):
+        oid = str(UUID(str(order_id)))
+        if not isinstance(request_key, str) or not request_key or len(request_key)>100:
+            raise ValueError('label_request_key_required')
+        with self.transaction() as cursor:
+            cursor.execute('SELECT snapshot_id FROM current_snapshot FOR UPDATE')
+            snapshot = cursor.fetchone()['snapshot_id']
+            cursor.execute('SELECT * FROM label_requests WHERE request_key=%s', (request_key,))
+            previous = cursor.fetchone()
+            if previous:
+                if str(previous['order_id']) != oid: raise PrintBlocked('request_key_reused_for_other_orders')
+                return dict(previous)
+            cursor.execute('''SELECT o.* FROM orders o JOIN snapshots s ON s.id=o.snapshot_id
+                WHERE o.id=%s AND o.snapshot_id=%s AND s.day=%s FOR UPDATE OF o''',
+                (oid, snapshot, moscow_day(now)))
+            order = cursor.fetchone()
+            if not order: raise PrintBlocked('order_outside_print_scope')
+            if not order['demand_id']: raise PrintBlocked('linked_demand_missing')
+            cursor.execute('SELECT 1 FROM claims WHERE order_id=%s UNION ALL SELECT 1 FROM external_prints WHERE order_id=%s', (oid, oid))
+            if cursor.fetchone(): raise PrintBlocked('counter_already_reserved')
+            cursor.execute("SELECT * FROM label_requests WHERE order_id=%s AND state IN ('pending','running')", (oid,))
+            active = cursor.fetchone()
+            if active: return dict(active)
+            cursor.execute("""INSERT INTO label_requests(id,request_key,order_id,demand_id,day,state,created_at)
+                VALUES(%s,%s,%s,%s,%s,'pending',%s) RETURNING *""",
+                (str(uuid4()), request_key, oid, order['demand_id'], moscow_day(now), now))
+            return dict(cursor.fetchone())
+
+    def start_label_request(self, *, now):
+        with self.transaction() as cursor:
+            cursor.execute("""UPDATE label_requests SET state='failed',finished_at=%s,error='order_outside_print_scope'
+                WHERE state='pending' AND day<%s""", (now, moscow_day(now)))
+            cursor.execute("SELECT id FROM label_requests WHERE state='pending' ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1")
+            row = cursor.fetchone()
+            if not row: return None
+            cursor.execute("UPDATE label_requests SET state='running',started_at=%s WHERE id=%s RETURNING *", (now,row['id']))
+            return dict(cursor.fetchone())
+
+    def finish_label_request(self, request_id, *, now, error=None):
+        with self.transaction() as cursor:
+            cursor.execute("""UPDATE label_requests SET state=%s,finished_at=%s,error=%s
+                WHERE id=%s AND state='running'""", ('failed' if error else 'ready', now, error, request_id))
+
+    @staticmethod
+    def _label_requests(cursor, day):
+        cursor.execute('''SELECT DISTINCT ON (r.order_id) r.* FROM label_requests r
+            JOIN orders o ON o.id=r.order_id JOIN current_snapshot v ON v.snapshot_id=o.snapshot_id
+            WHERE r.day=%s AND r.demand_id=o.demand_id ORDER BY r.order_id,r.created_at DESC,r.id DESC''', (day,))
+        return {str(row['order_id']): dict(row) for row in cursor.fetchall()}
+
+    @staticmethod
+    def _label_failures(requests):
+        return {oid: row['error'] for oid,row in requests.items()
+                if row['state']=='failed' and not row['resolved_at']}
 
     def mark_prefetched_label(self, order_id, *, demand_id, path, now):
         path, digest = checked_file(path)
@@ -582,16 +641,20 @@ class PrintQueue:
             cursor.execute('SELECT * FROM sync_runs ORDER BY created_at DESC LIMIT 1')
             sync = cursor.fetchone()
             jobs = self._current_jobs(cursor, day)
+            refreshes = self._label_requests(cursor, day)
             cursor.execute('SELECT last_seen FROM worker_status WHERE singleton=true')
             worker = cursor.fetchone()
             external_counts = self._external_printed_counts(cursor, day)
         counters = {}
         failed = self._failed_orders(jobs)
+        label_failures = self._label_failures(refreshes)
         for row in rows:
             row['printed'] = row['batch_state'] == 'ready' or row['printed_externally']
             row['color'] = 'green' if row['printed'] else 'red'
             row['preparation_error'] = failed.get(str(row['id'])) if row['batch_state'] != 'building' else None
-            row['counter_eligible'] = not row['printed'] and bool(row['demand_id']) and not row['source_error'] and not row['preparation_error']
+            row['label_refresh'] = refreshes.get(str(row['id']))
+            row['label_error'] = label_failures.get(str(row['id'])) if not row['printed'] and row['batch_state'] != 'building' else None
+            row['counter_eligible'] = not row['printed'] and bool(row['demand_id']) and not row['source_error'] and not row['preparation_error'] and not row['label_error']
             for kind in ('receipt', 'label'):
                 try:
                     if row['demand_id'] != row['artifact_demand_id'] or not row[kind + '_path']:

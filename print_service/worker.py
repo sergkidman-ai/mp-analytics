@@ -40,6 +40,7 @@ def run(service=None):
         with queue.transaction() as cursor:
             cursor.execute("UPDATE batches SET generation=generation+1 WHERE state='building'")
             cursor.execute("UPDATE sync_runs SET state='pending' WHERE state='running'")
+            cursor.execute("UPDATE label_requests SET state='pending' WHERE state='running'")
         sync_future = batch_future = label_future = None
         label_snapshot, label_rows = None, deque()
         last_heartbeat = last_scheduled = 0
@@ -65,11 +66,15 @@ def run(service=None):
                     batch_future = pool.submit(service.run_batch, batch) if batch else None
                 if label_future is None or label_future.done():
                     if label_future: label_future.result()
-                    snapshot = (status['started_at'], status['day'])
-                    if snapshot != label_snapshot:
-                        label_rows = deque(service.labels.candidates(now))
-                        label_snapshot = snapshot
-                    label_future = pool.submit(service.run_label_prefetch, label_rows.popleft()) if label_rows else None
+                    request = queue.start_label_request(now=now)
+                    if request:
+                        label_future = pool.submit(service.run_label_request, request)
+                    else:
+                        snapshot = (status['started_at'], status['day'])
+                        if snapshot != label_snapshot:
+                            label_rows = deque(service.labels.candidates(now))
+                            label_snapshot = snapshot
+                        label_future = pool.submit(service.run_label_prefetch, label_rows.popleft()) if label_rows else None
                 time.sleep(2)
 
 

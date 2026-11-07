@@ -62,6 +62,9 @@ class PrintAccessTests(unittest.TestCase):
             def request_order(self,oid,key):
                 calls.append(('order',oid));return dict(id='cached',state='ready',count=1)
 
+            def request_label(self,oid,key):
+                calls.append(('label',oid));return dict(id='label-job',state='pending')
+
             def order_files(self,oid):
                 calls.append(('order_files',oid))
                 return self.queue.ready_files(order_map[oid]['batch_id'])
@@ -175,6 +178,18 @@ class PrintAccessTests(unittest.TestCase):
                 self.assertEqual(self.client.get(path,headers={'X-Pult-User':username}).status_code,403)
             self.assertEqual(self.client.post('/api/print/sync',headers={'X-Pult-User':username}).status_code,403)
         self.assertEqual(self.calls,[])
+
+    def test_label_refresh_is_scoped_and_does_not_request_a_print_pair(self):
+        body={'request_key':str(uuid4())}
+        self.assertEqual(self.client.post(f'/api/print/orders/{self.digital_order}/label',json=body).status_code,404)
+        self.assertEqual(self.client.post(f'/api/print/orders/{self.mixed_order}/label',json=body).status_code,404)
+        self.assertEqual(self.calls,[])
+        response=self.client.post(f'/api/print/orders/{self.diskver_order}/label',json=body)
+        self.assertEqual(response.status_code,200);self.assertEqual(response.json()['state'],'pending')
+        self.assertEqual(self.calls,[('label',self.diskver_order)])
+        self.calls.clear()
+        response=self.client.post(f'/api/print/orders/{self.diskver_order}/label',json=body,headers={'X-Pult-User':'bersenev'})
+        self.assertEqual(response.status_code,404);self.assertEqual(self.calls,[])
 
     def test_owner_keeps_both_organizations_and_full_progress(self):
         headers={'X-Pult-User':'print'}

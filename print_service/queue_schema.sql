@@ -70,6 +70,22 @@ CREATE TABLE IF NOT EXISTS artifacts (
     label_path text,
     label_sha text
 );
+CREATE TABLE IF NOT EXISTS label_requests (
+    id uuid PRIMARY KEY,
+    request_key text NOT NULL UNIQUE,
+    order_id uuid NOT NULL REFERENCES orders(id),
+    demand_id uuid NOT NULL,
+    day date NOT NULL,
+    state text NOT NULL CHECK (state IN ('pending','running','ready','failed')),
+    created_at timestamptz NOT NULL,
+    started_at timestamptz,
+    finished_at timestamptz,
+    resolved_at timestamptz,
+    error text
+);
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_label_request ON label_requests(order_id)
+    WHERE state IN ('pending','running');
+CREATE INDEX IF NOT EXISTS label_requests_order_day ON label_requests(order_id,day,created_at DESC,id DESC);
 ALTER TABLE artifacts ADD COLUMN IF NOT EXISTS source_key text NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS sync_runs (
     id uuid PRIMARY KEY,
