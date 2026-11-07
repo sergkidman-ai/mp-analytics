@@ -25,6 +25,7 @@ LABEL_AVAILABILITY_ERRORS = (
     'market_order_not_ready_for_label', 'ozon_scanit_missing',
     'ozon_label_still_generating', 'ozon_label_generation_failed',
     'ozon_express_outside_fbs_scope', 'ozon_warehouse_color_unmapped',
+    'ozon_label_task_result_uncertain', 'ozon_label_retry_pending', 'ozon_transport_error',
 )
 
 
@@ -285,7 +286,8 @@ class PrintQueue:
                 WHERE s.day=%s AND o.demand_id IS NOT NULL AND o.source_error IS NULL
                 AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id=o.id)
                 AND NOT EXISTS (SELECT 1 FROM external_prints e WHERE e.order_id=o.id)
-                ORDER BY o.counter_key,o.external_id''', (list(LABEL_AVAILABILITY_ERRORS), moscow_day(now)))
+                ORDER BY CASE WHEN o.display->'color'->>'key'='express' THEN 0 ELSE 1 END,
+                         o.counter_key,o.external_id''', (list(LABEL_AVAILABILITY_ERRORS), moscow_day(now)))
             return [dict(row) for row in cursor.fetchall()]
 
     def resolve_label_errors(self, order_id, *, demand_id, now):

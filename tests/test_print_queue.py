@@ -74,6 +74,14 @@ class PrintQueueTests(unittest.TestCase):
     def reserve(self, request='click'):
         return self.queue.reserve_counter(self.counter, request_key=request, now=NOW)
 
+    def test_express_labels_have_priority_over_ordinary_orders(self):
+        self.rows[1]['counter_key']='oz_acc1|z-express|store'
+        self.rows[1]['display']={'color':{'key':'express','short':'ЭКС'}}
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        candidates=self.queue.label_candidates(now=NOW)
+        self.assertEqual([str(r['id']) for r in candidates],
+                         [self.rows[1]['raw']['id'],self.rows[0]['raw']['id']])
+
     def test_counter_excludes_known_errors_and_reserves_only_healthy_orders(self):
         from unittest.mock import patch
         from print_service.preparer import Preparer

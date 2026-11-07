@@ -18,7 +18,7 @@ from fpdf import FPDF
 from PIL import Image
 import requests
 
-from print_service.domain import ACCOUNTS, MOSCOW, PrintBlocked, guard_receipt_link, guard_sample_export, selected_order
+from print_service.domain import ACCOUNTS, MOSCOW, PrintBlocked, guard_receipt_link, guard_sample_export, selected_order, ozon_label_available
 from print_service.pdf import pdf_reader
 from print_service.storage import atomic_bytes, save_json
 
@@ -204,20 +204,50 @@ class PrintClients:
             task = json.loads(task_file.read_text())
         else:
             intent = folder / 'label_task_intent.json'
-            if intent.exists() and json.loads(intent.read_text()).get('state') != 'rejected':
+            journal = json.loads(intent.read_text()) if intent.exists() else {}
+            if journal and journal.get('posting_number') != posting['posting_number']:
+                raise PrintBlocked('ozon_label_task_identity_mismatch')
+            if journal.get('state') == 'retryable_transport_error':
+                if time.time() < journal.get('retry_after', 0):
+                    raise PrintBlocked('ozon_label_retry_pending')
+                posting = self.ozon_posting(account, posting['posting_number'])
+                if not ozon_label_available(posting):
+                    raise PrintBlocked('ozon_posting_not_ready_for_label')
+            elif journal and journal.get('state') != 'rejected':
                 raise PrintBlocked('ozon_label_task_result_uncertain')
-            save_json(intent, {'posting_number': posting['posting_number'], 'state': 'sent'})
-            try:
-                data = self._json('ozon', account, 'POST', 'https://api-seller.ozon.ru/v3/posting/fbs/package-label/create',
-                                  body={'posting_numbers': [posting['posting_number']]})
-            except APIRejected as exc:
-                if 400 <= exc.status < 500:
-                    save_json(intent, {'posting_number': posting['posting_number'], 'state': 'rejected'})
-                raise
+            # Only PDF-label task creation may be retried after a known transport
+            # failure. It neither ships an order nor creates an MS document.
+            # Legacy uncertain intents and MS exports keep their strict guards.
+            for attempt in range(2):
+                journal.update(posting_number=posting['posting_number'], state='sent',
+                               attempts=journal.get('attempts', 0)+1, attempted_at=time.time())
+                save_json(intent, journal)
+                try:
+                    data = self._json('ozon', account, 'POST', 'https://api-seller.ozon.ru/v3/posting/fbs/package-label/create',
+                                      body={'posting_numbers': [posting['posting_number']]})
+                    break
+                except APIRejected as exc:
+                    if 400 <= exc.status < 500:
+                        journal['state'] = 'rejected'; save_json(intent, journal)
+                    raise
+                except PrintBlocked as exc:
+                    if str(exc) != 'ozon_transport_error' or not ozon_label_available(posting):
+                        raise
+                    journal.update(state='retryable_transport_error', retry_after=time.time()+60,
+                                   last_error=str(exc))
+                    journal.setdefault('transport_errors', []).append(
+                        {'at':time.time(), 'attempt':journal['attempts']})
+                    save_json(intent, journal)
+                    if attempt: raise
+                    posting = self.ozon_posting(account, posting['posting_number'])
+                    if not ozon_label_available(posting):
+                        raise PrintBlocked('ozon_posting_not_ready_for_label')
             tasks = data.get('tasks', [])
             if len(tasks) != 1 or not tasks[0].get('task_id'):
                 raise PrintBlocked('ozon_label_tasks_ambiguous')
             task = tasks[0]; save_json(task_file, task)
+            journal.update(state='task_received', task_id=task['task_id'])
+            save_json(intent, journal)
         deadline = time.monotonic() + 90
         while True:
             data = self._read_json('ozon', account, 'POST', 'https://api-seller.ozon.ru/v2/posting/fbs/package-label/get',

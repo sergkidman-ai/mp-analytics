@@ -150,6 +150,65 @@ class PrintClientTests(unittest.TestCase):
         with self.assertRaises(PrintBlocked):c.ozon_label('oz_acc1',{'posting_number':'123-0001-1'},self.root)
         self.assertEqual(len(calls),1)
 
+    def test_label_transport_failure_retries_after_fresh_permission_check(self):
+        post=dict(posting_number='123-0001-1',is_express=True,status='awaiting_registration',
+                  available_actions=['label_download_small'],multi_box_qty=1)
+        calls=[];creates=0;native=pdf()
+        def request(method,url,**kwargs):
+            nonlocal creates
+            calls.append(url)
+            if url.endswith('/v3/posting/fbs/get'):return Response({'result':post})
+            if url.endswith('/create'):
+                creates+=1
+                if creates==1:raise requests.ConnectionError('fixture')
+                return Response({'tasks':[{'task_id':42,'task_type':'small_label'}]})
+            if url.endswith('/get'):return Response({'status':{'code':'completed','printed_postings_count':1},'file_url':'https://ir-3.ozone.ru/label.pdf'})
+            return Response(content=native)
+        c=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+        c.ozon_label('oz_acc1',post,self.root)
+        self.assertEqual(creates,2)
+        self.assertEqual(sum(url.endswith('/v3/posting/fbs/get') for url in calls),1)
+        self.assertEqual((self.root/'label.pdf').read_bytes(),native)
+        import json
+        journal=json.loads((self.root/'label_task_intent.json').read_text())
+        self.assertEqual(journal['state'],'task_received');self.assertEqual(journal['attempts'],2)
+        self.assertEqual(len(journal['transport_errors']),1)
+        self.assertFalse(any('/ship' in url or '/entity/' in url for url in calls))
+
+    def test_label_transport_retry_is_bounded_and_can_resume_after_cooldown(self):
+        import json
+        post=dict(posting_number='123-0001-1',is_express=True,status='delivering',available_actions=['label_download'])
+        calls=[];creates=0;recovered=False
+        def request(method,url,**kwargs):
+            nonlocal creates
+            calls.append(url)
+            if url.endswith('/v3/posting/fbs/get'):return Response({'result':post})
+            if url.endswith('/create'):
+                creates+=1
+                if not recovered:raise requests.ConnectionError('fixture')
+                return Response({'tasks':[{'task_id':43,'task_type':'small_label'}]})
+            if url.endswith('/get'):return Response({'status':{'code':'completed','printed_postings_count':1},'file_url':'https://ir-3.ozone.ru/label.pdf'})
+            return Response(content=pdf())
+        c=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+        with self.assertRaises(PrintBlocked):c.ozon_label('oz_acc1',post,self.root)
+        self.assertEqual(creates,2);before=len(calls)
+        with self.assertRaisesRegex(PrintBlocked,'ozon_label_retry_pending'):c.ozon_label('oz_acc1',post,self.root)
+        self.assertEqual(len(calls),before)
+        journal=json.loads((self.root/'label_task_intent.json').read_text());recovered=True
+        with patch('print_service.clients.time.time',return_value=journal['retry_after']+1):
+            c.ozon_label('oz_acc1',post,self.root)
+        self.assertEqual(creates,3);self.assertTrue((self.root/'label.pdf').exists())
+
+    def test_label_retry_stops_when_fresh_posting_was_cancelled(self):
+        post=dict(posting_number='123-0001-1',is_express=True,status='delivering',available_actions=['label_download'])
+        creates=[]
+        def request(method,url,**kwargs):
+            if url.endswith('/create'):creates.append(url);raise requests.ConnectionError('fixture')
+            return Response({'result':dict(post,status='cancelled',available_actions=[])})
+        c=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+        with self.assertRaisesRegex(PrintBlocked,'ozon_posting_not_ready_for_label'):c.ozon_label('oz_acc1',post,self.root)
+        self.assertEqual(len(creates),1)
+
     def test_export_uses_real_link_anonymous_download_and_cached_repeat(self):
         for allow,printed in ((False,True),(True,False)):
             with self.subTest(allow_unprinted=allow):
