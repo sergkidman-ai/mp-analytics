@@ -598,6 +598,7 @@ class PrintQueue:
                 JOIN snapshots s ON s.id=v.snapshot_id
                 LEFT JOIN claims c ON c.order_id=o.id
                 WHERE m.batch_id=b.id AND b.state='failed' AND b.day=%s AND s.day=%s
+                AND m.identity->>'ms_demand_id'=o.demand_id::text
                 AND c.batch_id IS NULL
                 AND NOT EXISTS (SELECT 1 FROM external_prints e WHERE e.order_id=o.id)
                 AND NOT (COALESCE(b.display->'resolved_orders','{}'::jsonb) ? m.order_id::text)

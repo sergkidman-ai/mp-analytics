@@ -74,6 +74,20 @@ class PrintQueueTests(unittest.TestCase):
     def reserve(self, request='click'):
         return self.queue.reserve_counter(self.counter, request_key=request, now=NOW)
 
+    def test_old_demand_failure_does_not_block_replacement_shipment(self):
+        failed=self.reserve('old-demand')
+        self.queue.fail_batch(failed['id'],generation=1,error='order_demand_ambiguous')
+        self.assertEqual(self.queue.view(now=NOW)['counters'][self.counter]['count'],0)
+        self.rows[0]['demand_id']=str(uuid4())
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        status=self.queue.view(now=NOW+timedelta(seconds=2))
+        changed=next(r for r in status['rows'] if str(r['id'])==self.rows[0]['raw']['id'])
+        self.assertIsNone(changed['preparation_error']);self.assertTrue(changed['counter_eligible'])
+        self.assertEqual(status['counters'][self.counter]['count'],1)
+        self.assertEqual(status['jobs'][0]['orders'][0]['ms_order_id'],self.rows[1]['raw']['id'])
+        retry=self.queue.reserve_counter(self.counter,request_key='replacement',now=NOW+timedelta(seconds=2))
+        self.assertEqual([m['ms_demand_id'] for m in retry['orders']],[self.rows[0]['demand_id']])
+
     def test_manual_label_refresh_is_async_idempotent_and_never_prints_receipts(self):
         from tests.test_print_labels import SavedLabels
         from print_service.service import PrintService
