@@ -1,3 +1,29 @@
+## Backup policy update — 2026-11-08
+
+Full encrypted Rev backup now runs daily at01:30UTC. Review processing, Batch
+polls, delivery and Git sync retain their previous schedules. No bot restart is
+required for backup-only edits. Separate last_attempt/last_success records retain
+successful evidence when a later transfer fails; legacy latest.json means success.
+The last fully restored snapshot is protected from local rotation. HTTP errors
+record only stage/status/safe reason; token/authorization/raw response are excluded.
+Every new Drive upload requires a complete SHA256 readback before success.
+
+The seven daily/four weekly selection reuses the same file for both labels. Drive
+cleanup is currently PLAN ONLY: trash and permanent deletion require separate
+owner approvals tied to an exact immutable file-ID manifest. Do not delete other
+Drive content, purge account trash, replay restored review queues or enable sends.
+The database-only mode uses the same consistent exported PostgreSQL snapshot,
+contains source/config but no venv, and requires its own directory/journals. Its
+prepared two-hour timer remains disabled until storage and activation are settled.
+
+Inspect /root/rev-recovery/backups/latest_attempt.json for the latest error,
+latest_success.json for the last external success, last_restored_success.json
+for the last complete restore proof. All are private operator files. A failed
+quota preflight creates no new archive and never replaces successful receipts.
+Use only a separate isolated PostgreSQL instance for restore exercises. Never
+start a restored app against the live Rev DSN. Full restore/download evidence and
+owner review artifacts are private runtime files, excluded from public Git export.
+
 <!-- поток: rev -->
 # Rev: резервирование и перенос
 

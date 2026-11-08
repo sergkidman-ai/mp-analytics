@@ -70,7 +70,7 @@ class RecoverySafetyTests(unittest.TestCase):
                 if day in (2,3):p.with_suffix('.gpg.json').write_text(json.dumps({'bundle_sha256':backup.sha256(p),'offsite':{'verified':day==2}}))
             backup.retention(root,1,0)
             self.assertTrue((root/'rev-backup-20260101T000000Z.tar.gz.gpg').exists())
-            self.assertFalse((root/'rev-backup-20260102T000000Z.tar.gz.gpg').exists())
+            self.assertTrue((root/'rev-backup-20260102T000000Z.tar.gz.gpg').exists())
             self.assertTrue((root/'rev-backup-20260103T000000Z.tar.gz.gpg').exists())
 
     def test_missing_offsite_never_reports_verified(self):
@@ -86,11 +86,9 @@ class RecoverySafetyTests(unittest.TestCase):
                     p.with_suffix('.gpg.json').write_text(json.dumps(row));paths.append(p)
                 (root/'latest.json').write_text(json.dumps(row))
                 with patch.object(backup.shutil,'disk_usage',side_effect=lambda p:Mock(free=0 if paths[0].exists() else 10**12)):
-                    if verified:backup.ensure_backup_space(root,100)
-                    else:
-                        with self.assertRaises(backup.BackupError):backup.ensure_backup_space(root,100)
+                    with self.assertRaises(backup.BackupError):backup.ensure_backup_space(root,100)
                 self.assertTrue(paths[1].exists())
-                self.assertEqual(paths[0].exists(),not verified)
+                self.assertTrue(paths[0].exists())
 
     def test_low_space_never_rotates_if_latest_integrity_differs(self):
         with tempfile.TemporaryDirectory() as tmp:

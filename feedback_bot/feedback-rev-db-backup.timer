@@ -1,0 +1,12 @@
+# поток: rev
+[Unit]
+Description=Prepared Rev database backup every two hours; enable only after restore PASS and storage approval
+
+[Timer]
+OnCalendar=*-*-* 00/2:30:00 UTC
+Persistent=true
+RandomizedDelaySec=0
+Unit=feedback-rev-db-backup.service
+
+[Install]
+WantedBy=timers.target
