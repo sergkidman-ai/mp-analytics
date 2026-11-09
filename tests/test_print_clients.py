@@ -345,6 +345,18 @@ class PrintClientTests(unittest.TestCase):
                 client=PrintClients(audit_root=self.root/'raw',request=lambda *a,**kw:Response({'orders':rows}),delays=False)
                 with self.assertRaisesRegex(PrintBlocked,'market_order_identity_mismatch'):client.yandex_order('456')
 
+    def test_market_bulk_lookup_validates_identity_and_preserves_missing_as_unknown(self):
+        calls=[]
+        def request(method,url,**kwargs):
+            calls.append(kwargs['json'])
+            return Response({'orders':[dict(orderId=456,campaignId=789,programType='EXPRESS',fake=False)]})
+        client=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+        self.assertEqual(set(client.yandex_orders(['456','457'])),{'456'})
+        self.assertEqual(calls[0]['orderIds'],[456,457])
+        for numbers in ([],['456','456'],['456','0456'],['text'],[456],[str(n) for n in range(21)]):
+            with self.assertRaises(PrintBlocked):client.yandex_orders(numbers)
+        self.assertEqual(len(calls),1)
+
     def test_market_acc1_campaign_and_all_boxes_without_status_writes(self):
         calls=[]
         def request(method,url,**kwargs):

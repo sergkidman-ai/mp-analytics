@@ -285,16 +285,28 @@ class PrintClients:
             time.sleep(2)
 
     def yandex_order(self, number):
-        if not number.isdigit(): raise PrintBlocked('market_order_number_required')
+        orders = self.yandex_orders([number])
+        order = orders.get(str(int(number)))
+        if order is None: raise PrintBlocked('market_order_identity_mismatch')
+        return order
+
+    def yandex_orders(self, numbers):
+        if (not numbers or len(numbers)>20
+                or any(not isinstance(n,str) or not n.isdigit() for n in numbers)):
+            raise PrintBlocked('market_order_number_required')
+        requested = {int(n) for n in numbers}
+        if len(requested)!=len(numbers): raise PrintBlocked('market_order_identity_mismatch')
         business = os.environ['YANDEX_BUSINESS_ID_ACC1']
         if not business.isdigit(): raise PrintBlocked('market_business_id_invalid')
         data = self._read_json('yandex', 'ya_acc1', 'POST', f'https://api.partner.market.yandex.ru/v1/businesses/{business}/orders',
-                          body={'orderIds': [int(number)], 'programTypes': ['FBS', 'EXPRESS'], 'fake': False}, params={'limit': 20})
+                          body={'orderIds': [int(n) for n in numbers], 'programTypes': ['FBS', 'EXPRESS'], 'fake': False}, params={'limit': 20})
         orders = data.get('orders', [])
-        if (len(orders) != 1 or orders[0].get('orderId') != int(number)
-                or orders[0].get('programType') not in ('FBS', 'EXPRESS') or orders[0].get('fake') is not False):
+        if (not isinstance(orders,list) or any(not isinstance(o,dict)
+                or type(o.get('orderId')) is not int or o['orderId'] not in requested
+                or o.get('programType') not in ('FBS','EXPRESS') or o.get('fake') is not False for o in orders)
+                or len({o['orderId'] for o in orders})!=len(orders)):
             raise PrintBlocked('market_order_identity_mismatch')
-        return orders[0]
+        return {str(o['orderId']):o for o in orders}
 
     def yandex_label(self, order, folder):
         campaign, number = order.get('campaignId'), order['orderId']

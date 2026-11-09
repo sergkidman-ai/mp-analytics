@@ -287,7 +287,7 @@ class PrintQueue:
                 WHERE s.day=%s AND o.demand_id IS NOT NULL AND o.source_error IS NULL
                 AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id=o.id)
                 AND NOT EXISTS (SELECT 1 FROM external_prints e WHERE e.order_id=o.id)
-                ORDER BY CASE WHEN o.display->'color'->>'key'='express' THEN 0 ELSE 1 END,
+                ORDER BY CASE WHEN o.display->>'is_express'='true' OR o.display->'color'->>'key'='express' THEN 0 ELSE 1 END,
                          o.counter_key,o.external_id''', (list(LABEL_AVAILABILITY_ERRORS), moscow_day(now)))
             return [dict(row) for row in cursor.fetchall()]
 
@@ -748,6 +748,7 @@ class PrintQueue:
                 WHERE e.day=%s AND o.account=ANY(%s)
             ) SELECT o.id,o.account,o.external_id,h.raw,h.started_at,p.batch_id,
                 p.counter_key,p.display AS batch_display,(e.order_id IS NOT NULL) AS printed_externally,
+                o.display->'is_express' AS latest_is_express,o.display->'color' AS latest_color,
                 CASE WHEN s.day=%s THEN o.display ELSE '{}'::jsonb END AS observed_display
                 FROM observed h FULL JOIN printed p ON p.order_id=h.id
                 FULL JOIN external e ON e.order_id=COALESCE(h.id,p.order_id)
@@ -770,7 +771,9 @@ class PrintQueue:
                     receipt_ready=has_files, label_ready=has_files,
                     display=dict(ms_status=raw.get('state', {}).get('name'),
                         store=(raw.get('store') or {}).get('name') or display.get('store') or batch_display.get('store', ''),
-                        direction=display.get('direction') or batch_display.get('direction') or platform)))
+                        direction=display.get('direction') or batch_display.get('direction') or platform,
+                        is_express=display.get('is_express',record['latest_is_express']),
+                        color=display.get('color') or record['latest_color'])))
             cursor.execute('SELECT max(started_at) AS last_sync FROM snapshots WHERE day=%s', (day,))
             result['last_sync'] = cursor.fetchone()['last_sync']
         return result

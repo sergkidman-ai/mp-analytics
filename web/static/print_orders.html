@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Печать заказов · Пульт бизнеса</title>
 <style>
+.express-order{display:inline-block;margin-top:5px;padding:2px 6px;border:1px solid #d99b34;border-radius:4px;background:#fff4d9;color:#754700;font-size:11px;font-weight:750}
 .label-cell{display:flex;flex-direction:column;align-items:center;gap:4px}.label-refresh{padding:2px;width:28px;height:27px;font-size:18px;line-height:1;background:#edf4fb;color:#155a98;border:1px solid #cfe0f1}
 .counter-excluded{display:block;margin-top:6px;font-size:11px;color:var(--red)}
 .archive-months{display:flex;flex-wrap:wrap;gap:12px;padding:16px 20px}.archive-month{border:1px solid var(--line);border-radius:8px;min-width:220px;flex:1;max-width:420px}.archive-month summary{padding:12px;cursor:pointer;font-weight:650}.archive-days{display:flex;flex-wrap:wrap;gap:8px;padding:0 12px 12px}.archive-day{display:block;text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:8px 12px;color:var(--ink)}.archive-day.current{border-color:var(--blue);background:#edf4fb}.archive-day small{display:block;color:var(--muted);font-size:11px}
@@ -146,6 +147,11 @@ function orderReadiness(r,busy){
  if(missingLabel)return {text:'Не готова ЭТ',color:'red'};
  return r.source_error?{text:'Не готов ТЧ/ЭТ',color:'red'}:{text:'Готово к печати',color:'green'};
 }
+function orderDirection(r){
+ const express=r.display.is_express===true||r.display.color?.key==='express';
+ const direction=express&&r.account.startsWith('ya_')?'Маркет':r.display.direction||'';
+ return esc(direction)+(express?'<div><span class="express-order">Экспресс</span></div>':'');
+}
 function orderRow(r){
  const showError=r.error_message&&!['linked_demand_missing','linked_demand_ambiguous'].includes(r.source_error);
  const busy=r.batch_state==='building'||orderInFlight.has(r.id),counterBusy=model.counters[r.counter_key]?.building;
@@ -156,7 +162,7 @@ function orderRow(r){
  const label=ARCHIVE?`<span class="document ${hasFiles?'yes':'wait'}" title="${hasFiles?'ЭТ в готовой паре':'ЭТ не сформирована на этой странице'}">${hasFiles?'✓':'—'}</span>`:`<span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span>`;
  const refreshBusy=labelInFlight.has(r.id)||watchedLabels.has(r.id)||['pending','running'].includes(r.label_refresh?.state);
  const labelButton=!ARCHIVE&&!r.printed?`<button type="button" class="label-refresh" data-label="${esc(r.id)}" ${refreshBusy||busy||!model.worker_healthy||!hasDemand(r)?'disabled':''} title="${!hasDemand(r)?'Сначала обновите МС: нужна единственная связанная отгрузка':refreshBusy?'Получаем этикетку…':'Обновить только этикетку'}" aria-label="Обновить этикетку заказа ${esc(r.external_id)}">${refreshBusy?'…':'↻'}</button>`:'';
- return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span><div class="ms-order-status" title="Статус заказа в МойСкладе на момент последней синхронизации">МС: ${esc(r.display.ms_status||'Не получен')}</div>${showError?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${esc(r.display.direction||'')}</td><td>${esc(r.display.store||'')}</td><td>${receipt}</td><td><div class="label-cell">${label}${labelButton}</div></td><td><span class="state ${readiness.color}">${esc(readiness.text)}</span></td><td>${files}</td></tr>`;
+ return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span><div class="ms-order-status" title="Статус заказа в МойСкладе на момент последней синхронизации">МС: ${esc(r.display.ms_status||'Не получен')}</div>${showError?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${orderDirection(r)}</td><td>${esc(r.display.store||'')}</td><td>${receipt}</td><td><div class="label-cell">${label}${labelButton}</div></td><td><span class="state ${readiness.color}">${esc(readiness.text)}</span></td><td>${files}</td></tr>`;
 }
 function renderOrders(){
  if(!model)return;
@@ -181,7 +187,8 @@ function renderSyncProgress(){
  else if(['postings','warehouses'].includes(p.stage)){
   phase=p.stage==='postings'?'Проверяем направления складов Ozon':'Проверяем заказы';
   detail=total>0?`Обработано: ${processed} из ${total}`:'Проверяем данные площадок…';
- }else if(['saving','complete'].includes(p.stage)){phase='Обновляем список и счётчики';detail=p.total===undefined?'Сохраняем обновления…':`Получено заказов: ${total}`}
+ }else if(p.stage==='market_postings'){phase='Проверяем заказы Маркета';detail=total>0?`Обработано: ${processed} из ${total}`:'Проверяем тип доставки…'}
+ else if(['saving','complete'].includes(p.stage)){phase='Обновляем список и счётчики';detail=p.total===undefined?'Сохраняем обновления…':`Получено заказов: ${total}`}
  if($('sync-phase').textContent!==phase)$('sync-phase').textContent=phase;
  $('sync-detail').textContent=detail;
  const elapsed=Math.max(0,Math.floor((Date.now()-new Date(job.started_at||job.created_at).getTime())/1000));

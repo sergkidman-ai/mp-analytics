@@ -30,6 +30,22 @@ class Collector:
             pool.shutdown(wait=True, cancel_futures=True)
         return results
 
+    def _market_postings(self, found, report):
+        selected=[(oid,raw) for oid,(raw,platform,account) in found.items() if account=='ya_acc1']
+        results={}
+        if selected: report(stage='market_postings',processed=0,total=len(selected))
+        for offset in range(0,len(selected),20):
+            chunk=selected[offset:offset+20]
+            try:
+                posts=self.clients.yandex_orders([raw['name'] for oid,raw in chunk])
+                results.update({oid:posts.get(str(int(raw['name']))) for oid,raw in chunk})
+            except PrintBlocked:
+                # Unknown delivery type must not exclude an otherwise valid
+                # order from printing. Label retrieval rechecks its identity.
+                results.update({oid:None for oid,raw in chunk})
+            report(stage='market_postings',processed=offset+len(chunk),total=len(selected))
+        return results
+
     def collect(self, *, now, on_progress=None):
         report = on_progress or (lambda **fields: None)
         report(stage='orders', loaded=0)
@@ -66,6 +82,7 @@ class Collector:
                 if offset >= size: break
             else: raise PrintBlocked('ms_sync_page_limit')
         postings = self._ozon_postings(found, report)
+        market_postings = self._market_postings(found, report)
         output = []
         report(stage='warehouses', processed=0, total=len(found))
         for processed, (raw, platform, account) in enumerate(found.values(), 1):
@@ -77,11 +94,15 @@ class Collector:
                 did = reference_id(demands[0], 'demand')
             except PrintBlocked as exc:
                 error = str(exc)
+            is_express = None
+            if platform=='yandex' and market_postings.get(raw['id']) is not None:
+                is_express=market_postings[raw['id']]['programType']=='EXPRESS'
             direction_id, direction, color = platform, {'wb': 'WB', 'yandex': 'FBS Маркет', 'ozon': 'Ozon — направление не определено'}[platform], None
             if platform == 'ozon':
                 try:
                     posting = postings[raw['id']]
                     if isinstance(posting, PrintBlocked): raise posting
+                    is_express=posting.get('is_express') if type(posting.get('is_express')) is bool else None
                     method = posting.get('delivery_method', {})
                     warehouse = method.get('warehouse_id')
                     if warehouse is None or not method.get('warehouse'): raise PrintBlocked('ozon_direction_missing')
@@ -95,6 +116,7 @@ class Collector:
                 display=dict(platform=platform, organization='Цифровой квадрат' if account.endswith('1') else 'Дисквер',
                              store=raw.get('store', {}).get('name') or 'Склад не определён', store_id=store_id,
                              direction=direction, direction_id=direction_id, color=color,
+                             is_express=is_express,
                              planned_at=raw['deliveryPlannedMoment'], ms_status=raw.get('state', {}).get('name'))))
             report(stage='warehouses', processed=processed, total=len(found))
         return output

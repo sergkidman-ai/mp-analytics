@@ -141,6 +141,24 @@ class PrintQueueTests(unittest.TestCase):
         self.assertEqual([str(r['id']) for r in candidates],
                          [self.rows[1]['raw']['id'],self.rows[0]['raw']['id']])
 
+    def test_verified_express_flag_prioritizes_labels_and_survives_archive(self):
+        self.rows[1]=order('123456789',counter='ya_acc1|yandex|store')
+        self.rows[1]['display']={'is_express':True,'direction':'FBS Маркет'}
+        self.rows[1]['account']='ya_acc1';self.rows[1]['counter_key']='ya_acc1|yandex|store'
+        regular=order('123456790',counter='ya_acc1|yandex|store');regular['account']='ya_acc1'
+        regular['display']={'is_express':False,'direction':'FBS Маркет'};self.rows.append(regular)
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        self.assertEqual(str(self.queue.label_candidates(now=NOW)[0]['id']),self.rows[1]['raw']['id'])
+        batch=self.queue.reserve_counter('ya_acc1|yandex|store',request_key='mixed-delivery',now=NOW)
+        self.queue.publish_pair(batch['id'],generation=1,pair_dir=self.prepare(batch))
+        for row in self.rows:row['raw']['deliveryPlannedMoment']='2026-11-04 12:00:00'
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(days=1),complete=True)
+        archived=self.queue.archive(now=NOW+timedelta(days=1))
+        row=next(r for r in archived['rows'] if str(r['id'])==self.rows[1]['raw']['id'])
+        self.assertTrue(row['display']['is_express'])
+        normal=next(r for r in archived['rows'] if str(r['id'])==regular['raw']['id'])
+        self.assertFalse(normal['display']['is_express'])
+
     def test_counter_excludes_known_errors_and_reserves_only_healthy_orders(self):
         from unittest.mock import patch
         from print_service.preparer import Preparer

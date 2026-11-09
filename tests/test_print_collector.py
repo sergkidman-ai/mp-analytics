@@ -44,6 +44,29 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(len(rows),2)
         self.assertTrue(all(r['source_error'] is None for r in rows))
         self.assertTrue(all(r['display']['color']['short']=='ЭКС' for r in rows))
+        self.assertTrue(all(r['display']['is_express'] is True for r in rows))
+
+    def test_market_delivery_types_are_read_in_batches_without_excluding_unknown_orders(self):
+        source=SavedMS();agent=next(k for k,v in AGENTS.items() if v=='yandex');orders=[]
+        for org,(account,_) in ORGS.items():
+            if account!='1':source.orders[org]=[];continue
+            orders=source.orders[org]
+            for raw in orders:raw['agent']['meta']['href']=MS+'/entity/counterparty/'+agent
+        calls=[];missing=orders[0]['name']
+        def market(numbers):
+            calls.append(numbers)
+            return {n:dict(programType='EXPRESS' if int(n)%2==0 else 'FBS') for n in numbers if n!=missing}
+        source.yandex_orders=market
+        rows=Collector(source).collect(now=NOW)
+        self.assertEqual([len(c) for c in calls],[20,1]);self.assertEqual(len(rows),21)
+        self.assertTrue(all(r['source_error'] is None and r['demand_id'] for r in rows))
+        for row in rows:
+            number=row['raw']['name']
+            self.assertEqual(row['display']['is_express'],None if number==missing else int(number)%2==0)
+        def unavailable(numbers):raise PrintBlocked('yandex_http_503')
+        source.yandex_orders=unavailable
+        unknown=Collector(source).collect(now=NOW)
+        self.assertTrue(all(r['source_error'] is None and r['display']['is_express'] is None for r in unknown))
 
     def test_complete_pagination_and_no_export_or_labels(self):
         source=SavedMS();progress=[]
