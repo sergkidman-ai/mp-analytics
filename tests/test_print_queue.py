@@ -195,6 +195,30 @@ class PrintQueueTests(unittest.TestCase):
         retry=self.queue.reserve_counter(self.counter,request_key='individual-retry',now=NOW,order_ids=[failed['raw']['id']])
         self.assertEqual([m['ms_order_id'] for m in retry['orders']],[failed['raw']['id']])
 
+    def test_persistent_shared_ms_limit_preserves_ready_orders_and_defers_remaining_members(self):
+        from unittest.mock import patch
+        from print_service.preparer import Preparer
+        from print_service.service import PrintService
+        class NoNetwork:
+            lease_check=staticmethod(lambda:None)
+        self.rows.append(order('100-0003-1'))
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        batch=self.reserve('rate-limited');service=PrintService(queue=self.queue,clients=NoNetwork(),root=self.root,clock=lambda:NOW)
+        def prepare(member,day):
+            if member['external_id']=='100-0002-1':raise PrintBlocked('ms_http_429')
+            return self.prepared_order(member)
+        with patch.object(Preparer,'_one',side_effect=prepare) as calls:service.run_batch(batch)
+        self.assertEqual(calls.call_count,2)
+        status=service.status();ready=status['ready_batches'];self.assertEqual(len(ready),1);self.assertEqual(ready[0]['order_count'],1)
+        deferred=next(r for r in status['rows'] if r['external_id']=='100-0003-1')
+        self.assertEqual(deferred['preparation_error'],'ms_rate_limit_deferred');self.assertFalse(deferred['printed'])
+        with self.queue.transaction() as c:c.execute("UPDATE batches SET created_at=%s WHERE state='failed'",(NOW,))
+        label=self.root/'rate-limit-recovered.pdf';pdf(label,164.25,113.25)
+        self.queue.mark_prefetched_label(deferred['id'],demand_id=deferred['demand_id'],path=label,now=NOW)
+        self.queue.resolve_label_errors(deferred['id'],demand_id=deferred['demand_id'],now=NOW+timedelta(seconds=1))
+        recovered=next(r for r in service.status()['rows'] if r['id']==deferred['id'])
+        self.assertTrue(recovered['counter_eligible']);self.assertFalse(recovered['receipt_ready']);self.assertFalse(recovered['printed'])
+
     def test_sync_progress_is_visible_while_running_and_completes_with_snapshot(self):
         from print_service.service import PrintService
         started, release = threading.Event(), threading.Event()
@@ -367,6 +391,21 @@ class PrintQueueTests(unittest.TestCase):
         retry=self.queue.retry_failed_batch(batch['id'],generation=1)
         self.queue.fail_batch(retry['id'],generation=retry['generation'],error='wb_order_not_ready_for_label',order_id=oid)
         self.assertEqual(self.queue.view(now=NOW)['jobs'][0]['orders'][0]['ms_order_id'],oid)
+
+    def test_ms_rate_limit_failure_returns_to_counter_after_fresh_label_check_without_export(self):
+        for error in ('ms_http_429','ms_export_http_429'):
+            with self.subTest(error=error):
+                oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']
+                batch=self.queue.reserve_counter(self.counter,request_key=error,now=NOW,order_ids=[oid])
+                self.queue.fail_batch(batch['id'],generation=1,error=error,order_id=oid)
+                with self.queue.transaction() as c:c.execute('UPDATE batches SET created_at=%s WHERE id=%s',(NOW,batch['id']))
+                self.assertEqual(self.queue.resolve_label_errors(oid,demand_id=str(uuid4()),now=NOW+timedelta(seconds=1)),0)
+                label=self.root/(error+'.pdf');pdf(label,164.25,113.25)
+                self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW)
+                self.queue.resolve_label_errors(oid,demand_id=did,now=NOW+timedelta(seconds=1))
+                row=next(r for r in self.queue.view(now=NOW)['rows'] if str(r['id'])==oid)
+                self.assertTrue(row['counter_eligible']);self.assertFalse(row['printed']);self.assertFalse(row['receipt_ready'])
+                self.assertEqual(self.queue.view(now=NOW)['ready_batches'],[])
 
     def test_market_identity_failure_resolves_only_after_verified_matching_label(self):
         batch=self.reserve();oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']

@@ -1,7 +1,7 @@
 # поток: print
 import base64
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from io import BytesIO
 import os
 from pathlib import Path
@@ -14,7 +14,7 @@ import requests
 from PIL import Image
 from pypdf import PdfReader, PdfWriter
 
-from print_service.clients import MS, TEMPLATE_ID, TEMPLATE_NAME, PrintClients
+from print_service.clients import MS, TEMPLATE_ID, TEMPLATE_NAME, PrintClients, ms_retry_seconds
 from print_service.domain import PrintBlocked
 from shipment_guard.config import ORGS, AGENTS
 
@@ -55,6 +55,91 @@ class PrintClientTests(unittest.TestCase):
         demand = {'id':did,'meta':demand_meta,'printed':printed,
                   'customerOrder':{'meta':{'href':MS+'/entity/customerorder/'+oid}}}
         return order,demand
+
+    def test_ms_retry_headers_use_seconds_milliseconds_and_http_dates(self):
+        now=datetime(2026,11,9,8,tzinfo=timezone.utc)
+        for headers,expected in (({},3),({'X-Lognex-Retry-After':'7000'},7),
+                ({'Retry-After':'2','X-Lognex-Reset':'5000'},5),
+                ({'Retry-After':'Mon, 09 Nov 2026 08:00:09 GMT'},9),
+                ({'Retry-After':'nan','X-Lognex-Retry-After':'bad'},3)):
+            self.assertEqual(ms_retry_seconds(headers,now),expected)
+
+    def test_ms_read_429_honors_shared_cooldown_and_rechecks_changed_deadline(self):
+        clock=[100.0];starts=[];responses=iter([Response({},status=429,headers={'X-Lognex-Retry-After':'7000'}),Response({'ok':True}),Response({'ok':True})])
+        def request(*args,**kwargs):starts.append(clock[0]);return next(responses)
+        def sleep(seconds):clock[0]+=seconds
+        with patch.dict(PrintClients._next,{},clear=True),patch.object(PrintClients,'_ms_not_before',0),patch('print_service.clients.time.monotonic',side_effect=lambda:clock[0]),patch('print_service.clients.time.sleep',side_effect=sleep):
+            a=PrintClients(audit_root=self.root/'a',request=request)
+            b=PrintClients(audit_root=self.root/'b',request=request)
+            self.assertTrue(a.ms_get('/entity/customerorder')['ok']);b.ms_get('/entity/customerorder')
+            self.assertGreaterEqual(starts[1]-starts[0],7);self.assertGreaterEqual(starts[2]-starts[1],.149)
+            # A second429 arriving while a call is already waiting extends its wait.
+            PrintClients._next[('ms','')]=clock[0]+2;old=clock[0];changed=[False]
+            def extended(seconds):
+                clock[0]+=seconds
+                if not changed[0]:PrintClients._ms_not_before=old+8;changed[0]=True
+            with patch('print_service.clients.time.sleep',side_effect=extended):b._pace_ms()
+            self.assertGreaterEqual(clock[0],old+8)
+
+    def test_ms_exhausted_success_response_defers_other_client(self):
+        clock=[100.0];starts=[]
+        def request(*args,**kwargs):
+            starts.append(clock[0])
+            return Response({'ok':True},headers={'X-RateLimit-Remaining':'0','X-Lognex-Reset':'5000'} if len(starts)==1 else {})
+        with patch.dict(PrintClients._next,{},clear=True),patch.object(PrintClients,'_ms_not_before',0),patch('print_service.clients.time.monotonic',side_effect=lambda:clock[0]),patch('print_service.clients.time.sleep',side_effect=lambda s:clock.__setitem__(0,clock[0]+s)):
+            a=PrintClients(audit_root=self.root/'a',request=request);b=PrintClients(audit_root=self.root/'b',request=request)
+            a.ms_get('/entity/customerorder');b.ms_get('/entity/customerorder')
+        self.assertGreaterEqual(starts[1]-starts[0],5)
+
+    def test_ms_read_retry_is_bounded_to_four_and_does_not_retry_access_denied(self):
+        for count,status in ((4,429),(1,403)):
+            request=Mock(return_value=Response({},status=status))
+            client=PrintClients(audit_root=self.root/str(status),request=request,delays=False)
+            with self.assertRaises(PrintBlocked):client.ms_get('/entity/customerorder')
+            self.assertEqual(request.call_count,count)
+
+    def test_export_retries_only_explicit_429_and_rechecks_order_before_retry(self):
+        for outcome in ('success','cancelled','limit','uncertain'):
+            with self.subTest(outcome=outcome):
+                folder=self.root/outcome;folder.mkdir();order,demand=self.source(False);posts=[];reads=[]
+                def request(method,url,**kwargs):
+                    if method=='POST':
+                        posts.append(url)
+                        if len(posts)==1 or outcome=='limit':return Response(status=429)
+                        if outcome=='uncertain':raise requests.Timeout()
+                        return Response(status=303,headers={'Location':'https://print.moysklad.ru/fresh.pdf'})
+                    if url.endswith('/fresh.pdf'):return Response(content=pdf())
+                    if '/customtemplate/' in url:return Response({'name':TEMPLATE_NAME,'meta':{'type':'customtemplate'}})
+                    if '/customerorder/' in url:
+                        reads.append(len(posts))
+                        return Response(dict(order,state={'name':'Отменён'}) if outcome=='cancelled' and posts else order)
+                    return Response(demand)
+                client=PrintClients(audit_root=folder/'raw',request=request,delays=False)
+                options=dict(expected_account='oz_acc2',expected_number=order['name'],expected_day=date(2026,11,3),allow_unprinted=True)
+                if outcome=='success':
+                    self.assertEqual(client.export_receipt(order['id'],demand['id'],folder,**options),pdf())
+                    self.assertEqual(len(posts),2);self.assertIn(1,reads)
+                else:
+                    with self.assertRaises(PrintBlocked):client.export_receipt(order['id'],demand['id'],folder,**options)
+                    self.assertEqual(len(posts),1 if outcome=='cancelled' else 2)
+                    if outcome=='uncertain':
+                        count=len(posts)
+                        with self.assertRaisesRegex(PrintBlocked,'ms_export_result_uncertain'):client.export_receipt(order['id'],demand['id'],folder,**options)
+                        self.assertEqual(len(posts),count)
+
+    def test_expired_receipt_retry_cannot_export_after_printed_flag_is_reset(self):
+        order,demand=self.source(True);posts=[]
+        (self.root/'ms_export_intent.json').write_text(json.dumps(dict(order_id=order['id'],demand_id=demand['id'],state='sent')))
+        (self.root/'ms_export_response.json').write_text(json.dumps(dict(http=303,location='https://print.moysklad.ru/expired.pdf')))
+        def request(method,url,**kwargs):
+            if url.endswith('/expired.pdf'):return Response(status=404)
+            if method=='POST':posts.append(url);demand['printed']=False;return Response(status=429)
+            if '/customtemplate/' in url:return Response({'name':TEMPLATE_NAME,'meta':{'type':'customtemplate'}})
+            return Response(order if '/customerorder/' in url else demand)
+        client=PrintClients(audit_root=self.root/'raw',request=request,delays=False)
+        with self.assertRaisesRegex(PrintBlocked,'sample_requires_previously_printed_demand'):
+            client.export_receipt(order['id'],demand['id'],self.root,expected_account='oz_acc2',expected_number=order['name'],allow_unprinted=True)
+        self.assertEqual(len(posts),1)
 
     def test_test_export_blocks_unprinted_without_post(self):
         order,demand = self.source(False); calls=[]

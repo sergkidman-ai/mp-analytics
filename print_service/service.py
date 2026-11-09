@@ -19,6 +19,8 @@ from print_service.storage import save_json
 
 
 ERRORS = {
+    'ms_http_429': 'МойСклад пока ограничивает частоту запросов. Пара ещё не готова; после успешной проверки заказ вернётся в счётчик.',
+    'ms_rate_limit_deferred': 'Подготовка отложена из-за общего лимита МойСклад. После успешной проверки заказ вернётся в счётчик.',
     'ms_export_http_429': 'МойСклад ограничил частоту выгрузки ТЧ. Подождите минуту и повторите печать заказа.',
     'download_transport_error': 'Скачивание PDF прервалось из-за ошибки связи. Повторите получение документа.',
     'pdf_download_failed': 'Не удалось скачать PDF по ссылке площадки или МС. Повторите получение документа.',
@@ -77,7 +79,7 @@ class OrderTrackingPreparer(Preparer):
 
     def prepare(self, batch):
         files, failures = [], []
-        for member in batch['orders']:
+        for index,member in enumerate(batch['orders']):
             self.clients.lease_check()
             try:
                 blocked = batch['display'].get('blocked_orders', {}).get(member['ms_order_id'])
@@ -88,6 +90,13 @@ class OrderTrackingPreparer(Preparer):
                 self.on_order_error(exc, member['ms_order_id'])
                 failures.append(dict(ms_order_id=member['ms_order_id'],
                                      error=str(exc) if isinstance(exc, PrintBlocked) else 'prepare_internal_error'))
+                if isinstance(exc,PrintBlocked) and str(exc)=='ms_http_429':
+                    # A shared read limit applies to every following member.
+                    # Avoid spending four retries on each one; preserve already
+                    # prepared pairs and leave the remainder eligible for recovery.
+                    failures.extend(dict(ms_order_id=m['ms_order_id'],error='ms_rate_limit_deferred')
+                                    for m in batch['orders'][index+1:])
+                    break
         if failures:
             self.clients.lease_check()
             self.queue.exclude_failed_orders(batch['id'], generation=batch['generation'], failures=failures)

@@ -11,7 +11,9 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 import base64
 from hashlib import sha256
-from datetime import datetime, time as daytime
+from datetime import datetime, time as daytime, timezone
+from email.utils import parsedate_to_datetime
+from math import isfinite
 
 from dotenv import load_dotenv
 from fpdf import FPDF
@@ -28,8 +30,8 @@ TEMPLATE_NAME = 'МСК Товарный чек new'
 
 
 class APIRejected(PrintBlocked):
-    def __init__(self, platform, status):
-        self.status = status
+    def __init__(self, platform, status, retry_after=None):
+        self.status, self.retry_after = status, retry_after
         super().__init__(platform + '_http_' + str(status))
 
 
@@ -49,9 +51,27 @@ def reference_id(reference, entity):
     return canonical
 
 
+def ms_retry_seconds(headers, now=None):
+    waits=[]
+    value=headers.get('Retry-After')
+    if value is not None:
+        try: waits.append(float(value))
+        except (ValueError,TypeError):
+            try:
+                stamp=parsedate_to_datetime(value)
+                if stamp.tzinfo is None:stamp=stamp.replace(tzinfo=timezone.utc)
+                waits.append((stamp-(now or datetime.now(timezone.utc))).total_seconds())
+            except (ValueError,TypeError,OverflowError):pass
+    for name in ('X-Lognex-Retry-After','X-Lognex-Reset'):
+        try:waits.append(float(headers[name])/1000)
+        except (KeyError,ValueError,TypeError):pass
+    return max([v for v in waits if isfinite(v) and v>0] or [3.0])
+
+
 class PrintClients:
     _mutex = threading.Lock()
     _next = {}
+    _ms_not_before = 0.0
 
     def __init__(self, *, audit_root, request=None, lease_check=lambda: None, delays=True):
         load_dotenv(Path(__file__).resolve().parents[1] / '.env')
@@ -81,9 +101,28 @@ class PrintClients:
             return {'Api-Key': os.environ['YANDEX_API_KEY_ACC1']}
         raise PrintBlocked('unsupported_platform_account')
 
+    def _defer_ms(self, seconds):
+        if not self.delays:return
+        with self._mutex:
+            PrintClients._ms_not_before=max(PrintClients._ms_not_before,time.monotonic()+seconds)
+
+    def _pace_ms(self):
+        while True:
+            self.lease_check()
+            with self._mutex:
+                now=time.monotonic()
+                pause=max(self._next.get(('ms',''),0),PrintClients._ms_not_before)-now
+                if pause<=0:
+                    self._next[('ms','')]=now+.15
+                    return
+            # Recheck the shared deadline: another thread may have received429
+            # after this request first entered the queue.
+            time.sleep(min(pause,1))
+
     def _call(self, platform, account, method, url, **kwargs):
         self.lease_check()
-        if self.delays:
+        if self.delays and platform=='ms':self._pace_ms()
+        elif self.delays:
             interval = {'ms': .15, 'ozon': 1, 'wb': .3, 'yandex': 1, 'download': 0}[platform]
             # Bounded concurrency is for exact read-only posting lookups only.
             # Label creation/polling keep the original one-second pacing.
@@ -96,9 +135,14 @@ class PrintClients:
             if pause: time.sleep(pause)
         self.lease_check()
         try:
-            return self.request(method, url, timeout=(5, 30), allow_redirects=False, **kwargs)
+            response=self.request(method, url, timeout=(5, 30), allow_redirects=False, **kwargs)
         except requests.RequestException:
             raise PrintBlocked(platform + '_transport_error') from None
+        if platform=='ms':
+            try:exhausted=float(response.headers.get('X-RateLimit-Remaining',response.headers.get('X-Lognex-RateLimit-Remaining','inf')))<=0
+            except (ValueError,TypeError):exhausted=False
+            if response.status_code==429 or exhausted:self._defer_ms(ms_retry_seconds(response.headers))
+        return response
 
     def _json(self, platform, account, method, url, *, body=None, params=None):
         response = self._call(platform, account, method, url, headers=self._headers(platform, account),
@@ -110,21 +154,26 @@ class PrintClients:
         evidence_path = self.audit_root / platform / (account or 'ms') / (digest + '.json')
         if not evidence_path.exists(): save_json(evidence_path, evidence)
         if response.status_code != 200:
-            raise APIRejected(platform, response.status_code)
+            raise APIRejected(platform, response.status_code,
+                ms_retry_seconds(response.headers) if platform=='ms' and response.status_code==429 else None)
         if not isinstance(value, dict) or value.get('invalid_json'):
             raise PrintBlocked(platform + '_invalid_response')
         return value
 
     def _read_json(self, platform, account, method, url, **kwargs):
         """Retry only explicitly read-only methods, never export/task creation."""
-        for attempt in range(2):
+        attempts=4 if platform=='ms' else 2
+        for attempt in range(attempts):
+            delay=1
             try:
                 return self._json(platform, account, method, url, **kwargs)
             except APIRejected as exc:
-                if attempt or exc.status not in (429,500,502,503,504): raise
+                if attempt==attempts-1 or exc.status not in (429,500,502,503,504): raise
+                if platform=='ms' and exc.status==429:delay=max(exc.retry_after or 3,3*(2**attempt))
             except PrintBlocked as exc:
-                if attempt or str(exc) != platform + '_transport_error': raise
-            if self.delays: time.sleep(1)
+                if attempt==attempts-1 or str(exc) != platform + '_transport_error': raise
+            if platform=='ms':self._defer_ms(delay)
+            elif self.delays:time.sleep(delay)
 
     def ms_get(self, path, params=None):
         if path.startswith(MS + '/'):
@@ -323,6 +372,24 @@ class PrintClients:
         if len(pdf_reader(response.content).pages) != count: raise PrintBlocked('market_label_box_count_mismatch')
         atomic_bytes(folder / 'label.pdf', response.content); save_json(folder / 'label_source.json', info)
 
+    def _receipt_source(self, order_id, demand_id, *, expected_account, expected_number, expected_day, allow_unprinted):
+        template = self.ms_get('/entity/demand/metadata/customtemplate/' + TEMPLATE_ID)
+        if template.get('name') != TEMPLATE_NAME or template.get('meta', {}).get('type') != 'customtemplate':
+            raise PrintBlocked('ms_receipt_template_changed')
+        order = self.ms_get('/entity/customerorder/' + str(UUID(order_id)))
+        demand = self.ms_get('/entity/demand/' + str(UUID(demand_id)))
+        from shipment_guard.config import identity
+        if identity(order)[1] != expected_account or order.get('name') != expected_number:
+            raise PrintBlocked('ms_export_order_identity_mismatch')
+        if expected_day is not None and not selected_order(order, expected_account,
+                datetime.combine(expected_day, daytime(12), tzinfo=MOSCOW)):
+            raise PrintBlocked('order_changed_since_counter_click')
+        if allow_unprinted:
+            guard_receipt_link(order, demand, linked_order_id=order_id)
+        else:
+            guard_sample_export(order, demand, linked_order_id=order_id)
+        return order,demand,template
+
     def export_receipt(self, order_id, demand_id, folder, *, expected_account, expected_number, expected_day=None, allow_unprinted=False):
         result = folder / 'receipt_ms.pdf'
         if result.exists(): pdf_reader(result.read_bytes()); return result.read_bytes()
@@ -346,21 +413,9 @@ class PrintClients:
                         return raw
             if expired_download is None and previous.get('state') != 'rejected':
                 raise PrintBlocked('ms_export_result_uncertain')
-        template = self.ms_get('/entity/demand/metadata/customtemplate/' + TEMPLATE_ID)
-        if template.get('name') != TEMPLATE_NAME or template.get('meta', {}).get('type') != 'customtemplate':
-            raise PrintBlocked('ms_receipt_template_changed')
-        order = self.ms_get('/entity/customerorder/' + str(UUID(order_id)))
-        demand = self.ms_get('/entity/demand/' + str(UUID(demand_id)))
-        from shipment_guard.config import identity
-        if identity(order)[1] != expected_account or order.get('name') != expected_number:
-            raise PrintBlocked('ms_export_order_identity_mismatch')
-        if expected_day is not None and not selected_order(order, expected_account,
-                datetime.combine(expected_day, daytime(12), tzinfo=MOSCOW)):
-            raise PrintBlocked('order_changed_since_counter_click')
-        if allow_unprinted:
-            guard_receipt_link(order, demand, linked_order_id=order_id)
-        else:
-            guard_sample_export(order, demand, linked_order_id=order_id)
+        options=dict(expected_account=expected_account,expected_number=expected_number,
+                     expected_day=expected_day,allow_unprinted=allow_unprinted)
+        order,demand,template=self._receipt_source(order_id,demand_id,**options)
         if expired_download is not None:
             # Only a confirmed old export and an already printed shipment may
             # regenerate an expired PDF. Archive its response BEFORE a new POST:
@@ -369,21 +424,34 @@ class PrintClients:
             save_json(folder / ('expired_download_' + uuid4().hex + '.json'),
                       {'intent':previous, 'response':response, 'download_http':expired_download})
             response_file.unlink()
-        save_json(folder / 'ms_before.json', {'order': order, 'demand': demand})
-        payload = {'template': {'meta': template['meta']}, 'extension': 'pdf'}
-        save_json(intent, {'order_id': order_id, 'demand_id': demand_id, 'request': payload, 'state': 'sent'})
         try:
-            response = self._call('ms', '', 'POST', MS + '/entity/demand/' + demand_id + '/export',
-                                  headers=self._headers('ms', ''), json=payload)
-            save_json(folder / 'ms_export_response.json', {'http': response.status_code, 'location': response.headers.get('Location')})
-            if response.status_code == 303:
-                raw = self._download(response.headers.get('Location', ''), allowed=('moysklad.ru',))
-            elif response.status_code == 200:
-                raw = response.content; pdf_reader(raw)
-            else:
-                if 400 <= response.status_code < 500:
-                    save_json(intent, {'order_id': order_id, 'demand_id': demand_id, 'request': payload, 'state': 'rejected'})
-                raise PrintBlocked('ms_export_http_' + str(response.status_code))
+            for attempt in range(2):
+                save_json(folder / 'ms_before.json', {'order': order, 'demand': demand})
+                payload = {'template': {'meta': template['meta']}, 'extension': 'pdf'}
+                save_json(intent, {'order_id': order_id, 'demand_id': demand_id, 'request': payload, 'state': 'sent'})
+                response = self._call('ms', '', 'POST', MS + '/entity/demand/' + demand_id + '/export',
+                                      headers=self._headers('ms', ''), json=payload)
+                save_json(response_file, {'http': response.status_code, 'location': response.headers.get('Location')})
+                if response.status_code == 303:
+                    raw = self._download(response.headers.get('Location', ''), allowed=('moysklad.ru',))
+                elif response.status_code == 200:
+                    raw = response.content; pdf_reader(raw)
+                else:
+                    if 400 <= response.status_code < 500:
+                        save_json(intent, {'order_id': order_id, 'demand_id': demand_id, 'request': payload, 'state': 'rejected'})
+                    if response.status_code==429:
+                        save_json(folder / ('rate_limit_' + uuid4().hex + '.json'),
+                                  {'order_id':order_id,'demand_id':demand_id,'http':429,
+                                   'attempt':attempt+1,'at':time.time(),
+                                   'retry_after':ms_retry_seconds(response.headers)})
+                    if response.status_code==429 and attempt==0:
+                        self._defer_ms(max(3,ms_retry_seconds(response.headers)))
+                        order,demand,template=self._receipt_source(order_id,demand_id,**options)
+                        if expired_download is not None:
+                            guard_sample_export(order,demand,linked_order_id=order_id)
+                        continue
+                    raise PrintBlocked('ms_export_http_' + str(response.status_code))
+                break
             atomic_bytes(result, raw)
         finally:
             after_order = self.ms_get('/entity/customerorder/' + order_id)
