@@ -74,6 +74,32 @@ class PrintQueueTests(unittest.TestCase):
     def reserve(self, request='click'):
         return self.queue.reserve_counter(self.counter, request_key=request, now=NOW)
 
+    def test_confirmed_market_cancel_is_excluded_and_dispatched_without_documents(self):
+        from unittest.mock import patch
+        from tests.test_print_labels import SavedLabels
+        from print_service.service import PrintService
+        clients=SavedLabels('ozon');clients.order['deliveryPlannedMoment']='2026-11-03 12:00:00'
+        row=dict(raw=clients.order,account=clients.row['account'],demand_id=clients.row['demand_id'],counter_key='oz_acc1|test|store')
+        self.queue.sync_snapshot([row],started_at=NOW+timedelta(seconds=1),complete=True)
+        dispatched=[];service=PrintService(queue=self.queue,clients=clients,root=self.root,clock=lambda:NOW,on_market_cancel=lambda r,p:dispatched.append((r,p)))
+        post=dict(posting_number=clients.order['name'],status='cancelled')
+        with patch.object(clients,'ozon_posting',return_value=post):
+            with self.assertRaisesRegex(PrintBlocked,'ozon_order_cancelled'):service.labels.one(self.queue.order(clients.order['id']),now=NOW)
+        status=service.status();item=status['rows'][0]
+        self.assertEqual(item['source_error'],'ozon_order_cancelled');self.assertFalse(item['counter_eligible'])
+        self.assertEqual(len(dispatched),1);self.assertEqual(clients.exports,0);self.assertEqual(clients.downloads,0)
+        self.assertEqual(status['ready_batches'],[]);self.assertIn('отменён',item['error_message'])
+
+    def test_cancel_discovered_after_preparation_cannot_be_published(self):
+        batch=self.reserve('before-cancel');pair=self.prepare(batch);row=self.rows[0]
+        self.assertTrue(self.queue.mark_market_cancelled(row['raw']['id'],account='oz_acc1',number=row['raw']['name'],now=NOW))
+        with self.assertRaisesRegex(PrintBlocked,'ozon_order_cancelled') as caught:
+            self.queue.publish_pair(batch['id'],generation=1,pair_dir=pair)
+        self.assertEqual(caught.exception.print_order_id,row['raw']['id'])
+        self.queue.fail_batch(batch['id'],generation=1,error='ozon_order_cancelled',order_id=caught.exception.print_order_id)
+        status=self.queue.view(now=NOW);self.assertEqual(status['ready_batches'],[])
+        self.assertEqual(status['counters'][self.counter]['count'],1)
+
     def test_old_demand_failure_does_not_block_replacement_shipment(self):
         failed=self.reserve('old-demand')
         self.queue.fail_batch(failed['id'],generation=1,error='order_demand_ambiguous')

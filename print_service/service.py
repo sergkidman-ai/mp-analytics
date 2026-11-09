@@ -19,6 +19,7 @@ from print_service.storage import save_json
 
 
 ERRORS = {
+    'ozon_order_cancelled': 'Заказ отменён в Ozon. Исключён из печати.',
     'ms_http_429': 'МойСклад пока ограничивает частоту запросов. Пара ещё не готова; после успешной проверки заказ вернётся в счётчик.',
     'ms_rate_limit_deferred': 'Подготовка отложена из-за общего лимита МойСклад. После успешной проверки заказ вернётся в счётчик.',
     'ms_export_http_429': 'МойСклад ограничил частоту выгрузки ТЧ. Подождите минуту и повторите печать заказа.',
@@ -108,18 +109,28 @@ class OrderTrackingPreparer(Preparer):
 
 
 class PrintService:
-    def __init__(self, *, queue=None, clients=None, root=None, clock=None, allow_unprinted=None, demo=False):
+    def __init__(self, *, queue=None, clients=None, root=None, clock=None, allow_unprinted=None, demo=False, on_market_cancel=None):
         load_dotenv(Path(__file__).resolve().parents[1] / '.env')
         self.queue = queue or PrintQueue(schema=os.getenv('PRINT_SCHEMA', 'print_ops'))
         self.root = Path(root or os.getenv('PRINT_DATA_ROOT', '/opt/mp-analytics/.private/print_runtime'))
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.clients = clients or PrintClients(audit_root=self.root / 'raw')
-        self.collector = Collector(self.clients)
+        self.cancel_dispatch=on_market_cancel
+        if self.cancel_dispatch is None and clients is None and not demo:
+            from ops.ms_market_status_urgent import request_cancel
+            self.cancel_dispatch=lambda row,post:request_cancel(row['id'],row['account'],row['external_id'],post)
+        self.collector = Collector(self.clients,on_market_cancel=self._market_cancelled)
         if allow_unprinted is None: allow_unprinted = os.getenv('PRINT_EXPORT_UNPRINTED', '0') == '1'
         self.preparer = OrderTrackingPreparer(self.queue, self.clients, root=self.root, allow_unprinted=allow_unprinted,
-                                             on_order_error=self._record_error)
-        self.labels = LabelPrefetcher(self.queue, self.clients, root=self.root)
+                                             on_order_error=self._record_error,on_market_cancel=self._market_cancelled)
+        self.labels = LabelPrefetcher(self.queue, self.clients, root=self.root,on_market_cancel=self._market_cancelled)
         self.demo = demo
+
+    def _market_cancelled(self, row, post):
+        self.queue.mark_market_cancelled(row['id'],account=row['account'],number=row['external_id'],now=self.clock())
+        if self.cancel_dispatch:
+            try:self.cancel_dispatch(row,post)
+            except Exception as exc:self._record_error(exc,row['id'])
 
     def status(self):
         now = self.clock()

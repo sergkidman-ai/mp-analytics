@@ -13,8 +13,9 @@ from print_service.storage import file_lock
 
 
 class LabelPrefetcher:
-    def __init__(self, queue, clients, *, root):
+    def __init__(self, queue, clients, *, root, on_market_cancel=None):
         self.queue, self.clients, self.root = queue, clients, Path(root)
+        self.on_market_cancel=on_market_cancel or (lambda row,post:None)
 
     def candidates(self, now):
         result = []
@@ -49,6 +50,9 @@ class LabelPrefetcher:
                 raise PrintBlocked('artifact_demand_identity_changed')
             if platform == 'ozon':
                 post = self.clients.ozon_posting(account, number)
+                if post.get('status')=='cancelled':
+                    self.on_market_cancel(row,post)
+                    raise PrintBlocked('ozon_order_cancelled')
                 code = post.get('scanit')
                 if (not isinstance(code, str) or not code) and post.get('is_express') is not True:
                     raise PrintBlocked('ozon_scanit_missing')

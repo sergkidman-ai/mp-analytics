@@ -320,6 +320,17 @@ class PrintQueue:
                 (now, order_id, demand_id, now))
             return count + cursor.rowcount
 
+    def mark_market_cancelled(self, order_id, *, account, number, now):
+        with self.transaction() as cursor:
+            cursor.execute('SELECT snapshot_id FROM current_snapshot FOR UPDATE')
+            snapshot=cursor.fetchone()['snapshot_id']
+            cursor.execute("""UPDATE orders o SET source_error='ozon_order_cancelled',
+                display=jsonb_set(display,'{mp_status}','"cancelled"'::jsonb)
+                FROM snapshots s WHERE o.snapshot_id=s.id AND s.day=%s
+                AND o.snapshot_id=%s AND o.id=%s AND o.account=%s AND o.external_id=%s""",
+                (moscow_day(now),snapshot,order_id,account,number))
+            return bool(cursor.rowcount)
+
     def enqueue_label_request(self, order_id, *, request_key, now):
         oid = str(UUID(str(order_id)))
         if not isinstance(request_key, str) or not request_key or len(request_key)>100:
@@ -451,12 +462,14 @@ class PrintQueue:
                 raise PrintBlocked('batch_already_published')
             if batch['state'] != 'building' or batch['generation'] != generation:
                 raise PrintBlocked('stale_print_worker')
-            cursor.execute('''SELECT o.id,o.demand_id AS current_demand_id,a.*,c.batch_id FROM members m
+            cursor.execute('''SELECT o.id,o.demand_id AS current_demand_id,o.source_error,a.*,c.batch_id FROM members m
                 JOIN orders o ON o.id=m.order_id LEFT JOIN artifacts a ON a.order_id=o.id
                 LEFT JOIN claims c ON c.order_id=o.id WHERE m.batch_id=%s ORDER BY m.ordinal
                 FOR UPDATE OF o''', (batch_id,))
             records = cursor.fetchall()
             for row, identity, output in zip(records, expected, manifest['orders']):
+                if row['source_error']=='ozon_order_cancelled':
+                    error=PrintBlocked('ozon_order_cancelled');error.print_order_id=str(row['id']);raise error
                 if (str(row['batch_id']) != str(batch_id) or str(row['current_demand_id']) != identity['ms_demand_id']
                         or str(row['demand_id']) != identity['ms_demand_id']
                         or not row['receipt_path'] or not row['label_path']

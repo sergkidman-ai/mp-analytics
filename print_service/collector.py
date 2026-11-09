@@ -11,8 +11,9 @@ from print_service.warehouse_colors import warehouse_color
 
 
 class Collector:
-    def __init__(self, clients):
+    def __init__(self, clients, *, on_market_cancel=None):
         self.clients = clients
+        self.on_market_cancel=on_market_cancel or (lambda row,post:None)
 
     def _ozon_postings(self, found, report):
         selected = {oid: (raw, account) for oid, (raw, platform, account) in found.items() if platform == 'ozon'}
@@ -102,6 +103,9 @@ class Collector:
                 try:
                     posting = postings[raw['id']]
                     if isinstance(posting, PrintBlocked): raise posting
+                    if posting.get('status')=='cancelled':
+                        self.on_market_cancel(dict(id=raw['id'],account=account,external_id=raw['name']),posting)
+                        raise PrintBlocked('ozon_order_cancelled')
                     is_express=posting.get('is_express') if type(posting.get('is_express')) is bool else None
                     method = posting.get('delivery_method', {})
                     warehouse = method.get('warehouse_id')

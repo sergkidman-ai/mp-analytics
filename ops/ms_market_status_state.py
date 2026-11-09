@@ -95,7 +95,7 @@ def retire(ms_id):
         con.execute('DELETE FROM documents WHERE id=?', (ms_id,))
 
 
-def enqueue(proof, kind, *, force=False, baseline=False):
+def enqueue(proof, kind, *, force=False, baseline=False, reconcile=False):
     key = '|'.join(proof[k] for k in ('platform', 'account', 'number'))
     with database() as con:
         con.execute('BEGIN IMMEDIATE')
@@ -116,10 +116,10 @@ def enqueue(proof, kind, *, force=False, baseline=False):
             con.commit(); return False
         con.execute('''INSERT INTO jobs(key,kind,available,payload,updated) VALUES(?,?,?,?,?)
           ON CONFLICT(key) DO UPDATE SET generation=jobs.generation+1,
-          state=CASE WHEN jobs.state IN ('running','uncertain') THEN jobs.state ELSE 'pending' END,
-          kind=CASE WHEN jobs.kind='fast' THEN 'fast' ELSE excluded.kind END,
+          state=CASE WHEN jobs.state='running' OR (jobs.state='uncertain' AND NOT ?) THEN jobs.state ELSE 'pending' END,
+          kind=CASE WHEN excluded.kind='urgent' OR (jobs.kind='urgent' AND jobs.state IN ('pending','running','uncertain')) THEN 'urgent' WHEN jobs.kind='fast' THEN 'fast' ELSE excluded.kind END,
           available=excluded.available,payload=excluded.payload,updated=excluded.updated''',
-          (key, kind, time.time(), body, stamp()))
+          (key, kind, time.time(), body, stamp(), bool(reconcile and kind=='urgent')))
         con.commit()
     return True
 
@@ -129,7 +129,8 @@ def claim(kind='fast'):
     now = time.time()
     with database() as con:
         con.execute('BEGIN IMMEDIATE')
-        allowed = '' if kind == 'night' else " AND kind='fast'"
+        if kind not in ('fast','night','urgent'):raise ValueError('status_job_kind_invalid')
+        allowed = " AND kind IN ('fast','night')" if kind=='night' else " AND kind='"+kind+"'"
         row = con.execute("SELECT * FROM jobs WHERE ((state='pending' AND available<=?) OR (state='running' AND lease_until<?))" + allowed + ' ORDER BY available,key LIMIT 1', (now, now)).fetchone()
         if not row:
             con.commit(); return None
@@ -187,7 +188,19 @@ def begin_attempt(document, target, proof, night):
         con.execute('BEGIN IMMEDIATE')
         old = con.execute("SELECT * FROM attempts WHERE ms_id=? AND outcome IN ('intent','uncertain') ORDER BY at DESC LIMIT 1", (document['id'],)).fetchone()
         if old:
-            con.commit(); return dict(old), False
+            result=json.loads(old['result'] or '{}')
+            if (old['outcome']=='uncertain' and result.get('http')==429
+                    and not result.get('transport_error') and old['target']==target
+                    and old['before_updated']==document['updated']):
+                con.execute("UPDATE attempts SET outcome='rejected' WHERE id=?",(old['id'],))
+            else:
+                con.commit(); return dict(old), False
+        collision=con.execute('SELECT * FROM attempts WHERE id=?',(aid,)).fetchone()
+        if collision:
+            if collision['outcome']!='rejected':
+                con.commit();return dict(collision),False
+            import uuid
+            aid=hashlib.sha256((aid+'|retry|'+uuid.uuid4().hex).encode()).hexdigest()
         count = con.execute('SELECT count(*) FROM attempts WHERE at>?', (time.time() - 3600,)).fetchone()[0]
         total = con.execute('SELECT count(*) FROM attempts WHERE night=?', (night,)).fetchone()[0] if night else 0
         if count >= 3000 or night and total >= 10000:

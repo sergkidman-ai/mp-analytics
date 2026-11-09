@@ -41,9 +41,10 @@ def validate_native_label(path):
 
 
 class Preparer:
-    def __init__(self, queue, clients, *, root, allow_unprinted=False):
+    def __init__(self, queue, clients, *, root, allow_unprinted=False, on_market_cancel=None):
         self.queue, self.clients, self.root = queue, clients, Path(root)
         self.allow_unprinted = allow_unprinted
+        self.on_market_cancel=on_market_cancel or (lambda row,post:None)
 
     def _reuse_export(self, folder, target, source, member):
         """Import the exact old export/journal into a rendering-independent cache."""
@@ -106,6 +107,9 @@ class Preparer:
             split_code_tail = True
             if platform == 'ozon':
                 post = self.clients.ozon_posting(account, number)
+                if post.get('status')=='cancelled':
+                    self.on_market_cancel(dict(id=oid,account=account,external_id=number),post)
+                    raise PrintBlocked('ozon_order_cancelled')
                 code = post.get('scanit')
                 if (not isinstance(code, str) or not code) and post.get('is_express') is not True:
                     raise PrintBlocked('ozon_scanit_missing')

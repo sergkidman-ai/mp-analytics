@@ -225,6 +225,8 @@ def apply_job(job, night=None):
     uid = find_document(proof)
     if not uid:
         return {'result': 'outside_ms_scope'}
+    if job['kind']=='urgent' and proof.get('ms_id')!=uid:
+        return {'result':'urgent_ms_identity_changed'}
     # Pace first, then make the fresh MS check immediately before the write.
     slot = state.reserve_slot()
     while slot > time.time():
@@ -233,6 +235,13 @@ def apply_job(job, night=None):
     if (document.get('name') != proof['number'] or document.get('id') != uid
             or identity(document)[:2] != (proof['platform'], proof['account']) or not in_window(document)):
         return {'result': 'identity_or_window_changed'}
+    if job['kind']=='urgent':
+        fresh=Provider(state.RUNTIME/'urgent_verify'/uid).fetch([
+            dict(row_for(document),verified_scheme=proof['scheme'])]).get(uid,{})
+        if 'error' in fresh or not fresh.get('status'):
+            raise RuntimeError('urgent_cancellation_unverified')
+        if fresh['status']!='cancelled':return {'result':'cancellation_not_confirmed'}
+        proof=dict(fresh,ms_id=uid)
     target = state.TARGETS[proof['status']]
     if document.get('state', {}).get('name') != 'В пути':
         state.retire(uid)
@@ -279,9 +288,13 @@ def apply_job(job, night=None):
     except Exception as exc:
         confirmed = False
         result['readback_error'] = type(exc).__name__
-    result.update(result='updated' if confirmed else 'uncertain', number=proof['number'], id=uid, target=target)
+    rejected=not confirmed and result.get('http')==429 and not result.get('transport_error')
+    result.update(result='updated' if confirmed else 'rate_limited' if rejected else 'uncertain', number=proof['number'], id=uid, target=target)
+    if rejected:
+        from shipment_guard.ms import retry_seconds
+        result['retry_after']=max(3,retry_seconds(response.headers))
     state.latency(time.monotonic() - started)
-    state.end_attempt(attempt['id'], 'confirmed' if confirmed else 'uncertain', result)
+    state.end_attempt(attempt['id'], 'confirmed' if confirmed else 'rejected' if rejected else 'uncertain', result)
     if confirmed:
         state.retire(uid)
     durable_save(folder / 'result.json', result)
