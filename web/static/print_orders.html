@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Печать заказов · Пульт бизнеса</title>
 <style>
+.receipt-hint{margin-top:4px;font-size:11px;color:var(--muted);white-space:normal}
 .express-order{display:inline-block;margin-top:5px;padding:2px 6px;border:1px solid #d99b34;border-radius:4px;background:#fff4d9;color:#754700;font-size:11px;font-weight:750}
 .label-cell{display:flex;flex-direction:column;align-items:center;gap:4px}.label-refresh{padding:2px;width:28px;height:27px;font-size:18px;line-height:1;background:#edf4fb;color:#155a98;border:1px solid #cfe0f1}
 .counter-excluded{display:block;margin-top:6px;font-size:11px;color:var(--red)}
@@ -128,8 +129,9 @@ function renderFiles(){
  }).join('');
 }
 function hasDemand(r){return Boolean(r.demand_id)&&!['linked_demand_missing','linked_demand_ambiguous'].includes(r.source_error)}
+function receiptUnavailableReason(r){return r.source_error==='linked_demand_ambiguous'?'В МС несколько отгрузок — ТЧ пока недоступен':'В МС нет отгрузки для ТЧ'}
 function receiptIndicator(r){
- if(!hasDemand(r))return '<span class="document no" title="Нет единственной связанной отгрузки в МС — ТЧ недоступен" aria-label="ТЧ недоступен: нет связанной отгрузки">×</span>';
+ if(!hasDemand(r)){const reason=esc(receiptUnavailableReason(r));return `<span class="document no" title="${reason}" aria-label="${reason}">×</span>`}
  return r.receipt_ready?'<span class="document yes" title="ТЧ получен" aria-label="ТЧ получен">✓</span>':'<span class="document wait" title="Отгрузка в МС есть. ТЧ будет получен при формировании файлов" aria-label="ТЧ ожидает формирования"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
 }
 function orderReadiness(r,busy){
@@ -155,6 +157,7 @@ function orderDirection(r){
 }
 function orderRow(r){
  const showError=r.error_message&&!['linked_demand_missing','linked_demand_ambiguous'].includes(r.source_error);
+ const receiptHint=!ARCHIVE&&!r.printed&&!hasDemand(r)&&r.source_error!=='ozon_order_cancelled'?`<div class="receipt-hint">${esc(receiptUnavailableReason(r))}</div>`:'';
  const busy=r.batch_state==='building'||orderInFlight.has(r.id),counterBusy=model.counters[r.counter_key]?.building;
  const externalOnly=Boolean(r.printed_externally)&&r.batch_state!=='ready',hasFiles=r.printed&&!externalOnly;
  const readiness=externalOnly?{text:'Распечатано отдельно',color:'green'}:ARCHIVE?{text:r.printed?'Файлы готовы':'Не сформированы',color:r.printed?'green':'muted'}:orderReadiness(r,busy);
@@ -163,7 +166,7 @@ function orderRow(r){
  const label=ARCHIVE?`<span class="document ${hasFiles?'yes':'wait'}" title="${hasFiles?'ЭТ в готовой паре':'ЭТ не сформирована на этой странице'}">${hasFiles?'✓':'—'}</span>`:`<span class="document ${r.label_ready?'yes':'no'}" title="${r.label_ready?'ЭТ получена':'ЭТ ещё не получена'}">${r.label_ready?'✓':'×'}</span>`;
  const refreshBusy=labelInFlight.has(r.id)||watchedLabels.has(r.id)||['pending','running'].includes(r.label_refresh?.state),cancelled=r.source_error==='ozon_order_cancelled';
  const labelButton=!ARCHIVE&&!r.printed?`<button type="button" class="label-refresh" data-label="${esc(r.id)}" ${cancelled||refreshBusy||busy||!model.worker_healthy?'disabled':''} title="${cancelled?'Заказ отменён в Ozon':refreshBusy?'Получаем этикетку…':'Обновить только этикетку — отгрузка МС для этого не нужна'}" aria-label="Обновить этикетку заказа ${esc(r.external_id)}">${refreshBusy?'…':'↻'}</button>`:'';
- return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span><div class="ms-order-status" title="Статус заказа в МойСкладе на момент последней синхронизации">МС: ${esc(r.display.ms_status||'Не получен')}</div>${showError?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${orderDirection(r)}</td><td>${esc(r.display.store||'')}</td><td>${receipt}</td><td><div class="label-cell">${label}${labelButton}</div></td><td><span class="state ${readiness.color}">${esc(readiness.text)}</span></td><td>${files}</td></tr>`;
+ return `<tr class="${r.printed?'printed':'pending'}" data-account="${esc(r.account)}"><td><span class="order-number">${esc(r.external_id)}</span><div class="ms-order-status" title="Статус заказа в МойСкладе на момент последней синхронизации">МС: ${esc(r.display.ms_status||'Не получен')}</div>${receiptHint}${showError?`<div class="error-text">${esc(r.error_message)}</div>`:''}</td><td>${orderDirection(r)}</td><td>${esc(r.display.store||'')}</td><td>${receipt}</td><td><div class="label-cell">${label}${labelButton}</div></td><td><span class="state ${readiness.color}">${esc(readiness.text)}</span></td><td>${files}</td></tr>`;
 }
 function renderOrders(){
  if(!model)return;
