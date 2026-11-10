@@ -13,6 +13,7 @@ from print_service.clients import reference_id
 from print_service.diskver_design import apply_diskver_design
 from print_service.domain import MOSCOW, OrderPrintFiles, PrintBlocked, guard_receipt_link, selected_order, ozon_label_available
 from print_service.pdf import build_pair, pdf_reader
+from print_service.queue import checked_file
 from print_service.receipt import annotate_receipt, express_receipt_code
 from print_service.storage import atomic_bytes, file_lock, save_json
 from print_service.warehouse_colors import warehouse_color
@@ -28,6 +29,19 @@ def profile_key():
     root = Path(__file__).parent
     files = ['receipt.py', 'diskver_design.py', 'ozon_warehouse_colors.json', 'assets/diskver_support_qr.png', 'preparer.py']
     return sha256(b''.join((root / name).read_bytes() for name in files)).hexdigest()
+
+
+def label_lock(root,account,oid):
+    return Path(root)/'orders'/account/fingerprint([oid])/'.lock'
+
+
+def cached_label_directory(queue,oid,label_identity):
+    cached=queue.cached_label(oid)
+    if not cached or not cached['label_path']:return None
+    path=Path(cached['label_path'])
+    if path.parent.name!=fingerprint(label_identity) or not path.exists():return None
+    checked_file(path,cached['label_sha'])
+    return path.parent
 
 
 def validate_native_label(path):
@@ -84,7 +98,7 @@ class Preparer:
         oid, did = member['ms_order_id'], member['ms_demand_id']
         folder = self.root / 'orders' / account / fingerprint([oid, did])
         folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-        with file_lock(folder / '.lock'):
+        with file_lock(label_lock(self.root,account,oid)):
             order = self.clients.ms_get('/entity/customerorder/' + oid)
             demand = self.clients.ms_get('/entity/demand/' + did)
             platform, actual_account, _, _ = identity(order)
@@ -125,7 +139,7 @@ class Preparer:
                     raise PrintBlocked('market_order_not_ready_for_label')
                 label_identity = dict(account=account, number=number, campaign=post.get('campaignId'))
             else: raise PrintBlocked('unsupported_account')
-            label_dir = folder / 'labels' / fingerprint(label_identity)
+            label_dir = cached_label_directory(self.queue,oid,label_identity) or folder / 'labels' / fingerprint(label_identity)
             label_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
             label = label_dir / 'label.pdf'
             if platform == 'ozon' and not ozon_label_available(post, cached=label.exists()):

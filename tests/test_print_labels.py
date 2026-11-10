@@ -81,6 +81,12 @@ class SavedQueue:
     def mark_prefetched_label(self, oid, **kwargs): self.labels.append((oid,kwargs));return True
     def resolve_label_errors(self, oid, **kwargs): return 0
     def mark_artifact(self, oid, **kwargs): self.artifacts.append((oid,kwargs))
+    def cached_label(self,oid):
+        from print_service.queue import checked_file
+        items=[data for key,data in self.labels if key==oid]+[data for key,data in self.artifacts if key==oid and data['kind']=='label']
+        if not items:return None
+        path,digest=checked_file(items[-1]['path'])
+        return dict(label_path=path,label_sha=digest)
 
 
 class LabelPrefetchTests(unittest.TestCase):

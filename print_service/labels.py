@@ -5,9 +5,8 @@ from pathlib import Path
 import re
 
 from shipment_guard.config import identity
-from print_service.clients import reference_id
 from print_service.domain import MOSCOW, PrintBlocked, selected_order, ozon_label_available
-from print_service.preparer import fingerprint, validate_native_label
+from print_service.preparer import fingerprint, validate_native_label, label_lock, cached_label_directory
 from print_service.queue import checked_file
 from print_service.storage import file_lock
 
@@ -24,7 +23,7 @@ class LabelPrefetcher:
                 result.append(row)
                 continue
             try:
-                if row['artifact_demand_id'] != row['demand_id'] or not row['label_path']:
+                if not row['label_path']:
                     raise PrintBlocked('label_not_cached')
                 checked_file(row['label_path'], row['label_sha'])
                 validate_native_label(row['label_path'])
@@ -33,11 +32,11 @@ class LabelPrefetcher:
         return result
 
     def one(self, row, *, now):
-        oid, did = str(row['id']), str(row['demand_id'])
+        oid, did = str(row['id']), str(row['demand_id']) if row.get('demand_id') is not None else None
         account, number = row['account'], row['external_id']
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', number): raise PrintBlocked('order_number_invalid')
         folder = self.root / 'orders' / account / fingerprint([oid, did])
-        with file_lock(folder / '.lock'):
+        with file_lock(label_lock(self.root,account,oid)):
             # Counter clicks take priority. Use the very same lock/cache as
             # Preparer, including after a concurrent foreground preparation.
             if self.queue.order(oid)['batch_id']: return False
@@ -45,9 +44,6 @@ class LabelPrefetcher:
             platform, actual_account, _, _ = identity(order)
             if order.get('id') != oid or actual_account != account or order.get('name') != number or not selected_order(order, account, now):
                 raise PrintBlocked('order_changed_since_counter_click')
-            demands = order.get('demands', [])
-            if len(demands) != 1 or reference_id(demands[0], 'demand') != did:
-                raise PrintBlocked('artifact_demand_identity_changed')
             if platform == 'ozon':
                 post = self.clients.ozon_posting(account, number)
                 if post.get('status')=='cancelled':
@@ -65,7 +61,7 @@ class LabelPrefetcher:
                     raise PrintBlocked('market_order_not_ready_for_label')
                 label_identity = dict(account=account, number=number, campaign=post.get('campaignId'))
             else: raise PrintBlocked('unsupported_account')
-            label_dir = folder / 'labels' / fingerprint(label_identity)
+            label_dir = cached_label_directory(self.queue,oid,label_identity) or folder / 'labels' / fingerprint(label_identity)
             label_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
             label = label_dir / 'label.pdf'
             if platform == 'ozon' and not ozon_label_available(post, cached=label.exists()):

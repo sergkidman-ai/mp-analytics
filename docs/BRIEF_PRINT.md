@@ -1,9 +1,78 @@
 # PRINT — передача печати товарных чеков и этикеток
 
-Обновлено 09.11.2026. Поток и Git-ветка: `print`.
+Обновлено 10.11.2026. Поток и Git-ветка: `print`.
 Worktree: `/opt/mp-analytics/.claude/worktrees/print-handoff-20261103`.
 База: `origin/main`, `77d00e82f5a6186e82c2161ecbf9038af1824495`.
 Общий чекаут остаётся на `main`; ветку в нём не переключать.
+
+## ↻ ЭТ доступна без отгрузки МС — 10.11.2026
+
+Пользователь сообщил, что у заказов с ошибками недоступно обновление ЭТ.
+Начальный status:69 заказов,8 проблемных (6 Ozon двух организаций,2 WB),
+у всех demand_id=None/source_error=linked_demand_ambiguous, worker healthy.
+Свежий точечный MS GET всех8 подтвердил Собирается/сегодня и demands=[]:
+это отсутствие отгрузки, не две неоднозначные связи. Кнопка блокировалась
+условием !hasDemand, API также требовал demand_id, кеш ЭТ был связан с DID.
+
+Исправлено разделение документов. Кнопка/API запроса ЭТ больше не требуют
+МС-отгрузку; обязательны текущий order/account/полный номер, сегодняшний
+отбор, worker и отсутствие печати/claims. Существующие guards отменённых
+заказов, архива, in-flight и прав организаций сохранены. Native ЭТ получаем
+только после свежей проверки идентичности МС и конкретного заказа МП;
+список demands у customerorder не является условием получения ЭТ.
+ТЧ/пара/общий счётчик по-прежнему требуют корректную единственную отгрузку.
+Никаких документов/поставок/статусов сборки МП и отгрузок МС не создавали.
+Уже согласованная срочная обработка подтверждённых отмен Ozon сохраняется.
+
+В изолированной print_ops добавлена native_labels(order_id,label_path,label_sha),
+для label_requests разрешён NULL demand_id (это теперь telemetry, не binding
+ЭТ). artifacts.demand_id остаётся NOT NULL, receipt binding не ослаблен.
+mark_prefetched_label сначала сохраняет order-native ЭТ, при отсутствии/
+несовпадении DID не трогает старый ТЧ. При наличии того же DID прежняя
+совместимость artifacts сохранена; mark_artifact(label) также обновляет
+native cache. View отдельно считает готовность ЭТ и demand-bound готовность
+ТЧ. Старые пути/оригинальные PDF остаются валидны без массового переноса.
+
+Общий order-lock для LabelPrefetcher/Preparer координирует запросы даже при
+смене/появлении DID. Повторное использование native кеша проверяет hash
+полного label_identity (account/number/scanit/boxes/campaign), SHA и геометрию;
+этот же файл используется при последующем counter click, без нового скачивания.
+MS customerorder identity/date/status и cancel guards сохранены, TC fresh
+unique bidirectional order/demand checks остаются в Preparer. Request worker
+больше не отвергает ЭТ из-за изменения DID до старта; текущий label job виден
+по order/day и не пропадает вместе с кнопкой в вечном watched состоянии.
+
+Фоновая предзагрузка также получает ЭТ заказов без ТЧ; TC source errors не
+снимает и счётчик не увеличивает до появления отгрузки. Успешная проверка
+ЭТ снимает старые label-request errors независимо от DID, а ошибки подготовки
+ТЧ/пачек — только по прежним matching order/demand guards. Collector различает
+пустой demands (linked_demand_missing) и несколько (linked_demand_ambiguous).
+
+152 print-теста OK на сохранённом production overlay: получение ЭТ без DID
+для Ozon/WB/Маркета, NULL request и готовность без artifacts/ТЧ/claims,
+появление DID и повтор native bytes при фактическом counter click, отсутствие
+экспорта до него, смена DID до обработки запроса, защита старого receipt
+binding при отсутствии отгрузки, прежние cancel/access/архив/rate/print guards.
+Mock Chromium подтвердил доступность↻ при missing/ambiguous, блокировку пока
+pending/при отмене/неработающем worker, TC/pair остаются недоступны без DID,
+только label POST, без print routes/JS errors, мобильная ширина корректна.
+
+Развёрнуты10 whitelist-файлов с before-копиями и мягкой остановкой worker.
+PrintQueue.install явно применён после остановки и до нового кода; web/worker/
+Caddy active. Запрошена штатная синхронизация: отсутствие отгрузок теперь
+показано корректно, исходные связи/состав/дата МС не менялись. Во время работы
+отбор естественно менялся: сначала8, затем12, в итоговой проверке6 без DID.
+Все6 имеют ЭТ, ТЧ0/printed0, остаются исключены из счётчиков до отгрузки.
+
+Живой HTTPS/Chromium для print/bersenev/tolkachev/sharov:↻ доступна у всех
+своих нераспечатанных без DID (6/4/2/6 на момент проверки), права сохранены.
+По67738660-0837-2 нажат реальный↻: request ready, label_ready=true,
+receipt_ready=false/printed=false/counter_eligible=false, ни receipt artifact,
+ни claim не появились. Всего1 POST /label, никаких print/sync POST браузера,
+нет JS errors, мобильная ширина корректна. Готовые пары не публиковались.
+Свидетельства/raw/DDL before/tests/UI/live: .private/print_refresh_disabled_20261110/.
+Следующее: обычная печать по счётчику после появления корректной отгрузки;
+при ошибке самого МП↻ показывает её причину и не меняет статус сборки.
 
 ## Срочная отмена Ozon через штатный обработчик реализована — 09.11.2026
 

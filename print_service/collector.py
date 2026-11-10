@@ -91,6 +91,7 @@ class Collector:
             try:
                 store_id = reference_id(raw.get('store'), 'store')
                 demands = raw.get('demands', [])
+                if not demands:raise PrintBlocked('linked_demand_missing')
                 if len(demands) != 1: raise PrintBlocked('linked_demand_ambiguous')
                 did = reference_id(demands[0], 'demand')
             except PrintBlocked as exc:

@@ -52,7 +52,7 @@ class PrintQueueTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         with self.queue.transaction() as cursor:
-            cursor.execute('TRUNCATE label_requests,external_prints,artifacts,requests,claims,members,batches,orders,current_snapshot,snapshots,sync_runs,worker_status')
+            cursor.execute('TRUNCATE native_labels,label_requests,external_prints,artifacts,requests,claims,members,batches,orders,current_snapshot,snapshots,sync_runs,worker_status')
             cursor.execute('INSERT INTO current_snapshot(singleton) VALUES(true)')
         self.rows = [order('100-0001-1'), order('100-0002-1')]
         self.counter = self.rows[0]['counter_key']
@@ -89,6 +89,69 @@ class PrintQueueTests(unittest.TestCase):
         self.assertEqual(item['source_error'],'ozon_order_cancelled');self.assertFalse(item['counter_eligible'])
         self.assertEqual(len(dispatched),1);self.assertEqual(clients.exports,0);self.assertEqual(clients.downloads,0)
         self.assertEqual(status['ready_batches'],[]);self.assertIn('отменён',item['error_message'])
+
+    def test_labels_can_be_requested_without_shipments_for_all_marketplaces(self):
+        from tests.test_print_labels import SavedLabels
+        from print_service.service import PrintService
+        for platform in ('ozon','wb','yandex'):
+            with self.subTest(platform=platform):
+                clients=SavedLabels(platform);clients.order['deliveryPlannedMoment']='2026-11-03 12:00:00';clients.order['demands']=[]
+                row=dict(raw=clients.order,account=clients.row['account'],demand_id=None,counter_key=clients.row['account']+'|test|store',source_error='linked_demand_missing')
+                stamp=NOW+timedelta(seconds=1+('ozon','wb','yandex').index(platform))
+                self.queue.sync_snapshot([row],started_at=stamp,complete=True);self.queue.heartbeat(NOW)
+                service=PrintService(queue=self.queue,clients=clients,root=self.root,clock=lambda:NOW)
+                task=service.request_label(clients.order['id'],'missing-'+platform)
+                self.assertIsNone(task['demand_id']);service.run_label_request(self.queue.start_label_request(now=NOW))
+                status=service.status();item=status['rows'][0]
+                self.assertTrue(item['label_ready']);self.assertFalse(item['receipt_ready']);self.assertFalse(item['counter_eligible'])
+                self.assertEqual(item['label_refresh']['state'],'ready');self.assertFalse(item['printed'])
+                self.assertEqual(clients.exports,0);self.assertEqual(clients.downloads,1);self.assertEqual(status['ready_batches'],[])
+                with self.queue.transaction() as c:
+                    c.execute('SELECT count(*) AS n FROM artifacts WHERE order_id=%s',(item['id'],));self.assertEqual(c.fetchone()['n'],0)
+
+    def test_label_cache_is_reused_when_a_shipment_appears_and_receipt_waits_for_counter(self):
+        from unittest.mock import patch
+        from tests.test_print_labels import SavedLabels
+        from print_service.service import PrintService
+        clients=SavedLabels('wb');clients.order['deliveryPlannedMoment']='2026-11-03 12:00:00';clients.order['demands']=[]
+        row=dict(raw=clients.order,account=clients.row['account'],demand_id=None,counter_key='wb_acc1|test|store',source_error='linked_demand_missing')
+        self.queue.sync_snapshot([row],started_at=NOW+timedelta(seconds=1),complete=True);self.queue.heartbeat(NOW)
+        service=PrintService(queue=self.queue,clients=clients,root=self.root,clock=lambda:NOW)
+        service.request_label(clients.order['id'],'before-shipment');service.run_label_request(self.queue.start_label_request(now=NOW))
+        original=Path(self.queue.cached_label(clients.order['id'])['label_path']).read_bytes()
+        row.update(demand_id=clients.demand['id'],source_error=None);clients.order['demands']=[{'meta':clients.demand['meta']}]
+        self.queue.sync_snapshot([row],started_at=NOW+timedelta(seconds=2),complete=True)
+        item=service.status()['rows'][0];self.assertTrue(item['label_ready']);self.assertFalse(item['receipt_ready']);self.assertTrue(item['counter_eligible'])
+        self.assertEqual(clients.exports,0)
+        batch=self.queue.reserve_counter(row['counter_key'],request_key='warehouse-click',now=NOW)
+        with patch('print_service.preparer.annotate_receipt',side_effect=lambda raw,**kwargs:raw):service.run_batch(batch)
+        self.assertEqual(self.queue.batch(batch['id'])['state'],'ready');self.assertEqual(clients.downloads,1);self.assertEqual(clients.exports,1)
+        self.assertEqual(Path(self.queue.cached_label(clients.order['id'])['label_path']).read_bytes(),original)
+
+    def test_label_request_survives_shipment_change_before_worker_starts(self):
+        from tests.test_print_labels import SavedLabels
+        from print_service.service import PrintService
+        clients=SavedLabels('wb');clients.order['deliveryPlannedMoment']='2026-11-03 12:00:00';clients.order['demands']=[]
+        row=dict(raw=clients.order,account=clients.row['account'],demand_id=None,counter_key='wb_acc1|test|store',source_error='linked_demand_missing')
+        self.queue.sync_snapshot([row],started_at=NOW+timedelta(seconds=1),complete=True);self.queue.heartbeat(NOW)
+        service=PrintService(queue=self.queue,clients=clients,root=self.root,clock=lambda:NOW);task=service.request_label(clients.order['id'],'race')
+        row.update(demand_id=clients.demand['id'],source_error=None);clients.order['demands']=[{'meta':clients.demand['meta']}]
+        self.queue.sync_snapshot([row],started_at=NOW+timedelta(seconds=2),complete=True)
+        service.run_label_request(self.queue.start_label_request(now=NOW));item=service.status()['rows'][0]
+        self.assertEqual(item['label_refresh']['id'],task['id']);self.assertEqual(item['label_refresh']['state'],'ready')
+        self.assertTrue(item['label_ready']);self.assertEqual(clients.exports,0)
+
+    def test_label_only_cache_cannot_rebind_an_old_receipt_without_a_shipment(self):
+        batch=self.reserve('old-receipts');self.prepare(batch);self.queue.fail_batch(batch['id'],generation=1,error='receipt_retry')
+        oid=self.rows[0]['raw']['id'];old_did=self.rows[0]['demand_id'];self.rows[0].update(demand_id=None,source_error='linked_demand_missing')
+        self.queue.sync_snapshot(self.rows,started_at=NOW+timedelta(seconds=1),complete=True)
+        label=self.root/'independent-label.pdf';pdf(label,164.25,113.25)
+        self.assertTrue(self.queue.mark_prefetched_label(oid,demand_id=None,path=label,now=NOW))
+        item=next(r for r in self.queue.view(now=NOW)['rows'] if str(r['id'])==oid)
+        self.assertTrue(item['label_ready']);self.assertFalse(item['receipt_ready']);self.assertFalse(item['counter_eligible'])
+        with self.queue.transaction() as c:
+            c.execute('SELECT demand_id,receipt_path FROM artifacts WHERE order_id=%s',(oid,));old=c.fetchone()
+        self.assertEqual(str(old['demand_id']),old_did);self.assertTrue(old['receipt_path'])
 
     def test_cancel_discovered_after_preparation_cannot_be_published(self):
         batch=self.reserve('before-cancel');pair=self.prepare(batch);row=self.rows[0]
@@ -471,7 +534,8 @@ class PrintQueueTests(unittest.TestCase):
     def test_background_labels_cannot_overwrite_claimed_or_obsolete_orders(self):
         oid,did=self.rows[0]['raw']['id'],self.rows[0]['demand_id']
         label=self.root/'prefetched.pdf';pdf(label,164.25,113.25)
-        self.assertFalse(self.queue.mark_prefetched_label(oid,demand_id=str(uuid4()),path=label,now=NOW))
+        self.assertTrue(self.queue.mark_prefetched_label(oid,demand_id=str(uuid4()),path=label,now=NOW))
+        self.assertFalse(self.queue.view(now=NOW)['rows'][0]['receipt_ready'])
         self.assertFalse(self.queue.mark_prefetched_label(oid,demand_id=did,path=label,now=NOW+timedelta(days=1)))
         batch=self.reserve();pair=self.prepare(batch)
         self.assertEqual(self.queue.label_candidates(now=NOW),[])

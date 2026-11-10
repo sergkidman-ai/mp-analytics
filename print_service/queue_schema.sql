@@ -83,6 +83,13 @@ CREATE TABLE IF NOT EXISTS label_requests (
     resolved_at timestamptz,
     error text
 );
+ALTER TABLE label_requests ALTER COLUMN demand_id DROP NOT NULL;
+-- Native marketplace labels belong to the order; MS receipts remain demand-bound.
+CREATE TABLE IF NOT EXISTS native_labels (
+    order_id uuid PRIMARY KEY REFERENCES orders(id),
+    label_path text NOT NULL,
+    label_sha text NOT NULL
+);
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_label_request ON label_requests(order_id)
     WHERE state IN ('pending','running');
 CREATE INDEX IF NOT EXISTS label_requests_order_day ON label_requests(order_id,day,created_at DESC,id DESC);

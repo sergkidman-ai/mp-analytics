@@ -278,14 +278,16 @@ class PrintQueue:
 
     def label_candidates(self, *, now):
         with self.transaction() as cursor:
-            cursor.execute('''SELECT o.*,a.label_path,a.label_sha,a.demand_id AS artifact_demand_id,
+            cursor.execute('''SELECT o.*,COALESCE(n.label_path,a.label_path) AS label_path,
+                COALESCE(n.label_sha,a.label_sha) AS label_sha,a.demand_id AS artifact_demand_id,
                 EXISTS (SELECT 1 FROM members m JOIN batches b ON b.id=m.batch_id
                     WHERE m.order_id=o.id AND m.identity->>'ms_demand_id'=o.demand_id::text
                     AND b.state='failed' AND b.error=ANY(%s)
                     AND NOT (COALESCE(b.display->'resolved_orders','{}'::jsonb) ? o.id::text)) AS label_retry_needed
                 FROM current_snapshot v JOIN snapshots s ON s.id=v.snapshot_id
                 JOIN orders o ON o.snapshot_id=s.id LEFT JOIN artifacts a ON a.order_id=o.id
-                WHERE s.day=%s AND o.demand_id IS NOT NULL AND o.source_error IS NULL
+                LEFT JOIN native_labels n ON n.order_id=o.id
+                WHERE s.day=%s AND o.source_error IS DISTINCT FROM 'ozon_order_cancelled'
                 AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id=o.id)
                 AND NOT EXISTS (SELECT 1 FROM external_prints e WHERE e.order_id=o.id)
                 ORDER BY CASE WHEN o.display->>'is_express'='true' OR o.display->'color'->>'key'='express' THEN 0 ELSE 1 END,
@@ -297,15 +299,21 @@ class PrintQueue:
         with self.transaction() as cursor:
             cursor.execute('SELECT snapshot_id FROM current_snapshot FOR UPDATE')
             snapshot = cursor.fetchone()['snapshot_id']
-            cursor.execute('''SELECT o.demand_id,a.demand_id AS artifact_demand_id,a.label_path,a.label_sha
-                FROM orders o JOIN artifacts a ON a.order_id=o.id
+            cursor.execute('''SELECT o.demand_id,a.demand_id AS artifact_demand_id,
+                COALESCE(n.label_path,a.label_path) AS label_path,COALESCE(n.label_sha,a.label_sha) AS label_sha
+                FROM orders o LEFT JOIN artifacts a ON a.order_id=o.id
+                LEFT JOIN native_labels n ON n.order_id=o.id
                 WHERE o.id=%s AND o.snapshot_id=%s FOR UPDATE OF o''', (order_id, snapshot))
             row = cursor.fetchone()
-            if not row or str(row['demand_id']) != str(demand_id) or str(row['artifact_demand_id']) != str(demand_id):
-                return 0
+            if not row:return 0
             cursor.execute('SELECT 1 FROM claims WHERE order_id=%s', (order_id,))
             if cursor.fetchone() or not row['label_path']: return 0
             checked_file(row['label_path'], row['label_sha'])
+            cursor.execute("""UPDATE label_requests SET resolved_at=%s WHERE order_id=%s
+                AND state='failed' AND finished_at<=%s AND resolved_at IS NULL""",(now,order_id,now))
+            count=cursor.rowcount
+            if (demand_id is None or str(row['demand_id'])!=str(demand_id)
+                    or str(row['artifact_demand_id'])!=str(demand_id)):return count
             marker = Json({str(order_id): {'kind':'label', 'at':now.isoformat()}})
             cursor.execute('''UPDATE batches b SET display=jsonb_set(b.display,'{resolved_orders}',
                     COALESCE(b.display->'resolved_orders','{}'::jsonb) || %s)
@@ -314,10 +322,6 @@ class PrintQueue:
                 AND EXISTS (SELECT 1 FROM members m WHERE m.batch_id=b.id AND m.order_id=%s
                     AND m.identity->>'ms_demand_id'=%s)''',
                 (marker, list(LABEL_AVAILABILITY_ERRORS), now, str(order_id), order_id, str(demand_id)))
-            count = cursor.rowcount
-            cursor.execute("""UPDATE label_requests SET resolved_at=%s WHERE order_id=%s
-                AND demand_id=%s AND state='failed' AND finished_at<=%s AND resolved_at IS NULL""",
-                (now, order_id, demand_id, now))
             return count + cursor.rowcount
 
     def mark_market_cancelled(self, order_id, *, account, number, now):
@@ -348,7 +352,7 @@ class PrintQueue:
                 (oid, snapshot, moscow_day(now)))
             order = cursor.fetchone()
             if not order: raise PrintBlocked('order_outside_print_scope')
-            if not order['demand_id']: raise PrintBlocked('linked_demand_missing')
+            if order['source_error']=='ozon_order_cancelled':raise PrintBlocked('ozon_order_cancelled')
             cursor.execute('SELECT 1 FROM claims WHERE order_id=%s UNION ALL SELECT 1 FROM external_prints WHERE order_id=%s', (oid, oid))
             if cursor.fetchone(): raise PrintBlocked('counter_already_reserved')
             cursor.execute("SELECT * FROM label_requests WHERE order_id=%s AND state IN ('pending','running')", (oid,))
@@ -378,7 +382,7 @@ class PrintQueue:
     def _label_requests(cursor, day):
         cursor.execute('''SELECT DISTINCT ON (r.order_id) r.* FROM label_requests r
             JOIN orders o ON o.id=r.order_id JOIN current_snapshot v ON v.snapshot_id=o.snapshot_id
-            WHERE r.day=%s AND r.demand_id=o.demand_id ORDER BY r.order_id,r.created_at DESC,r.id DESC''', (day,))
+            WHERE r.day=%s ORDER BY r.order_id,r.created_at DESC,r.id DESC''', (day,))
         return {str(row['order_id']): dict(row) for row in cursor.fetchall()}
 
     @staticmethod
@@ -398,11 +402,15 @@ class PrintQueue:
                 WHERE o.id=%s AND o.snapshot_id=%s AND s.day=%s FOR UPDATE OF o''',
                 (order_id, snapshot, moscow_day(now)))
             order = cursor.fetchone()
-            if not order or str(order['demand_id']) != str(demand_id): return False
+            if not order:return False
             cursor.execute('SELECT 1 FROM claims WHERE order_id=%s', (order_id,))
             if cursor.fetchone(): return False
             cursor.execute('SELECT 1 FROM external_prints WHERE order_id=%s', (order_id,))
             if cursor.fetchone(): return False
+            cursor.execute('''INSERT INTO native_labels(order_id,label_path,label_sha) VALUES(%s,%s,%s)
+                ON CONFLICT(order_id) DO UPDATE SET label_path=EXCLUDED.label_path,label_sha=EXCLUDED.label_sha''',
+                (order_id,path,digest))
+            if demand_id is None or str(order['demand_id'])!=str(demand_id):return True
             cursor.execute('''SELECT demand_id,label_path,label_sha FROM artifacts WHERE order_id=%s''', (order_id,))
             existing = cursor.fetchone()
             if existing and str(existing['demand_id']) == str(demand_id) and existing['label_path'] == path and existing['label_sha'] == digest:
@@ -413,6 +421,15 @@ class PrintQueue:
                 label_sha=EXCLUDED.label_sha,receipt_path=NULL,receipt_sha=NULL''',
                 (order_id, demand_id, path, digest))
             return True
+
+    def cached_label(self,order_id):
+        with self.transaction() as cursor:
+            cursor.execute('''SELECT COALESCE(n.label_path,a.label_path) AS label_path,
+                COALESCE(n.label_sha,a.label_sha) AS label_sha FROM orders o
+                LEFT JOIN native_labels n ON n.order_id=o.id LEFT JOIN artifacts a ON a.order_id=o.id
+                WHERE o.id=%s''',(order_id,))
+            row=cursor.fetchone()
+            return dict(row) if row else None
 
     def mark_artifact(self, order_id, *, demand_id, kind, path, source_key=''):
         if kind not in ('receipt', 'label'):
@@ -431,6 +448,10 @@ class PrintQueue:
                 label_sha=CASE WHEN artifacts.demand_id=EXCLUDED.demand_id AND artifacts.source_key=EXCLUDED.source_key THEN artifacts.label_sha END''', (order_id, demand_id, source_key))
             cursor.execute(sql.SQL('UPDATE artifacts SET {}=%s,{}=%s WHERE order_id=%s').format(
                 sql.Identifier(kind + '_path'), sql.Identifier(kind + '_sha')), (path, digest, order_id))
+            if kind=='label':
+                cursor.execute('''INSERT INTO native_labels(order_id,label_path,label_sha) VALUES(%s,%s,%s)
+                    ON CONFLICT(order_id) DO UPDATE SET label_path=EXCLUDED.label_path,label_sha=EXCLUDED.label_sha''',
+                    (order_id,path,digest))
 
     @staticmethod
     def _check_pair(path, expected):
@@ -640,11 +661,12 @@ class PrintQueue:
         day = moscow_day(now)
         with self.transaction() as cursor:
             cursor.execute('''SELECT o.*,b.state AS batch_state,c.batch_id,a.receipt_path,a.receipt_sha,
-                a.label_path,a.label_sha,a.demand_id AS artifact_demand_id,
+                COALESCE(n.label_path,a.label_path) AS label_path,COALESCE(n.label_sha,a.label_sha) AS label_sha,a.demand_id AS artifact_demand_id,
                 (e.order_id IS NOT NULL) AS printed_externally
                 FROM current_snapshot v JOIN snapshots s ON s.id=v.snapshot_id
                 JOIN orders o ON o.snapshot_id=s.id LEFT JOIN claims c ON c.order_id=o.id
                 LEFT JOIN batches b ON b.id=c.batch_id LEFT JOIN artifacts a ON a.order_id=o.id
+                LEFT JOIN native_labels n ON n.order_id=o.id
                 LEFT JOIN external_prints e ON e.order_id=o.id
                 WHERE s.day=%s ORDER BY o.counter_key,o.external_id,o.id''', (day,))
             rows = [dict(r) for r in cursor.fetchall()]
@@ -673,7 +695,7 @@ class PrintQueue:
             row['counter_eligible'] = not row['printed'] and bool(row['demand_id']) and not row['source_error'] and not row['preparation_error'] and not row['label_error']
             for kind in ('receipt', 'label'):
                 try:
-                    if row['demand_id'] != row['artifact_demand_id'] or not row[kind + '_path']:
+                    if (kind=='receipt' and (not row['demand_id'] or row['demand_id']!=row['artifact_demand_id'])) or not row[kind + '_path']:
                         raise PrintBlocked('artifact_not_received')
                     checked_file(row[kind + '_path'], row[kind + '_sha'])
                     row[kind + '_ready'] = True

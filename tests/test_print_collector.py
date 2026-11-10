@@ -123,7 +123,7 @@ class CollectorTests(unittest.TestCase):
         source=SavedMS();next(iter(source.orders.values()))[0]['demands']=[]
         rows=Collector(source).collect(now=NOW)
         self.assertEqual(len(rows),42)
-        self.assertTrue(any(r['source_error']=='linked_demand_ambiguous' for r in rows))
+        self.assertTrue(any(r['source_error']=='linked_demand_missing' for r in rows))
         self.assertTrue(all(r['display']['ms_status']=='Собирается' for r in rows))
 
     def test_half_hour_deadline_and_moscow_midnight(self):

@@ -211,8 +211,6 @@ class PrintService:
         oid = str(request['order_id'])
         try:
             order = self.queue.order(oid)
-            if str(order['demand_id']) != str(request['demand_id']):
-                raise PrintBlocked('artifact_demand_identity_changed')
             received = self.labels.one(order, now=self.clock())
             if not received and self.queue.order(oid)['batch_state'] not in ('building','ready'):
                 raise PrintBlocked('order_changed_since_counter_click')
