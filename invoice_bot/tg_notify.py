@@ -58,9 +58,12 @@ def tg(msg):
     if not (token and ids):
         print("TG: платёжный бот не настроен (TG_PAY_BOT_TOKEN/TG_PAY_NOTIFY_ID) — сводка "
               "не отправлена", flush=True)
-        return
+        return False
     api = f"https://api.telegram.org/bot{token}/sendMessage"
+    delivered = True
     for uid in ids:
         ok, reason = _post(api, uid, msg)
         if not ok:
-            print(f"TG {uid}: НЕ ДОСТАВЛЕНО — {reason}", flush=True)
+            delivered = False
+            print(f"TG {uid}: НЕ ДОСТАВЛЕНО — {str(reason).replace(token, '[скрыто]')}", flush=True)
+    return delivered

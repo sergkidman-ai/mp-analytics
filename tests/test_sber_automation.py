@@ -83,7 +83,7 @@ class SberScheduleTests(unittest.TestCase):
             for command in commands(mode):
                 if 'payment_autosend.py' in ' '.join(command):
                     self.assertEqual(command[command.index('--org')+1], '7811803918')
-                    self.assertIn('--no-tg', command)
+                    self.assertNotIn('--no-tg', command)
                     self.assertNotIn('all', command)
 
     def test_rotation_logs_no_secret_characters(self):

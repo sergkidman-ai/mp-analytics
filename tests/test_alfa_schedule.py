@@ -38,7 +38,7 @@ class AlfaScheduleTests(unittest.TestCase):
                 else:
                     self.assertEqual(command[command.index('--org')+1],'7807355364')
                 if command[1].endswith('payment_autosend.py'):
-                    self.assertIn('--no-tg',command)
+                    self.assertNotIn('--no-tg',command)
         watch=schedule.commands('sync','alfa')[-1]
         self.assertIn('--close-only',watch)
 

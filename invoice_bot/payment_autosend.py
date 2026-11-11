@@ -119,7 +119,8 @@ def autosend(org_inns=None, kinds=None, dry_run=None, limit=None, actor="cron", 
         st = out["by_org"].setdefault(org, {"sent": 0, "errors": 0, "skipped": 0,
                                             "amount": 0.0, "rows": []})
         try:
-            res = psend.send_draft(r["id"], dry_run=dry, actor=actor)
+            # This run sends one summary per organization, without per-draft duplicates.
+            res = psend.send_draft(r["id"], dry_run=dry, actor=actor, notify=False)
         except Exception as e:                               # noqa: BLE001 — строка не роняет прогон
             res = {"ok": False, "status": None, "error": f"{type(e).__name__}: {e}"}
         status = res.get("status") or "ошибка"

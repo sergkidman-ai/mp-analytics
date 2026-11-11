@@ -18,7 +18,7 @@ def commands(mode, bank='sber'):
     org = BANK_ORGS[bank]
     sync = [str(PYTHON), str(ROOT / 'run_inv.py'), '--' + bank + '-only']
     watch = [str(PYTHON), str(ROOT / 'invoice_bot/po_payment_watch.py'), '--org', org]
-    send = [str(PYTHON), str(ROOT / 'invoice_bot/payment_autosend.py'), '--org', org, '--no-tg']
+    send = [str(PYTHON), str(ROOT / 'invoice_bot/payment_autosend.py'), '--org', org]
     return {
         'sync': [sync + ['--today'], watch + ['--close-only']],
         'prepare': [sync + ['--days', '3'], watch],
