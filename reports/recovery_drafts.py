@@ -103,7 +103,9 @@ rows = db.query("""SELECT * FROM raw_feedback WHERE NOT is_answered
     AND coalesce(recovery_active_unanswered,true) AND NOT skipped_no_api AND NOT skipped_old
     AND NOT EXISTS (SELECT 1 FROM feedback_moderation m
         WHERE (m.platform,m.account,m.kind,m.ext_id)=(raw_feedback.platform,raw_feedback.account,raw_feedback.kind,raw_feedback.ext_id)
-        AND (m.final_text IS NOT NULL OR m.state IN ('carded','approved_blocked','sent','skipped')))
+        AND (m.final_text IS NOT NULL OR m.decided_at IS NOT NULL
+             OR EXISTS(SELECT 1 FROM rev_edit_session e WHERE e.mod_id=m.id)
+             OR m.state IN ('carded','approved_blocked','sent','skipped','snoozed','edited')))
     ORDER BY platform,account,kind,ext_id""")
 written = 0
 for row in rows:
@@ -112,6 +114,11 @@ for row in rows:
         if category == 'negative' and any((row.get(k) or '').strip() for k in ['body', 'pros', 'cons']):
             route = 'review'  # partial recovery cannot establish a full product rating
         ground = {'source': 'шаблон', 'recovery': True, 'template_id': template}
+        from reports.simple_review_policy import answer as simple_answer
+        simple = simple_answer(row)
+        if simple:
+            _, text, route, confidence, ground, _, _ = simple
+            template = ground['template_id']
     else:
         native = facts.for_ozon(row['item_id']) if row['platform'] == 'ozon' else facts.for_wb(row['item_id']) if row['platform'] == 'wb' else facts.for_yandex(row['item_id'])
         text, route, confidence, source = draft_question(row['body'], row.get('product_name'), native)

@@ -10,7 +10,7 @@ sys.path.insert(0,str(ROOT))
 from dotenv import load_dotenv
 load_dotenv(ROOT/'.env')
 from feedback_bot import recovery_runtime,tg_moderation as bot
-from feedback_bot.recovery_cycle import publication_phase, queue_cases, send_cards
+from feedback_bot.recovery_cycle import publication_phase, queue_cases, send_cards, report as status_report, send_status_if_due
 from collectors.feedback_preflight import reconcile_unknown,notify_readback_reviews
 from reports import recovery_budget, recovery_review, llm_batch
 
@@ -38,6 +38,7 @@ def main():
     queue_cases()
     report['moderation_delivery']=send_cards()
     report['budget']=recovery_budget.status()
+    report['status_notified']=send_status_if_due(status_report())
     Path('/root/rev-recovery/review-cycle-result.json').write_text(json.dumps(report,default=str,indent=2))
     print(json.dumps(report,default=str),flush=True)
 

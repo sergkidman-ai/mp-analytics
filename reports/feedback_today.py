@@ -363,7 +363,9 @@ def _gather(since):
         AND coalesce(recovery_active_unanswered,true)
         AND NOT EXISTS (SELECT 1 FROM feedback_moderation m
             WHERE (m.platform,m.account,m.kind,m.ext_id)=(raw_feedback.platform,raw_feedback.account,raw_feedback.kind,raw_feedback.ext_id)
-            AND (m.final_text IS NOT NULL OR m.state IN ('carded','approved_blocked','sent','skipped')))
+            AND (m.final_text IS NOT NULL OR m.decided_at IS NOT NULL
+                 OR EXISTS(SELECT 1 FROM rev_edit_session e WHERE e.mod_id=m.id)
+                 OR m.state IN ('carded','approved_blocked','sent','skipped','snoozed','edited')))
         AND account IN ('wb_acc1','wb_acc2','oz_acc1','oz_acc2','ya_acc1')
         AND posted_at IS NULL AND NOT skipped_old AND NOT skipped_no_api
         AND (draft_src_hash IS NULL
@@ -1097,6 +1099,10 @@ def _verified(client, r, reply, card, ground):
 
 def _answer(client, r, cf, corpus):
     """Полный движок ответа на ОДИН элемент. → (out_dict, reply, route, conf, ground, used_llm, used_web)."""
+    from reports.simple_review_policy import answer as simple_answer
+    simple = simple_answer(r)
+    if simple:
+        return simple
     from reports.archive_question_policy import is_archive_question
     if is_archive_question(r):
         from reports.archive_questions import answer

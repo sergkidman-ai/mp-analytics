@@ -133,7 +133,8 @@ def _candidates():
         draft_text,created_at FROM raw_feedback
         WHERE draft_route='auto' AND is_answered=false AND posted_at IS NULL
           AND coalesce(recovery_active_unanswered,true)
-          AND draft_grounding->>'verify'='PASS'
+          AND (draft_grounding->>'verify'='PASS' OR
+               draft_grounding->>'verification_method'='owner_approved_simple_review_20261111')
           AND NOT EXISTS (SELECT 1 FROM feedback_moderation m
               WHERE (m.platform,m.account,m.kind,m.ext_id)=(raw_feedback.platform,raw_feedback.account,raw_feedback.kind,raw_feedback.ext_id)
               AND (m.final_text IS NOT NULL OR m.decided_at IS NOT NULL OR m.state IN ('skipped','edited','snoozed')))
@@ -145,6 +146,27 @@ def _candidates():
         bucket = "backlog" if fs.is_backlog(r) else "fresh"
         buckets[(r["platform"], r["account"], bucket)].append(r)
     return buckets
+
+
+def _post_candidate(row, bucket):
+    """Use the same lock as manual editing; never publish over an operator decision."""
+    from feedback_bot import recovery_runtime as runtime
+    key = tuple(row[k] for k in ('platform','account','kind','ext_id'))
+    moderation = db.query('SELECT id FROM feedback_moderation WHERE (platform,account,kind,ext_id)=(%s,%s,%s,%s)', key)
+    mid = moderation[0]['id'] if moderation else None
+    with runtime.card_lock(mid):
+        if mid:
+            state = db.query('''SELECT final_text,decided_at,state,
+                EXISTS(SELECT 1 FROM rev_edit_session e WHERE e.mod_id=m.id) AS editing
+                FROM feedback_moderation m WHERE id=%s''', (mid,))[0]
+            if (state['final_text'] is not None or state['decided_at'] is not None or state['editing']
+                    or state['state'] in ('skipped','edited','snoozed','approved_blocked','sent')):
+                return False, 'operator_decision_preserved'
+        current = db.query('''SELECT * FROM raw_feedback
+            WHERE (platform,account,kind,ext_id)=(%s,%s,%s,%s)''', key)
+        if not current or current[0]['draft_text'] != row['draft_text']:
+            return False, 'draft_changed'
+        return fs.post_answer(current[0], row['draft_text'], apply_cap=(bucket=='backlog'))
 
 
 def run():
@@ -165,7 +187,7 @@ def run():
             cap_note = f", лимит канала {fs.backlog_sent_today(plat, acc)}/{fs._backlog_cap()}"
         _log(f"{plat}/{acc} [{bucket}]: {len(rows)} в очереди, отправляю порцию {len(portion)}{cap_note}")
         for i, r in enumerate(portion):
-            ok, detail = fs.post_answer(dict(r), r["draft_text"], apply_cap=(bucket == "backlog"))
+            ok, detail = _post_candidate(r, bucket)
             if ok and detail == "sent":
                 total_sent += 1
                 if r["kind"] == "question":

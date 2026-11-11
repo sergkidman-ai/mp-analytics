@@ -217,6 +217,9 @@ def verdict_full(row, text=None):
     kind = row.get("kind")
     g = _ground(row)
     body = (text if text is not None else row.get("draft_text")) or ""
+    from reports.simple_review_policy import matches as simple_matches
+    if simple_matches(row, body):
+        return True, [], []
     from reports.compatibility_evidence import absence_denial
     if kind=='question' and absence_denial(body):
         reasons.append('неподтверждённый факт: отсутствие модели в списке не доказывает несовместимость')

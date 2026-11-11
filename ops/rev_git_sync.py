@@ -185,6 +185,7 @@ EXPORT_COLLECTORS={
     'ozon_question_answers.py','ozon_review_answers.py','ozon_reviews.py','wb_feedbacks.py',
     'yandex_feedback_coverage.py','yandex_feedbacks.py','yandex_questions.py'}
 EXPORT_REPORTS={
+    'batch_health.py','simple_review_policy.py',
     'archive_question_policy.py','archive_questions.py','brand_notes.py','compatibility_evidence.py',
     'deepseek_search.py','feedback_llm.py','feedback_today.py','feedback_web.py','llm_batch.py',
     'llm_client.py','llm_routing.py','publish_gate.py','recovery_archive_publish.py','recovery_budget.py',

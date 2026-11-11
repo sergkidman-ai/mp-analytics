@@ -112,7 +112,9 @@ def save(mod_id, original, result):
         JOIN raw_feedback f USING(platform,account,kind,ext_id)
         WHERE m.state='carded' AND f.kind='review' AND f.rating>=4 AND NOT f.is_answered
           AND NOT coalesce(f.posted_ok,false)''')[0]['id']
-    if reply and (original['kind']=='question' or mod_id==sample):
+    from reports.simple_review_policy import matches as simple_matches
+    simple = simple_matches(dict(original, draft_grounding=ground), reply)
+    if reply and not simple and (original['kind']=='question' or mod_id==sample):
         route = 'review' if route!='human' else route
         ground = dict(ground,operator_sample=True)
     cls = request_class.classify(' '.join(filter(None,[original.get('body'),original.get('pros'),original.get('cons')]))
@@ -191,7 +193,10 @@ def tick():
           AND coalesce(f.recovery_active_unanswered,true)
         ON CONFLICT DO NOTHING''')
     facts, corpus, client = engine.CardFacts(), engine.load_corpus(), engine._client()
-    stats = {'pending_batch':0,'updated_existing_cards':0,'preserved':0,'errors':0}
+    from reports import batch_health
+    from reports.simple_review_policy import answer as simple_answer
+    provider_block = batch_health.blocked()
+    stats = {'pending_batch':0,'updated_existing_cards':0,'preserved':0,'errors':0,'provider_blocked':0}
     for job in db.query("SELECT mod_id,state FROM rev_card_reprocess WHERE state IN ('pending','edit_pending') ORDER BY mod_id"):
         mid = job['mod_id']
         if job['state']=='edit_pending':
@@ -200,6 +205,9 @@ def tick():
         row = load(mid)
         if not row or not eligible(row):
             mark(mid,'preserved_decision');stats['preserved']+=1
+            continue
+        if provider_block and not simple_answer(row):
+            stats['provider_blocked'] += 1
             continue
         try:
             if row['kind']=='question' and re.search(r'когда.*(?:налич|появи|поступ)',row.get('body') or '',re.I):

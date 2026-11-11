@@ -25,6 +25,7 @@ import hashlib
 import os
 import sys
 import pathlib
+import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -89,6 +90,12 @@ def ask(model, system_text, content, max_tokens, r, purpose="draft"):
     if got and (got[0]["raw"] or "").strip():
         db.execute("UPDATE feedback_llm_result SET used_at=now() WHERE req_key=%s", (k,))
         return got[0]["raw"]
+    # A changing catalogue/corpus must not leave multiple unpaid prompts for the same stage.
+    # Reserved/uncertain submissions and paid results are deliberately preserved.
+    db.execute('''DELETE FROM feedback_llm_queue WHERE platform=%s AND account=%s AND kind=%s
+        AND ext_id=%s AND purpose=%s AND req_key<>%s AND batch_id IS NULL AND submission_key IS NULL''',
+        ((r or {}).get('platform'), (r or {}).get('account'), (r or {}).get('kind'),
+         str((r or {}).get('ext_id') or ''), purpose, k))
     db.execute("""INSERT INTO feedback_llm_queue
                     (req_key, platform, account, kind, ext_id, purpose, model, max_tokens,
                      system_text, content)
@@ -114,8 +121,32 @@ def _due():
     return (row["n"] >= BATCH_MIN or float(waited or 0) >= BATCH_MAX_WAIT_MIN), row["n"]
 
 
+def prune_unpaid():
+    """Retire obsolete unpaid prompts only; preserve all uncertain/paid submissions."""
+    obsolete = db.execute('''DELETE FROM feedback_llm_queue q USING raw_feedback f
+        WHERE (q.platform,q.account,q.kind,q.ext_id)=(f.platform,f.account,f.kind,f.ext_id)
+        AND q.batch_id IS NULL AND q.submission_key IS NULL AND (
+            f.is_answered OR coalesce(f.posted_ok,false) OR f.skipped_old OR f.skipped_no_api
+            OR NOT coalesce(f.recovery_active_unanswered,true)
+            OR f.draft_grounding->>'verification_method'='owner_approved_simple_review_20261111'
+            OR EXISTS(SELECT 1 FROM feedback_moderation m
+                WHERE (m.platform,m.account,m.kind,m.ext_id)=(f.platform,f.account,f.kind,f.ext_id)
+                AND (m.final_text IS NOT NULL OR m.decided_at IS NOT NULL
+                     OR m.state IN ('sent','skipped','edited','approved_blocked'))))''')
+    superseded = db.execute('''DELETE FROM feedback_llm_queue q USING (
+        SELECT req_key,row_number() OVER(PARTITION BY platform,account,kind,ext_id,purpose
+            ORDER BY created_at DESC,req_key) AS rank FROM feedback_llm_queue
+        WHERE batch_id IS NULL AND submission_key IS NULL) newer
+        WHERE q.req_key=newer.req_key AND newer.rank>1''')
+    return {'obsolete':obsolete,'superseded':superseded}
+
+
 def flush_if_due(force=False, verbose=True):
     """Отправить накопившуюся очередь одним батчем на модель. → id батча или None."""
+    from reports import batch_health
+    prune_unpaid()
+    if batch_health.blocked():
+        return None
     if os.getenv('FEEDBACK_LLM_PIPELINE_READY', '0') != '1':
         if verbose:
             print('Batch blocked: credentials, search capability and budget pricing require validation', flush=True)
@@ -171,16 +202,30 @@ def flush_if_due(force=False, verbose=True):
         return None
     rows = selected
     reqs = [request for request in reqs if request['custom_id'] in {r['req_key'] for r in rows}]
-    reservation = hashlib.sha256('|'.join(sorted(r['req_key'] for r in rows)).encode()).hexdigest()
+    reservation = hashlib.sha256(('|'.join(sorted(r['req_key'] for r in rows)) + uuid.uuid4().hex).encode()).hexdigest()
     if not recovery_budget.reserve(reservation, 'anthropic', upper_cost):
         return None  # previous submission may have succeeded; reconcile instead of paying twice
     db.execute('UPDATE feedback_llm_queue SET submission_key=%s WHERE req_key=ANY(%s)',
                (reservation,[r['req_key'] for r in rows]))
-    batch = client.messages.batches.create(requests=reqs)
+    try:
+        batch = client.messages.batches.create(requests=reqs)
+    except Exception as error:
+        detail = batch_health.record(error)
+        if batch_health.rejected(error):
+            # A definitive HTTP rejection created no job and incurred no inference cost.
+            # Timeouts/5xx keep both the reservation and submission key for reconciliation.
+            with db.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute('UPDATE rev_llm_budget SET actual_usd=0 WHERE request_key=%s', (reservation,))
+                    cur.execute('UPDATE feedback_llm_queue SET submission_key=NULL WHERE submission_key=%s AND batch_id IS NULL', (reservation,))
+        if verbose:
+            print(detail, flush=True)
+        return None
     db.execute("INSERT INTO feedback_llm_batch (batch_id, model, n_req) VALUES (%s,%s,%s)",
                (batch.id, model, len(reqs)))
     db.execute("""UPDATE feedback_llm_queue SET batch_id=%s, submitted_at=now()
                    WHERE req_key = ANY(%s)""", (batch.id, [r["req_key"] for r in rows]))
+    batch_health.clear()
     if verbose:
         print(f"  батч отправлен: {batch.id} · {len(reqs)} запросов · {model} · −50 % к цене",
               flush=True)
@@ -240,9 +285,13 @@ def collect(verbose=True):
                           ON CONFLICT (req_key) DO UPDATE SET raw=EXCLUDED.raw,
                             tokens_in=EXCLUDED.tokens_in, tokens_out=EXCLUDED.tokens_out""",
                        saved)
-            cur.execute("SELECT req_key FROM feedback_llm_queue WHERE batch_id=%s ORDER BY req_key", (b['batch_id'],))
-            keys = [row[0] for row in cur.fetchall()]
-            reservation = hashlib.sha256('|'.join(keys).encode()).hexdigest()
+            cur.execute("SELECT req_key,submission_key FROM feedback_llm_queue WHERE batch_id=%s ORDER BY req_key", (b['batch_id'],))
+            queue_rows = cur.fetchall()
+            keys = [row[0] for row in queue_rows]
+            reservations = {row[1] for row in queue_rows if row[1]}
+            if len(reservations) > 1:
+                raise RuntimeError('Batch has multiple reservations; manual reconciliation required')
+            reservation = next(iter(reservations), hashlib.sha256('|'.join(keys).encode()).hexdigest())
             if ok + err == b['n_req']:
                 cur.execute('UPDATE rev_llm_budget SET actual_usd=%s WHERE request_key=%s',
                             (actual_cost, reservation))

@@ -123,6 +123,8 @@ def group(row):
 
 def send_cards(sample_limit=10):
     pending = bot._pending(limit=100000, days=36500)
+    from reports.simple_review_policy import matches as simple_matches
+    pending = [row for row in pending if not simple_matches(row)]
     buckets = {}
     for row in pending:
         buckets.setdefault(group(row), []).append(row)
@@ -159,15 +161,30 @@ def send_cards(sample_limit=10):
 def report():
     counts = db.query('''SELECT platform,account,kind,count(*) AS unanswered,
         count(*) FILTER(WHERE length(coalesce(draft_text,''))>0) AS drafts,
+        count(*) FILTER(WHERE length(coalesce(draft_text,''))>0
+            AND draft_route IN ('auto','review') AND coalesce(draft_grounding->>'fact_block','')=''
+            AND (
+            draft_grounding->>'verify'='PASS' OR
+            draft_grounding->>'verification_method'='owner_approved_simple_review_20261111' OR
+            (draft_grounding->>'verification_method'='source_rules_no_llm'
+             AND draft_grounding->>'deterministic_verified'='true'))) AS ready_drafts,
         count(*) FILTER(WHERE skipped_old) AS historical_held,
         count(*) FILTER(WHERE NOT skipped_old) AS current_queue
         FROM raw_feedback WHERE NOT is_answered AND coalesce(recovery_active_unanswered,true)
         AND NOT skipped_no_api AND NOT coalesce(posted_ok,false) GROUP BY 1,2,3 ORDER BY 1,2,3''')
     queues = db.query('SELECT state,count(*) AS n FROM feedback_moderation GROUP BY state ORDER BY state')
     missing = [key for key in ['DEEPSEEK_API_KEY','ANTHROPIC_API_KEY','ANTHROPIC_BASE_URL'] if not os.getenv(key)]
+    from reports import batch_health
+    health = batch_health.status()
+    llm_status = ('🔴 '+health['provider']['detail'] if health['provider'] else
+                  'готовность конфигурации подтверждена; запросов в очереди: '+str(health['waiting_requests']))
+    if health['uncertain_requests']:
+        llm_status += '; результат части Batch требует сверки: '+str(health['uncertain_requests'])
+    if missing or os.getenv('FEEDBACK_LLM_PIPELINE_READY')!='1':
+        llm_status = 'blocked: credentials/capabilities not validated'
     return {'at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
             'unanswered':counts,'moderation_states':queues,'missing_llm_configuration':missing,
-            'llm_pipeline':'ready: DeepSeek search and Anthropic Batch validated' if not missing and os.getenv('FEEDBACK_LLM_PIPELINE_READY')=='1' else 'blocked: credentials/capabilities not validated',
+            'llm_pipeline':llm_status, 'llm_health':health,
             'budget':recovery_budget.status(),'publication_block':runtime.publication_block(),
             'automatically_published':db.query("""SELECT count(*) AS n FROM raw_feedback f WHERE posted_ok=true
                 AND (draft_route='auto' OR EXISTS(SELECT 1 FROM rev_archive_publication a
@@ -183,6 +200,32 @@ def report():
                     WHERE (a.platform,a.account,a.kind,a.ext_id)=(f.platform,f.account,f.kind,f.ext_id))""")[0]['n'],
             'ozon_reviews':{'state':'separate blocked channel','count':None,'reason':'No API access/answer path; no fabricated zero or paid subscription'},
             'expert_memory':{t:db.query('SELECT count(*) AS n FROM '+t)[0]['n'] for t in ['brand_notes','approved_answers','compat_ref']}}
+
+
+def send_status_if_due(result):
+    """One daily summary, plus immediate provider/publication state changes."""
+    path = OUT/'status-notification.json'
+    now = time.time()
+    provider = result['llm_health'].get('provider') or {}
+    signature = json.dumps([result['publication_block'], provider.get('reason'),
+                            bool(result['llm_health']['uncertain_requests']),
+                            result['missing_llm_configuration']], sort_keys=True)
+    try:
+        previous = json.loads(path.read_text())
+    except (OSError, ValueError):
+        previous = {}
+    if previous.get('signature')==signature and now-previous.get('sent_at',0)<86400:
+        return False
+    lines = ['Rev: '+('Публикации заблокированы: '+result['publication_block']
+                     if result['publication_block'] else 'Автопубликация простых отзывов включена.')]
+    lines += [f"{r['platform']}/{r['account']} {r['kind']}: без ответа {r['unanswered']}, "
+              f"готовых {r['ready_drafts']}, архив {r['historical_held']}" for r in result['unanswered']]
+    lines += [result['llm_pipeline'],
+              f"LLM сегодня: расход ${result['budget']['spent_usd']}, резерв ${result['budget']['reserved_usd']}; предел $2."]
+    if not bot.send(bot.NOTIFY_IDS[0], '\n'.join(lines)):
+        return False
+    path.write_text(json.dumps({'signature':signature,'sent_at':now}))
+    return True
 
 
 def main():
@@ -220,7 +263,9 @@ def process_collected(active,wait_seconds=0):
             and all(os.getenv(k) for k in ['DEEPSEEK_API_KEY','ANTHROPIC_API_KEY','ANTHROPIC_BASE_URL'])):
         from reports import llm_batch, feedback_today, recovery_review
         llm_batch.collect()
-        feedback_today.run(since='1970-01-01')
+        from reports import batch_health
+        if not batch_health.blocked():
+            feedback_today.run(since='1970-01-01')
         recovery_review.tick()
         llm_batch.flush_if_due()
     queue_cases()
@@ -236,12 +281,7 @@ def process_collected(active,wait_seconds=0):
     result['publication_phase']=publication
     result['publication_readback']=source_checks
     (OUT/'regular-cycle-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2,default=str))
-    lines=['Rev: цикл завершён. '+('Публикации заблокированы: '+result['publication_block'] if result['publication_block'] else 'Штатная публикация включена.')]
-    lines += [f"{r['platform']}/{r['account']} {r['kind']}: без ответа {r['unanswered']} (исторический архив {r['historical_held']}), черновиков {r['drafts']}" for r in result['unanswered']]
-    lines += [f"Карточек доставлено/обновлено: {len(delivered)}. Автопубликаций в этом цикле: {publication.get('automatic',0)}.",
-              result['llm_pipeline'],
-              f"LLM сегодня: расход ${result['budget']['spent_usd']}, резерв ${result['budget']['reserved_usd']}; предел $2."]
-    bot.send(bot.NOTIFY_IDS[0],'\n'.join(lines))
+    send_status_if_due(result)
     print(json.dumps({'cycle':'completed','moderation_delivered':len(delivered),'publication_blocked':bool(result['publication_block'])}),flush=True)
 
 
