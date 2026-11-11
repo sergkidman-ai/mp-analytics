@@ -1,0 +1,218 @@
+{
+  "generated_at_utc": "2026-11-11T11:04:30.167302+00:00",
+  "account": "oz_acc1",
+  "article": "5378",
+  "sku": "1510947813",
+  "model": "Октябрьские затраты пульта, проекция на стоимость заказанного; до ФОТ/налогов компании; не финансовый факт ноября и не причинный эффект ставок.",
+  "scope": "19 native model_id, включают 20 SKU. Уровни не складывать.",
+  "closed_reference_month": "2026-10",
+  "CPC_addback_only_RUB": "805015",
+  "average_account_contribution_before_CPC_percent": "22.55201616745853215998680519",
+  "model_ordered_value_loss_RUB": "169930",
+  "observed_target_CPC_saving_RUB": "138684.90",
+  "account_average_estimate": {
+    "lost_contribution_RUB": "38322.64107336228369946557806",
+    "improvement_after_observed_CPC_saving_RUB": "100362.2589266377163005344219"
+  },
+  "unit_COGS_check": {
+    "covered": {
+      "before": {
+        "covered_ordered_value_RUB": "721088",
+        "estimated_COGS_RUB": "167058.1644313260376340",
+        "covered_turnover_percent": "99.75182671584020628539651008",
+        "estimated_contribution_before_target_CPC_RUB": "139431.0653529210733314568980",
+        "uncovered_ordered_value_RUB": "1794"
+      },
+      "after": {
+        "covered_ordered_value_RUB": "545261",
+        "estimated_COGS_RUB": "109032.9965400265305103",
+        "covered_turnover_percent": "98.60910169417960329287171400",
+        "estimated_contribution_before_target_CPC_RUB": "122723.2161848952043849360789",
+        "uncovered_ordered_value_RUB": "7691"
+      }
+    },
+    "covered_SKUs": 29,
+    "sold_SKUs": 35,
+    "unknown_COGS_SKUs": [
+      {
+        "sku": "3006517349",
+        "before_qty": "0",
+        "before_value": "0",
+        "before_orders": 0,
+        "after_qty": "1",
+        "after_value": "5093",
+        "after_orders": 1,
+        "unit_cogs": null,
+        "historical_qty": null
+      },
+      {
+        "sku": "4489633315",
+        "before_qty": "1",
+        "before_value": "456",
+        "before_orders": 1,
+        "after_qty": "1",
+        "after_value": "456",
+        "after_orders": 1,
+        "unit_cogs": null,
+        "historical_qty": "1"
+      },
+      {
+        "sku": "652550333",
+        "before_qty": "1",
+        "before_value": "687",
+        "before_orders": 1,
+        "after_qty": "0",
+        "after_value": "0",
+        "after_orders": 0,
+        "unit_cogs": null,
+        "historical_qty": "2"
+      },
+      {
+        "sku": "652610794",
+        "before_qty": "0",
+        "before_value": "0",
+        "before_orders": 0,
+        "after_qty": "1",
+        "after_value": "758",
+        "after_orders": 1,
+        "unit_cogs": null,
+        "historical_qty": null
+      },
+      {
+        "sku": "652692141",
+        "before_qty": "0",
+        "before_value": "0",
+        "before_orders": 0,
+        "after_qty": "1",
+        "after_value": "687",
+        "after_orders": 1,
+        "unit_cogs": null,
+        "historical_qty": null
+      },
+      {
+        "sku": "652692251",
+        "before_qty": "1",
+        "before_value": "651",
+        "before_orders": 1,
+        "after_qty": "1",
+        "after_value": "697",
+        "after_orders": 1,
+        "unit_cogs": null,
+        "historical_qty": "1"
+      }
+    ],
+    "covered_contribution_loss_RUB": "16707.8491680258689465208191",
+    "covered_result_change_including_all_target_CPC_saving_RUB": "121977.0508319741310534791809",
+    "thin_oct_reference_SKUs_qty_lt5": [
+      "1692504126",
+      "1692504857",
+      "1999321262",
+      "3557209622",
+      "4463532700",
+      "4504239311",
+      "4518302691",
+      "4518308193",
+      "5258397359",
+      "5280100241",
+      "652638204",
+      "653028457",
+      "653062552",
+      "653076881",
+      "653076890",
+      "653132938",
+      "866442961"
+    ],
+    "note": "Чувствительность к товарному миксу, не независимый факт. Неизвестная себестоимость не ноль; результат шести SKU не оценён. Удержания по SKU заменены средней долей аккаунта; часть исторических qty мала."
+  },
+  "5378": {
+    "before": {
+      "from_msk": "2026-10-19",
+      "through_msk": "2026-10-29",
+      "own_orders": 23,
+      "units": "24",
+      "ordered_value_RUB": "303473",
+      "average_ordered_price_per_unit_RUB": "12644.70833333333333333333333",
+      "historical_oct_unit_COGS_RUB": "4017.1869444444416667",
+      "observed_CPC_spend_RUB": "56968.99",
+      "ad_attributed_value_RUB": "159021.00",
+      "ad_DRR_percent": "35.82482187887134403632224675",
+      "estimated_COGS_RUB": "96412.4866666666000008",
+      "estimated_result_before_CPC_RUB": "32574.8297639421793798305211",
+      "estimated_result_after_CPC_RUB": "-24394.1602360578206201694789"
+    },
+    "after": {
+      "from_msk": "2026-10-31",
+      "through_msk": "2026-11-10",
+      "own_orders": 13,
+      "units": "13",
+      "ordered_value_RUB": "216886",
+      "average_ordered_price_per_unit_RUB": "16683.53846153846153846153846",
+      "historical_oct_unit_COGS_RUB": "4017.1869444444416667",
+      "observed_CPC_spend_RUB": "10334.56",
+      "ad_attributed_value_RUB": "133071.00",
+      "ad_DRR_percent": "7.766199998497042931968648316",
+      "estimated_COGS_RUB": "52223.4302777777416671",
+      "estimated_result_before_CPC_RUB": "39961.18947873771679130463963",
+      "estimated_result_after_CPC_RUB": "29626.62947873771679130463963"
+    }
+  },
+  "5378_placements": [
+    {
+      "phase": "before",
+      "campaign_id": "10659516",
+      "observed_days": 10,
+      "spend_RUB": "37465.53",
+      "views": 9355,
+      "clicks": 380
+    },
+    {
+      "phase": "before",
+      "campaign_id": "12704286",
+      "observed_days": 10,
+      "spend_RUB": "19503.46",
+      "views": 33424,
+      "clicks": 583
+    },
+    {
+      "phase": "after",
+      "campaign_id": "10659516",
+      "observed_days": 11,
+      "spend_RUB": "9029.14",
+      "views": 3562,
+      "clicks": 188
+    },
+    {
+      "phase": "after",
+      "campaign_id": "12704286",
+      "observed_days": 11,
+      "spend_RUB": "1305.42",
+      "views": 4421,
+      "clicks": 70
+    }
+  ],
+  "data_limits": [
+    "До нет рекламной строки 5378 за 29.10; не ноль.",
+    "История всех 36 размещений не доказана; saving по наблюдаемым строкам.",
+    "Праздник, разный набор дней недели, новая волна с 06.11 и цена/скидки мешают причинному выводу.",
+    "Коэффициент MP включает средние возвраты, CPO, подписки и прочие расходы. Только CPC добавлен обратно.",
+    "Объём заказанного отличается от закрытой реализации; ноябрьские удержания/возвраты могут измениться.",
+    "Фиксированный ФОТ не экономится автоматически; труд/налоги компании в этой модели не рассчитаны."
+  ],
+  "source_sha256": {
+    "reports/data/mp_ozon_hist.json": "f52a3b227f52e0ef95d3273af529839bfaa6952461c016bf055cc616c6259f62",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/status.json": "6253be436a40321f3467be48a9ed536f6d11111ddb805cfc9e3f3a86c3dbdcb2",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/by_sku_20.csv": "3605512da27f37fe82ed35f9c0a426ad50ed64e6e4652baa247fce2e0bfb123b",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/merged_ads.csv": "2c86f442127a100bf04d91d3484342cc005e1d2ea8a4337b5f0419b84d99370c",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/margin_review/expense_basis_status.json": "76dabe4d27469c58bfa1f503605a3a7673680ab42f1a33ee13bdc028b1bc2849",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/margin_review/5378_margin_rows.json": "e3fc5aa4fe234a9377ebfff9721340f5694d0c3ddebe61b0996cb466baa0482b",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/margin_review/5378_dashboard_oct_qty.json": "ecee067a50286804ff12e3da61b34cd2f480f7cea2920cd940712fd4ff2517eb",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/margin_review/cohort_october_financial_rows.json": "78d415deae679a5dea7959b1cb502d0fc36780db28257b7bf9d0b3be50bddbc8",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/margin_review/cohort_unit_model_inputs.json": "c4c7aa3937afae88df59a508a5d5d3ed5057a885864f144668b5794212b40fb4",
+    "docs/reports/ozon_launch_20261106/baseline/sales_lines.csv": "a395b30a09daa852303631b26a95326b34e7090aa31e09efae6c5f328cca92b9",
+    "reports/ozon_margin_control.py": "1a64cf2165ae1ac7a2163e350e48a72b452c9b51dd92460e10143c654ce178ee",
+    "docs/reports/ozon_launch_20261106/baseline/postings_fbs.json": "d2161893e26c2dc7f7db168d8c4a72080836451b924dda3313e5598bad693d9c",
+    "docs/reports/ozon_launch_20261106/baseline/postings_fbo.json": "efcec4af5dce8220d762306b8580158774606bcaa3cf0c60323e3f02fc34863c",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/raw/monitor_postings_20261031_20261110_fbs.json": "ad55c138f49f6328f71cb1cbbf3ccb6309fe9d54aa935594cfbc82423c307af7",
+    "docs/reports/ozon_recovery_20261103/daily_20261111/raw/monitor_postings_20261031_20261110_fbo.json": "e98036a1ba612e390c3a5778057d34925eac1c37c4205ed9b6bdfb7fd16a2b17"
+  }
+}

@@ -5,6 +5,8 @@ scan MONTH сохраняет узкую выборку из всех отгру
 только в заказе). build собирает проверенный снимок для раздела Пульта.
 """
 import argparse
+import fcntl
+from contextlib import contextmanager
 import json
 from collections import Counter, defaultdict
 from datetime import date, timedelta
@@ -385,16 +387,36 @@ def build(reader=None, refresh_cost_months=(), refresh_agents=False):
     return len(result)
 
 
-def refresh():
-    today = date.today()
-    current = today.strftime("%Y-%m")
-    scan(current, through=today)
-    refresh_cost_months = {current}
-    if today.day <= 5 and (today.year > 2026 or today.month > 1):
-        previous = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
-        scan(previous)
-        refresh_cost_months.add(previous)
-    return build(refresh_cost_months=refresh_cost_months, refresh_agents=True)
+
+def refresh_months(today):
+    """Late delivery/status updates can affect last month after its fifth day."""
+    previous=(today.replace(day=1)-timedelta(days=1)).strftime('%Y-%m')
+    return tuple(m for m in (previous,today.strftime('%Y-%m')) if m>='2026-01')
+
+
+@contextmanager
+def refresh_lock():
+    path=Path(__file__).resolve().parents[1]/'.private/ms-legal-sales-refresh.lock'
+    path.parent.mkdir(parents=True,exist_ok=True)
+    with path.open('a') as lock:
+        try:
+            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise MsReadError('legal sales refresh already running') from None
+        try:
+            yield
+        finally:
+            fcntl.flock(lock,fcntl.LOCK_UN)
+
+
+def refresh(today=None,reader=None):
+    today=today or date.today()
+    reader=reader or Reader(budget_seconds=2700,page_size=20)
+    months=refresh_months(today)
+    with refresh_lock():
+        for month in months:
+            scan(month,reader=reader,through=today)
+        return build(reader=reader,refresh_cost_months=set(months),refresh_agents=True)
 
 
 def main():
@@ -405,9 +427,11 @@ def main():
     if args.action == "scan":
         if not args.month:
             parser.error("scan requires YYYY-MM")
-        print(args.month, scan(args.month, through=date.today()))
+        with refresh_lock():
+            print(args.month, scan(args.month, through=date.today()))
     elif args.action == "build":
-        print("legal shipments", build())
+        with refresh_lock():
+            print("legal shipments", build())
     else:
         print("legal shipments", refresh())
 

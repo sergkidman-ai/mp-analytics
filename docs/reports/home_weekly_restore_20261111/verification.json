@@ -1,0 +1,30 @@
+{
+  "tests_passed": 31,
+  "browser": {
+    "preview": false,
+    "october_weeks": 5,
+    "november_weeks": 3,
+    "company_switches": 2,
+    "js_errors": [],
+    "weekly_http_errors": []
+  },
+  "sql_reconciliation": {
+    "weeks": 5,
+    "revenue": true,
+    "payout": true
+  },
+  "company_totals_reconciled": true,
+  "monthly_financial_totals_unchanged": true,
+  "missing_cost_units": {
+    "2026-10": 10,
+    "2026-11": 1
+  },
+  "financial_database_writes": 0,
+  "external_api_requests": 0,
+  "files": {
+    "web/app.py": "51a4b0519cec6879a1886b87ddabe6cefe0adbdbeb75ef9330a7bc8a65d35b98",
+    "web/home_weekly.py": "9450020b26c62410fadcb51e88798444d06d2d4bf0ca45e26e0abc42b9302c0b",
+    "web/static/home.html": "f89630ebef3db8831d12ea252941f5be935506af4ab7e654f1ccb4b35fd72a40",
+    "tests/test_home_weekly.py": "e4f30d1fc1b81cd50f3bce164230f671c4a41c40863367c0dc45423154838d3e"
+  }
+}

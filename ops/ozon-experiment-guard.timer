@@ -1,0 +1,12 @@
+# поток: mkt / ozon
+[Unit]
+Description=Check Ozon experiment every three hours
+
+[Timer]
+OnCalendar=*-*-* 00,03,06,09,12,15,18,21:00:00 Europe/Moscow
+Persistent=true
+AccuracySec=1min
+Unit=ozon-experiment-guard.service
+
+[Install]
+WantedBy=timers.target

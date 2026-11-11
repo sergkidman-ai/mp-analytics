@@ -1,0 +1,28 @@
+{
+  "tests": 18,
+  "subtests": 9,
+  "http": 200,
+  "closed_months": [
+    "2026-07",
+    "2026-08",
+    "2026-09",
+    "2026-10"
+  ],
+  "calculated_month": "2026-11",
+  "amounts_unchanged": true,
+  "bases_unchanged": true,
+  "diskver_uses_yandex": false,
+  "browser": {
+    "preview": false,
+    "tables": 3,
+    "diskver_columns": 9,
+    "diskver_months": 5,
+    "js_errors": []
+  },
+  "snapshots": {
+    "2026-07.json": "897a3d31779f678ba036855f970da7393015b15297b74050159f0cbe6769ac99",
+    "2026-09.json": "c5b7c89ddcc8f2accc202af91facf6ac5636c0fec796fd0d13d43cdc70929c9a",
+    "2026-08.json": "751ee1324e262f12fb5dec9c2563ec7d9fe6a6b60a6eef515a1b7530069d8922",
+    "2026-10.json": "00fe3e43f3a5153c6cf063c2358aabbb171fc24c4c70f0ba27f3e077c88e5724"
+  }
+}

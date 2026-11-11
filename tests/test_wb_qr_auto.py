@@ -79,7 +79,7 @@ class WbQrAutoTests(unittest.TestCase):
         self.assertNotIn('public-auto-test',json.dumps(report))
     def test_manifest_access_is_limited_to_buyer_wb(self):
         m=json.loads((EXTENSION/'manifest.json').read_text())
-        self.assertEqual(m['host_permissions'],['https://www.wildberries.ru/*','https://wildberries.ru/*','https://bi.metaverseworld.ru/api/returns/wb-qr/diskver'])
+        self.assertEqual(m['host_permissions'],['https://www.wildberries.ru/*','https://wildberries.ru/*','https://bi.beyindi.com/api/returns/wb-qr/diskver'])
         self.assertEqual(m['permissions'],['activeTab','scripting','alarms','storage'])
         self.assertEqual(m['background'],{'service_worker':'background.js'});self.assertNotIn('content_scripts',m)
 

@@ -1,0 +1,69 @@
+{
+  "account": "oz_acc1",
+  "snapshot_finished_at_utc": "2026-11-05T09:33:00.482333+00:00",
+  "classification_revision": "V2_CHILDREN_PRIORITY_20261105",
+  "classification_priority": "numeric ASCII article longer than 4 digits -> children; then X2/X6/X10 bundles; then created within six months; then old",
+  "top_level_group_counts": {
+    "Старые товары": 1561,
+    "Дочерние": 3252,
+    "Новинки": 176,
+    "Бандлы": 4253
+  },
+  "children_count": 3252,
+  "children_parent_card_found": 3252,
+  "children_with_archived_parent": 130,
+  "children_moved_from_previous_segments": {
+    "other_outside_cpc": 4,
+    "new_6months": 3248
+  },
+  "parent_relation_is_not_marketplace_model_id": true,
+  "scope": "nonarchived cards with own has_stock=true AND positive present-reserved, outside RUNNING CPC",
+  "stock_rule": "has_stock=true and sum(max(present-reserved,0)) > 0 across Seller stock sources",
+  "new_cards_window_from_msk": "2026-05-05T00:00:00+03:00",
+  "new_cards_window_through_utc": "2026-11-05T09:33:00.482333+00:00",
+  "nonarchived_in_stock_catalog_cards": 15255,
+  "in_stock_outside_running_cpc": 9242,
+  "no_stock_removed_from_main_report": 6891,
+  "archived_excluded_from_main_report": true,
+  "counts": {
+    "bundles_x2": {
+      "count": 1799,
+      "own_readiness_passed": 1798,
+      "previous_wave1_prepared": 558
+    },
+    "bundles_x6": {
+      "count": 1341,
+      "own_readiness_passed": 1341,
+      "previous_wave1_prepared": 409
+    },
+    "bundles_x10": {
+      "count": 1113,
+      "own_readiness_passed": 1113,
+      "previous_wave1_prepared": 353
+    },
+    "new_6months": {
+      "count": 176,
+      "own_readiness_passed": 174,
+      "previous_wave1_prepared": 65
+    },
+    "other_outside_cpc": {
+      "count": 1561,
+      "own_readiness_passed": 1551,
+      "previous_wave1_prepared": 495
+    },
+    "children": {
+      "count": 3252,
+      "own_readiness_passed": 3236,
+      "previous_wave1_prepared": 1041
+    }
+  },
+  "all_pairwise_intersections_zero": true,
+  "own_readiness_passed": 9213,
+  "global_all_sku_cpo_running": true,
+  "no_any_paid_advertising_claimed": false,
+  "young_bundles_not_duplicated_in_new": 4253,
+  "previous_bundle_without_X_in_stock": 79,
+  "previous_wave1_prepared_in_stock": 2921,
+  "marketplace_mutations": 0,
+  "database_data_writes": 0
+}

@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "month": {
+    "ym": "2026-09",
+    "orgs": {
+      "7807355364": {
+        "platforms": {
+          "wb": {
+            "base": 2038050.57,
+            "sales": 2038050.57,
+            "rets": 30121.17,
+            "net": 2007929.4
+          },
+          "ozon": {
+            "base": 6564029.86,
+            "sales": 6564029.86,
+            "rets": 201426.41,
+            "net": 6362603.45
+          },
+          "yandex": {
+            "base": 1547854.0,
+            "sales": 1547854.0,
+            "rets": 173828.0,
+            "net": 1374026.0
+          }
+        },
+        "base": 10149934.43,
+        "sales": 10149934.43,
+        "rets": 405375.58,
+        "net": 9744558.85,
+        "wb_last_day": "2026-09-30",
+        "ozon_unclassified": {
+          "base": 0.0,
+          "sales": 0.0,
+          "rets": 0.0,
+          "net": 0.0
+        },
+        "ozon_excluded": {
+          "base": 486730.84,
+          "sales": 486730.84,
+          "rets": 18950.83,
+          "net": 467780.01
+        },
+        "royalty": {
+          "rate_percent": 2.0,
+          "amount": 202998.69,
+          "preliminary": false,
+          "reasons": [],
+          "source_warnings": []
+        }
+      },
+      "7811803918": {
+        "platforms": {
+          "wb": {
+            "base": 1340873.06,
+            "sales": 1340873.06,
+            "rets": 31849.12,
+            "net": 1309023.94
+          },
+          "ozon": {
+            "base": 1251771.01,
+            "sales": 1251771.01,
+            "rets": 14634.94,
+            "net": 1237136.07
+          },
+          "yandex": null
+        },
+        "base": 2592644.07,
+        "sales": 2592644.07,
+        "rets": 46484.06,
+        "net": 2546160.01,
+        "wb_last_day": "2026-09-30",
+        "ozon_unclassified": {
+          "base": 802.84,
+          "sales": 802.84,
+          "rets": 0.0,
+          "net": 802.84,
+          "rows": 1
+        },
+        "ozon_excluded": {
+          "base": 172687.96,
+          "sales": 172687.96,
+          "rets": 0.0,
+          "net": 172687.96
+        },
+        "royalty": {
+          "rate_percent": 2.25,
+          "amount": 58334.49,
+          "preliminary": false,
+          "reasons": [],
+          "source_warnings": [
+            "Есть строки Ozon без подтверждённого бренда"
+          ]
+        }
+      }
+    },
+    "status": "closed",
+    "closed_at": "2026-11-11T07:27:01.116512+00:00"
+  }
+}

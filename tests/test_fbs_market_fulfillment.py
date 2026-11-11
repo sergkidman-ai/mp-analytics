@@ -37,7 +37,7 @@ def response(body, http=200):
 
 def ozon_payload(o, status='awaiting_packaging', required=False):
     return response({'result': {'posting_number': o['name'], 'status': status,
-        'products': [{'sku': 101, 'offer_id': '100', 'quantity': 1}],
+        'products': [{'sku': 101, 'offer_id': '100', 'quantity': 1, 'price': '100'}],
         'requirements': {'products_requiring_gtd': [101] if required else []}}})
 
 
@@ -72,7 +72,7 @@ class FulfillmentTests(TestCase):
     def test_ozon_single_full_package_proof_and_durable_idempotence(self):
         o = order(); before = deepcopy(o)
         payload = ozon_payload(o)
-        payload.json.return_value['result']['products'].append({'sku': 102, 'offer_id': '101', 'quantity': 3})
+        payload.json.return_value['result']['products'].append({'sku': 102, 'offer_id': '101', 'quantity': 3, 'price': '100'})
         session, request = self.session([payload, response({'result': [o['name']]}), ozon_payload(o,'awaiting_deliver')])
         result = session.fulfill(o, self.folder)
         self.assertEqual(result['result'], 'ready')
@@ -432,6 +432,7 @@ class FulfillmentTests(TestCase):
         for account in (1, 2):
             info = self.future_supply('WB-GI-' + str(500 + account), account)
             session, request = self.session([self.wb_status(), response({'supplies': [], 'next': 0}),
+                response({'supplies': [], 'next': 0}),
                 response({'id': info['id']}, 201), response(info), response({'orderIds': []}), response({}, 204)])
             result = session.fulfill(self.future_wb_order(account=account), self.folder / str(account))
             self.assertEqual(result['result'], 'ready')
@@ -470,6 +471,7 @@ class FulfillmentTests(TestCase):
     def test_uncertain_supply_creation_is_found_without_second_post(self):
         info = self.future_supply()
         session, request = self.session([self.wb_status(), response({'supplies': [], 'next': 0}),
+            response({'supplies': [], 'next': 0}),
             requests.ReadTimeout(), response({'supplies': [info], 'next': 0}), response(info),
             response({'orderIds': []}), response({}, 204)])
         self.assertEqual(session.fulfill(self.future_wb_order(), self.folder)['result'], 'ready')
@@ -477,8 +479,9 @@ class FulfillmentTests(TestCase):
 
     def test_unresolved_creation_blocks_next_order_from_creating_duplicate(self):
         session, request = self.session([self.wb_status(), response({'supplies': [], 'next': 0}),
+            response({'supplies': [], 'next': 0}),
             requests.ReadTimeout(), response({'supplies': [], 'next': 0}),
-            self.wb_status(12346), response({'supplies': [], 'next': 0})])
+            self.wb_status(12346), response({'supplies': [], 'next': 0}), response({'supplies': [], 'next': 0})])
         first = session.fulfill(self.future_wb_order(), self.folder / 'one')
         second = session.fulfill(self.future_wb_order('12346'), self.folder / 'two')
         self.assertEqual(first['reason'], 'wb_supply_create_unconfirmed_no_retry')
@@ -514,20 +517,100 @@ class FulfillmentTests(TestCase):
         info = self.future_supply()
         closed = self.future_supply('WB-GI-1', done=True, closedAt='2026-11-03T10:00:00Z')
         session, request = self.session([self.wb_status(), response({'supplies': [closed], 'next': 0}),
+            response({'supplies': [closed], 'next': 0}),
             response({'id': info['id']}, 201), response(info), response({'orderIds': []}), response({}, 204)])
         self.assertEqual(session.fulfill(self.future_wb_order(), self.folder)['supply_id'], 'WB-GI-505')
 
     def test_dated_names_do_not_confuse_receipt_creation_day_or_year(self):
-        for name in ('05.11', '5.11', '05.11.26', '5.11.2026', '2026-11-05'):
+        for name in ('05.11', '5.11', '05.11.26', '5.11.2026', '2026-11-05', 'MSK-05-11-26', 'DSK-05-11-2026'):
             with self.subTest(name=name):
                 self.assertTrue(f.wb_supplies.dated(self.future_supply(name=name), '2026-11-05'))
         self.assertFalse(f.wb_supplies.dated(self.future_supply(name='05.11.2025'), '2026-11-05'))
         self.assertFalse(f.wb_supplies.dated(self.future_supply(name='03.11 / 05.11'), '2026-11-05'))
 
+    def test_tk_named_supply_is_reused_without_creating_another(self):
+        info = self.future_supply(name='MSK-05-11-26')
+        session, request = self.session([self.wb_status(), response({'supplies': [info], 'next': 0}),
+            response(info), response({'orderIds': []}), response({}, 204)])
+        result = session.fulfill(self.future_wb_order(), self.folder)
+        self.assertEqual(result['supply_id'], info['id'])
+        self.assertFalse(any(c.args[0] == 'POST' and c.args[1].endswith('/api/v3/supplies') for c in request.call_args_list))
+
+    def test_deleted_saved_supply_refreshes_catalog_and_uses_tk_supply(self):
+        info = self.future_supply(name='MSK-05-11-26')
+        root = f.wb_supplies.RUNTIME / 'wb_acc1' / '2026-11-05';root.mkdir(parents=True)
+        f._save(root / 'selected.json', {'id': 'WB-GI-removed', 'account': 'wb_acc1', 'day': '2026-11-05'})
+        session, request = self.session([self.wb_status(), response({}, 404),
+            response({'supplies': [info], 'next': 0}), response(info),
+            response({'orderIds': []}), response({}, 204)])
+        result = session.fulfill(self.future_wb_order(), self.folder)
+        self.assertEqual(result['result'], 'ready')
+        self.assertEqual(result['supply_id'], info['id'])
+        self.assertFalse(any(c.args[0] == 'POST' and c.args[1].endswith('/api/v3/supplies') for c in request.call_args_list))
+
+    def test_supply_appearing_on_final_check_is_reused_without_post(self):
+        info = self.future_supply(name='MSK-05-11-26')
+        session, request = self.session([self.wb_status(), response({'supplies': [], 'next': 0}),
+            response({'supplies': [info], 'next': 0}), response(info),
+            response({'orderIds': []}), response({}, 204)])
+        self.assertEqual(session.fulfill(self.future_wb_order(), self.folder)['supply_id'], info['id'])
+        self.assertFalse(any(c.args[0] == 'POST' and c.args[1].endswith('/api/v3/supplies') for c in request.call_args_list))
+
+    def test_permission_error_on_saved_supply_does_not_create_replacement(self):
+        root = f.wb_supplies.RUNTIME / 'wb_acc1' / '2026-11-05';root.mkdir(parents=True)
+        f._save(root / 'selected.json', {'id': 'WB-GI-505', 'account': 'wb_acc1', 'day': '2026-11-05'})
+        session, request = self.session([self.wb_status(), response({}, 403)])
+        result = session.fulfill(self.future_wb_order(), self.folder)
+        self.assertEqual(result['reason'], 'read_api_http_403')
+        self.assertFalse(any(c.args[0] == 'POST' and c.args[1].endswith('/api/v3/supplies') for c in request.call_args_list))
+
+    def test_b2b_registry_does_not_overwrite_ordinary_supply(self):
+        ordinary = self.future_supply(isB2b=False, cargoType=1)
+        b2b = self.future_supply('WB-GI-506', isB2b=True, cargoType=1)
+        root = f.wb_supplies.RUNTIME / 'wb_acc1' / '2026-11-05';root.mkdir(parents=True)
+        f._save(root / 'selected.json', {'id': ordinary['id'], 'account': 'wb_acc1', 'day': '2026-11-05'})
+        o = self.future_wb_order();o['_market_fulfillment']['raw']['options']['isB2B'] = True
+        session, request = self.session([self.wb_status(), response({'supplies': [ordinary,b2b], 'next': 0}),
+            response(b2b), response({'orderIds': []}), response({}, 204)])
+        self.assertEqual(session.fulfill(o, self.folder)['supply_id'], b2b['id'])
+        self.assertEqual(f.wb_supplies.load(root / 'selected.json')['id'], ordinary['id'])
+        self.assertEqual(f.wb_supplies.load(root / 'selected_b2b.json')['id'], b2b['id'])
+
+    def test_missing_b2b_supply_waits_for_tk_without_creation_or_assignment(self):
+        o = self.future_wb_order();o['_market_fulfillment']['raw']['options']['isB2b'] = True
+        ordinary = self.future_supply(cargoType=1, isB2b=False)
+        session, request = self.session([self.wb_status(), response({'supplies': [ordinary], 'next': 0})])
+        result = session.fulfill(o, self.folder)
+        self.assertEqual(result['reason'], 'wb_b2b_supply_not_found_wait_for_tk')
+        self.assertFalse(any(c.args[0] == 'PATCH' or c.args[0] == 'POST' and c.args[1].endswith('/supplies') for c in request.call_args_list))
+
+    def test_empty_untyped_supply_is_not_proof_of_b2b(self):
+        o = self.future_wb_order();o['_market_fulfillment']['raw']['isB2b'] = True
+        empty = self.future_supply(cargoType=0)
+        session, request = self.session([self.wb_status(), response({'supplies': [empty], 'next': 0})])
+        self.assertEqual(session.fulfill(o, self.folder)['reason'], 'wb_b2b_supply_not_found_wait_for_tk')
+        self.assertFalse(f.wb_supplies.compatible(
+            self.future_supply(cargoType=0, isB2b=True),
+            {'cargoType': 1, 'crossBorderType': 0, 'isB2b': False}))
+        self.assertFalse(f.wb_supplies.compatible(
+            self.future_supply(cargoType=1, isB2b=True),
+            {'cargoType': 1, 'crossBorderType': 0, 'options': {}}))
+
+    def test_confirmed_b2b_order_is_verified_in_its_actual_supply_without_patch(self):
+        ordinary = self.future_supply(cargoType=1, isB2b=False)
+        b2b = self.future_supply('WB-GI-506', cargoType=1, isB2b=True)
+        session, request = self.session([self.wb_status(status='confirm'),
+            response({'supplies': [ordinary, b2b], 'next': 0}),
+            response({'orderIds': []}), response({'orderIds': [12345]})])
+        result = session.fulfill(self.future_wb_order(), self.folder)
+        self.assertEqual(result['result'], 'already_ready')
+        self.assertEqual(result['supply_id'], b2b['id'])
+        self.assertFalse(any(c.args[0] == 'PATCH' for c in request.call_args_list))
+
     def test_closed_legacy_today_supply_can_be_replaced(self):
         info = self.future_supply(name='03.11.2026 Цифровой FBS')
         session, request = self.session([self.wb_status(), self.wb_replies(closed=True)[1],
-            response({'supplies': [], 'next': 0}), response({'id': info['id']}, 201),
+            response({'supplies': [], 'next': 0}), response({'supplies': [], 'next': 0}), response({'id': info['id']}, 201),
             response(info), response({'orderIds': []}), response({}, 204)])
         self.assertEqual(session.fulfill(self.wb_order(), self.folder)['supply_id'], info['id'])
 

@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "month": {
+    "ym": "2026-10",
+    "orgs": {
+      "7807355364": {
+        "platforms": {
+          "wb": {
+            "base": 2815618.92,
+            "sales": 2815618.92,
+            "rets": 68029.51,
+            "net": 2747589.41
+          },
+          "ozon": {
+            "base": 7141615.71,
+            "sales": 7141615.71,
+            "rets": 168823.11,
+            "net": 6972792.6
+          },
+          "yandex": {
+            "base": 2560077.0,
+            "sales": 2560077.0,
+            "rets": 282727.0,
+            "net": 2277350.0
+          }
+        },
+        "base": 12517311.63,
+        "sales": 12517311.63,
+        "rets": 519579.62,
+        "net": 11997732.01,
+        "wb_last_day": "2026-10-31",
+        "ozon_unclassified": {
+          "base": 0.0,
+          "sales": 0.0,
+          "rets": 0.0,
+          "net": 0.0
+        },
+        "ozon_excluded": {
+          "base": 721575.31,
+          "sales": 721575.31,
+          "rets": 17937.25,
+          "net": 703638.06
+        },
+        "royalty": {
+          "rate_percent": 2.0,
+          "amount": 250346.23,
+          "preliminary": false,
+          "reasons": [],
+          "source_warnings": []
+        }
+      },
+      "7811803918": {
+        "platforms": {
+          "wb": {
+            "base": 1544193.34,
+            "sales": 1544193.34,
+            "rets": 46688.87,
+            "net": 1497504.47
+          },
+          "ozon": {
+            "base": 1403154.45,
+            "sales": 1403154.45,
+            "rets": 61360.01,
+            "net": 1341794.44
+          },
+          "yandex": null
+        },
+        "base": 2947347.79,
+        "sales": 2947347.79,
+        "rets": 108048.88,
+        "net": 2839298.91,
+        "wb_last_day": "2026-10-31",
+        "ozon_unclassified": {
+          "base": 0.0,
+          "sales": 0.0,
+          "rets": 0.0,
+          "net": 0.0
+        },
+        "ozon_excluded": {
+          "base": 145319.14,
+          "sales": 145319.14,
+          "rets": 40729.33,
+          "net": 104589.81
+        },
+        "royalty": {
+          "rate_percent": 2.25,
+          "amount": 66315.33,
+          "preliminary": false,
+          "reasons": [],
+          "source_warnings": []
+        }
+      }
+    },
+    "status": "closed",
+    "closed_at": "2026-11-11T07:27:01.120048+00:00"
+  }
+}

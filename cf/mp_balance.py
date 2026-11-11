@@ -58,7 +58,7 @@ def ozon_balance(account, day):
 def wb_balance(account):
     """Баланс ЛК WB. Лимит ~1 запрос/мин — зовём раз в сутки."""
     env = WB_FINANCE_TOKEN.get(account)
-    token = os.getenv(env) if env else None
+    token = (os.getenv(env) if env else None) or os.getenv("WB_TOKEN_" + account.replace("wb_", "").upper())
     if not token:
         return None, f"нет токена со скоупом «Финансы» ({env or '—'})"
     for _ in range(3):      # лимит ~1 запрос/мин на весь аккаунт — ждём и пробуем ещё раз

@@ -29,7 +29,7 @@ TG_RETURNS_BOT_TOKEN / TG_RETURNS_ALLOWED_IDS / TG_RETURNS_NOTIFY_ID — сущ�
 СЛУЖБЫ И NGINX
 returns_bot/returns-wb-qr-ingest.service — uvicorn только127.0.0.1:8096.
 returns_bot/returns-daily.service + returns_bot/returns-daily.timer — штатный Mon–Sat отчёт.
-Конфигурации точных путей для существующего HTTPS vhost bi.metaverseworld.ru:
+Конфигурации точных путей для существующего HTTPS vhost bi.beyindi.com:
  tools/wb_buyer_windows/nginx-download.conf
  tools/wb_buyer_windows/nginx-ingest.conf
  tools/wb_buyer_windows_digital/nginx.conf
@@ -58,3 +58,20 @@ QR чужой компании не должен попадать в сосед�
 Для дополнительного протокольного теста Windows-хелпера нужен pwsh:
 WB_TEST_PWSH=/path/to/pwsh ./venv/bin/python -m unittest tests.test_wb_windows_qr -q
 PS/Chrome в тестах используют локальные фикстуры, без настоящей авторизации WB.
+
+
+ВОССТАНОВЛЕНИЕ09.11.2026 — ТЕКУЩИЙ СЕРВЕР
+Домен bi.beyindi.com, Caddy: web/bi.caddy. Старые nginx-фрагменты выше —
+исторический пример, не устанавливать их поверх Caddy. Только два exact upload
+пути доступны по scoped Bearer без BasicAuth; заголовок X-Pult-User снаружи
+для upload удаляется. Setup и два ZIP остаются за существующим входом Пульта.
+Приёмник returns-wb-qr-ingest:127.0.0.1:8096; существующий followup.timer пн–сб,
+воскресенье исключено. Служба returns-bot обслуживает прежние команды и регистрацию.
+Плановые общие отчёты возвратов не включаются автоматически при восстановлении QR.
+Пользователи и их роли восстанавливаются по подтверждённым Telegram chat_id.
+Токен бота — TG_RETURNS_BOT_TOKEN из приватного Dropbox; upload-only ключи
+нового сервера инициализируются только при отсутствии, существующие не ротировать.
+После переезда компьютер должен обновить расширение до0.7.1 и взять новый
+код подключения в Пульте. Пакеты без секретов генерируются существующим
+build_packages.py; приватные cache/receipts и web/downloads/returns игнорируются git.
+Состояние, проверки и оставшиеся действия: docs/reports/wb_qr_restore_20261109/RESULT.md.

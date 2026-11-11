@@ -50,6 +50,7 @@
   .chip{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:20px;padding:2px 9px}
   .set{color:var(--acc)}
   @media(max-width:700px){body{display:block}header{width:100%;height:auto;position:static;border-right:0;border-bottom:1px solid var(--line)}header .lvlnav{display:flex;flex-direction:row;flex-wrap:wrap}header .navgroup{display:none}main{padding:16px}.big{grid-template-columns:1fr}.wl .sum{margin-left:0}}
+.manual-cost{min-width:180px;max-width:250px;text-align:left}.manual-cost input{display:block;width:100%;margin:5px 0;padding:7px;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:5px}.manual-cost button{margin:5px 4px 5px 0;padding:6px;cursor:pointer;color:var(--txt);background:var(--bg);border:1px solid var(--line);border-radius:5px}.manual-cost small{display:block}.manual-cost p{margin:4px 0}
 </style>
 </head>
 <body>
@@ -73,16 +74,17 @@
 <main>
   <nav class="whtabs">
     <a href="/warehouse">🏭 Остатки складов</a>
+    <a href="/warehouse/marketplace-inventory">Остатки и возвраты МП</a>
     <a href="/reports/wb-clearance">🏷️ Распродажа остатков ВБ</a>
     <a href="/warehouse/novelties">✨ Новинки</a>
     <a href="/warehouse/loss" class="cur">🔥 Пострадавшие склады ВБ</a>
   </nav>
   <h1 style="font-size:22px">Пострадавшие товары ВБ</h1>
-  <p class="note" style="margin-top:0">Официальные отчёты ВБ об утраченном товаре — Цифровой квадрат и Дисквэр.
+  <p class="note" id="loss-intro" style="margin-top:0">Официальные отчёты ВБ об утраченном товаре — Цифровой квадрат и Дисквэр.
   Количество указано в единицах ВБ: набор считается одной единицей. Себестоимость — фактическая по самым поздним подходящим отгрузкам МС до 15.07.2026 включительно (МСК).</p>
   <div class="big" id="big"></div>
   <p class="note" id="coverage"></p>
-  <p class="note">При возврате на склад ВБ товар обезличивается. Найденные отгрузки — кандидаты для определения
+  <p class="note" id="loss-method">При возврате на склад ВБ товар обезличивается. Найденные отгрузки — кандидаты для определения
   себестоимости; они не доказывают движение конкретной утраченной единицы. Каждая отгрузка используется один раз. Между складами с одинаковым товаром распределение условное — по названию склада. Непокрытые единицы в денежный итог не включены.</p>
   <div id="groups"><p>Загрузка…</p></div>
   <p class="note" id="foot"></p>
@@ -108,8 +110,66 @@ async function showEvidence(button,doc,nm){
  tr.innerHTML=`<td colspan="6" style="text-align:left;white-space:normal"><p>${note}</p>${chosen.map(evidenceRow).join('')}${other.length?'<details style="margin:12px 8px"><summary style="cursor:pointer">Остальные проверенные отгрузки: '+other.length+'</summary>'+other.map(evidenceRow).join('')+'</details>':''}${!d.evidence.length?'<p class="muted">Подходящие документы в проверенной истории не найдены.</p>':''}</td>`;row.after(tr);
  }catch(e){alert(e.message);}finally{button.disabled=false;}
 }
+let manualScope='';
+function manualForm(i){
+ if(i.costed_qty===i.qty && !i.manual?.enabled)return '—';
+ const m=i.manual,key={snapshot_id:manualScope,account:i.account,warehouse:i.warehouse,nm_id:i.nm_id,version:m?.version||0,expected_missing_qty:i.qty-i.costed_qty};
+ return `<form class="manual-cost" data-manual="${esc(JSON.stringify(key))}" onsubmit="saveManual(event,this)">
+ ${m?.enabled?`<p class="pos">Вручную: ${rub(i.manual_cost_rub)} за ${i.manual_costed_qty} шт</p>`:''}
+ ${i.costed_qty<i.qty?`<label>За 1 единицу WB целиком, ₽<input name="unit_cost" inputmode="decimal" required value="${m?.enabled?esc(m.unit_cost):''}" aria-label="Ручная себестоимость за единицу WB"></label><small class="muted">Для набора — стоимость всего набора. Применится к ${i.qty-i.costed_qty} шт без расчёта МС.</small><input name="note" maxlength="1000" placeholder="Комментарий (необязательно)" value="${m?.enabled?esc(m.note):''}"><button type="submit">Сохранить</button>`:''}
+ ${m?.enabled?'<button type="button" onclick="removeManual(this)">Удалить ручную</button>':''}<small data-result role="status"></small></form>`;
+}
+async function writeManual(form,method,body){
+ const status=form.querySelector('[data-result]');status.textContent='Сохраняю…';
+ const buttons=[...form.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
+ try{
+  const response=await fetch('/api/warehouse/loss/manual-cost',{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const result=await response.json();
+  if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:'Введите положительную сумму с точностью до копеек.');
+  const open=[...document.querySelectorAll('[data-loss-key][open]')].map(e=>e.dataset.lossKey),scroll=window.scrollY;
+  const current=await fetch('/api/warehouse/loss');if(!current.ok)throw Error('Стоимость сохранена. Обновите страницу для просмотра итогов.');
+  renderRecovered(await current.json());
+  document.querySelectorAll('[data-loss-key]').forEach(e=>e.open=open.includes(e.dataset.lossKey));window.scrollTo(0,scroll);
+ }catch(e){status.textContent=e.message;status.className='warn';buttons.forEach(b=>b.disabled=false);}
+}
+function saveManual(event,form){
+ event.preventDefault();
+ const body={...JSON.parse(form.dataset.manual),unit_cost:form.elements.unit_cost.value.trim().replace(/\s/g,'').replace(',','.'),note:form.elements.note.value};
+ return writeManual(form,'POST',body);
+}
+function removeManual(button){const form=button.closest('form');return writeManual(form,'DELETE',JSON.parse(form.dataset.manual));}
+
+function recoveredCard(w,items){
+ const qty=items.reduce((n,i)=>n+i.qty,0),costed=items.reduce((n,i)=>n+(i.total_costed_qty??i.costed_qty),0),amount=items.reduce((n,i)=>n+Number(i.total_cost_rub??i.known_cost_rub),0);
+ return `<details class="wl" data-loss-key="${esc(items[0].account+'|'+w)}"><summary><span class="nm">${esc(w)}</span><span class="muted">${qty} шт ВБ · ${items.length} позиций</span><span class="sum">${costed?rub(amount):'Новый расчёт не покрыт'}</span></summary>
+ <div style="overflow:auto"><table><thead><tr><th>Артикул продавца / WB</th><th>Шт ВБ</th><th>Дата и источник количества</th><th>Состав</th><th>Новый расчёт МС</th><th>Ручная себестоимость</th><th>Сохранённая стоимость</th></tr></thead><tbody>${items.map(i=>`<tr><td>${esc(i.vendor_code)}<br><small class="muted">${i.nm_id}</small></td><td>${i.qty}</td><td>${esc(i.snapshot_date)}<br><small class="muted">${i.source==='frozen_wb_stock'?'Замороженный остаток WB':'Архивный снимок'}</small></td><td style="white-space:normal">${i.mapping_error?'<span class="warn">'+esc(i.mapping_error)+'</span>':bom(i.bom)}</td><td>${i.costed_qty?rub(i.known_cost_rub):'—'}<br><small class="${i.costed_qty===i.qty?'muted':'warn'}">${i.costed_qty} из ${i.qty} шт</small>${i.remaining_qty>0 && i.missing_reason?'<br><small class="warn">'+esc(i.missing_reason)+'</small>':''}${i.selected.length?`<details><summary>Документы МС (${i.selected.length})</summary>${i.selected.map(e=>`<p><a style="color:var(--acc)" target="_blank" rel="noopener" href="https://online.moysklad.ru/app/#demand/edit?id=${encodeURIComponent(e.demand_id)}">${esc(e.order_id)}</a> · ${esc(e.moment.slice(0,10))}<br>${e.cost_rub==null?'Стоимость не подтверждена':rub(e.cost_rub)}<br><small>${e.positions.map(p=>esc(p.external_code)+' × '+esc(p.qty)).join(', ')}</small></p>`).join('')}</details>`:''}</td><td>${manualForm(i)}</td><td>${i.archive?.total_cost!=null?'≈ '+rub(i.archive.total_cost)+'<br><small class="muted">за '+i.archive.qty+' шт в архивном снимке<br>Приёмка МС: '+esc(i.archive.supply_date)+'</small>':'—'}</td></tr>`).join('')}</tbody></table></div></details>`;
+}
+function renderRecovered(d){
+ manualScope=d.manual_scope;
+ document.getElementById('loss-intro').textContent=d.source_note;
+ document.getElementById('loss-method').textContent=d.cost_note;
+ document.getElementById('coverage').textContent=d.archive_note;
+ let groups='',cards='';
+ for(const [a,r] of Object.entries(d.accounts)){
+  const s=r.summary;
+  cards+=`<div class="bi"><div class="l">${account(a)}</div><div class="v">${s.qty} <small>шт ВБ</small></div><div class="d">Итого: ${rub(s.total_cost_rub??s.known_cost_rub)}</div><div class="d muted">МС: ${rub(s.known_cost_rub)} · вручную: ${rub(s.manual_cost_rub||0)}</div><div class="d muted">Учтено ${s.total_costed_qty??s.costed_qty} из ${s.qty} шт · без себестоимости ${s.remaining_qty??s.missing_qty} шт</div></div>`;
+  groups+=`<section><h2>${account(a)} · ${s.qty} шт ВБ</h2>`;
+  for(const w of [...new Set(r.items.map(i=>i.warehouse))].sort())groups+=recoveredCard(w,r.items.filter(i=>i.warehouse===w));
+  groups+='</section>';
+ }
+ let archived='<details class="wl"><summary><span class="nm">Полный сохранённый расчёт от 22.08.2026</span><span class="muted">641 шт ВБ · отдельный исторический снимок</span></summary><p style="padding:0 16px" class="note">Сохранённые стоимости по приёмкам МС до происшествия; округлены до рублей. Этот архив не прибавляется к новым итогам.</p>';
+ for(const a of ['wb_acc1','wb_acc2']){
+  const rows=d.archived_items.filter(i=>i.account===a),priced=rows.filter(i=>i.archive.total_cost!=null);
+  archived+=`<h2 style="padding:0 16px">${account(a)} · ${rows.reduce((n,i)=>n+i.qty,0)} шт · ≈ ${rub(priced.reduce((n,i)=>n+Number(i.archive.total_cost),0))}</h2><div style="overflow:auto"><table><thead><tr><th>Склад / артикул</th><th>Шт ВБ</th><th>Дата снимка</th><th>Цена по архиву</th><th>Дата приёмки МС</th><th>Стоимость</th></tr></thead><tbody>${rows.map(i=>`<tr><td>${esc(i.warehouse)}<br>${esc(i.vendor_code)} · ${i.nm_id}</td><td>${i.qty}</td><td>${esc(i.snapshot_date)}</td><td>${rub(i.archive.unit_cost)}</td><td>${esc(i.archive.supply_date)}</td><td>${rub(i.archive.total_cost)}</td></tr>`).join('')}</tbody></table></div>`;
+ }
+ groups+=archived+'</details>';
+ document.getElementById('big').innerHTML=cards;
+ document.getElementById('groups').innerHTML=groups;
+ document.getElementById('foot').textContent='Восстановлено: '+d.built_at.slice(0,16).replace('T',' ')+' UTC. Пострадавшие товары исключены из доступных остатков. Архивные и новые стоимости не суммируются.';
+}
 (async()=>{try{
  const response=await fetch('/api/warehouse/loss');if(!response.ok)throw Error('Ошибка загрузки отчётов');const d=await response.json();
+ if(d.mode==='recovered_snapshot'){renderRecovered(d);return;}
  const costed=d.costs.reduce((n,a)=>n+a.summary.costed_qty,0),amount=d.costs.reduce((n,a)=>n+Number(a.summary.known_cost_rub),0);
  document.getElementById('big').innerHTML=`<div class="bi"><div class="l">По официальным отчётам</div><div class="v">${d.total.qty} <small>шт ВБ</small></div><div class="d muted">${d.total.rows} строк · ${d.total.documents} отчётов</div></div><div class="bi"><div class="l">Себестоимость рассчитанной части</div><div class="v">${rub(amount)}</div><div class="d muted">${costed} из ${d.total.qty} шт · без расчёта ${d.total.qty-costed} шт</div></div>`+d.costs.map(a=>`<div class="bi"><div class="l">${account(a.account)}</div><div class="v">${rub(a.summary.known_cost_rub)}</div><div class="d muted">${a.summary.costed_qty} из ${a.summary.qty} шт · без расчёта ${a.summary.qty-a.summary.costed_qty}</div></div>`).join('');
  document.getElementById('coverage').textContent='Недостающие официальные отчёты из прежнего списка складов: '+['wb_acc1','wb_acc2'].map(a=>account(a)+' — '+(d.missing_reports.filter(r=>r.account===a).map(r=>r.warehouse).join(', ')||'нет')).join('; ')+'. Старые оценки остатков в итог не включены.';

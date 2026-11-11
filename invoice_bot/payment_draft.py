@@ -21,6 +21,7 @@ import os
 import sys
 import uuid
 from datetime import date
+from decimal import Decimal, ROUND_HALF_UP
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, "/opt/mp-analytics")          # фолбэк (canonical checkout может быть на другой ветке)
@@ -163,6 +164,11 @@ def po_docs(po_ids):
     return docs
 
 
+def vat_amount(amount, rate):
+    return (Decimal(str(amount)) * Decimal(str(rate)) /
+            (Decimal(100) + Decimal(str(rate)))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
 def vat_clause(amount, docs, vat_rate=None):
     """Строка НДС для назначения платежа. Считаем ДОЛЮ НДС в оплачиваемой сумме (платёж может
     быть частью счёта или пачкой счетов), а не переписываем НДС счёта целиком.
@@ -177,7 +183,7 @@ def vat_clause(amount, docs, vat_rate=None):
     if vat_rate is not None:
         if vat_rate == 0:
             return "Без НДС."
-        share = round(float(amount) * vat_rate / (100 + vat_rate), 2)
+        share = vat_amount(amount, vat_rate)
         return f"В т.ч. НДС {vat_rate}% - {share:.2f} руб."
     total = sum(d["sum"] for d in docs)
     vat = sum(d["vat_sum"] for d in docs)
@@ -249,13 +255,21 @@ def ru_date(iso):
 
 
 # ── тело платёжки (общая часть) ──────────────────────────────────────────────────────────────
+def external_id(draft, extid_ns):
+    """Keep legacy IDs; new rows use a durable seed independent of a restored sequence."""
+    seed = draft.get("bank_external_seed")
+    identity = "queue-generation:" + str(seed) if seed else str(draft["id"])
+    return str(uuid.uuid5(extid_ns, identity))
+
+
 def base_payment(draft, extid_ns, docs=None):
     """Плоское тело РПП без блока плательщика и без полей, специфичных для банка.
 
     `number` НЕ шлём (решение Сергея 2026-07-29): банк нумерует платёжки своей сквозной
     нумерацией, наш номер только конфликтовал бы с ней в бухгалтерии.
-    `externalId` ДЕТЕРМИНИРОВАННЫЙ (uuid5 от id черновика в пространстве имён банка): повторная
-    отправка того же черновика = тот же id в банке, а не вторая платёжка на те же деньги.
+    `externalId` детерминирован в пространстве имён банка. Legacy-строки используют id,
+    новые — сохранённый bank_external_seed: восстановление serial-последовательности
+    не повторяет чужой старый externalId. Повторная отправка сохраняет тот же id в банке.
 
     Арендные черновики (миграция 215) приносят своё: `payee` — реквизиты ИЗ СЧЁТА арендодателя
     (сверенные с карточкой МС ещё на разборе, см. `rent_core.payee_mismatch`), `purpose_text` —
@@ -268,7 +282,7 @@ def base_payment(draft, extid_ns, docs=None):
     return {
         "date": date.today().isoformat(),
         "amount": float(draft["amount"]),
-        "externalId": str(uuid.uuid5(extid_ns, str(draft["id"]))),
+        "externalId": external_id(draft, extid_ns),
         "purpose": draft.get("purpose_text") or purpose(draft, docs),
         "operationCode": "01",      # платёжное поручение
         "priority": "5",            # очередность платежа (ст. 855 ГК: расчёты с поставщиками)

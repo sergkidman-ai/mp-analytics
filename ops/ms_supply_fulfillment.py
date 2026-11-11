@@ -19,6 +19,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from core import ms_api
+from ops.order_priority import order_key
 from ops.fbs_ms_import_read import warehouse_stock
 from ops.fbs_ms_post_import_shipments import demand_matches, durable_save, rows
 from tools import customer_order_batch17_20261022 as batch
@@ -203,7 +204,7 @@ def new_job(receipt_id: str, event_timestamp: str, event_id: str | None, apply: 
             job['stock'].update(warehouse_stock(ms_api.meta_id(supply, 'store'), values[start:start + 20],
                 get=lambda path, params: get(path, params, budget, 'stock')))
         job['candidates'] = orders
-        job['order_ids'] = sorted(orders, key=lambda cid: (orders[cid].get('moment', ''), orders[cid]['name'], cid))
+        job['order_ids'] = sorted(orders, key=lambda cid: order_key(orders[cid]))
         if not orders:
             job.update(status='done', reason='no_reserved_matching_orders')
     if apply:
@@ -391,8 +392,18 @@ def market_fulfill(order: dict, folder: Path) -> dict:
     return fulfill(order, folder)
 
 
+def ordered_ids(job: dict, ids=None):
+    values=job['order_ids'] if ids is None else ids
+    def priority(cid):
+        order=job.get('candidates',{}).get(cid)
+        if order is None:
+            order=(load(checkpoint_path(cid)) or {}).get('original',{'id':cid})
+        return order_key(order)
+    return sorted(values,key=priority)
+
+
 def status_stage(job: dict, folder: Path) -> int:
-    pending = [cid for cid in job['order_ids'] if cid not in job['results']][:MAX_ORDERS]
+    pending = ordered_ids(job,[cid for cid in job['order_ids'] if cid not in job['results']])[:MAX_ORDERS]
     owner = job['receipt_id'] + '/' + job['version']
     fresh = fresh_orders([job['candidates'][cid] for cid in pending], job['budget']) if job['results'] else job['candidates']
     for cid in pending:
@@ -439,6 +450,7 @@ def status_stage(job: dict, folder: Path) -> int:
 
 
 def shipment_stage(job: dict, folder: Path, ids: list[str]) -> int:
+    ids=ordered_ids(job,ids)
     originals = [load(checkpoint_path(cid))['original'] for cid in ids]
     fresh = fresh_orders(originals, job['budget'])
     demands = demands_for(list(fresh.values()), job['budget'])
@@ -510,7 +522,7 @@ def fulfill_receipt(receipt_id: str, event_timestamp: str, *, apply: bool = Fals
         if not apply:
             ledger = ledger_load()
             preview = {}
-            for cid in job['order_ids']:
+            for cid in ordered_ids(job):
                 ready, evidence = availability(job['candidates'][cid], job, ledger)
                 preview[cid] = {'result': 'would_assemble' if ready else 'shortage', 'stock': evidence}
                 if ready:
@@ -524,9 +536,9 @@ def fulfill_receipt(receipt_id: str, event_timestamp: str, *, apply: bool = Fals
         if any(cid not in job['results'] for cid in job['order_ids']):
             processed = status_stage(job, folder)
         else:
-            due = [cid for cid, result in job['results'].items()
+            due = ordered_ids(job,[cid for cid, result in job['results'].items()
                    if result['result'] in {'ms_changed', 'demand_verified'}
-                   and datetime.fromisoformat(load(checkpoint_path(cid))['shipment_due_at']) <= now()][:MAX_ORDERS]
+                   and datetime.fromisoformat(load(checkpoint_path(cid))['shipment_due_at']) <= now()])[:MAX_ORDERS]
             processed = shipment_stage(job, folder, due) if due else 0
         return result_for(job, folder, processed)
     finally:

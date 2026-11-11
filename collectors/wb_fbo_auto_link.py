@@ -1,14 +1,18 @@
 # поток: fin
-"""Infer unique WB acc1 FBO order/stock-out matches from adjacent intraday snapshots."""
+"""Infer unique WB order/stock-out candidates for both accounts, including update lag."""
 import json
+from collections import Counter
 from decimal import Decimal
+from datetime import timedelta
 
 import psycopg2.extras
 
 from core import db
 
 ACCOUNT = "wb_acc1"
+ACCOUNTS = ("wb_acc1", "wb_acc2")
 SOURCE_WAREHOUSE = "Склад WB РФ"
+WAREHOUSE_ALIASES = {SOURCE_WAREHOUSE, "Склад WB"}
 LOCK_ID = 7348201792
 
 MOVES_SQL = """
@@ -77,33 +81,86 @@ def choose_matches(moves, orders):
         sku = str(move["nm_id"])
         matching = []
         for order in orders:
-            if (move["previous_at"] < order["created_at"] <= move["current_at"]
+            if (move.get("order_window_start", move["previous_at"]) < order["created_at"] <= move["current_at"]
                     and _contains_sku(order, sku)):
                 matching.append((order, _sku_quantity(order, sku)))
         if len(matching) != 1:
             continue
         order, quantity = matching[0]
-        if quantity != 1 or order.get("warehouse") != SOURCE_WAREHOUSE:
+        if (quantity != 1 or order.get("warehouse") not in WAREHOUSE_ALIASES
+                or order.get('mp_status') in ('cancelled', 'returned', 'returned_defective')):
             continue
         candidates.append((move, order))
-    return candidates
+    counts = Counter((o['id'],str(m['nm_id'])) for m,o in candidates)
+    return [(m,o) for m,o in candidates if counts[(o['id'],str(m['nm_id']))] == 1]
 
 
-def run():
+def delayed_moves(observations):
+    """One stock-out followed by one transit increase, with no intervening changes.
+
+    WB updates these counters asynchronously. The 24h order window is explicit
+    candidate evidence, never a movement identity or permission to assign COGS.
+    Missing SKU observations, source changes and gaps over 12h break the chain.
+    """
+    grouped = {}
+    for row in observations:
+        grouped.setdefault(row['nm_id'], []).append(row)
+    moves = []
+    for nm, rows in grouped.items():
+        rows = sorted(rows, key=lambda r: r['completed_at'])
+        for index in range(1, len(rows)):
+            before, drop = rows[index-1:index+1]
+            if (drop['seq'] != before['seq']+1 or drop['source_api'] != before['source_api']
+                    or drop['completed_at']-before['completed_at'] > timedelta(hours=12)
+                    or before['quantity']-drop['quantity'] != 1
+                    or before['transit'] != drop['transit']):
+                continue
+            last = drop
+            for later in rows[index+1:]:
+                if (later['seq'] != last['seq']+1 or later['source_api'] != before['source_api']
+                        or later['completed_at']-drop['completed_at'] > timedelta(hours=4)
+                        or later['quantity'] != drop['quantity']):
+                    break
+                increase = later['transit']-drop['transit']
+                if increase == 1:
+                    moves.append(dict(nm_id=nm,previous_id=before['id'],current_id=later['id'],
+                        previous_at=before['completed_at'],current_at=later['completed_at'],
+                        previous_quantity=before['quantity'],current_quantity=later['quantity'],
+                        previous_in_way_to_client=before['transit'],current_in_way_to_client=later['transit'],
+                        order_window_start=later['completed_at']-timedelta(hours=24),
+                        stock_drop_observed_at=drop['completed_at'], delayed=True))
+                    break
+                if increase != 0:
+                    break
+                last = later
+    return moves
+
+
+def run(account=ACCOUNT):
+    if account not in ACCOUNTS:
+        raise ValueError('unknown_wb_inventory_account')
     with db.get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT pg_try_advisory_xact_lock(%s) locked", (LOCK_ID,))
+            cur.execute("SELECT pg_try_advisory_xact_lock(%s) locked", (LOCK_ID + 100 * ACCOUNTS.index(account),))
             if not cur.fetchone()["locked"]:
                 return {"busy": True}
-            cur.execute(MOVES_SQL, (ACCOUNT,))
+            cur.execute(MOVES_SQL, (account,))
             moves = list(cur.fetchall())
+            cur.execute('''WITH caps AS (
+              SELECT *,row_number() over(order by completed_at) seq
+              FROM wb_fbo_intraday_capture WHERE account=%s AND completed_at>=now()-interval '7 days')
+              SELECT c.id,c.completed_at,c.source_api,c.seq,i.nm_id,
+                sum(i.quantity) quantity,sum(i.in_way_to_client) transit
+              FROM caps c JOIN wb_fbo_intraday_item i ON i.capture_id=c.id
+              GROUP BY c.id,c.completed_at,c.source_api,c.seq,i.nm_id''', (account,))
+            moves.extend(delayed_moves(list(cur.fetchall())))
             if not moves:
                 return {"moves": 0, "candidates": 0, "inserted": 0}
-            earliest = min(m["previous_at"] for m in moves)
+            earliest = min(m.get('order_window_start', m['previous_at']) for m in moves)
             latest = max(m["current_at"] for m in moves)
-            cur.execute("""SELECT id,posting_number,created_at,warehouse,products
+            cur.execute("""SELECT id,posting_number,created_at,warehouse,products,mp_status
               FROM mp_fbo_orders WHERE platform='wb' AND account=%s
-                AND created_at>%s AND created_at<=%s""", (ACCOUNT, earliest, latest))
+                AND created_at>%s AND created_at<=%s""", (account, earliest, latest))
             candidates = choose_matches(moves, list(cur.fetchall()))
             inserted = 0
             for move, order in candidates:
@@ -122,11 +179,16 @@ def run():
                     "in_way_to_client_before": str(move["previous_in_way_to_client"]),
                     "in_way_to_client_after": str(move["current_in_way_to_client"]),
                 }
+                if move.get('delayed'):
+                    evidence.update(kind='unique_order_delayed_stock_out', confidence='inferred_delayed',
+                        order_window_start=move['order_window_start'].isoformat(),
+                        stock_drop_observed_at=move['stock_drop_observed_at'].isoformat(),
+                        max_order_lag_hours=24, max_transit_lag_hours=4)
                 cur.execute("""INSERT INTO mp_fbo_intraday_link_candidates
                   (account,order_id,sku,source_warehouse,previous_capture_id,
                    current_capture_id,quantity,evidence)
                   VALUES (%s,%s,%s,%s,%s,%s,1,%s) ON CONFLICT DO NOTHING
-                  RETURNING id""", (ACCOUNT, order["id"], str(move["nm_id"]),
+                  RETURNING id""", (account, order["id"], str(move["nm_id"]),
                     SOURCE_WAREHOUSE, move["previous_id"], move["current_id"],
                     psycopg2.extras.Json(evidence)))
                 inserted += int(cur.fetchone() is not None)
@@ -134,4 +196,4 @@ def run():
 
 
 if __name__ == "__main__":
-    print(json.dumps(run(), ensure_ascii=False))
+    print(json.dumps({a:run(a) for a in ACCOUNTS}, ensure_ascii=False))

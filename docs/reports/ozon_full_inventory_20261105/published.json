@@ -1,0 +1,58 @@
+{
+  "checked_at_utc": "2026-11-05T09:43:05.878887+00:00",
+  "url": "https://bi.beyindi.com/api/wb-bids/reports/ozon-inventory-2026-11-05",
+  "anonymous_http": 401,
+  "authenticated_html_http": 200,
+  "xlsx_http": 200,
+  "xlsx_matches_local_sha256": true,
+  "xlsx_size_bytes": 6431878,
+  "csv_links": {
+    "x2": {
+      "http": 200,
+      "content_type": "text/csv; charset=utf-8",
+      "content_disposition": "attachment; filename=\"bundles_x2.csv\""
+    },
+    "x6": {
+      "http": 200,
+      "content_type": "text/csv; charset=utf-8",
+      "content_disposition": "attachment; filename=\"bundles_x6.csv\""
+    },
+    "x10": {
+      "http": 200,
+      "content_type": "text/csv; charset=utf-8",
+      "content_disposition": "attachment; filename=\"bundles_x10.csv\""
+    },
+    "new": {
+      "http": 200,
+      "content_type": "text/csv; charset=utf-8",
+      "content_disposition": "attachment; filename=\"new_6months.csv\""
+    },
+    "other": {
+      "http": 200,
+      "content_type": "text/csv; charset=utf-8",
+      "content_disposition": "attachment; filename=\"other_outside_cpc.csv\""
+    },
+    "all": {
+      "http": 200,
+      "content_type": "text/csv; charset=utf-8",
+      "content_disposition": "attachment; filename=\"all_outside_cpc.csv\""
+    },
+    "all-with-archive": {
+      "http": 200,
+      "content_type": "text/csv; charset=utf-8",
+      "content_disposition": "attachment; filename=\"all_outside_cpc_including_archive.csv\""
+    },
+    "archive": {
+      "http": 200,
+      "content_type": "text/csv; charset=utf-8",
+      "content_disposition": "attachment; filename=\"archived_outside_cpc.csv\""
+    },
+    "old-bundle-review": {
+      "http": 200,
+      "content_type": "text/csv; charset=utf-8",
+      "content_disposition": "attachment; filename=\"previous_bundle_label_without_marker.csv\""
+    }
+  },
+  "first_wave_page_scope_corrected": true,
+  "marketplace_mutations": 0
+}

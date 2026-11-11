@@ -38,6 +38,10 @@ def render():
     else:
         data, rows = {}, []
     quarters = defaultdict(list)
+    scanned = data.get("scanned_months", [])
+    for month in scanned:
+        year, mon = map(int, month.split("-"))
+        quarters[(year, (mon - 1) // 3 + 1)]
     for row in rows:
         year, month = map(int, row["month"].split("-"))
         quarters[(year, (month - 1) // 3 + 1)].append(row)
@@ -46,6 +50,10 @@ def render():
         parts.append(f'<section class="ls-quarter"><h2>{quarter} квартал {year}</h2>')
         parts.append(_summary("Итого за квартал", _totals(qrows), "ls-total"))
         month_groups = defaultdict(list)
+        for month in scanned:
+            y, m = map(int, month.split("-"))
+            if y == year and (m - 1) // 3 + 1 == quarter:
+                month_groups[month]
         for row in qrows:
             month_groups[row["month"]].append(row)
         for month, mrows in sorted(month_groups.items()):
@@ -55,6 +63,8 @@ def render():
                          '<th>Дата отгрузки</th><th>Отгрузка</th><th>Контрагент</th>'
                          '<th>Проект</th><th>Продажа</th><th>Оплата</th><th>Себестоимость</th>'
                          '</tr></thead><tbody>')
+            if not mrows:
+                parts.append('<tr><td colspan="7" class="ls-note">Месяц проверен. Продаж, соответствующих условиям отчёта, нет.</td></tr>')
             for row in mrows:
                 esc = html.escape
                 link = ("https://online.moysklad.ru/app/#demand/edit?id=" + row["demand_id"])

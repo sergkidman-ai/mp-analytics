@@ -87,7 +87,7 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
     tds = []
     for i in range(N):
         if vals[i] is None:
-            tds.append('<td class="num muted">—</td>')
+            tds.append(f'<td class="num muted" data-period="{_C["K"][i]}" data-value="null">—</td>')
             continue
         if kind == "margin":
             txt = f"{vals[i]:.1f}%"
@@ -100,7 +100,7 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
         # ячейка месяца в строке COGS — кликабельна: раскрывает отгрузки этого отчёта
         dy = f' data-ym="{ky[i]}"' if (k == "cogs" and i < len(ky)) else ""
         cl = f'num {bd[i]}' + (" drill" if dy else "")
-        tds.append(f'<td class="{cl}"{dy}>{txt}{pc}</td>')
+        tds.append(f'<td class="{cl}"{dy} data-period="{ky[i]}" data-value="{vals[i]}">{txt}{pc}</td>')
     if kind in ("margin", "count_up", "count_dn", "check"):
         rp = "—"
     else:
@@ -112,13 +112,15 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
     tg = f' <span class="tag {tag}">{tag}</span>' if tag else ""
     live = ('<td class="num live" data-c="cur">·</td>'
             '<td class="num live fc" data-c="fc">·</td>')
-    dk = f' data-k="{k}"' if k else ""
+    dk = f' data-kind="{kind}"' + (f' data-k="{k}"' if k else "")
+    if showpc:
+        dk += ' data-showpc="1"'
     return (f'<tr class="{trclass}"{dk}><td class="{lblcls}">{label}{tg}</td>' + "".join(tds) +
-            live + f'<td class="num pctcol">{rp}</td><td class="spk">{sp}</td></tr>')
+            live + '<td class="num year-total" data-c="year">—</td>' + f'<td class="num pctcol">{rp}</td><td class="spk">{sp}</td></tr>')
 
 
 def sect(t):
-    return f'<tr class="sect"><td colspan="{_C["N"] + 5}"><span>{t}</span></td></tr>'
+    return f'<tr class="sect"><td colspan="{_C["N"] + 6}"><span>{t}</span></td></tr>'
 
 
 def bars_line(oborot, net):
@@ -201,7 +203,7 @@ def build(acc):
              + mth
              + f'<th class="live" title="{cur_ttl}">тек.</th>'
              + f'<th class="live" title="{fc_ttl}">прогноз</th>'
-             + '<th>% Об.</th><th>Тренд</th></tr></thead><tbody>')
+             + '<th class="year-total" title="Факт с января по выбранный месяц, без прогноза">Итого за год</th><th>% Об.</th><th>Тренд</th></tr></thead><tbody>')
     H.append(sect("Операционные показатели"))
     H.append(row("Продажи, шт", orders, "count_up", ob, k="orders"))
     H.append(row("Возвраты, шт (товар + невыкуп)", retc, "count_dn", ob, k="returns_cnt"))
@@ -294,7 +296,7 @@ FOOT = ('Все строки — из витрины <b>Яндекс.Марке�
 
 JS = """<script>
 (function(){
-  fetch('/api/yandex/mp-current').then(function(r){return r.json();}).then(function(d){
+  fetch('/api/yandex/mp-current' + window.mpReportPeriodQuery()).then(function(r){return r.json();}).then(function(d){
     if(!d||!d.month) return;
     var mo=d.month;
     document.querySelectorAll('#mpr section.org table').forEach(function(t){
@@ -310,6 +312,7 @@ JS = """<script>
         });
       });
     });
+    window.mpReportYearTotals(d);
     var fn=document.getElementById('mpr-live-note');
     if(fn){ fn.innerHTML='<b>'+mo.label+'</b> — текущий месяц по данным на '+(mo.last_date||'')+
       ' ('+mo.elapsed_days+' дн из '+mo.days_in_month+'). '+
@@ -371,6 +374,8 @@ def render(hist=None):
   </div>
   <p class="eyebrow">Отчёты МП · Яндекс Маркет</p>
   <h1>Яндекс Маркет — сводный отчёт по месяцам</h1>
+  <div data-open-report-period data-platform="yandex" data-closed="{max(data.get('period_keys',[]),default='')}" style="margin:12px 0"></div>
+  <script src="/static/mp_report_period.js"></script>
   {finance_note}
   <details class="howto"><summary>Как читать этот отчёт</summary><p class="sub">{SUB}</p></details>
   <div class="tlegend">

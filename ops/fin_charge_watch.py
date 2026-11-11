@@ -133,8 +133,19 @@ def _add(seen, platform, kind, code, label, account, day, amount,
         daily["to"] = max(daily["to"], period_to) if daily["to"] else period_to
 
 
+def _iter_rows(sql):
+    """Stream raw history: full JSON payloads must not accumulate in RAM."""
+    with db.get_conn() as conn:
+        conn.set_session(readonly=True)
+        with conn.cursor(name="fin_charge_scan",
+                         cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.itersize = 500
+            cur.execute(sql)
+            yield from cur
+
+
 def scan_ozon(seen):
-    rows = db.query("SELECT account, accrual_date, payload FROM raw_ozon_accrual")
+    rows = _iter_rows("SELECT account, accrual_date, payload FROM raw_ozon_accrual")
     for row in rows:
         for type_id, amount in _fees(row["payload"]):
             if type_id is not None and amount < 0:
@@ -144,7 +155,7 @@ def scan_ozon(seen):
 
 
 def scan_wb(seen):
-    rows = db.query("""SELECT account, (payload->>'create_dt')::date AS day,
+    rows = _iter_rows("""SELECT account, (payload->>'create_dt')::date AS day,
                              payload->>'supplier_oper_name' AS op,
                              payload->>'bonus_type_name' AS bonus,
                              payload->>'return_amount' AS return_amount,
@@ -178,7 +189,7 @@ def scan_wb(seen):
                 name += " (обратная)"
             _add(seen, "wb", kind, name, name, r["account"], r["day"], amount)
 
-    rows = db.query("""SELECT account, report_date, payload
+    rows = _iter_rows("""SELECT account, report_date, payload
                       FROM raw_wb_finance_detail""")
     for r in rows:
         p = r["payload"]
@@ -198,7 +209,7 @@ def scan_wb(seen):
 
 
 def scan_yandex(seen):
-    rows = db.query("""SELECT account, svc_date, service, category, cost, accrued,
+    rows = _iter_rows("""SELECT account, svc_date, service, category, cost, accrued,
                              payload->>'service_name' AS name
                       FROM raw_yandex_services
                       WHERE cost > 0 OR accrued > 0""")

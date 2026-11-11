@@ -1,0 +1,15 @@
+# поток: fin
+[Unit]
+Description=Refresh legal entity sales report from MoySklad
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python -u -m collectors.ms_legal_sales refresh
+TimeoutStartSec=50min
+Nice=10
+UMask=0077
+StandardOutput=journal
+StandardError=journal

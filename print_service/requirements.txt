@@ -1,0 +1,2 @@
+# поток: print — additional PDF dependency; fpdf2/Pillow are in root requirements.
+pypdf==6.21.4

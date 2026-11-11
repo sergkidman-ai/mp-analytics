@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(_HERE))
 sys.path.insert(0, _HERE)
 import payment_draft as pd                      # noqa: E402
 from core import db                             # noqa: E402
+import tg_notify                                # noqa: E402
 
 # Реестр банков по НАШЕМУ юрлицу-плательщику. Драйверы импортируются лениво: у каждого свой
 # транспорт со своими секретами (mTLS-сертификаты, токены), и падение одного контура не должно
@@ -46,7 +47,23 @@ def driver_for(org_inn):
     return __import__(module)
 
 
-def send_draft(draft_id, dry_run=None, actor="cli"):
+def _notify_created(draft, result, bank_title):
+    """Only a confirmed production creation reaches the private payment bot."""
+    payload = result.get("payload") or {}
+    who = payload.get("payeeName") or (draft.get("payee") or {}).get("payeeName") or draft["inn"]
+    amount = f"{float(draft['amount']):,.2f}".replace(",", "\u00a0") + "\u00a0₽"
+    message = (f"🏦 Новое платёжное поручение — {bank_title}\n\n{who} · {amount}\n"
+               f"{payload.get('purpose') or ''}\n\n"
+               "Создан неподписанный черновик. Подпишите его в интернет-банке.")
+    try:
+        return tg_notify.tg(message)
+    except Exception as error:
+        # The bank already has the draft: notification failure must not invite a resend.
+        print(f"TG: ошибка уведомления о созданной платёжке: {type(error).__name__}", flush=True)
+        return False
+
+
+def send_draft(draft_id, dry_run=None, actor="cli", notify=True):
     """Отправить черновик `draft_id` в банк его юрлица.
 
     → {ok, status, external_id, error, org_inn, bank, amount, payload}
@@ -94,6 +111,8 @@ def send_draft(draft_id, dry_run=None, actor="cli"):
 
     print(f"[payment_send/{actor}] draft {draft_id} ({base['bank']}, {base['amount']}₽) → "
           f"{res.get('status') or 'ошибка'}: {res.get('error') or res.get('external_id')}")
+    if notify and res.get("ok") and res.get("status") == "sent_prod":
+        _notify_created(draft, res, base["bank"])
     return {**base, "ok": res["ok"], "status": res["status"],
             "external_id": res["external_id"], "error": res["error"],
             "payload": res.get("payload")}

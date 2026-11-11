@@ -12,7 +12,7 @@ from decimal import Decimal
 from itertools import combinations
 
 from invoice_bot.supplier_groups import ID2GROUP
-from ops.ms_supplier_priorities import supplier_priority, choose_with_premium
+from ops.ms_supplier_priorities import supplier_priority, choose_with_premium, priority_snapshot
 
 
 SPECIAL = {
@@ -77,6 +77,7 @@ def _choose_priced(cards):
                               price=lambda c: c.purchase_kopeks, identity=lambda c: c.id)
 
 
+@priority_snapshot
 def choose_card(cards: list[Card], external_code: str, quantity: Decimal,
                 remote: list[Card] | None = None) -> tuple[Card, bool]:
     """Own stock first; otherwise verified supplier stock with priority + 20%."""
@@ -95,6 +96,7 @@ def choose_card(cards: list[Card], external_code: str, quantity: Decimal,
     return _choose_priced(priced), False
 
 
+@priority_snapshot
 def choose_ready_set(cards: list[Card], external_code: str, quantity: Decimal) -> Card | None:
     """An existing whole set on our warehouse precedes component allocation.
 
@@ -141,6 +143,7 @@ def choose_bundle(components: list[tuple[str, Decimal]], cards: list[Card]) -> l
     return [(card, quantity) for card, quantity, _ in choose_bundle_plan(components, cards, [])]
 
 
+@priority_snapshot
 def choose_bundle_plan(components: list[tuple[str, Decimal]], own: list[Card],
                        remote: list[Card]) -> list[tuple[Card, Decimal, bool]]:
     """Complete kit plan: own stock first, then priced remote stock, at most two pairs.

@@ -63,7 +63,7 @@ class StatusSourceTests(TestCase):
         with patch.dict(src.os.environ, {'YANDEX_BUSINESS_ID_ACC1': '123', 'YANDEX_API_KEY_ACC1': 'test-key'}):
             result = self.provider.fetch([value])[value['id']]
         self.assertEqual((result['status'], result['scheme']), ('delivered', 'fbo'))
-        self.assertEqual(self.post.call_args.kwargs['json']['programTypes'], ['FBS', 'FBY'])
+        self.assertEqual(self.post.call_args.kwargs['json']['programTypes'], ['FBS', 'FBY', 'EXPRESS'])
         self.assertEqual(self.provider.fetch([dict(value, account='ya_acc2')]), {})
 
     def test_yandex_missing_or_fake_order_does_not_mean_cancel(self):
@@ -71,6 +71,27 @@ class StatusSourceTests(TestCase):
         self.post.return_value = reply({'orders': []})
         with patch.dict(src.os.environ, {'YANDEX_BUSINESS_ID_ACC1': '123', 'YANDEX_API_KEY_ACC1': 'test-key'}):
             self.assertNotIn(value['id'], self.provider.fetch([value]))
+
+    def test_yandex_express_statuses_use_the_same_exact_order_read(self):
+        value = row('yandex', '64014868227'); self.post.side_effect = None
+        for status, expected in [('PROCESSING', 'other'), ('DELIVERY', 'transit'),
+                                 ('DELIVERED', 'delivered'), ('CANCELLED', 'cancelled')]:
+            with self.subTest(status=status), patch.dict(src.os.environ, {
+                    'YANDEX_BUSINESS_ID_ACC1': '123', 'YANDEX_API_KEY_ACC1': 'test-key'}):
+                self.post.return_value = reply({'orders': [{'orderId': 64014868227,
+                    'programType': 'EXPRESS', 'fake': False, 'status': status}]})
+                result = self.provider.fetch([value])[value['id']]
+                self.assertEqual((result['status'], result['scheme']), (expected, 'fbs'))
+                self.assertEqual(self.post.call_args.kwargs['json']['orderIds'], [64014868227])
+
+    def test_yandex_dbs_and_fake_express_orders_stay_excluded(self):
+        value = row('yandex', '64014868227'); self.post.side_effect = None
+        for program, fake in [('DBS', False), ('EXPRESS', True)]:
+            with self.subTest(program=program), patch.dict(src.os.environ, {
+                    'YANDEX_BUSINESS_ID_ACC1': '123', 'YANDEX_API_KEY_ACC1': 'test-key'}):
+                self.post.return_value = reply({'orders': [{'orderId': 64014868227,
+                    'programType': program, 'fake': fake, 'status': 'DELIVERED'}]})
+                self.assertNotIn(value['id'], self.provider.fetch([value]))
 
     def stats(self, orders, sales):
         self.provider.wb_statistics = {('wb_acc1', 'orders'): orders, ('wb_acc1', 'sales'): sales}

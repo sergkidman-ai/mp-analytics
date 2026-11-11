@@ -47,15 +47,15 @@ def account_lock(account):
 
 def dated(info, target):
     name = str(info.get('name', ''))
-    dates = re.findall(r'(?<!\d)(\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}(?:\.\d{2}(?:\d{2})?)?)(?![.\d])', name)
+    dates = re.findall(r'(?<!\d)(\d{4}-\d{2}-\d{2}|\d{1,2}[.-]\d{1,2}(?:[.-](?:\d{4}|\d{2}))?)(?![.\d])', name)
     if len(dates) != 1:
         return False
     value = dates[0]
     try:
-        if '-' in value:
+        if re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
             actual = date.fromisoformat(value)
         else:
-            parts = value.split('.')
+            parts = re.split(r'[.-]', value)
             if len(parts) == 2:
                 parts.append(str(datetime.fromisoformat(str(info['createdAt']).replace('Z', '+00:00')).year))
             year = int(parts[2]) + (2000 if len(parts[2]) == 2 else 0)
@@ -69,6 +69,15 @@ def opened(info):
     return info.get('done') is False and not info.get('closedAt')
 
 
+def b2b_flag(raw):
+    for value in (raw, raw.get('options')):
+        if isinstance(value, dict):
+            for key in ('isB2b', 'isB2B'):
+                if type(value.get(key)) is bool:
+                    return value[key]
+    return None
+
+
 def compatible(info, raw):
     if not raw:
         return True
@@ -76,9 +85,24 @@ def compatible(info, raw):
         return False
     if info.get('crossBorderType') not in (None, raw.get('crossBorderType')):
         return False
-    flag = raw.get('isB2b', raw.get('options', {}).get('isB2b'))
-    return not (info.get('cargoType') and type(flag) is bool
-                and type(info.get('isB2b')) is bool and flag != info['isB2b'])
+    flag, supply_flag = b2b_flag(raw), b2b_flag(info)
+    if flag is True:
+        return supply_flag is True
+    if supply_flag is True:
+        return False
+    return not (info.get('cargoType') and flag is not None
+                and supply_flag is not None and flag != supply_flag)
+
+
+def read_supply(session, folder, account, sid, label):
+    http, info = session._call('wb', account, folder, label, 'GET', '/api/v3/supplies/' + sid)
+    if http == 404:
+        return None
+    if http != 200 or not isinstance(info, dict):
+        raise SupplyError('read_api_http_' + str(http))
+    if info.get('id') != sid:
+        raise SupplyError('wb_saved_supply_identity_mismatch')
+    return info
 
 
 def catalog(session, folder, base, save, *, refresh=False):
@@ -119,20 +143,20 @@ def resolve(session, folder, base, target, raw, save, *, allow_create):
     """Caller holds account_lock through selection and the first assignment."""
     date.fromisoformat(target)
     account = base['account']
+    b2b = bool(raw and b2b_flag(raw) is True)
+    if b2b:
+        allow_create = False
     root = RUNTIME / account / target
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    selected_path = root / 'selected.json'
+    selected_path = root / ('selected_b2b.json' if raw and b2b_flag(raw) is True else 'selected.json')
     selected = load(selected_path)
     if selected:
         if selected.get('account') != account or selected.get('day') != target:
             raise SupplyError('wb_saved_supply_scope_mismatch')
-        info = session._read('wb', account, folder, 'wb_bound_dated_supply',
-                             'GET', '/api/v3/supplies/' + selected['id'])
-        if info.get('id') != selected['id']:
-            raise SupplyError('wb_saved_supply_identity_mismatch')
-        if opened(info) and dated(info, target) and compatible(info, raw):
+        info = read_supply(session, folder, account, selected['id'], 'wb_bound_dated_supply')
+        if info and opened(info) and dated(info, target) and compatible(info, raw):
             return info
-    supplies, fresh = catalog(session, folder, base, save)
+    supplies, fresh = catalog(session, folder, base, save, refresh=bool(selected) or b2b)
 
     def matches(items):
         return [item for item in items if opened(item) and dated(item, target) and compatible(item, raw)]
@@ -141,12 +165,17 @@ def resolve(session, folder, base, target, raw, save, *, allow_create):
     if not candidates and allow_create and not fresh:
         supplies, _ = catalog(session, folder, base, save, refresh=True)
         candidates = matches(supplies)
+    if not candidates and allow_create:
+        # TK has its own writer and cannot take our process lock. Check once
+        # more immediately before considering a new supply.
+        supplies, _ = catalog(session, folder, base, save, refresh=True)
+        candidates = matches(supplies)
     if len(candidates) > 1:
         raise SupplyError('wb_multiple_open_supplies_for_planned_day')
     if candidates:
         sid = candidates[0]['id']
     elif not allow_create:
-        raise SupplyError('wb_confirmed_order_has_no_dated_supply')
+        raise SupplyError('wb_b2b_supply_not_found_wait_for_tk' if b2b else 'wb_confirmed_order_has_no_dated_supply')
     else:
         attempts = sorted(root.glob('attempt_*'))
         for attempt in attempts:
@@ -163,9 +192,8 @@ def resolve(session, folder, base, target, raw, save, *, allow_create):
                 save(attempt / 'binding.json', binding)
             known = next((item for item in supplies if item['id'] == binding['id']), None)
             if known is None:
-                known = session._read('wb', account, folder, 'wb_previous_created_supply',
-                                      'GET', '/api/v3/supplies/' + binding['id'])
-            if opened(known) and compatible(known, raw):
+                known = read_supply(session, folder, account, binding['id'], 'wb_previous_created_supply')
+            if known and opened(known) and compatible(known, raw):
                 raise SupplyError('wb_supply_registry_requires_reconciliation')
         attempt = root / ('attempt_' + str(len(attempts) + 1).zfill(4))
         attempt.mkdir(mode=0o700)

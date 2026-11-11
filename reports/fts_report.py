@@ -23,6 +23,9 @@
 Запуск сводкой:  venv/bin/python -m reports.fts_report 2026-08
 """
 import sys
+import json
+import csv
+import io
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
@@ -69,7 +72,11 @@ def _ved(raw):
     return code or None
 
 
-def _posting_goods(posting_number, items, weight_g, amount_rub):
+ORGS = {"oz_acc1": "a5e7ee84-8d63-41f2-9fae-0be2ef90462b",
+        "oz_acc2": "f5bea6e0-c2ac-11ef-0a80-0221000adcc4"}
+
+
+def _posting_goods(posting_number, items, weight_g, amount_rub, account):
     """Товарные разделы отправления: группы (ТН ВЭД, ГТД, страна происхождения).
 
     Вес и стоимость всего отправления делим между группами пропорционально каталожному
@@ -77,8 +84,10 @@ def _posting_goods(posting_number, items, weight_g, amount_rub):
     ЛК ФТС), а ТН ВЭД и ГТД живут на позициях МойСклада — единицы учёта разные, и
     единственный честный способ свести их — доля позиции в каталожном весе.
     """
-    d = db.query("SELECT demand_id, moment FROM ms_demand_cogs WHERE demand_name=%s",
-                 (posting_number,))
+    d = db.query("SELECT demand_id, moment FROM ms_demand_cogs WHERE demand_name=%s AND org=%s",
+                 (posting_number, ORGS[account]))
+    if len(d) > 1:
+        return [], "неоднозначная отгрузка в МойСкладе"
     if not d:
         return [], "нет отгрузки в МойСкладе"
     demand_id, moment = d[0]["demand_id"], d[0]["moment"]
@@ -101,7 +110,9 @@ def _posting_goods(posting_number, items, weight_g, amount_rub):
                            WHERE ms_id=%s AND gtd IS NOT NULL AND moment<=%s
                         ORDER BY moment DESC LIMIT 1""", (p["ms_id"], moment))
         gtd_no = gtd[0]["gtd"] if gtd else None
-        origin = (gtd[0]["country"] if gtd else None) or "Китай"
+        origin = gtd[0]["country"] if gtd else None
+        if origin not in ORIGIN_CODE:
+            problems.append(f"нет подтверждённой страны происхождения у {p['external_code']}")
         if not gtd_no:
             problems.append(f"нет ГТД у {p['external_code']}")
         key = (ved, gtd_no, origin)
@@ -126,7 +137,7 @@ def _posting_goods(posting_number, items, weight_g, amount_rub):
             "ved": ved,
             "gtd": gtd_no,
             "origin": origin,
-            "origin_code": ORIGIN_CODE.get(origin, "CN"),
+            "origin_code": ORIGIN_CODE.get(origin),
             "description": descr or "; ".join(dict.fromkeys(g["names"]))[:1000],
             "weight_kg": (Decimal(weight_g) * share / 1000).quantize(Decimal("0.001")),
             "amount_rub": (amount_rub * share).quantize(Decimal("0.01")),
@@ -149,12 +160,29 @@ def build(period):
                p.payload->'financial_data'->>'cluster_to' AS cluster
           FROM raw_ozon_orders_report r
           LEFT JOIN raw_ozon_posting p ON p.posting_number = r.posting_number
-         WHERE r.status = %s AND r.delivered_at BETWEEN %s AND %s
+                                    AND p.account = r.account AND p.scheme = r.delivery_schema
+         WHERE lower(r.status) = lower(%s) AND r.delivered_at BETWEEN %s AND %s
       ORDER BY r.delivered_at, r.posting_number""", (DELIVERED, d_from, d_to))
 
     marks = {(s["platform"], s["account"], s["posting_number"]): s
              for s in db.query("SELECT * FROM fts_posting_status WHERE period=%s", (period,))}
 
+    source_warnings = []
+    for account in ORGS:
+        state_file = BASE_DIR / ".private" / "fts_sources" / f"{period:%Y-%m}_{account}.json"
+        try:
+            state = json.loads(state_file.read_text())
+        except (OSError, ValueError):
+            state = {}
+        if state.get("status") != "complete" or set(state.get("schemas", [])) != {"fbs", "fbo"}:
+            source_warnings.append(f"{account}: отчёт Ozon за месяц ещё не загружен полностью")
+        elif state.get("count", 0) > 0:
+            actual = db.query("SELECT count(*) AS n FROM raw_ozon_orders_report WHERE account=%s", (account,))[0]["n"]
+            if actual < state["count"]:
+                source_warnings.append(f"{account}: часть сохранённого отчёта Ozon отсутствует")
+    missing_country = sum(not (r["cluster"] or "").strip() for r in raw)
+    if missing_country:
+        source_warnings.append(f"Не определена страна доставки: {missing_country} отправлений")
     rows, skipped_uz = [], 0
     for r in raw:
         country = CLUSTER_COUNTRY.get((r["cluster"] or "").strip())
@@ -189,7 +217,7 @@ def build(period):
             row["amount_rub"] = cbr.to_rub(amount, cur, r["delivered_at"])
             row["amount_usd"] = cbr.rub_to_usd(row["amount_rub"], r["delivered_at"])
             row["goods"], row["problems"] = _posting_goods(
-                r["posting_number"], items, weight_g, row["amount_rub"])
+                r["posting_number"], items, weight_g, row["amount_rub"], r["account"])
             if not weight_g:
                 row["problems"] = "; ".join(filter(None, [row["problems"], "нет веса карточки"]))
         st = marks.get(("ozon", r["account"], r["posting_number"]))
@@ -213,6 +241,7 @@ def build(period):
 
     return {
         "period": period,
+        "source_warnings": source_warnings,
         "rows": rows,
         "by_country": dict(sorted(by_country.items())),
         "totals": {
@@ -224,6 +253,23 @@ def build(period):
             "uz": skipped_uz,
         },
     }
+
+
+def csv_for(period):
+    """Проверяемый реестр, включая выкупы Ozon; не является поданной формой."""
+    data = build(period)
+    if data["source_warnings"]:
+        raise ValueError("Исходные данные неполны: " + "; ".join(data["source_warnings"]))
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["Кабинет", "Отправление", "Доставлено", "Страна", "Кластер",
+                     "Схема", "Оплачено", "Валюта", "Выкуп товара Ozon", "К сдаче нами", "Проблемы"])
+    for row in data["rows"]:
+        writer.writerow([row["account"], row["posting_number"], row["delivered_at"],
+                         row["country"], row["cluster"], row["schema"], str(row["amount"]),
+                         row["currency"], "Да" if row["is_buyout"] else "Нет",
+                         "Нет" if row["is_buyout"] else "Да", row["problems"] or ""])
+    return output.getvalue().encode("utf-8-sig")
 
 
 if __name__ == "__main__":

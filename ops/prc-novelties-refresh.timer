@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh novelty monitoring twice daily
+
+[Timer]
+OnCalendar=*-*-* 09:35:00 Europe/Moscow
+OnCalendar=*-*-* 19:35:00 Europe/Moscow
+Persistent=false
+Unit=prc-novelties-refresh.service
+
+[Install]
+WantedBy=timers.target

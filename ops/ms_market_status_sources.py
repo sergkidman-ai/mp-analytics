@@ -19,6 +19,7 @@ from ops.fbs_ms_post_import_shipments import durable_save
 MSK = ZoneInfo('Europe/Moscow')
 SUPPORTED = {('ozon', 'oz_acc1'), ('ozon', 'oz_acc2'), ('wb', 'wb_acc1'),
              ('wb', 'wb_acc2'), ('yandex', 'ya_acc1')}
+YANDEX_PROGRAMS = ('FBS', 'FBY', 'EXPRESS')
 
 
 def canonical(platform, status):
@@ -72,13 +73,19 @@ class Provider:
         # Keep the existing credentials, pacing, pagination and response checks.
         # Only this read adapter expands the financial pilot's FBS-only filter.
         def read_both(url, **kwargs):
-            kwargs['json'] = dict(kwargs['json'], programTypes=['FBS', 'FBY'])
+            kwargs['json'] = dict(kwargs['json'], programTypes=list(YANDEX_PROGRAMS))
             return requests.post(url, **kwargs)
 
-        client = YandexClient(request=read_both, budget=max(1, (len(rows) + 19) // 20))
-        result = {}
-        for start in range(0, len(rows), 20):
-            batch = rows[start:start + 20]
+        result, valid = {}, []
+        for row in rows:
+            number = row.get('number', '')
+            if not number.isascii() or not number.isdecimal() or int(number) <= 0:
+                result[row['id']] = {'error': 'yandex_invalid_order_number', 'reason': number}
+            else:
+                valid.append(row)
+        client = YandexClient(request=read_both, budget=max(1, (len(valid) + 19) // 20))
+        for start in range(0, len(valid), 20):
+            batch = valid[start:start + 20]
             wanted = {int(row['number']): row for row in batch}
             data = client.call({'orderIds': list(wanted)})
             path = self.save('yandex/' + str(start) + '.json', data)
@@ -88,7 +95,7 @@ class Provider:
                 if oid not in wanted or oid in found:
                     raise ValueError('yandex_status_batch_identity_mismatch')
                 found[oid] = post
-                if post.get('fake') is not False or post.get('programType') not in ('FBS', 'FBY'):
+                if post.get('fake') is not False or post.get('programType') not in YANDEX_PROGRAMS:
                     continue
                 row = wanted[oid]
                 result[row['id']] = observation(row, canonical('yandex', post['status']),

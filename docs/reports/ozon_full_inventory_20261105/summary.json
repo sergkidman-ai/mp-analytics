@@ -1,0 +1,138 @@
+{
+  "account": "oz_acc1",
+  "snapshot_finished_at_utc": "2026-11-05T09:33:00.482333+00:00",
+  "new_cards_window_from_msk": "2026-05-05T00:00:00+03:00",
+  "new_cards_window_through_utc": "2026-11-05T09:33:00.482333+00:00",
+  "date_basis": "Seller product created_at, not updated_at or source SKU creation time",
+  "catalog_product_ids": 48492,
+  "nonarchived_catalog_cards": 22536,
+  "nonarchived_in_running_cpc": 6403,
+  "nonarchived_outside_running_cpc": 16133,
+  "archived_outside_cpc": 25893,
+  "global_all_sku_cpo_running": true,
+  "individual_cpo_enabled_in_catalog": 0,
+  "outside_cpc_with_global_cpo_current_stock": 9242,
+  "outside_cpc_own_readiness_passed": 9213,
+  "counts": {
+    "bundles_x2": {
+      "count": 2497,
+      "own_readiness_passed": 1798,
+      "created_within_6months": 2497,
+      "no_own_stock": 698,
+      "individual_cpo_enabled": 0,
+      "global_cpo_applies_to_current_own_stock": 1799
+    },
+    "bundles_x6": {
+      "count": 2496,
+      "own_readiness_passed": 1341,
+      "created_within_6months": 2496,
+      "no_own_stock": 1155,
+      "individual_cpo_enabled": 0,
+      "global_cpo_applies_to_current_own_stock": 1341
+    },
+    "bundles_x10": {
+      "count": 2595,
+      "own_readiness_passed": 1113,
+      "created_within_6months": 2595,
+      "no_own_stock": 1482,
+      "individual_cpo_enabled": 0,
+      "global_cpo_applies_to_current_own_stock": 1113
+    },
+    "bundles_x4": {
+      "count": 0,
+      "own_readiness_passed": 0,
+      "created_within_6months": 0,
+      "no_own_stock": 0,
+      "individual_cpo_enabled": 0,
+      "global_cpo_applies_to_current_own_stock": 0
+    },
+    "bundles_x8": {
+      "count": 0,
+      "own_readiness_passed": 0,
+      "created_within_6months": 0,
+      "no_own_stock": 0,
+      "individual_cpo_enabled": 0,
+      "global_cpo_applies_to_current_own_stock": 0
+    },
+    "new_6months": {
+      "count": 5342,
+      "own_readiness_passed": 3406,
+      "created_within_6months": 5342,
+      "no_own_stock": 1918,
+      "individual_cpo_enabled": 0,
+      "global_cpo_applies_to_current_own_stock": 3424
+    },
+    "other_outside_cpc": {
+      "count": 3203,
+      "own_readiness_passed": 1555,
+      "created_within_6months": 0,
+      "no_own_stock": 1638,
+      "individual_cpo_enabled": 0,
+      "global_cpo_applies_to_current_own_stock": 1565
+    },
+    "unknown_creation_date": {
+      "count": 0,
+      "own_readiness_passed": 0,
+      "created_within_6months": 0,
+      "no_own_stock": 0,
+      "individual_cpo_enabled": 0,
+      "global_cpo_applies_to_current_own_stock": 0
+    }
+  },
+  "priority": [
+    "bundles",
+    "new_6months_nonbundles",
+    "remaining_older_nonbundles"
+  ],
+  "young_bundles_retained_in_bundle_group": 7588,
+  "pairwise_overlap_product_ids": 0,
+  "sku_alias_conflicts": 0,
+  "all_product_info_coverage_complete": true,
+  "outside_no_paid_advertising_claimed": false,
+  "scope_caveat": "Lists exclude running CPC, not the account-wide ALL_SKU_PROMO. Global CPO is running; individual searchPromoStatus=false does not disable it.",
+  "current_readiness_is_not_launch_permission": true,
+  "previous_first_wave_crosswalk": [
+    {
+      "old_stream": "bundles",
+      "current_segment": "bundles_x10",
+      "count": 363
+    },
+    {
+      "old_stream": "bundles",
+      "current_segment": "bundles_x2",
+      "count": 560
+    },
+    {
+      "old_stream": "bundles",
+      "current_segment": "bundles_x6",
+      "count": 422
+    },
+    {
+      "old_stream": "bundles",
+      "current_segment": "new_6months",
+      "count": 11
+    },
+    {
+      "old_stream": "bundles",
+      "current_segment": "other_outside_cpc",
+      "count": 69
+    },
+    {
+      "old_stream": "new",
+      "current_segment": "new_6months",
+      "count": 458
+    },
+    {
+      "old_stream": "old",
+      "current_segment": "new_6months",
+      "count": 641
+    },
+    {
+      "old_stream": "old",
+      "current_segment": "other_outside_cpc",
+      "count": 429
+    }
+  ],
+  "marketplace_mutations": 0,
+  "database_data_writes": 0
+}

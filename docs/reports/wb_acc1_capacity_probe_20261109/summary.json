@@ -1,0 +1,101 @@
+{
+  "account": "wb_acc1",
+  "verified_at_utc": "2026-11-09T18:24:11.703381+00:00",
+  "session_id": "01a1a820-d5a8-75d3-a20c-6be4e462a2f5",
+  "campaign_id": 41722971,
+  "status": 4,
+  "payment_type": "cpc",
+  "sku_count": 50,
+  "budget_RUB": 0,
+  "all_at_native_floor": true,
+  "native_floor_RUB": 7.3,
+  "activation_calls": 0,
+  "deposit_calls": 0,
+  "existing_campaign_writes": 0,
+  "old_campaigns_verified_unchanged": 93,
+  "add_50_to_make_100": "HTTP400_TOTAL_LIMIT_50",
+  "create_200": "HTTP400_TOTAL_LIMIT_50",
+  "create_300": "NOT_ATTEMPTED",
+  "exact_cabinet_workflow": "NOT_TESTED_NO_CONNECTED_CABINET",
+  "old_campaigns_over_50": 91,
+  "maximum_old_campaign_size": 200,
+  "packing": [
+    {
+      "capacity": 50,
+      "extra_campaigns": 100,
+      "already_created_test_campaigns": 1,
+      "total_including_test": 101,
+      "sku_remaining": 4769,
+      "groups": {
+        "bundles_X10": 22,
+        "bundles_X2": 38,
+        "bundles_X6": 29,
+        "children": 5,
+        "new_6months": 4,
+        "old": 2
+      },
+      "sku_groups": {
+        "bundles_X10": 1070,
+        "bundles_X2": 1832,
+        "bundles_X6": 1420,
+        "children": 209,
+        "new_6months": 197,
+        "old": 41
+      },
+      "status": "DRAFT_NOT_APPLIED",
+      "capacity_verified": true
+    },
+    {
+      "capacity": 200,
+      "extra_campaigns": 31,
+      "already_created_test_campaigns": 1,
+      "total_including_test": 32,
+      "sku_remaining": 4769,
+      "groups": {
+        "bundles_X10": 7,
+        "bundles_X2": 11,
+        "bundles_X6": 8,
+        "children": 2,
+        "new_6months": 1,
+        "old": 2
+      },
+      "sku_groups": {
+        "bundles_X10": 1070,
+        "bundles_X2": 1832,
+        "bundles_X6": 1420,
+        "children": 209,
+        "new_6months": 197,
+        "old": 41
+      },
+      "status": "DRAFT_NOT_APPLIED",
+      "capacity_verified": false
+    },
+    {
+      "capacity": 300,
+      "extra_campaigns": 24,
+      "already_created_test_campaigns": 1,
+      "total_including_test": 25,
+      "sku_remaining": 4769,
+      "groups": {
+        "bundles_X10": 5,
+        "bundles_X2": 8,
+        "bundles_X6": 6,
+        "children": 2,
+        "new_6months": 1,
+        "old": 2
+      },
+      "sku_groups": {
+        "bundles_X10": 1070,
+        "bundles_X2": 1832,
+        "bundles_X6": 1420,
+        "children": 209,
+        "new_6months": 197,
+        "old": 41
+      },
+      "status": "DRAFT_NOT_APPLIED",
+      "capacity_verified": false
+    }
+  ],
+  "paid_month_experiment_started": false,
+  "WB_monitor_or_autostop_installed": false
+}

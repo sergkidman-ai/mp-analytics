@@ -1,5 +1,5 @@
 # поток: ret
-"""Возвраты Яндекс.Маркета: GET /campaigns/{id}/returns по всем кампаниям.
+"""Возвраты Яндекс.Маркета: GET /v2/campaigns/{id}/returns по всем кампаниям.
 
 Штрихкода/QR Partner API не отдаёт — вместо него у точки выдачи есть `instruction`.
 Только чтение.
@@ -31,7 +31,17 @@ def _headers():
 
 def campaigns():
     raw = os.getenv("YANDEX_CAMPAIGN_ID_ACC1", "") or ""
-    return [c.strip() for c in raw.split(",") if c.strip()]
+    configured = [c.strip() for c in raw.split(",") if c.strip()]
+    if configured:
+        return configured
+    data = request_json('GET', f'{API}/v2/campaigns', headers=_headers())
+    business = os.environ['YANDEX_BUSINESS_ID_ACC1']
+    found = [str(c['id']) for c in data['campaigns']
+             if str(c.get('business', {}).get('id')) == business
+             and c.get('apiAvailability') == 'AVAILABLE']
+    if not found:
+        raise ValueError('yandex_returns_no_available_campaigns')
+    return found
 
 
 def campaign_name(cid):
@@ -39,7 +49,7 @@ def campaign_name(cid):
     if cid in _names:
         return _names[cid]
     try:
-        j = request_json("GET", f"{API}/campaigns/{cid}", headers=_headers())
+        j = request_json("GET", f"{API}/v2/campaigns/{cid}", headers=_headers())
         _names[cid] = (j.get("campaign") or {}).get("domain") or cid
     except Exception:
         _names[cid] = cid
@@ -47,18 +57,21 @@ def campaign_name(cid):
 
 
 def fetch_raw(cid):
-    out, token = [], None
+    out, token, seen = [], None, set()
     while True:
         params = {"limit": PAGE}
         if token:
-            params["page_token"] = token
-        j = request_json("GET", f"{API}/campaigns/{cid}/returns",
+            params["pageToken"] = token
+        j = request_json("GET", f"{API}/v2/campaigns/{cid}/returns",
                          headers=_headers(), params=params)
         res = j.get("result") or {}
         out += res.get("returns") or []
         token = (res.get("paging") or {}).get("nextPageToken")
         if not token:
             break
+        if token in seen:
+            raise ValueError('yandex_returns_cursor_stalled')
+        seen.add(token)
         time.sleep(0.3)
     return out
 

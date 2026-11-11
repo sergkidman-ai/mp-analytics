@@ -6,6 +6,7 @@ import threading
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import requests
+from core import ms_api_control
 from shipment_guard import config, store
 from core import db
 
@@ -61,7 +62,7 @@ class MSClient:
             self.next_at=start+self.interval
             self.requests+=1
             try:
-                r=self.session.get(config.MS+path,params=params,
+                r=ms_api_control.request("GET",config.MS+path,sender=self.session.get,client="order-guard",kind="operational",params=params,
                   headers={'Authorization':'Bearer '+config.ms_token(),'Accept-Encoding':'gzip'},timeout=(5,45))
             except requests.RequestException:
                 store.metric('ms_network_errors')

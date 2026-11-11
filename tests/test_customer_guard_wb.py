@@ -104,7 +104,7 @@ def test_wb_notification_uses_own_basis_label_and_activation(pg,monkeypatch):
     assert n.send_current(job['order_id'])=='stale_or_disabled' and not send.called
     db.execute("UPDATE customer_guard_runtime SET settings=settings || '{\"wb_enabled\":true}'::jsonb")
     assert n.send_current(job['order_id'])=='sent'
-    text=send.call_args.kwargs['json']['text'];assert 'WB · Дисквэр' in text and 'Цена МС' in text and '0001wb' in text
+    text=send.call_args.kwargs['json']['text'];assert 'WB · Дисквэр' in text and 'Цена: 100.00 ₽' in text and '0001wb' in text and '-25.00 ₽' in text
     assert all(a=='wb_acc2' for a in bases)
 
 

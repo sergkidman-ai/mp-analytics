@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh existing cashflow balances and forecast
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python -u -m cf.run
+TimeoutStartSec=45min
+UMask=0077
+Nice=10

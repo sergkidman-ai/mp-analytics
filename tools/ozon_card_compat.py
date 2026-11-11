@@ -291,7 +291,7 @@ def run_models(account, limit, apply_, offers=None, output=None, auto=False):
     if not offers:
         # Успешные старые попытки не блокируют новые рецидивы. Неудачный
         # repair_models оставляет needs_human=true: повтор только вручную.
-        guard = ("AND NOT needs_human AND (last_attempt_at IS NULL OR "
+        guard = ("AND NOT needs_human AND NOT history_missing AND attempts<3 AND (last_attempt_at IS NULL OR "
                  "last_attempt_at < now() - interval '20 hours') ") if auto else ""
         rows = query("SELECT offer_id FROM card_status WHERE platform='ozon' AND account=%s "
                      "AND is_open AND err_class='W' AND "

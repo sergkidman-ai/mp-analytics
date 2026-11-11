@@ -37,6 +37,7 @@ FOLDER_SPRINT = os.getenv("MAIL_FOLDER_SPRINT", "").strip() # папка ГТД-
 FOLDER_RENT = os.getenv("MAIL_FOLDER_RENT", "").strip()     # папка счетов арендодателя → движок платежа (пусто = выкл)
 FOLDER_BEGET = os.getenv("MAIL_FOLDER_BEGET", "").strip()   # папка счетов хостинга → движок платежа (пусто = выкл)
 POLL = int(os.getenv("MAIL_POLL_SEC", "60"))
+IMAP_TIMEOUT = 30  # Bound socket connect/read, including login, SELECT and logout.
 TOKEN = os.getenv("TG_BOT_TOKEN", "").strip()
 NOTIFY = [x.strip() for x in os.getenv("TG_NOTIFY_ID", "").split(",") if x.strip()] or \
     [x.strip() for x in os.getenv("TG_ALLOWED_IDS", "").split(",") if x.strip()]
@@ -300,15 +301,16 @@ def main():
     if FOLDER_BEGET:
         import beget_invoice as beget_pipe  # платёжный маршрут требует локальную БД
         routes.append((FOLDER_BEGET, beget_pipe, "Хостинг→Платёжка"))
-    log(f"mail-poller запущен: {USER}@{HOST}, интервал {POLL}с, notify={NOTIFY or 'НЕТ'}, "
+    log(f"mail-poller запущен: {USER}@{HOST}, интервал {POLL}с, IMAP timeout {IMAP_TIMEOUT}с, notify={NOTIFY or 'НЕТ'}, "
         f"папки: {', '.join(f'{f} [{k}]' for f, _, k in routes)}")
     while True:
         try:
-            imap = imaplib.IMAP4_SSL(HOST)
+            imap = imaplib.IMAP4_SSL(HOST, timeout=IMAP_TIMEOUT)
             imap.login(USER, PASS)
             try:
                 for folder_name, engine, kind in routes:
                     poll_once(imap, folder_name, engine, kind)
+                log(f"Проверка почты завершена: папок {len(routes)}")
             finally:
                 try: imap.logout()
                 except Exception: pass

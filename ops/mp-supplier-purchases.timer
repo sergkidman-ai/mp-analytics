@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh supplier purchases daily at 01:47 Moscow time
+
+[Timer]
+OnCalendar=*-*-* 01:47:00 Europe/Moscow
+Persistent=true
+Unit=mp-supplier-purchases.service
+
+[Install]
+WantedBy=timers.target

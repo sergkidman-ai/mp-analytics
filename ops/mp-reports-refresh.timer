@@ -1,0 +1,12 @@
+[Unit]
+Description=Update MP financial reports twice daily (Moscow)
+
+[Timer]
+OnCalendar=*-*-* 10:20:00 Europe/Moscow
+OnCalendar=*-*-* 22:20:00 Europe/Moscow
+AccuracySec=1min
+Persistent=true
+Unit=mp-reports-refresh.service
+
+[Install]
+WantedBy=timers.target

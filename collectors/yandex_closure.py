@@ -6,7 +6,8 @@ API: POST /v2/reports/closure-documents/detalization/generate (contractType=INCO
 опрос /reports/info/{id} до DONE, ZIP с CSV-листами. Денежная колонка TRANSACTION_SUM.
   period_closure_income_payments  → revenue (Получено от потребителей);
   period_closure_income_refunds   → returns (Возвращено потребителям, знак −);
-  + *_sold_refunds / *_sold_defect_refunds → returns (брак; в наших данных пусто).
+  period_closure_income_sold_refunds → revenue (реализовано от имени заказчика);
+  period_closure_income_sold_defect_refunds → returns (возвращено реализованных).
 
 Проверено на январе 2026 до копейки: revenue 955629, returns −62018 (одна кампания
 87623061 даёт консолидированный эталон account'а). При сборе всех campaignId одного
@@ -41,7 +42,7 @@ _last_gen = [None]        # монотонная метка последнего
 SHEET_CAT = {
     "period_closure_income_payments": "revenue",
     "period_closure_income_refunds": "returns",
-    "period_closure_income_sold_refunds": "returns",
+    "period_closure_income_sold_refunds": "revenue",
     "period_closure_income_sold_defect_refunds": "returns",
 }
 
@@ -177,6 +178,7 @@ def _parse_csvs(csvs, account, ym, cid):
                 "amount": round(amt, 2),
                 "campaign_id": str(cid),
                 "source": "api",
+                "source_sheet": base,
                 "payload": None,
             })
     return rows

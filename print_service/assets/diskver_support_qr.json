@@ -1,0 +1,36 @@
+{
+  "payload": "https://t.me/dsquare222",
+  "source_image": "Im4.jp2",
+  "source_image_size": [
+    793,
+    226
+  ],
+  "source_image_pixels_sha256": "b6f31c530c27bb5a8e910ad6047e1fe77b7c98c69278dfa291836ff87c6d5262",
+  "crop_box": [
+    170,
+    69,
+    284,
+    184
+  ],
+  "pixel_size": [
+    114,
+    115
+  ],
+  "pixels_sha256": "de071ee657f2cd56f2f5884a69d8f686b3b169fce3c8e1c1ebe34daaf4c49ed1",
+  "physical_size_pt": [
+    66.89054224464061,
+    63.809734513274336
+  ],
+  "source_core_pixels_sha256": "50f26fe571ec4639ead44ba924005b92d6324fcdcc8f6f104f62e1b7218b4b1b",
+  "description": "Exact original QR grid pixels, with a clean white quiet zone. No QR regeneration or resampling; original physical grid size retained.",
+  "source_physical_size_pt": [
+    465.3,
+    125.4
+  ],
+  "core_box_in_asset": [
+    16,
+    16,
+    98,
+    99
+  ]
+}

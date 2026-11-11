@@ -53,6 +53,8 @@ def tick():
                 result[name]=operation()
                 if isinstance(result[name],dict) and result[name].get("notification_errors"):
                     errors.append("notification:"+",".join(result[name]["notification_errors"]))
+                if isinstance(result[name],dict) and result[name].get("recovery_errors"):
+                    errors.append("recovery:"+",".join(result[name]["recovery_errors"]))
                 heartbeat(";".join(errors) or None)
                 return True
             except Exception as exc:

@@ -28,6 +28,7 @@ RESID_OPS = {   # тип операции → (строка, имя в ЛК)
     'DefectFineShipmentDelayRated': ('penalty', 'Штраф: отгрузка в нерекомендованный слот'),
     'DefectFineShipmentDelayRatedCancelled': ('penalty', 'Штраф отменён (нерекомендованный слот)'),
     'DefectFineWrongItem': ('penalty', 'Штраф: не тот товар'),
+    'AccrualType_DefectFineComplaint': ('penalty', 'Жалобы покупателей'),  # пользователь 08.11.2026
     'DefectRateCancellation': ('penalty', 'Индекс ошибок: отмена'),
     'DefectRateDetailed': ('penalty', 'Превышение индекса ошибок'),
     'DefectRateShipmentDelay': ('penalty', 'Индекс ошибок: задержка отгрузки'),

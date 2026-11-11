@@ -12,11 +12,16 @@
 до четырёх знаков (83.5630 вместо 81.1291 × 1.03 = 83.562973) даёт 51 расхождение на копейку
 из 1108 позиций. Умножаем в полной точности, до копеек округляем только итоговую цену.
 """
+import os
 import urllib.request
 import xml.etree.ElementTree as ET
 from decimal import Decimal, ROUND_HALF_UP
 
-CBR_URL = "https://www.cbr.ru/scripts/XML_daily.asp?date_req={}"
+from dotenv import load_dotenv
+
+load_dotenv(os.getenv("MP_ENV_PATH", "/opt/mp-analytics/.env"))
+
+CBR_URL = os.getenv("CBR_DAILY_URL", "https://www.cbr.ru/scripts/XML_daily.asp?date_req={}")
 _cache = {}
 
 

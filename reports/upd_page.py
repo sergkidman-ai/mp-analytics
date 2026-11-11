@@ -11,11 +11,16 @@
 import html
 import pathlib
 import sys
+import json
+from datetime import date, timedelta, datetime, timezone
+from decimal import Decimal
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 from reports import mp_tabs  # noqa: E402
+from reports.upd_form import amounts
+from collectors.wb_documents import STATE_DIR
 from reports.upd_orgs import SELLERS  # noqa: E402
 from reports.ozon_mp_page import SHELL_CSS, REPORT_CSS, SIDEBAR, MPTABS, _atomic_write  # noqa: E402
 from reports.fts_page import CSS as FTS_CSS  # noqa: E402  плитки и таблица те же
@@ -74,29 +79,68 @@ def _rub(x):
     return f"{float(x):,.2f}".replace(",", " ").replace(".", ",")
 
 
-def _rows():
-    return db.query("""SELECT account, doc_number, doc_date, created_at, upd_status,
-                              total_wo_vat, total_vat, total_with_vat,
+def _rows(period=None):
+    where, params = "", ()
+    if period:
+        finish = (period.replace(day=28) + timedelta(days=4)).replace(day=1)
+        where, params = "WHERE doc_date >= %s AND doc_date < %s", (period, finish)
+    rows = db.query(f"""SELECT account, doc_number, doc_date, created_at, upd_status,
+                              total_wo_vat, total_vat, total_with_vat, positions,
                               jsonb_array_length(positions) AS pos
-                         FROM wb_redeem_notice
-                     ORDER BY doc_date DESC, account""")
+                         FROM wb_redeem_notice {where}
+                     ORDER BY doc_date DESC, account""", params)
+    for row in rows:
+        try:
+            values = amounts(row["account"], row)
+            row["total_wo_vat"] = sum(v["base"] for v in values)
+            row["total_vat"] = sum(v["vat"] for v in values)
+            row["problem"] = None
+        except (RuntimeError, ValueError, ArithmeticError, KeyError, TypeError) as error:
+            row["problem"] = str(error)
+    return rows
+
+
+def source_warnings():
+    warnings = []
+    for account in ACC_LABEL:
+        try:
+            state = json.loads((STATE_DIR / f"{account}.json").read_text())
+        except (ValueError, OSError):
+            state = {}
+        if state.get("status") != "complete":
+            warnings.append(f"{ACC_LABEL[account]}: загрузка документов ещё не завершена; итоги предварительные")
+        else:
+            actual = db.query("SELECT count(*) AS n FROM wb_redeem_notice WHERE account=%s", (account,))[0]["n"]
+            if actual < max(state.get("listed", 0), state.get("stored_count", 0)):
+                warnings.append(f"{ACC_LABEL[account]}: часть загруженных документов отсутствует")
+            try:
+                completed = datetime.fromisoformat(state["completed_at"])
+                if datetime.now(timezone.utc) - completed > timedelta(days=2):
+                    warnings.append(f"{ACC_LABEL[account]}: документы не обновлялись более двух дней")
+            except (KeyError, ValueError, TypeError):
+                warnings.append(f"{ACC_LABEL[account]}: неизвестна дата обновления документов")
+    return warnings
 
 
 def _row_html(r):
     acc, num = r["account"], r["doc_number"]
     org = SELLERS.get(acc)
-    ready = bool(org and org.get("edi_id"))
+    ready = bool(org and org.get("edi_id") and not r.get("problem"))
     if r["upd_status"] == "made":
         st = '<span class="st filed">УПД выгружен</span>'
         act = (f'<button class="btn-mark" onclick="updMark(this,\'{acc}\',\'{num}\',false)">'
                f'вернуть в «к выгрузке»</button>')
     else:
-        st = '<span class="st due">к выгрузке</span>'
+        st = ('<span class="st due">проверить выгрузку в Диадоке</span>' if r['upd_status'] == 'unknown'
+              else '<span class="st due">к выгрузке</span>')
         act = (f'<button class="btn-mark" onclick="updMark(this,\'{acc}\',\'{num}\',true)">'
                f'отметить выгруженным</button>')
-    dl = (f'<a class="fts-dl" href="/reports/upd/file/{acc}/{num}.xml">⬇ Скачать УПД</a>'
-          if ready else '<span class="prob">⚠ нет идентификатора ЭДО</span>'
-          if org else '<span class="prob">⚠ нет реквизитов продавца</span>')
+    if r.get("problem"):
+        dl = f'<span class="prob">{html.escape(r["problem"])}</span>'
+    elif ready:
+        dl = f'<a class="fts-dl" href="/reports/upd/file/{acc}/{num}.xml">⬇ Скачать УПД</a>'
+    else:
+        dl = '<span class="prob">⚠ проверьте реквизиты ЭДО</span>'
     return f"""      <tr data-acc="{acc}" data-st="{r['upd_status']}" data-sum="{float(r['total_with_vat']):.2f}">
         <td><b>{html.escape(num)}</b><div class="sub">{ACC_LABEL.get(acc, acc)}</div></td>
         <td>{r['doc_date']:%d.%m.%Y}</td>
@@ -110,11 +154,12 @@ def _row_html(r):
       </tr>"""
 
 
-def html_for():
-    rows = _rows()
-    due = [r for r in rows if r["upd_status"] != "made"]
-    made = len(rows) - len(due)
-    amount = sum(float(r["total_with_vat"]) for r in due)
+def html_for(period=None):
+    rows = _rows(period)
+    due = [r for r in rows if r["upd_status"] == "due"]
+    made = sum(r["upd_status"] == "made" for r in rows)
+    unknown = sum(r["upd_status"] == "unknown" for r in rows)
+    amount = sum((r["total_with_vat"] for r in due), Decimal(0))
     # Без идентификатора ЭДО УПД не собрать — такой аккаунт считаем незаполненным.
     no_req = sorted({r["account"] for r in rows
                      if not (SELLERS.get(r["account"]) or {}).get("edi_id")})
@@ -129,6 +174,15 @@ def html_for():
     body = "\n".join(_row_html(r) for r in rows) or \
         '      <tr><td colspan="9" class="sub">уведомлений о выкупе пока нет</td></tr>'
 
+    status_note = (f'<p class="prob">У {unknown} исторических уведомлений отметка выгрузки не сохранилась. Проверьте их в Диадоке.</p>' if unknown else '')
+    notices = "".join(f'<p class="prob">{html.escape(message)}</p>' for message in source_warnings())
+    months = []
+    current = date.today().replace(day=1)
+    for _ in range(12):
+        months.append(current)
+        current = (current - timedelta(days=1)).replace(day=1)
+    links = ' · '.join(f'<a href="/reports/upd?period={month:%Y-%m}">{month:%m.%Y}</a>' for month in months)
+    label = period.strftime('%m.%Y') if period else 'все месяцы'
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -149,9 +203,12 @@ def html_for():
   <p class="sub">Выкупая наш товар, ВБ выпускает <b>уведомление о выкупе</b>; на каждое такое
   уведомление продавец выставляет РВБ <b>УПД</b> (счёт-фактура + документ об отгрузке, КНД
   1115131, функция СЧФДОП) и отправляет его через ЭДО. Кнопка отдаёт готовый XML — его
-  остаётся загрузить в Диадок и подписать. Суммы берутся из уведомления как есть: стоимость
-  с НДС и сумма НДС — из документа ВБ, цена без НДС и за единицу считаются из них.
-  Генератор сверен с уже принятым УПД № 764559005 — файл совпадает побайтово.</p>
+  остаётся загрузить в Диадок и подписать. Сумма выкупа с НДС сохраняется из уведомления. НДС и база рассчитываются
+  по настроенному налоговому режиму организации на дату уведомления — одинаково
+  в этой таблице и в XML. Генератор основан на принятом УПД № 764559005.</p>
+  <p>Период: <b>{label}</b> · <a href="/reports/upd?period=all">Все</a><br>{links}</p>
+  {notices}
+  {status_note}
   <div class="fts-cards">
     <div class="fts-kc"><div class="l">Уведомлений</div><div class="v">{len(rows)}</div></div>
     <div class="fts-kc due"><div class="l">УПД к выгрузке</div><div class="v">{len(due)}</div></div>
@@ -171,6 +228,7 @@ def html_for():
         <option value="">все</option>
         <option value="due">к выгрузке</option>
         <option value="made">выгружен</option>
+        <option value="unknown">проверить в Диадоке</option>
       </select>
     </label>
     <span class="upd-count" id="fCount"></span>

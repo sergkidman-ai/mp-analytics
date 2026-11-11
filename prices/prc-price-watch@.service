@@ -10,7 +10,9 @@ WorkingDirectory=/opt/mp-analytics
 # поставщика: своя почтовая папка, своё состояние logs/prc_price_watch_<ключ>.json, свой лог.
 # Загрузка идёт ТОЛЬКО когда в почте появилось письмо свежее уже обработанного —
 # решение принимает сам сторож, таймер лишь будит его (см. ops/prc_price_watch.py).
-ExecStart=/opt/mp-analytics/venv/bin/python -m ops.prc_price_watch --supplier %i
+Environment=PYTHONUNBUFFERED=1
+# Днём обновляем остатки; массовые правки карточек выполняет ночной enter_buyprice.
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.prc_price_watch --supplier %i --no-cards
 TimeoutStartSec=30min
 StandardOutput=journal
 StandardError=journal

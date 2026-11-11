@@ -30,4 +30,6 @@ def request_json(method, url, *, headers=None, params=None, json_body=None, trie
                             json_body=json_body, tries=tries + 1)
 
     r.raise_for_status()
+    if r.status_code == 204:
+        return {}
     return r.json()

@@ -1,0 +1,11 @@
+[Unit]
+Description=Sber Diskver morning queue preparation timer
+
+[Timer]
+OnCalendar=*-*-* 04:43:00 UTC
+Persistent=false
+AccuracySec=1s
+Unit=mp-inv-diskver-prepare.service
+
+[Install]
+WantedBy=timers.target

@@ -103,6 +103,27 @@ def _vat_elem(frag, outer, value, rate):
                   lambda m: m.group(1) + inner, frag, count=1)
 
 
+def amounts(account, document):
+    """Единый расчёт таблицы Пульта и XML; сумма выкупа остаётся исходной."""
+    positions = document.get("positions") or []
+    if not positions:
+        raise RuntimeError("В уведомлении нет товарных строк")
+    result = []
+    for position in positions:
+        qty = Decimal(str(position["qty"]))
+        total = _q(position["sum_with_vat"])
+        if not qty.is_finite() or qty <= 0 or not total.is_finite() or total < 0:
+            raise RuntimeError("Некорректное количество или сумма товара")
+        rate = vat_rate(account, document["doc_date"], position["vat_rate"])
+        tax = Decimal(0) if _no_vat(rate) else _q(
+            total * Decimal(rate.rstrip("%")) / (100 + Decimal(rate.rstrip("%"))))
+        result.append(dict(qty=qty, total=total, rate=rate, vat=tax, base=total-tax))
+    total = sum(r["total"] for r in result)
+    if total != _q(document["total_with_vat"]):
+        raise RuntimeError("Сумма товарных строк не совпадает с уведомлением")
+    return result
+
+
 def make_upd(account, number, now=None):
     seller = SELLERS.get(account)
     if not seller:
@@ -112,6 +133,10 @@ def make_upd(account, number, now=None):
         raise RuntimeError(f"у продавца {account} не задан идентификатор ЭДО Диадока "
                            f"(reports/upd_orgs.py, поле edi_id) — он входит в ИдФайл")
     n = notice(account, number)
+    try:
+        calculated = amounts(account, n)
+    except (ArithmeticError, ValueError, KeyError, TypeError):
+        raise RuntimeError("Некорректные позиции уведомления: проверьте суммы, количество и НДС") from None
     now = now or datetime.now()
     d_doc = n["doc_date"].strftime("%d.%m.%Y")
 
@@ -145,16 +170,9 @@ def make_upd(account, number, now=None):
     head = pre + prod + mid + ship + mid2 + cons + mid3 + buyer + rest
 
     rows, base_all, vat_all, with_all = [], Decimal(0), Decimal(0), Decimal(0)
-    for i, p in enumerate(n["positions"], 1):
-        qty = Decimal(p["qty"])
-        with_vat = _q(p["sum_with_vat"])
-        # Ставку берём по режиму продавца, а налог считаем от суммы выкупа сверху вниз:
-        # НДС = сумма × ставка / (100 + ставка). На всех 500 позициях, где ВБ ставку
-        # указал верно, этот расчёт совпал с его «Суммой НДС» до копейки.
-        rate = vat_rate(account, n["doc_date"], p["vat_rate"])
-        vat = Decimal(0) if _no_vat(rate) else _q(
-            with_vat * Decimal(rate.rstrip("%")) / (100 + Decimal(rate.rstrip("%"))))
-        base = _q(with_vat - vat)
+    for i, (p, values) in enumerate(zip(n["positions"], calculated), 1):
+        qty, with_vat, rate = values["qty"], values["total"], values["rate"]
+        vat, base = values["vat"], values["base"]
         # В принятом УПД наименование = название из уведомления плюс артикул через
         # пробел — так во всех семи строках эталона; повторяем.
         g = _set(goods_tpl, "СведТов", НомСтр=str(i),

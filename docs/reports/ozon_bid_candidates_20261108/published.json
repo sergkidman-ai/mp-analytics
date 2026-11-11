@@ -1,0 +1,30 @@
+{
+  "checked_at_utc": "2026-11-08T13:52:44.864252+00:00",
+  "manual_puts": 2,
+  "manual_readbacks_verified": true,
+  "autocreated_configuration_mutations": 0,
+  "funding_explicit_nonnull_values_checked": true,
+  "cash_zero_bonus_total": "13654.55",
+  "shared_2306_model": "220510583",
+  "wave1_shared_article": "2294X2",
+  "old_14rub_slot_unchanged": true,
+  "owner_bonus_funding_choice_pending": true,
+  "checks": {
+    "ozon-bid-candidates-2026-11-08": {
+      "http": 200,
+      "matches_local": true,
+      "bytes": 17762
+    },
+    "ozon-bid-candidates-2026-11-08-plan": {
+      "http": 200,
+      "matches_local": true,
+      "bytes": 2088
+    },
+    "ozon-launch-2026-11-06": {
+      "http": 200,
+      "matches_local": true,
+      "bytes": 29437
+    }
+  },
+  "anonymous_http": 401
+}

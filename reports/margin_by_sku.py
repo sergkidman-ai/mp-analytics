@@ -65,10 +65,11 @@ def _org_id(account):
     return _href_id(org_href)
 
 
-def demand_cogs_from_cache(org_id):
+def demand_cogs_from_cache(org_id, *, strict=False):
     """{demand_name(assembly_id): (cogs, qty)} — себест и штуки отгрузки из кэша ms_demand_cogs."""
-    rows = db.query("""SELECT demand_name, cogs, qty FROM ms_demand_cogs
-        WHERE org=%s AND agent='Покупатель ВБ'""", (org_id,))
+    verified = " AND (" + fifo_fallback.COMPLETE_DEMAND_SQL + ")" if strict else ""
+    rows = db.query("""SELECT demand_name, cogs, qty FROM ms_demand_cogs d
+        WHERE org=%s AND agent='Покупатель ВБ'""" + verified, (org_id,))
     return {r["demand_name"]: (float(r["cogs"] or 0), float(r["qty"] or 0)) for r in rows}
 
 
@@ -207,12 +208,12 @@ def _chain_cpu(nm, sa, cpu_hist, grp, setc, buy, manual, ff=None, day=None):
     return None, "нет"
 
 
-def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
+def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31", *, strict_costs=False):
     """Витрина за МЕСЯЦ ФОРМИРОВАНИЯ = месяц date_from (ключи периода — границы месяца)."""
     ym = date_from[:7]
     print(f"Витрина маржи {account} {ym} (по формированию)…", flush=True)
     org_id = _org_id(account)
-    cogs_order = demand_cogs_from_cache(org_id)       # {aid: (cogs, qty)}
+    cogs_order = demand_cogs_from_cache(org_id, strict=strict_costs)       # {aid: (cogs, qty)}
     sell_budget = storno_budget(account, ym)          # {aid: штук с начисленной и не сторнированной выручкой}
     sold_units = sold_units_by_demand(account)        # {aid: штук ВБ} — знаменатель себеста/шт сторно
 
@@ -243,6 +244,10 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     storno_used = defaultdict(float)                 # aid -> уже сторнировано штук (лимит = sell_budget)
     storno_fb = defaultdict(float)                   # источник фолбэка -> штук сторно без моста к отгрузке
     cpu_hist, grp, setc, buy, manual = _fallback_sources(account, date_from)
+    if strict_costs:
+        # Recovery must not turn today's card/purchase price into historical COGS.
+        grp, setc, buy = {}, {}, {}
+    unknown_storno = set()
     ff = fifo_fallback.load()                        # FIFO товара МС (шаги 3–4 цепочки)
     # Опорная дата фолбэка FIFO — ДЕНЬ ЗАКАЗА строки (order_dt), а не конец месяца
     # (решение Сергея 16.08.2026). Конец месяца брал последнюю отгрузку товара ПОСЛЕ продажи,
@@ -299,6 +304,8 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
                             storno[nm] += u * take
                             storno_used[aid] += take
                             storno_fb[src] += take
+                        elif strict_costs:
+                            unknown_storno.add(nm)
         # «Возврат» в сырье ВБ лежит с ПОЛОЖИТЕЛЬНЫМ ppvz_for_pay — вычитаем,
         # иначе «К перечислению» и чистая завышаются на 2× сумму возвратов.
         a["to_pay"] += (-r["pay"] if r["op"] == "Возврат" else r["pay"])
@@ -329,6 +336,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
     for nm, a in money.items():
         qty = a["qty"]
         cogs = mc.get(nm, 0.0)
+        cost_unknown = nm in unknown_storno
         cov["exact"] += mu.get(nm, 0.0)
         # непокрытые FBS-штуки + FBO-штуки (всё, что продано сверх matched; qty уже нетто)
         rest = max(0.0, qty - mu.get(nm, 0.0))
@@ -344,11 +352,14 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
                     cov[src] += rest
                 else:
                     cov["нет"] += rest
+                    cost_unknown = True
         # Сторно себеста вернувшегося в сток товара (месяц возврата). Может увести cogs в минус,
         # если исходная продажа была в другом месяце — это корректный кредит себеста в месяц возврата.
         cogs -= storno.get(nm, 0.0)
         rev = a["revenue_buyer"]
         net = a["to_pay"] - a["logistics"] - a["storage"] - a["acceptance"] - a["other"] - cogs
+        if strict_costs and cost_unknown:
+            cogs, net = None, None
         recs.append({
             "article": nm, "platform": "wb", "account": account,
             "period_from": date_from, "period_to": date_to,
@@ -356,7 +367,7 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
             "commission": a["commission"], "logistics": a["logistics"],
             "returns_sum": a["returns_sum"], "storage": a["storage"],
             "acceptance": a["acceptance"], "other": a["other"],
-            "net_profit": net, "margin_pct": (net / rev * 100) if rev else None,
+            "net_profit": net, "margin_pct": (net / rev * 100) if rev and net is not None else None,
             "commission_pct": (a["commission"] / rev * 100) if rev else None,
         })
     # период пересобирается целиком: старые nm, исчезнувшие из отчётов, не должны залипать
@@ -377,6 +388,8 @@ def build(account="wb_acc1", date_from="2026-05-01", date_to="2026-05-31"):
         print(f"  сторно COGS возвратов: −{st_sum:,.0f} ₽ по {sum(1 for v in storno.values() if v)} nm{fb}"
               .replace(",", " "), flush=True)
     print(f"  записано {len(recs)} nm_id за {ym}", flush=True)
+    return {"rows": len(recs), "unknown_cost_rows": sum(r['cogs'] is None for r in recs),
+            "cost_sources": dict(cov)}
 
 
 def money_rows_iter(raw):

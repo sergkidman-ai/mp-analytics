@@ -40,12 +40,13 @@ import requests
 sys.path.insert(0, "/opt/mp-analytics")
 from core.db import query, upsert, execute            # noqa: E402
 from collectors.ozon import _headers, PRODUCT_LIST_URL, PRODUCT_INFO_URL   # noqa: E402
+from tools.ozon_card_journal import control
 
 ACCOUNTS = ["oz_acc1", "oz_acc2"]
 PLATFORM = "ozon"
-PAGE = 1000
+PAGE = 20
 ATTR_URL = "https://api-seller.ozon.ru/v4/product/info/attributes"
-ATTR_PAGE = 100
+ATTR_PAGE = 20
 # Атрибут «Нужен код маркировки» в категории картриджей (17028935/95980). Спрашиваем ЕГО
 # ЗНАЧЕНИЕ только у карточек, у которых висит замечание про маркировку: пусто — работа ТК,
 # заполнено — площадка держит устаревший вердикт, то есть случай класса W (26.08.2026).
@@ -73,18 +74,34 @@ HEAL_WARN = {
 
 def _ids(H, visibility):
     """Все product_id в заданной витрине проблем."""
-    out, last = [], ""
+    out, last, expected, seen = [], "", None, set()
     while True:
         r = requests.post(PRODUCT_LIST_URL, headers=H,
                           json={"filter": {"visibility": visibility},
                                 "last_id": last, "limit": PAGE}, timeout=120)
         r.raise_for_status()
         res = r.json()["result"]
+        total = res.get('total')
+        if not isinstance(total,int) or total<0:
+            raise ValueError('Missing Ozon problem catalogue total')
+        if expected is None:
+            expected = total
+        elif total != expected:
+            raise ValueError('Ozon problem catalogue changed during scan')
         items = res.get("items") or []
-        out += [i["product_id"] for i in items]
-        last = res.get("last_id") or ""
-        if len(items) < PAGE:
+        ids = [i['product_id'] for i in items]
+        if len(set(ids)) != len(ids) or seen.intersection(ids):
+            raise ValueError('Duplicate Ozon problem product')
+        seen.update(ids)
+        out.extend(ids)
+        next_id = res.get('last_id') or ''
+        if len(items) < PAGE or (expected is not None and len(out) == expected):
+            if expected is not None and len(out) != expected:
+                raise ValueError('Incomplete Ozon problem catalogue')
             return out
+        if not next_id or next_id == last:
+            raise ValueError('Missing Ozon problem catalogue cursor')
+        last = next_id
 
 
 def _classify(item):
@@ -148,6 +165,7 @@ def _mark_values(H, product_ids):
 
 def scan(account):
     H = _headers(account)
+    recovery_epoch=control()['restored_at']
     pids, known = [], set()
     for vis in VISIBILITIES:                 # карточка может числиться в обеих витринах
         for p in _ids(H, vis):
@@ -159,10 +177,23 @@ def scan(account):
         r = requests.post(PRODUCT_INFO_URL, headers=H,
                           json={"product_id": pids[i:i + PAGE]}, timeout=180)
         r.raise_for_status()
-        for it in r.json().get("items", []):
+        items = r.json().get('items')
+        expected = {str(pid) for pid in pids[i:i + PAGE]}
+        if not isinstance(items, list) or {str(it.get('id')) for it in items} != expected or len(items) != len(expected):
+            raise ValueError('Incomplete or unexpected Ozon product information')
+        if any(not it.get('offer_id') or not it.get('statuses') for it in items):
+            raise ValueError('Missing Ozon product status or identity')
+        for it in items:
             st = it.get("statuses") or {}
             cls, codes, texts = _classify(it)
             oid = it.get("offer_id")
+            created=it.get('created_at')
+            try:
+                created_at=datetime.fromisoformat(created.replace('Z','+00:00'))
+                if created_at.tzinfo is None:
+                    created_at=created_at.replace(tzinfo=timezone.utc)
+            except (AttributeError,ValueError,TypeError):
+                created_at=None
             seen.add(oid)
             rows.append({
                 "platform": PLATFORM, "account": account, "offer_id": oid,
@@ -178,6 +209,8 @@ def scan(account):
                 "is_open": True, "healed_at": None,
                 "card_updated_at": st.get("status_updated_at") or None,
                 "mark_attr": None,
+                "product_created_at":created_at,
+                "history_missing":created_at is None or created_at<recovery_epoch,
                 "last_seen": datetime.now(timezone.utc),
             })
             if _needs_mark(it):
@@ -204,7 +237,7 @@ def save(account, rows, seen):
            update_cols=["product_id", "name", "err_class", "status", "status_failed",
                         "moderate_status", "validation_status", "status_name", "status_descr",
                         "err_codes", "err_texts", "is_selling", "is_open", "healed_at",
-                        "card_updated_at", "mark_attr", "last_seen"])
+                        "card_updated_at", "mark_attr", "last_seen", "product_created_at"])
     if seen:
         closed = execute(
             "UPDATE card_status SET is_open = false, healed_at = coalesce(healed_at, now()), "
@@ -222,8 +255,15 @@ def save(account, rows, seen):
 def main(argv):
     targets = ACCOUNTS if (len(argv) < 2 or argv[1] == "all") else [argv[1]]
     for acc in targets:
-        rows, seen = scan(acc)
-        closed = save(acc, rows, seen)
+        execute('''INSERT INTO card_scan_state(account,started_at,success) VALUES(%s,now(),false)
+            ON CONFLICT(account) DO UPDATE SET started_at=now(),success=false,error_kind=NULL''',(acc,))
+        try:
+            rows, seen = scan(acc)
+            closed = save(acc, rows, seen)
+        except Exception as error:
+            execute('UPDATE card_scan_state SET error_kind=%s WHERE account=%s',(type(error).__name__,acc))
+            raise
+        execute('UPDATE card_scan_state SET success=true,completed_at=now() WHERE account=%s',(acc,))
         by = {}
         for r in rows:
             by[r["err_class"]] = by.get(r["err_class"], 0) + 1

@@ -1,0 +1,11 @@
+# поток: ev
+[Unit]
+Description=Marketplace news to Pult diary
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/usr/bin/flock -n /opt/mp-analytics/runtime/mp-news.lock /opt/mp-analytics/venv/bin/python -u -m ops.mp_news --days 120
+TimeoutStartSec=20min
+UMask=0077

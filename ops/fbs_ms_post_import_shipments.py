@@ -20,6 +20,7 @@ import time
 from zoneinfo import ZoneInfo
 
 from core import ms_api
+from ops.order_priority import order_key
 from ops.fbs_market_fulfillment import fulfill_many
 from ops import fbs_ms_post_import_status as status
 from tools import customer_order_batch17_20261022 as batch
@@ -70,6 +71,18 @@ def changed_at(proof: dict) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def priority_key(proof: dict):
+    # Old status journals contain the full MS response, so existing queues also
+    # get correct priority without additional MS/stock requests.
+    fallback={}
+    path=STATUS_RUNTIME/proof['name']/'response.json'
+    if not proof.get('moment') or 'agent_id' not in proof:
+        if path.exists():
+            response=read(path)
+            if isinstance(response.get('body'),dict):fallback=response['body']
+    return order_key(proof,fallback)
+
+
 def pending() -> list[dict]:
     result = []
     for path in STATUS_RUNTIME.glob('*/readback.json'):
@@ -94,7 +107,7 @@ def pending() -> list[dict]:
                 continue
         changed_at(proof)
         result.append(proof)
-    return sorted(result, key=lambda proof: (changed_at(proof), proof['name']))
+    return sorted(result, key=priority_key)
 
 
 def wait_until(deadline: datetime) -> None:
@@ -207,7 +220,8 @@ def apply_one(order: dict, proof: dict, existing: list[dict], apply: bool) -> di
     number = proof['name']
     folder = RUNTIME / number
     source = STATUS_RUNTIME / number
-    after = read(source / 'response.json')['body']
+    after = (proof['status_response'] if 'status_response' in proof
+             else read(source / 'response.json')['body'])
     reason = unchanged(order, proof, after)
     if reason:
         return {'number': number, 'result': 'skipped', 'reason': reason}
@@ -272,6 +286,7 @@ def finish_market(orders: list[dict], results: list[dict]) -> None:
     """Resume only journalled shipments; marketplace intents live per MS ID."""
     if not orders:
         return
+    orders = sorted(orders,key=order_key)
     error = None
     try:
         market_results = fulfill_many(orders, RUNTIME / 'market')

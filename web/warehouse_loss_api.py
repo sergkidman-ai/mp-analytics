@@ -4,8 +4,10 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from core import db
+from web.loss_manual_cost import router as manual_router, apply_manual
 
 router = APIRouter()
+router.include_router(manual_router)
 STATIC = Path(__file__).parent / 'static'
 
 @router.get('/warehouse/loss', response_class=HTMLResponse)
@@ -17,6 +19,10 @@ def warehouse_loss():
     rows=db.query('''SELECT d.id document_id,d.account,d.warehouse,d.header_date,d.pdf_name,d.imported_at,
         i.nm_id,i.vendor_code,i.qty,i.source_pages FROM wb_loss_document d
         JOIN wb_loss_item i ON i.document_id=d.id ORDER BY d.warehouse,i.vendor_code,i.nm_id''')
+    if not rows:
+        recovered=db.query("SELECT id,payload FROM wb_loss_recovery_snapshot WHERE payload->>'mode'='recovered_snapshot' ORDER BY created_at DESC,id DESC LIMIT 1")
+        if recovered:
+            return apply_manual(recovered[0]['payload'],recovered[0]['id'])
     analyses=db.query('SELECT account,payload,built_at FROM wb_loss_analysis')
     matches={(a['account'],i['document_id'],i['nm_id']):i for a in analyses for i in a['payload']['items']}
     cost_rows=db.query('SELECT account,payload,built_at FROM wb_loss_cost_result')

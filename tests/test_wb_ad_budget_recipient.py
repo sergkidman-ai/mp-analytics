@@ -14,6 +14,7 @@ def test_budget_alert_goes_to_sergey_not_general_prc(monkeypatch, tmp_path):
     send = Mock(return_value={'ok': True, 'message_id': 42})
     monkeypatch.setattr(guard, 'send_sergey', send)
     monkeypatch.setattr(guard, 'REPORT', tmp_path / 'ad-budget.txt')
+    monkeypatch.setattr(guard, 'STATUS', tmp_path / 'ad-budget.json')
     monkeypatch.setattr('sys.argv', ['wb_ad_budget_guard'])
 
     guard.main()

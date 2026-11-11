@@ -164,7 +164,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
         const controller=new AbortController();
         const timeout=setTimeout(()=>controller.abort(),12000);
         let response;
-        try {response=await fetch('https://bi.metaverseworld.ru/api/returns/wb-qr/tsifrovoy',{
+        try {response=await fetch('https://bi.beyindi.com/api/returns/wb-qr/tsifrovoy',{
           method:'POST',headers:{'Authorization':'Bearer '+s.uploadToken,'Content-Type':'application/json'},
           credentials:'omit',cache:'no-store',redirect:'error',signal:controller.signal,
           body:JSON.stringify({png_b64:message.png.split(',')[1],day:run.day,validity:message.validity})

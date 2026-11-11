@@ -1,5 +1,5 @@
 # поток: fin
-"""One versioned Ozon account expense basis, built only from existing finance raw.
+"""Versioned Ozon expense basis from finance raw or explicitly activated closed reports.
 
 Composition matches EXP_SVC: signed net service/commission costs, not sum(abs).
 Returns, compensation and other income remain separate. No posting-price revenue
@@ -186,6 +186,47 @@ def build(account, month, *, log_path='/opt/mp-analytics/run_daily.log', as_of=N
     return calculate(account,str(first),[r['payload'] for r in rows],proof,source_digest)
 
 
+def closed_snapshot_basis(snapshot, account, month, source_sha256, *, as_of=None):
+    """Explicit activation of finalized Reports MP, including realization corrections.
+
+    No new collection, forecast or reconstruction from an incomplete restored log.
+    Signed EXP_SVC includes service credits; returns/income are not expenses.
+    """
+    first, last = month_bounds(month)
+    if account not in ('oz_acc1', 'oz_acc2'):
+        raise BasisUnavailable('unsupported_ozon_account')
+    if (last >= (as_of or date.today()) or month not in snapshot['period_keys']
+            or month in snapshot.get('provisional', [])):
+        raise BasisUnavailable('closed_ozon_month_unavailable')
+    i = snapshot['period_keys'].index(month)
+    item = snapshot['accounts'][account]
+    keys = ('sales', 'returns', *EXPENSE_LINES, 'compensation', 'other')
+    lines = {key: decimal(item['lines'][key][i]) for key in keys}
+    sales = lines['sales']
+    expenses = sum((lines[key] for key in EXPENSE_LINES), D(0))
+    net = sales - lines['returns'] - expenses + lines['compensation'] + lines['other']
+    # The frozen UI independently rounds each row to rubles.
+    reported_before_cogs = decimal(item['net'][i]) + decimal(item['cogs'][i])
+    if abs(net - reported_before_cogs) > D(len(keys) + 1) / 2:
+        raise BasisUnavailable('closed_ozon_snapshot_net_mismatch')
+    if sales <= 0 or not 0 <= expenses < sales:
+        raise BasisUnavailable('invalid_closed_ozon_ratio')
+    with localcontext() as context:
+        context.prec = PRECISION
+        retention = expenses / sales
+        keep = 1 - retention
+    body = dict(account=account, period_from=str(first), period_to=str(last),
+        policy=POLICY, expense_lines=list(EXPENSE_LINES), precision=PRECISION,
+        rounding='Closed report rows rounded to RUB; floor rounded at final kopeck only',
+        sales=str(sales), expenses=str(expenses), retention=str(retention), keep=str(keep),
+        lines={key: str(value) for key, value in lines.items()}, source_sha256=source_sha256,
+        source='closed_reports_mp_snapshot', status='complete', reasons=[],
+        completeness=dict(complete=True, reasons=[], report_closed=True,
+                          realization_reconciled=True, forecast=False),
+        net=str(net), net_reconciliation_delta=str(net-reported_before_cogs))
+    return dict(body, version='ozexp-v1:' + digest(body))
+
+
 def publish(basis):
     """One transaction: append immutable version, preserve old rule, publish pointer."""
     from core import db
@@ -215,7 +256,20 @@ def publish(basis):
 
 
 def refresh(account, *, as_of=None, log_path='/opt/mp-analytics/run_daily.log', apply=False):
-    basis=build(account,str(latest_closed(as_of)),as_of=as_of,log_path=log_path)
+    from core import db
+    rows = db.query('SELECT b.payload FROM fin_ozon_expense_current c JOIN fin_ozon_expense_basis b ON b.version=c.version WHERE c.account=%s', (account,))
+    current = rows[0]['payload'] if rows else None
+    if current and current.get('source') == 'closed_reports_mp_snapshot':
+        # A scheduled raw refresh must not overwrite an explicitly activated,
+        # realization-reconciled closed month with unconfirmed raw operations.
+        path = Path(__file__).resolve().parents[1] / 'reports/data/mp_ozon_hist.json'
+        raw = path.read_bytes()
+        basis = closed_snapshot_basis(json.loads(raw), account,
+            current['period_from'][:7], current['source_sha256'], as_of=as_of)
+        if basis['version'] != current['version']:
+            raise BasisUnavailable('activated_closed_report_changed_requires_approval')
+    else:
+        basis=build(account,str(latest_closed(as_of)),as_of=as_of,log_path=log_path)
     return publish(basis) if apply else basis
 
 

@@ -1,0 +1,12 @@
+# поток: mkt / ozon
+[Unit]
+Description=Ozon oz_acc1 experiment stop-only risk guard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/ops/ozon_experiment_guard.py --config /opt/mp-analytics/docs/reports/ozon_launch_20261106/risk_policy.json --execute
+TimeoutStartSec=15min
+Nice=10

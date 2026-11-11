@@ -17,11 +17,15 @@ import requests
 import sys
 from zoneinfo import ZoneInfo
 
+from core import ms_api_control
 from core import ms_api
+from ops.order_priority import order_key, is_express
 from ops.fbs_ms_import_pilot import save
 from ops.fbs_ms_import_read import warehouse_stock
-from ops.ms_supplier_priorities import POLICY_VERSION, supplier_priority
+from ops.ms_supplier_priorities import (POLICY_VERSION, LEGACY_POLICY_VERSION,
+                                       supplier_priority, base_supplier_priority)
 from prices.profiles import STORE_REMOTE
+from ops.supplier_shipping_dates import shortage_day, local_created
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'docs/reports/fbs_ms_recovery_20261102/all_import'
@@ -48,7 +52,9 @@ def atomic_save(path: Path, data: dict) -> None:
     os.replace(temp, path)
 
 
-def planned_day(status: str, now: datetime) -> str:
+def planned_day(status: str, now: datetime, supplier_ids=()) -> str:
+    if status == 'Неукомплектован':
+        return shortage_day(now, supplier_ids).isoformat()
     msk = now.astimezone(ZoneInfo('Europe/Moscow'))
     if msk < datetime(2026, 11, 5, tzinfo=ZoneInfo('Europe/Moscow')):
         ready_today = (status in {'Подтвержден', 'Собирается'} and
@@ -84,8 +90,18 @@ def supplier_selection_proof(item: dict) -> bool:
         return False
     if 'selection_policy' not in item:
         return type(item.get('tier')) is int and item['tier'] in (1, 2, 3)
-    if (item['selection_policy'] != POLICY_VERSION or type(item.get('priority')) is not int
-            or item['priority'] != supplier_priority(item.get('supplier_id'))
+    policy = item['selection_policy']
+    if policy == LEGACY_POLICY_VERSION:
+        expected_priority = base_supplier_priority(item.get('supplier_id'))
+    elif policy == POLICY_VERSION and item.get('priority_at'):
+        try:
+            expected_priority = supplier_priority(item.get('supplier_id'), as_of=item['priority_at'])
+        except (ValueError, TypeError):
+            return False
+    else:
+        return False
+    if (type(item.get('priority')) is not int
+            or item['priority'] != expected_priority
             or item.get('stock_store_id') != STORE_REMOTE):
         return False
     try:
@@ -105,7 +121,7 @@ def provenance(proof: dict) -> tuple[bool, bool]:
         units = defaultdict(Decimal)
         limits = {}
         for item in short:
-            if item.get('selection_policy') == POLICY_VERSION:
+            if item.get('selection_policy') in (POLICY_VERSION, LEGACY_POLICY_VERSION):
                 cid = item.get('card_id')
                 units[cid] += Decimal(str(item['quantity']))
                 available = Decimal(str(item['supplier_available']))
@@ -203,7 +219,9 @@ def desired(order: dict, proof: dict, stock: dict[str, dict],
         target = 'Неукомплектован'
     else:
         return None, None, {'reason': 'shortage_without_price_proof', 'stock': evidence}
-    day = planned_day(target, now)
+    created = local_created(order['created']) if target == 'Неукомплектован' and order.get('created') else now
+    supplier_ids = [item.get('supplier_id') for item in proof['selected']]
+    day = planned_day(target, created, supplier_ids)
     if target == 'Собирается' and day > now.astimezone(ZoneInfo('Europe/Moscow')).date().isoformat():
         target = 'Подтвержден'
     return target, day, {'reason': 'eligible', 'stock': evidence,
@@ -279,7 +297,7 @@ def apply_one(order: dict, proof: dict, promised: Promised, now: datetime,
                   'before_state': fresh['state']['name'], 'before_plan': fresh.get('deliveryPlannedMoment'),
                   'decision': evidence, 'payload': payload}, exclusive=True)
     try:
-        response = requests.put(ms_api.BASE + '/entity/customerorder/' + fresh['id'],
+        response = ms_api_control.request("PUT", ms_api.BASE + '/entity/customerorder/' + fresh['id'], sender=requests.put, client="operations-direct", kind="operational",
             params={'expand': 'state,store,positions.assortment'},
             headers={'Authorization': 'Bearer ' + os.environ['MOYSKLAD_TOKEN'],
                      'Content-Type': 'application/json'}, json=payload, timeout=(5, 45))
@@ -307,7 +325,9 @@ def apply_one(order: dict, proof: dict, promised: Promised, now: datetime,
         raise RuntimeError('status_readback_mismatch')
     readback = {'name': after['name'], 'id': after['id'], 'state': after['state']['name'],
                 'planned': after.get('deliveryPlannedMoment'), 'sum': after['sum'],
-                'updated': after['updated'],
+                'updated': after['updated'], 'moment': after.get('moment'),
+                'created': after.get('created'), 'agent_id': ms_api.meta_id(after,'agent'),
+                'is_express': is_express(after) or is_express(proof),
                 'positions': [(card_id(p), p['quantity']) for p in after['positions']['rows']]}
     if target == 'Собирается':
         readback.update(shipment_due=True, changed_at=datetime.now(timezone.utc).isoformat(),
@@ -335,7 +355,7 @@ def run(apply: bool) -> dict:
         promised: Promised = defaultdict(Decimal)
         results = []
         writes = 0
-        for number in sorted(pending, key=lambda n: (orders[n]['moment'], n)):
+        for number in sorted(pending, key=lambda n: order_key(orders[n],proofs[n])):
             stop_after_error = False
             order, proof = orders[number], proofs[number]
             if order['state']['name'] not in WAITING:

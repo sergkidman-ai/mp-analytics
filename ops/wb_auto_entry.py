@@ -111,6 +111,20 @@ class Client:
         return value
 
     def goods(self, nm_id=None):
+        # Offset pages can overlap while WB finishes asynchronous price changes.
+        # Retry a READ snapshot from page zero; never combine inconsistent pages
+        # and never repeat the price POST because verification was interrupted.
+        for attempt in range(3):
+            try:
+                return self._goods_snapshot(nm_id)
+            except RuntimeError as exc:
+                if nm_id is not None or str(exc) != 'goods pagination duplicate' or attempt == 2:
+                    raise
+                if self.remaining() <= 5:
+                    raise
+                time.sleep(attempt + 1)
+
+    def _goods_snapshot(self, nm_id=None):
         out, invalid, seen = {}, {}, set()
         self.goods_calls += 1
         slot = self.goods_calls % 3
@@ -558,14 +572,43 @@ def main():
                     or r.get('pending_batches') or r.get('deferred') for r in results) else 0
 
 
-def legacy_push(account, batch):
+def disjoint_pending_ids(journal, account, batch):
+    """Validate exact product isolation for an explicitly requested bounded run.
+
+    The account barrier stays in place. Nothing retries or clears the old upload.
+    Missing/invalid payload identity fails closed, including an empty payload.
+    """
+    requested = {int(row['nm_id']) for row in batch}
+    if not requested or any(nm <= 0 for nm in requested):
+        raise ValueError('Invalid isolated write scope')
+    tasks = journal.pending(account)
+    if tasks:
+        barrier(account).touch()
+    blocked = set()
+    for task in tasks:
+        rows = json.loads(task['payload'])
+        if not isinstance(rows, list) or not rows:
+            raise ValueError('Pending upload has no verified product scope')
+        for row in rows:
+            nm = row.get('nm_id') if isinstance(row, dict) else None
+            if type(nm) is not int or nm <= 0:
+                raise ValueError('Pending upload has invalid product identity')
+            blocked.add(nm)
+    if requested & blocked:
+        raise ValueError('Requested products overlap unresolved upload')
+    return frozenset(task['id'] for task in tasks)
+
+
+def legacy_push(account, batch, *, allow_disjoint_pending=False):
     """Durable writer used by old guard/plan_raise, with fresh-price safety checks."""
     try:
         with writer_lock():
             client = Client(account, min(900, max(120, 120 + len(batch) // 10)))
             journal = Journal(ROOT / 'journal.sqlite3')
             goods, _ = client.goods()
-            if not recover(client, journal, account, goods):
+            isolated_pending = (disjoint_pending_ids(journal, account, batch)
+                                if allow_disjoint_pending else frozenset())
+            if not recover(client, journal, account, goods) and not allow_disjoint_pending:
                 return False, 'Prior WB upload unresolved; deferred without resending'
             costs = guard.cogs_map(account, goods)
             plan_scope = None
@@ -633,6 +676,11 @@ def legacy_push(account, batch):
                 time.sleep(5)
                 after, _ = client.goods()
                 settled = recover(client, journal, account, after)
+                if isolated_pending:
+                    # Old disjoint tasks remain protected by the REAL account barrier.
+                    # A new unknown/pending task must still stop this local wave.
+                    remaining = {task['id'] for task in journal.pending(account)}
+                    settled = not (remaining - isolated_pending)
                 if settled:
                     ok = all(exact(row, after) for row in rows)
                     return ok, '' if ok else 'Partial WB application; inspect durable item journal'

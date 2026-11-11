@@ -14,6 +14,7 @@ from customer_guard.rules import get_rule as shipment_rule
 from shipment_guard.ms import SourceError
 from shipment_guard.worker import LOCK_ID
 from customer_guard import store
+from customer_guard.recovery_events import enqueue_missing
 from customer_guard.domain import ACTIVE, READY, composition, economics, sale, utcnow, non_positive_profit, market, ACCOUNTS, business_date
 from customer_guard.sources import CustomerMS, get_posting
 
@@ -132,6 +133,7 @@ def work(limit=5, budget=100, clock=utcnow, client=None, get=get_posting, postin
         raise ValueError("pilot_run_budget")
     completed = 0
     notification_errors = []
+    recovery_errors = []
     with exclusive() as pulse:
         if not db.query("""SELECT 1 FROM customer_guard_jobs j JOIN customer_guard_orders o ON o.id=j.order_id
           WHERE ((j.state IN ('pending','retry') AND j.due_at<=%s) OR
@@ -194,6 +196,11 @@ def work(limit=5, budget=100, clock=utcnow, client=None, get=get_posting, postin
                         continue
                 if store.finish(job, result, clock(), document, client.evidence):
                     completed += 1
+                    if result.get('signal') == 'missing_ms':
+                        try:
+                            enqueue_missing(job['order_id'])
+                        except Exception as exc:
+                            recovery_errors.append(type(exc).__name__)
                     if notify:
                         from customer_guard.notifications import send_current
                         try:
@@ -208,6 +215,8 @@ def work(limit=5, budget=100, clock=utcnow, client=None, get=get_posting, postin
                 store.fail(job, "source_or_calculation_error:" + type(exc).__name__, clock())
                 break  # Exception text can contain credentials from request URLs.
     result=dict(completed=completed, ms_requests=client.requests)
+    if recovery_errors:
+        result['recovery_errors']=recovery_errors
     if notification_errors:
         result["notification_errors"]=notification_errors
     return result

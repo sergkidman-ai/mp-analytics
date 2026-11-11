@@ -151,8 +151,8 @@ def tax_rules(today):
                             amount=round(base, 2), schedule="quarterly", days=[28],
                             months=nxt,
                             note="оценка = текущий квартал, уточнить по декларации"))
-        elif org in VAT_START:
-            out += vat_from_turnover(org, today)
+        # The turnover fallback is not an agreed VAT base (BRIEF_CF).
+        # Missing tax history stays missing; manual rules remain available.
         # УСН: аванс за квартал ≈ половина последнего платежа «за полугодие»/«УСН»
         usn = [t for t in mine if "усн" in (t["purpose"] or "").lower()]
         big_enp = [t for t in enp if round(float(t["amount"]), 2) not in monthly]

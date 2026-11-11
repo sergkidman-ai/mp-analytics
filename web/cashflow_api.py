@@ -7,6 +7,7 @@
 Решение Сергея 04.08/22.09: фирмы строго раздельно, сводной страницы нет.
 """
 import sys
+import json
 import pathlib
 import datetime as dt
 from collections import defaultdict
@@ -40,7 +41,9 @@ ROWS = [
     ("salary", "Зарплата", "out", ["salary"]),
     ("selfemp", "Самозанятые", "out", ["selfemp"]),
     ("ndfl", "НДФЛ и взносы", "out", ["ndfl"]),
-    ("taxes", "Налоги (НДС, УСН)", "out", ["vat", "usn", "taxes"]),
+    ("vat", "НДС", "out", ["vat"]),
+    ("usn", "УСН", "out", ["usn"]),
+    ("taxes", "Прочие налоги / ЕНП", "out", ["taxes"]),
     ("programmer", "Программист", "out", ["programmer"]),
     ("packaging", "Упаковка", "out", ["packaging"]),
     ("rent", "Аренда", "out", ["rent"]),
@@ -63,7 +66,7 @@ def _org(org):
 # ── остатки ──────────────────────────────────────────────────────────────────
 class Balances:
     """Остаток счёта на конец дня. API-банки — из cf_balance; Озон Банк — опорный ручной
-    остаток (или ноль до первой операции) плюс операции выписки."""
+    остаток плюс операции выписки. Без опорного остатка сумма неизвестна."""
 
     def __init__(self, org):
         self.org = org
@@ -149,7 +152,7 @@ class Balances:
         """(остаток, точный?) на конец дня d; None — неизвестен."""
         if self.api.get(k):
             prev = [b for bd, b in self.api[k] if bd <= d]
-            return (prev[-1], True) if prev else (None, False)
+            return (prev[-1], any(bd == d for bd, _ in self.api[k])) if prev else (None, False)
         anchors = [(ad, b) for ad, b in self.manual.get(k, []) if ad <= d]
         if anchors:
             a_date, bal = anchors[-1]
@@ -162,7 +165,7 @@ class Balances:
             bal -= sum(s for td, s in self.mirror.get(k, []) if d < td <= a_date)
             return bal, d <= self.last_txn.get(k, d)
         elif k in self.first_txn:
-            a_date, bal = self.first_txn[k] - dt.timedelta(days=1), 0.0
+            return None, False
         else:
             return None, False
         if d < a_date:
@@ -172,11 +175,14 @@ class Balances:
         return bal, d <= self.last_txn.get(k, a_date)
 
     def total(self, d):
+        if not self.accounts():
+            return None, False
         s, exact = 0.0, True
         for k in self.accounts():
             b, ok = self.at(k, d)
-            if b is not None:
-                s += b
+            if b is None:
+                return None, False
+            s += b
             exact = exact and ok
         return s, exact
 
@@ -185,7 +191,38 @@ class Balances:
 
 
 def warnings(org, bal, today):
-    out = []
+    ozon_accounts = [k for k in bal.accounts() if k[0] == 'ozon']
+    if not ozon_accounts:
+        out = ["Озон Банк: выписка не загружена; общий остаток компании неполный."]
+    elif any(not bal.manual.get(k) and not bal.api.get(k) for k in ozon_accounts):
+        out = ["Озон Банк: операции из выписки загружены, но опорный остаток счёта не задан. Общий остаток компании неизвестен."]
+    else:
+        out = []
+    state_path = BASE_DIR / 'runtime' / 'cashflow' / 'last_run.json'
+    try:
+        state = json.loads(state_path.read_text())
+        finished = dt.datetime.fromisoformat(state['finished_at'])
+        if dt.datetime.now(dt.timezone.utc) - finished > dt.timedelta(hours=36):
+            out.append("Ежедневное обновление Кэшфлоу отстаёт более суток.")
+        if any(v != 'ok' for v in state.get('steps', {}).values()):
+            out.append("Последнее обновление завершилось с ошибками источников; часть данных могла устареть.")
+    except (OSError, ValueError, KeyError, TypeError):
+        out.append("Нет подтверждения последнего обновления Кэшфлоу.")
+    coverage = db.query("select min(operation_date)::date first, max(operation_date)::date last from bank_txn where org_inn=%s", (org,))[0]
+    ms_sync = db.query('select date_from,date_to,loaded_at from cf_ms_payment_sync where org_inn=%s', (org,))
+    ms_fresh = bool(ms_sync and ms_sync[0]['date_from'] <= monday(today)-dt.timedelta(weeks=8)
+                    and ms_sync[0]['date_to'] >= today-dt.timedelta(days=1)
+                    and dt.datetime.now(dt.timezone.utc)-ms_sync[0]['loaded_at'] < dt.timedelta(hours=36))
+    if ms_fresh:
+        out.append("Факт: проведённые платежи МС и банковские операции без дублей. Операции, отсутствующие в обоих источниках, не учтены.")
+    if not ms_fresh and (coverage["first"] is None or coverage["first"] > monday(today) - dt.timedelta(weeks=8)):
+        out.append("История банковских операций за восемь недель неполная. Пустые недели не означают отсутствие движения.")
+    if not ms_fresh and (coverage["last"] is None or coverage["last"] < today - dt.timedelta(days=1)):
+        out.append("Выписка отстаёт: факт и расчёт будущего остатка могут быть неполными.")
+    if not db.query("select 1 from cf_plan_rule where org_inn=%s and active limit 1", (org,)):
+        out.append("План зарплаты, налогов и регулярных расходов не восстановлен: прогноз содержит только доступные платежи и оценки выплат МП.")
+    if not db.query("select 1 from cf_plan_rule where org_inn=%s and active and category in ('vat','usn','taxes') limit 1", (org,)):
+        out.append("Налоговый план не подтверждён: ручные суммы НДС/УСН после сбоя не восстановлены.")
     for k in sorted(bal.accounts()):
         bank, acc = k
         name = f"{BANK_NAMES.get(bank, bank)} …{acc[-4:]}"
@@ -268,6 +305,7 @@ def cashflow(org: str | None = None):
 
     bal = Balances(org)
     opening, closing, diff, exact = {}, {}, {}, {}
+    forecast_base = None
     for i, w in enumerate(weeks):
         net_fact = sum(cells[(k, w)]["fact"] for k, *_ in ROWS if (k, w) in cells)
         net_plan = sum(cells[(k, w)]["plan"] for k, *_ in ROWS if (k, w) in cells)
@@ -280,10 +318,20 @@ def cashflow(org: str | None = None):
             c, ok = bal.total(w + dt.timedelta(days=6))
             closing[w] = c
             exact[w] = exact[w] and ok
-            diff[w] = c - opening[w] - net_fact
+            diff[w] = None if c is None or opening[w] is None else c - opening[w] - net_fact
         else:
-            closing[w] = opening[w] + net_fact + net_plan
-    fmt = lambda d: {w.isoformat(): round(v, 2) for w, v in d.items()}  # noqa: E731
+            closing[w] = None if opening[w] is None else opening[w] + net_fact + net_plan
+            if w == cur_w and opening[w] is None:
+                # Опорный остаток может появиться только в середине недели.
+                # Это остаток НА КОНЕЦ дня: факт и план этого дня уже не прибавляем.
+                current, _ = bal.total(today)
+                if current is not None:
+                    remaining = db.query("""select coalesce(sum(amount), 0) s from cf_line
+                        where org_inn=%s and week_start=%s and kind='plan' and day>%s""",
+                        (org, w, today))[0]["s"]
+                    closing[w] = current + float(remaining)
+                    forecast_base = {"date": today.isoformat(), "balance": round(current, 2)}
+    fmt = lambda d: {w.isoformat(): (None if v is None else round(v, 2)) for w, v in d.items()}  # noqa: E731
     acc_list = []
     for k in sorted(bal.accounts()):
         # по API-счетам последний известный остаток — вчерашний, по остальным берём сегодня
@@ -300,7 +348,7 @@ def cashflow(org: str | None = None):
                          "manual": [{"date": d.isoformat(), "balance": v}
                                     for d, v in bal.manual.get(k, [])][-1:],
                          "last_txn": bal.last_txn[k].isoformat() if k in bal.last_txn else None})
-    built = db.query("select max(id) from cf_line")  # есть ли витрина вообще
+    built = db.query("select max(id) from cf_line where org_inn=%s", (org,))  # есть ли витрина вообще
     return {
         "org": org, "orgs": [{"org_inn": i, "name": n} for i, n in ORGS.items()],
         "today": today.isoformat(), "current_week": cur_w.isoformat(),
@@ -309,7 +357,8 @@ def cashflow(org: str | None = None):
                   for w in weeks],
         "rows": rows,
         "balance": {"open": fmt(opening), "close": fmt(closing), "diff": fmt(diff),
-                    "exact": {w.isoformat(): v for w, v in exact.items()}},
+                    "exact": {w.isoformat(): v for w, v in exact.items()},
+                    "forecast_base": forecast_base},
         "accounts": acc_list,
         "warnings": warnings(org, bal, today),
         "empty": not built or built[0]["max"] is None,

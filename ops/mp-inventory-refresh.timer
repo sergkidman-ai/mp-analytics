@@ -1,0 +1,11 @@
+[Unit]
+Description=Marketplace warehouse monitor twice daily
+
+[Timer]
+OnCalendar=*-*-* 08:15:00 Europe/Moscow
+OnCalendar=*-*-* 22:15:00 Europe/Moscow
+Persistent=true
+Unit=mp-inventory-refresh.service
+
+[Install]
+WantedBy=timers.target

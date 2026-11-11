@@ -22,6 +22,7 @@ STATE = {'available': '477d431f-32c5-487b-ba8d-c6e452a4a1d4',
          'waiting': '7e4cf8b8-210a-45c4-84d7-6d50d0de9ea3',
          'payment_pending': 'd0befb68-f468-11e2-9e9a-7054d21a8d1e'}
 FIELDS = {
+    'Бандл': 'e26c5b3b-9e37-11f1-0a80-15b900200b28',
     'Доставка': '5f2ecbc0-469e-11e3-b841-7054d21a8d1e',
     'Способ оплаты': '79b148fb-461e-11e3-1b39-7054d21a8d1e',
     'Ответственный': 'a50ba521-726d-11ea-0a80-03900024991a',
@@ -45,11 +46,16 @@ PLATFORM = {
 }
 
 
+EXPRESS_AGENT = {
+    'ozon': '22240c7b-c88d-11ed-0a80-10e700065d1d',
+    'yandex': '86cbf18c-30f1-11ec-0a80-09e70012e3e9',
+}
+
 @dataclass(frozen=True)
 class Line:
     product_id: str
     quantity: Decimal
-    price_kopeks: int
+    price_kopeks: int | Decimal
     discount_percent: Decimal = Decimal(0)
 
 
@@ -75,7 +81,8 @@ def _state(available: bool, payment_pending: bool = False) -> dict:
 def build_payload(*, platform: str, account: str, external_id: str,
                   lines: list[Line], expected_kopeks: int, available: bool,
                   now: datetime, market_created_at: datetime | None = None,
-                  payment_pending: bool = False) -> dict:
+                  payment_pending: bool = False, is_express: bool = False,
+                  is_bundle: bool = False) -> dict:
     if platform not in PLATFORM or account not in ('acc1', 'acc2'):
         raise ValueError('unknown_platform_or_account')
     if platform == 'yandex' and account != 'acc1':
@@ -86,11 +93,18 @@ def build_payload(*, platform: str, account: str, external_id: str,
         raise ValueError('missing_identity_or_lines_or_time_zone')
     if sum(line_total(line) for line in lines) != expected_kopeks:
         raise ValueError('marketplace_ms_total_mismatch')
+    if type(is_express) is not bool or is_express and platform not in EXPRESS_AGENT:
+        raise ValueError('invalid_express_platform_or_flag')
+    if type(is_bundle) is not bool:
+        raise ValueError('invalid_bundle_flag')
     agent, project, delivery, source = PLATFORM[platform]
+    if is_express:
+        agent = EXPRESS_AGENT[platform]
     # MS reserves new orders automatically; the import must not try to control
     # reservation. Read the resulting reserve back after creation.
     positions = [{'assortment': ref('product', line.product_id),
-                  'quantity': float(line.quantity), 'price': line.price_kopeks,
+                  'quantity': float(line.quantity), 'price': (float(line.price_kopeks)
+                      if isinstance(line.price_kopeks, Decimal) else line.price_kopeks),
                   'discount': float(line.discount_percent), 'vat': 5}
                  for line in lines]
     payload = {'name': external_id, 'organization': ref('organization', ORG[account]),
@@ -102,6 +116,10 @@ def build_payload(*, platform: str, account: str, external_id: str,
                               _attribute('Способ оплаты', 'customentity', PAYMENT),
                               _attribute('Ответственный', 'employee', RESPONSIBLE),
                               _attribute('Источник заказа', 'customentity', source)]}
+    if is_bundle:
+        payload['attributes'].append({'meta': {
+            'href': f"{BASE}/entity/customerorder/metadata/attributes/{FIELDS['Бандл']}",
+            'type': 'attributemetadata', 'mediaType': 'application/json'}, 'value': True})
     if market_created_at is not None:
         if market_created_at.tzinfo is None:
             raise ValueError('market_creation_requires_time_zone')

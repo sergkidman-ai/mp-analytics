@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -11,7 +12,8 @@ import os
 import re
 import requests
 
-from core import ms_api
+from core import ms_api_control
+from core import ms_api, ms_enter_cache
 from ops.fbs_ms_import_pilot import ARTIFACT, save
 from ops.fbs_ms_import_read import find_customerorder, product_cards, warehouse_stock
 from ops.fbs_ms_import_policy import Card, choose_card
@@ -133,14 +135,59 @@ def purchase_documents_digest(documents: list[tuple[str, str, dict]]) -> str:
     return hashlib.sha256(json.dumps(['all-supplier-prices-v2', sorted(provenance)]).encode()).hexdigest()
 
 
-def current_purchase_prices(card_ids: set[str] | None) -> tuple[dict[str, int], str]:
+def _purchase_positions_snapshot() -> tuple[list[tuple[str, str, dict]], dict]:
+    """Read a coherent receipt generation while supplier loaders replace enters.
+
+    Never omit a missing receipt. Re-list and restart against the new generation,
+    reusing only positions whose document id AND updated timestamp are unchanged.
+    """
     documents = current_purchase_documents()
+    pages = {}
+    downloaded = set()
+    for _ in range(3):
+        digest = purchase_documents_digest(documents)
+        wanted = {(doc['id'], doc['updated']) for _, _, doc in documents}
+        pages = {key: page for key, page in pages.items() if key in wanted}
+        for key in wanted - pages.keys():
+            cached = ms_enter_cache.read({"id": key[0], "updated": key[1]})
+            if cached is not None:
+                pages[key] = cached
+
+        def read(key):
+            page = ms_api.get('/entity/enter/' + key[0] + '/positions', {'limit': 1000})
+            if page['meta']['size'] != len(page['rows']):
+                raise RuntimeError('enter_positions_incomplete')
+            return page
+
+        missing = None
+        # Cold price fills must not monopolize the operational MS connection pool.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            futures = {key: pool.submit(read, key) for key in sorted(wanted - pages.keys())}
+            for key, future in futures.items():
+                try:
+                    pages[key] = future.result()
+                    downloaded.add(key)
+                except ms_api.MsError as exc:
+                    if exc.status != 404:
+                        raise
+                    missing = exc
+        latest = current_purchase_documents()
+        if purchase_documents_digest(latest) == digest:
+            if missing is not None:
+                raise missing
+            for key in downloaded & pages.keys():
+                ms_enter_cache.write({"id": key[0], "updated": key[1]}, pages[key])
+            return documents, pages
+        documents = latest
+    raise RuntimeError('enter_changed_during_price_scan')
+
+
+def current_purchase_prices(card_ids: set[str] | None) -> tuple[dict[str, int], str]:
+    documents, pages = _purchase_positions_snapshot()
     prices = {}
     ambiguous = set()
     for _, _, doc in documents:
-        page = ms_api.get('/entity/enter/' + doc['id'] + '/positions', {'limit': 1000})
-        if page['meta']['size'] != len(page['rows']):
-            raise RuntimeError('enter_positions_incomplete')
+        page = pages[(doc['id'], doc['updated'])]
         for pos in page['rows']:
             pid = pos.get('assortment', {}).get('meta', {}).get('href', '').rsplit('/', 1)[-1]
             if card_ids is not None and pid not in card_ids:
@@ -216,7 +263,7 @@ def run(number: str, apply: bool):
                                  'key': ['wb', 'wb_acc1', number], 'payload': second['payload']},
          exclusive=True)
     try:
-        response = requests.post(ms_api.BASE + '/entity/customerorder',
+        response = ms_api_control.request("POST", ms_api.BASE + '/entity/customerorder', sender=requests.post, client="operations-direct", kind="operational",
                                  headers={'Authorization': 'Bearer ' + os.environ['MOYSKLAD_TOKEN'],
                                           'Content-Type': 'application/json'},
                                  json=second['payload'], timeout=(5, 45))

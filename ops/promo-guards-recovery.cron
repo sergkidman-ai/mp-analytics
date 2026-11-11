@@ -3,7 +3,7 @@ SHELL=/bin/bash
 MAILTO=""
 
 # Nightly MS catalog and stock snapshot; price guards fail closed on stale stock.
-10 21 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-promo-stock.lock /bin/bash -c './venv/bin/python collectors/ms_products.py && ./venv/bin/python collectors/suppliers.py --light --no-turnover' >> logs/promo-ms-snapshot.log 2>&1
+10 21 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-promo-stock.lock /bin/bash -c 'export MS_API_PRIORITY=background; ./venv/bin/python collectors/ms_products.py && ./venv/bin/python collectors/suppliers.py --light --no-turnover && ./venv/bin/python -m ops.ms_enter_cache_warm' >> logs/promo-ms-snapshot.log 2>&1
 
 # WB baseline precedes the next promotion wave. No --all catalog repricing.
 10 20 * * * root umask 077; cd /opt/mp-analytics && /usr/bin/flock -n /run/lock/mp-promo-wb-baseline.lock ./venv/bin/python -m ops.wb_promo_guard --baseline >> logs/promo-wb-baseline.log 2>&1

@@ -141,6 +141,26 @@ def verify_city(doc):
         raise RuntimeError("Authorized B2B catalogue not confirmed")
 
 
+def moscow_catalogue(session):
+    """Select Moscow through the supplier's city control, then verify the readback."""
+    doc = document(request(session, "GET", "/catalog/").content)
+    if not doc.xpath('//body[' + cls("b2b-body") + ']'):
+        raise RuntimeError("Authorized B2B catalogue not confirmed")
+    city = doc.xpath('//*[' + cls("hdr-top__change-city") + ']')
+    if len(city) != 1:
+        raise RuntimeError("Unique supplier city control missing")
+    if not re.search(r"\bМосква\b", text(city[0])):
+        codes = {n.get("data-code") for n in doc.xpath('//li[@data-code]')
+                 if text(n) == "Москва"}
+        if len(codes) != 1 or not re.fullmatch(r"\d{10}", next(iter(codes))):
+            raise RuntimeError("Unique Moscow location code missing")
+        request(session, "POST", "/local/templates/cartrige/ajax/save_city.php",
+                data={"LOCATION": next(iter(codes))})
+        doc = document(request(session, "GET", "/catalog/").content)
+    verify_city(doc)
+    return doc
+
+
 def page_count(doc):
     numbers = [1]
     for node in doc.xpath('//*[' + cls("pagin_active") + ']'):
@@ -236,8 +256,7 @@ def collect(out_dir, log=print, pause=0.5):
     out.mkdir(parents=True, exist_ok=True)
     with requests.Session() as session:
         login(session)
-        root = document(request(session, "GET", "/catalog/").content)
-        verify_city(root)
+        root = moscow_catalogue(session)
         available = set(root.xpath('//li[' + cls("selection-device-item") + ']/a/@href'))
         categories = CATEGORIES
         if not set(categories) <= available:
@@ -252,6 +271,7 @@ def collect(out_dir, log=print, pause=0.5):
             if not hasattr(local, "session"):
                 local.session = requests.Session()
                 login(local.session)
+                moscow_catalogue(local.session)
                 with rate_lock:
                     sessions.append(local.session)
             # Independent Bitrix sessions; at most two catalogue request starts/sec.

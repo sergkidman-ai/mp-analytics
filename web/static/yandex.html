@@ -121,10 +121,10 @@ async function load(){
   // «Вся история» — сумма месячных пятёрок «Отчётов МП»: одна база вместо второго счёта.
   const mpAll=()=>{
     const a={oborot:0,payout:0,cogs:0,net:0}; let any=false;
-    rows.forEach(r=>{if(r.mp){any=true;for(const k in a)a[k]+=r.mp[k]||0;}});
+    rows.forEach(r=>{if(r.mp){any=true;for(const k in a)a[k]=(a[k]==null||r.mp[k]==null)?null:a[k]+r.mp[k];}});
     if(!any)return null;
-    a.margin_pct=a.oborot?Math.round(a.net/a.oborot*1000)/10:null;
-    a.cogs_pct=a.oborot?Math.round(a.cogs/a.oborot*1000)/10:null;
+    a.margin_pct=a.oborot&&a.net!=null?Math.round(a.net/a.oborot*1000)/10:null;
+    a.cogs_pct=a.oborot&&a.cogs!=null?Math.round(a.cogs/a.oborot*1000)/10:null;
     return a;
   };
   const bigFor=r=>{ // r: строка месяца из /api/yandex/monthly или null = вся история
@@ -146,6 +146,7 @@ async function load(){
     $('#mpnote').innerHTML=m
       ? 'Источник пятёрки — вкладка <a href="/reports" style="color:var(--acc)">«Отчёты МП»</a>: месяц собран по форме площадки и сверен с личным кабинетом. Те же цифры стоят на главной.'
       : 'Месяца ещё нет в «Отчётах МП».';
+    if(d.recovery_note) $('#mpnote').textContent=d.recovery_note;
     $('#ref').innerHTML=[
       ['Заказов',num(ords),'<span class="muted">без отменённых</span>'],
       ['Субсидия Маркета',rub(sub),`<span class="muted">${pay?Math.round(sub/pay*100):0}% сверх payment</span>`],
@@ -195,6 +196,7 @@ async function load(){
   $('#sku tbody').innerHTML=(sk.rows||[]).map(r=>
     `<tr><td class="name" title="${(r.name||'').replace(/"/g,'&quot;')}">${r.name||'—'}</td><td class="muted">${r.offer||''}</td><td>${num(r.qty)}</td><td>${rub(r.revenue)}</td><td>${r.cogs!=null?rub(r.cogs):'<span class="muted">нет себест.</span>'}</td><td class="${r.margin_pct!=null&&r.margin_pct<15?'warn':''}">${r.margin_pct!=null?r.margin_pct+'%':'—'}</td></tr>`).join('');
   $('#foot').innerHTML='Верхняя пятёрка и колонки «Чистая»/«Маржа» — с вкладки <b>«Отчёты МП»</b> (оборот по нашей цене = выручка + зачёт баллами, чистая = итого к перечислению − себестоимость, возвраты вычтены). Остальное — витрина Яндекс.Маркет Partner API (бизнес-уровень, все магазины кабинета), обновляется в дневном прогоне. Опер. расходы в чистую не входят — они на уровне юрлица, на <a href="/" style="color:var(--acc)">главной</a> и вкладке <a href="/opex" style="color:var(--acc)">«Опер. расходы»</a>.';
+  if(d.recovery_note) $('#foot').textContent=d.recovery_note;
 }
 async function loadCostTasks(){
   const t=await api('/api/yandex/cost-tasks');

@@ -136,7 +136,7 @@ def op_counts(y, m):
 
 def _cogs(y, m):
     r = _row(y, m)
-    return float((r["cogs"] if r else 0) or 0)
+    return float(r["cogs"]) if r and r["cogs"] is not None else None
 
 
 # ---------- деривативы (та же формула, что _ya_business) ----------
@@ -157,7 +157,7 @@ def _derive(m, orders, retc, cogs):
     services = sum(m[k] for k in MP_EXP)
     itog = services                      # Итого удержания Маркета = услуги (без возвратов)
     payout = own - services - ret_money  # к перечислению: возвраты вычитаются
-    net = payout - cogs
+    net = payout - cogs if cogs is not None else None
     # мост «начислено → деньгами»: часть услуг Маркет гасит своими баллами (зачёт), остальное
     # реально удерживает из выручки покупателя. Зачёт весь сидит внутри MP_EXP (комиссия, логистика,
     # бусты/полки), поэтому itog − netting — ровно денежная часть, без остатка.
@@ -165,12 +165,15 @@ def _derive(m, orders, retc, cogs):
     return {**m, "own": own, "itog": itog, "itog_money": itog_money, "payout": payout, "cogs": cogs,
             "returns_money": ret_money, "services": services,
             "orders": orders, "returns_cnt": retc, "net": net,
-            "margin": (net / own * 100 if own else 0),
+            "margin": (net / own * 100 if own and net is not None else None),
             "check": (own / orders if orders else 0)}
 
 
 # ---------- живой месяц / прогноз ----------
-def _live_month():
+def _live_month(period=""):
+    if period:
+        from reports.open_months import select_open_month
+        return select_open_month(period,_hist().get("period_keys",[]))
     keys = _hist().get("period_keys", [])
     if not keys:
         return None
@@ -219,9 +222,9 @@ def _closed_unit_econ(live_key, n=3):
     return per
 
 
-def current_report():
+def current_report(period=""):
     """{"month": {...}|None, "accounts": {"ya_acc1": {line_key: {"cur":{txt,cls},"fc":{txt,cls}}}}}"""
-    lm = _live_month()
+    lm = _live_month(period)
     if not lm:
         return {"month": None, "accounts": {}}
     y, m = lm
@@ -274,8 +277,8 @@ def current_report():
         # абсолютные MTD-суммы заведомо ниже среднего → ложная подсветка.
         cur_cls = _band(key, cv, actual["own"]) if KIND[key] in ("expense", "margin", "check") else ""
         cells[key] = {
-            "cur": {"txt": _fmt(key, cv), "cls": cur_cls},
-            "fc": {"txt": _fmt(key, fv), "cls": _band(key, fv, forecast.get("own"))},
+            "cur": {"txt": _fmt(key, cv), "cls": cur_cls, "value": cv},
+            "fc": {"txt": _fmt(key, fv), "cls": _band(key, fv, forecast.get("own")), "value": fv},
         }
 
     return {

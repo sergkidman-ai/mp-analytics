@@ -1,0 +1,70 @@
+# поток: infra. BI entrypoint; private credentials are stored outside the repo.
+bi.beyindi.com {
+	import /opt/mp-analytics/.claude/worktrees/rev-recovery-20261103/feedback_bot/rev-backup-public.caddy
+	header X-Robots-Tag "noindex, nofollow, noarchive"
+	header Cache-Control "no-store"
+
+	handle /robots.txt {
+		header Content-Type "text/plain; charset=utf-8"
+		root * /opt/mp-analytics/.claude/worktrees/rev-recovery-20261103/web/rev_backup_public
+		rewrite * /robots.txt
+		file_server
+	}
+
+	# WB buyer extension: these exact endpoints authenticate with company upload tokens.
+	@wbQrUpload path /api/returns/wb-qr/diskver /api/returns/wb-qr/tsifrovoy
+	handle @wbQrUpload {
+		request_body {
+			max_size 4MB
+		}
+		reverse_proxy 127.0.0.1:8096 {
+			header_up -X-Pult-User
+		}
+	}
+
+	handle {
+		route {
+			import /etc/caddy/private/mp-bi-auth.caddy
+
+			@wbQrSetup path /returns/wb-qr/setup /returns/wb-qr/setup/tsifrovoy
+			handle @wbQrSetup {
+				reverse_proxy 127.0.0.1:8096 {
+					header_up -Authorization
+					header_up X-Pult-User {http.auth.user.id}
+				}
+			}
+
+			@wbQrDownload path /download/returns/WB_Diskver_QR_Test_Windows.zip /download/returns/WB_Tsifrovoy_QR_Windows.zip
+			handle @wbQrDownload {
+				root * /opt/mp-analytics/web/downloads
+				uri strip_prefix /download
+				header Content-Disposition attachment
+				header X-Content-Type-Options nosniff
+				file_server
+			}
+
+			@marketing path /marketing /api/marketing /api/marketing/* /margin-control /api/margin-control /api/margin-control/* /wb-bids /api/wb-bids /api/wb-bids/* /ozon-* /api/ozon-*
+			handle @marketing {
+				reverse_proxy 127.0.0.1:8092 {
+					header_up -Authorization
+					header_up X-Pult-User {http.auth.user.id}
+				}
+			}
+
+			@print path /warehouse/print /warehouse/print/ /api/print /api/print/*
+			handle @print {
+				reverse_proxy 127.0.0.1:8095 {
+					header_up -Authorization
+					header_up X-Pult-User {http.auth.user.id}
+				}
+			}
+
+			handle {
+				reverse_proxy 127.0.0.1:8090 {
+					header_up -Authorization
+					header_up X-Pult-User {http.auth.user.id}
+				}
+			}
+		}
+	}
+}

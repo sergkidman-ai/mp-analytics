@@ -19,6 +19,7 @@ import sys
 import time
 
 from core import ms_api
+from ops.order_priority import order_key
 from ops.fbs_ms_import_pilot import save
 from ops.fbs_ms_import_read import find_customerorder, product_cards
 from ops.fbs_ms_set_catalog import catalog as set_catalog, components as set_components
@@ -163,8 +164,10 @@ def prices_for(rows: list[dict]) -> tuple[dict[str, int], str]:
         # The Enter scan already reads every position. Cache every unambiguous
         # current price once per document digest, not one full scan per new SKU.
         prices, scanned_digest = current_purchase_prices(None)
-        if scanned_digest != digest:
-            raise RuntimeError('enter_changed_during_price_scan')
+        # The reader validates its final receipt generation and may have followed
+        # a supplier replacement since our initial cache lookup.
+        digest = scanned_digest
+        cached['digest'] = digest
         cached['prices'] = prices
         cached['complete'] = True
     atomic_save(path, cached)
@@ -190,11 +193,9 @@ def source_rows() -> tuple[list[dict], str, str]:
                 break
             except Exception as exc:
                 snapshot['errors'][account] = type(exc).__name__ + ':' + str(exc)[:100]
-    if snapshot['errors']:
-        raise RuntimeError('source_scan_errors:' + ','.join(sorted(snapshot['errors'])))
     atomic_save(OUT / 'source_scan.json', snapshot)
     rows = [r for batch in snapshot['accounts'].values() for r in batch]
-    rows.sort(key=lambda r: (r['created_at'], r['platform'], r['account'], r['number']))
+    rows.sort(key=order_key)
     return rows, start.isoformat(), snapshot['window_utc'][1]
 
 
@@ -207,20 +208,26 @@ def run(apply: bool) -> dict:
     except BlockingIOError:
         os.close(fd)
         raise RuntimeError('scheduler_already_running') from None
+    previous_limits = ms_api.TIMEOUT, ms_api.RETRIES
+    ms_api.TIMEOUT, ms_api.RETRIES = 45, 2
     try:
         rows, start, end = source_rows()
+        snapshot_path = OUT / 'source_scan.json'
+        scan_errors = json.loads(snapshot_path.read_text()).get('errors', {}) if snapshot_path.exists() else {}
         known = known_ms_numbers()
         unknown = [r for r in rows if r['number'] not in known and not cancelled(r)]
         found = exact_ms_numbers(unknown)
         known.update(found)
         missing = [r for r in unknown if r['number'] not in found]
-        eligible = [r for r in missing if permitted(r)]
+        eligible = sorted((r for r in missing if permitted(r)),key=order_key)
         held = [r for r in missing if not permitted(r) and not cancelled(r)]
         result = {'window_utc': [start, end], 'source': len(rows),
                   'already_ms': sum(r['number'] in known for r in rows),
                   'eligible': len(eligible), 'held': [r['number'] for r in held],
                   'cancelled': sum(cancelled(r) for r in rows if r['number'] not in known),
-                  'created': [], 'skipped_staff': [], 'skipped_changed': [], 'errors': []}
+                  'created': [], 'skipped_staff': [], 'skipped_changed': [],
+                  'errors': [{'account': account, 'reason': 'source_scan_failed', 'detail': detail}
+                             for account, detail in sorted(scan_errors.items())]}
         if not apply:
             print(json.dumps(result, ensure_ascii=False), flush=True)
             return result
@@ -271,6 +278,7 @@ def run(apply: bool) -> dict:
         atomic_save(KNOWN, {'numbers': sorted(known)})
         return result
     finally:
+        ms_api.TIMEOUT, ms_api.RETRIES = previous_limits
         os.close(fd)
 
 

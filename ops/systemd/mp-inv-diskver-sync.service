@@ -1,0 +1,12 @@
+[Unit]
+Description=Sber Diskver statements and payment status sync
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/ops/diskver_bank_schedule.py sync
+TimeoutStartSec=25min

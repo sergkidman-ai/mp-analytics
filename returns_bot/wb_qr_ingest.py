@@ -3,6 +3,7 @@
 import base64
 import hmac
 import html
+import logging
 import os
 import re
 from pathlib import Path
@@ -17,6 +18,7 @@ load_dotenv(Path(__file__).resolve().parents[1]/'.env')
 app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
 UPLOAD='/api/returns/wb-qr/diskver'
 UPLOAD_PATTERN='/api/returns/wb-qr/{company}'
+LOG=logging.getLogger('uvicorn.error')
 TOKEN_ENV={'wb_acc2':'RETURNS_WB_QR_UPLOAD_TOKEN','wb_acc1':'RETURNS_WB_QR_DIGITAL_UPLOAD_TOKEN'}
 
 def token(account='wb_acc2'):return os.environ.get(TOKEN_ENV[account],'')
@@ -29,8 +31,13 @@ def account_for(company):
 @app.middleware('http')
 async def headers(request,call_next):
     origin=request.headers.get('origin')
-    if origin and not origin_allowed(origin):return JSONResponse({'error':'origin'},status_code=403)
+    if origin and not origin_allowed(origin):
+        if request.url.path.startswith('/api/returns/wb-qr/'):
+            LOG.info('wb_qr_ingress status=403 reason=origin')
+        return JSONResponse({'error':'origin'},status_code=403)
     response=await call_next(request)
+    if request.url.path in ('/api/returns/wb-qr/diskver','/api/returns/wb-qr/tsifrovoy'):
+        LOG.info('wb_qr_ingress company=%s method=%s status=%s',request.url.path.rsplit('/',1)[-1],request.method,response.status_code)
     response.headers['Cache-Control']='no-store'
     response.headers['X-Content-Type-Options']='nosniff'
     if origin:
@@ -47,7 +54,14 @@ def options(company:str):
 async def upload(company:str,request:Request,background_tasks:BackgroundTasks):
     account=account_for(company)
     expected=token(account)
-    if not expected or not hmac.compare_digest(request.headers.get('authorization',''),'Bearer '+expected):raise HTTPException(401,'unauthorized')
+    authorization=request.headers.get('authorization','')
+    if not expected or not hmac.compare_digest(authorization,'Bearer '+expected):
+        reason='token_missing' if not authorization else 'token_invalid'
+        for other in TOKEN_ENV:
+            if other!=account and token(other) and hmac.compare_digest(authorization,'Bearer '+token(other)):
+                reason='wrong_company_token'
+        LOG.info('wb_qr_rejected company=%s reason=%s',company,reason)
+        raise HTTPException(401,'unauthorized')
     raw=await request.body()
     if len(raw)>4_000_000:raise HTTPException(413,'too_large')
     try:
@@ -59,7 +73,12 @@ async def upload(company:str,request:Request,background_tasks:BackgroundTasks):
         meta=wb_qr.store(png,data['day'],data['validity'],account=account)
         background_tasks.add_task(wb_qr_followup.run)
         return {'ok':True,'day':meta['day'],'valid_until':meta['valid_until']}
-    except (ValueError,KeyError,TypeError):raise HTTPException(400,'invalid_or_expired_qr') from None
+    except (ValueError,KeyError,TypeError) as error:
+        # Never log body, QR, validity, credentials, headers or arbitrary error text.
+        safe={'too_large','invalid_validity','not_png','image_size','qr_not_unique','sunday_disabled','not_today','unknown_account'}
+        reason=str(error) if isinstance(error,ValueError) and str(error) in safe else type(error).__name__
+        LOG.info('wb_qr_rejected company=%s reason=%s',company,reason)
+        raise HTTPException(400,'invalid_or_expired_qr') from None
 
 def setup_page(request,account):
     # Nginx injects this header only after the existing Pult BasicAuth check.

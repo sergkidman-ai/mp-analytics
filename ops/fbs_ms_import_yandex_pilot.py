@@ -9,6 +9,7 @@ import json
 import os
 import requests
 
+from core import ms_api_control
 from core import ms_api
 from ops.fbs_ms_import_pilot import ARTIFACT, save
 from ops.fbs_ms_import_read import find_customerorder, product_cards, warehouse_stock
@@ -103,7 +104,7 @@ def run(number: str, apply: bool):
                                  'key': ['yandex', 'ya_acc1', number], 'payload': second['payload']},
          exclusive=True)
     try:
-        response = requests.post(ms_api.BASE + '/entity/customerorder',
+        response = ms_api_control.request("POST", ms_api.BASE + '/entity/customerorder', sender=requests.post, client="operations-direct", kind="operational",
                                  headers={'Authorization': 'Bearer ' + os.environ['MOYSKLAD_TOKEN'],
                                           'Content-Type': 'application/json'},
                                  json=second['payload'], timeout=(5, 45))

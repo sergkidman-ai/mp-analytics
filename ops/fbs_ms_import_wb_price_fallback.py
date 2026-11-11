@@ -8,6 +8,7 @@ import json
 import os
 import requests
 
+from core import ms_api_control
 from core import ms_api
 from ops.fbs_ms_import_batch10 import OUT as BATCH_OUT, START, base_code, stock_for
 from ops.fbs_ms_import_pilot import save
@@ -97,7 +98,7 @@ def run(apply: bool):
                                  'key': ['wb', 'wb_acc1', NUMBER], 'payload': second['payload'],
                                  'price_source': second['market']['price_source']}, exclusive=True)
     try:
-        r = requests.post(ms_api.BASE + '/entity/customerorder',
+        r = ms_api_control.request("POST", ms_api.BASE + '/entity/customerorder', sender=requests.post, client="operations-direct", kind="operational",
             headers={'Authorization': 'Bearer ' + os.environ['MOYSKLAD_TOKEN'],
                      'Content-Type': 'application/json'}, json=second['payload'], timeout=(5, 45))
         save(folder / 'response.json', {'status': r.status_code,

@@ -52,7 +52,7 @@ def fetch_alfa(dates):
             if r.status_code != 200:
                 print(f"  [warn] alfa …{acc[-4:]} {d}: HTTP {r.status_code}")
                 continue
-            bal = _amount(r.json().get("closingBalanceRub") or r.json().get("closingBalance"))
+            bal = _amount(r.json().get("closingBalanceRub") if r.json().get("closingBalanceRub") is not None else r.json().get("closingBalance"))
             if bal is not None:
                 out.append(dict(bank="alfa", account=acc, org_inn=ORG_CIFR, bal_date=d,
                                 balance=bal, source="api"))
@@ -71,7 +71,7 @@ def fetch_sber(dates):
             if r.status_code != 200:
                 print(f"  [warn] sber …{acc[-4:]} {d}: HTTP {r.status_code}")
                 continue
-            bal = _amount(r.json().get("closingBalanceRub") or r.json().get("closingBalance"))
+            bal = _amount(r.json().get("closingBalanceRub") if r.json().get("closingBalanceRub") is not None else r.json().get("closingBalance"))
             if bal is not None:
                 out.append(dict(bank="sber", account=acc, org_inn=ORG_DISK, bal_date=d,
                                 balance=bal, source="api"))

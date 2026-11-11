@@ -16,8 +16,15 @@ from tests.test_fbs_ms_import_set_integration import product
 
 
 class ReadySetTests(TestCase):
+    def setUp(self):
+        from ops.ms_supplier_priorities import priority_time
+        scope = priority_time('2026-11-02T12:00:00+03:00')
+        scope.__enter__()
+        self.addCleanup(scope.__exit__, None, None, None)
+
     def inspect(self, *, quantity=1, stock=1, reserve=0, promised=None,
-                repeat=False, supplier=True, composition=True, account='acc1', component_stock=50):
+                repeat=False, supplier=True, composition=True, account='acc1', component_stock=50,
+                existing_order=None):
         parent = dict(product('0168'), name='Набор картриджей', code='0168cs')
         if not supplier:
             parent.pop('supplier')
@@ -46,8 +53,25 @@ class ReadySetTests(TestCase):
             card_reads = stack.enter_context(patch.object(importer, 'product_cards', side_effect=cards))
             stock_reads = stack.enter_context(patch.object(importer, 'warehouse_stock', side_effect=warehouse))
             result = importer.inspect({'number': source['number']}, {},
-                {'id-0161': 20000, 'id-0162': 30000}, 'digest', promised)
+                {'id-0161': 20000, 'id-0162': 30000}, 'digest', promised,
+                existing_order=existing_order)
         return result, card_reads, stock_reads
+
+    def test_existing_order_uses_only_its_own_reserve(self):
+        from core import ms_api
+        from ops.fbs_ms_order_payload import ORG
+        order={'name':'57808553-0147-1','store':ms_api.ref('store',STORE['acc1']),
+               'organization':ms_api.ref('organization',ORG['acc1']),
+               'positions':{'meta':{'size':1},'rows':[
+                   {'assortment':ms_api.ref('product','id-0168'),'quantity':1,'reserve':1}]}}
+        result,_,_=self.inspect(stock=1,reserve=1,existing_order=order)
+        self.assertTrue(result['selected'][0]['whole_set'])
+        order['positions']['rows'][0]['reserve']=0
+        result,_,_=self.inspect(stock=1,reserve=1,existing_order=order)
+        self.assertFalse(any(x.get('whole_set') for x in result['selected']))
+        order['store']=ms_api.ref('store',STORE['acc2'])
+        with self.assertRaisesRegex(RuntimeError,'existing_order_identity_mismatch'):
+            self.inspect(existing_order=order)
 
     def test_whole_set_precedes_components_and_preserves_sale(self):
         result, cards, stock = self.inspect(quantity=2, stock=2)

@@ -1,15 +1,15 @@
 # поток: ret
-"""Возвраты WB: GET seller-analytics-api /api/v1/analytics/goods-return.
+"""Возвраты WB: GET seller-analytics-api /api/analytics/v1/item-returns.
 
 Найдено 02.08.2026 через раздел «Аналитика» — в Marketplace API физических возвратов нет
 (`/api/v3/supplies/returns` не существует, см. docs/reports/returns_api_recon.md). Этот отчёт
 даёт ровно то, что нужно боту: статус, адрес пункта, номер стикера на коробке.
 
 Особенности:
-  * окно не больше **31 дня**, режется по `orderDt` (дате заказа) → идём несколькими окнами
-    назад, чтобы поймать возвраты по старым заказам, которые ещё висят;
+  * читаем последние 93 дня по `orderDt`, отдельно archive/active, с пагинацией;
   * `expiredDt` у живых строк пустой — срока «забрать до» WB не даёт, считаем по `first_seen`;
-  * одна строка = одна коробка (`shkId`), поэтому позиция всегда одна;
+  * одна строка = один случай возврата; физический `shkId` может повторяться
+    в разных случаях, поэтому внутренний ключ включает исходный заказ/дату/тип;
   * в сводке показываем `orderId` — это номер сборочного задания WB, он же имя отгрузки
     в МойСкладе; `shkId`/`stickerId` в МС не ищутся (это ШК наклейки), идут отдельной строкой;
   * названия товара в отчёте нет — оно подтягивается в render.py из `wb_cards` по `nm_id`.
@@ -18,6 +18,8 @@
 только заявки покупателей, без адреса и стикера. Только чтение.
 """
 import os
+import hashlib
+import json
 import time
 from datetime import date, timedelta
 
@@ -29,7 +31,7 @@ from returns_bot.net import request_json
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-API = "https://seller-analytics-api.wildberries.ru/api/v1/analytics/goods-return"
+API = "https://seller-analytics-api.wildberries.ru/api/analytics/v1/item-returns"
 CRED_ENV = {"wb_acc1": "WB_TOKEN_ACC1", "wb_acc2": "WB_TOKEN_ACC2"}
 ACCOUNT_TITLE = {"wb_acc1": "Цифровой", "wb_acc2": "Дисквэр"}
 
@@ -57,32 +59,56 @@ def windows(today=None, lookback=None):
     return out
 
 
+def return_key(raw):
+    if not raw.get('shkId'):
+        raise ValueError('wb_return_missing_shk')
+    # One physical barcode can have multiple return journeys. Status, place and
+    # completion date evolve and must not create a new journey identity.
+    return (str(raw['shkId']), str(raw.get('orderId') or 0),
+            str(raw.get('orderDt') or ''), str(raw.get('returnType') or ''))
+
+
 def fetch_raw(account, today=None, lookback=None):
-    """Строки отчёта без дублей: окна перекрываются краями."""
+    """Read both explicit status groups from the current paginated report."""
     headers = {"Authorization": _token(account)}
-    seen, out = set(), []
-    for i, (d1, d2) in enumerate(windows(today, lookback)):
-        if i:
-            time.sleep(PAUSE)
-        j = request_json("GET", API, headers=headers,
-                         params={"dateFrom": d1.isoformat(), "dateTo": d2.isoformat()})
-        for row in (j.get("report") or []):
-            key = row.get("shkId")
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(row)
-    return out
+    end = today or date.today()
+    start = end - timedelta(days=LOOKBACK_DAYS if lookback is None else lookback)
+    out, calls = {}, 0
+    for status in ('archive', 'active'):
+        offset, seen = 0, set()
+        for _ in range(100):
+            if calls:
+                time.sleep(60)
+            j = request_json('GET', API, headers=headers, params={
+                'dateFrom': start.isoformat(), 'dateTo': end.isoformat(),
+                'status': status, 'limit': 1000, 'offset': offset})
+            calls += 1
+            page = j.get('report', [])
+            if not isinstance(page, list):
+                raise ValueError('wb_return_schema')
+            for row in page:
+                key = return_key(row)
+                if key in seen:
+                    raise ValueError('wb_return_identity_or_repeated_page')
+                seen.add(key)
+                out[key] = {**row, '_reportStatus': status}
+            if len(page) < 1000:
+                break
+            offset += len(page)
+        else:
+            raise ValueError('wb_return_page_budget')
+    return list(out.values())
 
 
 def normalize(account, raw):
-    status = (raw.get("status") or "").strip()
-    active = bool(raw.get("isStatusActive"))
+    status = (raw.get("returnStatus") or raw.get("status") or "").strip()
+    active = raw['_reportStatus'] == 'active' if '_reportStatus' in raw else bool(raw.get("isStatusActive"))
     head = {
         "platform": "wb",
         "account": account,
-        # ключ — коробка: srid тоже уникален, но ехать в пункт нужно за физическим местом
-        "return_id": str(raw.get("shkId")),
+        # Internal journey key; the physical label remains in the source payload.
+        "return_id": str(raw['shkId']) + ':' + hashlib.sha256(
+            json.dumps(return_key(raw), ensure_ascii=False).encode()).hexdigest()[:16],
         "campaign": None,
         # Номер сборочного задания WB = имя отгрузки в МойСкладе (проверено 02.08.2026:
         # orderId 5275090801 = demand 5275090801 от 06.07). Стикер (shkId/stickerId) в МС не

@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh existing Ozon FTS reports and delivery countries
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python -u /opt/mp-analytics/ops/fts_refresh.py
+TimeoutStartSec=1h
+UMask=0077
+Nice=10

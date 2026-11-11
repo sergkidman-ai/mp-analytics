@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
-from core import db  # noqa: E402
+from core import db, ms_api_control  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
 MS = "https://api.moysklad.ru/api/remap/1.2"
@@ -33,7 +33,7 @@ def snapshot_day(now=None):
 
 
 def _ms(path, **params):
-    r = requests.get(f"{MS}/{path}", headers=H, params=params, timeout=120)
+    r = ms_api_control.request("GET", f"{MS}/{path}", sender=requests.get, client="night-stock", kind="background", headers=H, params=params, timeout=120)
     time.sleep(0.2)
     r.raise_for_status()
     return r.json()
@@ -61,21 +61,30 @@ def supplier_map():
 
 def last_supplier_map():
     """{ms_id: (supplier_name, buy_price)} из ПОСЛЕДНЕГО снимка supplier_stock, где
-    поставщики заполнены. Лёгкий режим: переносим поставщика/закупочную вперёд БЕЗ
-    обращения к МС (тяжёлый expand=supplier ~450 запросов гоняем лишь раз в неделю).
-    Поставщик — медленно-меняющийся справочник, ежедневный его перезабор из МС не нужен."""
+    поставщики заполнены. Названия поставщиков переносим, закупочную цену всегда
+    берём из свежего ms_product, включая отсутствие/ноль цены. Дополнительных запросов
+    к МС нет: каталог обновляется перед снимком. Старую цену вперёд не переносим."""
     rows = db.query("""
         SELECT ms_id, supplier, buy_price FROM supplier_stock
         WHERE supplier IS NOT NULL AND captured_at = (
             SELECT max(captured_at) FROM supplier_stock WHERE supplier IS NOT NULL)""")
-    if rows:
-        return {r["ms_id"]: (r["supplier"],
-                float(r["buy_price"]) if r["buy_price"] is not None else None) for r in rows}
-    # На новом VPS старого снимка может не быть. Полный каталог МС уже содержит
-    # актуальную закупочную цену; имя поставщика для расчёта сторожа не требуется.
-    products = db.query("SELECT ms_id, buy_price FROM ms_product "
-                        "WHERE NOT archived AND buy_price > 0")
-    return {r["ms_id"]: (None, float(r["buy_price"])) for r in products}
+    # После восстановления БД старого именованного снимка может не быть.
+    # Используем реальные supplier UUID сохранённых карточек, без обхода каталога по API.
+    from invoice_bot.supplier_groups import ID2NAME
+    names = {r['ms_id']: r['supplier'] for r in rows}
+    cached = {r['agent_id']: r['name'] for r in db.query('SELECT agent_id,name FROM ms_agent_name')
+              if r.get('agent_id') and r.get('name')}
+    products = db.query("""SELECT p.ms_id,p.buy_price,
+        r.payload #>> '{supplier,meta,href}' supplier_ref,
+        r.payload #>> '{supplier,name}' supplier_name
+        FROM ms_product p LEFT JOIN raw_moysklad_product r USING(ms_id) WHERE NOT p.archived""")
+    current = {}
+    for row in products:
+        agent = (row.get('supplier_ref') or '').rsplit('/', 1)[-1]
+        name = row.get('supplier_name') or ID2NAME.get(agent) or cached.get(agent) or names.get(row['ms_id'])
+        price = row['buy_price']
+        current[row['ms_id']] = (name, float(price) if price is not None and price > 0 else None)
+    return current
 
 
 def fetch_stock_store(store_href):
@@ -135,6 +144,7 @@ def main(captured=None, with_suppliers=True, with_turnover=True):
     stores = {s["name"]: s["meta"]["href"] for s in _ms("entity/store", limit=100).get("rows", [])}
     recs = []
     for sname, shref in stores.items():
+        fresh[sname] = []
         rows = fetch_stock_store(shref)
         cnt = 0
         for r in rows:

@@ -100,7 +100,9 @@ async function initPeriods(){
   const [m,f]=await Promise.all([api('/api/meta'),api('/api/opex/fact')]);
   const per=[...new Set([...m.slices.map(s=>s.period_from),...(f.months||[])])].sort().reverse();
   $('#f-period').innerHTML=per.map(p=>`<option value="${p}">${MONTHS[p.slice(5,7)]} ${p.slice(0,4)}</option>`).join('');
-  period=per[0]||'';
+  const currentMonth=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'}).slice(0,7);
+  period=per.find(p=>p.slice(0,7)<=currentMonth)||per[0]||'';
+  $('#f-period').value=period;
   $('#f-period').onchange=e=>{period=e.target.value;opexEdit=false;loadOpex();};
 }
 async function loadOpex(){
@@ -126,7 +128,7 @@ function renderOpex(){
     return;
   }
   const ppl=d.items.map(i=>`<span class="p">${i.name} <span class="muted">(${({salary:'ФОТ',rent:'Аренда',tax:'Налоги'})[i.category]||i.role||i.category})</span> — ${rub(i.amount)}${i.tax_pct?' <span class="muted">+'+Math.round(i.tax_pct*100)+'%</span>':''}</span>`).join(' · ');
-  const naCls=d.net_after<0?'neg':'pos';
+  const naCls=d.net_after==null?'':(d.net_after<0?'neg':'pos');
   const inh=d.own?'':`<span class="muted" style="font-weight:400;font-size:12px">(наследует ${MONTHS[d.snapshot.slice(5,7)]} — «править» создаст свой снапшот)</span>`;
   el.innerHTML=`<h3>${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} ${pencil} ${inh}</h3>
     <div class="ppl">${ppl}</div>
@@ -149,21 +151,39 @@ function netParts(d){
 }
 function netLabel(d){ return netParts(d).map(x=>x[0]).join('+'); }
 function netNote(d){ return netParts(d).map(x=>`${x[0]} ${rub(x[1])}`).join(' + '); }
+async function monthAction(action){
+  try {
+    const response=await fetch('/api/opex/month/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({org,month:period})});
+    const r=await response.json();
+    if(!response.ok||!r.ok){alert(r.error||r.detail||'Не удалось изменить состояние месяца');return;}
+    await loadOpex();
+  } catch(e){alert('Не удалось подтвердить изменение. Обновите страницу.');}
+}
+function monthState(d){
+  const past=period && period.slice(0,7)<new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'}).slice(0,7);
+  return d.closed
+    ? `<div class="note"><b>Месяц закрыт</b> · расходы сохранены ${new Date(d.closed_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})} <button onclick="monthAction('reopen')">Открыть месяц</button></div>`
+    : `<div class="note"><b>Месяц открыт</b>${past?` <button onclick="monthAction('close')">Закрыть месяц</button>`:''}</div>`;
+}
 function renderFact(d){
   // Факт из размеченной выписки (с 08.2026). Ручной снапшот на этот месяц не действует.
   $('#hint').innerHTML=`Факт по банковской выписке <b>${esc(d.org_name)}</b>: платежи этой фирмы, которым присвоена статья расходов. `
     +'Разметка — на вкладке <a href="/opex/statements" style="color:var(--acc)">📥 Выписки</a>. '
-    +'Платежи поставщикам статьи не получают и сюда не попадают.';
+    +'Закупки у поставщиков не входят в операционные расходы. Сводка рассчитана по загруженным выпискам; платежи из незагруженных выписок не учтены.';
   const u=d.unassigned||{n:0,s:0};
   const alert=u.n?`<div class="alert">⚠️ Не размечено <b>${u.n}</b> платеж(ей) на <b>${rub(u.s)}</b> —
       пока они не разнесены по статьям, «чистая после расходов» завышена.
-      <a href="/opex/statements">Разметить →</a></div>`:'';
+      <a href="/opex/statements?org=${encodeURIComponent(org)}&month=${encodeURIComponent(period)}">${d.closed?'Открыть месяц для исправления →':'Разметить →'}</a></div>`:'';
+  const platformNames={wb:'WB',ozon:'Ozon',yandex:'Яндекс Маркет'};
+  const financialNote=d.financials_complete===false
+    ? '<div class="alert">В выбранном отчёте МП отсутствует показатель прибыли. Расходы показаны отдельно.</div>'
+    : (d.profit_provisional||[]).length?`<div class="note">Прибыль предварительная: в Отчётах МП ещё уточняются ${d.profit_provisional.map(p=>platformNames[p]||p).join(', ')}.</div>`:'';
   const rows=(d.items||[]).map(i=>`<tr><td>${esc(i.category)}</td>
       <td class="muted" style="text-align:right">${i.txn_count}</td>
       <td class="amt">${rub(i.amount)}</td></tr>`).join('')
     ||`<tr><td colspan="3" class="muted">За этот месяц ещё ничего не размечено.</td></tr>`;
-  const naCls=d.net_after<0?'neg':'pos';
-  $('#opex').innerHTML=`${alert}
+  const naCls=d.net_after==null?'':(d.net_after<0?'neg':'pos');
+  $('#opex').innerHTML=`${monthState(d)}${alert}${financialNote}
     <h3>${esc(d.org_name)} · ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} <span class="muted" style="font-weight:400;font-size:12px">факт по выписке</span></h3>
     <table class="oe"><thead><tr><th>Статья</th><th style="text-align:right">Платежей</th><th style="text-align:right">Сумма</th></tr></thead>
       <tbody>${rows}</tbody></table>

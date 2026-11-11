@@ -1,5 +1,6 @@
 import os, sys, json, gzip, time, urllib.request, urllib.parse, urllib.error
 sys.path.insert(0, "/opt/mp-analytics")
+from core import ms_api_control
 from dotenv import load_dotenv
 load_dotenv("/opt/mp-analytics/.env")
 MS = "https://api.moysklad.ru/api/remap/1.2"
@@ -47,7 +48,7 @@ def get(path):
             "Accept-Encoding": "gzip",
             "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with ms_api_control.urlopen(req, opener=urllib.request.urlopen, timeout=120, client="invoice") as r:
                 d = r.read()
                 if r.headers.get("Content-Encoding") == "gzip":
                     d = gzip.decompress(d)
@@ -82,7 +83,7 @@ def post(path, payload, retry=False):
             "Authorization": f"Bearer {TOK}", "Accept-Encoding": "gzip",
             "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with ms_api_control.urlopen(req, opener=urllib.request.urlopen, timeout=120, client="invoice") as r:
                 d = r.read()
                 if r.headers.get("Content-Encoding") == "gzip":
                     d = gzip.decompress(d)
@@ -105,7 +106,7 @@ def put(path, payload):
             "Authorization": f"Bearer {TOK}", "Accept-Encoding": "gzip",
             "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with ms_api_control.urlopen(req, opener=urllib.request.urlopen, timeout=120, client="invoice") as r:
                 d = r.read()
                 if r.headers.get("Content-Encoding") == "gzip":
                     d = gzip.decompress(d)

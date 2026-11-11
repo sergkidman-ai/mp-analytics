@@ -6,7 +6,8 @@ WB     — выплата за неделю W (по date_from отчёта) пр
          сумма = «Итого к перечислению» × 0.999 (формула reports/wb_mp_report.py).
          Лаг гуляет 24–38 дней, поэтому недели, чей срок уже прошёл, сверяем с банком
          по сумме: не нашли платёж — неделя «просрочена» и встаёт в ближайшие дни.
-Ozon   — выплата в СРЕДУ W+2 = Σ транзакций недели W (сходится до рубля).
+Ozon   — график ЛК из cf_ozon_payout_schedule; для остальных дат — выплата в СРЕДУ W+4
+         = Σ транзакций недели W (решение 10.11.2026).
 Яндекс — только ЦК; с сентября 2026 еженедельно с отсрочкой 4 недели (до того — ежедневно,
          отсюда пауза в сентябре). Суммы — невыплаченное по неделям доставки из отчёта по платежам
          (cf/yandex_netting.py; метода «Предстоящие выплаты» в API нет), периоды 1–7/8–14/15–21/22–конец,
@@ -29,6 +30,7 @@ ACC_ORG = {"wb_acc1": "7807355364", "wb_acc2": "7811803918",
 WB_INN, OZON_INN, YA_INN = "9714053621", "7704217370", "9704254424"
 WB_RATIO = 0.999
 AVG_WEEKS = 4
+OZON_PAYOUT_LAG_WEEKS = 4
 OVERDUE_LOOKBACK = dt.timedelta(weeks=3)
 
 
@@ -83,6 +85,7 @@ def wb_forecast(today, horizon_end):
         full = sorted(weeks)[-AVG_WEEKS:]
         avg = sum(weeks[w] for w in full) / len(full)
         credits = bank_credits(org, [WB_INN], today - OVERDUE_LOOKBACK - dt.timedelta(weeks=6))
+        coverage = db.query("select min(operation_date)::date first, max(operation_date)::date last from bank_txn where org_inn=%s", (org,))[0]
         used = set()
         w = monday(today) - dt.timedelta(weeks=5) - OVERDUE_LOOKBACK
         while w + dt.timedelta(weeks=5) <= horizon_end:
@@ -107,6 +110,9 @@ def wb_forecast(today, horizon_end):
                 if amount <= 0:
                     w += dt.timedelta(weeks=1)
                     continue
+                if not (coverage["first"] and coverage["first"] <= pay_day and coverage["last"] >= today - dt.timedelta(days=1)):
+                    w += dt.timedelta(weeks=1)
+                    continue
                 out.append(_line(org, today, "mp_wb", amount, f"{acc}:{w}",
                                  f"WB неделя {_fmt(w)}–{_fmt(w + dt.timedelta(days=6))} · "
                                  f"просрочено (срок {_fmt(pay_day)})", True))
@@ -117,6 +123,12 @@ def wb_forecast(today, horizon_end):
                 out.append(_line(org, pay_day, "mp_wb", amount, f"{acc}:{w}", note, estimate))
             w += dt.timedelta(weeks=1)
     return out
+
+
+def _ozon_lk_schedule(today, horizon_end):
+    return db.query("""select account, payment_date, amount, components
+        from cf_ozon_payout_schedule where payment_date between %s and %s
+        order by account, payment_date""", (today, horizon_end))
 
 
 def ozon_forecast(today, horizon_end):
@@ -138,9 +150,9 @@ def ozon_forecast(today, horizon_end):
         org = ACC_ORG[acc]
         full = [w for w in sorted(weeks) if w < cur_w][-AVG_WEEKS:]
         avg = sum(weeks[w] for w in full) / max(len(full), 1)
-        w = cur_w - dt.timedelta(weeks=2)
-        while w + dt.timedelta(weeks=2, days=2) <= horizon_end:
-            pay_day = w + dt.timedelta(weeks=2, days=2)
+        w = cur_w - dt.timedelta(weeks=OZON_PAYOUT_LAG_WEEKS)
+        while w + dt.timedelta(weeks=OZON_PAYOUT_LAG_WEEKS, days=2) <= horizon_end:
+            pay_day = w + dt.timedelta(weeks=OZON_PAYOUT_LAG_WEEKS, days=2)
             if pay_day >= today:
                 if w < cur_w:
                     amount, est, note = weeks.get(w, 0.0), False, ""
@@ -153,9 +165,23 @@ def ozon_forecast(today, horizon_end):
                 if amount > 0:
                     out.append(_line(org, pay_day, "mp_ozon", amount, f"{acc}:{w}",
                                      f"Ozon неделя {_fmt(w)}–{_fmt(w + dt.timedelta(days=6))}"
-                                     + note, est))
+                                     + f" · отсрочка {OZON_PAYOUT_LAG_WEEKS} недели" + note, est))
             w += dt.timedelta(weeks=1)
-    return out
+    confirmed = _ozon_lk_schedule(today, horizon_end)
+    keys = {(r['account'], r['payment_date']) for r in confirmed}
+    out = [r for r in out if (r['ref'].split(':', 1)[0], r['day']) not in keys]
+    for r in confirmed:
+        if r['amount'] <= 0:
+            continue  # Подтверждённый ноль тоже отменяет расчётную выплату этой даты.
+        parts = r['components'] or []
+        detail = (' · ' + ' + '.join(f'{float(v):,.2f}'.replace(',', ' ') for v in parts)
+                  + ' ₽') if len(parts) > 1 else ''
+        line = _line(ACC_ORG[r['account']], r['payment_date'], 'mp_ozon', float(r['amount']),
+                     f"{r['account']}:lk:{r['payment_date']}",
+                     f"Ozon · график ЛК на {_fmt(r['payment_date'])}" + detail, False)
+        line['source'] = 'ozon_lk_schedule'
+        out.append(line)
+    return sorted(out, key=lambda r: (r['org_inn'], r['day']))
 
 
 YA_DELAY = dt.timedelta(days=28)   # «с отсрочкой на 4 недели»: конец периода + 28 дней

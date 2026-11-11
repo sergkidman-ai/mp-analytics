@@ -26,6 +26,19 @@ class PultOnlyNewsTests(unittest.TestCase):
             self.assertIn('отключён', news.tg('Важные изменения площадок'))
             post.assert_not_called()
 
+    def test_source_failure_is_reported_but_other_sources_still_publish(self):
+        with patch.object(news, 'collect', side_effect=RuntimeError('test source unavailable')), \
+             patch.object(news, 'collect_wb', return_value=[]) as wb, \
+             patch.object(news, 'collect_yandex', return_value=[]) as ya, \
+             patch.object(news, 'to_diary', return_value=0) as publish, \
+             patch.object(news, 'close_pauses'), patch.object(news, 'annotate_damage'), \
+             patch.object(news, 'tg') as tg:
+            self.assertEqual(news.main([]), 1)
+            wb.assert_called_once()
+            ya.assert_called_once()
+            publish.assert_called_once()
+            tg.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

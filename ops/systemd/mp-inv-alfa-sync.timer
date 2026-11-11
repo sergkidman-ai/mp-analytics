@@ -1,0 +1,11 @@
+[Unit]
+Description=Alfa Cifrovoy Kvadrat sync timer
+
+[Timer]
+OnCalendar=*-*-* 04..16:00,30:00 UTC
+Persistent=false
+AccuracySec=1s
+Unit=mp-inv-alfa-sync.service
+
+[Install]
+WantedBy=timers.target

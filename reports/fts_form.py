@@ -97,14 +97,32 @@ def _num(x):
     return s.rstrip("0").rstrip(".") if "." in s else s
 
 
-def make_xml(period, country, data=None):
+def make_xml(period, country, data=None, account=None):
     """XML статформы за period по стране country (двухбуквенный код). → bytes."""
     data = data or fts_report.build(period)
     c = data["by_country"].get(country)
     if not c:
         raise ValueError(f"за {period:%Y-%m} нет отправлений в {country}")
-    rows = [r for r in c["rows"] if r["status"] != "filed"] or c["rows"]
+    if data.get("source_warnings"):
+        raise ValueError("Исходные данные неполны: " + "; ".join(data["source_warnings"]))
+    accounts = {r["account"] for r in c["rows"]}
+    if account is None:
+        if len(accounts) != 1:
+            raise ValueError("Выберите кабинет: смешивать организации в форме нельзя")
+        account = next(iter(accounts))
+    if account != "oz_acc2":
+        raise ValueError("Для Цифрового не настроен подтверждённый шаблон реквизитов ФТС")
+    rows = [r for r in c["rows"] if r["account"] == account and r["status"] != "filed"]
+    if not rows:
+        raise ValueError("Нет несданных отправлений для выбранного кабинета")
+    if any(r.get("problems") or not r.get("goods") for r in rows):
+        raise ValueError("Не хватает реквизитов товаров: проверьте предупреждения в отправлениях")
 
+    cities = {}
+    for row in rows:
+        city = row.get("cluster") or c["city"]
+        cities[city] = cities.get(city, Decimal(0)) + row["amount_rub"]
+    city = fts_report.COUNTRY_CITY.get(country) or max(cities, key=cities.get)
     p = _parts()
     name_ru = fts_report.COUNTRY_RU[country]
 
@@ -113,7 +131,7 @@ def make_xml(period, country, data=None):
 
     consignee = _set(p["consignee"], "CountryCode", country)
     consignee = _set(consignee, "CounryName", name_ru)
-    consignee = _set(consignee, "City", c["city"])
+    consignee = _set(consignee, "City", city)
 
     # Торгующая страна и страна назначения — наш получатель, страна отправления всегда РФ.
     countries = []
@@ -136,9 +154,10 @@ def make_xml(period, country, data=None):
         for g in r["goods"]:
             key = (g["ved"], g["gtd"], g["origin_code"])
             m = merged.setdefault(key, {**g, "weight_kg": Decimal(0),
-                                        "amount_rub": Decimal(0), "descr": []})
+                                        "amount_rub": Decimal(0), "amount_usd": Decimal(0), "descr": []})
             m["weight_kg"] += Decimal(str(g["weight_kg"]))
             m["amount_rub"] += Decimal(str(g["amount_rub"]))
+            m["amount_usd"] += cbr.rub_to_usd(g["amount_rub"], r["delivered_at"])
             if g["description"] and g["description"] not in m["descr"]:
                 m["descr"].append(g["description"])
 
@@ -146,7 +165,7 @@ def make_xml(period, country, data=None):
     for n, ((ved, gtd, origin_code), g) in enumerate(sorted(merged.items(),
                                                             key=lambda kv: str(kv[0])), 1):
         code, reg_date, gtd_num = _gtd_parts(gtd)
-        usd = cbr.rub_to_usd(g["amount_rub"], max(r["delivered_at"] for r in rows))
+        usd = g["amount_usd"]
         blk = _set(p["goods"], "GoodsNumeric", n)
         blk = _set(blk, "GoodsTNVEDCode", ved or "")
         blk = _set(blk, "GoodsDescription", _esc("; ".join(g["descr"])))

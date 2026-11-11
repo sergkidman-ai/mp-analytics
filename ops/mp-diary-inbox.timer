@@ -1,0 +1,9 @@
+# поток: ev
+[Unit]
+Description=Import Pult diary notes every 30 minutes
+[Timer]
+OnCalendar=*-*-* *:00,30:00 UTC
+Persistent=true
+Unit=mp-diary-inbox.service
+[Install]
+WantedBy=timers.target

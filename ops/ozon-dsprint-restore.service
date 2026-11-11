@@ -1,0 +1,13 @@
+# поток: mkt / ozon
+[Unit]
+Description=Restore owner-approved DS print child cards on oz_acc2
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/ops/ozon_dsprint_restore.py --execute
+TimeoutStartSec=20min
+Nice=10
+Environment=PYTHONUNBUFFERED=1

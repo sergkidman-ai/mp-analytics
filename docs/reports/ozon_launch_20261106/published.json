@@ -1,0 +1,63 @@
+{
+  "checked_at_utc": "2026-11-06T13:32:19.865422+00:00",
+  "url": "https://bi.beyindi.com/api/wb-bids/reports/ozon-launch-2026-11-06",
+  "checks": {
+    "/api/wb-bids/reports/ozon-launch-2026-11-06": {
+      "http": 200,
+      "bytes": 20849,
+      "anonymous_http": 401
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-activation": {
+      "http": 200,
+      "bytes": 9573
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-baseline-account": {
+      "http": 200,
+      "bytes": 2910
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-baseline-families": {
+      "http": 200,
+      "bytes": 66969
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-baseline-family-totals": {
+      "http": 200,
+      "bytes": 345354
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-baseline-skus": {
+      "http": 200,
+      "bytes": 543404
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-budgets": {
+      "http": 200,
+      "bytes": 6047
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-campaigns": {
+      "http": 200,
+      "bytes": 2203
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-excluded": {
+      "http": 200,
+      "bytes": 123021
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-guard": {
+      "http": 200,
+      "bytes": 2582
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-policy": {
+      "http": 200,
+      "bytes": 2512
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-uploaded": {
+      "http": 200,
+      "bytes": 6439002
+    },
+    "/api/wb-bids/reports/ozon-launch-2026-11-06-wave1-live": {
+      "http": 200,
+      "bytes": 2802488
+    }
+  },
+  "activation_calls": 4,
+  "running_campaigns": 4,
+  "inactive_campaigns": 8,
+  "guard_status": "CHECKED"
+}
