@@ -180,6 +180,9 @@ def report():
                   'готовность конфигурации подтверждена; запросов в очереди: '+str(health['waiting_requests']))
     if health['uncertain_requests']:
         llm_status += '; результат части Batch требует сверки: '+str(health['uncertain_requests'])
+    for failure in health.get('providers',[]):
+        if failure['provider']=='deepseek' and failure['blocks_work']:
+            llm_status += '\n🔴 '+failure['detail']
     if missing or os.getenv('FEEDBACK_LLM_PIPELINE_READY')!='1':
         llm_status = 'blocked: credentials/capabilities not validated'
     return {'at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),

@@ -245,6 +245,8 @@ def collect(verbose=True):
         try:
             st = client.messages.batches.retrieve(b["batch_id"])
         except Exception as e:
+            from reports import batch_health
+            batch_health.record(e, source='batch_read')
             if verbose:
                 print(f"  батч {b['batch_id']}: статус не получен ({type(e).__name__})", flush=True)
             continue
@@ -255,9 +257,23 @@ def collect(verbose=True):
         ok = err = tin = tout = 0
         actual_cost = 0.0
         saved_results = []
-        for res in client.messages.batches.results(b["batch_id"]):
+        try:
+            results = list(client.messages.batches.results(b["batch_id"]))
+        except Exception as error:
+            from reports import batch_health
+            batch_health.record(error, source='batch_read')
+            continue
+        for res in results:
             if getattr(res.result, "type", "") != "succeeded":
                 err += 1
+                from reports import batch_health
+                from types import SimpleNamespace
+                item_error = getattr(res.result,'error',None)
+                if item_error:
+                    error_type = getattr(item_error,'type','')
+                    code = {'billing_error':402,'authentication_error':401,'rate_limit_error':429}.get(error_type,400)
+                    batch_health.record(SimpleNamespace(status_code=code,
+                        body={'type':error_type,'message':getattr(item_error,'message','')}), source='batch_result')
                 continue
             msg = res.result.message
             u = getattr(msg, "usage", None)

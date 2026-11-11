@@ -7,11 +7,13 @@ Only evidence is returned here. Anthropic Batch synthesizes and verifies the ans
 import hashlib
 import os
 import re
+import uuid
+from types import SimpleNamespace
 from urllib.parse import urlparse
 import requests
 from psycopg2.extras import Json
 from core import db
-from reports import recovery_budget
+from reports import recovery_budget, batch_health
 from reports.prompt_privacy import public_name
 
 
@@ -55,11 +57,21 @@ def facts(question, product_name):
     rows = db.query("SELECT evidence FROM rev_search_cache WHERE query_key=%s AND cached_at>now()-interval '7 days'", (key,))
     if rows:
         return rows[0]['evidence']
+    if batch_health.blocked('deepseek'):
+        raise RuntimeError('DeepSeek search temporarily paused; provider alert recorded')
+    # Same search can be requested by the cycle and an operator simultaneously.
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('SELECT pg_advisory_xact_lock(hashtext(%s))', ('rev_search:'+key,))
+            cached = db.query("SELECT evidence FROM rev_search_cache WHERE query_key=%s AND cached_at>now()-interval '7 days'", (key,))
+            if cached:
+                return cached[0]['evidence']
+            return _fetch(question, query, key, token)
+
+
+def _fetch(question, query, key, token):
     recovery_budget.setup()
     day = db.query("SELECT (now() AT TIME ZONE 'Europe/Moscow')::date::text AS day")[0]['day']
-    reservation = 'deepseek-search:' + day + ':' + key
-    if not recovery_budget.reserve(reservation, 'deepseek-search', '0.00075'):
-        raise RuntimeError('Previous search outcome unconfirmed; no automatic paid retry')
     # Separate search endpoint: never append /tools/search to an Anthropic-compatible URL.
     endpoint = os.getenv('DEEPSEEK_SEARCH_URL', 'https://api.deepseek.com/v1/tools/search')
     base = urlparse(os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/anthropic'))
@@ -68,18 +80,45 @@ def facts(question, product_name):
     parsed = urlparse(endpoint)
     if parsed.scheme != 'https' or parsed.username or parsed.password:
         raise RuntimeError('Unsafe search endpoint')
-    response = requests.post(endpoint, headers={'Authorization':'Bearer '+token},
-                             json={'query':query,'ori_question':(question or '')[:128],
-                                   'count':5,'need_content':True}, timeout=(8,45))
+    prefix = 'deepseek-search:' + day + ':' + key
+    if db.query('''SELECT 1 FROM rev_llm_budget WHERE provider='deepseek-search'
+        AND request_key LIKE %s AND actual_usd IS NULL''', (prefix+'%',)):
+        raise RuntimeError('Previous search outcome unconfirmed; no automatic paid retry')
+    reservation = prefix + ':' + uuid.uuid4().hex
+    if not recovery_budget.reserve(reservation, 'deepseek-search', '0.00075'):
+        raise RuntimeError('Search budget reservation unavailable')
+    try:
+        response = requests.post(endpoint, headers={'Authorization':'Bearer '+token},
+                                 json={'query':query,'ori_question':(question or '')[:128],
+                                       'count':5,'need_content':True}, timeout=(8,45))
+    except Exception as error:
+        batch_health.record(error, 'deepseek')
+        raise RuntimeError('DeepSeek search connection failure; alert recorded') from None
     if not response.ok:
+        try: body = response.json()
+        except ValueError: body = {}
+        error = SimpleNamespace(status_code=response.status_code, body=body)
+        if batch_health.rejected(error):
+            db.execute('UPDATE rev_llm_budget SET actual_usd=0 WHERE request_key=%s', (reservation,))
+        batch_health.record(error, 'deepseek')
         raise RuntimeError('DeepSeek search HTTP '+str(response.status_code))
-    results = response.json().get('results') or []
+    try:
+        data=response.json()
+        results=data.get('results') or []
+        if not isinstance(results,list) or any(not isinstance(item,dict) for item in results):
+            raise ValueError('Invalid search results')
+    except (ValueError, AttributeError):
+        batch_health.record(SimpleNamespace(status_code=None,body={}), 'deepseek')
+        raise RuntimeError('DeepSeek search response invalid; reservation retained for reconciliation') from None
     sources = [{'title':r.get('title',''),'url':r.get('url','')} for r in results]
     evidence = {'answer':'\n\n'.join((r.get('title','')+'\n'+r.get('url','')+'\n'+
                  (r.get('content') or r.get('summary') or r.get('snippet') or '')[:5000]) for r in results),
                 'sources':sources,'note':'DeepSeek Search: external evidence, not product-card facts',
                 'verdict':'unclear','reply':''}
-    db.execute('''INSERT INTO rev_search_cache(query_key,evidence) VALUES(%s,%s)
-        ON CONFLICT(query_key) DO UPDATE SET evidence=EXCLUDED.evidence,cached_at=now()''', (key,Json(evidence)))
-    db.execute('UPDATE rev_llm_budget SET actual_usd=%s WHERE request_key=%s', ('0.00075' if results else '0',reservation))
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''INSERT INTO rev_search_cache(query_key,evidence) VALUES(%s,%s)
+                ON CONFLICT(query_key) DO UPDATE SET evidence=EXCLUDED.evidence,cached_at=now()''', (key,Json(evidence)))
+            cur.execute('UPDATE rev_llm_budget SET actual_usd=%s WHERE request_key=%s', ('0.00075' if results else '0',reservation))
+    batch_health.clear('deepseek', source='request')
     return evidence

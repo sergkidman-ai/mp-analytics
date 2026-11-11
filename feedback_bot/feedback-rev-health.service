@@ -1,0 +1,10 @@
+[Unit]
+Description=Rev provider balances and durable Telegram alerts
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics/.claude/worktrees/rev-recovery-20261103
+ExecStart=/opt/mp-analytics/venv/bin/python -u ops/rev_provider_watch.py
+TimeoutStartSec=2min
+UMask=0077

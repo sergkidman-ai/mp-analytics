@@ -80,6 +80,11 @@ class BatchFailures(unittest.TestCase):
         database = self.flush_error(None)
         database.get_conn.assert_not_called()
 
+    def test_billing_402_also_releases_unspent_reservation(self):
+        database = self.flush_error(402)
+        cursor = database.get_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        self.assertTrue(any('actual_usd=0' in str(call.args[0]) for call in cursor.execute.call_args_list))
+
     def test_workspace_limit_is_not_claimed_to_be_an_invalid_key(self):
         error = SimpleNamespace(status_code=400, body={'error':{'message':'workspace API usage limits'}})
         self.assertEqual(batch_health.classify(error)[0], 'workspace_limit')

@@ -1,0 +1,11 @@
+[Unit]
+Description=Rev independent provider monitoring every five minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=feedback-rev-health.service
+
+[Install]
+WantedBy=timers.target
