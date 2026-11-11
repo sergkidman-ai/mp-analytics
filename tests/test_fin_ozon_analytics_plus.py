@@ -58,7 +58,7 @@ class ChargeWatchAnalyticsPlus(unittest.TestCase):
                  'payload': accrual(i)}
                 for i, account in enumerate(('oz_acc1', 'oz_acc2'), 1)]
         seen = {}
-        with patch.object(watch.db, 'query', return_value=rows):
+        with patch.object(watch, '_iter_rows', return_value=iter(rows)):
             watch.scan_ozon(seen)
         return seen
 

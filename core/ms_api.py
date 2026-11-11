@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 
+from core import ms_api_control
 from dotenv import load_dotenv
 
 load_dotenv(os.getenv("MP_ENV_PATH", "/opt/mp-analytics/.env"))
@@ -53,6 +54,9 @@ def _url(path, params=None):
 
 
 def _request(method, path, payload=None, params=None):
+    if method in ('PUT','POST','DELETE'):
+        from core.order_composition_guard import assert_write_allowed
+        assert_write_allowed(method,path,payload,get)
     url = _url(path, params)
     data = json.dumps(payload, ensure_ascii=False).encode() if payload is not None else None
     last = None
@@ -63,7 +67,7 @@ def _request(method, path, payload=None, params=None):
             "Content-Type": "application/json",
         })
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            with ms_api_control.urlopen(req, opener=urllib.request.urlopen, timeout=TIMEOUT, client="core") as resp:
                 raw = resp.read()
                 if resp.headers.get("Content-Encoding") == "gzip":
                     raw = gzip.decompress(raw)

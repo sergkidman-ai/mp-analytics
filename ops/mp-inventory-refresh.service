@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh existing marketplace warehouse and returns monitor
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.mp_inventory_refresh
+TimeoutStartSec=3600
+Nice=10

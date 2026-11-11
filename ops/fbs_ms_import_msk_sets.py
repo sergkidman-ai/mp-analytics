@@ -8,6 +8,7 @@ from decimal import Decimal
 import json
 import os
 
+from core import ms_api_control
 from core import ms_api
 from ops.fbs_ms_import_batch10 import market_source, base_code, stock_for
 from ops.fbs_ms_import_pilot import save
@@ -82,7 +83,7 @@ def create_one(platform: str, account: str, number: str) -> dict:
          exclusive=True)
     try:
         import requests
-        response = requests.post(ms_api.BASE + '/entity/customerorder',
+        response = ms_api_control.request("POST", ms_api.BASE + '/entity/customerorder', sender=requests.post, client="operations-direct", kind="operational",
             headers={'Authorization': 'Bearer ' + os.environ['MOYSKLAD_TOKEN'],
                      'Content-Type': 'application/json'}, json=second['payload'], timeout=(5, 45))
         save(folder / 'response.json', {'status': response.status_code,

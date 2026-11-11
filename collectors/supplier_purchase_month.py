@@ -11,11 +11,12 @@ invoice_bot/supplier_groups.py, она же у разбора счетов/УП�
   entity/purchasereturn — возвраты поставщику, отдельной колонкой; нетто = приёмки − возвраты.
 Суммы документов МС (в копейках) → рубли, с НДС, как в самих документах.
 
-Нагрузка на МС: страницы по 1000 документов БЕЗ expand — весь 2026 год это ~3 запроса,
-ночной прогон текущего месяца — 1 запрос. Группу берём по id контрагента из ссылки agent,
+Нагрузка на МС: страницы по 20 документов БЕЗ expand; история читается один раз,
+ночной прогон обновляет только незакрытые месяцы. Группу берём по id контрагента из ссылки agent,
 имя запрашиваем только для контрагентов ВНЕ групп и кэшируем в ms_agent_name.
 
-Прошлые месяцы статичны: без аргументов пересчитывается ТОЛЬКО текущий месяц.
+Прошлые месяцы закрываются и архивируются; без аргументов обновляется текущий
+и закрываются пропущенные завершённые месяцы. Закрытые месяцы защищены в БД.
 
 Запуск:
   ./venv/bin/python -m collectors.supplier_purchase_month              # текущий месяц (ночью)
@@ -25,12 +26,14 @@ import argparse
 import datetime as dt
 import sys
 from collections import defaultdict
+from decimal import Decimal
+from core import supplier_purchase_history as history
 
 from collectors.moysklad import _get, API
 from core import db
 from invoice_bot.supplier_groups import ID2GROUP, ID2NAME
 
-PAGE = 1000                 # максимум МойСклада для выдачи без expand
+PAGE = 20                 # максимум МойСклада для выдачи без expand
 START_MONTH = "2026-01"     # с какого месяца имеет смысл витрина (решение 08.09.2026)
 
 
@@ -44,26 +47,36 @@ def _next_month(d):
     return dt.date(d.year + (d.month == 12), d.month % 12 + 1, 1)
 
 
-def _fetch(entity, since, until):
-    """Проведённые документы entity за период → [(месяц, agent_id, сумма_₽)]."""
-    out, offset, total = [], 0, None
+def _fetch_docs(entity, since, until):
+    """Узкие страницы без expand, полная проверка количества и идентификаторов."""
+    out, offset, total, seen = [], 0, None, set()
     flt = (f"moment>={since:%Y-%m-%d} 00:00:00;"
            f"moment<={until:%Y-%m-%d} 23:59:59;applicable=true")
     while total is None or offset < total:
-        r = _get(f"{API}/entity/{entity}", params={"limit": PAGE, "offset": offset, "filter": flt})
-        total = r["meta"]["size"]
-        rows = r.get("rows", [])
+        result = _get(f"{API}/entity/{entity}", params={
+            'limit': PAGE, 'offset': offset, 'filter': flt, 'order': 'moment,asc'})
+        size = result['meta']['size']
+        if total is None:
+            total = size
+        elif size != total:
+            raise ValueError('Supplier source changed while paging; retry required')
+        rows = result.get('rows', [])
+        if not rows and offset < total:
+            raise ValueError('Incomplete supplier document page')
+        for row in rows:
+            identity = row.get('id')
+            if not identity or identity in seen or row.get('applicable') is not True:
+                raise ValueError('Invalid supplier document identity/state')
+            day = dt.date.fromisoformat(row['moment'][:10])
+            if not since <= day <= until:
+                raise ValueError('Supplier document outside requested period')
+            seen.add(identity)
+        out.extend(rows)
+        offset += len(rows)
         if not rows:
             break
-        for d in rows:
-            moment = (d.get("moment") or "")[:10]
-            if not moment:
-                continue
-            agent = (d.get("agent") or {}).get("meta", {}).get("href", "").rsplit("/", 1)[-1]
-            out.append((dt.date.fromisoformat(moment).replace(day=1), agent,
-                        float(d.get("sum") or 0) / 100.0))
-        offset += PAGE
-    print(f"  {entity}: {len(out)} документов за {since}…{until}", flush=True)
+    if len(out) != total:
+        raise ValueError('Supplier document count mismatch')
     return out
 
 
@@ -90,64 +103,90 @@ def _agent_names(ids):
     return known
 
 
-def collect(since_month):
-    """Пересчёт витрины с месяца since_month по текущий включительно."""
-    today = dt.date.today()
-    cur_month = today.replace(day=1)
-    since = max(since_month, _month_start(START_MONTH))
-    if since > cur_month:
-        print(f"Нечего считать: {since:%Y-%m} позже текущего месяца", flush=True)
-        return 0
-    print(f"Закупки по группам: месяцы {since:%Y-%m}…{cur_month:%Y-%m}", flush=True)
-    supplies = _fetch("supply", since, today)
-    returns = _fetch("purchasereturn", since, today)
-
-    agg = defaultdict(lambda: {"supply_sum": 0.0, "supply_docs": 0,
-                               "return_sum": 0.0, "return_docs": 0})
+def aggregate(month, documents):
+    agg = defaultdict(lambda: {'supply_sum': Decimal(0), 'supply_docs': 0,
+                               'return_sum': Decimal(0), 'return_docs': 0})
     unknown = set()
-    for kind, rows in (("supply", supplies), ("return", returns)):
-        for month, agent, amount in rows:
+    for entity, kind in [('supply', 'supply'), ('purchasereturn', 'return')]:
+        seen = set()
+        for doc in documents[entity]:
+            day = dt.date.fromisoformat(doc['moment'][:10])
+            identity = doc.get('id')
+            if (day.replace(day=1) != month or not identity or identity in seen
+                    or doc.get('applicable') is not True):
+                raise ValueError('Invalid supplier source document')
+            seen.add(identity)
+            agent = doc.get('agent', {}).get('meta', {}).get('href', '').rsplit('/', 1)[-1]
+            if not agent:
+                raise ValueError('Supplier document has no agent')
             grp = ID2GROUP.get(agent)
             if not grp:
                 unknown.add(agent)
-            key = (month, grp or agent)
-            agg[key][f"{kind}_sum"] += amount
-            agg[key][f"{kind}_docs"] += 1
+            row = agg[(grp or agent)]
+            row[kind+'_sum'] += Decimal(str(doc.get('sum') or 0)) / 100
+            row[kind+'_docs'] += 1
     names = _agent_names(unknown)
-
-    out = []
-    for (month, key), v in agg.items():
-        in_group = key not in names
-        out.append({"month": month, "grp": key if in_group else names[key],
-                    "supply_sum": round(v["supply_sum"], 2), "supply_docs": v["supply_docs"],
-                    "return_sum": round(v["return_sum"], 2), "return_docs": v["return_docs"],
-                    "in_group": in_group, "updated_at": dt.datetime.now()})
-    # имена вне групп могут схлопнуться в одну строку с группой — складываем по (месяц, имя)
     merged = {}
-    for r in out:
-        key = (r["month"], r["grp"])
-        m = merged.get(key)
-        if m is None:                 # setdefault здесь нельзя: он кладёт КОПИЮ dict(r),
-            merged[key] = dict(r)     # и проверка `m is not r` даёт задвоение сумм
-            continue
-        for f in ("supply_sum", "supply_docs", "return_sum", "return_docs"):
-            m[f] += r[f]
-        m["in_group"] = m["in_group"] or r["in_group"]
-    rows = list(merged.values())
+    for key, values in agg.items():
+        group = names.get(key, key)
+        row = merged.setdefault(group, dict(month=month, grp=group, supply_sum=Decimal(0),
+            supply_docs=0, return_sum=Decimal(0), return_docs=0, in_group=False))
+        for field, value in values.items():
+            row[field] += value
+        row['in_group'] = row['in_group'] or key not in names
+    return list(merged.values())
 
-    # перезапись только пересчитанного диапазона: прошлые месяцы остаются нетронутыми
-    db.execute("DELETE FROM supplier_purchase_month WHERE month >= %s", (since,))
-    if rows:
-        db.upsert("supplier_purchase_month", rows, ["month", "grp"])
-    tot = sum(r["supply_sum"] for r in rows)
-    print(f"  записано строк: {len(rows)}, приёмок на {tot:,.0f} ₽".replace(",", " "), flush=True)
-    if unknown:
-        print(f"  контрагентов вне таблицы групп: {len(unknown)}", flush=True)
-    return len(rows)
+
+def refresh_last_purchases():
+    # Тот же проверенный источник: дополнительных запросов к МС не требуется.
+    rows = db.query("""SELECT d #>> '{agent,meta,href}' agent,
+        max((d->>'moment')::date) last_supply,
+        count(*) FILTER(WHERE (d->>'moment')::date >= %s) count90
+        FROM supplier_purchase_period p
+        CROSS JOIN LATERAL jsonb_array_elements(p.payload #> '{documents,supply}') d
+        GROUP BY 1""", (history.today()-dt.timedelta(days=90),))
+    names = dict(ID2NAME)
+    names.update({r['agent_id']: r['name'] for r in db.query('SELECT agent_id,name FROM ms_agent_name')})
+    merged = {}
+    for row in rows:
+        agent = (row['agent'] or '').rsplit('/', 1)[-1]
+        name = names.get(agent)
+        if not name:
+            continue
+        value = merged.setdefault(name, {'supplier': name, 'last_supply': row['last_supply'],
+                                         'supply_count_90d': 0})
+        value['last_supply'] = max(value['last_supply'], row['last_supply'])
+        value['supply_count_90d'] += row['count90']
+    if merged:
+        db.upsert('supplier_last_purchase', list(merged.values()), ['supplier'])
+
+
+def collect(since_month):
+    today = history.today()
+    current = today.replace(day=1)
+    month = max(since_month, _month_start(START_MONTH))
+    closed = {r['month'] for r in history.periods() if r['closed_at'] is not None}
+    count = 0
+    while month <= current:
+        if month in closed:
+            history.archive(month)
+        else:
+            end = min(today, _next_month(month)-dt.timedelta(days=1))
+            documents = {entity: _fetch_docs(entity, month, end)
+                         for entity in ['supply', 'purchasereturn']}
+            rows = aggregate(month, documents)
+            count += history.save(month, rows, documents)
+            print(f"{month:%Y-%m}: {len(documents['supply'])} приёмок, "
+                  f"{len(documents['purchasereturn'])} возвратов; "
+                  + ('закрыт' if month < current else 'расчётный'), flush=True)
+        month = _next_month(month)
+    refresh_last_purchases()
+    return count
 
 
 def main(since=None):
-    return collect(_month_start(since) if since else dt.date.today().replace(day=1))
+    # При смене месяца завершаем предыдущий; уже закрытые месяцы не запрашиваются.
+    return collect(_month_start(since or START_MONTH))
 
 
 if __name__ == "__main__":

@@ -11,11 +11,11 @@
 витринах она не требует. Поэтому единица учёта — код, и в отчёт идут только те коды, чьё
 ПЕРВОЕ появление в МойСкладе мы видели своими глазами.
 
-Дата заведения. Своей истории у нас нет, но `raw_moysklad_product.loaded_at` хранит момент
-ПЕРВОГО попадания карточки в слепок (upsert не трогает столбец), а слепок снимается ежедневно
-в `run_daily`. Значит дата первого появления кода = min(loaded_at) по его карточкам, с точностью
-до дня. 13.06.2026 — день первой полной загрузки (44 284 карточки): всё, что пришло тогда,
-заведено ДО начала наблюдений, у таких кодов даты нет и в статистику запусков они не идут.
+Дата заведения. raw_moysklad_product.loaded_at хранит первое наблюдение карточки.
+Граница наблюдения хранится в prc_launch_observation. После переноса БД исходный
+слепок не доказывает дату создания товара. Старые даты принимаются только из
+prc_launch_creation_evidence; для новых кодов наблюдения накапливаются дальше.
+Уже известная модель без даты не становится новой при последующем заполнении raw.
 
 Два фильтра против ложных новинок (07.09.2026):
   • Слепок МС не берёт архивные карточки — их 11 332 из 56 678. Если у кода есть карточка
@@ -54,7 +54,7 @@ SHOWCASES = [("oz_acc1", "Ozon Цифровой"), ("oz_acc2", "Ozon Дискв�
              ("wb_acc1", "WB Цифровой"), ("wb_acc2", "WB Дисквэр"),
              ("ya_acc1", "Маркет Цифровой")]
 
-FIRST_LOAD = datetime.date(2026, 6, 13)   # день первой полной загрузки слепка МС
+# Observation baseline is persisted in prc_launch_observation; a restored database is a new baseline.
 
 DDL = """
 CREATE TABLE IF NOT EXISTS prc_launch (
@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS prc_launch_mp (
 );
 CREATE INDEX IF NOT EXISTS prc_launch_created_idx ON prc_launch (ms_created);
 """
+
+DDL += (BASE_DIR / 'migrations/420_prc_launch_cards.sql').read_text()
 
 
 def ms_models():
@@ -151,14 +153,22 @@ def state_ozon(account):
     except Exception as e:                     # витрина без ответа не должна ронять трекер
         print(f"  [{account}] список VISIBLE не получен ({str(e)[:60]}), статус «в продаже» пропускаю")
         visible, known = set(), False
+    if not known:
+        raise ValueError("Ozon visibility was not confirmed")
     err = {r["offer_id"]: r for r in db.query(
         "SELECT offer_id, status_name, err_texts FROM card_status WHERE account = %s AND is_open",
-        (account,))}
+        (account,))} if db.query("SELECT to_regclass('card_status') r")[0]["r"] else {}
     out = {}
-    for r in db.query("SELECT offer_id, is_archived FROM ozon_product WHERE account = %s", (account,)):
+    variants = {}
+    for r in db.query("SELECT offer_id, is_archived, name FROM ozon_product WHERE account = %s", (account,)):
         ext, offer = r["offer_id"][:4], r["offer_id"]
         if not ext.isdigit():
             continue
+        bad = err.get(offer) or {}
+        card_note = ('в архиве' if r['is_archived'] else
+                     (bad.get('status_name') or 'Оффер не входит в VISIBLE Ozon'))
+        variants.setdefault(ext,[]).append(dict(offer=offer,card_id=offer,name=r.get('name'),
+             state='selling' if offer in visible else 'card',note='' if offer in visible else card_note))
         cur = out.get(ext)
         if offer in visible:
             out[ext] = {"state": "selling", "offer": offer, "note": ""}
@@ -170,35 +180,50 @@ def state_ozon(account):
                 (bad.get("status_name") or (bad.get("err_texts") or [""])[0]
                  or ("не в продаже: модерация или нет остатка" if known else "статус не получен")))
         out[ext] = {"state": "card", "offer": offer, "note": note[:200]}
+    for ext, st in out.items():st['variants']=variants.get(ext,[])
     return out
 
 
 def state_wb(account):
     """Состояние моделей на WB: карточка в кабинете и не в корзине — считаем «в продаже»."""
+    if not db.query("SELECT EXISTS(SELECT 1 FROM wb_card_presence WHERE account=%s) ok",(account,))[0]["ok"]:
+        raise ValueError("WB catalogue has not been observed")
     out = {}
-    for r in db.query("""SELECT vendor_code, nm_id, in_cabinet, in_trash
-                           FROM wb_card_presence WHERE account = %s""", (account,)):
+    variants = {}
+    for r in db.query("""SELECT p.vendor_code, p.nm_id, p.in_cabinet, p.in_trash, coalesce(c.payload->>'title',w.title) name
+                           FROM wb_card_presence p LEFT JOIN raw_wb_card_content c
+                             ON c.account=p.account AND c.nm_id=p.nm_id
+                           LEFT JOIN wb_cards w ON w.account=p.account AND w.nm_id=p.nm_id WHERE p.account = %s""", (account,)):
         ext = (r["vendor_code"] or "")[:4]
         if not ext.isdigit():
             continue
+        variants.setdefault(ext,[]).append(dict(offer=r['vendor_code'],card_id=str(r['nm_id']),name=r.get('name'),
+            state='selling' if r['in_cabinet'] and not r['in_trash'] else 'card',
+            note='в корзине' if r['in_trash'] else '' if r['in_cabinet'] else 'нет в кабинете'))
         if r["in_cabinet"] and not r["in_trash"]:
             out[ext] = {"state": "selling", "offer": str(r["nm_id"]), "note": ""}
         elif out.get(ext, {}).get("state") != "selling":
             out[ext] = {"state": "card" if (r["in_cabinet"] or r["in_trash"]) else "none",
                         "offer": str(r["nm_id"]),
                         "note": "в корзине" if r["in_trash"] else "нет в кабинете"}
+    for ext, st in out.items():st['variants']=variants.get(ext,[])
     return {k: v for k, v in out.items() if v["state"] != "none"}
 
 
 def state_ya(account):
     """Состояние моделей на Маркете: HAS_CARD* — карточка Маркета готова и торгует."""
+    if not db.query("SELECT EXISTS(SELECT 1 FROM raw_yandex_offer WHERE account=%s) ok",(account,))[0]["ok"]:
+        raise ValueError("Market catalogue has not been observed")
     out = {}
-    for r in db.query("""SELECT offer_id, payload->'offer'->>'cardStatus' st
+    variants = {}
+    for r in db.query("""SELECT offer_id, payload->'offer'->>'cardStatus' st, payload->'offer'->>'name' name
                            FROM raw_yandex_offer WHERE account = %s""", (account,)):
         ext = (r["offer_id"] or "")[:4]
         if not ext.isdigit():
             continue
         sell = (r["st"] or "").startswith("HAS_CARD")
+        variants.setdefault(ext,[]).append(dict(offer=r['offer_id'],card_id=r['offer_id'],name=r.get('name'),
+            state='selling' if sell else 'card',note='' if sell else r['st'] or 'Статус карточки неизвестен'))
         if sell:
             out[ext] = {"state": "selling", "offer": r["offer_id"], "note": ""}
         elif out.get(ext, {}).get("state") != "selling":
@@ -206,28 +231,43 @@ def state_ya(account):
                         "note": {"NO_CARD_ERRORS": "карточка Маркета с ошибками",
                                  "NO_CARD_PROCESSING": "карточка Маркета на проверке"}
                                 .get(r["st"] or "", r["st"] or "статус не известен")}
+    for ext, st in out.items():st['variants']=variants.get(ext,[])
     return out
 
 
-def main():
+
+def creation_date(model,baseline,first_sale,evidence=None,previous=None):
+    if evidence:
+        created,source=evidence,'documented'
+    elif previous and previous['ms_created'] is not None:
+        created,source=previous['ms_created'],previous['ms_source']
+    elif previous and previous['ms_created'] is None:
+        created,source=None,previous['ms_source']
+    elif model['outside']:
+        created,source=None,'outside'
+    elif model['first_seen'] and model['first_seen']>baseline:
+        created,source=model['first_seen'],'raw'
+    else:
+        created,source=None,'baseline'
+    if created and first_sale and first_sale<created:
+        return None,'sold'
+    return created,source
+
+
+def main(failed_sources=()):
     db.execute(DDL)
     today = datetime.date.today()
     now = datetime.datetime.now(datetime.timezone.utc)
     seed = db.query("SELECT count(*) c FROM prc_launch")[0]["c"] == 0
+    db.execute("INSERT INTO prc_launch_observation(singleton,baseline_date) VALUES(true,%s) ON CONFLICT DO NOTHING",(today,))
+    baseline=db.query("SELECT baseline_date FROM prc_launch_observation WHERE singleton")[0]['baseline_date']
+    evidence={r['external_code']:r['ms_created'] for r in db.query('SELECT external_code,ms_created FROM prc_launch_creation_evidence')}
+    previous={r['external_code']:r for r in db.query('SELECT external_code,ms_created,ms_source FROM prc_launch')}
     models, nov, sold = ms_models(), novelty_meta(), sold_before()
 
     recs, dropped = [], 0
     for ext, m in models.items():
-        first = m["first_seen"]
-        if m["outside"]:
-            # Есть карточка вне слепка (архивная) — код жил до начала наблюдений.
-            created, src = None, "outside"
-        elif first and first > FIRST_LOAD:
-            created, src = first, "raw"           # видели появление карточки в слепке
-        else:
-            created, src = None, "before"         # пришло первой полной загрузкой 13.06.2026
-        if created and (sold.get(ext) or created) < created:
-            created, src = None, "sold"           # продавали раньше, чем «завели» — код старый
+        created,src = creation_date(m,baseline,sold.get(ext),evidence.get(ext),previous.get(ext))
         if src in ("outside", "sold"):
             dropped += 1
         n = nov.get(ext) or {}
@@ -245,8 +285,23 @@ def main():
     prev = {(r["external_code"], r["showcase"]): r for r in db.query(
         "SELECT external_code, showcase, state, card_at, selling_at, seeded FROM prc_launch_mp")}
     for acc, title in SHOWCASES:
-        cur = (state_ozon(acc) if acc.startswith("oz") else
-               state_wb(acc) if acc.startswith("wb") else state_ya(acc))
+        try:
+            if acc in failed_sources:
+                raise ValueError("Source refresh failed")
+            cur = (state_ozon(acc) if acc.startswith("oz") else
+                   state_wb(acc) if acc.startswith("wb") else state_ya(acc))
+            if not cur or any('variants' in st for st in cur.values()):
+                from collectors.launch_cards import persist_source
+                persist_source(acc,cur,now)
+            db.upsert('prc_launch_source_state',[dict(showcase=acc,status='ok',note='',checked_at=now)],['showcase'])
+        except Exception as exc:
+            db.upsert('prc_launch_source_state',[dict(showcase=acc,status='error',note=type(exc).__name__,checked_at=now)],['showcase'])
+            # Preserve a last successful observation. Unknown is never an absent card.
+            missing=[dict(external_code=ext,showcase=acc,state='unknown',seeded=False,
+                          note='Источник не получен',checked_at=now) for ext in models if (ext,acc) not in prev]
+            db.upsert('prc_launch_mp',missing,['external_code','showcase'])
+            print(f'  {title}: source unavailable; previous observations preserved',flush=True)
+            continue
         rows, new_card, new_sell = [], 0, 0
         for ext in models:
             st = cur.get(ext) or {"state": "none", "offer": None, "note": ""}
@@ -254,7 +309,7 @@ def main():
             card_at = (old or {}).get("card_at")
             sell_at = (old or {}).get("selling_at")
             seeded = bool((old or {}).get("seeded"))
-            if old is None:
+            if old is None or old["state"] == "unknown":
                 # Первый снимок этой пары: переход мы не наблюдали, дату не выдумываем.
                 seeded = st["state"] != "none"
             else:
@@ -272,8 +327,8 @@ def main():
                                "checked_at"])
         live = sum(1 for r in rows if r["state"] == "selling")
         card = sum(1 for r in rows if r["state"] == "card")
-        print(f"  {title}: в продаже {live}, только карточка {card}, нет {len(rows) - live - card}"
-              f"{f' | новых карточек за сегодня {new_card}, вышло в продажу {new_sell}' if not seed else ' | первичный снимок'}")
+        print(f"  {title}: активна в каталоге {live}, только карточка {card}, нет {len(rows) - live - card}"
+              f"{f' | новых карточек за сегодня {new_card}, стали активными {new_sell}' if not seed else ' | первичный снимок'}")
     return len(recs)
 
 

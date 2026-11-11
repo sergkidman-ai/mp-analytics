@@ -107,7 +107,7 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
     tds = []
     for i in range(N):
         if vals[i] is None:
-            tds.append('<td class="num muted">—</td>')
+            tds.append(f'<td class="num muted" data-period="{_C["K"][i]}" data-value="null">—</td>')
             continue
         if kind == "margin":
             txt = f"{vals[i]:.1f}%"
@@ -120,7 +120,7 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
         # ячейка месяца в строке COGS — кликабельна: раскрывает отгрузки этого отчёта
         dy = f' data-ym="{ky[i]}"' if (k == "cogs" and i < len(ky)) else ""
         cl = f'num {bd[i]}' + (" drill" if dy else "")
-        tds.append(f'<td class="{cl}"{dy}>{txt}{pc}</td>')
+        tds.append(f'<td class="{cl}"{dy} data-period="{ky[i]}" data-value="{vals[i]}">{txt}{pc}</td>')
     if kind in ("margin", "count_up", "count_dn", "check"):
         rp = "—"
     else:
@@ -137,13 +137,15 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
         trclass = (trclass + " hasdet").strip()
     live = ('<td class="num live" data-c="cur">·</td>'
             '<td class="num live fc" data-c="fc">·</td>')
-    dk = f' data-k="{k}"' if k else ""
+    dk = f' data-kind="{kind}"' + (f' data-k="{k}"' if k else "")
+    if showpc:
+        dk += ' data-showpc="1"'
     if expand:
         dk += f' data-det="{expand}"'
     if detof:
         dk += f' data-det-of="{detof}"'
     return (f'<tr class="{trclass}"{dk}><td class="{lblcls}">{label}{tg}</td>' + "".join(tds) +
-            live + f'<td class="num pctcol">{rp}</td><td class="spk">{sp}</td></tr>')
+            live + '<td class="num year-total" data-c="year">—</td>' + f'<td class="num pctcol">{rp}</td><td class="spk">{sp}</td></tr>')
 
 
 def det_rows(a, ln, ob, kind="expense"):
@@ -162,7 +164,7 @@ def det_rows(a, ln, ob, kind="expense"):
 
 
 def sect(t):
-    return f'<tr class="sect"><td colspan="{_C["N"] + 5}"><span>{t}</span></td></tr>'
+    return f'<tr class="sect"><td colspan="{_C["N"] + 6}"><span>{t}</span></td></tr>'
 
 
 def bars_line(oborot, net):
@@ -243,7 +245,7 @@ def build(acc):
              + mth
              + f'<th class="live" title="{cur_ttl}">тек.</th>'
              + f'<th class="live" title="{fc_ttl}">прогноз</th>'
-             + '<th>% Об.</th><th>Тренд</th></tr></thead><tbody>')
+             + '<th class="year-total" title="Факт с января по выбранный месяц, без прогноза">Итого за год</th><th>% Об.</th><th>Тренд</th></tr></thead><tbody>')
     H.append(sect("Операционные показатели"))
     H.append(row("Продажи, шт", orders, "count_up", ob, k="orders"))
     H.append(row("Возвраты, шт", retc, "count_dn", ob, k="returns_cnt"))
@@ -336,7 +338,7 @@ JS = """<script>
   });
 })();
 (function(){
-  fetch('/api/wb/mp-current').then(function(r){return r.json();}).then(function(d){
+  fetch('/api/wb/mp-current' + window.mpReportPeriodQuery()).then(function(r){return r.json();}).then(function(d){
     if(!d||!d.month) return;
     var mo=d.month, accs=['wb_acc1','wb_acc2'];
     document.querySelectorAll('#mpr section.org table').forEach(function(t,ti){
@@ -357,8 +359,9 @@ JS = """<script>
         tr.querySelectorAll('td').forEach(function(td,ci){
           if(ci===0){ td.className='lbl ind'; td.textContent=cells[key].label||key; }
           else if(td.classList.contains('live')){ td.className='num live'+(td.getAttribute('data-c')==='fc'?' fc':''); td.textContent='·'; }
+          else if(td.classList.contains('year-total')){ td.textContent='—'; }
           else if(td.classList.contains('spk')){ td.innerHTML=''; }
-          else { td.className='num muted'; td.textContent='—'; }
+          else { td.className='num muted'; td.textContent='—'; if(td.hasAttribute('data-period'))td.setAttribute('data-value','null'); }
         });
         anchor.parentNode.insertBefore(tr, anchor.nextSibling);
       });
@@ -372,10 +375,11 @@ JS = """<script>
         });
       });
     });
+    window.mpReportYearTotals(d);
     var fn=document.getElementById('mpr-live-note');
-    if(fn){ fn.innerHTML=(mo.lag_note||'')+'<b>'+mo.label+'</b> — текущий месяц по данным на '+(mo.last_date||'')+
+    if(fn){ fn.innerHTML=(mo.lag_note||'')+'<b>'+mo.label+'</b> — '+(mo.period_finished?'завершённый календарный месяц':'текущий месяц')+'; последняя дата формирования отчёта '+(mo.last_date||'')+
       ' (оценка по уже сформированным недельным отчётам ВБ). '+
-      '<b>прогноз</b> — как закроется месяц: факт с начала месяца ('+mo.elapsed_days+' дн) + дневная ставка за скользящие '+mo.window_days+' дней × оставшиеся '+mo.remaining_days+' дн. '+
+      (mo.period_finished?'Календарный период завершён: прогноз равен загруженному факту. ':'<b>прогноз</b> — как закроется месяц: факт с начала месяца ('+mo.elapsed_days+' дн) + дневная ставка за скользящие '+mo.window_days+' дней × оставшиеся '+mo.remaining_days+' дн. ')+
       'ВБ формирует отчёты недельными пачками, поэтому текущий месяц и прогноз — оценка; окно непрерывно переходит через границу месяца. '+
       'Подсветка «тек.» — только по относительным статьям (доли расходов, маржа, чек), т.к. абсолютные суммы за неполный месяц заведомо ниже; прогноз подсвечен целиком.'; }
   }).catch(function(){});
@@ -425,6 +429,8 @@ def render(hist=None):
   </div>
   <p class="eyebrow">Отчёты МП · Wildberries</p>
   <h1>Wildberries — сводный отчёт по месяцам</h1>
+  <div data-open-report-period data-platform="wb" data-closed="{max(data.get('period_keys',[]),default='')}" style="margin:12px 0"></div>
+  <script src="/static/mp_report_period.js"></script>
   <details class="howto"><summary>Как читать этот отчёт</summary><p class="sub">{SUB}</p></details>
   <div class="tlegend">
     <span><span class="sw" style="background:var(--pos-s)"></span>выше среднего — хорошо</span>

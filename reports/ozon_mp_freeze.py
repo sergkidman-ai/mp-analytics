@@ -322,6 +322,12 @@ def refresh_detail(keys=None):
                        for ln in R.DETAIL_LINES}
                 old = {ln: {c: arr[i] for c, arr in ((a.get("detail") or {}).get(ln) or {}).items()
                             if arr[i]} for ln in R.DETAIL_LINES}
+                # Older closed reports can contain allocations absent from recovered raw.
+                # Keep their verified income breakdown when raw does not explain the total.
+                saved_other = a["lines"].get("other", [0] * len(hist["period_keys"]))[i]
+                if (any(code.startswith("HIST:") for code in old.get("other", {}))
+                        or abs(sum(new.get("other", {}).values()) - saved_other) > 1):
+                    new["other"] = old.get("other", {})
                 if old == {ln: {c: v for c, v in new[ln].items() if v} for ln in R.DETAIL_LINES}:
                     continue
                 _put_detail(hist, a, i, new)

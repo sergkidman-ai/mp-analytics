@@ -46,6 +46,7 @@ reports/data/.ms_catalog_last_sync
 reports/data/.mp_ozon_hist.lock
 reports/data/backups/
 reports/data/wb_reconcile_log.jsonl
+reports/data/bi_recovery.json
 reports/data/.*.lock
 
 # Аналитические выгрузки docs/*.csv — одноразовый аудит-мусор, не коммитим.
@@ -179,3 +180,15 @@ data/mpstats_probe/*/derived/actual_*.csv
 /.private/ms_order_dispatch_20261103/
 /.private/ms_supply_fulfillment/
 /.private/ms_market_status_continuous/
+/.private/print_handoff_20261103
+
+# Browser WB QR caches, delivery receipts and generated downloads
+/.private/wb-buyer-diskver/
+/.private/wb-buyer-digital/
+/.private/returns-wb-qr-delivery/
+/web/downloads/returns/
+/.private/supplier_purchase_closed/
+
+# Private session evidence and deployed runtime copies are never source artifacts.
+/.private/
+/runtime/

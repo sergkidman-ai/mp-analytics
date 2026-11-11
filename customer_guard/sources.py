@@ -5,6 +5,7 @@ from decimal import Decimal
 import re
 import time
 
+from core import ms_enter_cache
 from shipment_guard import config
 from shipment_guard.ms import MSClient, SourceError
 from shipment_guard.economics import number
@@ -102,10 +103,13 @@ class CustomerMS(MSClient):
                 raise ValueError("supplier_overhead_unverified")
             key = (enter["id"], enter.get("updated"))
             if key not in self.receipts:
-                receipt_positions = self.positions("enter", enter["id"])
+                cached = ms_enter_cache.read(enter)
+                receipt_positions = cached["rows"] if cached is not None else self.positions("enter", enter["id"])
                 latest = self.get(f"/entity/enter/{enter['id']}")
                 if latest.get("updated") != enter.get("updated"):
                     raise SourceError("supplier_receipt_changed", 600)
+                if cached is None:
+                    ms_enter_cache.write(enter, {"meta": {"size": len(receipt_positions)}, "rows": receipt_positions})
                 self.receipts[key] = receipt_positions
             matches = [p for p in self.receipts[key] if product_id(p) == pid]
             if len(matches) != 1:

@@ -1,7 +1,7 @@
 # поток: cf
 """cf/build.py — пересборка витрины cf_line (понедельный кэшфлоу, факт + план).
 
-Факт — bank_txn по operation_date (все банки фирмы). Переводы между своими счетами
+Факт — bank_txn + проведённые платежи МС без дублей (cf.payment_facts). Переводы между своими счетами
 исключаются: внутри фирмы они гасят друг друга. Расходы берут статью из bank_txn_opex
 (помесячное размазывание opex_fact_* сюда НЕ идёт — нужна дата денег), поступления —
 cf_income_rule по ИНН/назначению.
@@ -35,7 +35,7 @@ SUPPLIER_RUNRATE_WEEKS = 8
 
 # статья opex_category → строка кэшфлоу
 OPEX_TO_CF = {
-    "ФОТ": "salary", "Самозанятые": "selfemp", "Налоги ФОТ": "ndfl", "Налоги и взносы": "taxes",
+    "НДС": "vat", "УСН": "usn", "ФОТ": "salary", "Самозанятые": "selfemp", "Налоги ФОТ": "ndfl", "Налоги и взносы": "taxes",
     "Аренда": "rent", "Программист": "programmer", "Упаковка": "packaging",
     "Реклама и продвижение": "ads", "Доставка": "delivery",
     "Закупка товара у поставщиков": "suppliers", "Перевод между своими счетами": "transfer",
@@ -88,39 +88,8 @@ def classify_income(t, rules):
 
 
 def fact_lines(date_from, date_to):
-    rows = db.query("""
-        select t.id, t.org_inn, t.bank, t.direction, t.amount, t.operation_date::date as day,
-               t.purpose, t.cp_name, t.cp_inn, c.name as opex_cat
-        from bank_txn t
-        left join bank_txn_opex o on o.txn_id = t.id
-        left join opex_category c on c.id = o.category_id
-        where t.operation_date::date between %s and %s and t.org_inn = any(%s)
-    """, (date_from, date_to, list(ORGS)))
-    rules = income_rules()
-    own_inns = set(ORGS)
-    out = []
-    for t in rows:
-        if t["direction"] == "CREDIT":
-            cat = classify_income(t, rules)
-            if cat == "other_in" and (t["cp_inn"] or "") == t["org_inn"]:
-                cat = TRANSFER
-            sign = 1
-        else:
-            cat = OPEX_TO_CF.get(t["opex_cat"] or "", "other_out")
-            if cat == "taxes":
-                cat = tax_category(t["purpose"])
-            if cat == "other_out" and (t["cp_inn"] or "") == t["org_inn"]:
-                cat = TRANSFER
-            sign = -1
-        if cat == TRANSFER:
-            continue
-        # перевод в другую СВОЮ фирму — реальный отток/приток для каждой, помечаем
-        note = "между фирмами" if (t["cp_inn"] or "") in own_inns - {t["org_inn"]} else None
-        out.append(dict(org_inn=t["org_inn"], day=t["day"], kind="fact", category=cat,
-                        amount=sign * float(t["amount"]), source="bank:" + t["bank"],
-                        ref=str(t["id"]), note=note or (t["cp_name"] or "")[:120],
-                        estimate=False))
-    return out
+    from cf.payment_facts import facts
+    return facts(date_from, date_to)
 
 
 # ── план ─────────────────────────────────────────────────────────────────────
@@ -214,6 +183,7 @@ def build(snapshot=None, today=None):
     for ln in lines:
         ln["week_start"] = monday(ln["day"])
     with db.get_conn() as conn, conn.cursor() as cur:
+        cur.execute("select pg_advisory_xact_lock(80201110)")
         cur.execute("delete from cf_line")
         cols = ["org_inn", "week_start", "day", "kind", "category", "amount", "source", "ref",
                 "note", "estimate"]

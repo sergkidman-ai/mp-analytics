@@ -44,6 +44,14 @@ sys.path.insert(0, str(BASE_DIR))
 from core import db  # noqa: E402
 
 
+# A document with a missing/zero-cost item cannot prove its whole FIFO cost.
+COMPLETE_DEMAND_SQL = """d.cogs > 0 AND d.qty > 0
+    AND NOT EXISTS (SELECT 1 FROM ms_demand_pos p WHERE p.demand_id=d.demand_id
+                    AND p.qty>0 AND (p.cost IS NULL OR p.cost<=0))
+    AND abs(coalesce((SELECT sum(p.qty) FROM ms_demand_pos p
+                      WHERE p.demand_id=d.demand_id),0)-d.qty)<0.00001"""
+
+
 def keys(sa):
     """Ключи товара МС по артикулу площадки: полный, 5 ведущих цифр, 4 ведущих цифры.
 
@@ -168,7 +176,15 @@ def load():
                          WHERE p.qty > 0 AND p.cost > 0 ORDER BY p.ms_id, c.moment"""):
         hist.setdefault(r["ms_id"], []).append((r["d"], float(r["u"])))
     ec2ms, ms2ec = {}, {}
-    for r in db.query("SELECT external_code, ms_id FROM products WHERE external_code IS NOT NULL"):
+    # products is an inventory snapshot and can be empty after recovery. Product
+    # identity comes from the complete MS catalogue too; only the historical
+    # shipment rows above supply costs, never catalogue purchase prices.
+    for r in db.query("""SELECT external_code, ms_id FROM products WHERE external_code IS NOT NULL
+                         UNION ALL
+                         SELECT m.external_code, m.ms_id FROM ms_product m
+                         WHERE m.external_code IS NOT NULL AND NOT EXISTS (
+                             SELECT 1 FROM products p WHERE p.ms_id=m.ms_id
+                                 AND p.external_code IS NOT NULL)"""):
         ec2ms.setdefault(r["external_code"], []).append(r["ms_id"])
         ms2ec[r["ms_id"]] = r["external_code"]
     sets = {}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Sber Diskver unsigned drafts at 07:55 MSK
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/ops/diskver_bank_schedule.py morning
+TimeoutStartSec=25min

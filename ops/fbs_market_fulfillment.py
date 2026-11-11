@@ -266,7 +266,8 @@ class FulfillmentSession:
 
     def _ozon_get(self, folder, base, lease, label='ozon_payload'):
         data = self._read('ozon', base['account'], folder, label, 'POST', '/v3/posting/fbs/get',
-                         body={'posting_number': base['number']}, lease=lease)
+                         body={'posting_number': base['number'],
+                               'with': {'financial_data': True, 'related_postings': True}}, lease=lease)
         posting = _posting(data)
         if posting.get('posting_number') != base['number']:
             raise Blocked('ozon_posting_identity_mismatch')
@@ -361,13 +362,26 @@ class FulfillmentSession:
         raise Blocked('exemplar_gtd_validation_not_confirmed')
 
     def _ozon(self, order, folder, base, seed, lease):
-        payload = seed.get('raw', seed.get('market_order', {}))
-        if payload.get('posting_number') != base['number'] or not payload.get('products') or not payload.get('status'):
-            payload = self._ozon_get(folder, base, lease)
+        from ops import ozon_manual_packages as packages
+        payload = self._ozon_get(folder, base, lease)
         if payload['status'] == 'awaiting_deliver':
             return self._finish(folder, base, 'already_ready', 'ozon_awaiting_deliver', status=payload['status'])
         if payload['status'] != 'awaiting_packaging':
             raise Blocked('ozon_status_' + str(payload['status']))
+        # Fresh Ozon data is mandatory for the new gate, even when a caller has
+        # an older seed. In particular, never ship an operator-created child.
+        try:
+            parent = payload.get('parent_posting_number')
+            if parent and packages.owns(base['account'], parent):
+                raise Blocked('ozon_manual_split_waiting_operator')
+            if packages.owns(base['account'], base['number']) or packages.needs_manual(payload):
+                feedback = packages.Reconciler().register(order, payload, base['account'], lease)
+                return self._finish(folder, base, 'blocked', 'ozon_manual_split_waiting_operator',
+                                    ms_status_feedback=feedback)
+        except packages.Deferred as exc:
+            raise Blocked('ozon_package_gate_' + str(exc)) from None
+        except Exception as exc:
+            raise Blocked('ozon_package_gate_failed_' + type(exc).__name__) from None
         products = []
         for p in payload['products']:
             if type(p.get('quantity')) is not int or p['quantity'] <= 0 or isinstance(p.get('sku'), bool) or int(p['sku']) <= 0:
@@ -464,7 +478,8 @@ class FulfillmentSession:
 
     def _wb_supply(self, folder, base, *, refresh=False, day=WB_DAY, raw=None, allow_create=False):
         account = base['account']
-        key = (account, day)
+        key = (account, day, (raw or {}).get('cargoType'),
+               (raw or {}).get('crossBorderType'), wb_supplies.b2b_flag(raw or {}))
         cached = self.supplies.get(key)
         if not refresh and cached and self.clock() - cached[0] < self.cache_ttl:
             info, ids = cached[1], cached[2]
@@ -505,6 +520,26 @@ class FulfillmentSession:
             raise Blocked('wb_order_cargo_source_missing')
         return cached[1][int(base['number'])]
 
+    def _wb_confirmed_supply(self, folder, base, day):
+        supplies, _ = wb_supplies.catalog(self, folder, base, _save, refresh=True)
+        found = []
+        oid = int(base['number'])
+        for info in supplies:
+            if not wb_supplies.opened(info) or not wb_supplies.dated(info, day):
+                continue
+            data = self._read('wb', base['account'], folder, 'wb_confirmed_members_' + info['id'],
+                'GET', '/api/marketplace/v3/supplies/' + info['id'] + '/order-ids')
+            ids = data.get('orderIds')
+            if not isinstance(ids, list) or len(ids) != len(set(ids)):
+                raise Blocked('wb_membership_schema')
+            if oid in ids:
+                found.append((info, set(ids)))
+        if len(found) != 1:
+            raise Blocked('wb_confirmed_supply_membership_ambiguous_or_missing')
+        info, ids = found[0]
+        _save(folder / 'wb_supply_binding.json', {'account': base['account'], 'day': day, 'supply_id': info['id']})
+        return info, ids
+
     def _wb(self, order, folder, base, seed):
         try:
             day = datetime.fromisoformat(order.get('deliveryPlannedMoment', '')).date().isoformat()
@@ -518,8 +553,11 @@ class FulfillmentSession:
             raise Blocked('wb_order_delivery_compatibility_unverified')
         try:
             with wb_supplies.account_lock(base['account']):
-                info, ids = self._wb_supply(folder, base, day=day, raw=raw,
-                                            allow_create=state['supplierStatus'] == 'new')
+                if state['supplierStatus'] == 'confirm' and day != WB_DAY:
+                    info, ids = self._wb_confirmed_supply(folder, base, day)
+                else:
+                    info, ids = self._wb_supply(folder, base, day=day, raw=raw,
+                                                allow_create=state['supplierStatus'] == 'new')
                 return self._wb_assign(order, folder, base, seed, state, raw, info, ids)
         except wb_supplies.SupplyError as exc:
             raise Blocked(str(exc)) from None
@@ -608,7 +646,8 @@ class FulfillmentSession:
 
     def fulfill_many(self, orders, folder: Path):
         """Shared supply/source TTL cache; exact per-order durable checkpoints."""
-        orders = list(orders)
+        from ops.order_priority import order_key
+        orders = sorted(orders,key=order_key)
         # Status reads accept exact IDs in batches. No history/catalogue scan.
         groups = {}
         for order in orders:

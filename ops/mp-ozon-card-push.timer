@@ -1,0 +1,10 @@
+[Unit]
+Description=Ozon card pusher at former 08:14 UTC
+
+[Timer]
+OnCalendar=*-*-* 11:14:00 Europe/Moscow
+Persistent=true
+Unit=mp-ozon-card-push.service
+
+[Install]
+WantedBy=timers.target

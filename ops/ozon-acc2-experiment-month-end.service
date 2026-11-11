@@ -1,0 +1,13 @@
+# поток: mkt / ozon
+[Unit]
+Description=Stop bound Ozon monthly experiment
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/ops/ozon_acc2_experiment_deadline_stop.py --manifest /opt/mp-analytics/docs/reports/ozon_acc2_monthly_experiment_20261108/activation_20261109/run_20261109_161830/calendar_stop_first_running_confirmed.json --manifest-sha256 0420a3f166b78cdba993faee67cae3d23f443b07e83c0eff6e68094cacc37a01 --bindings /opt/mp-analytics/docs/reports/ozon_acc2_monthly_experiment_20261108/activation_20261109/run_20261109_161830/calendar_stop_first_running_confirmed_bindings.json --execute
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=10min

@@ -21,7 +21,8 @@ from pydantic import BaseModel
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
-from core import db  # noqa: E402
+from core import db, opex_close as _oc  # noqa: E402
+from web import opex_finance as _of
 from core.ozon_posting import posting_money_sql
 from cf.mp_forecast import ACC_ORG as _CF_ACC_ORG  # noqa: E402
 import collectors.bank_txn_store as txn_store  # noqa: E402  правила разметки выписки (поток inv)
@@ -36,6 +37,7 @@ from web.mp_inventory_api import router as mp_inventory_router  # поток: fi
 from web.cashflow_api import router as cashflow_router  # noqa: E402  кэшфлоу (cf)
 from web.turnover_api import router as turnover_router  # noqa: E402
 from web.kudir_api import router as kudir_router  # поток: fin
+from web.warehouse_workload_report import router as warehouse_workload_router  # поток: fin
 
 app.include_router(diary_router)
 app.include_router(wh_loss_router)
@@ -43,12 +45,15 @@ app.include_router(mp_inventory_router)
 app.include_router(cashflow_router)
 app.include_router(turnover_router)
 app.include_router(kudir_router)
+app.include_router(warehouse_workload_router)
 
 
 from web.shipment_guard_api import router as shipment_guard_router  # поток: fin
 app.include_router(shipment_guard_router)
 from web.customer_guard_api import router as customer_guard_router  # поток: fin
 app.include_router(customer_guard_router)
+from web.print_api import router as print_router  # поток: print
+app.include_router(print_router)
 
 
 # ── Ограниченный доступ: сотрудник раздела «Новинки» (поток prc) ───────────────
@@ -99,12 +104,33 @@ def dashboard():
     return (STATIC / "index.html").read_text(encoding="utf-8")
 
 
+@app.get("/static/mp_report_period.js")
+def mp_report_period_script():
+    return FileResponse(STATIC / "mp_report_period.js", media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/api/meta")
 def meta():
     """Доступные срезы для фильтров (площадка/аккаунт/период)."""
     rows = db.query("""SELECT DISTINCT platform, account,
         period_from::text period_from, period_to::text period_to
         FROM margin_by_sku ORDER BY 1,2,3""")
+    return {"slices": rows}
+
+
+@app.get("/api/business/meta")
+def business_meta():
+    """Monthly summaries can exist even while SKU details are being recovered."""
+    from reports import archived_finance
+    rows = meta()['slices']
+    have = {(r['platform'], r['account'], r['period_from']) for r in rows}
+    rows += [r for r in archived_finance.slices()
+             if (r['platform'], r['account'], r['period_from']) not in have]
+    from reports import recovered_finance
+    have = {(r['platform'], r['account'], r['period_from']) for r in rows}
+    rows += [r for r in recovered_finance.slices()
+             if (r['platform'], r['account'], r['period_from']) not in have]
     return {"slices": rows}
 
 
@@ -128,6 +154,7 @@ def _summary_one(platform, account, period):
         coalesce(sum(qty),0)::float qty,
         coalesce(sum(revenue_buyer),0)::float revenue,
         coalesce(sum(cogs),0)::float cogs,
+        count(*) FILTER (WHERE cogs IS NULL OR net_profit IS NULL) unknown_cost_rows,
         coalesce(sum(commission),0)::float commission,
         coalesce(sum(logistics),0)::float logistics,
         coalesce(sum(net_profit),0)::float net,
@@ -175,6 +202,10 @@ def _summary_one(platform, account, period):
     r["returns_qty"] = adv["ret_qty"]
     # нераспределённые = удержания WB без привязки к товару (хранение + реклама + отзывы + прочее)
     r["unalloc"] = round(adv["storage_all"] + adv["ded_all"], 2)
+    if not r['n_sku'] or r['unknown_cost_rows']:
+        for k in ('cogs', 'net', 'net_activity', 'net_other', 'margin_pct',
+                  'margin_wb', 'margin_own', 'loss_count', 'loss_sum', 'loss_qty'):
+            r[k] = None
     return r
 
 
@@ -390,8 +421,9 @@ def _opex_is_fact(month):
     его разметит (пока разметки нет — цифра истории не шевелится)."""
     if month >= OPEX_FACT_SINCE:
         return True
-    return db.query("SELECT EXISTS(SELECT 1 FROM opex_fact_month WHERE month=%s) e",
-                    (month,))[0]["e"]
+    return db.query("""SELECT EXISTS(SELECT 1 FROM opex_fact_month WHERE month=%s)
+                    OR EXISTS(SELECT 1 FROM opex_month_closure WHERE month=%s AND reopened_at IS NULL) e""",
+                    (month,month))[0]["e"]
 
 
 def _opex_total(period, org=""):
@@ -420,6 +452,9 @@ def _opex_org_split(period):
 
 def _opex_unassigned(month, org=""):
     """Сколько расходных платежей месяца ещё без статьи — чтобы итог не выглядел готовым."""
+    frozen = _oc.summary(org, month) if org else None
+    if frozen is not None:
+        return frozen["unassigned"]
     w, p = ["t.direction='DEBIT'", "a.txn_id IS NULL",
             "date_trunc('month', t.operation_date)::date=%s"], [month]
     if org:
@@ -454,27 +489,35 @@ def opex(period: str = "", org: str = ""):
         # и на вкладках площадок: витрины считали своё вторым путём и с отчётом расходились
         # (ВБ −2 % оборота, Маркет — в 11 раз по чистой). Разрез фирмы — её аккаунты площадок;
         # для общего снапшота (manual) — весь бизнес.
-        b = _mpn.business(period, org if org_split else "")
+        b = _of.business(period, org) if org_split else _mpn.business(period)
         pl = b["platforms"]
-        wb_net = (pl.get("wb") or {}).get("net") or 0
-        oz_net = (pl.get("ozon") or {}).get("net") or 0
+        wb_net = (pl.get("wb") or {}).get("net")
+        oz_net = (pl.get("ozon") or {}).get("net")
         # Маркет только у Цифрового Квадрата: у Дисквэра площадки нет — показываем прочерк.
         ya_net = (pl.get("yandex") or {}).get("net")
         biz = b["total"]["net"]
-        payload.update({"wb_net": round(wb_net, 2), "oz_net": round(oz_net, 2), "ya_net": ya_net,
-                        "biz_net": round(biz, 2), "net_after": round(biz - total, 2),
+        payload.update({"wb_net": None if wb_net is None else round(wb_net, 2),
+                        "oz_net": None if oz_net is None else round(oz_net, 2), "ya_net": ya_net,
+                        "biz_net": None if biz is None else round(biz, 2),
+                        "net_after": None if biz is None else round(biz - total, 2),
+                        "financials_complete": biz is not None,
+                        "profit_sources": b.get("sources", {}),
+                        "profit_provisional": b.get("provisional", []),
                         "total": round(total, 2), "period": period, "month": month,
                         "org": org, "org_name": ORG_NAMES[org], "orgs": orgs,
                         "org_split": org_split})
         return payload
 
+    frozen = _oc.summary(org, month)
+    if frozen is not None:
+        return _with_biz({"applies":True,"source":"fact",**frozen}, frozen['total'])
     if _opex_is_fact(month):
         items = db.query("""SELECT category_id, category, sum(amount)::float amount,
                                    sum(txn_count)::int txn_count
             FROM opex_fact_month WHERE month=%s AND org_inn=%s
             GROUP BY 1,2 ORDER BY 3 DESC""", (month, org))
         total = sum(i["amount"] for i in items)
-        return _with_biz({"applies": True, "source": "fact", "items": items,
+        return _with_biz({"applies": True, "source": "fact", "items": items, "closed":False,
                           "unassigned": _opex_unassigned(month, org)}, total)
 
     total, snap = _opex_snapshot_total(period)
@@ -610,6 +653,10 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
     if not month:
         return {"month": None, "org": org, "orgs": [], "items": [], "totals": {}}
     month = _opex_month(month)      # принимает и «2026-08», и «2026-08-01»
+    bank = bank if bank.isalpha() else ""
+    frozen = _oc.statement(org,month,bank=bank,direction=direction,cat=cat,only=only)
+    if frozen is not None:
+        return frozen
     # Банк подставляется в три запроса — держим его отдельным куском условия
     bank = bank if bank.isalpha() else ""
     bw = " AND t.bank = %s" if bank else ""
@@ -630,6 +677,7 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
         SELECT t.id, t.bank, t.org_inn, t.operation_date::text, t.direction, t.amount::float,
                t.document_number, t.purpose, t.cp_name, t.cp_inn,
                a.category_id, c.name AS category, a.spread_months, a.start_month::text, a.source,
+               opex_assignment_locked(t.id,a.start_month,a.spread_months) AS edit_locked,
                -- направление разнесения не храним отдельно: оно уже видно по start_month
                (a.start_month < date_trunc('month', t.operation_date)::date) AS spread_back,
                -- ТОЛЬКО EXISTS: обычный JOIN размножал строку выписки по числу правил
@@ -687,7 +735,7 @@ def opex_statement(org: str = "", month: str = "", only: str = "all", direction:
     months = [r["m"] for r in db.query(
         "SELECT DISTINCT date_trunc('month', operation_date)::date::text m "
         "FROM bank_txn WHERE org_inn=%s ORDER BY 1 DESC", (org,))]
-    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "only": only, "cat": cat,
+    return {"month": month, "org": org, "org_name": ORG_NAMES[org], "closed":False, "only": only, "cat": cat,
             "bank": bank, "items": items, "totals": tot, "by_cat": by_cat, "by_bank": by_bank,
             "orgs": orgs, "months": months}
 
@@ -720,6 +768,9 @@ def opex_assign(payload: OpexAssign):
     if txn["direction"] != "DEBIT":
         return {"ok": False, "error": "статья присваивается только расходу"}
     n, back = _opex_spread(payload.spread_months)
+    proposed_start = _opex_start_month(txn["operation_date"], n, back) if payload.category_id else None
+    if _oc.locked(payload.txn_id,proposed_start,n):
+        return {"ok":False,"closed":True,"error":"Месяц расходов закрыт или разнесение затрагивает закрытый месяц. Откройте нужный месяц для исправления."}
 
     if not payload.category_id:
         db.execute("DELETE FROM bank_txn_opex WHERE txn_id=%s", (payload.txn_id,))
@@ -817,28 +868,35 @@ def opex_rules():
     """Запомненные правила разметки: контрагент (+ необязательный фрагмент назначения) → статья.
     `n_auto` — сколько платежей сейчас размечено автоматически по этому правилу."""
     return {"items": db.query("""
+        WITH auto_counts AS MATERIALIZED (
+            -- Compute the winner view once for the whole list, not once per rule.
+            SELECT m.rule_id, count(*) n, sum(t.amount) s
+            FROM opex_rule_match m
+            JOIN bank_txn t ON t.id=m.txn_id
+            JOIN bank_txn_opex a ON a.txn_id=m.txn_id AND a.source='rule' AND a.category_id=m.category_id
+            GROUP BY m.rule_id
+        ), latest_names AS MATERIALIZED (
+            SELECT DISTINCT ON (match_key) match_key, cp_name
+            FROM (
+                SELECT 'inn:'||cp_inn match_key, cp_name, operation_date, id
+                FROM bank_txn WHERE coalesce(cp_inn,'')<>''
+                UNION ALL
+                SELECT 'name:'||regexp_replace(lower(coalesce(cp_name,'')),
+                       '[^0-9a-zа-яё]+','','g') match_key, cp_name, operation_date, id
+                FROM bank_txn
+            ) names
+            ORDER BY match_key, operation_date DESC, id DESC
+        )
         SELECT r.id, r.cp_inn, r.cp_name_key, r.purpose_like, r.spread_months, r.spread_back,
                r.amount_min::float AS amount_min, r.amount_max::float AS amount_max,
                r.category_id, c.name AS category,
                coalesce(k.cp_name, '') AS cp_name,
                coalesce(x.n, 0)::int AS n_auto, coalesce(x.s, 0)::float AS s_auto
         FROM opex_rule r
-        JOIN opex_category c ON c.id = r.category_id
-        -- живое имя контрагента: в правиле хранится только ИНН/ключ имени
-        LEFT JOIN LATERAL (
-            SELECT t.cp_name FROM bank_txn t
-            WHERE (coalesce(r.cp_inn,'') <> '' AND t.cp_inn = r.cp_inn)
-               OR (coalesce(r.cp_inn,'') =  '' AND r.cp_name_key =
-                   regexp_replace(lower(coalesce(t.cp_name,'')), '[^0-9a-zа-яё]+', '', 'g'))
-            ORDER BY t.operation_date DESC LIMIT 1) k ON TRUE
-        -- считаем только платежи, где ЭТО правило победило: иначе платёж, подходящий
-        -- и под общее правило контрагента, и под уточнённое, попадал бы в оба счётчика
-        LEFT JOIN LATERAL (
-            SELECT count(*) n, sum(t.amount) s
-            FROM opex_rule_match m
-            JOIN bank_txn t ON t.id = m.txn_id
-            JOIN bank_txn_opex a ON a.txn_id = m.txn_id AND a.source = 'rule'
-            WHERE m.rule_id = r.id) x ON TRUE
+        JOIN opex_category c ON c.id=r.category_id
+        LEFT JOIN latest_names k ON k.match_key=CASE WHEN coalesce(r.cp_inn,'')<>''
+            THEN 'inn:'||r.cp_inn ELSE 'name:'||r.cp_name_key END
+        LEFT JOIN auto_counts x ON x.rule_id=r.id
         ORDER BY c.name, coalesce(k.cp_name, r.cp_inn, r.cp_name_key)""")}
 
 
@@ -865,6 +923,23 @@ def opex_rule_delete(payload: OpexRuleDelete):
             (payload.rule_id,))
     db.execute("DELETE FROM opex_rule WHERE id=%s", (payload.rule_id,))
     return {"ok": True, "dropped": dropped or 0, "reruled": txn_store.apply_rules()}
+
+
+class OpexMonthAction(BaseModel):
+    org: str
+    month: str
+
+
+@app.post("/api/opex/month/{action}")
+def opex_month_action(action:str,payload:OpexMonthAction):
+    try:
+        if action=='close':
+            return {"ok":True,"closed":True,"result":_oc.close_many([(payload.org,payload.month)])[0]}
+        if action=='reopen':
+            return _oc.reopen(payload.org,payload.month)
+        return {"ok":False,"error":"Неизвестное действие"}
+    except ValueError as exc:
+        return {"ok":False,"error":str(exc)}
 
 
 @app.get("/api/opex/fact")
@@ -914,13 +989,16 @@ def _biz_for(period):
               "revenue_wb", "adv_spend", "reviews_spend", "storage_all", "returns_sum",
               "loss_count", "loss_sum", "loss_qty", "unalloc"):
         agg[k] = sum((p.get(k) or 0) for _, p in per)
+    for k in ('net', 'cogs', 'loss_count', 'loss_sum', 'loss_qty'):
+        if not per or any(p.get(k) is None for _, p in per):
+            agg[k] = None
     rev, own, wb_rev = agg["revenue"], agg["own_revenue"], agg["revenue_wb"]
-    agg["margin_pct"] = round(agg["net"] / rev * 100, 1) if rev else None
-    agg["margin_own"] = round(agg["net"] / own * 100, 1) if own else None
+    agg["margin_pct"] = round(agg["net"] / rev * 100, 1) if rev and agg['net'] is not None else None
+    agg["margin_own"] = round(agg["net"] / own * 100, 1) if own and agg['net'] is not None else None
     # СПП = (наша цена − «ВБ реализовал») / наша цена; revenue витрины = наша цена
     agg["spp_pct"] = round((rev - wb_rev) / rev * 100, 1) if rev and wb_rev else None
-    agg["margin_wb"] = round(agg["net"] / wb_rev * 100, 1) if wb_rev else None
-    agg["cogs_pct"] = round(agg["cogs"] / rev * 100, 1) if rev else None
+    agg["margin_wb"] = round(agg["net"] / wb_rev * 100, 1) if wb_rev and agg['net'] is not None else None
+    agg["cogs_pct"] = round(agg["cogs"] / rev * 100, 1) if rev and agg['cogs'] is not None else None
     agg["commission_pct"] = round(agg["commission"] / rev * 100, 1) if rev else None
     agg["logi_pct"] = round(agg["logistics"] / rev * 100, 1) if rev else None
     agg["adv_pct"] = round(agg["adv_spend"] / rev * 100, 1) if rev else None
@@ -991,6 +1069,13 @@ def _bank_money(org=""):
             "accounts": accounts, "missing": missing}
 
 
+def _optional_accounting_cogs(period):
+    """The separately imported accounting comparison may be absent after recovery."""
+    if not db.query("SELECT to_regclass('public.cogs_actual') IS NOT NULL available")[0]["available"]:
+        return None
+    return db.query("SELECT coalesce(sum(cogs),0)::float c FROM cogs_actual WHERE month=%s", (period,))[0]["c"]
+
+
 @app.get("/api/business")
 def business(period: str = "", org: str = ""):
     """Главный экран: показатели за месяц + расходы + динамика к прошлому месяцу.
@@ -1001,6 +1086,32 @@ def business(period: str = "", org: str = ""):
     if not period:
         period = db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
     org = org if org in ORG_NAMES else ""
+    from reports import archived_finance
+    archived_periods = archived_finance.periods()
+    period = period or (archived_periods[-1]+'-01' if archived_periods else None)
+    from reports import recovered_finance
+    if not period and recovered_finance.state():
+        period = max((r['period_from'] for r in recovered_finance.slices()), default=None)
+    saved = archived_finance.business(period, org) if period else None
+    if not saved and period:
+        saved = recovered_finance.business(period, org)
+    if saved:
+        saved.update(org=org, org_name=ORG_NAMES.get(org),
+                     orgs=[{"inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER])
+        for a in saved['accounts']:
+            a.update(name=ACC_ORG_NAMES.get(a['account'], a['account']), revenue=a['oborot'])
+            a['platform'] = {'wb': 'ВБ', 'ozon': 'Ozon', 'yandex': 'Маркет'}[a['platform']]
+        from web.home_finance import enrich
+        saved = enrich(saved, org, ORG_ORDER, db.query, _opex_total,
+                       _opex_unassigned, _bank_money, _mp_money)
+        return saved
+    if not period:
+        return {"period": None, "data_available": False, "org": org,
+                "org_name": ORG_NAMES.get(org),
+                "orgs": [{"inn": i, "name": ORG_NAMES[i]} for i in ORG_ORDER],
+                "total": {k: None for k in ("revenue", "net", "cogs", "margin_pct")},
+                "accounts": [], "net_after_opex": None, "opex": None,
+                "prev_period": None, "delta": None}
     cur, per = _biz_for(period)            # WB-разрез витрины: СПП, комиссия, реклама — для дельт
     oz = _oz_summary("", period)           # Ozon-разрез транзакций: категории расходов, дельты
     # ВЕРХНИЕ ПОКАЗАТЕЛИ — из «Отчётов МП» (`reports.mp_numbers`), а не вторым счётом:
@@ -1033,7 +1144,7 @@ def business(period: str = "", org: str = ""):
     t_cogs = sum((cur.get(k) or {}).get("cogs") or 0 for k in ("wb", "ozon", "yandex"))
     t_hold = sum((cur.get(k) or {}).get("hold") or 0 for k in ("wb", "ozon", "yandex"))
     # Учётная себестоимость (из таблицы расходов, Цифровой) за период — для сверки рядом
-    ca = db.query("SELECT coalesce(sum(cogs),0)::float c FROM cogs_actual WHERE month=%s", (period,))[0]["c"]
+    ca = _optional_accounting_cogs(period)
     cur["total"] = {"revenue": round(t_rev, 2), "net": round(t_net, 2), "cogs": round(t_cogs, 2),
                     "margin_pct": round(t_net / t_rev * 100, 1) if t_rev else None,
                     "cogs_pct": round(t_cogs / t_rev * 100, 1) if t_rev else None,
@@ -1119,8 +1230,8 @@ def trend():
             "cogs_pct": b["cogs_pct"], "commission_pct": b["commission_pct"],
             "logi_pct": b["logi_pct"], "spp_pct": b["spp_pct"], "adv_pct": b["adv_pct"],
         })
-    ytd = {k: round(sum(m[k] or 0 for m in months), 2) for k in ("revenue", "net", "qty")}
-    ytd["margin_pct"] = round(ytd["net"] / ytd["revenue"] * 100, 1) if ytd["revenue"] else None
+    ytd = {k: _mpn._sum_known(months, k) for k in ("revenue", "net", "qty")}
+    ytd["margin_pct"] = round(ytd["net"] / ytd["revenue"] * 100, 1) if ytd['revenue'] and ytd['net'] is not None else None
     return {"months": months, "ytd": ytd}
 
 
@@ -1128,6 +1239,10 @@ def trend():
 def advice(period: str = ""):
     """Аналитический слой: приоритизированные советы из цифр (детерминированно, без ИИ-вызова).
     Поверх этого можно подключить LLM для свободных вопросов — данные те же."""
+    from reports import recovered_finance
+    if recovered_finance.state():
+        return {"period": period, "tips": [{"sev": "info", "title": "Восстановление данных",
+                 "text": "Рекомендации появятся после сверки себестоимости и расходов."}]}
     if not period:
         period = db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
     b, _ = _biz_for(period)
@@ -1236,6 +1351,9 @@ def weekly(platform: str = "", account: str = "", period: str = "", rolling: int
     количества. opmargin = (к перечислению − логистика − COGS)/выр (без накладных: реклама/хранение
     лумпи); net% — с накладными. rolling>0 — скользящие последние N недель через все месяцы
     (себест/ед — глобальная, т.к. replacement-cost стабилен); иначе — недели выбранного месяца."""
+    from reports import recovered_finance
+    if recovered_finance.state():
+        return {"rows": [], "reason": "weekly_costs_not_validated"}
     accts = [account] if account else ["wb_acc1", "wb_acc2"]   # пусто = оба ВБ
     if rolling and rolling > 0:
         # глобальная себест/ед по nm (стабильна) + все периоды; берём последние N недель
@@ -1449,8 +1567,8 @@ def _oz_month(period):
 
 def _oz_ops(account, df, dt):
     """payload-строки raw_ozon_transaction за период по operation_date (account опц.)."""
-    cond = "(payload->>'operation_date')::date BETWEEN %s AND %s"
-    p = [df, dt]
+    cond = "payload->>'operation_date'>=%s AND payload->>'operation_date'<%s"
+    p = [df, (_dt.date.fromisoformat(dt)+_dt.timedelta(days=1)).isoformat()]
     if account:
         cond += " AND account=%s"; p.append(account)
     return [r["payload"] for r in db.query(
@@ -1476,7 +1594,9 @@ def _oz_cogs(account, period):
     w, p = ["platform='ozon'", "period_from=%s"], [period]
     if account:
         w.append("account=%s"); p.append(account)
-    return db.query(f"SELECT coalesce(sum(cogs),0)::float c FROM margin_by_sku WHERE {' AND '.join(w)}", p)[0]["c"]
+    r = db.query(f"SELECT sum(cogs)::float c, count(*) n, count(*) FILTER (WHERE cogs IS NULL) unknown "
+                 f"FROM margin_by_sku WHERE {' AND '.join(w)}", p)[0]
+    return r['c'] if r['n'] and not r['unknown'] else None
 
 
 def _oz_summary(account, period):
@@ -1485,12 +1605,12 @@ def _oz_summary(account, period):
     to_payout = sum(cats.values())
     cogs = _oz_cogs(account, period)
     rev = cats["revenue"]
-    net = to_payout - cogs
+    net = to_payout - cogs if cogs is not None else None
     return {
-        "revenue": round(rev, 2), "to_payout": round(to_payout, 2), "cogs": round(cogs, 2),
-        "overhead": round(overhead, 2), "net": round(net, 2),
-        "margin_pct": round(net / rev * 100, 1) if rev else None,
-        "cogs_pct": round(cogs / rev * 100, 1) if rev else None,
+        "revenue": round(rev, 2), "to_payout": round(to_payout, 2), "cogs": round(cogs, 2) if cogs is not None else None,
+        "overhead": round(overhead, 2), "net": round(net, 2) if net is not None else None,
+        "margin_pct": round(net / rev * 100, 1) if rev and net is not None else None,
+        "cogs_pct": round(cogs / rev * 100, 1) if rev and cogs is not None else None,
         "cats": {c: round(cats[c], 2) for c in CATEGORIES},
         "schema_rev": {k: round(v, 2) for k, v in schema_rev.items()},
     }
@@ -1528,12 +1648,12 @@ from urllib.parse import quote as _quote  # noqa: E402
 
 @app.get("/reports/fts", response_class=HTMLResponse)
 def reports_fts_page(period: str | None = None):
-    """Подраздел «Отчёты ФТС». Без period отдаём статику (её перерисовывает run_daily),
-    с period — строим на лету: архивные месяцы смотрят редко, держать файл на каждый незачем."""
-    if not period:
-        return (STATIC / "reports_fts.html").read_text(encoding="utf-8")
+    """Актуальные данные ФТС; по умолчанию последний завершённый месяц."""
     import reports.fts_page as _fts
-    return _fts.html_for(_fts_period(period))
+    import datetime as _dt
+    selected = (_fts_period(period) if period else
+                (_dt.date.today().replace(day=1) - _dt.timedelta(days=1)).replace(day=1))
+    return _fts.html_for(selected)
 
 
 def _fts_period(period: str):
@@ -1543,8 +1663,20 @@ def _fts_period(period: str):
         raise HTTPException(status_code=400, detail="период задаётся как YYYY-MM")
 
 
+@app.get("/reports/fts/export/{period}.csv")
+def reports_fts_export(period: str):
+    from reports import fts_report as _fts
+    from fastapi.responses import Response
+    try:
+        content = _fts.csv_for(_fts_period(period))
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error))
+    return Response(content, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="fts_{period}.csv"'})
+
+
 @app.get("/reports/fts/form/{period}/{country}.xml")
-def reports_fts_form(period: str, country: str):
+def reports_fts_form(period: str, country: str, account: str | None = None):
     """Готовая статформа для загрузки в ЛК ФТС — одна страна, один отчётный месяц.
 
     Генерируем на лету, а не отдаём файл с диска: состав отправлений может измениться
@@ -1552,7 +1684,7 @@ def reports_fts_form(period: str, country: str):
     import reports.fts_form as _form
     per = _fts_period(period)
     try:
-        xml = _form.make_xml(per, country.upper())
+        xml = _form.make_xml(per, country.upper(), account=account)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     name = _form.filename(per, country.upper())
@@ -1586,9 +1718,13 @@ def fts_status(payload: FtsStatus):
 
 
 @app.get("/reports/upd", response_class=HTMLResponse)
-def reports_upd_page():
-    """Подраздел «УПД по выкупам ВБ»."""
-    return (STATIC / "reports_upd.html").read_text(encoding="utf-8")
+def reports_upd_page(period: str | None = None):
+    """Живые уведомления о выкупе; по умолчанию прошлый месяц."""
+    from reports import upd_page
+    import datetime as _dt
+    selected = (None if period == "all" else _fts_period(period) if period else
+                (_dt.date.today().replace(day=1) - _dt.timedelta(days=1)).replace(day=1))
+    return upd_page.html_for(selected)
 
 
 @app.get("/reports/upd/file/{account}/{number}.xml")
@@ -1617,10 +1753,12 @@ class UpdStatus(BaseModel):
 def upd_status(payload: UpdStatus):
     """Отметить, что УПД по уведомлению выгружен в Диадок (или вернуть в «к выгрузке»)."""
     done = payload.made
-    db.execute("""UPDATE wb_redeem_notice SET upd_status=%s, upd_made_at=%s
+    changed = db.execute("""UPDATE wb_redeem_notice SET upd_status=%s, upd_made_at=%s
                    WHERE account=%s AND doc_number=%s""",
                ("made" if done else "due", _datetime.now(_tz.utc) if done else None,
                 payload.account, payload.doc_number))
+    if not changed:
+        raise HTTPException(status_code=404, detail="Уведомление не найдено")
     import reports.upd_page as _upd_page
     _upd_page.render()
     return {"ok": True, "status": "made" if done else "due"}
@@ -2294,7 +2432,7 @@ def suppliers_payment_terms_queue(org: str | None = None):
     if org:
         where, params = "AND q.org_inn = %s", (org,)
     rows = db.query(f"""SELECT q.id, q.org_inn, q.inn, t.name, q.kind, q.amount::float amount,
-        q.covers_po_ids, q.status, q.alfa_external_id, q.note, q.created_at::text created_at
+        q.covers_po_ids, q.status, q.alfa_external_id, q.note, q.recovery_hold, q.created_at::text created_at
         FROM payment_draft_queue q
         LEFT JOIN supplier_payment_terms t USING (org_inn, inn)
         WHERE q.status <> 'sent_sandbox' {where}
@@ -2510,7 +2648,8 @@ def suppliers(q: str = "", limit: int = 200):
         return {"captured": None, "supplier_count": 0, "suppliers": [],
                 "totals": {}, "stores": []}
     raw = db.query("""SELECT coalesce(supplier,'— не указан') s, count(DISTINCT ms_id) n,
-        sum(CASE WHEN coalesce(sold_30d,0)>0 THEN 1 ELSE 0 END) moving,
+        CASE WHEN count(sold_30d)=count(*) THEN
+          sum(CASE WHEN sold_30d>0 THEN 1 ELSE 0 END) ELSE NULL END moving,
         round(sum(stock*cost_seb)::numeric,0)::float val
         FROM supplier_stock WHERE captured_at=%s AND store='Удаленный склад' AND stock>0
         GROUP BY 1""", (cap,))
@@ -2526,10 +2665,11 @@ def suppliers(q: str = "", limit: int = 200):
     for r in raw:
         name = r["s"]
         k = _canon_supplier(name) or name.lower()
-        m = merged.setdefault(k, {"key": k, "names": [], "n": 0, "moving": 0, "val": 0.0, "closed": False})
+        m = merged.setdefault(k, {"key": k, "names": [], "n": 0, "moving": 0, "moving_known": True, "val": 0.0, "closed": False})
         m["names"].append((name, r["moving"] or 0, r["n"] or 0))
         m["n"] += r["n"] or 0
         m["moving"] += r["moving"] or 0
+        m["moving_known"] = m["moving_known"] and r['moving'] is not None
         m["val"] += r["val"] or 0
         if "закрыт" in (name or "").lower():
             m["closed"] = True
@@ -2541,9 +2681,9 @@ def suppliers(q: str = "", limit: int = 200):
         days = (today - last).days if last else None
         # кандидат на удаление: закрыт, ИЛИ давно не закупались И товар не движется
         dormant = (not unspecified) and (
-            m["closed"] or ((days is None or days > 90) and m["moving"] == 0))
+            m["closed"] or ((days is None or days > 90) and m['moving_known'] and m["moving"] == 0))
         rows.append({"supplier": disp, "variants": len(m["names"]), "n": m["n"],
-                     "moving": m["moving"], "val": round(m["val"]),
+                     "moving": m["moving"] if m['moving_known'] else None, "val": round(m["val"]),
                      "last_supply": last.isoformat() if last else None,
                      "days_since": days, "closed": m["closed"], "dormant": dormant})
     rows.sort(key=lambda x: -(x["val"] or 0))
@@ -2558,7 +2698,8 @@ def suppliers(q: str = "", limit: int = 200):
         FROM supplier_stock WHERE captured_at=%s AND store IN ('Удаленный склад','Транзит') AND stock>0
         GROUP BY 1 ORDER BY val DESC NULLS LAST""", (cap,))
     return {"captured": cap, "supplier_count": len(rows), "totals": totals,
-            "suppliers": active[:limit], "stores": stores}
+            "suppliers": active[:limit], "stores": stores,
+            "turnover_known": all(r['moving'] is not None for r in raw)}
 
 
 @app.get("/api/suppliers/purchases")
@@ -2592,8 +2733,15 @@ def supplier_purchases_month():
               "by": {m: {"s": sum(g["by"].get(m, {}).get("s", 0) for g in out),
                          "r": sum(g["by"].get(m, {}).get("r", 0) for g in out)} for m in months}}
     totals["net"] = totals["supply"] - totals["ret"]
-    cur = _dt.date.today().replace(day=1).isoformat()
-    return {"months": months, "groups": out, "totals": totals, "updated": upd, "current": cur}
+    from core.supplier_purchase_history import today as purchase_today
+    cur = purchase_today().replace(day=1).isoformat()
+    periods = db.query("""SELECT month::text AS "month",closed_at::text AS closed_at,
+        refreshed_at::text updated,sha256 FROM supplier_purchase_period ORDER BY month""")
+    months = sorted(set(months) | {p['month'] for p in periods})
+    for p in periods:
+        totals['by'].setdefault(p['month'], {'s': 0, 'r': 0})
+    return {"months": months, "groups": out, "totals": totals, "updated": upd, "current": cur,
+            "periods": periods}
 
 
 @app.get("/api/stale")
@@ -2967,7 +3115,9 @@ def _novelty_link(raw):
 
 
 @app.get("/api/novelties/launch")
-def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
+def novelties_launch(days: int = 30, gaps: bool = True, supplier: str = "",
+                     recovered_page: int = 1, recovered_search: str = "", recovered_gaps: bool = True,
+                     page: int = 1, search: str = ""):
     """Отчёт «Запуск на МП»: как скоро заведённая модель доезжает до продажи на витринах.
 
     Единица — ВНЕШНИЙ КОД (модель), а не карточка МС: карточек на коде столько, сколько
@@ -2980,9 +3130,14 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
     import datetime
     from collectors.launch_track import SHOWCASES
     from prices import sup_group
+    from collectors.launch_cards import problem_codes
+    review_codes = problem_codes()
     keys = [k for k, _ in SHOWCASES]
+    health={r['showcase']:r for r in db.query('SELECT showcase,status,note,checked_at FROM prc_launch_source_state')}
+    observation=db.query('SELECT baseline_date FROM prc_launch_observation WHERE singleton')
+    baseline=observation[0]['baseline_date'] if observation else None
     today = datetime.date.today()
-    since = today - datetime.timedelta(days=days) if days else datetime.date(2026, 6, 14)
+    since = today - datetime.timedelta(days=days) if days else datetime.date.min
 
     # Две таблицы страницы — «свежие» (окно фильтра) и «прошлых месяцев» (заведены больше
     # недели назад и хотя бы одной витрины до сих пор нет) — рисуются одинаково, поэтому
@@ -2993,15 +3148,34 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
                         ORDER BY ms_created DESC, external_code""", (since,))
     old_rows = db.query("""
         SELECT l.external_code, l.ms_created, l.ms_name, l.supplier_key, l.cards, l.archived
-          FROM prc_launch l JOIN prc_launch_mp p USING (external_code)
+          FROM prc_launch l JOIN prc_launch_primary p USING (external_code)
          WHERE l.ms_created IS NOT NULL AND l.ms_created <= %s AND NOT l.archived
-         GROUP BY 1, 2, 3, 4, 5, 6 HAVING count(*) FILTER (WHERE p.state = 'none') > 0
+         GROUP BY 1, 2, 3, 4, 5, 6
          ORDER BY l.ms_created DESC, l.external_code""", (today - datetime.timedelta(days=7),))
-    codes = sorted({r["external_code"] for r in rows} | {r["external_code"] for r in old_rows})
+    old_rows = [r for r in old_rows if r['external_code'] in review_codes]
+    from web.launch_recovery import undated_models, model_supplier_groups, dated_page
+    cohort_rows = rows
+    model_groups = model_supplier_groups([r['external_code'] for r in db.query('SELECT external_code FROM prc_launch WHERE ms_created IS NOT NULL')])
+    dated = dated_page(rows, page, search, gaps, supplier, review_codes, model_groups)
+    rows = dated.pop('models')
+    selected_codes = dated.pop('codes')
+    old_rows = [r for r in old_rows if r['external_code'] not in selected_codes]
+    older_selection = dated_page(old_rows, 1, search, True, supplier, review_codes, model_groups)
+    older_total = older_selection['total']
+    old_rows = older_selection['models']
+    recovered = undated_models(recovered_page, recovered_search, recovered_gaps, supplier,
+                               failed=any(h.get('status') == 'error' for h in health.values()), problems=review_codes)
+    recovered_rows = recovered.pop('models')
+    codes = sorted({r["external_code"] for r in rows + old_rows + recovered_rows})
     mp = {}
     for m in db.query("""SELECT external_code, showcase, state, card_at, selling_at, seeded, offer, note
-                           FROM prc_launch_mp WHERE external_code = ANY(%s)""", (codes or [""],)):
+                           FROM prc_launch_primary WHERE external_code = ANY(%s)""", (codes or [""],)):
+        if health.get(m['showcase'],{}).get('status')=='error':
+            m=dict(m,state='unknown',note='Источник временно не обновлён; текущий статус не подтверждён')
         mp.setdefault(m["external_code"], {})[m["showcase"]] = m
+
+    from collectors.launch_cards import summaries
+    card_groups = summaries(codes,health)
 
     # Остаток и продажи новинки. Остаток — последний срез МС (без склада «Брак»: там товар
     # не продаётся); продажи — отгрузки МойСклада, а это ЕДИНСТВЕННЫЙ факт, общий для всех
@@ -3029,7 +3203,7 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
     def cell(r, m):
         """Клетка витрины: состояние, причина и сколько дней от заведения до продажи."""
         if not m:
-            return {"state": "none", "note": "", "days": None, "about": False, "offer": None}
+            return {"state": "unknown", "note": "Нет подтверждённого снимка", "days": None, "about": False, "offer": None}
         days_ = None
         about = False                      # «≤ N дней»: переход мы не видели, карточка уже была
         if m["selling_at"] and r["ms_created"]:
@@ -3042,35 +3216,35 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
     def group(r):
         """Группа поставщика: разнобой имён (ключ прайса, юрлицо из остатков) — к справочнику."""
         st = stock.get(r["external_code"]) or {}
-        return sup_group.group_of(r["supplier_key"] or st.get("supplier"))
+        return r["supplier_key"] or sup_group.group_of(st.get("supplier"))
 
     def make(r):
         st, sl = stock.get(r["external_code"]), sold.get(r["external_code"])
         cells = {k: cell(r, (mp.get(r["external_code"]) or {}).get(k)) for k in keys}
-        return {"ext": r["external_code"], "created": str(r["ms_created"]),
+        for k in keys:
+            cells[k]['groups'] = card_groups.get(r['external_code'],{}).get(k,{})
+            cells[k]['ext'] = r['external_code']
+            cells[k]['showcase'] = k
+        return {"ext": r["external_code"], "created": str(r["ms_created"]) if r["ms_created"] else None,
                 "name": r["ms_name"], "supplier": group(r), "cards": r["cards"],
                 "archived": r["archived"], "mp": cells,
-                "days_old": (today - r["ms_created"]).days,
+                "days_old": (today - r["ms_created"]).days if r["ms_created"] else None,
                 "stock": int(st["st"] or 0) if st else 0,
                 "transit": int(st["tr"] or 0) if st else 0,
                 "sold": float(sl["qty"] or 0) if sl else 0,
                 "first_sale": str(sl["first_sale"]) if sl and sl["first_sale"] else None,
                 "sale_days": (sl["first_sale"] - r["ms_created"]).days
-                             if sl and sl["first_sale"] else None}
+                             if sl and sl["first_sale"] and r["ms_created"] else None}
 
-    out, funnel = [], {k: {"none": 0, "card": 0, "selling": 0} for k in keys}
-    for r in rows:
-        row = make(r)
-        for k in keys:
-            funnel[k][row["mp"][k]["state"]] += 1
-        if supplier and row["supplier"] != supplier:
-            continue
-        if gaps and all(c["state"] == "selling" for c in row["mp"].values()):
-            continue
-        out.append(row)
+    out = [make(r) for r in rows]
     older = [make(r) for r in old_rows]
-    if supplier:
-        older = [r for r in older if r["supplier"] == supplier]
+    funnel = {k: {"none": 0, "card": 0, "selling": 0, "unknown": 0} for k in keys}
+    for r in db.query("""SELECT p.showcase,p.state,count(*) n FROM prc_launch_primary p
+                          JOIN prc_launch l USING(external_code)
+                         WHERE l.ms_created >= %s GROUP BY 1,2""", (since,)):
+        if r['showcase'] in funnel:
+            state = 'unknown' if health.get(r['showcase'],{}).get('status') == 'error' else r['state']
+            funnel[r['showcase']][state] += r['n']
 
     months = {m["m"]: {"m": m["m"], "models": m["c"], "cards": 0, "any": m["a"], "all": m["b"]}
               for m in db.query("""
@@ -3079,7 +3253,7 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
           FROM prc_launch l
           LEFT JOIN (SELECT external_code, bool_or(state = 'selling') any_sell,
                             bool_and(state = 'selling') all_sell
-                       FROM prc_launch_mp GROUP BY 1) s USING (external_code)
+                       FROM prc_launch_primary GROUP BY 1) s USING (external_code)
          WHERE l.ms_created IS NOT NULL GROUP BY 1""")}
     for c in db.query("""SELECT to_char(f, 'YYYY-MM') m, count(*) c FROM (
                            SELECT p.ms_id, min(r.loaded_at)::date f
@@ -3094,46 +3268,71 @@ def novelties_launch(days: int = 30, gaps: bool = False, supplier: str = ""):
     # перевод имени в группу живёт в справочнике, а не в SQL.
     agg = {}
     for r in db.query("""
-        SELECT l.supplier_key, st.supplier, s.any_sell, s.all_sell, s.miss
+        SELECT l.external_code, l.supplier_key, st.supplier, s.any_sell, s.all_sell, s.miss
           FROM prc_launch l
           LEFT JOIN (SELECT external_code, bool_or(state = 'selling') any_sell,
                             bool_and(state = 'selling') all_sell,
-                            count(*) FILTER (WHERE state = 'none') miss
-                       FROM prc_launch_mp GROUP BY 1) s USING (external_code)
+                            count(*) FILTER (WHERE state <> 'selling') miss
+                       FROM prc_launch_primary GROUP BY 1) s USING (external_code)
           LEFT JOIN (SELECT external_code,
                             min(supplier) FILTER (WHERE supplier IS NOT NULL) supplier
                        FROM supplier_stock
                       WHERE captured_at = (SELECT max(captured_at) FROM supplier_stock)
                       GROUP BY 1) st USING (external_code)
          WHERE l.ms_created IS NOT NULL"""):
-        g = sup_group.group_of(r["supplier_key"] or r["supplier"]) or "—"
-        a = agg.setdefault(g, {"supplier": g, "models": 0, "full": 0, "any": 0, "miss": 0})
-        a["models"] += 1
-        a["full"] += 1 if r["all_sell"] else 0
-        a["any"] += 1 if r["any_sell"] else 0
-        a["miss"] += r["miss"] or 0
+        memberships = set(model_groups.get(r['external_code'], set()))
+        fallback = sup_group.group_of(r["supplier_key"] or r["supplier"])
+        if fallback: memberships.add(fallback)
+        for g in memberships or {'—'}:
+            a = agg.setdefault(g, {"supplier": g, "models": 0, "full": 0, "any": 0, "miss": 0})
+            a["models"] += 1
+            a["full"] += 1 if r["all_sell"] else 0
+            a["any"] += 1 if r["any_sell"] else 0
+            a["miss"] += r["miss"] or 0
+
     sup = sorted(agg.values(), key=lambda a: -a["models"])
     for a in sup:
         a["avg_miss"] = round(a.pop("miss") / a["models"], 1)
 
+    recovered['rows'] = [make(r) for r in recovered_rows]
+    recovered['funnel'] = {k: {state: 0 for state in ('none','card','selling','unknown')} for k in keys}
+    for r in db.query("""SELECT p.showcase,p.state,count(*) n FROM prc_launch_primary p
+                          JOIN prc_launch l USING(external_code)
+                         WHERE l.ms_created IS NULL AND NOT l.archived GROUP BY 1,2"""):
+        if r['showcase'] in recovered['funnel']:
+            state = 'unknown' if health.get(r['showcase'],{}).get('status') == 'error' else r['state']
+            recovered['funnel'][r['showcase']][state] += r['n']
     head = db.query("""SELECT count(*) FILTER (WHERE ms_created = %s) today,
                               count(*) FILTER (WHERE ms_created >= %s) d30,
-                              count(*) FILTER (WHERE ms_created IS NOT NULL) known
+                              count(*) FILTER (WHERE ms_created IS NOT NULL) known, count(*) models
                          FROM prc_launch""", (today, today - datetime.timedelta(days=30)))[0]
     sla = db.query("""SELECT percentile_cont(0.5) WITHIN GROUP (
                           ORDER BY (selling_at - l.ms_created)) med, count(*) n
-                        FROM prc_launch_mp p JOIN prc_launch l USING (external_code)
+                        FROM prc_launch_primary p JOIN prc_launch l USING (external_code)
                        WHERE p.selling_at IS NOT NULL AND l.ms_created IS NOT NULL""")[0]
     stale = db.query("""SELECT max(updated_at) u FROM prc_launch""")[0]["u"]
-    return {"showcases": [{"key": k, "title": t} for k, t in SHOWCASES],
+    coverage=('Наблюдение после восстановления: '+str(baseline)+'. ' if baseline else '')
+    coverage+='Дата появления старой карточки не подменяется датой переноса базы. Исторические даты восстановлены по событиям создания товаров МС, включая архивные карточки; без подтверждения дата остаётся пустой. Даты активности основной карточки накапливаются с начала отдельного учёта. Активность каталога не подтверждает возможность покупки.'
+    failed=[title for key,title in SHOWCASES if health.get(key,{}).get('status')=='error']
+    if failed:coverage+=' Не удалось обновить: '+', '.join(failed)+'.'
+    return {"recovered": recovered, "coverage":coverage,"sources":list(health.values()),"baseline":baseline,"showcases": [{"key": k, "title": t} for k, t in SHOWCASES],
             "today": head["today"], "d30": head["d30"], "known": head["known"],
-            "cohort": len(rows), "shown": len(out), "funnel": funnel,
+            "models":head["models"], "cohort": len(cohort_rows), "shown": len(out), "pagination": dated, "review_total": sum(r["external_code"] in review_codes for r in cohort_rows), "funnel": funnel,
             "median_days": float(sla["med"]) if sla["med"] is not None else None,
             "median_n": sla["n"], "months": sorted(months.values(), key=lambda x: x["m"]),
-            "older": older[:600], "older_total": len(older),
+            "older": older, "older_total": older_total,
             "suppliers": sup,
             "updated": stale.isoformat(timespec="minutes") if stale else None,
-            "rows": out[:600]}
+            "rows": out}
+
+@app.get("/api/novelties/launch/cards")
+def novelty_launch_cards(code: str, showcase: str, role: str = "", page: int = 1):
+    from collectors.launch_cards import card_page, ROLES
+    from collectors.launch_track import SHOWCASES
+    if not re.fullmatch(r"[0-9]{4}",code) or showcase not in dict(SHOWCASES) or (role and role not in ROLES):
+        raise HTTPException(status_code=400,detail="Неверный код, витрина или тип карточки")
+    return card_page(code,showcase,role,page)
+
 
 @app.get("/api/novelties/probe")
 def novelties_probe(id: int, code: str):
@@ -4181,7 +4380,8 @@ def _ya_business(period: str = ""):
         FROM yandex_finance_monthly WHERE account='ya_acc1' AND month=%s""", (period or None,))
     r = q[0] if q else {}
     return {"revenue": round(mp["oborot"]), "orders": mp["orders"] or r.get("orders"),
-            "cogs": round(mp["cogs"]), "mp_cost": round(mp["itog"]), "net": round(mp["net"]),
+            "cogs": round(mp["cogs"]) if mp['cogs'] is not None else None,
+            "mp_cost": round(mp["itog"]), "net": round(mp["net"]) if mp['net'] is not None else None,
             "payout": round(mp["payout"]), "subsidy": round(r.get("s") or 0),
             "returns": mp["returns_cnt"] or r.get("returns_orders"),
             "returns_sum": round(r.get("rs") or 0), "cogs_cov_pct": r.get("cov"),
@@ -4250,6 +4450,24 @@ def market_page():
 @app.get("/api/yandex/summary")
 def yandex_summary():
     """Сводка Маркета за собранное окно (~30 дней). Выручка = payment+subsidy без отменённых."""
+    from reports import recovered_finance
+    if recovered_finance.state():
+        rows = db.query("SELECT month::text AS month, revenue::float payment, subsidy::float subsidy, orders "
+                        "FROM yandex_finance_monthly WHERE account='ya_acc1' ORDER BY month")
+        if not rows:
+            return {'ok': False}
+        parts = [_mpn.month('yandex', r['month']) for r in rows]
+        return {'ok': True, 'revenue': _mpn._sum_known(parts, 'oborot'),
+                'payment': sum(r['payment'] or 0 for r in rows),
+                'subsidy': sum(r['subsidy'] or 0 for r in rows),
+                'orders': sum(r['orders'] or 0 for r in rows),
+                'cogs': None, 'cogs_coverage': None, 'gross': None, 'net': None,
+                'gross_margin_pct': None, 'net_margin_pct': None,
+                'mp_cost': _mpn._sum_known(parts, 'hold'), 'cancelled': None, 'cancelled_sum': None,
+                'since': rows[0]['month'], 'until': recovered_finance.state()['source_until'],
+                'stores': [], 'by_status': [],
+                'recovery_note': 'Отчёты восстановлены по API. Историческая себестоимость ещё проверяется; '
+                                 'неизвестные суммы показаны прочерком. Ноябрь неполный.'}
     if not db.query("SELECT 1 FROM raw_yandex_order WHERE account='ya_acc1' LIMIT 1"):
         return {"ok": False, "revenue": 0, "orders": 0}
     t = db.query(f"""SELECT
@@ -4332,7 +4550,8 @@ def yandex_monthly():
         rev = round((r["rev"] or 0) + (r["subsidy"] or 0))
         mp = round((r["fee"] or 0) + (r["delivery"] or 0) + (r["transfer"] or 0)
                    + (r["promotion"] or 0) + (r["other"] or 0))
-        net = rev - round(r["cogs"] or 0) - mp
+        mp_cost = mp
+        net = rev - round(r["cogs"]) - mp_cost if r['cogs'] is not None else None
         mp = _mp_five("yandex", "", r["ym"] + "-01")
         out.append({"mp": mp, "month": r["ym"], "revenue": round(r["rev"] or 0),
                     "subsidy": round(r["subsidy"] or 0), "orders": r["orders"],
@@ -4340,9 +4559,9 @@ def yandex_monthly():
                     "unredeemed_orders": r["unr"], "unredeemed_cost": round(r["unr_cost"]),
                     "fee": round(r["fee"] or 0), "delivery": round(r["delivery"] or 0),
                     "transfer": round(r["transfer"] or 0), "promotion": round(r["promotion"] or 0),
-                    "other": round(r["other"] or 0), "mp_cost": mp,
-                    "cogs": round(r["cogs"] or 0), "cogs_cov_pct": r["cov"],
-                    "net": net, "margin_pct": round(net / rev * 100, 1) if rev else None})
+                    "other": round(r["other"] or 0), "mp_cost": mp_cost,
+                    "cogs": round(r["cogs"]) if r['cogs'] is not None else None, "cogs_cov_pct": r["cov"],
+                    "net": net, "margin_pct": round(net / rev * 100, 1) if rev and net is not None else None})
     return {"rows": out}
 
 
@@ -4507,19 +4726,19 @@ def ozon_expenses_api(account: str = "", period: str = ""):
 
 
 @app.get("/api/ozon/mp-current")
-def ozon_mp_current():
+def ozon_mp_current(period: str = ""):
     """Живой ТЕКУЩИЙ месяц (вне статического снапшота) + прогноз на конец месяца — для
     вкладки «Отчёты МП». Готовые к вставке ячейки {jul,fc}: {txt, cls} по строкам Баланса
     + операционным показателям. См. reports/ozon_mp_report."""
-    return _ozmp.current_report()
+    return _ozmp.current_report(period)
 
 
 @app.get("/api/wb/mp-current")
-def wb_mp_current():
+def wb_mp_current(period: str = ""):
     """Живой ТЕКУЩИЙ месяц WB (вне статического снапшота) + прогноз на конец месяца — для
     вкладки «Отчёты МП · WB». Готовые к вставке ячейки {cur,fc}: {txt, cls} по строкам
     Финансового отчёта ВБ + операционным показателям. См. reports/wb_mp_report."""
-    return _wbmp.current_report()
+    return _wbmp.current_report(period)
 
 
 @app.get("/api/mp-cogs/detail", response_class=HTMLResponse)
@@ -4532,12 +4751,12 @@ def mp_cogs_detail(platform: str, account: str, ym: str):
 
 
 @app.get("/api/yandex/mp-current")
-def yandex_mp_current():
+def yandex_mp_current(period: str = ""):
     """Живой ТЕКУЩИЙ месяц Яндекс.Маркета (вне статического снапшота) + прогноз на конец месяца —
     для вкладки «Отчёты МП · Яндекс». Готовые ячейки {cur,fc}: {txt, cls} по строкам витрины ЯМ.
     Живой месяц структурно занижает маржу (order-based COGS vs лаг доставки) — прогноз проецирует
     полный месяц по юнит-экономике закрытых месяцев. См. reports/yandex_mp_report."""
-    return _yamp.current_report()
+    return _yamp.current_report(period)
 
 
 OZ_SKU_SORT = {"revenue_buyer": "m.revenue_buyer", "net_profit": "m.net_profit",
@@ -4985,7 +5204,7 @@ def ozon_weekly(account: str = "", period: str = ""):
     cogs_m = _oz_cogs(account, period)
     rev_m = sum(w["revenue"] for w in out) or 1
     for w in out:
-        w["net"] = round(w["to_payout"] - cogs_m * (w["revenue"] / rev_m), 2)
+        w["net"] = round(w["to_payout"] - cogs_m * (w["revenue"] / rev_m), 2) if cogs_m is not None else None
     return {"rows": out}
 
 
@@ -5118,87 +5337,13 @@ def _compare_period(scope, period, tip):
 
 
 @app.get("/api/weekly_business")
-def weekly_business(period: str = ""):
-    """Недельная динамика бизнеса (ВБ + Ozon): недели, ПЕРЕСЕКАЮЩИЕ выбранный месяц, каждая
-    склеена ЦЕЛИКОМ — граничная неделя не режется по границе месяца (хвосты соседних месяцев
-    включаются). Чистая = к перечислению − логистика − COGS − накладные. Таблица главного экрана."""
-    period = period or db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
-    df, dt = _oz_month(period)
-    d0, d1 = _dt.date.fromisoformat(df), _dt.date.fromisoformat(dt)
-    wk_start = d0 - _dt.timedelta(days=d0.weekday())                          # пн недели с 1-м числом
-    wk_end = d1 - _dt.timedelta(days=d1.weekday()) + _dt.timedelta(days=6)    # вс последней недели
-    wk = {}  # wkdate -> {"rev":, "net":}
-
-    def add(k, rev, net):
-        d = wk.setdefault(k, {"rev": 0.0, "net": 0.0})
-        d["rev"] += rev or 0
-        d["net"] += net or 0
-
-    # WB: по rr_dt в границах склеенных недель, БЕЗ фильтра месяца загрузки (rrd_id уникален,
-    # соседние окна сбора не дублируются). cpu — последняя по nm (replacement стабилен,
-    # как в /api/weekly rolling); витрина margin_by_sku теперь на модели формирования.
-    for r in db.query("""
-        WITH cpu AS (SELECT DISTINCT ON (article) article, cogs/nullif(qty,0) u
-            FROM margin_by_sku WHERE platform='wb' AND qty>0 AND cogs>0
-            ORDER BY article, period_from DESC),
-        r AS (SELECT date_trunc('week',(payload->>'rr_dt')::date)::date::text wk,
-            payload->>'nm_id' nm, payload->>'supplier_oper_name' op,
-            coalesce((payload->>'quantity')::numeric,0) q, coalesce((payload->>'retail_amount')::numeric,0) ra,
-            coalesce((payload->>'ppvz_for_pay')::numeric,0) pay, coalesce((payload->>'delivery_rub')::numeric,0) del,
-            coalesce((payload->>'storage_fee')::numeric,0)+coalesce((payload->>'acceptance')::numeric,0)
-              +coalesce((payload->>'deduction')::numeric,0)+coalesce((payload->>'penalty')::numeric,0) ov
-            FROM raw_wb_report WHERE (payload->>'rr_dt')::date BETWEEN %s AND %s)
-        SELECT wk,
-            sum(CASE WHEN op='Продажа' THEN ra WHEN op='Возврат' THEN -ra ELSE 0 END)::float rev,
-            (sum(pay)-sum(del)-sum(ov)
-             -sum(CASE WHEN op='Продажа' THEN q*coalesce(c.u,0)
-                       WHEN op='Возврат' THEN -q*coalesce(c.u,0) ELSE 0 END))::float net
-        FROM r LEFT JOIN cpu c ON c.article=r.nm WHERE wk IS NOT NULL GROUP BY wk""",
-                       (wk_start.isoformat(), wk_end.isoformat())):
-        add(r["wk"], r["rev"], r["net"])
-
-    # Ozon: operation_date в границах склеенных недель. COGS месячный → на неделю по доле
-    # выручки недели В ЭТОМ месяце (граничная неделя получает доли из ОБОИХ месяцев).
-    span_from = wk_start.replace(day=1)
-    span_to = _oz_month(wk_end.replace(day=1).isoformat())[1]
-    ozw = db.query("""SELECT date_trunc('week',(payload->>'operation_date')::date)::date::text wk,
-        date_trunc('month',(payload->>'operation_date')::date)::date::text mm,
-        coalesce(sum((payload->>'accruals_for_sale')::numeric),0)::float rev,
-        coalesce(sum((payload->>'amount')::numeric),0)::float topay
-        FROM raw_ozon_transaction WHERE (payload->>'operation_date')::date BETWEEN %s AND %s
-        AND payload->>'operation_date' IS NOT NULL GROUP BY 1,2""", (span_from.isoformat(), span_to))
-    mm_rev = {}
-    for r in ozw:
-        mm_rev[r["mm"]] = mm_rev.get(r["mm"], 0.0) + (r["rev"] or 0)
-    mm_cogs = {mm: _oz_cogs("", mm) for mm in mm_rev}
-    for r in ozw:
-        if r["wk"] and wk_start.isoformat() <= r["wk"] <= wk_end.isoformat():
-            share = (r["rev"] or 0) / (mm_rev.get(r["mm"]) or 1)
-            add(r["wk"], r["rev"], (r["topay"] or 0) - mm_cogs.get(r["mm"], 0.0) * share)
-
-    # Расход на рекламу по неделям (ВБ + Озон, оба юрлица) — тоже склеенными неделями
-    adw = {}
-    for pl in ("wb", "ozon"):
-        accs = [r["account"] for r in db.query(
-            "SELECT DISTINCT account FROM ad_spend_daily WHERE platform=%s", (pl,))]
-        if not accs:
-            continue
-        for w, ad in _weekly_adspend(pl, accs).items():
-            key = w.isoformat() if hasattr(w, "isoformat") else str(w)
-            adw[key] = adw.get(key, 0) + (ad or 0)
-
-    rows = []
-    for k in sorted(wk):
-        if not (wk_start.isoformat() <= k <= wk_end.isoformat()):
-            continue
-        rev, net = wk[k]["rev"], wk[k]["net"]
-        if rev < 1:
-            continue
-        ad = round(adw.get(k, 0), 2)
-        rows.append({"wk": k, "rev": round(rev, 2), "net": round(net, 2),
-                     "margin": round(net / rev * 100, 1) if rev else None,
-                     "ad": ad, "net_after_ad": round(net - ad, 2)})
-    return {"rows": rows}
+def weekly_business(period: str = "", org: str = ""):
+    """Whole Monday–Sunday weeks from stored WB/Ozon financial operations and FIFO."""
+    from web.home_weekly import report
+    try:
+        return report(period, org)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
 
 
 def _l3_names(plat, account, articles):
@@ -5218,6 +5363,20 @@ def signals(period: str = "", scope: str = "", account: str = ""):
     account) — сравнение юрлиц + тренд + рычаги МП. L3 (scope+account) — точечные SKU-проблемы
     этого юрлица (убыточные/габариты/скидки). Каждый слой — своё, без дублирования."""
     period = period or db.query("SELECT max(period_from)::text p FROM margin_by_sku")[0]["p"]
+    from reports import archived_finance
+    from reports import recovered_finance
+    if recovered_finance.state() or (period and period[:7] in archived_finance.periods()):
+        return {"period": period, "scope": scope, "data_available": True,
+                "tips": [{"sev": "info", "title": "Идёт восстановление и сверка данных",
+                          "text": "Автоматические рекомендации появятся после сверки восстановленной детализации и расходов."}],
+                "volume": [], "after_opex": None, "target": HEALTHY_AFTER_OPEX,
+                "to_target": None}
+    if not period:
+        return {"period": None, "scope": scope, "data_available": False,
+                "tips": [{"sev": "info", "title": "Финансовые данные ещё не загружены",
+                          "text": "Оценка прибыли и рекомендации появятся после восстановления отчётов."}],
+                "volume": [], "after_opex": None, "target": HEALTHY_AFTER_OPEX,
+                "to_target": None}
     tips = []
 
     def tip(sev, title, text):

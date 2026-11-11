@@ -146,8 +146,8 @@ _SRC = """
                     -least(coalesce((payload->>'deduction')::numeric,0),0) comp
              FROM raw_wb_report
              WHERE account=%s
-               AND (payload->>'create_dt')::date>=%s
-               AND (payload->>'create_dt')::date<%s
+               AND payload->>'create_dt'>=%s
+               AND payload->>'create_dt'<%s
 """
 
 
@@ -234,10 +234,11 @@ def op_counts(account, y, m):
 
 def _cogs(account, y, m):
     dt_end = f"{y}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}"
-    r = db.query("""SELECT coalesce(sum(cogs),0) c FROM margin_by_sku
+    r = db.query("""SELECT sum(cogs) c, count(*) n,
+        count(*) FILTER (WHERE cogs IS NULL) unknown FROM margin_by_sku
         WHERE platform='wb' AND account=%s AND period_from=%s AND period_to=%s""",
         (account, f"{y}-{m:02d}-01", dt_end))
-    return float(r[0]["c"])
+    return float(r[0]["c"]) if r[0]["n"] and not r[0]["unknown"] else None
 
 
 def _month_last_day(y, m, account=None):
@@ -249,7 +250,7 @@ def _month_last_day(y, m, account=None):
     × remaining, посчитанный как будто всё собрано."""
     d1, d2 = _month_bounds(y, m)
     sql = """SELECT max((payload->>'create_dt')::date) mx FROM raw_wb_report
-               WHERE (payload->>'create_dt')::date>=%s AND (payload->>'create_dt')::date<%s"""
+               WHERE payload->>'create_dt'>=%s AND payload->>'create_dt'<%s"""
     args = [d1, d2]
     if account:
         sql += " AND account=%s"
@@ -257,7 +258,10 @@ def _month_last_day(y, m, account=None):
     return db.query(sql, tuple(args))[0]["mx"]
 
 
-def _live_month():
+def _live_month(period=""):
+    if period:
+        from reports.open_months import select_open_month
+        return select_open_month(period,_hist().get("period_keys",[]))
     """Живой месяц = календарный месяц СРАЗУ ПОСЛЕ последнего замороженного (max period_keys).
     None — если истории нет. Реальность данных проверяется в current_report (last==None → пусто)."""
     keys = _hist().get("period_keys", [])
@@ -375,10 +379,10 @@ def _derive(mags, orders, retc, cogs):
     # внутри to_pay, поэтому вычитаем его явно — возврат не услуга площадки, а сторно продажи,
     # и внутри «Итого удержания» он гулял бы вместе с долей возвратов (единое правило со всеми МП).
     wb_exp = own - itog - mags.get("returns_pay", 0.0)
-    net = itog - cogs
+    net = itog - cogs if cogs is not None else None
     return {**mags, "spp": spp, "commission": commission, "wb_exp": wb_exp, "itog": itog,
             "cogs": cogs, "orders": orders, "returns_cnt": retc, "net": net,
-            "margin": (net / own * 100 if own else 0),
+            "margin": (net / own * 100 if own and net is not None else None),
             "check": (own / orders if orders else 0)}
 
 
@@ -397,9 +401,18 @@ def _lag_note(last_acc):
             "покрывают разное число дней. ")
 
 
-def current_report():
+def _period_progress(year, month, last_report, today=None):
+    """An ended formation month has no remaining days to forecast."""
+    today = today or dt.date.today()
+    days = calendar.monthrange(year, month)[1]
+    finished = dt.date(year, month, days) < today
+    elapsed = (days if finished else last_report.day) if last_report else 0
+    return elapsed, (0 if finished else days - elapsed), finished
+
+
+def current_report(period=""):
     """{"month": {...}|None, "accounts": {acc: {line_key: {"cur":{txt,cls},"fc":{txt,cls}}}}}"""
-    lm = _live_month()
+    lm = _live_month(period)
     if not lm:
         return {"month": None, "accounts": {}}
     y, m = lm
@@ -407,8 +420,8 @@ def current_report():
     if not last:                       # живой месяц ещё без отчётов — не показываем пустой столбец
         return {"month": None, "accounts": {}}
     days_in = calendar.monthrange(y, m)[1]
-    elapsed = last.day
-    remaining = days_in - elapsed
+    today = dt.date.today()
+    elapsed, remaining, period_finished = _period_progress(y, m, last, today)
 
     out, last_acc = {}, {}
     for acc in ACCOUNTS:
@@ -417,8 +430,7 @@ def current_report():
         la = _month_last_day(y, m, acc)
         last_acc[acc] = la
         anchor = la or last
-        elapsed_a = la.day if la else 0
-        remaining_a = days_in - elapsed_a
+        elapsed_a, remaining_a, _ = _period_progress(y, m, la, today)
         # окно скользящей ставки: WINDOW_DAYS дней, кончая последним днём формирования. Свободно
         # пересекает границу месяца (в начале августа окно ещё захватывает июльские отчёты).
         w1 = (anchor - dt.timedelta(days=WINDOW_DAYS - 1)).isoformat()
@@ -442,8 +454,8 @@ def current_report():
         fc_orders = mtd["orders"] + rate["orders"] * remaining_a
         fc_retc = mtd["returns_cnt"] + rate["returns_cnt"] * remaining_a
         # COGS привязана к продажам (margin_by_sku помесячный): fc_cogs = fc_sales × (COGS÷Прод MTD).
-        cogs_ratio = cogs / mtd["sales"] if mtd["sales"] else 0
-        fc_cogs = fc["sales"] * cogs_ratio
+        cogs_ratio = cogs / mtd["sales"] if mtd["sales"] and cogs is not None else None
+        fc_cogs = fc["sales"] * cogs_ratio if cogs_ratio is not None else None
         forecast = _derive(fc, fc_orders, fc_retc, fc_cogs)
         # подстроки прогнозируются той же ставкой, что и родитель: MTD + окно/дн × остаток дней.
         # Сумма подстрок сходится с прогнозом родителя, т.к. это линейная операция над слагаемыми.
@@ -460,8 +472,8 @@ def current_report():
             # (доли расходов/маржа/чек); абсолютные MTD заведомо ниже полного месяца.
             cur_cls = _band(acc, key, cv, actual["own_price"]) if _kind(key) in ("expense", "margin", "check") else ""
             cells[key] = {
-                "cur": {"txt": _fmt(key, cv), "cls": cur_cls},
-                "fc": {"txt": _fmt(key, fv), "cls": _band(acc, key, fv, forecast["own_price"])},
+                "cur": {"txt": _fmt(key, cv), "cls": cur_cls, "value": cv},
+                "fc": {"txt": _fmt(key, fv), "cls": _band(acc, key, fv, forecast["own_price"]), "value": fv},
             }
         for key in det_keys:            # подпись новой подстроки — для JS-дорисовки строки
             cells[key]["label"] = det_label(det_parse(key)[1])
@@ -472,6 +484,7 @@ def current_report():
                   "elapsed_days": elapsed, "days_in_month": days_in,
                   "remaining_days": remaining, "window_days": WINDOW_DAYS,
                   "last_date": last.isoformat(), "estimate": True,
+                  "period_finished": period_finished,
                   "last_by_acc": {a: (d.isoformat() if d else None) for a, d in last_acc.items()},
                   "lag_note": _lag_note(last_acc)},
         "accounts": out,

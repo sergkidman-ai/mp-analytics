@@ -110,7 +110,7 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
     tds = []
     for i in range(N):
         if vals[i] is None:
-            tds.append('<td class="num muted">—</td>')
+            tds.append(f'<td class="num muted" data-period="{_C["K"][i]}" data-value="null">—</td>')
             continue
         if kind == "margin":
             txt = f"{vals[i]:.1f}%"
@@ -123,7 +123,7 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
         # ячейка месяца в строке COGS — кликабельна: раскрывает отгрузки этого отчёта
         dy = f' data-ym="{ky[i]}"' if (k == "cogs" and i < len(ky)) else ""
         cl = f'num {bd[i]}' + (" drill" if dy else "")
-        tds.append(f'<td class="{cl}"{dy}>{txt}{pc}</td>')
+        tds.append(f'<td class="{cl}"{dy} data-period="{ky[i]}" data-value="{vals[i]}">{txt}{pc}</td>')
     if kind in ("margin", "count_up", "count_dn", "check"):
         rp = "—"
     else:
@@ -140,32 +140,38 @@ def row(label, vals, kind, oborot, tag="", showpc=False, sub=False, subtot=False
         trclass = (trclass + " hasdet").strip()
     live = ('<td class="num live" data-c="jul">·</td>'
             '<td class="num live fc" data-c="fc">·</td>')
-    dk = f' data-k="{k}"' if k else ""
+    dk = f' data-kind="{kind}"' + (f' data-k="{k}"' if k else "")
+    if showpc:
+        dk += ' data-showpc="1"'
     if expand:
         dk += f' data-det="{expand}"'
     if detof:
         dk += f' data-det-of="{detof}"'
     return (f'<tr class="{trclass}"{dk}><td class="{lblcls}">{label}{tg}</td>' + "".join(tds) +
-            live + f'<td class="num pctcol">{rp}</td><td class="spk">{sp}</td></tr>')
+            live + '<td class="num year-total" data-c="year">—</td>' + f'<td class="num pctcol">{rp}</td><td class="spk">{sp}</td></tr>')
 
 
 def det_rows(a, ln, ob):
-    """Подстроки детализации расходной строки ln — по конкретной услуге/операции Ozon, крупные
+    """Подстроки детализации строки ln — по конкретной услуге/операции Ozon, крупные
     сверху. Источник — snapshot ["detail"]; нет разреза (старый снапшот) → пусто, строка обычная."""
     N = _C["N"]
     codes = ((a.get("detail") or {}).get(ln) or {})
     out = []
     for code, arr in sorted(codes.items(), key=lambda kv: -abs(sum(kv[1]))):
         vals = list(arr[:N]) + [0] * max(0, N - len(arr))
+        known_from = ((a.get("detail_from") or {}).get(ln) or {}).get(code)
+        if known_from:
+            vals = [None if period < known_from else value
+                    for period, value in zip(_C["K"], vals)]
         if not any(vals):
             continue
-        out.append(row(R.det_label(code), vals, "expense", ob, sub=True,
+        out.append(row(R.det_label(code), vals, R.KIND[ln], ob, sub=True,
                        k=R.det_key(ln, code), detof=ln))
     return out
 
 
 def sect(t):
-    return f'<tr class="sect"><td colspan="{_C["N"] + 5}"><span>{t}</span></td></tr>'
+    return f'<tr class="sect"><td colspan="{_C["N"] + 6}"><span>{t}</span></td></tr>'
 
 
 TAIL_JS = """<script>
@@ -272,7 +278,7 @@ def build(acc):
              + mth
              + f'<th class="live" title="{jul_ttl}">тек.*</th>'
              + f'<th class="live" title="{fc_ttl}">прогноз</th>'
-             + '<th>% Об.</th><th>Тренд</th></tr></thead><tbody>')
+             + '<th class="year-total" title="Факт с января по выбранный месяц, без прогноза">Итого за год</th><th>% Об.</th><th>Тренд</th></tr></thead><tbody>')
     H.append(sect("Операционные показатели"))
     H.append(row("Заказы, шт", orders, "count_up", ob, k="orders"))
     H.append(row("Возвраты, шт", retc, "count_dn", ob, k="returns_cnt"))
@@ -300,7 +306,8 @@ def build(acc):
                  showpc=True, subtot=True, k="itog"))
     H.append(sect("Начисления в плюс"))
     H.append(row("Компенсации и декомпенсации", L["compensation"], "inflow", ob, k="compensation"))
-    H.append(row("Прочие начисления", L["other"], "inflow", ob, k="other"))
+    H.append(row("Прочие начисления", L["other"], "inflow", ob, k="other", expand="other"))
+    H += det_rows(a, "other", ob)
     H.append(sect("Возвраты"))
     H.append(row("Возвраты (удержано)", L["returns"], "expense", ob, showpc=True, k="returns"))
     H.append(row("Итого к перечислению", payout, "inflow", ob, tag="расчёт", showpc=True,
@@ -327,7 +334,7 @@ header{width:216px;flex:0 0 216px;height:100vh;position:sticky;top:0;overflow:au
 .logo{font-size:15px;font-weight:700;color:var(--txt);text-decoration:none;padding:9px 11px;border-radius:8px;margin-bottom:4px}
 .logo:hover{background:var(--card)}
 .navgroup{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:13px 0 2px;padding:0 11px}
-main{flex:1;min-width:0;padding:22px 26px 60px;max-width:1200px}
+main{flex:1;min-width:0;padding:22px 26px 60px;max-width:none}
 .mptabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:2px}
 .mptabs a{color:var(--mut);text-decoration:none;padding:7px 13px;border-radius:8px;font-weight:600}
 .mptabs a:hover{background:var(--card);color:var(--txt)}
@@ -373,10 +380,11 @@ REPORT_CSS = """
 #mpr tr.sect td>span{position:sticky;left:11px;display:inline-block}
 #mpr td.lbl.ind{font-weight:430}
 #mpr tr.sub td{color:var(--mut)}
-#mpr tr.sub td.lbl.ind{padding-left:24px;position:relative}
+#mpr tr.sub td.lbl.ind{padding-left:24px;position:sticky;left:0}
 #mpr tr.sub td.lbl.ind::before{content:"└";position:absolute;left:10px;color:var(--line)}
 #mpr tr.sect td{background:var(--acc-s);color:var(--acc);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:6px 11px}
 #mpr td.num{position:relative;padding-right:22px}
+#mpr .year-total{border-left:2px solid var(--line);font-weight:700;background:var(--acc-s)}
 #mpr td.num.g{background:var(--pos-s)}
 #mpr td.num.a{background:var(--warn-s)}
 /* стрелка тренда — в фикс. правом жёлобе (position:absolute), чтобы число было выровнено
@@ -439,7 +447,7 @@ MPTABS = """    <a href="/">🏢 Главная</a>
 SUB = ('Данные <b>1:1 из раздела Финансы → Баланс</b> личного кабинета Ozon (сверено с ЛК до рубля) '
        '+ операционные показатели (заказы, возвраты, средний чек) и себестоимость из МойСклад. '
        '<b>Каждое юрлицо — своя таблица, не суммируем.</b> Строки зеркалят Баланс; столбцы — месяцы; '
-       'справа доля от оборота и тренд. <b>Подсветка — три блока относительно среднего сверенных месяцев:</b> '
+       'справа итог за выбранный год, доля от оборота и тренд. <b>Подсветка — три блока относительно среднего сверенных месяцев:</b> '
        '<b style="color:var(--pos)">зелёное = выше среднего (хорошо)</b>, '
        '<b style="color:var(--warn)">янтарное = ниже среднего (обратить внимание)</b>, без заливки — норма. '
        'Для расходов инверсия (ниже — лучше). Для ключевых статей — % оборота в ячейке. '
@@ -470,7 +478,7 @@ JS = """<script>
   });
 })();
 (function(){
-  fetch('/api/ozon/mp-current').then(function(r){return r.json();}).then(function(d){
+  fetch('/api/ozon/mp-current' + window.mpReportPeriodQuery()).then(function(r){return r.json();}).then(function(d){
     if(!d||!d.month) return;
     var mo=d.month, accs=['oz_acc1','oz_acc2'];
     document.querySelectorAll('#mpr section.org table').forEach(function(t,ti){
@@ -491,8 +499,9 @@ JS = """<script>
         tr.querySelectorAll('td').forEach(function(td,ci){
           if(ci===0){ td.className='lbl ind'; td.textContent=cells[key].label||key; }
           else if(td.classList.contains('live')){ td.className='num live'+(td.getAttribute('data-c')==='fc'?' fc':''); td.textContent='·'; }
+          else if(td.classList.contains('year-total')){ td.textContent='—'; }
           else if(td.classList.contains('spk')){ td.innerHTML=''; }
-          else { td.className='num muted'; td.textContent='—'; }
+          else { td.className='num muted'; td.textContent='—'; if(td.hasAttribute('data-period'))td.setAttribute('data-value','null'); }
         });
         anchor.parentNode.insertBefore(tr, anchor.nextSibling);
       });
@@ -506,9 +515,10 @@ JS = """<script>
         });
       });
     });
+    window.mpReportYearTotals(d);
     var fn=document.getElementById('mpr-live-note');
     if(fn){ fn.innerHTML=(mo.lag_note||'')+'<b>'+mo.label+'*</b> — текущий месяц по данным на '+(mo.last_date||'')+
-      ' (оценка по транзакциям до выхода Отчёта о реализации ~8–10 числа следующего месяца). '+
+      ' (предварительные данные по транзакциям; финальная сверка с Отчётом о реализации ещё не закреплена). '+
       '<b>прогноз</b> — как закроется месяц: факт с начала месяца ('+mo.elapsed_days+' дн) + дневная ставка за скользящие '+mo.window_days+' дней × оставшиеся '+mo.remaining_days+' дн. '+
       'Статьи, идущие по дням (продажи, логистика, комиссия, реклама, партнёры, COGS, заказы), проецируются потоком; фиксированная абонплата подписки — разово раз в месяц, берётся фактически. '+
       'Окно непрерывно переходит через границу месяца, поэтому смена месяца прогноз не ломает. '+
@@ -565,6 +575,8 @@ def render(hist=None):
   </div>
   <p class="eyebrow">Отчёты МП · Ozon</p>
   <h1>Ozon — сводный отчёт по месяцам</h1>
+  <div data-open-report-period data-platform="ozon" data-closed="{max(data.get('period_keys',[]),default='')}" style="margin:12px 0"></div>
+  <script src="/static/mp_report_period.js"></script>
   <details class="howto"><summary>Как читать этот отчёт</summary><p class="sub">{SUB}</p></details>
   <div class="tlegend">
     <span><span class="sw" style="background:var(--pos-s)"></span>выше среднего — хорошо</span>

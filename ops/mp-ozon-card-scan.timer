@@ -1,0 +1,10 @@
+[Unit]
+Description=Ozon card detector at former 07:41 UTC
+
+[Timer]
+OnCalendar=*-*-* 10:41:00 Europe/Moscow
+Persistent=true
+Unit=mp-ozon-card-scan.service
+
+[Install]
+WantedBy=timers.target

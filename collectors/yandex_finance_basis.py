@@ -182,6 +182,61 @@ def payments(orders, month):
     return rows
 
 
+DOCUMENT_SHEETS = {'period_closure_income_sold_refunds': 'revenue',
+                   'period_closure_income_sold_defect_refunds': 'returns'}
+
+
+def document_sheet(row):
+    sheet = row.get('source_sheet')
+    if not sheet:
+        parts = str(row.get('transaction_id') or '').split(':')
+        sheet = parts[-2] if len(parts) >= 4 else None
+    return sheet if sheet in DOCUMENT_SHEETS else None
+
+
+def closure_order_ids(closure, month):
+    """Only ordinary orders in this month's statement need stats/order matches."""
+    return {str(r['order_id']).removesuffix('.0') for r in closure
+            if r.get('order_id') and str(r.get('transaction_date') or '')[:7] == month
+            and not document_sheet(r)}
+
+
+def with_document_payments(rows, closure, month):
+    """Explicit statement-only business sales are not ordinary order refunds.
+
+    Never supplement missing ordinary payments. Exact stats matches take precedence;
+    differing amounts for the same order/date require review rather than double counting.
+    """
+    result = list(rows)
+    exact = Counter((r['order_id'], r['date'], r['type'], r['amount']) for r in rows)
+    ordinary = {(r['order_id'], r['date'], r['type']) for r in rows}
+    documents = set()
+    for row in closure:
+        sheet = document_sheet(row)
+        day = str(row.get('transaction_date') or '')[:10]
+        if not sheet or day[:7] != month:
+            continue
+        amount = money(row['amount'])
+        category = DOCUMENT_SHEETS[sheet]
+        if row['category'] != category or (amount <= 0 if category == 'revenue' else amount >= 0):
+            raise RuntimeError('Unexpected document category or cash direction')
+        kind = 'PAYMENT' if category == 'revenue' else 'REFUND'
+        key = (str(row['order_id']).removesuffix('.0'), day, kind, abs(amount))
+        if exact[key]:
+            exact[key] -= 1
+            continue
+        if key[:3] in ordinary:
+            raise RuntimeError('Ambiguous document/stats payment overlap')
+        source = str(row.get('transaction_id') or '')
+        if not source or source in documents:
+            raise RuntimeError('Missing or duplicate document transaction')
+        documents.add(source)
+        result.append({'order_id': key[0], 'payment_id': 'closure:' + source,
+                       'date': day, 'type': kind, 'amount': abs(amount),
+                       'source': 'closure_document', 'source_sheet': sheet})
+    return result
+
+
 def reconcile(rows, closure):
     def key(r): return (str(r['order_id']).removesuffix('.0'),str(r['transaction_date'])[:10],
                         'PAYMENT' if r['category']=='revenue' else 'REFUND',abs(money(r['amount'])))
@@ -217,7 +272,8 @@ def service_rows(sheets, month):
 
 
 def build(month, orders, metadata, services, service_meta, closure, closure_meta, cogs, ad_contract=0):
-    rows = payments(orders,month); check = reconcile(rows,closure)
+    rows = with_document_payments(payments(orders,month),closure,month)
+    check = reconcile(rows,closure)
     monthly = {k:D(0) for k in EXPENSES}
     nett = defaultdict(lambda:D(0))
     promotion_parts = defaultdict(lambda:D(0))
@@ -300,9 +356,9 @@ def refresh(month, folder, seed_job=None):
         earliest = db.query("SELECT min(payload->>'creationDate') oldest FROM raw_yandex_stats_order WHERE account='ya_acc1'")[0]['oldest']
         start = min((earliest or month+'-01')[:10], month+'-01')
         orders, meta = fetch_orders(start,date.today().isoformat(),folder)
-        # All known historic closure order IDs must be in the new order perimeter.
-        historical = db.query("SELECT DISTINCT order_id FROM raw_yandex_closure WHERE account='ya_acc1' AND ym<=%s",(month,))
-        missing = sorted({str(r['order_id']).removesuffix('.0') for r in historical if r['order_id']} - set(orders))
+        # Older months are already closed. Check the current statement's ordinary
+        # orders; explicit document-only business sales are reconciled separately.
+        missing = sorted(closure_order_ids(closure,month) - set(orders))
         meta['missing_historical_orders'] = missing
         if missing: meta['complete'] = False
         save(folder/'orders_metadata.json',meta)

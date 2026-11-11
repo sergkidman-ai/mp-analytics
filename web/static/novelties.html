@@ -192,6 +192,22 @@
   .role-novelty button.paid,
   .role-novelty .paid-doc{display:none}
   .role-novelty header .logo{pointer-events:none;cursor:default}
+.launch-roles{min-width:185px;vertical-align:top}.lvariants{margin-top:8px}.lvariants summary{cursor:pointer;font-size:12px}.lcards{min-width:220px;max-width:360px;white-space:normal}.lcard{padding:8px 0;border-bottom:1px solid #ddd;font-size:12px}
+.launch-role{border:1px solid #d9dee7;border-radius:6px;padding:7px;margin:0 0 7px;white-space:normal}.launch-role summary{list-style-position:inside}.lc-problem{background:#fff0f0!important;border-color:#e9a0a0!important}.lc-problem>.lc-state,.lc-problem>summary>.lc-state,.lc-bad-count{color:#b91c1c;font-weight:700}.lc-healthy>.lc-state,.lc-healthy>summary>.lc-state{color:#147343}.lc-bad-count{display:block;font-size:12px;margin-top:3px}.lc-state{margin-top:4px;font-size:12px}.lcard.lc-problem,.lcard.lc-healthy{padding:8px;margin:6px 0;border-radius:4px}
+
+/* Fit all five marketplaces on desktop; keep a scroll fallback for small screens. */
+.launch-table-scroll{max-width:100%;overflow-x:auto}
+.launch-table-scroll>table{width:100%;min-width:900px;table-layout:fixed}
+.launch-table-scroll th{top:0}
+.launch-table-scroll th,.launch-table-scroll td{padding:8px 6px}
+.launch-table-scroll th:nth-child(1){width:48px}
+.launch-table-scroll th:nth-child(2){width:94px}
+.launch-table-scroll th:nth-child(3){width:170px}
+.launch-table-scroll th:nth-child(4){width:54px}
+.launch-table-scroll th:nth-child(5){width:84px}
+.launch-table-scroll td:first-child,.launch-table-scroll td:nth-child(2){white-space:nowrap}
+.launch-table-scroll td:nth-child(3),.launch-table-scroll .launch-roles{min-width:0}
+.launch-table-scroll .lcards{min-width:0;max-width:none}
 </style>
 </head>
 <body>
@@ -215,10 +231,12 @@
 <main>
   <nav class="whtabs">
     <a href="/warehouse">🏭 Остатки складов</a>
+    <a href="/warehouse/marketplace-inventory">Остатки и возвраты МП</a>
     <a href="/reports/wb-clearance">🏷️ Распродажа остатков ВБ</a>
     <a href="/warehouse/novelties" class="cur">✨ Новинки</a>
     <a href="/warehouse/loss">🔥 Пострадавшие склады ВБ</a>
   </nav>
+  <p class="lead">История решений до переноса восстановлена частично: старый чёрный список и лист ожидания дополнены только по сохранившимся подтверждениям.</p>
 
   <!-- Подтабы раздела: разбор новинок и чёрный список — две стороны одной работы,
        поэтому живут на одной странице и переключаются без перезагрузки. -->
@@ -385,18 +403,13 @@
   <!-- Подтаб «Запуск на МП»: сколько времени проходит от заведения модели в МойСкладе до
        того, как её карточка встала в продажу на каждой витрине. Единица — ВНЕШНИЙ КОД
        (модель), не карточка: карточек на коде столько, сколько брендов-поставщиков, а
-       карточка на витрине одна. Данные готовит ежедневный трекер collectors/launch_track.py. -->
+       основные и производные на витрине учитываются отдельно. Данные готовит ежедневный трекер collectors/launch_track.py. -->
   <div id="viewLaunch" hidden>
-    <p class="note" style="margin-top:0">Новинка — это <b>новый внешний код</b>. Если товар
-    поставщика привязали к нашему действующему коду, модель у нас уже есть, и новинкой она
-    не считается — в отчёт такие привязки не попадают. Модель считается заведённой в день,
-    когда её внешний код
-    впервые увидел ночной сбор МойСклада, и <b>в продаже</b> — когда карточка на витрине видна
-    покупателю (Ozon — «видимая», ВБ — в кабинете и не в корзине, Маркет — карточка Маркета готова).
-    Колонка витрины показывает, сколько дней прошло от заведения до продажи; <b>≤ N дн</b> значит,
-    что карточка стояла уже к первому замеру и точную дату мы не видели. Наблюдение ведётся
-    с августа 2026 — у моделей, заведённых раньше, дат нет, и в отчёт они не попадают.
-    У Дисквэра Маркета нет, поэтому витрин пять.</p>
+    <p class="note" style="margin-top:0">По умолчанию показаны модели, у которых нужно проверить основную карточку или производные.
+    <b style="color:#b91c1c">Красным</b> выделены неактивные и неподтверждённые карточки, отсутствующие основные и неуточнённые типы.
+    В каждой витрине отдельно: <b>основная → по принтерам → бандлы</b>. Раскройте группу для списка артикулов и причин.
+    «Активна в каталоге» не подтверждает доступность покупки; критерий площадки показан в списке карточек.
+    Ноль производных означает «карточки не найдены»; обязательное количество пока не задано.</p>
 
     <div class="big" id="lbig"></div>
 
@@ -404,53 +417,73 @@
       <select id="ldays">
         <option value="1">за сутки</option>
         <option value="7">за 7 дней</option>
-        <option value="30" selected>за 30 дней</option>
+        <option value="30">за 30 дней</option>
         <option value="90">за 90 дней</option>
-        <option value="0">всё, что знаем</option>
+        <option value="0" selected>всё, что знаем</option>
       </select>
       <select id="lsupplier"><option value="">все поставщики</option></select>
-      <label class="muted"><input type="checkbox" id="lgaps"> только с дырами</label>
+      <label class="muted"><input type="checkbox" id="lgaps" checked> Только требуют проверки</label>
       <span class="grow"></span>
       <span class="muted" id="lupd"></span>
     </div>
 
-    <h3 style="margin:22px 0 8px">Свежие новинки <span class="muted" id="lcohort"></span></h3>
-    <table>
+    <p class="lead" id="lcoverage"></p>
+    <h3 style="margin:22px 0 8px"><span id="lsectiontitle">Карточки к проверке</span> <span class="muted" id="lcohort"></span></h3>
+    <div class="toolbar">
+      <input id="lsearch" placeholder="Код или название модели" aria-label="Поиск моделей с датой">
+      <button id="lfind">Найти</button>
+      <button id="lprev">←</button><span id="lpage"></span><button id="lnext">→</button>
+    </div>
+    <div class="launch-table-scroll"><table>
       <thead><tr id="lhead"></tr></thead>
       <tbody id="lrows"><tr><td colspan="10" class="muted">загрузка…</td></tr></tbody>
-    </table>
+    </table></div>
 
-    <h3 style="margin:26px 0 8px">Новинки прошлых месяцев <span class="muted" id="loldn"></span></h3>
-    <p class="note" style="margin-top:0">Заведены больше недели назад, а хотя бы одной витрины
-    до сих пор нет. Окно фильтра на этот список не влияет — это очередь работы, а не срез
-    когорты. Клик по коду открывает разбор новинок с этим кодом в поиске.</p>
-    <table>
+    <h3 style="margin:26px 0 8px">Задачи вне выбранного периода <span class="muted" id="loldn"></span></h3>
+    <p class="note" style="margin-top:0">Модели старше недели с неактивной или неподтверждённой основной карточкой либо производными.
+    Модели, входящие в выборку выше, здесь не повторяются. Показаны первые 100; весь список доступен через «всё, что знаем». Клик по коду открывает разбор новинок.</p>
+    <div class="launch-table-scroll"><table>
       <thead><tr id="loldhead"></tr></thead>
       <tbody id="lold"><tr><td colspan="10" class="muted">загрузка…</td></tr></tbody>
-    </table>
+    </table></div>
 
-    <h3 style="margin:26px 0 8px">Витрины</h3>
+    <h3 style="margin:26px 0 8px">Сохранённые размещения без даты заведения <span class="muted" id="lrecoveredn"></span></h3>
+    <p class="note">Статусы основных и производных карточек, остатки и продажи восстановлены из сохранённых данных.
+    Дата заведения этих моделей не восстановлена, поэтому они не включены в число новинок за период.</p>
+    <div class="toolbar">
+      <input id="lrsearch" placeholder="Код или название модели" aria-label="Поиск восстановленных моделей">
+      <button id="lrfind">Найти</button>
+      <label><input type="checkbox" id="lrgaps" checked> Только требуют проверки</label>
+      <button id="lrprev">←</button><span id="lrpage"></span><button id="lrnext">→</button>
+    </div>
+    <div class="launch-table-scroll"><table><thead><tr id="lrhead"></tr></thead><tbody id="lrrows"></tbody></table></div>
+    <h3 style="margin:26px 0 8px">Основные карточки: все модели без даты</h3>
+    <table><thead><tr><th>Витрина</th><th>Нет карточки</th><th>Карточка есть, активность не подтверждена</th>
+      <th>Основная активна в каталоге</th><th>Нет данных</th></tr></thead><tbody id="lrfunnel"></tbody></table>
+
+    <h3 style="margin:26px 0 8px">Основные карточки — новинки с подтверждённой датой</h3>
     <table id="lfun">
-      <thead><tr><th style="width:200px">Витрина</th><th>Нет карточки</th><th>Карточка есть, не продаётся</th>
-        <th>В продаже</th><th style="width:34%">Доехало</th></tr></thead>
-      <tbody id="lfunrows"><tr><td colspan="5" class="muted">загрузка…</td></tr></tbody>
+      <thead><tr><th style="width:200px">Витрина</th><th>Нет карточки</th><th>Карточка есть, активность не подтверждена</th>
+        <th>Основная активна в каталоге</th><th>Нет данных</th><th style="width:34%">Доехало</th></tr></thead>
+      <tbody id="lfunrows"><tr><td colspan="6" class="muted">загрузка…</td></tr></tbody>
     </table>
 
     <h3 style="margin:26px 0 8px">Группы поставщиков</h3>
     <p class="note" style="margin-top:0">Кто приносит новые модели и как далеко они доезжают.
-    Поставщик приведён к <b>группе</b> из справочника (<code>invoice_bot/supplier_groups.py</code>):
+    Модель учитывается во всех связанных группах поставщиков. Поставщик приведён к <b>группе</b> из справочника:
     у поставщика за годы менялись ООО и ИП, и один и тот же «Кактус» приходит к нам то ключом
     прайса, то названием юрлица из витрины остатков.</p>
     <table>
       <thead><tr><th style="width:34%">Группа поставщика</th><th>Новых моделей</th><th>Доля</th>
-        <th>Доехало на все пять</th><th>Хоть на одну</th><th>В среднем витрин не хватает</th></tr></thead>
+        <th>Основная активна на всех пяти</th><th>Хоть на одной</th><th>В среднем витрин не хватает</th></tr></thead>
       <tbody id="lsup"><tr><td colspan="6" class="muted">загрузка…</td></tr></tbody>
     </table>
 
     <h3 style="margin:26px 0 8px">По месяцам</h3>
+    <p class="note">Даты моделей подтверждены созданием товаров в МС. Количество замеченных карточек — по наблюдениям сборщика, включая исходный снимок при восстановлении.</p>
     <table>
-      <thead><tr><th style="width:120px">Месяц</th><th>Новых моделей</th><th>Новых карточек МС</th>
-        <th>Есть хоть на одной витрине</th><th>Есть на всех пяти</th></tr></thead>
+      <thead><tr><th style="width:120px">Месяц</th><th>Новых моделей</th><th>Впервые замечено карточек МС</th>
+        <th>Основная активна хоть на одной</th><th>Основная активна на всех пяти</th></tr></thead>
       <tbody id="lmonrows"><tr><td colspan="5" class="muted">загрузка…</td></tr></tbody>
     </table>
 
@@ -632,18 +665,18 @@
   <p>Считается только <b>новый внешний код</b>: привязка товара поставщика к нашему действующему
   коду — не новинка, такую модель мы уже продаём, и новых карточек на витринах она не требует.
   Разбор новинок кончается карточкой в МойСкладе, но продаём мы не в МойСкладе. Этот раздел
-  показывает, что было дальше: <b>доехала ли заведённая модель до продажи на всех пяти витринах</b> —
+  показывает, что было дальше: <b>активна ли основная карточка модели в каталогах всех пяти витрин</b> —
   Ozon Цифровой, Ozon Дисквэр, ВБ Цифровой, ВБ Дисквэр, Маркет Цифровой. У Дисквэра Маркета нет,
   поэтому витрин пять, а не шесть. Данные обновляются каждую ночь сами, руками тут ничего
   заполнять не нужно.</p>
   <p>Считаем по <b>внешнему коду</b> (модели), а не по карточкам: карточек под кодом столько,
-  сколько брендов-поставщиков, а карточка на витрине одна.</p>
+  сколько брендов-поставщиков, а основная и её производные на витрине учитываются отдельно.</p>
   <ul>
-    <li><b>Свежие новинки</b> — заведённые за выбранный период (по умолчанию 30 дней).</li>
+    <li><b>Свежие новинки</b> — заведённые за выбранный период; по умолчанию показаны все известные даты.</li>
     <li><b>Новинки прошлых месяцев</b> — заведены больше недели назад, а какой-то витрины
       до сих пор нет. Это <b>очередь работы</b>, фильтр периода на неё не влияет.</li>
-    <li>В клетке витрины: <span class="tag matched">в продаже</span> — карточку видит покупатель,
-      <span class="tag new">карточка</span> — карточка есть, но не продаётся (под ней написана
+    <li>В клетке витрины: <span class="tag matched">активна в каталоге</span> — выполнен критерий каталога площадки,
+      <span class="tag new">карточка</span> — карточка есть, но активность не подтверждена (под ней написана
       причина: модерация, архив, нет остатка), <span class="tag skip">нет</span> — карточки
       на витрине нет вовсе.</li>
     <li><b>Остаток</b> — сколько штук лежит на складе, и отдельно «в пути». <b>Продажи</b> —
@@ -651,7 +684,7 @@
     <li>Клик по коду открывает «✨ Разбор новинок» с этим кодом в поиске.</li>
   </ul>
   <p class="lead">Что нужно делать: <b>добиваться, чтобы каждая новинка — и свежая, и прошлых
-  месяцев — была в продаже на всех пяти витринах.</b> Цель — обе таблицы без серых и жёлтых
+  месяцев — имела активную основную карточку в каталогах всех пяти витрин.</b> Цель — обе таблицы без серых и жёлтых
   клеток.</p>
   <ol>
     <li>Раз в день открыть раздел и посмотреть обе таблицы: свежие — не появилось ли новых
@@ -1809,30 +1842,75 @@ fitBar();
    сама вырастет на колонку. */
 let LLOADED = false, LSUP = false;
 
+const launchRoleLabels = {main:"Основная", printer:"По принтерам", bundle:"Бандлы", unknown:"Тип требует проверки"};
+const launchStateLabel = state => state === "selling" ? "Активна в каталоге" : state === "card" ? "Активность не подтверждена" : state === "none" ? "Не найдена" : "Нет подтверждения";
 function lcell(c){
-  if (!c || c.state === "none") return `<td><span class="tag skip">нет</span></td>`;
-  if (c.state === "card"){
-    return `<td><span class="tag new">карточка</span>`
-         + (c.note ? `<div class="verdict">${esc(c.note)}</div>` : "") + `</td>`;
-  }
-  const d = c.days === null ? ""
-          : `<div class="verdict">${c.about ? "≤ " : ""}${num(c.days)} дн</div>`;
-  return `<td><span class="tag matched">в продаже</span>${d}</td>`;
+  const groups=c?.groups || {};
+  const roles=Object.entries(launchRoleLabels).map(([role,label]) => {
+    const g=groups[role], total=g?.total || 0;
+    if(!total){
+      if(role === "unknown") return "";
+      return role === "main" ? `<div class="launch-role lc-problem"><b>Основная</b><div class="lc-state">${launchStateLabel(c?.state || "unknown")}</div></div>`
+        : `<div class="launch-role"><b>${label}: 0</b><div class="verdict">Карточки не найдены</div></div>`;
+    }
+    const issue=role === "unknown" || g.active < total;
+    const status=total === 1 && role === "main" ? (g.active === 1 ? "Активна в каталоге" : g.unknown ? "Нет подтверждения" : "Активность не подтверждена")
+      : `Активны в каталоге: ${num(g.active)} из ${num(total)}`;
+    const extra=(role === "main" && total === 1) ? "" : (g.card ? `<span class="lc-bad-count">Неактивны / не подтверждены: ${num(g.card)}</span>` : "")
+      +(g.unknown ? `<span class="lc-bad-count">Нет данных: ${num(g.unknown)}</span>` : "");
+    return `<details class="lvariants launch-role ${issue ? "lc-problem" : "lc-healthy"}" data-code="${esc(c.ext)}" data-showcase="${esc(c.showcase)}" data-role="${role}">
+      <summary><b>${label}${role === "main" && total === 1 ? "" : `: ${num(total)}`}</b>
+        <div class="lc-state">${role === "unknown" ? "Нужно уточнить тип карточек" : status}</div>${extra}</summary>
+      <div class="lcards">Загрузка…</div></details>`;
+  }).join("");
+  return `<td class="launch-roles">${roles}</td>`;
 }
+async function loadLaunchCards(details,page=1){
+  const target=details.querySelector(".lcards");
+  try{
+    const url=`/api/novelties/launch/cards?code=${encodeURIComponent(details.dataset.code)}&showcase=${encodeURIComponent(details.dataset.showcase)}&role=${encodeURIComponent(details.dataset.role)}&page=${page}`;
+    const response=await fetch(url);
+    if(!response.ok) throw new Error("Не удалось получить карточки");
+    const d=await response.json();
+    target.innerHTML=`<div class="verdict">${esc(d.criterion)}. Доступность покупки не проверяется.</div>`
+      +d.cards.map(c=>`<div class="lcard ${c.state !== "selling" || c.role === "unknown" ? "lc-problem" : "lc-healthy"}"><b>${esc(c.offer)}</b><div class="lc-state">${launchStateLabel(c.state)}${c.multiplier ? ` · ${num(c.multiplier)} шт.` : ""}</div>
+        <div>${esc(c.name || "")}</div>${c.note ? `<div>${esc(c.note)}</div>` : ""}<div class="verdict">Тип: ${esc(c.role === "unknown" ? "Требует проверки" : launchRoleLabels[c.role] || "Не определён")}${c.card_id !== c.offer ? ` · ${details.dataset.showcase.startsWith("wb") ? "nmID ВБ" : "ID"} ${esc(c.card_id)}` : ""}</div></div>`).join("")
+      +`<div>${num(d.total)} карточек · ${d.page}/${d.pages} `
+      + (d.page>1 ? `<button data-lpage="${d.page-1}">←</button>` : "")
+      + (d.page<d.pages ? `<button data-lpage="${d.page+1}">→</button>` : "")+`</div>`;
+    details.dataset.loaded="yes";
+  }catch(e){target.textContent="Не удалось загрузить карточки. Закройте и откройте список для повтора.";delete details.dataset.loaded;}
+}
+document.addEventListener("toggle",e=>{
+  const d=e.target;
+  if(d.matches?.("details.lvariants") && d.open && !d.dataset.loaded) loadLaunchCards(d);
+},true);
+document.addEventListener("click",e=>{
+  const button=e.target.closest("[data-lpage]");
+  if(button){e.preventDefault();loadLaunchCards(button.closest("details.lvariants"),Number(button.dataset.lpage));}
+});
 
+let LRECOVEREDPAGE = 1, LPAGE = 1;
 async function loadLaunch(){
   const days = $("#ldays").value, sup = $("#lsupplier").value || "",
         gaps = $("#lgaps").checked ? 1 : 0;
   const d = await (await fetch(`/api/novelties/launch?days=${days}&gaps=${gaps}`
-                             + `&supplier=${encodeURIComponent(sup)}`)).json();
+                             + `&supplier=${encodeURIComponent(sup)}&page=${LPAGE}&search=${encodeURIComponent($("#lsearch").value)}&recovered_page=${LRECOVEREDPAGE}`
+                             + `&recovered_search=${encodeURIComponent($("#lrsearch").value)}&recovered_gaps=${$("#lrgaps").checked}`)).json();
   LLOADED = true;
-  $("#lupd").textContent = d.updated ? `замер: ${d.updated.replace("T", " ")}` : "";
+  for(const name of (d.recovered || {}).suppliers || []) {
+    if(!Array.from($("#lsupplier").options).some(o => o.value === name)) {
+      const option=document.createElement("option"); option.value=name; option.textContent=name; $("#lsupplier").append(option);
+    }
+  }
+  $("#lcoverage").textContent=d.coverage||"";
+  $("#lupd").textContent = d.updated ? `Снимок МП: ${new Intl.DateTimeFormat("ru-RU", {timeZone:"Europe/Moscow",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(d.updated))} МСК` : "";
 
-  const med = d.median_days === null ? "—" : num(Math.round(d.median_days));
+  $("#lsectiontitle").textContent = $("#lgaps").checked ? "Карточки к проверке" : "Модели за выбранный период";
   $("#lbig").innerHTML = [
-    ["заведено сегодня", num(d.today)], ["за 30 дней", num(d.d30)],
-    ["всего под наблюдением", num(d.known)], ["в когорте", num(d.cohort)],
-    ["медиана дней до продажи", med],
+    ["Моделей в выбранном периоде", num(d.cohort)],
+    ["Моделей к проверке", num(d.review_total)],
+    ["Моделей без даты к проверке", num(d.recovered?.review_total)],
   ].map(([l, v]) => `<div class="bi" style="cursor:default"><div class="l">${l}</div>
                        <div class="v">${v}</div></div>`).join("");
 
@@ -1843,7 +1921,7 @@ async function loadLaunch(){
     return `<tr><td><b>${esc(sc.title)}</b></td>
       <td class="${f.none ? "miss" : "muted"}">${num(f.none)}</td>
       <td class="${f.card ? "miss" : "muted"}">${num(f.card)}</td>
-      <td class="ok">${num(f.selling)}</td>
+      <td class="ok">${num(f.selling)}</td><td class="muted">${num(f.unknown||0)}</td>
       <td>${pct} % из ${num(tot)}</td></tr>`;
   }).join("");
 
@@ -1853,11 +1931,12 @@ async function loadLaunch(){
     || `<tr><td colspan="5" class="muted">пока нет месяцев с известными датами</td></tr>`;
 
   const SCT = Object.fromEntries(d.showcases.map(sc => [sc.key, sc.title]));
-  const heads = `<th style="width:78px">Код</th><th style="width:96px">Заведён</th>
-    <th>Название</th><th style="width:84px">Остаток</th><th style="width:120px">Продажи</th>`
+  const heads = `<th>Код</th><th>Заведён</th>
+    <th>Название</th><th>Остаток</th><th>Продажи</th>`
     + d.showcases.map(sc => `<th>${esc(sc.title)}</th>`).join("");
   $("#lhead").innerHTML = heads;
   $("#loldhead").innerHTML = heads;
+  $("#lrhead").innerHTML = heads;
   const cols = 5 + d.showcases.length;
 
   /* Обе таблицы — свежие новинки и новинки прошлых месяцев — рисуются одной функцией:
@@ -1865,7 +1944,7 @@ async function loadLaunch(){
   const lrow = r =>
     `<tr><td><b class="jump" data-code="${esc(r.ext)}">${esc(r.ext)}</b>${
         r.archived ? ` <span class="tag skip">архив</span>` : ""}</td>
-      <td>${esc(r.created)}<div class="verdict">${num(r.days_old)} дн назад</div></td>
+      <td>${r.created ? `${esc(r.created)}<div class="verdict">${num(r.days_old)} дн назад</div>` : `<span class="muted">дата не восстановлена</span>`}</td>
       <td>${esc(r.name || "")}<div class="verdict">${esc(r.supplier || "поставщик не определён")}${
         r.cards > 1 ? ` · карточек ${num(r.cards)}` : ""}</div></td>
       <td class="${r.stock ? "" : "miss"}">${num(r.stock)}${
@@ -1880,7 +1959,18 @@ async function loadLaunch(){
   $("#lold").innerHTML = (d.older || []).map(lrow).join("")
     || `<tr><td colspan="${cols}" class="muted">незакрытых новинок прошлых месяцев нет</td></tr>`;
   $("#loldn").textContent = `— ${num(d.older_total)} моделей`;
-  document.querySelectorAll("#lrows .jump, #lold .jump").forEach(b => b.onclick = () => {
+  const recovered = d.recovered || {rows: [], total: 0, all_total: 0, page: 1, pages: 1};
+  LRECOVEREDPAGE = recovered.page;
+  $("#lrrows").innerHTML = recovered.rows.map(lrow).join("") || `<tr><td colspan="${cols}" class="muted">по этим условиям моделей нет</td></tr>`;
+  $("#lrecoveredn").textContent = `— найдено ${num(recovered.total)} из ${num(recovered.all_total)}`;
+  $("#lrpage").textContent = `${recovered.page} / ${recovered.pages}`;
+  $("#lrprev").disabled = recovered.page <= 1;
+  $("#lrnext").disabled = recovered.page >= recovered.pages;
+  $("#lrfunnel").innerHTML = d.showcases.map(sc => {
+    const f = (recovered.funnel || {})[sc.key] || {};
+    return `<tr><td>${esc(sc.title)}</td><td>${num(f.none || 0)}</td><td>${num(f.card || 0)}</td><td>${num(f.selling || 0)}</td><td>${num(f.unknown || 0)}</td></tr>`;
+  }).join("");
+  document.querySelectorAll("#lrows .jump, #lold .jump, #lrrows .jump").forEach(b => b.onclick = () => {
     bview("new"); $("#q").value = b.dataset.code; $("#q").dispatchEvent(new Event("input"));
   });
 
@@ -1891,7 +1981,7 @@ async function loadLaunch(){
     return `<tr><td><b>${esc(sc.title)}</b></td>
       <td class="${f.none ? "miss" : "muted"}">${num(f.none)}</td>
       <td class="${f.card ? "miss" : "muted"}">${num(f.card)}</td>
-      <td class="ok">${num(f.selling)}</td>
+      <td class="ok">${num(f.selling)}</td><td class="muted">${num(f.unknown||0)}</td>
       <td>${pct} % из ${num(tot)}</td></tr>`;
   }).join("");
 
@@ -1908,22 +1998,35 @@ async function loadLaunch(){
       <td>${num(m.any)}</td><td class="${m.all ? "ok" : "muted"}">${num(m.all)}</td></tr>`).join("")
     || `<tr><td colspan="5" class="muted">пока нет месяцев с известными датами</td></tr>`;
 
-  $("#lcohort").textContent = `— показано ${num(d.shown)} из ${num(d.cohort)}`;
+  const dated = d.pagination || {page:1, pages:1, total:d.shown};
+  LPAGE = dated.page;
+  $("#lpage").textContent = `${dated.page} / ${dated.pages}`;
+  $("#lprev").disabled = dated.page <= 1;
+  $("#lnext").disabled = dated.page >= dated.pages;
+  $("#lcohort").textContent = `— показано ${num(d.shown)} из ${num(dated.total)}, моделей в периоде: ${num(d.cohort)}`;
   $("#lfoot").textContent = "Отсутствие карточки на витрине — повод открыть модель в разборе "
     + "новинок: чаще всего это либо не заведённая карточка, либо не пройденная модерация, "
     + "либо нулевой остаток. Причину, если витрина её сообщает, видно прямо в клетке. "
     + "Продажи — отгрузки МойСклада, единственный факт, общий для всех пяти витрин; "
     + "выручку по позиции МойСклад не хранит, поэтому здесь штуки.";
   if (!LSUP){
-    const sups = [...new Set((d.suppliers || []).map(r => r.supplier)
-                                                .filter(k => k && k !== "—"))].sort();
+    const sups = [...new Set([...(d.suppliers || []).map(r => r.supplier),
+        ...((d.recovered || {}).suppliers || [])].filter(k => k && k !== "—"))].sort();
     $("#lsupplier").innerHTML = `<option value="">все группы поставщиков</option>`
       + sups.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join("");
     LSUP = true;
   }
   fitBar();
 }
-["#ldays", "#lsupplier", "#lgaps"].forEach(id => $(id).onchange = loadLaunch);
+["#ldays", "#lsupplier", "#lgaps", "#lrgaps"].forEach(id => $(id).onchange = () => { LRECOVEREDPAGE=1; LPAGE=1; loadLaunch(); });
+$("#lfind").onclick = () => { LPAGE=1; loadLaunch(); };
+$("#lsearch").onkeydown = e => { if(e.key === "Enter") $("#lfind").click(); };
+$("#lprev").onclick = () => { LPAGE--; loadLaunch(); };
+$("#lnext").onclick = () => { LPAGE++; loadLaunch(); };
+$("#lrfind").onclick = () => { LRECOVEREDPAGE=1; loadLaunch(); };
+$("#lrsearch").onkeydown = e => { if(e.key === "Enter") $("#lrfind").click(); };
+$("#lrprev").onclick = () => { LRECOVEREDPAGE--; loadLaunch(); };
+$("#lrnext").onclick = () => { LRECOVEREDPAGE++; loadLaunch(); };
 
 
 load();

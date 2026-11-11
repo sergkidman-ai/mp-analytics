@@ -80,8 +80,8 @@ class CompanyReportTests(unittest.TestCase):
         base=Path(__file__).resolve().parents[1]/'tools/wb_buyer_windows_digital/WB_QR_Extension'
         manifest=json.loads((base/'manifest.json').read_text())
         self.assertEqual(manifest['name'],'QR WB — Цифровой')
-        self.assertIn('https://bi.metaverseworld.ru/api/returns/wb-qr/tsifrovoy',manifest['host_permissions'])
-        self.assertNotIn('https://bi.metaverseworld.ru/api/returns/wb-qr/diskver',manifest['host_permissions'])
+        self.assertIn('https://bi.beyindi.com/api/returns/wb-qr/tsifrovoy',manifest['host_permissions'])
+        self.assertNotIn('https://bi.beyindi.com/api/returns/wb-qr/diskver',manifest['host_permissions'])
         self.assertIn('/returns/wb-qr/setup/tsifrovoy',(base/'popup.html').read_text())
         self.assertNotIn('/api/returns/wb-qr/diskver',(base/'background.js').read_text())
 

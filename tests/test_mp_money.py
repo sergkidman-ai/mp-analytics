@@ -51,6 +51,29 @@ class MpMoneyTest(unittest.TestCase):
         self.assertIn('wb_acc2',r['missing'])
         self.assertIsNone(compose_mp_money([],[],ACCOUNTS))
 
+    def test_overdue_uses_original_due_date_not_shifted_cashflow_day(self):
+        row=payout('440149.85',org='digital',account='wb_acc1',week='2026-10-05',
+                   day=dt.date(2026,11,11))
+        r=compose_mp_money([], [row], ACCOUNTS, today=dt.date(2026,11,11))
+        self.assertEqual(r['wb_overdue_payments'][0]['due_date'],'2026-11-09')
+        self.assertEqual(r['wb_overdue_payments'][0]['days_overdue'],2)
+        self.assertEqual(r['wb_overdue_max_days'],2)
+        next_day=compose_mp_money([], [row], ACCOUNTS, today=dt.date(2026,11,12))
+        self.assertEqual(next_day['wb_overdue_payments'][0]['days_overdue'],3)
+
+    def test_details_preserve_separate_payments_and_filter_organization(self):
+        rows=[payout('10',week='2026-10-05'),payout('20',week='2026-09-28'),
+              payout('30',org='digital',account='wb_acc1',week='2026-10-05')]
+        r=compose_mp_money([],rows,ACCOUNTS,'diskver',today=dt.date(2026,11,11))
+        self.assertEqual([p['days_overdue'] for p in r['wb_overdue_payments']],[9,2])
+        self.assertEqual(sum(p['amount'] for p in r['wb_overdue_payments']),r['wb_overdue'])
+        self.assertEqual(r['wb_overdue_count'],len(r['wb_overdue_payments']))
+
+    def test_unknown_due_date_not_guessed(self):
+        r=compose_mp_money([], [payout('10',week='unknown')],ACCOUNTS,today=DAY)
+        self.assertIsNone(r['wb_overdue_payments'][0]['days_overdue'])
+        self.assertIsNone(r['wb_overdue_max_days'])
+
 
 if __name__ == '__main__':
     unittest.main()

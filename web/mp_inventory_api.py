@@ -61,9 +61,13 @@ def stock_data(on="", platform="", organization="", account="", warehouse="", sk
           in_way_to_client,in_way_from_client FROM mp_stock_history
           WHERE (platform,account,captured_at) IN (""" + placeholders + ")",
           tuple(v for triplet in selections for v in triplet))
+    evidence_warehouses = {r["warehouse"] for r in db.query(
+        "SELECT warehouse FROM wb_damage_stock_warehouse")}
     items = defaultdict(dict)
     warehouses = set()
     for row in source:
+        if row["platform"] == "wb" and row["warehouse"] in evidence_warehouses:
+            continue
         key = (row['platform'],row['account'],row['sku'],row['warehouse'])
         items[key][str(row['captured_at'])] = row
         if row['captured_at'] == dates[key[:2]]['current']:
@@ -71,6 +75,8 @@ def stock_data(on="", platform="", organization="", account="", warehouse="", sk
     frozen_items = {}
     for row in db.query("""SELECT platform,account,sku,warehouse,usable_available
       FROM mp_inventory_baseline_item"""):
+        if row["platform"] == "wb" and row["warehouse"] in evidence_warehouses:
+            continue
         key = row['platform'],row['account'],row['sku'],row['warehouse']
         if key[:2] in dates and dates[key[:2]]['frozen']:
             frozen_items[key] = row
@@ -92,7 +98,7 @@ def stock_data(on="", platform="", organization="", account="", warehouse="", sk
         initial=base.get('usable_available') or 0
         out.append(dict(platform=p,account=a,organization=ACCOUNTS.get(a,(None,a))[1],
             sku=s,warehouse=w,current=str(qty),previous=str(previous),initial=str(initial),
-            change=str(qty-previous),since_baseline=str(qty-initial),
+            change=str(qty-previous) if marks['previous'] else None,since_baseline=str(qty-initial),
             raw=str(current.get('raw_available') or 0),excluded=str(current.get('excluded_loss') or 0),
             total=str(current['usable_total']) if current.get('usable_total') is not None else None,
             reserved=str(current['reserved']) if current.get('reserved') is not None else None,
@@ -100,7 +106,7 @@ def stock_data(on="", platform="", organization="", account="", warehouse="", sk
             in_way_to_client=str(current['in_way_to_client']) if current.get('in_way_to_client') is not None else None,
             in_way_from_client=str(current['in_way_from_client']) if current.get('in_way_from_client') is not None else None,
             captured_at=marks['current'],previous_at=marks['previous'],baseline_at=marks['baseline']))
-    out.sort(key=lambda x:(abs(float(x['change'])),float(x['current']),x['sku']), reverse=True)
+    out.sort(key=lambda x:(abs(float(x['change'] or 0)),float(x['current']),x['sku']), reverse=True)
     summary = []
     for (p,a),marks in dates.items():
         if platform and p!=platform or account and a!=account:
@@ -111,10 +117,15 @@ def stock_data(on="", platform="", organization="", account="", warehouse="", sk
         summary.append(dict(platform=p,account=a,organization=ACCOUNTS.get(a,(None,a))[1],
             captured_at=marks['current'],baseline_at=marks['baseline'],
             available=str(sum(float(x['current']) for x in matching)),
-            change=str(sum(float(x['change']) for x in matching))))
+            change=str(sum(float(x['change']) for x in matching)) if marks['previous'] else None))
+    coverage = "Остатки складов МП собираются по WB и Ozon в обоих кабинетах. FBY Маркета не используется. Все возвраты FBS Маркета направляются на наш склад; их приёмка сверяется ниже по документам МС."
+    if summary:
+        coverage += " Суточные снимки доступны с " + str(min(x['baseline_at'] for x in summary)) + "."
+    if any(x['platform'] == 'wb' for x in summary):
+        coverage += " Пострадавшие товары исключены из остатков и их изменений. Последние известные остатки сохраняются отдельно для подтверждения убытков."
     return dict(rows=out[offset:offset+limit],total=len(out),summary=summary,
         warehouses=[dict(platform=p,name=w) for p,w in sorted(warehouses)],
-        coverage="Маркет не включён в учёт остатков складов МП: возвраты поступают на наш склад. Их приёмка сверяется ниже по документам МС.")
+        coverage=coverage)
 
 
 @router.get("/api/warehouse/marketplace-stock")
@@ -161,7 +172,7 @@ def stock_history(platform: str, account: str, sku: str, warehouse: str):
           destination_observed_at,evidence
           FROM wb_return_journey_candidate WHERE account=%s AND sku=%s
           ORDER BY current_observed_at DESC LIMIT 30""",(account,sku))
-        if account == 'wb_acc1':
+        if account in ('wb_acc1','wb_acc2'):
             intraday=db.query("""SELECT c.completed_at,c.source_rows,
               coalesce(sum(i.quantity),0) quantity,
               coalesce(sum(i.in_way_to_client),0) in_way_to_client,
@@ -171,6 +182,23 @@ def stock_history(platform: str, account: str, sku: str, warehouse: str):
               LEFT JOIN wb_fbo_intraday_item i ON i.capture_id=c.id AND i.nm_id=%s
               GROUP BY c.id,c.completed_at,c.source_rows
               ORDER BY c.completed_at DESC""",(account,int(sku))) if sku.isdigit() and len(sku)<=18 else []
+    elif platform == 'ozon':
+        links=db.query('''SELECT p.completed_at previous_capture,c.completed_at current_capture,
+          l.quantity,l.evidence,o.posting_number,o.created_at,o.mp_status
+          FROM ozon_fbo_stock_link_candidates l
+          JOIN ozon_fbo_intraday_capture p ON p.id=l.previous_capture_id
+          JOIN ozon_fbo_intraday_capture c ON c.id=l.current_capture_id
+          JOIN mp_fbo_orders o ON o.id=l.order_id
+          WHERE l.account=%s AND l.sku=%s AND l.source_warehouse=%s
+          ORDER BY c.completed_at DESC LIMIT 30''',(account,sku,warehouse))
+        intraday=db.query('''SELECT c.completed_at,c.source_rows,
+          coalesce(sum(i.free_to_sell),0) quantity,coalesce(sum(i.reserved),0) reserved,
+          coalesce(sum(i.promised),0) promised
+          FROM (SELECT id,completed_at,source_rows FROM ozon_fbo_intraday_capture
+                WHERE account=%s ORDER BY completed_at DESC LIMIT 30) c
+          LEFT JOIN ozon_fbo_intraday_item i ON i.capture_id=c.id AND i.sku=%s AND i.warehouse=%s
+          GROUP BY c.id,c.completed_at,c.source_rows ORDER BY c.completed_at DESC''',
+          (account,sku,warehouse))
     return dict(rows=rows,links=links,intraday=intraday,return_journey=return_journey)
 
 

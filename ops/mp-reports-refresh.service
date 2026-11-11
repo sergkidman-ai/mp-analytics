@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh MP financial reports and actual shipment costs
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python /opt/mp-analytics/tools/mp_reports_pipeline.py
+TimeoutStartSec=2h
+Nice=10

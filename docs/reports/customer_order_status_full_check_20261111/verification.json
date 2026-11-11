@@ -1,0 +1,44 @@
+{
+  "scope": 2385,
+  "observed": 2385,
+  "changed": 1161,
+  "started_at": "2026-11-11T10:34:59.608379+00:00",
+  "finished_at": "2026-11-11T10:37:16.097720+00:00",
+  "coverage": {
+    "n": 2385,
+    "stale": 0
+  },
+  "api_samples": [
+    {
+      "account": "oz_acc1",
+      "number": "0235007727-0011-2",
+      "status": "Отменен - сроки"
+    },
+    {
+      "account": "oz_acc2",
+      "number": "39070231-0028-1",
+      "status": "Доставлен"
+    },
+    {
+      "account": "wb_acc1",
+      "number": "6024600540",
+      "status": "Доставлен"
+    },
+    {
+      "account": "wb_acc2",
+      "number": "6081296807",
+      "status": "Доставлен"
+    },
+    {
+      "account": "ya_acc1",
+      "number": "63910032578",
+      "status": "Доставлен"
+    }
+  ],
+  "errors": {
+    "missing": 0,
+    "mismatched": 0,
+    "errors": 0,
+    "raced": 0
+  }
+}

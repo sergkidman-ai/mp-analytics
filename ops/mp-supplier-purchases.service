@@ -1,0 +1,12 @@
+[Unit]
+Description=Supplier purchase current month refresh and completed month archive
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=MS_API_PRIORITY=background
+UMask=0077
+ExecStart=/opt/mp-analytics/venv/bin/python -m collectors.supplier_purchase_month
+TimeoutStartSec=1800

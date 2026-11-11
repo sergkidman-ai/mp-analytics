@@ -1,6 +1,6 @@
 """Поток card: разовое напоминание Наталии о лимите совместимости Ozon."""
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import requests
@@ -44,6 +44,8 @@ def send_due(now=None, marker=MARKER):
     now = now or datetime.now(timezone.utc)
     if now < DUE or marker.exists():
         return False
+    if now>DUE+timedelta(days=2):
+        return False  # просроченную разовую команду не воспроизводим после восстановления
     message_id = send_text(MESSAGE)
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text('{"message_id": ' + str(message_id) + ', "sent_at": "' + now.isoformat() + '"}')

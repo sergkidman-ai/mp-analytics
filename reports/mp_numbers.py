@@ -64,16 +64,23 @@ def _derive_acc(platform, acc, y, m):
 
 def _pack(platform, d):
     ob = float(d.get(_OBOROT[platform]) or 0)
-    net = float(d.get("net") or 0)
-    cogs = float(d.get("cogs") or 0)
+    net = float(d["net"]) if d.get("net") is not None else None
+    cogs = float(d["cogs"]) if d.get("cogs") is not None else None
     hold = float(d.get(_HOLD[platform]) or 0)
-    return {"oborot": round(ob, 2), "net": round(net, 2), "cogs": round(cogs, 2),
+    return {"oborot": round(ob, 2), "net": round(net, 2) if net is not None else None,
+            "cogs": round(cogs, 2) if cogs is not None else None,
             "payout": round(float(d.get(_PAYOUT[platform]) or 0), 2),
             "hold": round(hold, 2), "hold_pct": round(hold / ob * 100, 1) if ob else None,
             "itog": round(float(d.get("itog") or 0), 2),
             "orders": int(d.get("orders") or 0), "returns_cnt": int(d.get("returns_cnt") or 0),
-            "margin_pct": round(net / ob * 100, 1) if ob else None,
-            "cogs_pct": round(cogs / ob * 100, 1) if ob else None}
+            "margin_pct": round(net / ob * 100, 1) if ob and net is not None else None,
+            "cogs_pct": round(cogs / ob * 100, 1) if ob and cogs is not None else None}
+
+
+def _sum_known(rows, key):
+    """A partial cost/profit sum cannot represent the whole account or business."""
+    values = [r.get(key) for r in rows]
+    return round(sum(values), 2) if values and all(v is not None for v in values) else None
 
 
 def _compute(platform, y, m):
@@ -85,13 +92,15 @@ def _compute(platform, y, m):
             continue
     if not accs:
         return None
-    out = {k: round(sum(v[k] or 0 for v in accs.values()), 2)
+    out = {k: _sum_known(accs.values(), k)
            for k in ("oborot", "net", "cogs", "payout", "itog", "hold")}
+    if len(accs) != len(ACCOUNTS[platform]):
+        out['net'] = out['cogs'] = None
     out["orders"] = sum(v["orders"] for v in accs.values())
     out["returns_cnt"] = sum(v["returns_cnt"] for v in accs.values())
     ob = out["oborot"]
-    out["margin_pct"] = round(out["net"] / ob * 100, 1) if ob else None
-    out["cogs_pct"] = round(out["cogs"] / ob * 100, 1) if ob else None
+    out["margin_pct"] = round(out["net"] / ob * 100, 1) if ob and out['net'] is not None else None
+    out["cogs_pct"] = round(out["cogs"] / ob * 100, 1) if ob and out['cogs'] is not None else None
     out["hold_pct"] = round(out["hold"] / ob * 100, 1) if ob else None
     out["accounts"] = accs
     return out
@@ -136,10 +145,10 @@ def business(period: str, org: str = ""):
             a = accs.get(p)
             parts[p] = account(p, a, period) if a else None
     have = {p: v for p, v in parts.items() if v}
-    tot = {k: round(sum(v[k] or 0 for v in have.values()), 2)
+    tot = {k: _sum_known(have.values(), k)
            for k in ("oborot", "net", "cogs", "payout", "hold")}
     ob = tot["oborot"]
-    tot["margin_pct"] = round(tot["net"] / ob * 100, 1) if ob else None
-    tot["cogs_pct"] = round(tot["cogs"] / ob * 100, 1) if ob else None
+    tot["margin_pct"] = round(tot["net"] / ob * 100, 1) if ob and tot['net'] is not None else None
+    tot["cogs_pct"] = round(tot["cogs"] / ob * 100, 1) if ob and tot['cogs'] is not None else None
     tot["hold_pct"] = round(tot["hold"] / ob * 100, 1) if ob else None
     return {"platforms": parts, "total": tot, "org": org or None}

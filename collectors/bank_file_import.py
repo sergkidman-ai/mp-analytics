@@ -37,6 +37,10 @@ import hashlib
 import pathlib
 import re
 import sys
+import os
+import json
+import datetime as dt
+import tempfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
@@ -458,6 +462,38 @@ def parse(data, filename, bank, org_inn, account=None):
     return parse_table(data, filename, bank, org_inn, account)
 
 
+def archive_source(data, filename, bank, org_inn, info):
+    """Keep original confirmed imports for replay; never publish bank files via web."""
+    root = pathlib.Path(os.getenv('BANK_STATEMENT_ARCHIVE_DIR', str(HERE.parent / '.private' / 'bank_statement_sources')))
+    slug = lambda v: re.sub(r'[^a-zA-Z0-9_-]', '_', str(v))[:64] or 'unknown'
+    directory = root / slug(bank) / slug(org_inn)
+    for folder in [root, directory.parent, directory]:
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+    digest = hashlib.sha256(data).hexdigest()
+    suffix = pathlib.Path(str(filename)).suffix.lower()
+    if suffix not in ('.pdf', '.txt', '.csv', '.xlsx', '.xls', '.1c'):
+        suffix = '.bin'
+    target = directory / (digest + suffix)
+    def atomic_write(path, content):
+        with tempfile.NamedTemporaryFile(dir=directory, prefix='.upload-', delete=False) as tmp:
+            tmp.write(content)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+            temp_path = pathlib.Path(tmp.name)
+        try:
+            temp_path.replace(path)
+        finally:
+            temp_path.unlink(missing_ok=True)
+    if not target.exists() or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+        atomic_write(target, data)
+    meta = target.with_suffix(target.suffix + '.json')
+    if not meta.exists():
+        atomic_write(meta, json.dumps({'sha256': digest, 'filename': str(filename), 'bank': bank,
+            'org_inn': org_inn, 'received_at': dt.datetime.now(dt.timezone.utc).isoformat(),
+            'parsed': info['parsed'], 'period': info['period']}, ensure_ascii=False).encode())
+    return digest
+
+
 def import_bytes(data, filename, bank, org_inn, account=None, since=None, dry=False):
     """Разобрать файл и положить в `bank_txn` (+ разметка по правилам).
 
@@ -469,6 +505,8 @@ def import_bytes(data, filename, bank, org_inn, account=None, since=None, dry=Fa
             "account": acc, "file": str(filename), "dry": bool(dry),
             "debit": round(sum(o["amount"] for o in ops if o["direction"] == "DEBIT"), 2),
             "credit": round(sum(o["amount"] for o in ops if o["direction"] == "CREDIT"), 2)}
+    if not dry:
+        info['source_sha256'] = archive_source(data, filename, bank, org_inn, info)
     if dry or not ops:
         info.update({"seen": len(ops), "stored": 0, "dup": 0, "before_cutoff": 0, "ruled": 0})
         return info

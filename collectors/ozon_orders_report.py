@@ -22,6 +22,8 @@ Ozon (он выкупил товар и стал собственником), о
 import argparse
 import csv
 import io
+import json
+from datetime import datetime, timezone
 import sys
 import time
 from datetime import date, timedelta
@@ -46,6 +48,8 @@ LOOKBACK_DAYS = 120
 
 # Ozon отказывает, если окно processed_at длиннее трёх месяцев, — режем на куски.
 WINDOW_DAYS = 85
+
+STATE_DIR = BASE_DIR / ".private" / "fts_sources"
 
 POLL_EVERY = 5      # сек между опросами статуса
 POLL_LIMIT = 80     # ~7 минут ожидания; дольше Ozon отчёт такого объёма не готовит
@@ -106,15 +110,18 @@ def _request_report(headers, schema, dt_from, dt_to):
     info = {}
     for _ in range(POLL_LIMIT):
         time.sleep(POLL_EVERY)
-        info = requests.post(INFO_URL, headers=headers, json={"code": code},
-                             timeout=60).json().get("result", {})
+        response = requests.post(INFO_URL, headers=headers, json={"code": code}, timeout=60)
+        response.raise_for_status()
+        info = response.json().get("result", {})
         if info.get("status") in ("success", "failed"):
             break
     if info.get("status") != "success" or not info.get("file"):
-        print(f"    отчёт {schema}: статус {info.get('status')} {info.get('error') or ''}",
-              flush=True)
-        return None
-    return requests.get(info["file"], timeout=300).content
+        raise RuntimeError(f"Отчёт {schema} не готов: {info.get('status')}")
+    response = requests.get(info["file"], timeout=300)
+    response.raise_for_status()
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    (STATE_DIR / f"{code}.csv").write_bytes(response.content)
+    return response.content
 
 
 def _rows_from_csv(raw):
@@ -126,6 +133,9 @@ def _rows_from_csv(raw):
         return []
     header = [_norm(h) for h in rows[0]]
     idx = {COLS[h]: i for i, h in enumerate(header) if h in COLS}
+    required = {"posting_number", "status", "delivered_at", "buyout", "paid_by_customer", "customer_currency", "qty", "sku"}
+    if not required.issubset(idx):
+        raise RuntimeError("Неполные колонки отчёта: " + ", ".join(sorted(required - idx.keys())))
     if "posting_number" not in idx:
         raise RuntimeError(f"в отчёте нет колонки «Номер отправления»: {header[:8]}")
     out = []
@@ -139,6 +149,11 @@ def _rows_from_csv(raw):
 def collect(account, period, schemas=SCHEMAS):
     """Собрать отчёт за отчётный месяц period (date первого числа) в базу."""
     headers = _headers(account)
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    state_file = STATE_DIR / f"{period:%Y-%m}_{account}.json"
+    state = {"status": "running", "period": str(period), "account": account,
+             "started_at": datetime.now(timezone.utc).isoformat()}
+    state_file.write_text(json.dumps(state))
     # Верхняя граница окна — конец отчётного месяца: в обработку заказ принимается
     # всегда раньше доставки, значит доставленное в августе обработано не позже 31.08.
     nxt = (period.replace(day=28) + timedelta(days=4)).replace(day=1)
@@ -181,11 +196,16 @@ def collect(account, period, schemas=SCHEMAS):
                 "delivered_at": _parse_date(p.get("delivered_at")),
                 "is_buyout": BUYOUT_MARK in (p.get("buyout") or "").lower(),
                 "payload": psycopg2.extras.Json(p),
+                "loaded_at": datetime.now(timezone.utc),
             })
         if batch:
             db.upsert("raw_ozon_orders_report", batch, ["account", "posting_number"])
             saved += len(batch)
         print(f"    {schema}: строк {len(rows)}, отправлений {len(by_posting)}", flush=True)
+    state.update(status="complete", count=saved, schemas=list(schemas),
+                 completed_at=datetime.now(timezone.utc).isoformat())
+    temp = state_file.with_suffix(".tmp")
+    temp.write_text(json.dumps(state)); temp.replace(state_file)
     return saved
 
 

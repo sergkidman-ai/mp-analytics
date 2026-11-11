@@ -1,0 +1,27 @@
+{
+  "verified_at": "2026-11-10T08:22:01.992462+00:00",
+  "tests": {
+    "passed": 172,
+    "subtests": 34,
+    "log": "/opt/mp-analytics/.private/inv_ozon_places_20261110/root_tests.txt"
+  },
+  "files": {
+    "ops/fbs_market_fulfillment.py": "6b36fc0a5982f6458ac6b3a6696d543f3be35ffbd5deea4bf33e8403fd871aeb",
+    "ops/fbs_ms_import_next5.py": "854683e94b4d9796bbdca0dcffb47b2f6cc5cff6a332694a3499c22c3a9da3e2",
+    "ops/fbs_ready_market_catchup.py": "19b0deae0a87ca26a5d9444c4bf22860d6c6a0e268d13d00c0b23677d10e55b6",
+    "ops/fbs_order_processor.py": "fe004e446b581abf72ce9d3649f72037c3e68287d143b75f5920ddbbef54b1e1",
+    "docs/CUSTOMER_ORDER_RULES.md": "e06817747d3679fc2f126b1f0fa0d5747249ad67d54bb2169454f3c1d3be5d87",
+    "docs/BRIEF_INV.md": "fc65079b84530706e1122a13f7778e4481630a68abd9355d34d611a5fb2f077d",
+    "tests/test_fbs_market_fulfillment.py": "fbb80181dd448e645d19f8fb711cf829928ef31b89b9f33e7b21244aa4facdd9",
+    "ops/ozon_manual_packages.py": "3d2d2d3f58ec97bc5603523ed86a1c92181852843dc7b23483e7bb230a43b562",
+    "tests/test_ozon_manual_packages.py": "19fe9c72abb598c4ce37d39a4ff05a58976fd5805c90cb876eaa9058cd25fb50"
+  },
+  "manual_worker_smoke": {
+    "apply": true,
+    "checked": 0
+  },
+  "marketplace_mutations_by_new_worker": 0,
+  "live_manual_split_performed": false,
+  "worktree": ".claude/worktrees/inv-ozon-manual-packages-20261110",
+  "branch": "inv/ozon-manual-packages-20261110"
+}

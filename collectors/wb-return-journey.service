@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/opt/mp-analytics/runtime/wb-return-journey-current
+WorkingDirectory=/opt/mp-analytics
 ExecStart=/opt/mp-analytics/venv/bin/python -m collectors.wb_return_journey
 TimeoutStartSec=120
 Environment=PYTHONUNBUFFERED=1

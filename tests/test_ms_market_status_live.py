@@ -42,8 +42,10 @@ class StatusLiveTests(TestCase):
         self.addCleanup(patch.stopall)
         patch.object(state, 'RUNTIME', Path(self.temp.name)).start()
         patch.object(live, 'now', return_value=NOW).start()
-        patch.object(live, 'status_ids', return_value={'В пути': 'in-transit', 'Доставлен': 'delivered',
-                                                     'Отменен - сроки': 'cancelled'}).start()
+        self.metadata_patch = patch.object(live, 'status_ids', return_value={
+            'Собирается': 'assembling', 'В пути': 'in-transit', 'Доставлен': 'delivered',
+            'Отменен - сроки': 'cancelled'})
+        self.metadata_patch.start()
         patch.object(state, 'reserve_slot', return_value=0).start()
         self.get = patch.object(live.ms_api, 'get').start()
         self.put = patch.object(live.requests, 'put', return_value=Mock(status_code=200, json=lambda: {})).start()
@@ -74,6 +76,23 @@ class StatusLiveTests(TestCase):
         self.assertEqual(set(self.put.call_args.kwargs['json']), {'state'})
         self.assertEqual(self.get.call_count, 2)
         self.assertIn('/delivered', self.put.call_args.kwargs['json']['state']['meta']['href'])
+
+    def test_page_cache_failure_does_not_invalidate_verified_ms_readback(self):
+        self.get.side_effect = [self.doc, document(status='Доставлен')]
+        with patch('customer_guard.ms_status.observe', side_effect=RuntimeError('test cache unavailable')):
+            result=live.apply_job(self.job())
+        self.assertEqual(result['result'],'updated')
+        self.assertEqual(self.put.call_count,1)
+
+    def test_all_status_scan_publishes_final_state_without_making_it_a_write_candidate(self):
+        delivered=document('ms-2',name='123456-0011-1',status='Доставлен')
+        self.get.return_value={'meta':{'size':2},'rows':[self.doc,delivered]}
+        with patch('customer_guard.ms_status.observe') as observe:
+            rows=live.scan_ms(Path(self.temp.name)/'all_states',all_statuses=True)
+        self.assertEqual([r['id'] for r in rows],['ms-1'])
+        self.assertEqual([r['id'] for r in observe.call_args.args[0]],['ms-1','ms-2'])
+        self.assertFalse(any(v.startswith('state=') for v in self.get.call_args.args[1]['filter']))
+        self.put.assert_not_called()
 
     def test_cancel_uses_exact_existing_general_ms_state(self):
         self.get.side_effect = [self.doc, document(status='Отменен - сроки')]
@@ -166,6 +185,15 @@ class StatusLiveTests(TestCase):
         self.assertEqual(live.apply_job(refreshed)['result'], 'unchanged')
         self.put.assert_not_called()
 
+    def test_pult_express_observation_is_enqueued_for_status_updates(self):
+        row = {'id': 1, 'platform': 'yandex', 'account': 'ya_acc1', 'posting_number': '64014868227',
+               'mp_status': 'delivered', 'observed_at': NOW, 'scheme': None, 'program': 'EXPRESS'}
+        with patch.object(live.db, 'query', return_value=[row]):
+            self.assertEqual(live.poll_pult()['enqueued'], 1)
+        job = state.claim()
+        self.assertEqual((job['proof']['status'], job['proof']['scheme']), ('delivered', 'fbs'))
+        self.assertEqual(job['proof']['number'], '64014868227')
+
     def test_fast_cannot_claim_night_mass_work(self):
         state.enqueue(proof(), 'night')
         self.assertIsNone(state.claim('fast'))
@@ -214,3 +242,109 @@ class StatusLiveTests(TestCase):
         state.latency(0.1)
         self.assertGreaterEqual(state.setting('write_interval'), 1.5)
         self.assertLess(state.setting('write_interval'), 10)
+
+    def test_assembling_follows_each_confirmed_market_state(self):
+        for market, target in state.TARGETS.items():
+            with self.subTest(market=market):
+                assembling = document(status='Собирается')
+                state.index([live.row_for(assembling)])
+                self.get.side_effect = [assembling, document(status=target)]
+                job = self.job(proof(market))
+                result = live.apply_job(job); state.finish(job, result)
+                self.assertEqual(result['result'], 'updated')
+                self.assertEqual(result['target'], target)
+                self.assertEqual(set(self.put.call_args.kwargs['json']), {'state'})
+                self.assertEqual(bool(state.documents()), target == 'В пути')
+                if target == 'В пути':
+                    self.assertEqual(state.documents()[0]['source_state'], 'В пути')
+                self.put.reset_mock()
+
+    def test_assembling_then_transit_remains_trackable_until_delivered(self):
+        assembling = document(status='Собирается'); transit = document(status='В пути')
+        state.index([live.row_for(assembling)])
+        self.get.side_effect = [assembling, transit, transit, document(status='Доставлен')]
+        first = self.job(proof('transit'))
+        result = live.apply_job(first); state.finish(first, result)
+        self.assertEqual(result['target'], 'В пути')
+        self.assertEqual(len(state.documents()), 1)
+        second = self.job(proof('delivered', fetched_at=(NOW + timedelta(seconds=1)).isoformat()))
+        result = live.apply_job(second); state.finish(second, result)
+        self.assertEqual(result['target'], 'Доставлен')
+        self.assertEqual(self.put.call_count, 2)
+        self.assertEqual(state.documents(), [])
+
+    def test_transit_observation_does_not_rewrite_or_retire_transit_order(self):
+        self.get.return_value = self.doc
+        self.assertEqual(live.apply_job(self.job(proof('transit')))['result'], 'unchanged')
+        self.assertEqual(len(state.documents()), 1)
+        self.put.assert_not_called()
+
+    def test_assembling_with_stale_market_and_api_failure_is_not_written(self):
+        assembling = document(status='Собирается'); state.index([live.row_for(assembling)])
+        self.get.return_value = assembling
+        job = self.job(proof('transit', fetched_at=(NOW - timedelta(hours=1)).isoformat()))
+        with patch.object(live, 'Provider') as provider:
+            provider.return_value.fetch.return_value = {'ms-1': {'error': 'http_500'}}
+            with self.assertRaisesRegex(RuntimeError, 'unverified'):
+                live.apply_job(job)
+        self.put.assert_not_called()
+        self.assertEqual(len(state.documents(source_state='Собирается')), 1)
+
+    def test_scan_and_exact_lookup_include_both_source_states(self):
+        assembling = document('ms-2', name='123456-0011-1', status='Собирается')
+        self.get.return_value = {'meta': {'size': 2}, 'rows': [self.doc, assembling]}
+        rows = live.scan_ms(Path(self.temp.name) / 'scan')
+        self.assertEqual({r['id'] for r in rows}, {'ms-1', 'ms-2'})
+        params = self.get.call_args.args[1]
+        self.assertEqual(params['limit'], 20)
+        self.assertIn('state=' + live.href('assembling'), params['filter'])
+        self.assertIn('state=' + live.href('in-transit'), params['filter'])
+        state.retire('ms-2')
+        self.get.return_value = {'meta': {'size': 1}, 'rows': [assembling]}
+        self.assertEqual(live.find_document(proof(number=assembling['name'])), 'ms-2')
+        self.assertIn('state=' + live.href('assembling'), self.get.call_args.args[1]['filter'])
+
+    def test_fast_discovers_existing_assembling_once(self):
+        assembling = live.row_for(document('ms-2', status='Собирается'))
+        with patch.object(live, 'poll_pult', return_value={}), \
+                patch.object(live, 'scan_ms', side_effect=[[], [assembling]]) as scan, \
+                patch.object(live, 'collect', return_value=[]) as collect, \
+                patch.object(live, 'drain', return_value=[]):
+            result = live.run_fast(Path(self.temp.name))
+        self.assertEqual(scan.call_count, 2)
+        self.assertEqual(scan.call_args.kwargs['source_states'], ('Собирается',))
+        self.assertEqual(collect.call_args_list[0].args[0], [assembling])
+        self.assertEqual(result['changed_ms'], 1)
+        self.assertTrue(state.setting('assembling_discovered'))
+
+    def test_unchanged_assembling_is_retried_after_source_failure_next_fast_run(self):
+        assembling = live.row_for(document('ms-2', status='Собирается'))
+        state.index([assembling]); state.set_setting('assembling_discovered', NOW.isoformat())
+        with patch.object(live, 'poll_pult', return_value={}), \
+                patch.object(live, 'scan_ms', return_value=[]) as scan, \
+                patch.object(live, 'Provider') as provider:
+            provider.return_value.fetch.return_value = {'ms-2': {'error': 'http_500'}}
+            for _ in range(2):
+                result = live.run_fast(Path(self.temp.name))
+                self.assertEqual(result['assembling_checked'], 1)
+                self.assertEqual(len(result['unverified']), 1)
+            polled = [call.args[0] for call in provider.return_value.fetch.call_args_list if call.args[0]]
+            self.assertEqual(len(polled), 2)
+            self.assertTrue(all(rows[0]['id'] == 'ms-2' for rows in polled))
+            self.assertEqual(scan.call_count, 2)
+        self.put.assert_not_called()
+
+    def test_health_does_not_require_disabled_supply_services(self):
+        with patch.object(live.subprocess, 'run', return_value=Mock(returncode=0)) as run:
+            live.operational_health()
+        self.assertEqual([c.args[0] for c in run.call_args_list],
+                         [['systemctl', 'is-active', 'fbs-ms-import.timer']])
+        self.get.assert_called_once_with('/entity/customerorder', {'limit': 1})
+
+    def test_old_metadata_cache_is_refreshed_for_assembling(self):
+        self.metadata_patch.stop()
+        state.set_setting('status_ids', {'at': time.time(), 'ids': {'В пути': 'in-transit'}})
+        states = [{'name': name, 'id': name} for name in dict.fromkeys((*state.SOURCES, *state.TARGETS.values()))]
+        self.get.return_value = {'states': states}
+        self.assertIn('Собирается', live.status_ids())
+        self.get.assert_called_once_with('/entity/customerorder/metadata')

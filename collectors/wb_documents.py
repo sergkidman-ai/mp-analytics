@@ -17,6 +17,9 @@
 Запуск:  venv/bin/python -m collectors.wb_documents --from 2026-01-01
 """
 import argparse
+import json
+import fcntl
+from concurrent.futures import ThreadPoolExecutor
 import base64
 import io
 import os
@@ -24,7 +27,7 @@ import re
 import sys
 import time
 import zipfile
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -42,20 +45,44 @@ load_dotenv(BASE_DIR / ".env")
 BASE = "https://documents-api.wildberries.ru/api/v1/documents"
 CATEGORY = "redeem-notification"
 ACCOUNTS = ("wb_acc1", "wb_acc2")
-# Скоуп «Документы» у Цифрового живёт в токене цен, у Дисквэра — в отдельном.
-TOKEN_ENV = {"wb_acc1": ("WB_TOKEN_DOCS_ACC1", "WB_TOKEN_PRICES_ACC1"),
-             "wb_acc2": ("WB_TOKEN_DOCS_ACC2",)}
+# Используем только ключи этого кабинета с категорией «Документы» (бит12 JWT).
+TOKEN_ENV = {"wb_acc1": ("WB_TOKEN_DOCS_ACC1", "WB_TOKEN_PRICES_ACC1", "WB_TOKEN_ACC1", "WB_TOKEN_FEEDBACK_ACC1"),
+             "wb_acc2": ("WB_TOKEN_DOCS_ACC2", "WB_TOKEN_PRICES_ACC2", "WB_TOKEN_ACC2")}
+STATE_DIR = BASE_DIR / ".private" / "wb_redeem_sources"
 PAUSE = 11          # лимит 1 запрос / 10 с на продавца, берём с запасом
 NAME_RE = re.compile(r"№\s*(\d+)\s*от\s*(\d{4}-\d{2}-\d{2})")
 
 
 def _token(account):
     for env in TOKEN_ENV[account]:
-        t = os.getenv(env)
-        if t:
-            return t.strip()
-    raise RuntimeError(f"нет токена со скоупом «Документы» для {account}: "
-                       f"ожидались {TOKEN_ENV[account]}")
+        token = (os.getenv(env) or "").strip()
+        if not token:
+            continue
+        try:
+            claims = json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "==="))
+        except (ValueError, IndexError):
+            continue
+        if claims.get("s", 0) & (1 << 12) and claims.get("exp", 0) > time.time():
+            return token
+    raise RuntimeError(f"Нет действующего токена категории «Документы» для {account}")
+
+
+def _get(account, method, params):
+    """Общий межпроцессный лимит документов: один запрос/11с на кабинет."""
+    token = _token(account)
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with (STATE_DIR / f"{account}.rate").open("a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        lock.seek(0)
+        previous = float(lock.read() or 0)
+        time.sleep(max(0, PAUSE - (time.time() - previous)))
+        try:
+            response = requests.get(f"{BASE}/{method}", headers={"Authorization": token},
+                                    params=params, timeout=120)
+        finally:
+            lock.seek(0); lock.truncate(); lock.write(str(time.time())); lock.flush()
+        response.raise_for_status()
+        return response.json()
 
 
 def _num(v):
@@ -67,22 +94,41 @@ def _num(v):
 
 
 def list_notices(account, d_from, d_to):
-    r = requests.get(f"{BASE}/list", headers={"Authorization": _token(account)},
-                     params={"category": CATEGORY, "beginTime": d_from.isoformat(),
-                             "endTime": d_to.isoformat(), "locale": "ru"}, timeout=60)
-    r.raise_for_status()
-    body = r.json()
-    return (body.get("data") or body).get("documents") or []
+    documents, seen = [], set()
+    for offset in range(0, 10000, 50):
+        body = _get(account, "list", {"category": CATEGORY, "beginTime": d_from.isoformat(),
+                    "endTime": d_to.isoformat(), "locale": "ru", "limit": 50, "offset": offset,
+                    "sort": "date", "order": "desc"})
+        data = body.get("data", body)
+        page = data.get("documents")
+        if not isinstance(page, list):
+            raise RuntimeError("ВБ вернул неполный список документов")
+        for document in page:
+            key = document.get("serviceName")
+            if not key or key in seen:
+                raise RuntimeError("Некорректная пагинация документов ВБ")
+            seen.add(key); documents.append(document)
+        if len(page) < 50:
+            STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+            (STATE_DIR / f"{account}_list_{d_from}_{d_to}.json").write_text(json.dumps(documents, ensure_ascii=False))
+            return documents
+    raise RuntimeError("Превышен предел страниц документов ВБ")
 
 
 def download(account, service_name):
-    """zip уведомления → bytes."""
-    r = requests.get(f"{BASE}/download", headers={"Authorization": _token(account)},
-                     params={"serviceName": service_name, "extension": "zip"}, timeout=120)
-    r.raise_for_status()
-    body = r.json()
-    doc = (body.get("data") or body)["document"]
-    return base64.b64decode(doc)
+    """Сохраняем оригинальный ZIP: повторный разбор не требует API."""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", service_name):
+        raise RuntimeError("Некорректный идентификатор документа ВБ")
+    path = STATE_DIR / account / (service_name + ".zip")
+    if path.exists():
+        return path.read_bytes()
+    body = _get(account, "download", {"serviceName": service_name, "extension": "zip"})
+    raw = base64.b64decode(body.get("data", body)["document"], validate=True)
+    if not zipfile.is_zipfile(io.BytesIO(raw)):
+        raise RuntimeError("Документ ВБ не является ZIP")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temp = path.with_suffix(".tmp"); temp.write_bytes(raw); temp.replace(path)
+    return raw
 
 
 def parse_zip(raw):
@@ -136,6 +182,16 @@ def parse_zip(raw):
 
 
 def collect(account, d_from, d_to, force=False):
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    state_file = STATE_DIR / f"{account}.json"
+    try:
+        previous_state = json.loads(state_file.read_text())
+    except (OSError, ValueError):
+        previous_state = {}
+    known_count = max(previous_state.get("stored_count", 0), previous_state.get("listed", 0))
+    state = dict(status="running", account=account, date_from=str(d_from), date_to=str(d_to),
+                 started_at=datetime.now(timezone.utc).isoformat())
+    state_file.write_text(json.dumps(state))
     have = {r["doc_number"] for r in db.query(
         "SELECT doc_number FROM wb_redeem_notice WHERE account=%s", (account,))}
     notices = list_notices(account, d_from, d_to)
@@ -143,21 +199,23 @@ def collect(account, d_from, d_to, force=False):
     for n in notices:
         m = NAME_RE.search(n.get("name") or "")
         if not m:
-            print(f"  пропуск, не разобрано имя: {n.get('name')}", flush=True)
-            continue
+            raise RuntimeError("Не разобран номер/дата уведомления о выкупе ВБ")
         number, doc_date = m.group(1), date.fromisoformat(m.group(2))
         if number in have and not force:
             continue
-        time.sleep(PAUSE)
         pos, totals = parse_zip(download(account, n["serviceName"]))
 
         with_vat = sum(Decimal(p["sum_with_vat"]) for p in pos)
         vat = sum(Decimal(p["vat_sum"]) for p in pos)
-        if totals and (with_vat, vat) != totals:
-            # Расхождение со строкой «Итого» — повод посмотреть глазами, а не молча
-            # выставить УПД: в ЭДО уходит юридически значимый документ.
-            print(f"  ⚠ {number}: сумма позиций {with_vat}/{vat} ≠ «Итого» {totals[0]}/{totals[1]}",
-                  flush=True)
+        if totals is None or with_vat != totals[0]:
+            raise RuntimeError(f"{number}: сумма позиций не совпадает с итогами уведомления")
+        if abs(vat - totals[1]) > Decimal("0.01") * len(pos):
+            raise RuntimeError(f"{number}: НДС строк не совпадает с итогом уведомления")
+        if vat != totals[1]:
+            print(f"  {number}: округление НДС строк/итога {vat}/{totals[1]}", flush=True)
+        vat = totals[1]
+        if any(Decimal(p["qty"]) <= 0 for p in pos):
+            raise RuntimeError(f"{number}: неположительное количество товара")
         db.upsert("wb_redeem_notice", [{
             "account": account, "doc_number": number, "doc_date": doc_date,
             "service_name": n["serviceName"], "created_at": n.get("creationTime"),
@@ -169,13 +227,19 @@ def collect(account, d_from, d_to, force=False):
         new += 1
         print(f"  {number} от {doc_date}: позиций {len(pos)}, {with_vat} ₽", flush=True)
     print(f"{account}: в списке {len(notices)}, загружено новых {new}", flush=True)
+    actual = db.query("SELECT count(*) AS n FROM wb_redeem_notice WHERE account=%s", (account,))[0]["n"]
+    state.update(status="complete", listed=len(notices), new=new, stored_count=max(known_count, actual),
+                 completed_at=datetime.now(timezone.utc).isoformat())
+    temp = state_file.with_suffix(".tmp"); temp.write_text(json.dumps(state)); temp.replace(state_file)
     return new
 
 
 def main_range(d_from, d_to, accounts=ACCOUNTS):
-    for acc in accounts:
-        print(f"{acc}: уведомления о выкупе {d_from}…{d_to}", flush=True)
-        collect(acc, d_from, d_to)
+    # У кабинетов независимые лимиты и ключи таблицы; ошибку любого не скрываем.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(collect, account, d_from, d_to) for account in accounts]
+        for future in futures:
+            future.result()
 
 
 def main():

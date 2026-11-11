@@ -110,6 +110,10 @@ def store(ops, bank, org_inn, account=None, since=None, raws=None):
                     new_ids.append(got[0])
                 else:
                     stats["dup"] += 1
+    if new_ids:
+        stats['closed_pending'] = db.query("""select count(*)::int n from bank_txn t
+            where t.id=any(%s) and exists(select 1 from opex_month_closure h where h.org_inn=t.org_inn
+            and h.month=date_trunc('month',t.operation_date)::date and h.reopened_at is null)""",(new_ids,))[0]['n']
     stats["stored"] = len(new_ids)
     stats["ruled"] = apply_rules(new_ids) if new_ids else 0
     return stats

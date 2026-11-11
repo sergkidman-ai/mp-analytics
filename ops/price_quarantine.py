@@ -83,92 +83,24 @@ def _last_closed(d):
 
 
 def retention():
-    """{account: доля удержаний площадки от оборота} — как в строке «Итого удержания»."""
-    out, month = {}, None
-    d = json.loads((HIST / "mp_ozon_hist.json").read_text())
-    i = _last_closed(d); month = d["months"][i]
-    exp = ["commission", "delivery", "partners", "fbo", "promo", "penalty", "unclassified"]
-    for acc, a in d["accounts"].items():
-        L = a["lines"]
-        out[acc] = sum(L[k][i] for k in exp) / L["sales"][i]
-
-    d = json.loads((HIST / "mp_wb_hist.json").read_text())
-    i = _last_closed(d)
-    exp = ["delivery", "storage", "acceptance", "ads", "points", "penalty", "other"]
-    for acc, a in d["accounts"].items():
-        L = a["lines"]; N = len(d["months"])
-        ob = L["own_price"][i]
-        comp = (L.get("compensation") or [0] * N)[i]
-        retp = (L.get("returns_pay") or [0] * N)[i]
-        itog = L["to_pay"][i] - sum(L[k][i] for k in exp) + comp
-        out[acc] = (ob - itog - retp) / ob
-
-    # UI history is not an authorization to change Yandex prices.
-    from collectors.yandex_finance_basis import active_basis
-    try:
-        basis = active_basis()
-    except RuntimeError as exc:
-        print(str(exc), flush=True)  # WB/Ozon remain usable; Yandex is explicitly omitted.
-    else:
-        out['ya_acc1'] = float(basis['retention'])
-    return out, month
+    """The same explicitly approved account basis used by existing guards."""
+    from core.mp_guard_basis import APPROVED_MONTH, MARKET_RETENTION, ozon_basis, wb_rules
+    out = {account: float(ozon_basis(account)['retention']) for account in ('oz_acc1', 'oz_acc2')}
+    out.update({account: float(rule['retention']) for account, rule in wb_rules().items()})
+    out['ya_acc1'] = float(MARKET_RETENTION)
+    return out, APPROVED_MONTH
 
 
 def yandex_retention():
-    """Exact Yandex rate and its own month; fail closed before API writes."""
-    from collectors.yandex_finance_basis import active_basis, D
-    basis = active_basis()
-    return D(str(basis['retention'])), basis['month']
+    """User-approved fixed Market expenses; unrelated to report activation."""
+    from core.mp_guard_basis import MARKET_RETENTION
+    return MARKET_RETENTION, 'fixed-72%-2026-11-09'
 
 
 def ya_retention_bands():
-    """Удержания Маркета ставкой СВОЕГО диапазона цены: [доля на диапазон] по YA_BANDS.
-
-    Одно число по всему обороту («Итого удержания») для дорогого SKU врёт: комиссия
-    процентная, а логистика и эквайринг почти фиксированы на заказ, поэтому удержания
-    РЕГРЕССИВНЫ — <1к съедают ~60 %, >10к ~32 %. Прикладывать ставку заказа к цене карточки
-    законно: 95 % заказов Маркета — одна позиция, 87 % — ровно одна единица (замер 24.08.2026).
-
-    Выручка — `raw_yandex_closure` (только закрытые месяцы), сборы — `raw_yandex_services`;
-    сцепка по order_id с отрезанным хвостом «.0» — в services номер сохранён дробным числом,
-    в лоб сцепляются 88 заказов из 2055, с отрезанным хвостом — все 2055.
-
-    Тонкому диапазону (n < YA_BAND_MIN_N) своей ставке не верим: берём БОЛЬШУЮ из своей
-    и ближайшей плотной — ошибаться безопаснее в сторону завышенных удержаний.
-    """
-    from collectors.yandex_finance_basis import active_basis
-    last_key = active_basis()['month']
-    rows = db.query("""
-        WITH z AS (SELECT order_id AS o, SUM(amount) AS rev
-                     FROM raw_yandex_closure
-                    WHERE category = 'revenue' AND ym <= %s
-                    GROUP BY 1),
-             s AS (SELECT split_part(order_id, '.', 1) AS o, SUM(COALESCE(cost, 0)) AS fee
-                     FROM raw_yandex_services
-                    GROUP BY 1)
-        SELECT z.rev AS rev, s.fee AS fee
-          FROM z JOIN s ON s.o = z.o
-         WHERE z.rev > 0""", (last_key,))
-
-    agg = [[0, 0.0, 0.0] for _ in range(len(YA_BANDS) + 1)]
-    for r in rows:
-        rev, fee = float(r["rev"]), float(r["fee"])
-        b = agg[ya_band(rev)]
-        b[0] += 1
-        b[1] += rev
-        b[2] += fee
-
-    out, dense = [], None
-    for n, rev, fee in agg:
-        rate = fee / rev if rev > 0 else None
-        if rate is None:
-            out.append(dense)                     # данных нет вовсе — ставка плотного соседа
-        elif n >= YA_BAND_MIN_N:
-            dense = rate
-            out.append(rate)
-        else:
-            out.append(rate if dense is None else max(rate, dense))
-    return out
+    """The fixed 72% applies to every price band, without historical substitutions."""
+    from core.mp_guard_basis import MARKET_RETENTION
+    return [float(MARKET_RETENTION)] * (len(YA_BANDS) + 1)
 
 
 def ya_band(value):

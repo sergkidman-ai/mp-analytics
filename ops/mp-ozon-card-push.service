@@ -1,0 +1,13 @@
+[Unit]
+Description=Ozon card A/W no-op pusher with durable attempt journal
+After=network-online.target mp-ozon-card-scan.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+UMask=0077
+StandardOutput=append:/opt/mp-analytics/card_health.log
+StandardError=append:/opt/mp-analytics/card_health.log
+ExecStart=/opt/mp-analytics/venv/bin/python -u -m tools.ozon_card_daily
+TimeoutStartSec=7200

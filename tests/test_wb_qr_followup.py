@@ -21,6 +21,7 @@ class FollowupTests(unittest.TestCase):
         self.stack = ExitStack()
         self.enterContext = self.stack.enter_context
         self.addCleanup(self.stack.close)
+        self.enterContext(patch.object(tg, 'token', return_value='isolated-test-token'))
         self.enterContext(patch.object(tg, 'codes_only_notify_ids', return_value=[]))
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

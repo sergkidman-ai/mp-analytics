@@ -1,0 +1,103 @@
+{
+  "checked_at_utc": "2026-11-05T12:22:52.364112+00:00",
+  "links": {
+    "ozon-monthly-plan-2026-11-05": {
+      "authorized_http": 200,
+      "anonymous_http": 401,
+      "full_file_matches_disk": true,
+      "sha256": "797f5a5f2e04d842202e919fb9449da5e00ec2e3c7e6308dd89c50a76a74318e"
+    },
+    "ozon-year-review-2026-11-05": {
+      "authorized_http": 200,
+      "anonymous_http": 401,
+      "full_document": true,
+      "response_sha256": "254aab0f2bcd07184f6e8906c1c61f4154a858b12c2489e0290603a1a29e948d"
+    },
+    "ozon-monthly-plan-2026-11-05-wave1": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-monthly-plan-2026-11-05-wave2": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-monthly-plan-2026-11-05-wave3": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-monthly-plan-2026-11-05-year-flags": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-year-review-2026-11-05-skus": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-year-review-2026-11-05-rare": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-year-review-2026-11-05-no-cpc-sales": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-year-review-2026-11-05-no-gain-review": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-year-review-2026-11-05-profile": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-year-review-2026-11-05-no-comparison": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-year-review-2026-11-05-families": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-year-review-2026-11-05-logged": {
+      "http": 200,
+      "csv": true
+    },
+    "ozon-plan-summary-2026-11-05": {
+      "authorized_http": 200,
+      "anonymous_http": 401,
+      "full_file_matches_disk": true,
+      "sha256": "9de93ebc3a83b76756339797d9663ab90e7f448f4b073d2bad25a2a4e6f256c8"
+    },
+    "ozon-inventory-2026-11-05": {
+      "authorized_http": 200,
+      "anonymous_http": 401,
+      "full_file_matches_disk": true,
+      "sha256": "6329756f77854db6b8e6311ac805c251510ce7e5475c9f9617c06d2b7b08faca"
+    },
+    "ozon-inventory-2026-11-05-children": {
+      "authorized_http": 200,
+      "anonymous_http": 401,
+      "full_file_matches_disk": true,
+      "sha256": "fd06804e89a1c5438a1f6928808282fb76e5e26bcbd1f7c2ae98a4956b9c01f0"
+    },
+    "ozon-inventory-2026-11-05-new": {
+      "authorized_http": 200,
+      "anonymous_http": 401,
+      "full_file_matches_disk": true,
+      "sha256": "00c15b3ff78437e6864d92152ee6edbdc5df0e49e1904a787de739dc045cfd0c"
+    },
+    "ozon-inventory-2026-11-05-other": {
+      "authorized_http": 200,
+      "anonymous_http": 401,
+      "full_file_matches_disk": true,
+      "sha256": "9b184a7b4ae65447929bb2020cfed09cf6fd1d3a081c0af3676c4f1596d38e3e"
+    },
+    "ozon-inventory-2026-11-05-xlsx": {
+      "authorized_http": 200,
+      "anonymous_http": 401,
+      "full_file_matches_disk": true,
+      "sha256": "9fdfba6a81c5a171cd85b6454b8d5ada8dd7cb4bcced81d6b0bd61fdf241e57c"
+    }
+  },
+  "stock_inventory_links_to_latest_plan": true,
+  "marketplace_mutations": 0
+}

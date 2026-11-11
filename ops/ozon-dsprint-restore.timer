@@ -1,0 +1,12 @@
+# поток: mkt / ozon
+[Unit]
+Description=Continue approved Ozon DS print restore queue after daily quota reset
+
+[Timer]
+OnCalendar=*-*-* 03:10:00 Europe/Moscow
+Persistent=true
+AccuracySec=1min
+Unit=ozon-dsprint-restore.service
+
+[Install]
+WantedBy=timers.target

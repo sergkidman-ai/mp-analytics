@@ -54,7 +54,7 @@ def message(row):
         if len(products)>12:
             codes.append(f"Ещё {len(products)-12} позиций — в Пульте.")
         return (f"Заказ не найден в МС\n{label} · {company} · {row['posting_number']}\n"
-                f"После получения Пультом прошло не менее 10 минут. Отправление активно в {label}; "
+                f"После получения Пультом прошло не менее 30 минут. Отправление активно в {label}; "
                 "проверка МС выполнена успешно, заказ не найден.\n"+
                 ("\n".join(codes)+"\n" if codes else "")+
                 "Код товара МС, себестоимость и чистая прибыль пока не определены.\n"
@@ -97,14 +97,16 @@ def claim(order_id, recipient, now):
           OR o.account IN ('oz_acc1','wb_acc1','ya_acc1') AND coalesce((r.settings->>'digital_enabled')::boolean,false))
           AND i.check_id=c.id AND c.generation=o.generation AND j.state='done' AND j.error IS NULL
           AND o.mp_status=ANY(%s) AND o.observed_at>=%s AND o.ms_checked_at>=%s
-          AND o.ms_due_at<=%s
+          AND (o.ms_due_at<=%s OR (
+            i.kind<>'missing_ms' AND coalesce(r.settings->'immediate_order_ids','[]'::jsonb) @> jsonb_build_array(o.id)
+            AND nullif(r.settings->>'immediate_until','')::timestamptz>=%s))
           AND (i.kind='missing_ms' AND c.result->>'signal'='missing_ms' AND o.ms_id IS NULL
             OR i.kind='partial_demand_coverage' AND c.result->>'reason'='partial_demand_coverage'
               AND o.ms_id IS NOT NULL
             OR i.kind='non_positive_profit' AND c.result->>'rule_version'=%s
               AND o.ms_status=ANY(%s) AND o.mp_status IN ('awaiting_packaging','awaiting_deliver'))
           FOR UPDATE OF i,o SKIP LOCKED LIMIT 1""",
-          (order_id,list(ACTIVE),now-timedelta(seconds=60),now-timedelta(seconds=60),now,version,
+          (order_id,list(ACTIVE),now-timedelta(seconds=60),now-timedelta(seconds=60),now,now,version,
            ["Подтвержден","Собирается","Неукомплектован"]))
         row = cur.fetchone()
         if not row or row["kind"]=="non_positive_profit" and not non_positive_profit(row["result"]):

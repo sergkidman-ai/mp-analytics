@@ -1,0 +1,12 @@
+# поток: fin
+[Unit]
+Description=Update legal entity sales every morning
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 Europe/Moscow
+Persistent=true
+AccuracySec=1min
+Unit=ms-legal-sales-refresh.service
+
+[Install]
+WantedBy=timers.target

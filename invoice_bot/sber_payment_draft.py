@@ -14,8 +14,8 @@
 * **Платежи живут на `v1`**, тогда как выписка — на `v2` (спецификация Сбера врёт в путях,
   маршрут подтверждён разведкой 02.08.2026).
 * `urgencyCode` — `"INTERNAL"` (внутрибанковский срочный перевод у Сбера), у Альфы `"NORMAL"`.
-* НДС, как и у Альфы, пишем ТЕКСТОМ в `purpose`: блок `vat` модель не требует (снято с живой
-  схемы). Останется проверить, не потребует ли банк НДС на этапе подписания человеком.
+* НДС передаём в `purpose` и в структурированном `vat` с одинаковой суммой. Без блока
+  `vat` Сбер по умолчанию трактует платёж как «Без НДС»; ставка поставщика обязательна.
 * **Песочницы у Сбера НЕТ.** Любой живой POST создаёт документ в промышленном контуре, поэтому
   статус отправки всегда `sent_prod`, а гейт `SBER_PAYMENT_PROD_READY` здесь не формальность.
 
@@ -80,11 +80,16 @@ def _payer_block(buyer_inn):
 def build_payment(draft, cfg=None):
     """cfg — для единообразия сигнатуры с драйвером Альфы, Сберу не нужен."""
     payer = _payer_block(pd.buyer_inn_for_draft(draft))
-    return {
+    payload = {
         **pd.base_payment(draft, EXTID_NS),
         "urgencyCode": "INTERNAL",
         **payer,
     }
+    rate = draft.get("vat_rate")
+    if rate is not None:
+        payload["vat"] = {"type": "INCLUDED" if rate else "NO_VAT",
+                          "rate": str(rate), "amount": float(pd.vat_amount(draft["amount"], rate))}
+    return payload
 
 
 def _check_org(draft):
@@ -112,6 +117,10 @@ def _err_text(r):
 def send_one(draft, dry_run=True, cfg=None, session=None):
     """Отправить ОДИН черновик. → {ok, stage, status, external_id, error, payload}.
     Ничего не печатает: печать — дело вызывающего (CLI печатает, веб отдаёт JSON)."""
+    if not dry_run and draft.get("recovery_hold"):
+        raise RuntimeError(
+            "Черновик восстановлен из МС: требуется сверка НДС, реквизитов и остатков "
+            "расчётов. Отправка этого черновика заблокирована.")
     # Гейт стоит только на РЕАЛЬНОЙ отправке: dry-run банк не трогает, а проверить сборку
     # боевого payload (реквизиты плательщика/получателя) нужно ДО первого живого документа.
     if not dry_run and os.getenv("SBER_PAYMENT_PROD_READY") != "1":
@@ -120,6 +129,9 @@ def send_one(draft, dry_run=True, cfg=None, session=None):
             "создаёт документ в промышленном контуре. Разблокировка — SBER_PAYMENT_PROD_READY=1 "
             "в .env, только по решению владельца. См. docs/SBER_BANK_API.md §2.")
     _check_org(draft)
+    if (not dry_run and draft.get("kind") in ('advance', 'deferred_batch', 'prepayment_order')
+            and draft.get("vat_rate") is None):
+        raise RuntimeError("Не подтверждена ставка НДС поставщика; отправка в Сбер заблокирована")
     try:
         payload = build_payment(draft)
     except Exception as e:

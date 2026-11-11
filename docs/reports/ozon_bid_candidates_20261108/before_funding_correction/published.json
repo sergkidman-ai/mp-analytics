@@ -1,0 +1,26 @@
+{
+  "checked_at_utc": "2026-11-08T12:43:31.385711+00:00",
+  "url": "https://bi.beyindi.com/api/wb-bids/reports/ozon-bid-candidates-2026-11-08",
+  "checks": {
+    "report": {
+      "http": 200,
+      "bytes": 13529,
+      "matches_local": true
+    },
+    "-skus": {
+      "http": 200,
+      "bytes": 5334,
+      "matches_local": true
+    },
+    "-plan": {
+      "http": 200,
+      "bytes": 1715,
+      "matches_local": true
+    },
+    "anonymous": {
+      "http": 401
+    }
+  },
+  "all_operations_are_reads_or_report_generation": true,
+  "all_plans_non_executable": true
+}

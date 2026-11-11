@@ -1,0 +1,11 @@
+[Unit]
+Description=Alfa Cifrovoy Kvadrat morning timer
+
+[Timer]
+OnCalendar=*-*-* 04:55:00 UTC
+Persistent=false
+AccuracySec=1s
+Unit=mp-inv-alfa-morning.service
+
+[Install]
+WantedBy=timers.target

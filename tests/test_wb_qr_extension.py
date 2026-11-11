@@ -54,10 +54,10 @@ class WbQrExtensionTests(unittest.TestCase):
     def test_permissions_are_limited_to_capture_and_wb_dom_test(self):
         manifest = json.loads((EXTENSION / 'manifest.json').read_text())
         self.assertEqual(manifest['permissions'], ['activeTab', 'scripting', 'alarms', 'storage'])
-        self.assertEqual(manifest['host_permissions'], ['https://www.wildberries.ru/*', 'https://wildberries.ru/*', 'https://bi.metaverseworld.ru/api/returns/wb-qr/diskver'])
+        self.assertEqual(manifest['host_permissions'], ['https://www.wildberries.ru/*', 'https://wildberries.ru/*', 'https://bi.beyindi.com/api/returns/wb-qr/diskver'])
         for key in ['content_scripts']:
             self.assertNotIn(key, manifest)
-        self.assertIn("connect-src https://bi.metaverseworld.ru", manifest['content_security_policy']['extension_pages'])
+        self.assertIn("connect-src https://bi.beyindi.com", manifest['content_security_policy']['extension_pages'])
 
     def test_user_click_crops_png_and_preserves_qr_payload(self):
         self.assertEqual(self.page.evaluate('fixture.calls'), 0)

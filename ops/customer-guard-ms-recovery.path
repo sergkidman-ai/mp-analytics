@@ -1,0 +1,9 @@
+[Unit]
+Description=Start missing-MS recovery when the customer guard publishes an event
+
+[Path]
+PathExistsGlob=/opt/mp-analytics/runtime/customer-guard-ms-recovery-events/inbox/*.json
+Unit=customer-guard-ms-recovery.service
+
+[Install]
+WantedBy=multi-user.target

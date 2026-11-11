@@ -1,0 +1,22 @@
+[Unit]
+Description=Recover marketplace orders on confirmed missing-MS guard events
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/mp-analytics/runtime/customer-guard-ms-recovery-events/pending
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.customer_guard_ms_recovery --apply
+TimeoutStartSec=1200
+Restart=on-failure
+RestartPreventExitStatus=1
+RestartSec=15min
+UMask=0077
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

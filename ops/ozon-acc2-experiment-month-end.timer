@@ -1,0 +1,12 @@
+# поток: mkt / ozon
+[Unit]
+Description=Ozon experiment calendar month end
+
+[Timer]
+OnCalendar=2026-12-09 16:18:49 UTC
+Persistent=true
+AccuracySec=1s
+Unit=ozon-acc2-experiment-month-end.service
+
+[Install]
+WantedBy=timers.target

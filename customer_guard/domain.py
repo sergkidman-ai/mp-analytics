@@ -58,7 +58,7 @@ def digest(value):
 
 
 def initial_due(first_seen):
-    return first_seen + timedelta(minutes=10)
+    return first_seen + timedelta(minutes=30)
 
 
 def posting_snapshot(post):

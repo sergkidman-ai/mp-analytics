@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 import psycopg2.extras  # noqa: E402
-from core import db  # noqa: E402
+from core import db, ms_api_control  # noqa: E402
 from core.db import get_conn  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
@@ -39,7 +39,7 @@ def _get(path):
         "Authorization": f"Bearer {tok}", "Accept-Encoding": "gzip"})
     for _ in range(5):
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with ms_api_control.urlopen(req, opener=urllib.request.urlopen, timeout=120, client="catalogue") as r:
                 d = r.read()
                 if r.headers.get("Content-Encoding") == "gzip":
                     d = gzip.decompress(d)

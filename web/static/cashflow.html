@@ -88,11 +88,12 @@
   </div>
   <div id="alerts"></div>
   <div class="kpis" id="kpis"></div>
+  <h2>Остаток денег по неделям</h2>
   <div class="card" id="chartbox"></div>
   <h2>По неделям <span class="muted" style="font-weight:400;font-size:12px">тыс. ₽ · клик по ячейке — из чего сложилось</span></h2>
   <div class="card">
     <div class="scroll"><table class="cf" id="cf"></table></div>
-    <div class="legend">Прошлые недели — факт по банку. Текущая — факт по сегодня + план до конца недели.
+    <div class="legend">Прошлые недели — факт по выпискам и проведённым платежам МС без дублей. Текущая — факт по сегодня + план до конца недели.
       Будущие — <i>план</i>; <span class="est">≈</span> — оценка (нет документа: среднее, прогноз по графику площадки).
       «Переводы и неучтённое» — разница между остатком банка и операциями: поступления на счета без свежей выписки
       (обычно выплаты Ozon на Озон Банк) и сдвиг дат проводки. Переводы между своими счетами сюда не попадают:
@@ -141,7 +142,9 @@ function render() {
   document.getElementById('alerts').innerHTML = D.warnings.map(w => `<div class="alert">⚠ ${esc(w)}</div>`).join('');
   const W = D.weeks, B = D.balance;
   // KPI
-  const nowBal = D.accounts.reduce((s, a) => s + (a.balance || 0), 0);
+  const known = D.accounts.filter(a => a.balance != null);
+  const nowBal = known.length ? known.reduce((s, a) => s + a.balance, 0) : null;
+  const balanceHint = `${known.length < D.accounts.length ? 'Часть счетов' : 'Все счета'}${known.some(a => !a.exact) ? ' · есть расчётные остатки' : ''}`;
   const plan = W.filter(w => w.kind !== 'fact');
   let minW = plan[0];
   plan.forEach(w => { if (B.close[w.week] < B.close[minW.week]) minW = w; });
@@ -149,7 +152,7 @@ function render() {
     s + plan.reduce((t, w) => t + kinds.reduce((u, k) => u + ((r.cells[w.week] || {})[k] || 0), 0), 0), 0);
   const inP = sum('in', ['plan']), outP = sum('out', ['plan']);
   document.getElementById('kpis').innerHTML = `
-    <div class="kpi"><div class="lbl">Остаток на счетах</div><div class="vv ${cls(nowBal)}">${fmtR(nowBal)} ₽</div><div class="sub">на конец вчера, все счета</div></div>
+    <div class="kpi"><div class="lbl">Остаток на счетах</div><div class="vv ${cls(nowBal)}">${fmtR(nowBal)} ₽</div><div class="sub">${balanceHint}</div></div>
     <div class="kpi"><div class="lbl">Минимум за ${plan.length} нед.</div><div class="vv ${cls(B.close[minW.week])}">${fmtR(B.close[minW.week])} ₽</div><div class="sub">конец недели ${dm(minW.week)}–${dm(minW.end)}</div></div>
     <div class="kpi"><div class="lbl">Ожидаем поступлений</div><div class="vv pos">${fmtR(inP)} ₽</div><div class="sub">план до ${dm(plan[plan.length-1].end)}</div></div>
     <div class="kpi"><div class="lbl">Запланировано платежей</div><div class="vv">${fmtR(-outP)} ₽</div><div class="sub">план до ${dm(plan[plan.length-1].end)}</div></div>`;
@@ -159,24 +162,51 @@ function render() {
 }
 
 function renderChart() {
-  const W = D.weeks, B = D.balance, w = 900, h = 170, pl = 60, pr = 28, pt = 12, pb = 24;
+  const W = D.weeks, B = D.balance, w = 1100, h = 240, pl = 76, pr = 32, pt = 18, pb = 32;
   const vals = W.map(x => B.close[x.week]);
-  const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals) || 1;
-  const x = i => pl + i * (w - pl - pr) / (W.length - 1), y = v => pt + (hi - v) * (h - pt - pb) / (hi - lo);
+  const known = vals.filter(v => Number.isFinite(v));
+  if (!known.length) {
+    const missing = D.accounts.filter(a => a.balance == null)
+      .map(a => `${a.bank_name} …${a.account.slice(-4)}`).join(', ');
+    document.getElementById('chartbox').textContent = missing
+      ? `Для графика общего остатка задайте опорные остатки счетов: ${missing}.`
+      : 'Для графика пока нет данных об остатках.';
+    return;
+  }
+  const lo = Math.min(0, ...known), hi = Math.max(0, ...known) || 1;
+  const x = i => pl + i * (w - pl - pr) / Math.max(1, W.length - 1);
+  const y = v => pt + (hi - v) * (h - pt - pb) / (hi - lo);
   const ci = W.findIndex(q => q.kind === 'current');
-  const path = (from, to) => W.slice(from, to + 1).map((q, j) => (j ? 'L' : 'M') + x(from + j).toFixed(1) + ',' + y(vals[from + j]).toFixed(1)).join('');
+  const color = i => W[i].kind !== 'fact' ? '#b49aff' : (B.exact[W[i].week] ? '#3fa7ff' : '#ffb454');
   const ticks = [lo, (lo + hi) / 2, hi];
-  let s = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px;display:block" role="img" aria-label="Остаток на конец недели">`;
+  let s = `<div class="scroll"><svg viewBox="0 0 ${w} ${h}" width="100%" style="min-width:700px;display:block" role="img" aria-label="Остаток на конец недели: загруженные данные и прогноз">`;
   ticks.forEach(t => s += `<line x1="${pl}" x2="${w - pr}" y1="${y(t)}" y2="${y(t)}" stroke="#243449"/><text x="${pl - 6}" y="${y(t) + 4}" text-anchor="end">${fmtK(t) || 0} т</text>`);
   s += `<line x1="${pl}" x2="${w - pr}" y1="${y(0)}" y2="${y(0)}" stroke="#8aa0b5" stroke-width="1"/>`;
-  s += `<path d="${path(0, ci)}" fill="none" stroke="#3fa7ff" stroke-width="2.5"/>`;
-  s += `<path d="${path(ci, W.length - 1)}" fill="none" stroke="#3fa7ff" stroke-width="2" stroke-dasharray="5 4"/>`;
   W.forEach((q, i) => {
     const v = vals[i];
-    s += `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${v < 0 ? '#ff5d5d' : '#3fa7ff'}"><title>${dm(q.week)}–${dm(q.end)}: ${fmtR(v)} ₽</title></circle>`;
+    if (Number.isFinite(v)) {
+      // Пропуски не соединяем: неизвестный остаток не равен нулю.
+      if (i > 0 && Number.isFinite(vals[i - 1])) {
+        const c = q.kind !== 'fact' ? color(i)
+          : (B.exact[q.week] && B.exact[W[i - 1].week] ? '#3fa7ff' : '#ffb454');
+        s += `<path d="M${x(i - 1)},${y(vals[i - 1])}L${x(i)},${y(v)}" fill="none" stroke="${c}" stroke-width="2.5" ${q.kind !== 'fact' ? 'stroke-dasharray="6 4"' : ''}/>`;
+      }
+      const status = q.kind !== 'fact' ? 'прогноз' : (B.exact[q.week] ? 'подтверждённый остаток' : 'расчёт по неполным данным');
+      s += `<circle cx="${x(i)}" cy="${y(v)}" r="5" fill="${v < 0 ? '#ff5d5d' : color(i)}" tabindex="0"><title>${dm(q.week)}–${dm(q.end)}.${q.end.slice(0, 4)}: ${fmtR(v)} ₽ · ${status}</title></circle>`;
+    }
     if (i % 2 === 0 || i === ci) s += `<text x="${x(i)}" y="${h - 6}" text-anchor="middle" ${i === ci ? 'style="fill:#e6edf3"' : ''}>${dm(q.week)}</text>`;
   });
-  s += '</svg><div class="legend">Остаток на конец недели: сплошная — факт, пунктир — прогноз.</div>';
+  s += '</svg></div><div class="legend">Остаток на конец недели, тыс. ₽. <span style="color:#3fa7ff">● Подтверждённый остаток</span> · <span style="color:#ffb454">● Расчёт по неполным данным</span> · <span style="color:#b49aff">┄ Текущая неделя и прогноз</span>. Наведите на точку, чтобы увидеть сумму.</div>';
+  const notices = [];
+  if (B.forecast_base) {
+    const base = B.forecast_base;
+    notices.push(`Прогноз от известных остатков ${fmtR(base.balance)} ₽ на конец ${dm(base.date)}.${base.date.slice(0, 4)}; учитывается план после этой даты.`);
+  }
+  if (known.length < vals.length) notices.push('Недели без данных оставлены пустыми.');
+  if (W.some((q, i) => Number.isFinite(vals[i]) && !B.exact[q.week])) {
+    notices.push('Расчёт и прогноз предварительные: выписки загружены не по всем счетам и датам.');
+  }
+  if (notices.length) s += `<div class="legend warn">${notices.join(' ')}</div>`;
   document.getElementById('chartbox').innerHTML = s;
 }
 
@@ -191,7 +221,7 @@ function renderTable() {
   let h = '<tr><th class="k"></th>' + W.map(w => `<th class="${w.kind === 'current' ? 'cur' : ''}">${w.kind === 'fact' ? 'факт' : w.kind === 'current' ? 'сейчас' : 'план'}<span class="wk">${dm(w.week)}–${dm(w.end)}</span></th>`).join('') + '</tr>';
   const balRow = (label, key) => '<tr class="bal"><td class="k">' + label + '</td>' + W.map(w => {
     const v = B[key][w.week], ex = B.exact[w.week];
-    return `<td class="${tdc(w)}${cls(v)}" title="${fmtR(v)} ₽${ex ? '' : ' · есть счета без свежей выписки'}">${fmtK(v) || '0'}${ex ? '' : '<span class="est">*</span>'}</td>`;
+    return `<td class="${tdc(w)}${cls(v)}" title="${fmtR(v)} ₽${ex ? '' : ' · есть счета без свежей выписки'}">${v == null ? '—' : (fmtK(v) || '0')}${ex ? '' : '<span class="est">*</span>'}</td>`;
   }).join('') + '</tr>';
   h += balRow('Остаток на начало', 'open');
   for (const sec of ['in', 'out']) {

@@ -21,18 +21,23 @@ def record_snapshot(platform, account, captured_at, rows):
         acts = db.query("""SELECT d.warehouse,i.nm_id,i.qty FROM wb_loss_document d
           JOIN wb_loss_item i ON i.document_id=d.id WHERE d.account=%s
           AND (d.header_date IS NULL OR d.header_date<=%s)""", (account, day))
+        evidence_warehouses = {r["warehouse"] for r in db.query(
+            "SELECT warehouse FROM wb_damage_stock_warehouse")}
         losses = {}
         for row in acts:
             key = row["warehouse"], str(row["nm_id"])
             losses[key] = losses.get(key, Decimal(0)) + _number(row["qty"])
     else:
         losses = {}
+        evidence_warehouses = set()
     data = []
     for row in rows:
         sku = str(row["nm_id"] if platform == "wb" else row["sku"])
         warehouse = row["warehouse"]
         raw = _number(row["quantity"] if platform == "wb" else row["free_to_sell"])
         excluded = min(raw, losses.get((warehouse, sku), Decimal(0))) if platform == "wb" else Decimal(0)
+        if warehouse in evidence_warehouses:
+            excluded = max(raw, Decimal(0))
         total = _number(row["quantity_full"]) if platform == "wb" else None
         data.append((platform, account, sku, warehouse, day,
                      "wb_stocks" if platform == "wb" else "ozon_fbo_stock",

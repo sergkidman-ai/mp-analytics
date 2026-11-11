@@ -24,7 +24,7 @@ class SharedPriceTests(unittest.TestCase):
                       date_end='2099-10-31T00:00:00Z')
         product = dict(id=1, action_price=146, action_price_limit=72,
                        max_action_price=72, stock=1, min_stock=0)
-        with patch.object(guard, 'september_keep_ratio', return_value=(.5, 'test')), \
+        with patch.object(guard, 'approved_keep_ratio', return_value=(.5, 'test')), \
              patch.object(oz, 'actions', return_value=[action]), \
              patch.object(oz, 'is_whitelisted', return_value=False), \
              patch.object(oz, 'participants', return_value=[product]), \

@@ -1,8 +1,8 @@
 [Unit]
-Description=Check and import new FBS customer orders every 30 minutes
+Description=Check and import new FBS customer orders every twenty minutes (backup for TheCartridge)
 
 [Timer]
-OnCalendar=*-*-* *:00,30:00
+OnCalendar=*-*-* *:00,20,40:00
 Persistent=true
 AccuracySec=1min
 RandomizedDelaySec=0

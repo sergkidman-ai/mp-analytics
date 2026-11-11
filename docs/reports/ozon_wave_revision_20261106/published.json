@@ -1,0 +1,116 @@
+{
+  "checked_at_utc": "2026-11-06T10:09:05.965884+00:00",
+  "url": "https://bi.beyindi.com/api/wb-bids/reports/ozon-waves-2026-11-06",
+  "checks": {
+    "ozon-waves-2026-11-06": {
+      "http": 200,
+      "anonymous_http": 401,
+      "latest_V3": true
+    },
+    "ozon-waves-2026-11-06-all": {
+      "http": 200,
+      "bytes": 5444251
+    },
+    "ozon-waves-2026-11-06-campaign-wave1_bundles_x2": {
+      "http": 200,
+      "bytes": 1122831
+    },
+    "ozon-waves-2026-11-06-campaign-wave1_children": {
+      "http": 200,
+      "bytes": 584866
+    },
+    "ozon-waves-2026-11-06-campaign-wave1_new_6months": {
+      "http": 200,
+      "bytes": 34712
+    },
+    "ozon-waves-2026-11-06-campaign-wave1_other_outside_cpc": {
+      "http": 200,
+      "bytes": 307369
+    },
+    "ozon-waves-2026-11-06-campaign-wave2_bundles_x6": {
+      "http": 200,
+      "bytes": 838717
+    },
+    "ozon-waves-2026-11-06-campaign-wave2_children": {
+      "http": 200,
+      "bytes": 585414
+    },
+    "ozon-waves-2026-11-06-campaign-wave2_new_6months": {
+      "http": 200,
+      "bytes": 34179
+    },
+    "ozon-waves-2026-11-06-campaign-wave2_other_outside_cpc": {
+      "http": 200,
+      "bytes": 309829
+    },
+    "ozon-waves-2026-11-06-campaign-wave3_bundles_x10": {
+      "http": 200,
+      "bytes": 707606
+    },
+    "ozon-waves-2026-11-06-campaign-wave3_children": {
+      "http": 200,
+      "bytes": 586821
+    },
+    "ozon-waves-2026-11-06-campaign-wave3_new_6months": {
+      "http": 200,
+      "bytes": 35062
+    },
+    "ozon-waves-2026-11-06-campaign-wave3_other_outside_cpc": {
+      "http": 200,
+      "bytes": 308802
+    },
+    "ozon-waves-2026-11-06-campaigns": {
+      "http": 200,
+      "bytes": 1827
+    },
+    "ozon-waves-2026-11-06-cost": {
+      "http": 200,
+      "bytes": 417
+    },
+    "ozon-waves-2026-11-06-data": {
+      "http": 200,
+      "bytes": 13927
+    },
+    "ozon-waves-2026-11-06-families": {
+      "http": 200,
+      "bytes": 240306
+    },
+    "ozon-waves-2026-11-06-family-sizes": {
+      "http": 200,
+      "bytes": 310
+    },
+    "ozon-waves-2026-11-06-models": {
+      "http": 200,
+      "bytes": 248102
+    },
+    "ozon-waves-2026-11-06-ratings": {
+      "http": 200,
+      "bytes": 202735
+    },
+    "ozon-waves-2026-11-06-wave1": {
+      "http": 200,
+      "bytes": 2046517
+    },
+    "ozon-waves-2026-11-06-wave2": {
+      "http": 200,
+      "bytes": 1764878
+    },
+    "ozon-waves-2026-11-06-wave3": {
+      "http": 200,
+      "bytes": 1635030
+    },
+    "ozon-plan-summary-2026-11-05": {
+      "http": 200,
+      "anonymous_http": 401,
+      "latest_V3": true
+    },
+    "ozon-monthly-plan-2026-11-05": {
+      "http": 200,
+      "anonymous_http": 401,
+      "latest_V3": true
+    },
+    "anonymous_downloads_protected": true
+  },
+  "marketplace_mutations": 0,
+  "superseded_by_actual_creation_publication": "../ozon_launch_20261106/published.json"
+}

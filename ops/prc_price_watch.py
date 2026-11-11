@@ -314,7 +314,7 @@ def cabinet_alert(profile, logfile, quiet=False, check_only=False):
     return text
 
 
-def run_load(profile, dry):
+def run_load(profile, dry, no_cards=False):
     """Прогон загрузки. -> (текст вывода, код). SystemExit — это отказ по правилу, не сбой.
 
     У поставщика без прайса дорога другая — `prices.unprocessed`: в МойСклад не пишется
@@ -327,6 +327,8 @@ def run_load(profile, dry):
         from prices import run as prices_run
         runner = prices_run.main
     argv = ["--supplier", profile.key] + ([] if dry else ["--apply"])
+    if no_cards and not getattr(profile, "unprocessed", False):
+        argv.append("--no-cards")
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):
@@ -423,14 +425,14 @@ def message(profile, out, code, dry, after, auto=None, recovered=False):
     return "\n".join([head] + troubles(out) + ([auto] if auto else []))
 
 
-def auto_cards(profile, dry, code, logfile):
+def auto_cards(profile, dry, code, logfile, no_cards=False):
     """Автозаведение карточек по строкам «все шесть галочек». -> хвост для телеграма или None.
 
     Боевым ходом идёт ТОЛЬКО у поставщиков из `auto_card.AUTO_APPLY` и только в боевом
     прогоне прайса; у остальных — сухой отчёт, карточки заводит человек. Сбой автозаведения
     не роняет прогон прайса: прайс уже оприходован, это отдельная работа поверх него.
     """
-    if code != 0:
+    if code != 0 or no_cards:
         return None
     from prices import auto_card
     live = not dry and profile.key in auto_card.AUTO_APPLY
@@ -453,6 +455,8 @@ def main(argv=None):
     ap.add_argument("--supplier", default="kaktus_msk")
     ap.add_argument("--dry", action="store_true", help="прогон без записи в МойСклад")
     ap.add_argument("--force", action="store_true", help="грузить, даже если письмо не новое")
+    ap.add_argument("--no-cards", action="store_true",
+                    help="только оприходования: не обновлять карточки товаров")
     ap.add_argument("--quiet", action="store_true", help="не слать телеграм")
     ap.add_argument("--check-overdue", action="store_true",
                     help="проверить просрочку по журналу ЛК или истории писем — без почты и телеграма")
@@ -523,7 +527,7 @@ def main(argv=None):
 
     log(logfile, f"новое письмо: {letter['filename']} / {letter['date']} — запускаю загрузку"
                  + (" (сухой прогон)" if args.dry else ""))
-    out, code = run_load(profile, args.dry)
+    out, code = run_load(profile, args.dry, no_cards=args.no_cards)
     after = pending_count(profile.key)
     log(logfile, f"итог {code}\n" + out)
     # Состояние пишем при исходе ПО ПРАВИЛУ (удача, отмена по аномалиям): такое письмо человек
@@ -543,7 +547,7 @@ def main(argv=None):
                         f"прайс этого дня в МС не попадёт — грузить руками с --force")
             write_state(profile.key, letter, code)
             save_tries(profile.key, letter, 0)
-    auto = auto_cards(profile, args.dry, code, logfile)
+    auto = auto_cards(profile, args.dry, code, logfile, no_cards=args.no_cards)
     text = message(profile, out, code, args.dry, after, auto, recovered=bool(tries) and code == 0)
     if not args.quiet and text:
         log(logfile, "телеграм: " + tg(text))

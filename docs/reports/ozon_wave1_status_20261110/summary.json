@@ -1,0 +1,155 @@
+{
+  "report_date_msk": "2026-11-10",
+  "source": "Ozon Performance /api/client/statistics/daily/json",
+  "last_response_at_utc": "2026-11-10T07:02:59.817759+00:00",
+  "today_is_partial": true,
+  "account_periods_have_different_lengths": true,
+  "orders_are_ad_attribution_not_financial_realization": true,
+  "marketplace_mutations": 0,
+  "accounts": {
+    "oz_acc1": {
+      "activation_at_utc": "2026-11-06T13:08:57.635503+00:00",
+      "data_received_at_utc": "2026-11-10T07:02:59.817759+00:00",
+      "campaigns": [
+        {
+          "account": "oz_acc1",
+          "campaign_id": "49852543",
+          "group": "Новинки",
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "cohort_sku_count": 57,
+          "spend_RUB": "345.17",
+          "views": 3519,
+          "clicks": 46,
+          "ad_attributed_orders": 0,
+          "ad_attributed_order_value_RUB": "0.00",
+          "ad_DRR_pct": null
+        },
+        {
+          "account": "oz_acc1",
+          "campaign_id": "49852681",
+          "group": "Бандлы X2",
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "cohort_sku_count": 1792,
+          "spend_RUB": "3463.66",
+          "views": 52145,
+          "clicks": 382,
+          "ad_attributed_orders": 7,
+          "ad_attributed_order_value_RUB": "90252.00",
+          "ad_DRR_pct": "3.837765368080485751008287905"
+        },
+        {
+          "account": "oz_acc1",
+          "campaign_id": "49852725",
+          "group": "Старые",
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "cohort_sku_count": 518,
+          "spend_RUB": "492.56",
+          "views": 8381,
+          "clicks": 61,
+          "ad_attributed_orders": 0,
+          "ad_attributed_order_value_RUB": "0.00",
+          "ad_DRR_pct": null
+        },
+        {
+          "account": "oz_acc1",
+          "campaign_id": "49852748",
+          "group": "Дочерние",
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "cohort_sku_count": 1084,
+          "spend_RUB": "1383.70",
+          "views": 26817,
+          "clicks": 165,
+          "ad_attributed_orders": 3,
+          "ad_attributed_order_value_RUB": "11072.00",
+          "ad_DRR_pct": "12.49729046242774566473988439"
+        }
+      ],
+      "totals": {
+        "cohort_sku_count": "3451",
+        "spend_RUB": "5685.09",
+        "views": "90862",
+        "clicks": "654",
+        "ad_attributed_orders": "10",
+        "ad_attributed_order_value_RUB": "101324.00"
+      },
+      "ad_DRR_pct": "5.610802968694485018356953930",
+      "owner_weekly_reference_RUB": 12500,
+      "last_guard_checked_at_utc": "2026-11-10T06:00:00.157321+00:00",
+      "last_guard_status": "CHECKED",
+      "last_guard_actions": [],
+      "calendar_stop_at_msk": "2026-12-06T16:08:57+03:00"
+    },
+    "oz_acc2": {
+      "activation_at_utc": "2026-11-09T16:18:49.864951+00:00",
+      "data_received_at_utc": "2026-11-10T07:02:59.794017+00:00",
+      "campaigns": [
+        {
+          "account": "oz_acc2",
+          "campaign_id": "50080620",
+          "group": "Новинки",
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "cohort_sku_count": 198,
+          "spend_RUB": "57.74",
+          "views": 529,
+          "clicks": 6,
+          "ad_attributed_orders": 0,
+          "ad_attributed_order_value_RUB": "0.00",
+          "ad_DRR_pct": null
+        },
+        {
+          "account": "oz_acc2",
+          "campaign_id": "50080606",
+          "group": "Бандлы X3",
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "cohort_sku_count": 1757,
+          "spend_RUB": "877.72",
+          "views": 11669,
+          "clicks": 93,
+          "ad_attributed_orders": 0,
+          "ad_attributed_order_value_RUB": "0.00",
+          "ad_DRR_pct": null
+        },
+        {
+          "account": "oz_acc2",
+          "campaign_id": "50080623",
+          "group": "Старые",
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "cohort_sku_count": 713,
+          "spend_RUB": "73.57",
+          "views": 1251,
+          "clicks": 9,
+          "ad_attributed_orders": 0,
+          "ad_attributed_order_value_RUB": "0.00",
+          "ad_DRR_pct": null
+        },
+        {
+          "account": "oz_acc2",
+          "campaign_id": "50080615",
+          "group": "Дочерние",
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "cohort_sku_count": 1183,
+          "spend_RUB": "181.59",
+          "views": 2390,
+          "clicks": 22,
+          "ad_attributed_orders": 1,
+          "ad_attributed_order_value_RUB": "590.00",
+          "ad_DRR_pct": "30.77796610169491525423728814"
+        }
+      ],
+      "totals": {
+        "cohort_sku_count": "3851",
+        "spend_RUB": "1190.62",
+        "views": "15839",
+        "clicks": "130",
+        "ad_attributed_orders": "1",
+        "ad_attributed_order_value_RUB": "590.00"
+      },
+      "ad_DRR_pct": "201.800",
+      "owner_weekly_reference_RUB": 12500,
+      "last_guard_checked_at_utc": "2026-11-10T06:00:00.224119+00:00",
+      "last_guard_status": "CHECKED",
+      "last_guard_actions": [],
+      "calendar_stop_at_msk": "2026-12-09T19:18:49+03:00"
+    }
+  }
+}

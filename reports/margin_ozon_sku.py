@@ -75,14 +75,19 @@ def _org_id(ms_org):
     return _href_id(org["rows"][0]["meta"]["href"])
 
 
-def posting_cogs_map(org_id):
+def posting_cogs_map(org_id, *, strict=False):
     """{norm_posting: cogs} — FIFO-кэш отгрузок FBS+RFBS на их moment в МС."""
-    rows = db.query("""SELECT demand_name, cogs FROM ms_demand_cogs
-        WHERE org=%s AND agent IN ('Покупатель Озон','Озон Экспресс')""", (org_id,))
-    out = defaultdict(float)
+    complete = fifo_fallback.COMPLETE_DEMAND_SQL if strict else "true"
+    rows = db.query("SELECT demand_name,cogs,(" + complete + """ ) complete
+        FROM ms_demand_cogs d WHERE org=%s
+        AND agent IN ('Покупатель Озон','Озон Экспресс')""", (org_id,))
+    out, unknown = defaultdict(float), set()
     for r in rows:
-        out[norm_posting(r["demand_name"])] += float(r["cogs"] or 0)
-    return out
+        key = norm_posting(r["demand_name"])
+        if not r['complete']:
+            unknown.add(key)
+        out[key] += float(r["cogs"] or 0)
+    return {key:value for key,value in out.items() if key not in unknown}
 
 
 def posting_unit_cost(account, cogs_map):
@@ -103,13 +108,15 @@ def posting_unit_cost(account, cogs_map):
     return {k: cogs_map[k] / u for k, u in units.items() if u > 0 and cogs_map.get(k)}
 
 
-def sku_unit_cost_global(account, org_id):
+def sku_unit_cost_global(account, org_id, *, positive_only=False):
     """{sku: себест/шт} по ВСЕЙ истории аккаунта — кост-базис сторно возвратов. Считаем как
     импутацию в build(), но по всем месяцам сразу: matched-постинги (ms_demand_cogs) × их SKU из
     доставленных операций, делим себест поровну на SKU отправления, усредняем по штукам.
     Зачем глобально: возврат обычно приходит в ДРУГОМ месяце, чем продажа → месячный cpu_map
     вернувшегося SKU часто пуст; всеисторический cpu отражает фактически списанный себест/шт."""
-    cogs_map = posting_cogs_map(org_id)   # norm_posting -> cogs (весь кэш)
+    cogs_map = posting_cogs_map(org_id, strict=positive_only)   # norm_posting -> cogs (весь кэш)
+    if positive_only:
+        cogs_map = {key: value for key, value in cogs_map.items() if value > 0}
     rows = db.query("""SELECT payload->'posting'->>'posting_number' post, payload->'items' items
         FROM raw_ozon_transaction WHERE account=%s
           AND payload->>'operation_type'='OperationAgentDeliveredToCustomer'""", (account,))
@@ -203,17 +210,22 @@ def _rows(account, date_from, date_to):
         (account, date_from, date_to))]
 
 
-def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
+def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1", *, strict_costs=False):
     ms_org = ACC_ORG.get(account, ACC_ORG["oz_acc1"])
     ms_from = (datetime.date.fromisoformat(date_from) - datetime.timedelta(days=45)).isoformat()
     print(f"Ozon маржа {account} {date_from}..{date_to}", flush=True)
     org_id = _org_id(ms_org)
-    cogs_map = posting_cogs_map(org_id)
+    cogs_map = posting_cogs_map(org_id, strict=strict_costs)
+    if strict_costs:
+        cogs_map = {key: value for key, value in cogs_map.items() if value > 0}
     sell_budget = storno_budget(account, date_from[:7])  # (постинг,sku) → штук с начисленной выручкой
     punit = posting_unit_cost(account, cogs_map)       # постинг → себест/шт ЭТОЙ отгрузки (сторно)
-    cpu_global = sku_unit_cost_global(account, org_id)  # sku → себест/шт (вся история), фолбэк сторно
+    cpu_global = sku_unit_cost_global(account, org_id, positive_only=strict_costs)
     sku2offer = fetch_product_offer_map(account)   # sku → offer_id (=external_code)
     gmap = _group_price_map()
+    if strict_costs:
+        gmap = {}
+    unknown_cost_skus = set()
     ff = fifo_fallback.load()                      # FIFO товара/набора МС (перед групповой ценой)
     # Опорная дата фолбэка FIFO — ДЕНЬ ЗАКАЗА отправления (posting.order_date), а не конец месяца
     # (решение Сергея 16.08.2026): конец месяца брал списание, случившееся ПОСЛЕ продажи.
@@ -330,6 +342,8 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
                 if mc is not None:
                     sku_cogs[s] += mc
                     used_manual += 1
+                elif strict_costs:
+                    unknown_cost_skus.add(s)
         if used_impute + used_fifo + used_group + used_manual == 0:
             cov["missed"] += 1
             rev_cov["missed"] += rev
@@ -372,6 +386,8 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
             if cpu:
                 storno[s] += cpu * take
                 st_src[src] += take
+            elif strict_costs:
+                unknown_cost_skus.add(s)
 
     # сборка строк + запись
     recs, rows_view = [], []
@@ -380,6 +396,8 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
         rev = f["revenue"]
         cogs = sku_cogs.get(sku, 0.0) - storno.get(sku, 0.0)
         net = sum(f.values()) - cogs
+        if strict_costs and sku in unknown_cost_skus:
+            cogs, net = None, None
         rec = {
             "article": sku, "platform": "ozon", "account": account,
             "period_from": date_from, "period_to": date_to, "qty": None,
@@ -391,13 +409,18 @@ def build(date_from="2026-06-01", date_to="2026-06-30", account="oz_acc1"):
             "other": -(f["penalties"] + f["acquiring"] + f["advertising"]
                        + f["subscription"] + f["partners"] + f["points"]
                        + f["compensation"] + f["fbo"] + f["other"]),
-            "net_profit": net, "margin_pct": (net / rev * 100) if rev else None,
+            "net_profit": net, "margin_pct": (net / rev * 100) if rev and net is not None else None,
             "commission_pct": (-f["commission"] / rev * 100) if rev else None,
         }
         recs.append(rec)
         rows_view.append((sku, sku_name.get(sku, ""), rev, cogs, net, rec["margin_pct"]))
     db.upsert("margin_by_sku", recs, conflict_cols=[
         "article", "platform", "account", "period_from", "period_to"])
+    if strict_costs:
+        result={"rows":len(recs),"unknown_cost_rows":sum(r['cogs'] is None for r in recs),
+                "cost_sources":dict(cov)}
+        print("  Recovery COGS: "+str(result),flush=True)
+        return result
 
     # --- сводка ---
     tot_payout = sum(sum(f.values()) for f in sku_fin.values()) + sum(overhead.values())

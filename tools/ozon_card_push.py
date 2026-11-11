@@ -65,6 +65,7 @@ sys.path.insert(0, "/opt/mp-analytics")
 from core.db import query, execute                     # noqa: E402
 from collectors.ozon import _headers, PRODUCT_INFO_URL  # noqa: E402
 from collectors.ozon_card_status import HEAL_WARN       # noqa: E402
+from tools import ozon_card_journal as journal
 
 ATTR_URL = "https://api-seller.ozon.ru/v4/product/info/attributes"
 UPD_URL = "https://api-seller.ozon.ru/v1/product/attributes/update"
@@ -92,25 +93,21 @@ def _pool(account, limit, classes, offers=None):
     страдает только видимость); внутри класса — сначала неторгующие и самые давние. Если что-то
     пойдёт не так, первыми под удар попадают карточки, которые и так не приносят денег.
     """
-    return query(
-        "SELECT offer_id, product_id, attempts, is_selling, err_class, err_codes "
-        "FROM card_status "
-        "WHERE platform = %s AND account = %s AND is_open AND err_class = ANY(%s) "
-        "  AND (%s IS NULL OR offer_id = ANY(%s)) "
-        "  AND NOT needs_human AND attempts < %s "
-        "  AND (last_attempt_at IS NULL OR last_attempt_at < now() - make_interval(hours => %s)) "
-        "ORDER BY err_class, is_selling, first_seen LIMIT %s",
-        (PLATFORM, account, list(classes), offers, offers, MAX_ATTEMPTS, BACKOFF_H, limit))
+    return journal.pool(account, limit, classes, offers)
 
 
 def _live_states(H, product_ids):
     """Состояние карточек прямо сейчас: БД могла устареть, а мы собираемся писать."""
     out = {}
-    for i in range(0, len(product_ids), 1000):
+    for i in range(0, len(product_ids), 20):
         r = requests.post(PRODUCT_INFO_URL, headers=H,
-                          json={"product_id": product_ids[i:i + 1000]}, timeout=180)
+                          json={"product_id": product_ids[i:i + 20]}, timeout=180)
         r.raise_for_status()
-        for it in r.json().get("items", []):
+        items=r.json().get('items')
+        expected={str(pid) for pid in product_ids[i:i+20]}
+        if not isinstance(items,list) or len(items)!=len(expected) or {str(it.get('id')) for it in items}!=expected:
+            raise ValueError('Incomplete live Ozon card snapshot')
+        for it in items:
             st = it.get("statuses") or {}
             errs = it.get("errors") or []
             st["_hard_errors"] = [e for e in errs if e.get("level") == "ERROR_LEVEL_ERROR"]
@@ -123,12 +120,36 @@ def _too_fresh(st):
     raw = st.get("status_updated_at") or ""
     try:
         u = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        return False
+    except (ValueError, TypeError):
+        return True
+    if u.tzinfo is None:
+        u=u.replace(tzinfo=timezone.utc)
     return (datetime.now(timezone.utc) - u).total_seconds() < FRESH_H * 3600
 
 
-def _send(H, offer_id):
+def _payload(card, offer_id, product_id=None):
+    if card.get('offer_id')!=offer_id or (
+            product_id is not None and str(card.get('id'))!=str(product_id)):
+        raise ValueError('Ozon no-op product identity mismatch')
+    pick=None
+    for identity in SAFE_ATTRS:
+        choices=[a for a in card.get('attributes',[]) if a.get('id')==identity]
+        if len(choices)!=1 or not choices[0].get('values'):
+            continue
+        if all(isinstance(value,dict) and (value.get('value') not in (None,'')
+               or bool(value.get('dictionary_value_id'))) for value in choices[0]['values']):
+            pick=choices[0]
+            break
+    if not pick:
+        return None,None
+    body = {"items": [{"offer_id": offer_id, "attributes": [{
+        "id": pick["id"], "complex_id": pick.get("complex_id", 0),
+        "values": [{k: v for k, v in val.items() if k in ("dictionary_value_id", "value")}
+                   for val in pick["values"]]}]}]}
+    return pick['id'],body
+
+
+def _send(H, offer_id, log_id=None, product_id=None, expected=None):
     """Читаем карточку, выбираем безопасный атрибут, отправляем его обратно как есть."""
     a = requests.post(ATTR_URL, headers=H,
                       json={"filter": {"offer_id": [offer_id], "visibility": "ALL"},
@@ -136,26 +157,36 @@ def _send(H, offer_id):
     a.raise_for_status()
     res = a.json().get("result") or []
     if not res:
-        return None, None, None, "карточка не отдалась на чтение"
-    attrs = {x["id"]: x for x in res[0].get("attributes", [])}   # поле id, НЕ attribute_id
-    pick = next((attrs[i] for i in SAFE_ATTRS if i in attrs and attrs[i].get("values")), None)
-    if not pick:
-        return None, None, None, "нет безопасного атрибута для no-op"
-    body = {"items": [{"offer_id": offer_id, "attributes": [{
-        "id": pick["id"], "complex_id": pick.get("complex_id", 0),
-        "values": [{k: v for k, v in val.items() if k in ("dictionary_value_id", "value")}
-                   for val in pick["values"]]}]}]}
+        return None,None,None,'карточка не отдалась на чтение'
+    if len(res)!=1:
+        raise ValueError('Ozon no-op product identity mismatch')
+    attr_id,body=_payload(res[0],offer_id,product_id)
+    if body is None:
+        return None,None,None,'нет безопасного атрибута для no-op'
+    if log_id is not None:
+        current=_live_states(H,[int(product_id)]).get(offer_id)
+        if (current is None or _too_fresh(current) or current.get('_hard_errors')
+                or current.get('moderate_status')=='declined'):
+            return None,None,None,'состояние изменилось перед отправкой'
+        if expected:
+            cls,codes=expected
+            if (cls=='A' and current.get('status_failed')!='imported') or (
+                    cls=='W' and not set(codes).intersection(current['_codes'])):
+                return None,None,None,'проблема уже снята перед отправкой'
+        journal.save_payload(log_id,body)
     u = requests.post(UPD_URL, headers=H, json=body, timeout=60)
     # task_id приходит В КОРНЕ ответа, не в result — на этом первый прогон потерял все id.
     tid = u.json().get("task_id") if u.status_code == 200 else None
-    return pick["id"], u.status_code, tid, None if tid else f"HTTP {u.status_code}, задачи нет"
+    return attr_id, u.status_code, tid, None if tid else f"HTTP {u.status_code}, задачи нет"
 
 
-def _task_status(H, task_id, tries=8, wait=15):
+def _task_status(H, task_id, tries=8, wait=15, offer_id=None):
     for _ in range(tries):
         t = requests.post(TASK_URL, headers=H, json={"task_id": task_id}, timeout=60)
         if t.status_code == 200:
             for item in (t.json().get("result") or {}).get("items", []):
+                if offer_id is not None and item.get('offer_id')!=offer_id:
+                    continue
                 if item.get("status") and item["status"] != "pending":
                     return item["status"]
         time.sleep(wait)
@@ -214,11 +245,13 @@ def run(account, limit, apply_, classes=("A", "W"), offers=None):
             continue
         if cls == "A" and st.get("status_failed") != "imported":
             skip["уже здорова"] = skip.get("уже здорова", 0) + 1
-            _mark_healed(account, c["offer_id"])
+            if apply_:
+                _mark_healed(account, c["offer_id"])
             continue
         if cls == "W" and not (want & st["_codes"]):
             skip["замечание уже снято"] = skip.get("замечание уже снято", 0) + 1
-            _mark_warn_cleared(account, c["offer_id"])
+            if apply_:
+                _mark_warn_cleared(account, c["offer_id"])
             continue
         if _too_fresh(st):
             k = f"свежий апдейт ТК (<{FRESH_H} ч)"
@@ -242,23 +275,42 @@ def run(account, limit, apply_, classes=("A", "W"), offers=None):
         return
 
     sent, stopped = [], None
+    batch_key=account+':'+datetime.now(timezone.utc).isoformat()
     for n, c in enumerate(todo, 1):
-        attr_id, http, tid, note = _send(H, c["offer_id"])
+        cls,want=meta[c['offer_id']]
+        log_id=journal.reserve(account,c,{'class':cls,'codes':sorted(want),'batch_key':batch_key})
+        if log_id is None:
+            continue
+        try:
+            attr_id, http, tid, note = _send(H,c['offer_id'],log_id,c['product_id'],(cls,want))
+        except Exception as error:
+            journal.uncertain(log_id,error)
+            raise
         rec = {"platform": PLATFORM, "account": account, "offer_id": c["offer_id"],
                "product_id": c["product_id"], "rung": 1, "attr_id": attr_id,
                "http_code": http, "task_id": tid, "task_status": None,
-               "healed": None, "note": " ".join(x for x in (f"class:{c['err_class']}", note) if x)}
+               "healed": None, "id":log_id,
+               "note": " ".join(x for x in (f"class:{c['err_class']}", note) if x)}
         if tid:
-            rec["task_status"] = _task_status(H, tid, tries=2, wait=5)
-        _log(rec)
-        # skipped = Ozon задачу не принял; повтор той же ступени не поможет — сразу человеку.
-        _mark_attempt(account, c["offer_id"],
-                      needs_human=(rec["task_status"] == "skipped"
-                                   or c["attempts"] + 1 >= MAX_ATTEMPTS))
+            rec['task_status']='pending'
+            journal.finish(log_id,rec)  # task_id сохраняется до первого запроса проверки
+            rec["task_status"] = _task_status(H, tid, tries=2, wait=5,offer_id=c['offer_id'])
+        else:
+            rec['task_status']='no_submission' if http is None else 'uncertain'
+        journal.finish(log_id,rec)
+        if rec['task_status']=='uncertain':
+            return {'sent':len(sent)+1,'healed':0,'stop_reason':'unconfirmed_submission'}
+        if rec['task_status'] in ('skipped','uncertain','no_submission'):
+            execute("UPDATE card_status SET needs_human=true WHERE platform=%s AND account=%s AND offer_id=%s",
+                    (PLATFORM,account,c['offer_id']))
+        if http is None:
+            print(f"{c['offer_id']}: пропуск перед отправкой",flush=True)
+            continue
         sent.append(rec)
+        print(f"{account}: отправлено {len(sent)}, задача {rec['task_status']}",flush=True)
         time.sleep(PAUSE)
 
-        if n == GATE_N and len(todo) > GATE_N and not probe_c:
+        if len(sent) == GATE_N and n < len(todo) and not probe_c:
             print(f"ворота: проверяю первые {GATE_N} перед остальными {len(todo) - GATE_N}")
             time.sleep(SETTLE)
             ok, bad = _verify(H, account, sent, meta)
@@ -272,8 +324,10 @@ def run(account, limit, apply_, classes=("A", "W"), offers=None):
 
     if stopped:
         print(stopped + " — остальные карточки не тронуты")
-        return
+        return {'sent':len(sent),'healed':ok,'stop_reason':stopped}
 
+    if not sent:
+        return {'sent':0,'healed':0,'stop_reason':None}
     time.sleep(SETTLE)
     if probe_c:
         print(f"{account}: отправлено {len(sent)} | класс C — вердикт модерации асинхронный, "
@@ -282,6 +336,9 @@ def run(account, limit, apply_, classes=("A", "W"), offers=None):
     ok, bad = _verify(H, account, sent, meta)
     print(f"{account}: отправлено {len(sent)} | вылечено {ok} | "
           f"осталось {len(sent) - ok}" + (f" | ТРЕВОГА: {bad}" if bad else ""))
+    pending=sum(s.get('task_status') in ('pending','prepared',None) for s in sent)
+    return {'sent':len(sent),'healed':ok,'stop_reason':bad,'pending':pending,
+            'gate_failed':not pending and len(sent)>=GATE_N and ok/len(sent)<GATE_MIN_HEALED}
 
 
 def _verify(H, account, sent, meta):
@@ -296,17 +353,27 @@ def _verify(H, account, sent, meta):
     live = _live_states(H, ids)
     ok, alarm = 0, []
     for s in sent:
+        if s.get('task_id') and s.get('task_status') in ('pending','prepared',None):
+            s['task_status']=_task_status(H,s['task_id'],tries=1,wait=0,offer_id=s['offer_id'])
+            execute('UPDATE card_push_log SET task_status=%s WHERE id=%s',(s['task_status'],s['id']))
         st = live.get(s["offer_id"])
         if st is None:
             continue
         cls, want = meta.get(s["offer_id"], ("A", set()))
-        healed = (not (want & st["_codes"])) if cls == "W" else (not st.get("status_failed"))
+        cleared = (not (want & st["_codes"])) if cls == "W" else (not st.get("status_failed"))
+        healed = (s.get('task_status')=='imported' and cleared and not st.get('_hard_errors')
+                  and st.get('moderate_status')!='declined' and not st.get('status_failed')
+                  and (cls!='W' or st.get('status_name') in SELLING))
         if healed:
             ok += 1
             (_mark_warn_cleared if cls == "W" else _mark_healed)(account, s["offer_id"])
-        execute("UPDATE card_push_log SET healed = %s WHERE id = ("
-                "SELECT max(id) FROM card_push_log WHERE platform = %s AND account = %s "
-                "AND offer_id = %s)", (healed, PLATFORM, account, s["offer_id"]))
+        if s.get('id') is not None:
+            pending=s.get('task_status') in ('pending','prepared',None)
+            execute("UPDATE card_push_log SET healed=%s,action_state=%s WHERE id=%s",
+                    (None if pending else healed,'pending' if pending else 'verified' if healed else 'checked',s['id']))
+        else:
+            execute("UPDATE card_push_log SET healed=%s WHERE id=(SELECT max(id) FROM card_push_log WHERE platform=%s AND account=%s AND offer_id=%s)",
+                    (healed,PLATFORM,account,s['offer_id']))
         if st.get("moderate_status") == "declined":
             alarm.append(f"{s['offer_id']} declined")
         elif st.get("status_name") not in SELLING and (

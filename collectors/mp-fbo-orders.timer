@@ -1,0 +1,12 @@
+# поток: fin
+[Unit]
+Description=Hourly FBO order/status sync from Ozon and WB
+
+[Timer]
+OnCalendar=*-*-* *:40:00 UTC
+AccuracySec=30s
+Persistent=true
+Unit=mp-fbo-orders.service
+
+[Install]
+WantedBy=timers.target

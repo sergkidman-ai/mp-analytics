@@ -1,0 +1,32 @@
+{
+  "order": "63790922754",
+  "status": "В пути",
+  "status_observed_at": "2026-11-11T09:35:18.512061+00:00",
+  "financial_result_unchanged": true,
+  "ms_document_writes": 0,
+  "tests_passed": 43,
+  "subtests": 3,
+  "browser": {
+    "order": "63790922754",
+    "status": "В пути",
+    "status_date": "2026-11-11",
+    "timestamps_separate": true,
+    "js_errors": []
+  },
+  "saved_reads_backfill": {
+    "observed": 1071,
+    "changed": 645
+  },
+  "regular_fast_run": {
+    "at": "2026-11-11T09:40:43.740910+00:00",
+    "result": "success",
+    "unverified": 0
+  },
+  "files": {
+    "customer_guard/ms_status.py": "8b813dc4ee39a0534acf1b5673742701aaa3cd5ca32e45b0d5a81a4f2642ccc6",
+    "customer_guard/store.py": "7c5010db0147f8226ff2848c31ec83a6f4d2bfe74a704ca9ea44e53310575996",
+    "ops/ms_market_status_live.py": "1949616e35fed96bf7808955616cebf29aeb3483e5a0b3d4e0d19be96107e92e",
+    "web/static/customer_orders.html": "cedfe3c9505be00a25d440e335bb7ef662cd35e911f36259baa82817287498e4",
+    "runtime/customer-guard-current/customer_guard/store.py": "7c5010db0147f8226ff2848c31ec83a6f4d2bfe74a704ca9ea44e53310575996"
+  }
+}

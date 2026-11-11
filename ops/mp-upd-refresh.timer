@@ -1,0 +1,10 @@
+[Unit]
+Description=Update WB redemption notices daily at 09:10 Moscow
+
+[Timer]
+OnCalendar=*-*-* 09:10:00 Europe/Moscow
+Persistent=true
+Unit=mp-upd-refresh.service
+
+[Install]
+WantedBy=timers.target

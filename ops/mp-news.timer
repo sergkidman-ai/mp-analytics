@@ -1,0 +1,9 @@
+# поток: ev
+[Unit]
+Description=Marketplace news twice daily (restored schedule)
+[Timer]
+OnCalendar=*-*-* 09,19:17:00 UTC
+Persistent=true
+Unit=mp-news.service
+[Install]
+WantedBy=timers.target

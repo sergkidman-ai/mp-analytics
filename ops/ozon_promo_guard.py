@@ -79,18 +79,17 @@ def _save_run(account, args, rows, issues):
     return status
 
 
-def september_keep_ratio(account):
-    """Use the already published September basis for this guard only."""
-    from core.ozon_expense_basis import get_basis, decimal
-    basis = get_basis(account, require_current=False)
-    if (basis.get('period_from'), basis.get('period_to')) != ('2026-09-01', '2026-09-30'):
-        raise RuntimeError('ozon_guard_september_basis_missing')
+def approved_keep_ratio(account):
+    """Use the explicitly approved October Reports MP basis."""
+    from core.ozon_expense_basis import decimal
+    from core.mp_guard_basis import ozon_basis
+    basis = ozon_basis(account)
     return decimal(basis['keep']), f"{basis['period_from']}..{basis['period_to']} {basis['version']}"
 
 
 def snapshot(account, *, issues=None):
     """Все участники небелых акций: одна строка на товар×акцию, с себестом и полом."""
-    keep, keep_src = september_keep_ratio(account)
+    keep, keep_src = approved_keep_ratio(account)
     acts = [a for a in oz.actions(account)
             if a.get("is_participating") and not oz.is_whitelisted(a.get("title"))]
     rows = []

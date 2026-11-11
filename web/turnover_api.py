@@ -109,8 +109,8 @@ def royalty_page():
     html = html.replace('id="premium" role="tabpanel"', 'id="premium" hidden role="tabpanel"')
     html = html.replace('id="premium-note"', 'id="premium-note" hidden')
     html = html.replace('aria-labelledby="royalty-tab" hidden', 'aria-labelledby="royalty-tab"')
-    html = html.replace('href="/turnover" class="cur"', 'href="/turnover"')
-    html = html.replace('href="/turnover/royalty"', 'href="/turnover/royalty" class="cur"')
+    html = html.replace('<a href="/turnover" class="cur">', '<a href="/turnover">')
+    html = html.replace('<a href="/turnover/royalty">', '<a href="/turnover/royalty" class="cur">')
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
@@ -140,7 +140,9 @@ def turnover(months: int = 6):
 
 def _calculate_turnover(months: int = 6):
     """Деньги покупателя по месяцам: (площадка × фирма) и итоги. Возвраты — отдельной строкой."""
-    first = (dt.date.today().replace(day=1) - dt.timedelta(days=31 * (months - 1))).replace(day=1)
+    today = dt.date.today()
+    month_index = today.year * 12 + today.month - months
+    first = dt.date(month_index // 12, month_index % 12 + 1, 1)
     cells = defaultdict(lambda: {"sales": 0.0, "rets": 0.0})
     for platform, rows in (("wb", _wb(first)), ("ozon", _ozon(first)), ("yandex", _yandex(first))):
         for r in rows:
@@ -199,6 +201,98 @@ _ROYALTY_RATES_DIGITAL = [
 ]
 _ROYALTY_CACHE = {}
 _ROYALTY_LOCK = Lock()
+_ROYALTY_CLOSED_DIR = BASE_DIR / 'reports/data/royalty_turnover/closed'
+
+
+def _royalty_platforms(inn):
+    # Дисквер не продаёт на Маркете; отсутствие кабинета не является потерей данных.
+    return ('wb', 'ozon') if inn == '7811803918' else tuple(PLATFORMS)
+
+
+def _closed_royalty_months():
+    import json
+    result = {}
+    for path in _ROYALTY_CLOSED_DIR.glob('????-??.json'):
+        value = json.loads(path.read_text())
+        month = value['month']
+        if value.get('schema_version') != 1 or month['ym'] != path.stem or month.get('status') != 'closed':
+            raise ValueError('Invalid closed royalty snapshot: ' + path.name)
+        result[month['ym']] = month
+    return result
+
+
+def _save_closed_royalty(month):
+    import fcntl
+    import json
+    import os
+    import tempfile
+    _ROYALTY_CLOSED_DIR.mkdir(parents=True, exist_ok=True)
+    path = _ROYALTY_CLOSED_DIR / (month['ym'] + '.json')
+    with (_ROYALTY_CLOSED_DIR / '.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if path.exists():
+            # A closed month is immutable, including across concurrent web workers.
+            return json.loads(path.read_text())['month']
+        fd, name = tempfile.mkstemp(dir=_ROYALTY_CLOSED_DIR, prefix='.snapshot-')
+        try:
+            with os.fdopen(fd, 'w') as stream:
+                json.dump({'schema_version': 1, 'month': month}, stream, ensure_ascii=False, indent=2)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(name, path)
+            directory = os.open(_ROYALTY_CLOSED_DIR, os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            if os.path.exists(name):
+                os.unlink(name)
+    return month
+
+
+def _royalty_totals(months):
+    from decimal import Decimal
+    totals = {}
+    for inn in ORGS:
+        calculated = [m for m in months if m['orgs'][inn]['royalty']['amount'] is not None]
+        total = float(sum((Decimal(str(m['orgs'][inn]['royalty']['amount']))
+                          for m in calculated), Decimal(0))) if calculated else None
+        totals[inn] = {'amount': total, 'months': [m['ym'] for m in calculated],
+                       'preliminary': any(m['orgs'][inn]['royalty']['preliminary'] for m in calculated)}
+    return totals
+
+
+def _apply_royalty_closures(result, today, closed):
+    current = today.strftime('%Y-%m')
+    for index, month in enumerate(result['months']):
+        ym = month['ym']
+        if ym < current and ym in closed:
+            result['months'][index] = closed[ym]
+            continue
+        month['status'] = 'calculated' if ym == current else 'awaiting_close'
+        month_end = (dt.date.fromisoformat(ym + '-01').replace(day=28)
+                     + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        ready = all(all(org['platforms'][p] is not None for p in _royalty_platforms(inn))
+                    and org.get('wb_last_day') is not None and org['wb_last_day'] >= month_end.isoformat()
+                    for inn, org in month['orgs'].items())
+        if ym < current and ready:
+            month['status'] = 'closed'
+            month['closed_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
+        for org in month['orgs'].values():
+            royalty = org['royalty']
+            royalty['source_warnings'] = list(royalty.get('reasons', []))
+            royalty['preliminary'] = month['status'] != 'closed'
+            if month['status'] == 'closed':
+                royalty['reasons'] = []
+            elif ym == current:
+                royalty['reasons'].append('Текущий месяц: расчётные данные')
+        if month['status'] == 'closed':
+            result['months'][index] = _save_closed_royalty(month)
+    result['royalty_totals'] = _royalty_totals(result['months'])
+    result['digital_royalty_total'] = result['royalty_totals']['7807355364']
+    result['diskver_royalty_total'] = result['royalty_totals']['7811803918']
+    return result
 
 
 def _royalty_ozon(since):
@@ -299,51 +393,53 @@ def _assemble_royalty(today, source_rows, coverage):
                             if ACC_ORG.get(c["account"]) == org and c["ym"] == ym), None),
                          "ozon_unclassified": unknown_cell,
                          "ozon_excluded": cell(excluded_cell.get("sales", 0), excluded_cell.get("rets", 0))}
-        digital = orgs["7807355364"]
-        royalty = _digital_royalty(digital["base"])
         month_end = (dt.date.fromisoformat(ym + "-01").replace(day=28)
                      + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
-        reasons = []
-        if any(c is None for c in digital["platforms"].values()):
-            reasons.append("Нет данных одной или нескольких площадок")
-        if digital["wb_last_day"] is None or digital["wb_last_day"] < month_end.isoformat():
-            reasons.append("Данные ВБ не доходят до конца месяца")
-        if digital["ozon_unclassified"].get("rows", 0):
-            reasons.append("Есть строки Ozon без подтверждённого бренда")
-        royalty.update(preliminary=bool(reasons), reasons=reasons)
-        digital["royalty"] = royalty
-        orgs["7811803918"]["royalty"] = None
+        for inn, org in orgs.items():
+            royalty = _digital_royalty(org["base"])
+            reasons = []
+            if any(org["platforms"][p] is None for p in _royalty_platforms(inn)):
+                reasons.append("Нет данных одной или нескольких площадок")
+            if org["wb_last_day"] is None or org["wb_last_day"] < month_end.isoformat():
+                reasons.append("Данные ВБ не доходят до конца месяца")
+            if org["ozon_unclassified"].get("rows", 0):
+                reasons.append("Есть строки Ozon без подтверждённого бренда")
+            royalty.update(preliminary=bool(reasons), reasons=reasons)
+            org["royalty"] = royalty
         months.append({"ym": ym, "orgs": orgs})
-    from decimal import Decimal
-    calculated = [m for m in months if m["orgs"]["7807355364"]["royalty"]["amount"] is not None]
-    total = float(sum((Decimal(str(m["orgs"]["7807355364"]["royalty"]["amount"]))
-                      for m in calculated), Decimal(0))) if calculated else None
+    totals = _royalty_totals(months)
     return {"months": months, "orgs": ORGS, "platforms": PLATFORMS,
             "trademarks": {"7807355364": "Цифровой квадрат", "7811803918": "Dsquare"},
             "since": _ROYALTY_START.isoformat(), "coverage": coverage,
             "basis": "sales_before_returns",
-            "royalty_rates": {"7807355364": _ROYALTY_RATES_DIGITAL},
+            "royalty_rates": {inn: _ROYALTY_RATES_DIGITAL for inn in ORGS},
             "royalty_period": "month", "royalty_method": "single_rate_on_whole_base",
-            "digital_royalty_total": {"amount": total,
-                "months": [m["ym"] for m in calculated],
-                "preliminary": any(m["orgs"]["7807355364"]["royalty"]["preliminary"] for m in calculated)},
+            "royalty_totals": totals,
+            "digital_royalty_total": totals["7807355364"],
+            "diskver_royalty_total": totals["7811803918"],
             "refresh_policy": "daily"}
 
 
 @router.get("/api/turnover/royalty")
 def royalty_turnover():
-    today = dt.datetime.now(dt.timezone.utc).date()
+    from zoneinfo import ZoneInfo
+    today = dt.datetime.now(ZoneInfo('Europe/Moscow')).date()
     with _ROYALTY_LOCK:
         if _ROYALTY_CACHE.get("day") == today:
             return _ROYALTY_CACHE["result"]
+        closed = _closed_royalty_months()
+        # Historical source tables are no longer queried for frozen months.
+        since = min(dt.date.fromisoformat(ym + '-01') for ym in _royalty_months(today)
+                    if ym not in closed or ym == today.strftime('%Y-%m'))
         coverage = db.query("""select account,
           to_char((payload->>'rr_dt')::date, 'YYYY-MM') ym,
           max((payload->>'rr_dt')::date)::text last_day
           from raw_wb_report where (payload->>'rr_dt')::date >= %s
-          group by account, ym""", (_ROYALTY_START,))
+          group by account, ym""", (since,))
         result = _assemble_royalty(today, [
-            ("wb", _wb(_ROYALTY_START)), ("ozon", _royalty_ozon(_ROYALTY_START)),
-            ("yandex", _yandex(_ROYALTY_START))], coverage)
+            ("wb", _wb(since)), ("ozon", _royalty_ozon(since)),
+            ("yandex", _yandex(since))], coverage)
+        result = _apply_royalty_closures(result, today, closed)
         result["calculated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
         _ROYALTY_CACHE.update(day=today, result=result)
         return result

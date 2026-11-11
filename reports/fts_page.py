@@ -79,15 +79,24 @@ def _periods(cur):
     return out
 
 
-def _country_block(period, c):
+def _country_block(period, c, account, source_ready=True):
+    c = {**c, "rows": [r for r in c["rows"] if r["account"] == account]}
     due = [r for r in c["rows"] if r["status"] != "filed"]
+    amount = sum(r["amount_rub"] for r in c["rows"])
+    cities = {}
+    for row in c["rows"]:
+        cities[row["cluster"]] = cities.get(row["cluster"], 0) + row["amount_rub"]
+    city = fts_report.COUNTRY_CITY.get(c["code"]) or max(cities, key=cities.get)
+    ready = source_ready and account == "oz_acc2" and all(not r["problems"] and r["goods"] for r in due)
+    link = (f'<a class="fts-dl" href="/reports/fts/form/{period:%Y-%m}/{c["code"]}.xml?account={account}">⬇ Скачать форму</a>'
+            if due and ready else '<span class="sub">' + ('проверьте данные' if due else 'всё сдано') + '</span>')
     return f"""      <tr>
-        <td><b>{html.escape(c['title'])}</b> <span class="sub">({c['code']})</span></td>
+        <td>{ACC_LABEL[account]}<br><b>{html.escape(c['title'])}</b> <span class="sub">({c['code']})</span></td>
         <td class="n">{len(c['rows'])}</td>
         <td class="n">{len(due)}</td>
-        <td class="n">{_rub(c['amount_rub'])} ₽</td>
-        <td>{html.escape(c['city'])}</td>
-        <td>{'<a class="fts-dl" href="/reports/fts/form/%s/%s.xml">⬇ Скачать форму</a>' % (period.strftime('%Y-%m'), c['code']) if due else '<span class="sub">всё сдано</span>'}</td>
+        <td class="n">{_rub(amount)} ₽</td>
+        <td>{html.escape(city)}</td>
+        <td>{link}</td>
       </tr>"""
 
 
@@ -130,16 +139,21 @@ def html_for(period):
         else f'<a href="/reports/fts?period={p:%Y-%m}">{p:%m.%Y}</a>'
         for p in _periods(period))
 
-    countries = "\n".join(_country_block(period, c) for c in data["by_country"].values()) or \
-        '      <tr><td colspan="6" class="sub">за месяц нет отправлений к сдаче</td></tr>'
+    countries = "\n".join(_country_block(period, c, account, not data["source_warnings"])
+                          for c in data["by_country"].values()
+                          for account in sorted({r["account"] for r in c["rows"]})) or \
+        '      <tr><td colspan="6" class="sub">нет найденных отправлений к сдаче</td></tr>'
     rows = "\n".join(_row_html(period, r) for r in data["rows"]) or \
-        '      <tr><td colspan="9" class="sub">за месяц нет отправлений в страны ЕАЭС</td></tr>'
+        '      <tr><td colspan="9" class="sub">нет найденных отправлений в страны ЕАЭС</td></tr>'
     # Страны вне ЕАЭС (Узбекистан и прочие) на странице не показываем совсем: статформа по ним
     # не сдаётся, и в таблице «к сдаче» они только путают.
     warn = (f'<div class="fts-kc warn"><div class="l">⚠ Не хватает данных</div><div class="v">{t["problems"]}</div></div>'
             if t["problems"] else
             f'<div class="fts-kc done"><div class="l">Сдано</div><div class="v">{t["filed"]}</div></div>')
 
+    source_notice = "".join(f'<p class="prob">{html.escape(message)}</p>' for message in data["source_warnings"])
+    if source_notice:
+        source_notice = '<div class="fts-kc warn"><b>Данные неполные. Итоги предварительные.</b>' + source_notice + '</div>'
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -165,12 +179,13 @@ def html_for(period):
   получившие статус <b>«Доставлен» в отчётном месяце</b> (отгружены могли быть и раньше),
   и только те, где маркетплейс <b>не выкупил</b> товар: если выкупил — собственником стал он
   и в таможню отчитывается сам. Стоимость пересчитана по курсу ЦБ <b>на дату доставки</b>,
-  вес нетто — с карточки Ozon, ТН ВЭД и номер ГТД — из МойСклада (ГТД по FIFO: последняя
-  приёмка позиции до даты отгрузки). Одна форма — одна страна, товары схлопнуты
+  вес нетто — с карточки Ozon, ТН ВЭД и номер ГТД — из МойСклада (ГТД: последняя
+  приёмка позиции до даты отгрузки). Одна форма — одна организация и страна, товары схлопнуты
   по ТН ВЭД, номеру ГТД и стране происхождения.</p>
   <div class="perbar">Отчётный месяц:
     {perbar}
   </div>
+  {source_notice}
   <div class="fts-cards">
     <div class="fts-kc"><div class="l">Отправлений в ЕАЭС</div><div class="v">{t['eaes']}</div></div>
     <div class="fts-kc done"><div class="l">Выкупил маркетплейс</div><div class="v">{t['buyout']}</div></div>
@@ -178,6 +193,7 @@ def html_for(period):
     {warn}
   </div>
 
+  {'<p>Все найденные отправления в ЕАЭС отмечены в отчёте Ozon как «Подлежит выкупу». Отправлений к сдаче нами за этот месяц не найдено.</p>' if t['eaes'] and t['buyout'] == t['eaes'] and not data['source_warnings'] else ''}
   <h2 style="font-size:17px;margin:18px 0 4px">Формы по странам</h2>
   <table class="fts">
     <thead><tr><th>Страна</th><th>Отправлений</th><th>К сдаче</th><th>Стоимость</th>
@@ -190,6 +206,7 @@ def html_for(period):
   кластер доставки с наибольшей суммой, для остальных стран кластер Ozon совпадает со страной,
   поэтому ставится столица.</p>
 
+  <p><a href="/reports/fts/export/{per}.csv">Скачать реестр CSV для сверки</a></p>
   <h2 style="font-size:17px;margin:22px 0 4px">Отправления за {period:%m.%Y}</h2>
   <table class="fts">
     <thead><tr><th>Отправление</th><th>Доставлено</th><th>Страна</th><th>Оплачено</th>

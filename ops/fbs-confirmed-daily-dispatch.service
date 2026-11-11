@@ -1,0 +1,13 @@
+[Unit]
+Description=Process confirmed orders and catch up marketplace readiness
+Wants=network-online.target fbs-ms-import.service
+After=network-online.target fbs-ms-import.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mp-analytics
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mp-analytics/venv/bin/python -m ops.fbs_order_processor
+TimeoutStartSec=21600
+Restart=no
+Nice=10

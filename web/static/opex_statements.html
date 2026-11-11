@@ -103,8 +103,12 @@
     <input type="file" id="f-file" accept=".pdf,.txt,.csv,.xlsx,.xls,.1c" style="display:none"
            onchange="uploadFile(this)">
   </div>
+  <div class="wrap" id="month-state" style="margin-bottom:14px"></div>
   <div class="wrap" id="rules" style="display:none;margin-bottom:14px"></div>
   <div class="wrap"><div id="tbl"></div><div class="foot" id="foot"></div></div>
+  <p class="note">После сбоя правила восстановлены частично по документации и однозначным назначениям платежей.
+     Выписки Альфы и Сбера восстановлены с января 2026 года. Загруженные выписки других банков доступны в фильтре «банк».
+     Платежи без подтверждённой статьи оставлены для разбора; таблица правил доступна по кнопке «🔁 правила».</p>
   <p class="note">Статья присваивается сразу при выборе — кнопки «Сохранить» нет. «Запомнить контрагента» создаёт
      правило по его ИНН: все его платежи (и уже загруженные, и будущие) уходят в эту статью сами. Если у контрагента
      платежи разнородные — так бывает, когда контрагент подставлен банком (карточные покупки, комиссии), — бери
@@ -115,7 +119,7 @@
      <b>1</b> — весь платёж в месяц оплаты, <b>12</b> — вперёд на год от месяца оплаты (лицензия),
      <b>−3</b> — назад, три месяца ДО оплаты (УСН за квартал: платёж июля ляжет в апрель–июнь;
      налог за прошлый месяц — это −1). НДС и всё, что относится к месяцу оплаты, оставляй 1.
-     Платежи поставщикам оставляй без статьи: они уедут в раздел «Кэшфлоу».<br>
+     Платежи поставщикам относятся к статье «Закупка товара у поставщиков» и не входят в опер. расходы.<br>
      <b>«📤 файл выписки»</b> — для Озон Банка: у него нет API, выписку выгружаешь из личного кабинета
      (годится <b>PDF</b> — печатная форма из ЛК; ещё лучше <b>1С</b>, читаются и CSV/XLSX) и загружаешь сюда файлом в ту фирму, что выбрана слева.
      Сначала покажу, что нашёл в файле, и спрошу подтверждение; повторная загрузка того же периода
@@ -130,7 +134,16 @@ const MONTHS={'01':'январь','02':'февраль','03':'март','04':'а
 let org='', month='', cats=[], data=null, catFilter='';   // catFilter: '' все | 'none' | id статьи
 let bankFilter='';                                        // '' все банки | alfa | sber | ozon
 async function api(p){const r=await fetch(p);return r.json();}
-async function post(p,body){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
+async function post(p,body){
+  try {
+    const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const res=await r.json().catch(()=>null);
+    if(!r.ok || !res) return {ok:false,error:`Не удалось подтвердить сохранение (ошибка ${r.status}). Обновите страницу и проверьте статью и правило.`};
+    return res;
+  } catch(e) {
+    return {ok:false,error:'Не удалось подтвердить сохранение: нет связи с сервером. Обновите страницу и проверьте статью и правило.'};
+  }
+}
 function flash(t){const f=$('#flash');f.textContent=t;f.classList.add('on');setTimeout(()=>f.classList.remove('on'),1600);}
 
 async function load(){
@@ -143,7 +156,25 @@ async function load(){
   if(bankFilter && !(data.by_bank||[]).some(b=>b.bank===bankFilter)){bankFilter=''; return load();}
   renderBar(); render();
 }
+async function monthAction(action){
+  const r=await post('/api/opex/month/'+action,{org,month});
+  if(!r.ok){alert(r.error||'Не удалось изменить состояние месяца');return;}
+  await load();
+}
+function renderMonthState(){
+  const past=month && month.slice(0,7)<new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'}).slice(0,7);
+  const closed=data.closed;
+  const late=data.late_transactions||0;
+  $('#f-remember').disabled=!!closed;
+  $('#month-state').innerHTML=closed
+    ? `<b>Месяц закрыт</b> · ${new Date(data.closed_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})}
+       <button class="lnk" onclick="monthAction('reopen')">Открыть месяц</button>
+       <p class="note">Выписка и разнесение сохранены. Изменения правил их не меняют.${late?` Новых операций после закрытия: ${late}. Для проверки откройте месяц.`:''}</p>`
+    : `<b>Месяц открыт</b>${past?` <button class="lnk" onclick="monthAction('close')">Закрыть месяц</button>`:''}
+       <p class="note">${past?'После закрытия данные сохраняются; исправления доступны через открытие месяца.':'Новые платежи и разметка продолжают обновляться.'}</p>`;
+}
 function renderBar(){
+  renderMonthState();
   // Фирмы всегда раздельно — сводного «Все» нет намеренно: разные банки, договоры и площадки
   $('#orgs').innerHTML=(data.orgs||[]).map(o=>
     `<button class="${org===o.org_inn?'cur':''}" onclick="setOrg('${o.org_inn}')" title="платежей в базе: ${o.n||0}">${esc(o.name)}</button>`).join('');
@@ -186,18 +217,19 @@ function render(){
   const multiBank=new Set((data.items||[]).map(t=>t.bank)).size>1;
   const rows=(data.items||[]).map(t=>{
     const credit=t.direction==='CREDIT';
+    const locked=data.closed||t.edit_locked;
     const ctl=credit
       ? `<span class="muted">приход</span>`
-      : `<select onchange="assign(${t.id},this)">${catOptions(t.category_id)}</select>`;
+      : locked ? `<span title="Для изменения откройте закрытый месяц">${esc(t.category||'— без статьи —')}</span>` : `<select onchange="assign(${t.id},this)">${catOptions(t.category_id)}</select>`;
     // Поле «Мес.» знаковое: 1 — месяц оплаты, 12 — вперёд год, −3 — три месяца ДО оплаты (УСН).
     // Знак не хранится: он виден по start_month, который меньше месяца платежа.
     const n=(t.spread_months||1)*(t.spread_back?-1:1);
     const per=t.start_month?`${MONTHS[t.start_month.slice(5,7)]} ${t.start_month.slice(0,4)}`:'';
-    const spread=credit?'':`<input type="number" min="-120" max="120" value="${n}"
+    const spread=credit?'':locked?`<span title="Разнесение сохранено">${t.category_id?n+' мес.':'—'}</span>`:`<input type="number" min="-120" max="120" value="${n}"
         title="${t.category_id?`период с ${per}${t.spread_months>1?`, ${t.spread_months} мес.`:''}`
                              :'1 — месяц оплаты, 12 — вперёд на год, −3 — три месяца до оплаты'}"
         onchange="assign(${t.id},null,this)">`;
-    const rule=t.has_rule?'<span title="есть правило по этому контрагенту">🔁</span>':'';
+    const rule=t.has_rule?`<span title="${data.closed?'правило действовало на момент закрытия':'есть правило по этому контрагенту'}">🔁</span>`:'';
     const src=t.source==='rule'?'<span class="muted" title="размечено правилом">авто</span>':'';
     return `<tr class="${t.category_id?'done':''}${credit?' credit':''}">
       <td class="muted">${t.operation_date.slice(8,10)}.${t.operation_date.slice(5,7)}
@@ -254,6 +286,7 @@ async function uploadFile(input){
   flash(`Загружено новых ${res.stored}, уже было ${res.dup}`
         +(res.ruled?`, размечено правилом ${res.ruled}`:'')
         +(res.before_cutoff?`, до отсечки ${res.before_cutoff}`:''));
+  if(res.closed_pending) alert(`Новых операций в закрытых месяцах: ${res.closed_pending}. Они сохранены в выписке, но закрытые суммы не менялись. Для проверки откройте нужный месяц.`);
   month=''; await load();
 }
 
@@ -299,7 +332,7 @@ async function assign(txnId,selEl,spreadEl){
     amount_min: rng?rng.amount_min:null,
     amount_max: rng?rng.amount_max:null});
   if(!res.ok){alert(res.error||'не удалось сохранить');return;}
-  flash(val ? (res.ruled_existing?`Статья присвоена, правилом размечено ещё ${res.ruled_existing}`:'Статья присвоена')
+  flash(val ? (res.rule ? `Статья и правило сохранены. Дополнительно размечено: ${res.ruled_existing||0}` : 'Статья сохранена без правила')
             : 'Статья снята');
   await load();
   if($('#rules').style.display!=='none') await loadRules();
@@ -341,7 +374,17 @@ function parseAmountRange(s){
 }
 
 async function loadRules(){
-  const d=await api('/api/opex/rules');
+  const box=$('#rules');
+  box.innerHTML='<p class="note">Загрузка правил…</p>';
+  let d;
+  try {
+    const response=await fetch('/api/opex/rules');
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    d=await response.json();
+  } catch(e) {
+    box.innerHTML='<p class="note">Не удалось загрузить правила. <button class="lnk" onclick="loadRules()">Повторить</button></p>';
+    return;
+  }
   const rows=(d.items||[]).map(r=>`<tr>
       <td>${esc(r.cp_name||r.cp_inn||r.cp_name_key||'—')}<div class="muted" style="font-size:11px">${esc(r.cp_inn||'по имени')}</div></td>
       <td>${r.purpose_like?`<code class="frag">${esc(r.purpose_like)}</code>`
@@ -368,7 +411,9 @@ async function delRule(id,cat){
 }
 async function loadCats(){ cats=(await api('/api/opex/categories')).items; }
 (async()=>{
-  org=localStorage.getItem('opexOrg')||'';       // выбранная фирма живёт между заходами
+  const query=new URLSearchParams(location.search);
+  org=query.get('org')||localStorage.getItem('opexOrg')||'';
+  month=query.get('month')||'';       // выбранная фирма живёт между заходами
   await loadCats();
   $('#f-remember').value=localStorage.getItem('opexRemember') ?? 'inn';
   $('#f-remember').onchange=e=>localStorage.setItem('opexRemember',e.target.value);
@@ -377,6 +422,7 @@ async function loadCats(){ cats=(await api('/api/opex/categories')).items; }
   $('#f-credit').onchange=load;
   $('#f-month').onchange=e=>{month=e.target.value;load();};
   await load();
+  if(new URLSearchParams(location.search).get('rules')==='1') await toggleRules();
 })();
 </script>
 </body>

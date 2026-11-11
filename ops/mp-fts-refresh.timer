@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh last-month FTS data at 08:50 Moscow, days 1-20
+
+[Timer]
+OnCalendar=*-*-01..20 08:50:00 Europe/Moscow
+Persistent=true
+Unit=mp-fts-refresh.service
+
+[Install]
+WantedBy=timers.target

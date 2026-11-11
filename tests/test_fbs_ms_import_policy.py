@@ -17,6 +17,12 @@ def card(id, code='0019', supplier=ODYSSEY, brand='at', price=10000,
 
 
 class PolicyTests(unittest.TestCase):
+    def setUp(self):
+        from ops.ms_supplier_priorities import priority_time
+        scope = priority_time('2026-11-02T12:00:00+03:00')
+        scope.__enter__()
+        self.addCleanup(scope.__exit__, None, None, None)
+
     def test_uses_available_stock_after_other_reserves(self):
         stocked = card('a', stock=3, reserve=2)
         empty = card('b', stock=0, price=100)

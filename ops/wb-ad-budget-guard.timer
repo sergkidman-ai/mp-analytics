@@ -1,0 +1,11 @@
+# поток: mkt
+[Unit]
+Description=WB CPC budget monitor daily at historical 07:30 UTC
+
+[Timer]
+OnCalendar=*-*-* 07:30:00 UTC
+Persistent=true
+Unit=wb-ad-budget-guard.service
+
+[Install]
+WantedBy=timers.target

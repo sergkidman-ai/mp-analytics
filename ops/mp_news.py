@@ -999,11 +999,13 @@ def main(argv=None):
     if not args.diary_only and args.platform in (None, "yandex"):
         sources.append(("Маркет (почта)", "yandex",
                         lambda: collect_yandex(dry=args.dry, days=args.days)))
+    failed_sources = []
     for name, plat, fetch in sources:
         try:
             got = fetch()
         except Exception as exc:                    # один источник не должен ронять остальные
             print(f"{name}: СБОЙ {type(exc).__name__}: {exc}")
+            failed_sources.append(name)
             continue
         by = {}
         for r in got:
@@ -1035,7 +1037,7 @@ def main(argv=None):
 
     if fresh:
         print('новости публикуются только в Пульте; Telegram отключён')
-    return 0
+    return 1 if failed_sources else 0
 
 
 if __name__ == "__main__":

@@ -1,0 +1,22 @@
+{
+  "checked_at_utc": "2026-11-05T09:49:08.338696+00:00",
+  "url": "https://bi.beyindi.com/api/wb-bids/reports/ozon-inventory-2026-11-05",
+  "authenticated_html_http": 200,
+  "anonymous_http": 401,
+  "xlsx_http": 200,
+  "xlsx_exact_local_hash_match": true,
+  "full_csv_matches_instock_file": true,
+  "group_download_http": {
+    "x2": 200,
+    "x6": 200,
+    "x10": 200,
+    "new": 200,
+    "other": 200,
+    "old-bundle-review": 200
+  },
+  "nonstock_archive_downloads_removed": {
+    "archive": 404,
+    "all-with-archive": 404
+  },
+  "marketplace_mutations": 0
+}

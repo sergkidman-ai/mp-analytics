@@ -51,9 +51,10 @@ CAL_API = "https://dp-calendar-api.wildberries.ru/api/v1/calendar/promotions"
 TOKEN_ENV = {"wb_acc1": "WB_TOKEN_PRICES_ACC1", "wb_acc2": "WB_TOKEN_PRICES_ACC2"}
 ACC_NAME = {"wb_acc1": "Цифровой квадрат", "wb_acc2": "Дисквэр"}
 
-# Сентябрь-2026, закрытый reports/data/mp_wb_hist.json, по явному решению
-# пользователя 02.11.2026. Октябрь здесь не пересчитываем.
-RETENTION = {"wb_acc1": 0.5323431064681289, "wb_acc2": 0.5402871026755824}
+# Approved closed October, shared with auto-entry, audit and price-floor consumers.
+from core.mp_guard_basis import wb_rules
+EXPENSE_BASIS = wb_rules()
+RETENTION = {account: float(rule['retention']) for account, rule in EXPENSE_BASIS.items()}
 
 MIN_NET = 300.0        # ₽ чистой на единицу — нижняя планка
 MIN_NET_PCT = 0.10     # либо 10 % от себестоимости, что больше

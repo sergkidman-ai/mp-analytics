@@ -15,6 +15,7 @@ from core import db
 from customer_guard import runtime, service
 from customer_guard.domain import ACTIVE, enabled_accounts
 from customer_guard.sources import CustomerMS
+from shipment_guard.ms import SourceError
 
 TIMER = "customer-order-guard.timer"
 SERVICE = "customer-order-guard.service"
@@ -26,9 +27,28 @@ MAX_RUNTIME = timedelta(hours=3)
 class FastCustomerMS(CustomerMS):
     """Process-local pacing override; the deployed worker retains its normal rate."""
 
+    receipt_cache = {}
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.interval = FAST_INTERVAL
+        # supplier_cost rereads the receipt metadata first and indexes this cache
+        # by (id, updated). A new version is always fetched and checked again.
+        self.receipts = self.receipt_cache
+
+    def collection(self, path, params=None, max_pages=10):
+        result = []
+        for page in range(max_pages):
+            obj = self.get(path, {**(params or {}), 'limit': 100, 'offset': page * 100})
+            rows, size = obj.get('rows'), obj.get('meta', {}).get('size')
+            if not isinstance(rows, list) or not isinstance(size, int):
+                raise SourceError('ms_collection_schema')
+            result.extend(rows)
+            if len(result) == size:
+                return result
+            if not rows or len(result) > size:
+                raise SourceError('ms_collection_changed')
+        raise SourceError('ms_page_budget', 600)
 
 
 def emit(**fields):
@@ -118,9 +138,19 @@ def main():
             if not state["enabled"]:
                 raise RuntimeError("runtime_disabled")
             client = FastCustomerMS(budget=100)
-            result = service.work(limit=5, budget=100, client=client,
-                                  notify=state["notifications_enabled"],
-                                  accounts=enabled_accounts(state["settings"]))
+            try:
+                result = service.work(limit=5, budget=100, client=client,
+                                      notify=state["notifications_enabled"],
+                                      accounts=enabled_accounts(state["settings"]))
+            except SourceError as exc:
+                # Identity is checked before a job is claimed. A transient GET
+                # failure there must not abandon an otherwise healthy backlog.
+                if str(exc) != 'ms_network_error' and not str(exc).startswith('ms_http_5'):
+                    raise
+                emit(event='source_cooldown', batch=batch, reason=str(exc),
+                     seconds=exc.retry_after)
+                time.sleep(exc.retry_after)
+                continue
             current = remaining(ids, started)
             if batch == 1 or batch % 5 == 0 or current == 0:
                 emit(event="batch", batch=batch, remaining=current,

@@ -114,6 +114,7 @@
     <a href="/marketing">📣 Юнит-экономика SKU</a>
     <div class="navgroup">Инвентарь и расходы</div>
     <a href="/warehouse">🏭 Склад</a>
+    <a href="/warehouse/marketplace-inventory">↳ Остатки и возвраты МП</a>
     <a href="/suppliers">📦 Поставщики</a>
     <a href="/stale">🧊 Залежи</a>
     <a href="/brak">♻️ Брак/возвраты</a>
@@ -143,8 +144,8 @@
   </div>
   <div id="health"></div>
   <div class="big" id="big"></div>
-  <h2>📈 Динамика по неделям <span class="muted" style="font-weight:400;font-size:12px">(только ВБ + Ozon, без Маркета; недельная разбивка идёт по цене покупателя и с итогом выше не сходится — она для формы, не для суммы)<span id="weekly-scope"></span></span></h2>
-  <table id="weekly"><thead><tr><th>Неделя (Пн–Вс)</th><th>Выручка</th><th>Чистая прибыль</th><th>Реклама</th><th>Маржа %</th></tr></thead><tbody></tbody></table>
+  <h2>📈 Динамика по неделям <span class="muted" style="font-weight:400;font-size:12px">(ВБ + Ozon, без Маркета; полные недели Пн–Вс, включая дни соседних месяцев. Прибыль до операционных расходов; продвижение по финансовым отчётам уже учтено в ней)<span id="weekly-scope"></span></span></h2>
+  <table id="weekly"><thead><tr><th>Неделя (Пн–Вс)</th><th>Выручка</th><th>Прибыль МП</th><th>Продвижение МП</th><th>Маржа %</th></tr></thead><tbody></tbody></table>
   <h2 style="margin-top:26px">🗓 Что мы меняли <span class="muted" style="font-weight:400;font-size:12px">(дневник событий — цифры выше читать вместе с ним)</span>
     <a href="#" id="ev-toggle" style="float:right;font-size:13px;font-weight:400">+ записать событие</a></h2>
   <div class="evtabs" style="margin-bottom:10px">
@@ -194,9 +195,10 @@ function deltaHtml(d,goodUp,pp){
 async function api(p){const r=await fetch(p);return r.json();}
 
 async function initPeriods(){
-  const m=await api('/api/meta');
+  const m=await api('/api/business/meta');
   const per=[...new Set(m.slices.map(s=>s.period_from))].sort().reverse();
   $('#f-period').innerHTML=per.map(p=>`<option value="${p}">${MONTHS[p.slice(5,7)]} ${p.slice(0,4)}</option>`).join('');
+  if(!per.length) $('#f-period').innerHTML='<option value="">Нет загруженных отчётов</option>';
   period=per[0]||'';
   $('#f-period').onchange=e=>{period=e.target.value;load();};
 }
@@ -238,11 +240,12 @@ function mpMoneyTiles(m){
   const miss=(m.missing||[]).map(k=>MISS_LBL[k]||k).join(', ');
   const late=m.wb_overdue||0;
   return [['💰 Наши деньги на МП',`<span class="pos">${mpRub(m.total)}</span>`+
-      `<div class="muted" style="font-size:11px;margin-top:2px">остатки на счетах площадок${late?' + просроченные выплаты ВБ':''} · на ${d}`+
+      `<div class="muted" style="font-size:11px;margin-top:2px">остатки на счетах площадок${late?' с учётом просроченных выплат ВБ':''} · на ${d}`+
       (miss?` · не учтён баланс ${miss} (нет данных)`:'')+`</div>`,''],
     ...['ozon','wb','yandex'].filter(k=>m[k]!=null).map(k=>[MP_LBL[k],mpRub(m[k])+
       (k==='wb'&&late?
-        `<div class="muted" style="font-size:11px;margin-top:2px">на счёте: ${mpRub(m.wb_account_balance)}<br><span class="warn">просрочено: ${mpRub(late)}</span> · ${m.wb_overdue_count} выплаты по Кэшфлоу</div>`:
+        `<div class="muted" style="font-size:11px;margin-top:2px">по данным ВБ: ${mpRub(m.wb_account_balance)}<br><span class="warn">просрочено: ${m.wb_overdue_count} пл. на ${mpRub(late)}</span> · включено в остаток
+        ${(m.wb_overdue_payments||[]).map(p=>`<div>${esc(MISS_LBL[p.account]||p.account)} · ${mpRub(p.amount)} · срок ${esc(p.due_date||'неизвестен')} · ${p.days_overdue==null?'дни просрочки неизвестны':p.days_overdue+' дн. просрочки'}</div>`).join('')}</div>`:
         `<div class="muted" style="font-size:11px;margin-top:2px">ещё не выплачено нам${org?'':', обе фирмы'}</div>`),''])];
 }
 
@@ -251,7 +254,7 @@ function bankMoneyTiles(m){
   const asOf=d=>d?d.slice(8,10)+'.'+d.slice(5,7):'—';
   const detail=(m.accounts||[]).map(a=>`${esc(a.bank_name)} …${esc(a.account_last4)} на ${asOf(a.as_of)}`).join(' · ');
   const missing=(m.missing||[]).length;
-  return [['💳 Остаток на наших счетах',`<span class="pos">${mpRub(m.total)}</span>`+
+  return [['💳 Известные остатки банков',`<span class="pos">${mpRub(m.total)}</span>`+
     `<div class="muted" style="font-size:11px;margin-top:2px">последние известные остатки по Кэшфлоу · ${detail||'нет подтверждённых остатков'}`+
     (missing?` · <span class="warn">${missing} сч. без опорного остатка не учтено</span>`:'')+
     ` · <a href="/cashflow" style="color:var(--acc)">детали</a></div>`,'']];
@@ -268,12 +271,29 @@ async function load(){
   }
   const t=b.total||{}, dl=b.delta||{}, mc=v=>v==null?'':(v<0?'neg':'pos');
   const after=b.net_after_opex;
+  if(b.data_available===false){
+    $('#health').innerHTML='<div class="health warn"><div><div class="ht">Финансовая история ещё не восстановлена</div><div class="hs">Пульт доступен. Показатели прибыли появятся после загрузки отчётов площадок.</div></div></div>';
+    $('#big').innerHTML='<div class="muted">Данных для оценки оборота, расходов и прибыли пока нет.</div>';
+    $('#plats').innerHTML='<a class="plat" href="/dashboard">Wildberries →</a><a class="plat" href="/ozon">Ozon →</a><a class="plat" href="/market">Маркет →</a>';
+    $('#foot').textContent='Пустая история не означает нулевую прибыль или убыток.';
+    $('#weekly-scope').textContent='';
+    loadWeekly(); loadSignals();
+    return;
+  }
 
   // Здоровье бизнеса — простой светофор по марже и прибыли после постоянных расходов
   let h;
-  if(after>0 && t.margin_pct>=18) h={e:'💪',cls:'pos',t:'Бизнес здоров и силён',s:'Маржа в норме, прибыль покрывает ФОТ и аренду.'};
-  else if(after>0)               h={e:'🙂',cls:'warn',t:'В форме, но под нагрузкой',s:'Прибыль есть, но запас тонкий — держи расходы и маржу под контролем.'};
-  else                           h={e:'🤒',cls:'neg',t:'Бизнес хворает',s:'После ФОТ+аренды уходим в минус. Поднимать маржу и/или оборот.'};
+  if(!Number.isFinite(after) || !Number.isFinite(t.margin_pct))
+    h={e:'',cls:'warn',t:'Недостаточно данных для оценки прибыли',s:'Неизвестные показатели показаны прочерком.'};
+  else if(after>0 && t.margin_pct>=18)
+    h={e:'💪',cls:'pos',t:'Бизнес здоров и силён',s:'Маржа в норме, прибыль покрывает операционные расходы.'};
+  else if(after>0)
+    h={e:'🙂',cls:'warn',t:'В форме, но под нагрузкой',s:'Прибыль есть, но запас тонкий — держи расходы и маржу под контролем.'};
+  else
+    h={e:'🤒',cls:'neg',t:'Бизнес хворает',s:'После операционных расходов прибыль нулевая или отрицательная. Поднимать маржу и/или оборот.'};
+  if(Number.isFinite(after) && Number.isFinite(t.margin_pct) &&
+      (b.provisional || b.opex_unassigned?.n || b.opex_closed===false))
+    h.s+=' Предварительная оценка: данные за период ещё неполные или есть платежи без статьи.';
   $('#health').innerHTML=`<div class="health ${h.cls}"><div class="he">${h.e}</div><div><div class="ht">${h.t}</div><div class="hs">${h.s}</div></div></div>`;
 
   // Все показатели — с вкладки «Отчёты МП» (оборот по нашей цене, до скидок площадки),
@@ -283,7 +303,7 @@ async function load(){
   const stats=[
     ['Себестоимость',`${rub(t.cogs)} <span class="muted" style="font-size:13px">${pct(t.cogs_pct)}</span>`+
       (t.cogs_actual?`<div class="muted" style="font-size:11px;margin-top:2px">учётная (Цифровой): ${rub(t.cogs_actual)}</div>`:''),''],
-    ['Чистая прибыль',`<span class="${mc(t.net)}">${rub(t.net)}</span>`,deltaHtml(dl.total_net,true,false)],
+    ['Прибыль МП до опер. расходов',`<span class="${mc(t.net)}">${rub(t.net)}</span>`,deltaHtml(dl.total_net,true,false)],
     ['Маржа',pct(t.margin_pct),deltaHtml(dl.total_margin,true,true)],
   ];
   const bankMoney=bankMoneyTiles(b.bank_money);
@@ -292,11 +312,11 @@ async function load(){
   const mpMoney=mpMoneyTiles(b.mp_money);
   const rest=[
     ['Опер. расходы',`<span class="warn">${rub(b.opex)}</span>${ofRev(b.opex)}`+
-      (org&&!b.opex_org_split?`<div class="muted" style="font-size:11px;margin-top:2px">снапшот общий на бизнес — по фирмам не делится</div>`:'')+
+      (org&&b.opex!=null&&!b.opex_org_split?`<div class="muted" style="font-size:11px;margin-top:2px">снапшот общий на бизнес — по фирмам не делится</div>`:'')+
       (un.n?`<div class="muted" style="font-size:11px;margin-top:2px">+ не разнесено: ${rub(un.s)} (${un.n})</div>`:''),''],
-    ['Чистая после ФОТ',`<span class="${mc(after)}">${rub(after)}</span>${ofRev(after)}`,''],
+    ['Прибыль после опер. расходов',`<span class="${mc(after)}">${rub(after)}</span>${ofRev(after)}`,''],
     ['Закупки',rub(pu.net)+
-      `<div class="muted" style="font-size:11px;margin-top:2px">${pu.docs||0} приёмок, с НДС${org?' · по всему бизнесу':''}</div>`,''],
+      `<div class="muted" style="font-size:11px;margin-top:2px">${pu.docs==null?'данные закупок не восстановлены':pu.docs+' приёмок, с НДС'}${org?' · по всему бизнесу':''}</div>`,''],
   ];
   const tiles=a=>a.map(([l,v,d])=>`<div class="bi"><div class="l">${l}</div><div class="v">${v}</div>${d||''}</div>`).join('');
   $('#big').innerHTML=[bankMoney,turnover,holds,mpMoney,stats,rest]
@@ -309,8 +329,9 @@ async function load(){
     (ya?`<a class="plat" href="/market"><div class="an">🟡 Маркет →</div><div class="ar">оборот ${rub(ya.revenue)} · чистая <span class="${ya.net<0?'neg':'pos'}">${rub(ya.net)}</span> · маржа ${pct(ya.margin_pct)}</div></a>`:'');
 
   $('#foot').innerHTML=`Период: ${MONTHS[period.slice(5,7)]} ${period.slice(0,4)} (текущий месяц неполный). Срез: <b>${b.org_name||'весь бизнес, обе фирмы'}</b>${b.org_name?' — только его аккаунты площадок и его платежи по банку':''}. Итог — по 3 площадкам: <b>ВБ + Ozon + Маркет</b>, цифра в цифру со вкладкой <b>«Отчёты МП»</b>: оборот по нашей цене (ВБ до СПП, Маркет с зачётом), чистая = итого к перечислению − себестоимость, возвраты вычтены. Опер. расходы — со вкладки <b>«Опер. расходы»</b> (факт по банку, обе организации). Закупки — со вкладки <b>«Поставщики»</b>: приёмки минус возвраты поставщику, суммы с НДС, в чистую прибыль не входят. Детали и проблемные SKU — внутри площадок.`;
-  // Неделя и сигналы считаются по бизнесу целиком — переключатель фирмы их не режет.
-  $('#weekly-scope').textContent = org ? ' · по всему бизнесу, без разреза по фирме' : '';
+  if(b.recovery_note) $('#foot').textContent=b.recovery_note;
+  // Недельная таблица следует выбранной фирме; рекомендации сохраняют свой общий контур.
+  $('#weekly-scope').textContent = org ? ' · выбранная компания' : ' · обе компании';
   loadWeekly();
   loadSignals();
 }
@@ -435,7 +456,13 @@ $('#ev-form').onsubmit=async e=>{
 };
 
 async function loadWeekly(){
-  const d=await api(`/api/weekly_business?period=${period}`);
+  const selectedPeriod=period, selectedOrg=org;
+  $('#weekly tbody').innerHTML='<tr><td colspan="5" class="muted">Загрузка недельной детализации…</td></tr>';
+  try{
+  const response=await fetch(`/api/weekly_business?period=${selectedPeriod}&org=${selectedOrg}`);
+  if(!response.ok)throw new Error('HTTP '+response.status);
+  const d=await response.json();
+  if(selectedPeriod!==period||selectedOrg!==org)return;
   const rows=d.rows||[];
   const f=x=>('0'+x.getDate()).slice(-2)+'.'+('0'+(x.getMonth()+1)).slice(-2);
   const mc=v=>v==null?'':(v<0?'neg':(v<18?'warn':'pos'));
@@ -443,11 +470,20 @@ async function loadWeekly(){
     const d0=new Date(r.wk),d1=new Date(r.wk);d1.setDate(d1.getDate()+6);
     const evs=evWeeks[String(r.wk).slice(0,10)]||[];
     const pin=evs.length?` <span title="${evs.map(x=>x.title.replace(/"/g,'')).join(' · ')}">📌</span>`:'';
-    return `<tr><td>${f(d0)}–${f(d1)}${pin}</td><td>${rub(r.rev)}</td>
-      <td class="${r.net<0?'neg':'pos'}">${rub(r.net)}</td>
-      <td class="neg">${r.ad>0?('−'+rub(r.ad)):'—'}</td>
+    const warnings=[];
+    if(r.partial_week)warnings.push('Неполная неделя');
+    if(r.missing_cost_units)warnings.push(`Себестоимость подтверждена для ${r.cost_coverage_pct}% единиц`);
+    if(r.unverified_cost_transactions)warnings.push('Состав части операций не подтверждён');
+    if((r.missing_accounts||[]).length)warnings.push('Ещё нет отчётов части кабинетов');
+    if(r.fallback_cost_units)warnings.push('Часть себестоимости — по истории FIFO товара');
+    return `<tr><td>${f(d0)}–${f(d1)}${pin}${warnings.length?`<div class="muted" style="font-size:11px">${warnings.join(' · ')}</div>`:''}</td><td>${rub(r.rev)}</td>
+      <td class="${r.net==null?'muted':r.net<0?'neg':'pos'}">${rub(r.net)}</td>
+      <td class="${r.ad<0?'pos':'neg'}">${r.ad===0?rub(0):r.ad>0?'−'+rub(r.ad):'+'+rub(-r.ad)}</td>
       <td class="${mc(r.margin)}"><b>${pct(r.margin)}</b></td></tr>`;
-  }).join('')||'<tr><td colspan="5" class="muted">нет недельных данных</td></tr>';
+  }).join('')||'<tr><td colspan="5" class="muted">За выбранный период ещё нет недельных операций ВБ и Ozon.</td></tr>';
+  }catch(error){
+    if(selectedPeriod===period&&selectedOrg===org)$('#weekly tbody').innerHTML='<tr><td colspan="5" class="muted">Не удалось загрузить недельную детализацию. Обновите страницу.</td></tr>';
+  }
 }
 
 (async()=>{await initPeriods();await loadDiary();await load();})();

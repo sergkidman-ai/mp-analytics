@@ -1,0 +1,65 @@
+{
+  "account": "wb_acc1",
+  "asof_utc": "2026-11-09T17:52:52.204604+00:00",
+  "nontrash_catalog_total": 22379,
+  "current_running_campaigns": 86,
+  "current_paused_campaigns": 7,
+  "current_CPC_manual_campaigns": 93,
+  "raw_current_running_membership_unique": 13089,
+  "running_members_absent_current_catalog": 79,
+  "catalog_in_running_ads": 13010,
+  "stock_availability_counts": {
+    "IN_STOCK": 15035,
+    "ZERO_STOCK": 7184,
+    "UNKNOWN": 160
+  },
+  "in_stock_total": 15035,
+  "in_stock_running_ads": 9419,
+  "in_stock_outside_running_ads": 5616,
+  "in_stock_paused_only": 797,
+  "in_stock_no_unfinished_campaign": 4819,
+  "segments_outside_running_in_stock": {
+    "bundles": 4372,
+    "new_6months": 199,
+    "children": 429,
+    "old": 616
+  },
+  "segments_in_running_in_stock": {
+    "old": 3847,
+    "children": 5557,
+    "new_6months": 15
+  },
+  "bundle_quantities_outside_running_in_stock": {
+    "2": 1882,
+    "6": 1420,
+    "10": 1070
+  },
+  "new_cutoff_msk": "2026-05-09T00:00:00+03:00",
+  "new_definition": "WB createdAt; bundles and numeric-prefix children take priority; not first publication",
+  "FBS_requested_barcodes": 30913,
+  "FBS_returned_barcodes": 30672,
+  "FBS_missing_not_zero": 241,
+  "FBO_excluded_damage_units": "373",
+  "public_buyer_visible_stock_status": "HTTP403_NOT_CONFIRMED; official FBS/FBO availability used",
+  "unknown_sold_archived_or_absent_NM_count": 3,
+  "unknown_sold_NMs": [
+    181095678,
+    215239432,
+    1002610265
+  ],
+  "bid_candidates_above_verified_floor": 7,
+  "first_trial_candidates": 2,
+  "review_pool_already_at_floor": 12,
+  "review_pool_stock_excluded": [],
+  "live_margin_available": false,
+  "marketplace_mutations": 0,
+  "database_writes": 0,
+  "paid_no_own_or_ad_orders": {
+    "cards": 1332,
+    "spend_28d": "23211.88",
+    "without_known_native_or_article_orders_cards": 757,
+    "without_known_native_or_article_orders_spend_28d": "12572.46",
+    "causal_waste_proved": false,
+    "no_automatic_pause_authorized": true
+  }
+}

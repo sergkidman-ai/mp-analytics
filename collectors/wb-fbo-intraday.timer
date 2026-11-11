@@ -1,9 +1,9 @@
 # поток: fin
 [Unit]
-Description=Observe WB acc1 FBO stock every two daytime hours (07-21 MSK)
+Description=Observe WB and Ozon FBO inventory every 30 minutes
 
 [Timer]
-OnCalendar=*-*-* 04,06,08,10,12,14,16,18:05:00 UTC
+OnCalendar=*-*-* *:05,35:00 UTC
 AccuracySec=30s
 Persistent=false
 Unit=wb-fbo-intraday.service

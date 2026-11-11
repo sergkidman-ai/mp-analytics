@@ -1,0 +1,12 @@
+{
+  "checked_at_utc": "2026-11-05T09:09:12.078052+00:00",
+  "url": "https://bi.beyindi.com/api/wb-bids/reports/ozon-wave1-plan-2026-11-05",
+  "local_http": 200,
+  "anonymous_http": 401,
+  "authenticated_http": 200,
+  "complete_plan_steps": 6,
+  "local_and_public_response_match": true,
+  "response_sha256": "730a56acb184a1c71892454b30a5ce9d4c13c3f281e9e3aac0250ae331cf744f",
+  "existing_bi_auth_preserved": true,
+  "marketplace_mutations": 0
+}

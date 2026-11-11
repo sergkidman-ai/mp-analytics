@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import requests
 
+from core import ms_api_control
 from core import ms_api
 from ops.fbs_ms_import_pilot import save
 from ops.fbs_ms_import_read import find_customerorder, product_cards, warehouse_stock
@@ -226,7 +227,7 @@ def create_one(platform: str, account: str, number: str) -> dict:
     save(folder / 'intent.json', {'at': datetime.now(timezone.utc).isoformat(),
                                  'key': [platform, account, number], 'payload': second['payload']}, exclusive=True)
     try:
-        response = requests.post(ms_api.BASE + '/entity/customerorder',
+        response = ms_api_control.request("POST", ms_api.BASE + '/entity/customerorder', sender=requests.post, client="operations-direct", kind="operational",
             headers={'Authorization': 'Bearer ' + os.environ['MOYSKLAD_TOKEN'],
                      'Content-Type': 'application/json'}, json=second['payload'], timeout=(5, 45))
         save(folder / 'response.json', {'status': response.status_code,

@@ -1,0 +1,42 @@
+{
+  "snapshots_at_utc": {
+    "wb_acc1": "2026-11-09T18:31:58.808814+00:00",
+    "wb_acc2": "2026-11-09T18:31:58.724235+00:00"
+  },
+  "accounts": {
+    "wb_acc1": {
+      "campaigns_read": 94,
+      "running": 86,
+      "running_CPC": 86,
+      "running_CPM": 0,
+      "formal_slots_to_50_running_all": 0,
+      "formal_slots_to_50_running_CPC": 0,
+      "arithmetic_slots_to_200_running_all_UNVERIFIED": 4103,
+      "arithmetic_slots_to_200_running_CPC_UNVERIFIED": 4103,
+      "low_budget_count": 14,
+      "low_budget_running": 6,
+      "low_budget_paused": 7,
+      "low_budget_ready": 1
+    },
+    "wb_acc2": {
+      "campaigns_read": 75,
+      "running": 72,
+      "running_CPC": 71,
+      "running_CPM": 1,
+      "formal_slots_to_50_running_all": 48,
+      "formal_slots_to_50_running_CPC": 0,
+      "arithmetic_slots_to_200_running_all_UNVERIFIED": 925,
+      "arithmetic_slots_to_200_running_CPC_UNVERIFIED": 727,
+      "low_budget_count": 7,
+      "low_budget_running": 4,
+      "low_budget_paused": 3,
+      "low_budget_ready": 0
+    }
+  },
+  "marketplace_mutations_this_task": 0,
+  "budget_read_source": "POST /api/advert/v2/budget",
+  "budget_currency": "RUB",
+  "legacy_budget_crosschecks": 4,
+  "capacity_of_old_campaigns_to_200": "UNKNOWN_NOT_TESTED",
+  "capacity_addition_test_performed": false
+}

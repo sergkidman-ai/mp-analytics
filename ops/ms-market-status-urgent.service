@@ -1,0 +1,22 @@
+# поток: print; exact cancellation queue, existing status writer
+[Unit]
+Description=Immediate marketplace cancellation reconciliation from printing
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/mp-analytics
+EnvironmentFile=/opt/mp-analytics/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=MS_API_PRIORITY=operational
+ExecStart=/opt/mp-analytics/venv/bin/python -B -m ops.ms_market_status_urgent
+UMask=0077
+User=root
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=300
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

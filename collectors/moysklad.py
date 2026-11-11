@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
+from core import ms_api_control
 from core import db  # noqa: E402
 
 load_dotenv(BASE_DIR / ".env")
@@ -54,7 +55,7 @@ def _throttle():
 
 def _get(url, params=None, _tries=0):
     _throttle()
-    r = requests.get(url, headers=HEADERS, params=params, timeout=60)
+    r = ms_api_control.request("GET", url, sender=requests.get, client="moysklad-collector", headers=HEADERS, params=params, timeout=60)
     if r.status_code == 429 and _tries < 6:
         # лимит запросов: ждём по заголовку (мс), затем повтор
         wait_ms = int(r.headers.get("X-Lognex-Retry-TimeInterval", "1000"))

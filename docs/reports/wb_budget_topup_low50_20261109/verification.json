@@ -1,0 +1,33 @@
+{
+  "verified_at_utc": "2026-11-09T19:58:59.917261+00:00",
+  "status": "PASS",
+  "accounts": {
+    "wb_acc1": {
+      "funded_campaigns": 14,
+      "deposited_RUB": 14000,
+      "start_calls_HTTP200": 8,
+      "selected_final_running": 14,
+      "all_account_running": 94,
+      "wallet_before_net": 331883,
+      "wallet_after_net": 317883
+    },
+    "wb_acc2": {
+      "funded_campaigns": 7,
+      "deposited_RUB": 7000,
+      "start_calls_HTTP200": 3,
+      "selected_final_running": 7,
+      "all_account_running": 75,
+      "wallet_before_net": 164845,
+      "wallet_after_net": 157845
+    }
+  },
+  "total_funded": 21,
+  "total_added_RUB": 21000,
+  "total_starts": 11,
+  "additional_start_retry_calls": 3,
+  "all_selected_status9": true,
+  "every_pretransfer_budget_le50": true,
+  "membership_changes": 0,
+  "observed_bid_changes": [],
+  "recurring_autodeposits_enabled": false
+}

@@ -58,7 +58,7 @@ SUPPLIERS = {
     "7806486149": {"name": "Солюшнс принт МСК", "article": "sp"},
     "7730244274": {"name": "Одиссей",           "article": "column", "num_prefix": "ОД", "num_pad": 8},
     "9717092410": {"name": "Тонерстор",         "article": "column", "pdf": "tonerstor"},
-    "7718978470": {"name": "Блоссом",           "article": "column", "plan_skip": 1},
+    "7718978470": {"name": "Блоссом",           "article": "column", "plan_skip": 0},
     "7725744338": {"name": "Тонеропттторг",     "article": "column"},
     "9731107362": {"name": "Феррет",            "article": "name_regex",
                    "pattern": r"\b(?:CSP?|GG|CR)-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "pdf": "ferret"},
@@ -73,7 +73,7 @@ SUPPLIERS = {
     # («BS-M-TNP-50/51M/A0X5354/A0X5355»), без него артикул обрывался на «BS-M-TNP-50» —
     # общий огрызок серии, по которому карточка не находится (счёт КТ-000117).
     "9718075418": {"name": "Картридж Трейд (Блоссом)", "article": "name_regex",
-                   "pattern": r"\bBS-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "novat": True, "plan_skip": 1,
+                   "pattern": r"\bBS-[0-9A-Za-z]+(?:[/-][0-9A-Za-z]+)*", "novat": True, "plan_skip": 0,
                    "year_suffix_on_collision": True},  # сбрасывает нумерацию по годам → развести суффиксом года
     "7719482878": {"name": "КПД",                "article": "column"},
     "7720494564": {"name": "Компания РМ",        "article": "column"},
@@ -541,7 +541,8 @@ def price_kop(p):
 
 def plan_skip(org_inn, supplier_inn):
     """Сколько ПОЛНЫХ рабочих дней пропустить между счётом и плановой приёмкой.
-    Источник правды — «Условия оплаты поставщиков» (`supplier_payment_terms.delivery_days`,
+    Блоссом: следующий рабочий день (skip 0), решение 05.11.2026.
+    Для остальных источник правды — «Условия оплаты поставщиков» (`supplier_payment_terms.delivery_days`,
     миграция 208): 1 = приёмка завтра → skip 0; 2 = послезавтра → skip 1. Владелец правит срок
     в дашборде, без правки кода.
 
@@ -551,6 +552,10 @@ def plan_skip(org_inn, supplier_inn):
     плана безобиднее, чем задним числом.
     Строк нет / БД недоступна → зашитый `plan_skip` (тоже по группе), чтобы поведение
     не менялось молча."""
+    # Latest operator rule (05.11.2026): all Blossom legal entities receive
+    # on the next working day, irrespective of legacy two-day delivery terms.
+    if 'Блоссом' in SG.groups_of_inn(supplier_inn):
+        return 0
     inns = sorted(SG.related_inns(supplier_inn))
     try:
         from core import db

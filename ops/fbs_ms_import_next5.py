@@ -13,13 +13,17 @@ import re
 
 import requests
 from dotenv import load_dotenv
+from dateutil.parser import isoparse
 from zoneinfo import ZoneInfo
 
+from core import ms_api_control
 from core import ms_api
 from ops.fbs_ms_import_batch10 import base_code
+from ops.fbs_ms_bundle_quantity import normalize_market
 from ops.fbs_ms_import_pilot import save
 from ops.fbs_ms_import_policy import Card, SelectionError, choose_bundle_plan, choose_card, choose_ready_set, tier, priority
-from ops.ms_supplier_priorities import POLICY_VERSION
+from ops.ms_supplier_priorities import (POLICY_VERSION, priority_snapshot, selection_time,
+                                       require_current_priority_period)
 from ops.fbs_ms_import_read import find_customerorder, product_cards, warehouse_stock
 from ops.fbs_ms_set_catalog import components as set_components
 from ops.fbs_ms_set_prices import split_kit_price
@@ -115,7 +119,8 @@ def _kit_lines(item: dict, code: str, account: str, prices: dict[str, int],
     needs = [(component, Decimal(count) * quantity) for component, count in composition]
     plan = choose_bundle_plan(needs, own, remote)
     ids = [card.id for card, count, _ in plan for _ in range(int(count))]
-    lines = split_kit_price(ids, int(quantity), item['price_kopeks'],
+    lines = split_kit_price(ids, item.get('bundle_market_quantity', int(quantity)),
+                            item.get('bundle_unit_price_kopeks', item['price_kopeks']),
                             Decimal(item['discount_percent']))
     proof = []
     for card, count, available in plan:
@@ -189,13 +194,13 @@ def wb_statistics(account):
     return result
 
 
-def source(row, stats):
+def _source(row, stats):
     number = row['number']
     if row['platform'] == 'yandex':
         business = os.environ['YANDEX_BUSINESS_ID_ACC1']
         response = requests.post(f'https://api.partner.market.yandex.ru/v1/businesses/{business}/orders',
             headers={'Api-Key': os.environ['YANDEX_API_KEY_ACC1']},
-            json={'orderIds': [int(number)], 'programTypes': ['FBS'], 'fake': False},
+            json={'orderIds': [int(number)], 'programTypes': ['FBS', 'EXPRESS'], 'fake': False},
             params={'limit': 20}, timeout=(5, 25))
         response.raise_for_status()
         rows = response.json().get('orders') or []
@@ -205,7 +210,7 @@ def source(row, stats):
         yandex_state = (order.get('status'), order.get('substatus'))
         if yandex_state not in (('PROCESSING', 'STARTED'), ('UNPAID', 'WAITING_USER_INPUT')):
             raise RuntimeError('yandex_status_changed')
-        if (order.get('programType') != 'FBS' or order.get('fake') is not False
+        if (order.get('programType') not in ('FBS', 'EXPRESS') or order.get('fake') is not False
                 or str(order.get('campaignId')) != str(row['campaign_id'])):
             raise RuntimeError('yandex_business_or_campaign_mismatch')
         lines = []
@@ -233,11 +238,12 @@ def source(row, stats):
                 if money != money.to_integral_value():
                     raise RuntimeError('yandex_line_total_not_divisible_to_kopeks')
             lines.append({'market_code': item['offerId'], 'quantity': quantity,
+                          'market_name': item.get('offerName') or item.get('name') or '',
                           'price_kopeks': int(money), 'discount_percent': '0'})
         if not lines:
             raise RuntimeError('yandex_items_empty')
         return {'platform': 'yandex', 'account': 'acc1', 'number': number,
-                'created_at': order['creationDate'],
+                'created_at': order['creationDate'], 'is_express': order['programType'] == 'EXPRESS',
                 'status': [order['status'], order['substatus']], 'campaign_id': order['campaignId'],
                 'price_source': 'Yandex API item total / count',
                 'lines': lines}
@@ -247,14 +253,20 @@ def source(row, stats):
         h = {'Client-Id': os.environ['OZON_CLIENT_ID_' + suffix],
              'Api-Key': os.environ['OZON_API_KEY_' + suffix]}
         response = requests.post('https://api-seller.ozon.ru/v3/posting/fbs/get',
-            headers=h, json={'posting_number': number, 'with': {'financial_data': True}},
+            headers=h, json={'posting_number': number, 'with': {'financial_data': True, 'related_postings': True}},
             timeout=(5, 25))
         response.raise_for_status()
         p = response.json().get('result')
         if not isinstance(p, dict) or p.get('posting_number') != number:
             raise RuntimeError('ozon_identity')
+        from ops.ozon_manual_packages import owns
+        if p.get('parent_posting_number') and owns(row['account'] if row['account'].startswith('oz_') else 'oz_' + account,
+                                                  p['parent_posting_number']):
+            raise RuntimeError('ozon_manual_split_owned_by_reconciler')
         if p.get('status') != 'awaiting_packaging':
             raise RuntimeError('ozon_status_changed')
+        if p.get('is_express') is not None and type(p['is_express']) is not bool:
+            raise RuntimeError('ozon_express_flag_invalid')
         products = p.get('products') or []
         finance = (p.get('financial_data') or {}).get('products') or []
         if not products or len(products) != len(finance):
@@ -272,12 +284,14 @@ def source(row, stats):
             if old <= 0 or old * 100 != (old * 100).to_integral_value() or not 0 <= discount < 100:
                 raise RuntimeError('ozon_invalid_amount')
             lines.append({'market_code': product['offer_id'], 'quantity': product['quantity'],
+                          'market_name': product.get('name') or '',
                           'price_kopeks': int(old * 100), 'discount_percent': str(discount)})
         stamp = p.get('in_process_at') or p.get('created_at')
         if not stamp:
             raise RuntimeError('ozon_created_at_missing')
         return {'platform': 'ozon', 'account': account, 'number': number,
-                'created_at': stamp, 'status': p['status'], 'lines': lines}
+                'created_at': stamp, 'status': p['status'], 'lines': lines,
+                'is_express': p.get('is_express') is True}
     if row['platform'] != 'wb' or row['account'] not in ('acc1', 'acc2', 'wb_acc1', 'wb_acc2'):
         raise RuntimeError('scope_account_mismatch')
     account = row['account'].removeprefix('wb_')
@@ -305,6 +319,13 @@ def source(row, stats):
     elif not hits and row.get('currency_code') == 643:
         money = Decimal(str(row['buyer_price_kopeks']))
         origin = 'WB Orders.price fallback'
+    elif (not hits and row.get('converted_currency_code') == 643
+          and type(row.get('converted_price_kopeks')) is int
+          and row['converted_price_kopeks'] > 0):
+        # WB supplies its own RUB conversion for cross-border orders. Never
+        # interpret AMD/BYN/KZT/KGS kopeks as RUB or invent an exchange rate.
+        money = Decimal(row['converted_price_kopeks'])
+        origin = 'WB Orders.convertedPrice RUB fallback (statistics absent)'
     else:
         raise RuntimeError('wb_price_ambiguous')
     if money <= 0 or money != money.to_integral_value():
@@ -316,7 +337,21 @@ def source(row, stats):
                        'price_kopeks': int(money), 'discount_percent': '0'}]}
 
 
-def inspect(row, stats, prices, digest, promised=None):
+def source(row, stats):
+    market = _source(row, stats)
+    def title(code):
+        if market['platform'] == 'wb':
+            from core import db
+            rows = db.query('SELECT DISTINCT title FROM wb_cards WHERE account=%s AND vendor_code=%s',
+                            ('wb_'+market['account'],code))
+            titles = {r['title'] for r in rows if r.get('title')}
+            return next(iter(titles)) if len(titles)==1 else ''
+        return ''
+    return normalize_market(market, title)
+
+
+@priority_snapshot
+def inspect(row, stats, prices, digest, promised=None, existing_order=None):
     market = source(row, stats)
     account = market['account']
     # Per-order allocations are local: two pre-POST inspections must not mutate
@@ -327,7 +362,21 @@ def inspect(row, stats, prices, digest, promised=None):
             store = selected_item.get('stock_store_id')
             if store:
                 promised[(store, selected_item['card_id'])] += Decimal(selected_item['quantity'])
-    if find_customerorder(row['number']):
+    if existing_order is not None:
+        from ops.fbs_ms_order_payload import ORG
+        if (existing_order.get('name') != row['number']
+                or ms_api.meta_id(existing_order, 'store') != STORE[account]
+                or ms_api.meta_id(existing_order, 'organization') != ORG[account]):
+            raise RuntimeError('existing_order_identity_mismatch')
+        positions = existing_order['positions']
+        if positions['meta']['size'] != len(positions['rows']):
+            raise RuntimeError('existing_positions_incomplete')
+        for position in positions['rows']:
+            reserve = Decimal(str(position.get('reserve') or 0))
+            if not 0 <= reserve <= Decimal(str(position['quantity'])):
+                raise RuntimeError('existing_reserve_invalid')
+            promised[(STORE[account], ms_api.meta_id(position, 'assortment'))] -= reserve
+    elif find_customerorder(row['number']):
         raise RuntimeError('already_in_ms')
     selected = []
     lines = []
@@ -351,8 +400,8 @@ def inspect(row, stats, prices, digest, promised=None):
         manual_parent = False
         if composition:
             if (os.getenv('FBS_SET_SPLIT_ENABLED') != '1' or
-                    not _confirmed_set_offer(item['market_code'], code, cards,
-                                             account=account)):
+                    (not _confirmed_set_offer(item['market_code'], code, cards,
+                                             account=account) and item.get('bundle_multiplier',1)<=1)):
                 manual_parent = True
             else:
                 try:
@@ -442,16 +491,21 @@ def inspect(row, stats, prices, digest, promised=None):
         lines.append(Line(chosen.id, Decimal(item['quantity']), item['price_kopeks'],
                           Decimal(item['discount_percent'])))
         remember([selected[-1]])
+    for item in selected:
+        item['priority_at'] = selection_time().isoformat()
     total = sum(line_total(x) for x in lines)
     payload = build_payload(platform=market['platform'], account=account,
         external_id=row['number'], lines=lines, expected_kopeks=total, available=False,
         now=datetime.now(timezone.utc),
-        market_created_at=datetime.fromisoformat(market['created_at'].replace('Z', '+00:00')),
+        market_created_at=isoparse(market['created_at']),
+        is_express=market.get('is_express', False),
+        is_bundle=any(item.get('bundle_multiplier',1)>1 for item in market['lines']),
         payment_pending=market['platform'] == 'yandex' and market['status'] == ['UNPAID', 'WAITING_USER_INPUT'])
     return {'market': market, 'selected': selected, 'total_kopeks': total,
             'prices_digest': digest, 'payload': payload}
 
 
+@priority_snapshot
 def create_one(row, stats, prices, digest, promised=None):
     number = row['number']
     folder = OUT / ('next5_' + number)
@@ -466,11 +520,12 @@ def create_one(row, stats, prices, digest, promised=None):
         from ops.fbs_ms_import_scheduler import enter_digest
         if enter_digest() != digest:
             raise RuntimeError('set_purchase_receipt_changed_before_post')
+    require_current_priority_period()
     save(folder / 'intent.json', {'at': datetime.now(timezone.utc).isoformat(),
                                  'key': [row['platform'], row['account'], number],
                                  'payload': second['payload']}, exclusive=True)
     try:
-        response = requests.post(ms_api.BASE + '/entity/customerorder',
+        response = ms_api_control.request("POST", ms_api.BASE + '/entity/customerorder', sender=requests.post, client="operations-direct", kind="operational",
             headers={'Authorization': 'Bearer ' + os.environ['MOYSKLAD_TOKEN'],
                      'Content-Type': 'application/json'}, json=second['payload'], timeout=(5, 45))
         save(folder / 'response.json', {'status': response.status_code,
@@ -492,6 +547,7 @@ def create_one(row, stats, prices, digest, promised=None):
     if (order.get('name') != number or order.get('sum') != second['total_kopeks']
             or order.get('state', {}).get('name') != expected_state
             or ms_api.meta_id(order, 'store') != STORE[second['market']['account']]
+            or ms_api.meta_id(order, 'agent') != ms_api.meta_id(second['payload'], 'agent')
             or _quantities(order.get('positions', {}).get('rows', [])) != _quantities(second['payload']['positions'])
             or any(p.get('vat') != 5 for p in order.get('positions', {}).get('rows', []))):
         raise RuntimeError('ms_readback_mismatch_stop_batch')

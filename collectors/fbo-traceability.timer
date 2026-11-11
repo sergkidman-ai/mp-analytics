@@ -1,0 +1,12 @@
+# поток: fin
+[Unit]
+Description=Record FBO trace history after order, movement and return sync
+
+[Timer]
+OnCalendar=*-*-* *:59:00 UTC
+AccuracySec=15s
+Persistent=true
+Unit=fbo-traceability.service
+
+[Install]
+WantedBy=timers.target

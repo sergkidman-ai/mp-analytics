@@ -1,5 +1,5 @@
 # поток: fin
-"""Timestamped WB FBO observations for the acc1 pilot; no MoySklad access."""
+"""Timestamped WB FBO observations for both accounts; no MoySklad access."""
 import json
 import time
 from datetime import datetime, timedelta, timezone
@@ -14,6 +14,7 @@ from core import db
 URL = "https://seller-analytics-api.wildberries.ru/api/analytics/v1/stocks-report/wb-warehouses"
 LOCK_ID = 7348201791
 ACCOUNT = "wb_acc1"
+ACCOUNTS = ("wb_acc1", "wb_acc2")
 PAGE_LIMIT = 5000
 
 
@@ -76,17 +77,17 @@ def fetch(session, token):
 
 
 def collect(account=ACCOUNT, session=None):
-    if account != ACCOUNT:
-        raise ValueError("wb_intraday_pilot_acc1_only")
+    if account not in ACCOUNTS:
+        raise ValueError("unknown_wb_inventory_account")
     with db.get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT pg_try_advisory_xact_lock(%s)", (LOCK_ID,))
+            cur.execute("SELECT pg_try_advisory_xact_lock(%s)", (LOCK_ID + 100 * ACCOUNTS.index(account),))
             if not cur.fetchone()[0]:
                 return {"busy": True}
             cur.execute("SELECT max(completed_at) FROM wb_fbo_intraday_capture WHERE account=%s",
                         (account,))
             latest = cur.fetchone()[0]
-            if latest and latest > datetime.now(timezone.utc) - timedelta(minutes=90):
+            if latest and latest > datetime.now(timezone.utc) - timedelta(minutes=25):
                 return {"skipped": "recent_capture", "last_completed_at": latest.isoformat()}
             with session or requests.Session() as client:
                 rows, started, completed = fetch(client, _token(account))

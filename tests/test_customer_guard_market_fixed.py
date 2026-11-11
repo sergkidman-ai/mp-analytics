@@ -50,8 +50,8 @@ def test_saved_replay_keeps_revision_queue_and_source_times(pg,superseded):
     assert db.query('SELECT count(*) n FROM customer_guard_incidents')[0]['n']==0
 
 
-def test_notification_explains_fixed_expenses():
+def test_fixed_market_loss_notification_reports_calculated_net():
     text=notifications.message(dict(account='ya_acc1',platform='yandex',kind='non_positive_profit',
         posting_number='123',ms_status='Собирается',result=dict(price='100',cost='100',floor='1000',gap='-900',
         estimated_net='-72',rule_version='fixed72',signal='below_floor',cost_kind='actual',expense_basis_kind='fixed',expense_retention='0.72')))
-    assert 'по фиксированной доле 72%' in text and 'по средней доле' not in text
+    assert 'Маркет · Цифровой' in text and 'Расчётная чистая прибыль: -72.00 ₽' in text

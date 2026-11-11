@@ -115,7 +115,7 @@ async function load(){
     return `<tr><td>${s.supplier}${vr}</td><td>${num(s.n)}</td><td>${num(s.moving)}</td><td>${rub(s.val)}</td><td>${lastCell(s)}</td></tr>`;
   }).join('')||'<tr><td colspan="5" class="muted">нет данных</td></tr>';
 
-  $('#foot').textContent='Снимок остатков на '+d.captured+'. «Объём у поставщиков» = стоимость их стока на удалённом складе (рыночный объём, не наши деньги).';
+  $('#foot').textContent='Снимок остатков на '+d.captured+'. «Объём у поставщиков» = стоимость их стока на удалённом складе (рыночный объём, не наши деньги).'+(d.turnover_known===false?' В лёгком снимке нет движения за 30 дней: в колонке «Движется» стоят прочерки.':'');
 }
 const MON=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
 const mlabel=m=>MON[+m.slice(5,7)-1]+' '+m.slice(2,4);
@@ -138,8 +138,9 @@ async function loadPurchases(){
   const d=await api('/api/suppliers/purchases');
   const ms=d.months||[];
   if(!ms.length){$('#purfoot').textContent='Витрина закупок пуста — ночной сбор ещё не проходил.';return;}
+  const periods = new Map((d.periods||[]).map(p=>[p.month,p]));
   $('#purhead').innerHTML='<th>Группа поставщика</th>'+
-    ms.map(m=>`<th${m===d.current?' class="cur"':''}>${mlabel(m)}</th>`).join('')+
+    ms.map(m=>`<th${m===d.current?' class="cur"':''}>${mlabel(m)}<br><span class="muted">${periods.get(m)?.closed_at?'Закрыт':m===d.current?'Расчётный':'Не закрыт'}</span></th>`).join('')+
     '<th>Приёмки</th><th>Возвраты</th><th>Нетто</th>';
   const own=(d.groups||[]).filter(g=>g.in_group), oth=(d.groups||[]).filter(g=>!g.in_group);
   const list=own.slice();
@@ -167,7 +168,8 @@ async function loadPurchases(){
   const sx=document.querySelector('.scrollx');
   sx.scrollLeft=sx.scrollWidth;
   const cm=mlabel(d.current);
-  $('#purfoot').textContent=`Суммы в ₽ с НДС по дате приёмки МойСклад, за вычетом возвратов поставщику (клетка со «*» — были возвраты, сумма в подсказке; «Прочие» — контрагенты вне таблицы групп, раскрывается по клику). Прошлые месяцы зафиксированы, пересчитывается только текущий (${cm}, поэтому он неполный). Обновлено ${(d.updated||'').slice(0,16).replace('T',' ')}.`;
+  const closed = [...periods.values()].filter(p=>p.closed_at).length;
+  $('#purfoot').textContent=`Суммы в ₽ с НДС по дате приёмки МойСклад, за вычетом возвратов поставщику (клетка со «*» — были возвраты, сумма в подсказке; «Прочие» — контрагенты вне таблицы групп, раскрывается по клику). Закрыто и сохранено месяцев: ${closed}. Текущий месяц (${cm}) расчётный и обновляется ежедневно. Обновлено ${(d.updated||'').slice(0,16).replace('T',' ')}.`;
 }
 $('#q').oninput=()=>{clearTimeout(t);t=setTimeout(load,300);};
 load();

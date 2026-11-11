@@ -325,9 +325,16 @@ def finish(job, result, now, document=None, evidence=None):
           (job["order_id"], job["generation"], now, Json(result), digest([job["order"]["mp_hash"], payload])))
         cid = cur.fetchone()["id"]
         cur.execute("""UPDATE customer_guard_orders SET latest_check_id=%s,ms_checked_at=%s,
-          ms_id=%s,ms_status=%s,ms_store=%s WHERE id=%s""",
-          (cid, now, document.get("id") if document else None,
+          ms_id=CASE WHEN ms_status_seen_at IS NULL OR ms_status_seen_at<=%s
+            THEN %s ELSE ms_id END,
+          ms_status=CASE WHEN ms_status_seen_at IS NULL OR ms_status_seen_at<=%s
+            THEN %s ELSE ms_status END,
+          ms_status_seen_at=greatest(ms_status_seen_at,%s),
+          ms_store=CASE WHEN ms_status_seen_at IS NULL OR ms_status_seen_at<=%s
+            THEN %s ELSE ms_store END WHERE id=%s""",
+          (cid, now, now, document.get("id") if document else None, now,
            document.get("state", {}).get("name") if document else None,
+           now, now,
            document.get("store", {}).get("name") if document else None, job["order_id"]))
         if document:
             cur.execute("""INSERT INTO customer_guard_ms_links(order_id,entity_type,entity_id,checked_at,version)

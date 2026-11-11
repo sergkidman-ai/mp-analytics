@@ -26,6 +26,8 @@ import uuid
 import pathlib
 import datetime as dt
 import urllib.parse
+import fcntl
+from contextlib import contextmanager
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -41,7 +43,12 @@ API_HOST = "https://fintech.sberbank.ru:9443"
 # Токены — ТОЛЬКО в каноническом чекауте. `refresh_token` у Сбера ОДНОРАЗОВЫЙ: две копии
 # tokens.json (основной чекаут + deploy-worktree крона) обновляли бы токен по очереди и
 # гасили друг друга. secrets/ gitignored → в worktree его нет, якорим так же, как .env.
-_ROOT = BASE_DIR if (BASE_DIR / ".env").exists() else pathlib.Path("/opt/mp-analytics")
+def _token_root(base_dir):
+    env = base_dir / ".env"
+    return env.resolve().parent if env.exists() else pathlib.Path("/opt/mp-analytics")
+
+
+_ROOT = _token_root(BASE_DIR)
 TOKENS = _ROOT / "secrets" / "sber" / "tokens.json"
 LEEWAY = 120                                                     # с запасом до истечения
 
@@ -91,26 +98,52 @@ def _save(data):
     """Атомарная запись хранилища: потеря refresh_token = повторный вход человека."""
     TOKENS.parent.mkdir(parents=True, exist_ok=True)
     tmp = TOKENS.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.chmod(tmp, 0o600)
+    with tmp.open('w', encoding='utf-8') as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        json.dump(data, stream, ensure_ascii=False, indent=2)
+        stream.flush()
+        os.fsync(stream.fileno())
     tmp.replace(TOKENS)
+    directory = os.open(TOKENS.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
 
 
 def load():
     return json.loads(TOKENS.read_text(encoding="utf-8")) if TOKENS.exists() else {}
 
 
+@contextmanager
+def _token_lock():
+    TOKENS.parent.mkdir(parents=True, exist_ok=True)
+    with TOKENS.with_suffix('.lock').open('a') as lock:
+        os.chmod(lock.name, 0o600)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 def _token_call(params):
     """POST /oauth/token — параметры в query, тело пустое (так требует спецификация Сбера)."""
     c = cfg()
     params = dict(params, client_id=c["client_id"], client_secret=c["client_secret"])
-    r = session(c).post(f"{API_HOST}/ic/sso/api/v2/oauth/token", params=params,
-                        headers={"Accept": "application/json",
-                                 "Content-Type": "application/x-www-form-urlencoded",
-                                 "RqUID": uuid.uuid4().hex}, timeout=60)
+    try:
+        r = session(c).post(f"{API_HOST}/ic/sso/api/v2/oauth/token", params=params,
+                            headers={"Accept": "application/json",
+                                     "Content-Type": "application/x-www-form-urlencoded",
+                                     "RqUID": uuid.uuid4().hex}, timeout=60)
+    except requests.RequestException as error:
+        # Request URLs contain client_secret and refresh_token. Never log them.
+        raise RuntimeError(f"Ошибка авторизации Сбера: {type(error).__name__}") from None
     if r.status_code != 200:
-        raise RuntimeError(f"токен не выдан: HTTP {r.status_code} {r.text[:300]}")
+        raise RuntimeError(f"токен не выдан: HTTP {r.status_code}")
     t = r.json()
+    if not t.get('access_token') or not t.get('refresh_token'):
+        raise RuntimeError("Сбер вернул неполную пару токенов; прежнее хранилище сохранено")
     now = dt.datetime.now(dt.timezone.utc)
     saved = {
         "access_token": t["access_token"],
@@ -125,15 +158,26 @@ def _token_call(params):
 
 def exchange_code(code):
     """Первый обмен: код из браузера → пара токенов."""
-    return _token_call({"grant_type": "authorization_code", "code": code,
-                        "redirect_uri": cfg()["redirect_uri"]})
+    with _token_lock():
+        return _token_call({"grant_type": "authorization_code", "code": code,
+                            "redirect_uri": cfg()["redirect_uri"]})
 
 
-def refresh():
+def _refresh_locked():
     t = load()
     if not t.get("refresh_token"):
         raise RuntimeError("нет refresh_token — нужен повторный вход представителя (--url)")
     return _token_call({"grant_type": "refresh_token", "refresh_token": t["refresh_token"]})
+
+
+def refresh():
+    with _token_lock():
+        return _refresh_locked()
+
+
+def _fresh(t):
+    return bool(t) and (dt.datetime.fromisoformat(t['expires_at']) -
+                       dt.datetime.now(dt.timezone.utc)).total_seconds() > LEEWAY
 
 
 def access_token():
@@ -141,10 +185,12 @@ def access_token():
     t = load()
     if not t:
         raise RuntimeError("хранилище токенов пусто — нужен вход представителя (--url)")
-    exp = dt.datetime.fromisoformat(t["expires_at"])
-    if (exp - dt.datetime.now(dt.timezone.utc)).total_seconds() > LEEWAY:
+    if _fresh(t):
         return t["access_token"]
-    return refresh()["access_token"]
+    with _token_lock():
+        # Another web/cron process may already have consumed the one-time token.
+        t = load()
+        return t['access_token'] if _fresh(t) else _refresh_locked()['access_token']
 
 
 def api(method, path, **kw):

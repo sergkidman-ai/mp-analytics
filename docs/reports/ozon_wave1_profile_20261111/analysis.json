@@ -1,0 +1,1017 @@
+{
+  "causal_effect_identified": false,
+  "matching": "Four prior windows shifted by 7/14/21/28 days, same weekdays and hours",
+  "current_postings_refreshed_including_cancellations": true,
+  "baseline_is_saved_prelaunch_snapshot": true,
+  "ordered_value_is_not_financial_revenue": true,
+  "marketplace_writes": 0,
+  "accounts": {
+    "oz_acc1": {
+      "from_utc": "2026-11-06T13:08:57.635503+00:00",
+      "through_utc": "2026-11-11T07:51:20.338978+00:00",
+      "source_baseline": [
+        "docs/reports/ozon_launch_20261106/baseline/postings_fbs.json",
+        "docs/reports/ozon_launch_20261106/baseline/postings_fbo.json"
+      ],
+      "source_actual": [
+        "/opt/mp-analytics/docs/reports/ozon_wave1_profile_20261111/oz_acc1/postings_fbs.json",
+        "/opt/mp-analytics/docs/reports/ozon_wave1_profile_20261111/oz_acc1/postings_fbo.json"
+      ],
+      "baseline_quality": {
+        "source_postings": 2063,
+        "canceled_postings_excluded": 166,
+        "unmapped_model_product_lines": 0
+      },
+      "actual_quality": {
+        "source_postings": 339,
+        "canceled_postings_excluded": 14,
+        "unmapped_model_product_lines": 0
+      },
+      "cohort_SKUs": 3451,
+      "native_models": 2926,
+      "child_article_families": 348,
+      "campaigns": [
+        {
+          "account": "oz_acc1",
+          "campaign_id": "49852543",
+          "group": "Новинки",
+          "cohort_SKU": 57,
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "spend_RUB": "685.08",
+          "views": 7500,
+          "clicks": 88,
+          "ad_orders": 0,
+          "ad_order_value_RUB": "0.00",
+          "ad_DRR_percent": null
+        },
+        {
+          "account": "oz_acc1",
+          "campaign_id": "49852681",
+          "group": "Бандлы X2",
+          "cohort_SKU": 1792,
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "spend_RUB": "4830.53",
+          "views": 71198,
+          "clicks": 520,
+          "ad_orders": 7,
+          "ad_order_value_RUB": "90252.00",
+          "ad_DRR_percent": "5.352269201790542037849576741"
+        },
+        {
+          "account": "oz_acc1",
+          "campaign_id": "49852725",
+          "group": "Старые",
+          "cohort_SKU": 518,
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "spend_RUB": "643.04",
+          "views": 11698,
+          "clicks": 80,
+          "ad_orders": 1,
+          "ad_order_value_RUB": "13979.00",
+          "ad_DRR_percent": "4.600042921525144860147363903"
+        },
+        {
+          "account": "oz_acc1",
+          "campaign_id": "49852748",
+          "group": "Дочерние",
+          "cohort_SKU": 1084,
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "spend_RUB": "1791.46",
+          "views": 35800,
+          "clicks": 210,
+          "ad_orders": 4,
+          "ad_order_value_RUB": "15447.00",
+          "ad_DRR_percent": "11.59746229041237780798860620"
+        }
+      ],
+      "ad_totals": {
+        "cohort_SKU": "3451",
+        "spend_RUB": "7950.11",
+        "views": "126196",
+        "clicks": "898",
+        "ad_orders": "12",
+        "ad_order_value_RUB": "119678.00"
+      },
+      "profile_scopes": {
+        "account": {
+          "actual": {
+            "orders": 313,
+            "ordered_value_RUB": "3529234"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-10-30T13:08:57.635503+00:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 240,
+              "ordered_value_RUB": "1938980"
+            },
+            {
+              "from_utc": "2026-10-23T13:08:57.635503+00:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 243,
+              "ordered_value_RUB": "2190860"
+            },
+            {
+              "from_utc": "2026-10-16T13:08:57.635503+00:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 262,
+              "ordered_value_RUB": "2612913"
+            },
+            {
+              "from_utc": "2026-10-09T13:08:57.635503+00:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 310,
+              "ordered_value_RUB": "2768319"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "263.75",
+            "ordered_value_RUB": "2377768"
+          },
+          "change_percent": {
+            "orders": "18.67298578199052132701421800",
+            "ordered_value_RUB": "48.42633932326450688208437490"
+          }
+        },
+        "wave_SKU": {
+          "actual": {
+            "orders": 12,
+            "ordered_value_RUB": "143262"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-10-30T13:08:57.635503+00:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 13,
+              "ordered_value_RUB": "116346"
+            },
+            {
+              "from_utc": "2026-10-23T13:08:57.635503+00:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 12,
+              "ordered_value_RUB": "78834"
+            },
+            {
+              "from_utc": "2026-10-16T13:08:57.635503+00:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 9,
+              "ordered_value_RUB": "128823"
+            },
+            {
+              "from_utc": "2026-10-09T13:08:57.635503+00:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 17,
+              "ordered_value_RUB": "87698"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "12.75",
+            "ordered_value_RUB": "102925.25"
+          },
+          "change_percent": {
+            "orders": "-5.882352941176470588235294120",
+            "ordered_value_RUB": "39.19033473321658193689109330"
+          }
+        },
+        "native_models": {
+          "actual": {
+            "orders": 149,
+            "ordered_value_RUB": "1996196"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-10-30T13:08:57.635503+00:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 107,
+              "ordered_value_RUB": "980460"
+            },
+            {
+              "from_utc": "2026-10-23T13:08:57.635503+00:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 90,
+              "ordered_value_RUB": "881437"
+            },
+            {
+              "from_utc": "2026-10-16T13:08:57.635503+00:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 104,
+              "ordered_value_RUB": "955556"
+            },
+            {
+              "from_utc": "2026-10-09T13:08:57.635503+00:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 133,
+              "ordered_value_RUB": "1155125"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "108.5",
+            "ordered_value_RUB": "993144.5"
+          },
+          "change_percent": {
+            "orders": "37.32718894009216589861751150",
+            "ordered_value_RUB": "100.9975386260508918893474212"
+          }
+        },
+        "child_article_families": {
+          "actual": {
+            "orders": 35,
+            "ordered_value_RUB": "178563"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-10-30T13:08:57.635503+00:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 23,
+              "ordered_value_RUB": "78566"
+            },
+            {
+              "from_utc": "2026-10-23T13:08:57.635503+00:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 20,
+              "ordered_value_RUB": "101497"
+            },
+            {
+              "from_utc": "2026-10-16T13:08:57.635503+00:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 22,
+              "ordered_value_RUB": "82438"
+            },
+            {
+              "from_utc": "2026-10-09T13:08:57.635503+00:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 29,
+              "ordered_value_RUB": "140808"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "23.5",
+            "ordered_value_RUB": "100827.25"
+          },
+          "change_percent": {
+            "orders": "48.93617021276595744680851060",
+            "ordered_value_RUB": "77.09795714948091909677195400"
+          }
+        }
+      },
+      "account_days": [
+        {
+          "date_msk": "2026-11-06",
+          "from_msk": "2026-11-06T16:08:57.635503+03:00",
+          "through_msk": "2026-11-06T23:59:59.999999+03:00",
+          "partial": true,
+          "actual": {
+            "orders": 23,
+            "ordered_value_RUB": "278430"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-10-30T13:08:57.635503+00:00",
+              "through_utc": "2026-10-30T23:59:59.999999+03:00",
+              "orders": 28,
+              "ordered_value_RUB": "191706"
+            },
+            {
+              "from_utc": "2026-10-23T13:08:57.635503+00:00",
+              "through_utc": "2026-10-23T23:59:59.999999+03:00",
+              "orders": 13,
+              "ordered_value_RUB": "73961"
+            },
+            {
+              "from_utc": "2026-10-16T13:08:57.635503+00:00",
+              "through_utc": "2026-10-16T23:59:59.999999+03:00",
+              "orders": 23,
+              "ordered_value_RUB": "185024"
+            },
+            {
+              "from_utc": "2026-10-09T13:08:57.635503+00:00",
+              "through_utc": "2026-10-09T23:59:59.999999+03:00",
+              "orders": 32,
+              "ordered_value_RUB": "281580"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "24",
+            "ordered_value_RUB": "183067.75"
+          },
+          "change_percent": {
+            "orders": "-4.166666666666666666666666670",
+            "ordered_value_RUB": "52.09123398304725982593875760"
+          }
+        },
+        {
+          "date_msk": "2026-11-07",
+          "from_msk": "2026-11-07T00:00:00+03:00",
+          "through_msk": "2026-11-07T23:59:59.999999+03:00",
+          "partial": false,
+          "actual": {
+            "orders": 37,
+            "ordered_value_RUB": "323545"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-10-31T00:00:00+03:00",
+              "through_utc": "2026-10-31T23:59:59.999999+03:00",
+              "orders": 27,
+              "ordered_value_RUB": "193305"
+            },
+            {
+              "from_utc": "2026-10-24T00:00:00+03:00",
+              "through_utc": "2026-10-24T23:59:59.999999+03:00",
+              "orders": 29,
+              "ordered_value_RUB": "300621"
+            },
+            {
+              "from_utc": "2026-10-17T00:00:00+03:00",
+              "through_utc": "2026-10-17T23:59:59.999999+03:00",
+              "orders": 38,
+              "ordered_value_RUB": "273187"
+            },
+            {
+              "from_utc": "2026-10-10T00:00:00+03:00",
+              "through_utc": "2026-10-10T23:59:59.999999+03:00",
+              "orders": 41,
+              "ordered_value_RUB": "330168"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "33.75",
+            "ordered_value_RUB": "274320.25"
+          },
+          "change_percent": {
+            "orders": "9.629629629629629629629629600",
+            "ordered_value_RUB": "17.94426404904486635602001680"
+          }
+        },
+        {
+          "date_msk": "2026-11-08",
+          "from_msk": "2026-11-08T00:00:00+03:00",
+          "through_msk": "2026-11-08T23:59:59.999999+03:00",
+          "partial": false,
+          "actual": {
+            "orders": 42,
+            "ordered_value_RUB": "339361"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-01T00:00:00+03:00",
+              "through_utc": "2026-11-01T23:59:59.999999+03:00",
+              "orders": 34,
+              "ordered_value_RUB": "183112"
+            },
+            {
+              "from_utc": "2026-10-25T00:00:00+03:00",
+              "through_utc": "2026-10-25T23:59:59.999999+03:00",
+              "orders": 31,
+              "ordered_value_RUB": "225735"
+            },
+            {
+              "from_utc": "2026-10-18T00:00:00+03:00",
+              "through_utc": "2026-10-18T23:59:59.999999+03:00",
+              "orders": 38,
+              "ordered_value_RUB": "315452"
+            },
+            {
+              "from_utc": "2026-10-11T00:00:00+03:00",
+              "through_utc": "2026-10-11T23:59:59.999999+03:00",
+              "orders": 40,
+              "ordered_value_RUB": "381077"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "35.75",
+            "ordered_value_RUB": "276344"
+          },
+          "change_percent": {
+            "orders": "17.48251748251748251748251750",
+            "ordered_value_RUB": "22.80382421908925107836609440"
+          }
+        },
+        {
+          "date_msk": "2026-11-09",
+          "from_msk": "2026-11-09T00:00:00+03:00",
+          "through_msk": "2026-11-09T23:59:59.999999+03:00",
+          "partial": false,
+          "actual": {
+            "orders": 90,
+            "ordered_value_RUB": "776912"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-02T00:00:00+03:00",
+              "through_utc": "2026-11-02T23:59:59.999999+03:00",
+              "orders": 76,
+              "ordered_value_RUB": "653087"
+            },
+            {
+              "from_utc": "2026-10-26T00:00:00+03:00",
+              "through_utc": "2026-10-26T23:59:59.999999+03:00",
+              "orders": 73,
+              "ordered_value_RUB": "554241"
+            },
+            {
+              "from_utc": "2026-10-19T00:00:00+03:00",
+              "through_utc": "2026-10-19T23:59:59.999999+03:00",
+              "orders": 76,
+              "ordered_value_RUB": "704618"
+            },
+            {
+              "from_utc": "2026-10-12T00:00:00+03:00",
+              "through_utc": "2026-10-12T23:59:59.999999+03:00",
+              "orders": 74,
+              "ordered_value_RUB": "661980"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "74.75",
+            "ordered_value_RUB": "643481.5"
+          },
+          "change_percent": {
+            "orders": "20.40133779264214046822742470",
+            "ordered_value_RUB": "20.73571656683214668953186690"
+          }
+        },
+        {
+          "date_msk": "2026-11-10",
+          "from_msk": "2026-11-10T00:00:00+03:00",
+          "through_msk": "2026-11-10T23:59:59.999999+03:00",
+          "partial": false,
+          "actual": {
+            "orders": 100,
+            "ordered_value_RUB": "1651001"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-03T00:00:00+03:00",
+              "through_utc": "2026-11-03T23:59:59.999999+03:00",
+              "orders": 70,
+              "ordered_value_RUB": "681825"
+            },
+            {
+              "from_utc": "2026-10-27T00:00:00+03:00",
+              "through_utc": "2026-10-27T23:59:59.999999+03:00",
+              "orders": 83,
+              "ordered_value_RUB": "911253"
+            },
+            {
+              "from_utc": "2026-10-20T00:00:00+03:00",
+              "through_utc": "2026-10-20T23:59:59.999999+03:00",
+              "orders": 71,
+              "ordered_value_RUB": "1047490"
+            },
+            {
+              "from_utc": "2026-10-13T00:00:00+03:00",
+              "through_utc": "2026-10-13T23:59:59.999999+03:00",
+              "orders": 98,
+              "ordered_value_RUB": "854014"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "80.5",
+            "ordered_value_RUB": "873645.5"
+          },
+          "change_percent": {
+            "orders": "24.22360248447204968944099380",
+            "ordered_value_RUB": "88.97836708367409893372082840"
+          }
+        },
+        {
+          "date_msk": "2026-11-11",
+          "from_msk": "2026-11-11T00:00:00+03:00",
+          "through_msk": "2026-11-11T10:51:20.338978+03:00",
+          "partial": true,
+          "actual": {
+            "orders": 21,
+            "ordered_value_RUB": "159985"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-04T00:00:00+03:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 5,
+              "ordered_value_RUB": "35945"
+            },
+            {
+              "from_utc": "2026-10-28T00:00:00+03:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 14,
+              "ordered_value_RUB": "125049"
+            },
+            {
+              "from_utc": "2026-10-21T00:00:00+03:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 16,
+              "ordered_value_RUB": "87142"
+            },
+            {
+              "from_utc": "2026-10-14T00:00:00+03:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 25,
+              "ordered_value_RUB": "259500"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "15",
+            "ordered_value_RUB": "126909"
+          },
+          "change_percent": {
+            "orders": "40.0",
+            "ordered_value_RUB": "26.06276938593795554294809670"
+          }
+        }
+      ],
+      "order_concentration": {
+        "actual": {
+          "orders": 313,
+          "ordered_value_RUB": "3529234",
+          "largest_order_RUB": "634470",
+          "top3_ordered_value_RUB": "768200",
+          "top3_share_pct": "21.76676298596239297252604956",
+          "value_excluding_largest_RUB": "2894764"
+        },
+        "prior_windows": [
+          {
+            "orders": 240,
+            "ordered_value_RUB": "1938980",
+            "largest_order_RUB": "66734",
+            "top3_ordered_value_RUB": "159191",
+            "top3_share_pct": "8.210038267542728651146479077",
+            "value_excluding_largest_RUB": "1872246"
+          },
+          {
+            "orders": 243,
+            "ordered_value_RUB": "2190860",
+            "largest_order_RUB": "73842",
+            "top3_ordered_value_RUB": "202709",
+            "top3_share_pct": "9.252485325397332554339391837",
+            "value_excluding_largest_RUB": "2117018"
+          },
+          {
+            "orders": 262,
+            "ordered_value_RUB": "2612913",
+            "largest_order_RUB": "275792",
+            "top3_ordered_value_RUB": "447248",
+            "top3_share_pct": "17.11683473579105006557814975",
+            "value_excluding_largest_RUB": "2337121"
+          },
+          {
+            "orders": 310,
+            "ordered_value_RUB": "2768319",
+            "largest_order_RUB": "67194",
+            "top3_ordered_value_RUB": "193118",
+            "top3_share_pct": "6.976002404347186866831459814",
+            "value_excluding_largest_RUB": "2701125"
+          }
+        ],
+        "change_excluding_each_windows_largest_pct": "28.26411712642799620271813600"
+      },
+      "guard_checked_at_utc": "2026-11-11T06:00:00.195974+00:00",
+      "guard_status": "CHECKED",
+      "guard_actions": [],
+      "calendar_stop_at_msk": "2026-12-06T16:08:57+03:00"
+    },
+    "oz_acc2": {
+      "from_utc": "2026-11-09T16:18:49.864951+00:00",
+      "through_utc": "2026-11-11T07:51:20.338978+00:00",
+      "source_baseline": [
+        "docs/reports/ozon_acc2_monthly_experiment_20261108/activation_20261109/baseline/postings_fbs.json",
+        "docs/reports/ozon_acc2_monthly_experiment_20261108/activation_20261109/baseline/postings_fbo.json"
+      ],
+      "source_actual": [
+        "/opt/mp-analytics/docs/reports/ozon_wave1_profile_20261111/oz_acc2/postings_fbs.json",
+        "/opt/mp-analytics/docs/reports/ozon_wave1_profile_20261111/oz_acc2/postings_fbo.json"
+      ],
+      "baseline_quality": {
+        "source_postings": 417,
+        "canceled_postings_excluded": 39,
+        "unmapped_model_product_lines": 0
+      },
+      "actual_quality": {
+        "source_postings": 32,
+        "canceled_postings_excluded": 0,
+        "unmapped_model_product_lines": 0
+      },
+      "cohort_SKUs": 3851,
+      "native_models": 3075,
+      "child_article_families": 446,
+      "campaigns": [
+        {
+          "account": "oz_acc2",
+          "campaign_id": "50080606",
+          "group": "Бандлы X3",
+          "cohort_SKU": 1757,
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "spend_RUB": "2219.70",
+          "views": 35122,
+          "clicks": 237,
+          "ad_orders": 0,
+          "ad_order_value_RUB": "0.00",
+          "ad_DRR_percent": null
+        },
+        {
+          "account": "oz_acc2",
+          "campaign_id": "50080615",
+          "group": "Дочерние",
+          "cohort_SKU": 1183,
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "spend_RUB": "406.62",
+          "views": 7643,
+          "clicks": 49,
+          "ad_orders": 2,
+          "ad_order_value_RUB": "2818.00",
+          "ad_DRR_percent": "14.42938254080908445706174592"
+        },
+        {
+          "account": "oz_acc2",
+          "campaign_id": "50080620",
+          "group": "Новинки за полгода",
+          "cohort_SKU": 198,
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "spend_RUB": "192.83",
+          "views": 2086,
+          "clicks": 22,
+          "ad_orders": 0,
+          "ad_order_value_RUB": "0.00",
+          "ad_DRR_percent": null
+        },
+        {
+          "account": "oz_acc2",
+          "campaign_id": "50080623",
+          "group": "Старые",
+          "cohort_SKU": 713,
+          "state": "CAMPAIGN_STATE_RUNNING",
+          "spend_RUB": "385.50",
+          "views": 7166,
+          "clicks": 50,
+          "ad_orders": 0,
+          "ad_order_value_RUB": "0.00",
+          "ad_DRR_percent": null
+        }
+      ],
+      "ad_totals": {
+        "cohort_SKU": "3851",
+        "spend_RUB": "3204.65",
+        "views": "52017",
+        "clicks": "358",
+        "ad_orders": "2",
+        "ad_order_value_RUB": "2818.00"
+      },
+      "profile_scopes": {
+        "account": {
+          "actual": {
+            "orders": 31,
+            "ordered_value_RUB": "299110"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-02T16:18:49.864951+00:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 29,
+              "ordered_value_RUB": "293623"
+            },
+            {
+              "from_utc": "2026-10-26T16:18:49.864951+00:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 22,
+              "ordered_value_RUB": "257712"
+            },
+            {
+              "from_utc": "2026-10-19T16:18:49.864951+00:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 27,
+              "ordered_value_RUB": "261134"
+            },
+            {
+              "from_utc": "2026-10-12T16:18:49.864951+00:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 17,
+              "ordered_value_RUB": "195087"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "23.75",
+            "ordered_value_RUB": "251889"
+          },
+          "change_percent": {
+            "orders": "30.52631578947368421052631580",
+            "ordered_value_RUB": "18.74674956032220541587762860"
+          }
+        },
+        "wave_SKU": {
+          "actual": {
+            "orders": 10,
+            "ordered_value_RUB": "66857"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-02T16:18:49.864951+00:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 4,
+              "ordered_value_RUB": "28769"
+            },
+            {
+              "from_utc": "2026-10-26T16:18:49.864951+00:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 5,
+              "ordered_value_RUB": "17659"
+            },
+            {
+              "from_utc": "2026-10-19T16:18:49.864951+00:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 8,
+              "ordered_value_RUB": "52244"
+            },
+            {
+              "from_utc": "2026-10-12T16:18:49.864951+00:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 3,
+              "ordered_value_RUB": "26164"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "5",
+            "ordered_value_RUB": "31209"
+          },
+          "change_percent": {
+            "orders": "100",
+            "ordered_value_RUB": "114.2234611810695632670063123"
+          }
+        },
+        "native_models": {
+          "actual": {
+            "orders": 29,
+            "ordered_value_RUB": "280223"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-02T16:18:49.864951+00:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 29,
+              "ordered_value_RUB": "293623"
+            },
+            {
+              "from_utc": "2026-10-26T16:18:49.864951+00:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 19,
+              "ordered_value_RUB": "202283"
+            },
+            {
+              "from_utc": "2026-10-19T16:18:49.864951+00:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 25,
+              "ordered_value_RUB": "230822"
+            },
+            {
+              "from_utc": "2026-10-12T16:18:49.864951+00:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 13,
+              "ordered_value_RUB": "73723"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "21.5",
+            "ordered_value_RUB": "200112.75"
+          },
+          "change_percent": {
+            "orders": "34.88372093023255813953488370",
+            "ordered_value_RUB": "40.03255664619070998724469080"
+          }
+        },
+        "child_article_families": {
+          "actual": {
+            "orders": 8,
+            "ordered_value_RUB": "23322"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-02T16:18:49.864951+00:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 5,
+              "ordered_value_RUB": "34250"
+            },
+            {
+              "from_utc": "2026-10-26T16:18:49.864951+00:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 3,
+              "ordered_value_RUB": "23127"
+            },
+            {
+              "from_utc": "2026-10-19T16:18:49.864951+00:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 8,
+              "ordered_value_RUB": "79239"
+            },
+            {
+              "from_utc": "2026-10-12T16:18:49.864951+00:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 6,
+              "ordered_value_RUB": "31071"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "5.5",
+            "ordered_value_RUB": "41921.75"
+          },
+          "change_percent": {
+            "orders": "45.45454545454545454545454550",
+            "ordered_value_RUB": "-44.36778044809675168617722304"
+          }
+        }
+      },
+      "account_days": [
+        {
+          "date_msk": "2026-11-09",
+          "from_msk": "2026-11-09T19:18:49.864951+03:00",
+          "through_msk": "2026-11-09T23:59:59.999999+03:00",
+          "partial": true,
+          "actual": {
+            "orders": 4,
+            "ordered_value_RUB": "14270"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-02T16:18:49.864951+00:00",
+              "through_utc": "2026-11-02T23:59:59.999999+03:00",
+              "orders": 3,
+              "ordered_value_RUB": "40830"
+            },
+            {
+              "from_utc": "2026-10-26T16:18:49.864951+00:00",
+              "through_utc": "2026-10-26T23:59:59.999999+03:00",
+              "orders": 2,
+              "ordered_value_RUB": "1063"
+            },
+            {
+              "from_utc": "2026-10-19T16:18:49.864951+00:00",
+              "through_utc": "2026-10-19T23:59:59.999999+03:00",
+              "orders": 1,
+              "ordered_value_RUB": "2609"
+            },
+            {
+              "from_utc": "2026-10-12T16:18:49.864951+00:00",
+              "through_utc": "2026-10-12T23:59:59.999999+03:00",
+              "orders": 2,
+              "ordered_value_RUB": "2864"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "2",
+            "ordered_value_RUB": "11841.5"
+          },
+          "change_percent": {
+            "orders": "100",
+            "ordered_value_RUB": "20.50838153950090782417768020"
+          }
+        },
+        {
+          "date_msk": "2026-11-10",
+          "from_msk": "2026-11-10T00:00:00+03:00",
+          "through_msk": "2026-11-10T23:59:59.999999+03:00",
+          "partial": false,
+          "actual": {
+            "orders": 17,
+            "ordered_value_RUB": "168477"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-03T00:00:00+03:00",
+              "through_utc": "2026-11-03T23:59:59.999999+03:00",
+              "orders": 23,
+              "ordered_value_RUB": "245479"
+            },
+            {
+              "from_utc": "2026-10-27T00:00:00+03:00",
+              "through_utc": "2026-10-27T23:59:59.999999+03:00",
+              "orders": 15,
+              "ordered_value_RUB": "145132"
+            },
+            {
+              "from_utc": "2026-10-20T00:00:00+03:00",
+              "through_utc": "2026-10-20T23:59:59.999999+03:00",
+              "orders": 22,
+              "ordered_value_RUB": "225019"
+            },
+            {
+              "from_utc": "2026-10-13T00:00:00+03:00",
+              "through_utc": "2026-10-13T23:59:59.999999+03:00",
+              "orders": 15,
+              "ordered_value_RUB": "192223"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "18.75",
+            "ordered_value_RUB": "201963.25"
+          },
+          "change_percent": {
+            "orders": "-9.333333333333333333333333330",
+            "ordered_value_RUB": "-16.58036796298336454775806985"
+          }
+        },
+        {
+          "date_msk": "2026-11-11",
+          "from_msk": "2026-11-11T00:00:00+03:00",
+          "through_msk": "2026-11-11T10:51:20.338978+03:00",
+          "partial": true,
+          "actual": {
+            "orders": 10,
+            "ordered_value_RUB": "116363"
+          },
+          "prior_windows": [
+            {
+              "from_utc": "2026-11-04T00:00:00+03:00",
+              "through_utc": "2026-11-04T07:51:20.338978+00:00",
+              "orders": 3,
+              "ordered_value_RUB": "7314"
+            },
+            {
+              "from_utc": "2026-10-28T00:00:00+03:00",
+              "through_utc": "2026-10-28T07:51:20.338978+00:00",
+              "orders": 5,
+              "ordered_value_RUB": "111517"
+            },
+            {
+              "from_utc": "2026-10-21T00:00:00+03:00",
+              "through_utc": "2026-10-21T07:51:20.338978+00:00",
+              "orders": 4,
+              "ordered_value_RUB": "33506"
+            },
+            {
+              "from_utc": "2026-10-14T00:00:00+03:00",
+              "through_utc": "2026-10-14T07:51:20.338978+00:00",
+              "orders": 0,
+              "ordered_value_RUB": "0"
+            }
+          ],
+          "baseline4_mean": {
+            "orders": "3",
+            "ordered_value_RUB": "38084.25"
+          },
+          "change_percent": {
+            "orders": "233.3333333333333333333333333",
+            "ordered_value_RUB": "205.5410044834807039655500633"
+          }
+        }
+      ],
+      "order_concentration": {
+        "actual": {
+          "orders": 31,
+          "ordered_value_RUB": "299110",
+          "largest_order_RUB": "32672",
+          "top3_ordered_value_RUB": "87023",
+          "top3_share_pct": "29.09397880378456086389622547",
+          "value_excluding_largest_RUB": "266438"
+        },
+        "prior_windows": [
+          {
+            "orders": 29,
+            "ordered_value_RUB": "293623",
+            "largest_order_RUB": "58778",
+            "top3_ordered_value_RUB": "112485",
+            "top3_share_pct": "38.30932862888806394594428911",
+            "value_excluding_largest_RUB": "234845"
+          },
+          {
+            "orders": 22,
+            "ordered_value_RUB": "257712",
+            "largest_order_RUB": "64316",
+            "top3_ordered_value_RUB": "118585",
+            "top3_share_pct": "46.01454336623828149251878065",
+            "value_excluding_largest_RUB": "193396"
+          },
+          {
+            "orders": 27,
+            "ordered_value_RUB": "261134",
+            "largest_order_RUB": "41997",
+            "top3_ordered_value_RUB": "108282",
+            "top3_share_pct": "41.46606722985134069098623695",
+            "value_excluding_largest_RUB": "219137"
+          },
+          {
+            "orders": 17,
+            "ordered_value_RUB": "195087",
+            "largest_order_RUB": "93695",
+            "top3_ordered_value_RUB": "132431",
+            "top3_share_pct": "67.88304705080297508291172656",
+            "value_excluding_largest_RUB": "101392"
+          }
+        ],
+        "change_excluding_each_windows_largest_pct": "42.33369392470317988167260970"
+      },
+      "guard_checked_at_utc": "2026-11-11T06:00:00.214055+00:00",
+      "guard_status": "CHECKED",
+      "guard_actions": [],
+      "calendar_stop_at_msk": "2026-12-09T19:18:49+03:00"
+    }
+  },
+  "known_confounders": [
+    "No randomized/control assignment",
+    "30 October bid reductions for20SKU on acc1",
+    "8 November additional acc1 bid changes",
+    "Holiday4November in some reference windows",
+    "11November promotions/seasonality",
+    "Other active CPC and CPO campaigns",
+    "Acc2 autoarchive recoveries changed availability",
+    "Historical availability/model maps not reconstructed",
+    "Baseline cancellations are as saved before launch, not newly refreshed"
+  ]
+}

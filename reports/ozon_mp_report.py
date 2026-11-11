@@ -65,8 +65,12 @@ MONTHS_RU = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
 # Внутри каждой — конкретные коды Ozon: услуга внутри операции (ключ = имя услуги) либо тип
 # операции целиком (ключ = "OP:"+operation_type). Σ подстрок = родительская строка ТОЖДЕСТВЕННО:
 # и строка, и её детализация считаются одним проходом по raw_ozon_transaction (_balance_range).
-DETAIL_LINES = ("delivery", "partners", "promo", "penalty")
+DETAIL_LINES = ("delivery", "partners", "promo", "penalty", "other")
 _OP = "OP:"                       # префикс кода-операции, чтобы не столкнуться с именем услуги
+HIST_DETAIL_LABELS = {
+    "HIST:RealizationReportCorrection": "Корректировка стоимости услуг",
+    "HIST:Compensation": "Компенсация",
+}
 
 
 def det_key(line, code):
@@ -85,6 +89,8 @@ def det_parse(key):
 def det_label(code):
     """Человекочитаемое имя кода — из реестра (то же, что в ЛК). Незнакомый код в реестре
     невозможен: всё, чего в нём нет, уходит в «Неклассифицировано», а её мы не детализируем."""
+    if code in HIST_DETAIL_LABELS:
+        return HIST_DETAIL_LABELS[code]
     if code.startswith(_OP):
         hit = RESID_OPS.get(code[len(_OP):])
     else:
@@ -130,8 +136,8 @@ def _balance_range(account, d1, d2):
     сюда НЕ входит — идёт по дням, пропорц. продажам, попадает в общий поток promo."""
     rows = db.query(
         """SELECT payload FROM raw_ozon_transaction WHERE account=%s
-             AND (payload->>'operation_date')::date>=%s
-             AND (payload->>'operation_date')::date<%s""",
+             AND payload->>'operation_date'>=%s
+             AND payload->>'operation_date'<%s""",
         (account, d1, d2))
     L = defaultdict(float)
     D = defaultdict(float)          # (строка, код) → величина; детализация родительских строк
@@ -165,7 +171,8 @@ def _balance_range(account, d1, d2):
     # начисления, уходил в отчёт приходом (ноя-2025 27 057 ₽, дек-2025 278 584 ₽ по acc1).
     # Величины приводим к смыслу своей строки; отрицательная величина = движение в другую сторону,
     # и рендер покажет её со знаком «+» (расход, который оказался приходом).
-    det = {ln: {c: v for (l2, c), v in D.items() if l2 == ln} for ln in DETAIL_LINES}
+    det = {ln: {c: (-v if ln in _RESID_INFLOW else v)
+                for (l2, c), v in D.items() if l2 == ln} for ln in DETAIL_LINES}
     return ({k: (-L.get(k, 0.0) if k in _RESID_INFLOW else L.get(k, 0.0)) for k in _BAL_KEYS},
             abs(sub), det, dict(sub_codes))
 
@@ -202,8 +209,8 @@ def _sub_range(account, d1, d2):
                   coalesce(sum((payload->>'amount')::float), 0) s
              FROM raw_ozon_transaction WHERE account=%s
              AND payload->>'operation_type' LIKE 'OperationSubscription%%'
-             AND (payload->>'operation_date')::date>=%s
-             AND (payload->>'operation_date')::date<%s
+             AND payload->>'operation_date'>=%s
+             AND payload->>'operation_date'<%s
              GROUP BY 1""",
         (account, d1, d2))
     return {_OP + r["ot"]: -float(r["s"]) for r in rows}
@@ -232,8 +239,8 @@ def op_counts_range(account, d1, d2):
         """SELECT payload->'posting'->>'posting_number' post,
                   (payload->>'accruals_for_sale')::float accr, payload->>'operation_type' ot
              FROM raw_ozon_transaction WHERE account=%s
-             AND (payload->>'operation_date')::date>=%s
-             AND (payload->>'operation_date')::date<%s""",
+             AND payload->>'operation_date'>=%s
+             AND payload->>'operation_date'<%s""",
         (account, d1, d2))
     sales_p, ret_p = set(), set()
     for r in rows:
@@ -256,10 +263,11 @@ def op_counts(account, y, m):
 
 def _cogs(account, y, m):
     dt = f"{y}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}"
-    r = db.query("""SELECT coalesce(sum(cogs),0) c FROM margin_by_sku
+    r = db.query("""SELECT sum(cogs) c, count(*) n,
+        count(*) FILTER (WHERE cogs IS NULL) unknown FROM margin_by_sku
         WHERE platform='ozon' AND account=%s AND period_from=%s AND period_to=%s""",
         (account, f"{y}-{m:02d}-01", dt))
-    return float(r[0]["c"])
+    return float(r[0]["c"]) if r[0]["n"] and not r[0]["unknown"] else None
 
 
 def _month_last_day(y, m, account=None):
@@ -311,7 +319,10 @@ def realiz_sales(account, y, m):
     return round(P(dc)), round(P(rc)), round(dc["standard_fee"] - rc["standard_fee"])
 
 
-def _live_month():
+def _live_month(period=""):
+    if period:
+        from reports.open_months import select_open_month
+        return select_open_month(period,_hist().get("period_keys",[]))
     """Живой месяц = календарный месяц СРАЗУ ПОСЛЕ последнего замороженного (max period_keys).
     Так закрытый, но ещё не замороженный месяц НЕ пропадает со страницы (виден живым, а при
     remaining=0 прогноз=факт), а после дозаписи в period_keys переход бесшовный. None — если
@@ -429,18 +440,18 @@ def _derive(mags, orders, retc, cogs):
     отдельной строкой — как на вкладках ВБ и Маркета. Сумма payout от перекладки не меняется."""
     itog = sum(mags[k] for k in EXP_SVC)
     payout = mags["sales"] - itog - mags["returns"] + mags["compensation"] + mags["other"]
-    net = payout - cogs
+    net = payout - cogs if cogs is not None else None
     sales = mags["sales"]
     return {**mags, "itog": itog, "payout": payout, "cogs": cogs,
             "orders": orders, "returns_cnt": retc,
-            "net": net, "margin": (net / sales * 100 if sales else 0),
+            "net": net, "margin": (net / sales * 100 if sales and net is not None else None),
             "check": (sales / orders if orders else 0),
             "rev": None, "bon": None, "par": None}
 
 
-def current_report():
+def current_report(period=""):
     """{"month": {...}|None, "accounts": {acc: {line_key: {"jul":{txt,cls},"fc":{txt,cls}}}}}"""
-    lm = _live_month()
+    lm = _live_month(period)
     if not lm:
         return {"month": None, "accounts": {}}
     y, m = lm
@@ -503,8 +514,8 @@ def current_report():
         fc_retc = retc + win_r / WINDOW_DAYS * remaining_a
         # COGS привязана к продажам (margin_by_sku помесячный, дневного среза нет):
         # forecast_cogs = forecast_sales × (COGS ÷ Продажи текущего месяца).
-        cogs_ratio = cogs / mags["sales"] if mags["sales"] else 0
-        fc_cogs = fc_mags["sales"] * cogs_ratio
+        cogs_ratio = cogs / mags["sales"] if mags["sales"] and cogs is not None else None
+        fc_cogs = fc_mags["sales"] * cogs_ratio if cogs_ratio is not None else None
         forecast = _derive(fc_mags, fc_orders, fc_retc, fc_cogs)
         for ln in DETAIL_LINES:                          # подстроки — рядом с обычными строками
             for c, v in det.get(ln, {}).items():
@@ -521,8 +532,8 @@ def current_report():
             # среднего полного месяца → подсветка была бы ложной. Прогноз (полный месяц) — весь.
             jul_cls = _band(acc, key, jv, actual["sales"]) if _kind(key) in ("expense", "margin", "check") else ""
             cells[key] = {
-                "jul": {"txt": _fmt(key, jv), "cls": jul_cls},
-                "fc": {"txt": _fmt(key, fv), "cls": _band(acc, key, fv, forecast["sales"])},
+                "jul": {"txt": _fmt(key, jv), "cls": jul_cls, "value": jv},
+                "fc": {"txt": _fmt(key, fv), "cls": _band(acc, key, fv, forecast["sales"]), "value": fv},
             }
         for key in det_keys:                         # подписи новых услуг — для JS-дорисовки
             cells[key]["label"] = det_label(det_parse(key)[1])

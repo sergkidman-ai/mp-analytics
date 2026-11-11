@@ -67,10 +67,49 @@ class RoyaltyTurnoverTest(unittest.TestCase):
         self.assertEqual(d['digital_royalty_total']['amount'], 219000)
         self.assertTrue(d['digital_royalty_total']['preliminary'])
         self.assertEqual(d['digital_royalty_total']['months'], ['2026-07', '2026-08'])
-        self.assertIsNone(july['orgs']['7811803918']['royalty'])
+        self.assertIsNone(july['orgs']['7811803918']['royalty']['amount'])
         self.assertIsNone(september['orgs']['7807355364']['royalty']['amount'])
         self.assertIsNone(october['orgs']['7807355364']['royalty']['amount'])
         self.assertEqual(d['royalty_period'], 'month')
+
+    def test_diskver_uses_same_rates_but_its_own_monthly_base(self):
+        d = _assemble_royalty(dt.date(2026, 8, 5), [('wb', [
+            dict(account='wb_acc1', ym='2026-07', sales=6000000, rets=100000),
+            dict(account='wb_acc2', ym='2026-07', sales=4000000, rets=1500000),
+            dict(account='wb_acc2', ym='2026-08', sales=150, rets=150),
+        ])], [])
+        digital = d['months'][0]['orgs']['7807355364']['royalty']
+        diskver = d['months'][0]['orgs']['7811803918']['royalty']
+        self.assertEqual(digital['rate_percent'], 2.15)
+        self.assertEqual(diskver['rate_percent'], 2.25)
+        self.assertEqual(diskver['amount'], 90000)
+        self.assertEqual(d['months'][1]['orgs']['7811803918']['royalty']['amount'], 3.38)
+        self.assertEqual(d['diskver_royalty_total']['amount'], 90003.38)
+        self.assertEqual(d['digital_royalty_total']['amount'], 129000)
+        self.assertEqual(d['royalty_totals']['7811803918'], d['diskver_royalty_total'])
+        self.assertEqual(d['royalty_rates']['7811803918'], d['royalty_rates']['7807355364'])
+
+    def test_diskver_preliminary_flags_and_brand_scope_are_independent(self):
+        d = _assemble_royalty(dt.date(2026, 7, 31), [
+            ('wb', [dict(account='wb_acc2', ym='2026-07', sales=100, rets=10)]),
+            ('ozon', [dict(account='oz_acc2', ym='2026-07', brand='Dsquare', sales=100, rets=5, row_count=1),
+                      dict(account='oz_acc2', ym='2026-07', brand='ДС принт', sales=9000, rets=0, row_count=1),
+                      dict(account='oz_acc1', ym='2026-07', brand=None, sales=100, rets=0, row_count=1)]),
+        ], [dict(account='wb_acc2', ym='2026-07', last_day='2026-07-31')])
+        diskver = d['months'][0]['orgs']['7811803918']
+        self.assertEqual(diskver['base'], 200)
+        self.assertEqual(diskver['royalty']['amount'], 4.5)
+        self.assertEqual(diskver['royalty']['reasons'], [])
+        self.assertFalse(d['diskver_royalty_total']['preliminary'])
+        self.assertTrue(d['months'][0]['orgs']['7807355364']['royalty']['preliminary'])
+
+    def test_missing_diskver_months_are_not_zero_or_estimated(self):
+        d = _assemble_royalty(dt.date(2026, 8, 5), [], [])
+        self.assertIsNone(d['diskver_royalty_total']['amount'])
+        self.assertEqual(d['diskver_royalty_total']['months'], [])
+        for month in d['months']:
+            self.assertIsNone(month['orgs']['7811803918']['royalty']['rate_percent'])
+            self.assertIsNone(month['orgs']['7811803918']['royalty']['amount'])
 
 
 
