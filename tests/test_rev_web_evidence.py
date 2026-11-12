@@ -68,3 +68,14 @@ class WebEvidenceTests(unittest.TestCase):
         row=self.row();row['draft_grounding']={}
         with patch('core.db.query') as query:self.assertEqual(web.operator_block(row),'')
         query.assert_not_called()
+
+    def test_missing_compatibility_keeps_literal_accessory_excerpt_without_yes_badge(self):
+        packet={'sources':[{'id':'card','kind':'native','text':'Лента C13S015610BA'},
+                           {'id':'web-0','kind':'manufacturer_document','title':'Epson LQ-690II',
+                            'url':'https://www.epson.eu/p/31995',
+                            'text':'Epson LQ-690II\nAccessories\nRibbon for LQ-690 (C13S015610)'}],
+                'conditions':[{'id':'compatibility','status':'missing'}],'conflicts':[]}
+        with patch('core.db.query',return_value=[{'payload':packet}]):block=web.operator_block(self.row())
+        self.assertIn('Цитата: Ribbon for LQ-690 (C13S015610)',block)
+        self.assertNotIn('<b>подходит</b>',block)
+        self.assertIn('ещё не подтверждён',block)

@@ -106,6 +106,13 @@ def operator_block(row):
         label=' '.join((s.get('title') or 'Источник производителя').split()[:4])[:70]
         lines.append('<a href="'+html.escape(s['url'],quote=True)+'">'+html.escape(label)+'</a>')
         quote=next((c.get('value') for c in proven if s['id'] in c.get('source_ids',[]) and isinstance(c.get('value'),str)),None)
+        if not quote:
+            # A literal excerpt helps the operator even when the full compatibility chain
+            # remains unproven. Matching a code fragment is not a compatibility verdict.
+            card=' '.join(item.get('text','') for item in packet['sources'] if item['id']=='card')
+            numbers=sorted(set(re.findall(r'\d{4,}',card)),key=lambda value:(-len(value),value))
+            quote=next((line.strip() for number in numbers for line in s.get('text','').splitlines()
+                        if number in line),None)
         if quote:lines.append('Цитата: '+html.escape(' '.join(quote.split()[:16])[:180]))
     if not proven:lines.append('Нет модели в нашей карточке ≠ доказанная несовместимость.')
     return '\n'.join(lines)
