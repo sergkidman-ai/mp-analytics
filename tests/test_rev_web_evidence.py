@@ -73,9 +73,10 @@ class WebEvidenceTests(unittest.TestCase):
         packet={'sources':[{'id':'card','kind':'native','text':'Лента C13S015610BA'},
                            {'id':'web-0','kind':'manufacturer_document','title':'Epson LQ-690II',
                             'url':'https://www.epson.eu/p/31995',
-                            'text':'Epson LQ-690II\nAccessories\nRibbon for LQ-690\nC13S015610'}],
+                            'text':'Epson LQ-690II\nAccessories\nRibbon for LQ-690\nC13S015610\nCoverPlus warranty'}],
                 'conditions':[{'id':'compatibility','status':'missing'}],'conflicts':[]}
         with patch('core.db.query',return_value=[{'payload':packet}]):block=web.operator_block(self.row())
-        self.assertIn('Ribbon for LQ-690 C13S015610',block)
+        self.assertIn('Цитата: C13S015610',block)
+        self.assertNotIn('CoverPlus',block)
         self.assertNotIn('<b>подходит</b>',block)
         self.assertIn('ещё не подтверждён',block)

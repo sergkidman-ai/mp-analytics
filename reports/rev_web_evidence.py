@@ -111,9 +111,8 @@ def operator_block(row):
             # remains unproven. Matching a code fragment is not a compatibility verdict.
             card=' '.join(item.get('text','') for item in packet['sources'] if item['id']=='card')
             numbers=sorted(set(re.findall(r'\d{4,}',card)),key=lambda value:(-len(value),value))
-            words=s.get('text','').split()
-            quote=next((' '.join(words[max(0,index-8):index+5])
-                        for number in numbers for index,word in enumerate(words) if number in word),None)
+            quote=next((line.strip() for number in numbers for line in s.get('text','').splitlines()
+                        if number in line),None)
         if quote:lines.append('Цитата: '+html.escape(' '.join(quote.split()[:16])[:180]))
     if not proven:lines.append('Нет модели в нашей карточке ≠ доказанная несовместимость.')
     return '\n'.join(lines)
