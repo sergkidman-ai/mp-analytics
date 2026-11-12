@@ -317,6 +317,8 @@ def _product_block(row):
 
 def _card(row):
     e = html.escape
+    from reports.rev_web_evidence import operator_block
+    web_note=operator_block(row)
     note = ""
     g = row.get("draft_grounding") or {}
     if isinstance(g, dict):
@@ -350,7 +352,8 @@ def _card(row):
     return (f"{banner}{head} · {e(row['platform'])} · 📅 {ds}\n"
             f"{_product_block(row)}\n\n"
             f"<b>Покупатель:</b> {e(txt)[:600]}\n\n"
-            f"<b>Наш ответ:</b>\n{e((row.get('draft_text') or '').strip())[:1500]}{note}")
+            + (web_note+'\n\n' if web_note else '')+
+            f"<b>Наш ответ:</b>\n{e((row.get('draft_text') or '').strip())[:1000 if web_note else 1500]}{note}")
 
 
 def flush_deferred(limit=20):

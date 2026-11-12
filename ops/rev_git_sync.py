@@ -185,6 +185,7 @@ EXPORT_COLLECTORS={
     'ozon_question_answers.py','ozon_review_answers.py','ozon_reviews.py','wb_feedbacks.py',
     'yandex_feedback_coverage.py','yandex_feedbacks.py','yandex_questions.py','rev_yandex_cards.py'}
 EXPORT_REPORTS={
+    'rev_web_evidence.py',
     'card_fact_validation.py','card_facts.py','feedback_draft_run.py',
     'evidence_answers.py','question_evidence.py','rev_fact_sources.py','rev_image_facts.py',
     'batch_health.py','simple_review_policy.py',

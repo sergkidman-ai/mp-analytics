@@ -138,6 +138,8 @@ def targeted(query,max_age_hours=168):
     with db.get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute('SELECT pg_advisory_xact_lock(hashtext(%s))',('rev_search:'+key,))
-            rows=db.query("SELECT evidence FROM rev_search_cache WHERE query_key=%s AND cached_at>now()-(%s*interval '1 hour')",(key,max_age_hours))
-            if rows:return rows[0]['evidence']
-            return _fetch(query,query,key,token)
+            rows=db.query("SELECT evidence,cached_at FROM rev_search_cache WHERE query_key=%s AND cached_at>now()-(%s*interval '1 hour')",(key,max_age_hours))
+            if rows:return dict(rows[0]['evidence'],searched_at=str(rows[0]['cached_at']),cache_hit=True)
+            result=_fetch(query,query,key,token)
+            from datetime import datetime,timezone
+            return dict(result,searched_at=datetime.now(timezone.utc).isoformat(),cache_hit=False)
