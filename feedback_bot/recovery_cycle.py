@@ -139,8 +139,8 @@ def send_cards(sample_limit=10):
     sent = []
     for row in selected:
         allow_send, reasons = publish_gate.verdict(row)
-        allow_send = allow_send and row.get('draft_route') != 'human'
-        allow_override = publish_gate.can_override(reasons)
+        allow_send = allow_send and publish_gate.operator_can_send(row)
+        allow_override = publish_gate.operator_can_send(row)
         if not (row.get('draft_text') or '').strip():
             row = dict(row, draft_text='Черновик не готов: нужны подтверждённые факты и/или LLM-контур. Ответьте через «Править».')
             allow_send = False

@@ -227,16 +227,8 @@ def _set(mod_id, state, **f):
 
 
 def _kb(mod_id, allow_send=True, allow_override=False):
-    """Три состояния (10.09.2026, очередь 46):
-
-    * вердикт разрешает → «✅ Отправить» + «✏️ Править»;
-    * вердикт запрещает, но причина обходима → «✅ Отправить как есть» + «✏️ Править». Нажатие =
-      оператор публикует ВОПРЕКИ машинному вердикту, причина блока пишется в raw_feedback;
-    * причина необходимая (обещание из стоп-листа A1.2 или претензия) → только «✏️ Ответить
-      вручную». Там черновик — материал, а не ответ.
-
-    До 10.09 второго состояния не было, и хороший черновик с мягким блоком (уверенность,
-    grounded, полярность) оператор мог отправить только перепечатав его руками.
+    """Green sends the displayed draft after operator approval, without another confirmation.
+    Machine warnings remain visible. Empty answers and transport restrictions are not bypassed.
     """
     current = db.query('SELECT recovery_revision FROM feedback_moderation WHERE id=%s', (mod_id,))
     revision = current[0].get('recovery_revision') if current else None
@@ -245,7 +237,7 @@ def _kb(mod_id, allow_send=True, allow_override=False):
     top = ([{"text": "✅ Отправить", "callback_data": f"snd:{mod_id}"},
             {"text": "✏️ Править", "callback_data": f"edt:{mod_id}"}]
            if allow_send else
-           [{"text": "✅ Отправить как есть", "callback_data": f"ovr:{mod_id}"},
+           [{"text": "✅ Отправить", "callback_data": f"ovr:{mod_id}"},
             {"text": "✏️ Править", "callback_data": f"edt:{mod_id}"}]
            if allow_override else
            [{"text": "✏️ Ответить вручную", "callback_data": f"edt:{mod_id}"}])
@@ -327,12 +319,11 @@ def _card(row):
             note = f"\n<i>источник: {e(src or '—')}{'; ' + e((g.get('note') or '')) if g.get('note') else ''}</i>"
     allow_pub, why, trace = publish_gate.verdict_full(row)
     banner = _mode_banner(row.get("account"), allow_send=allow_pub)
-    if row.get("draft_route") == "human":          # домен-фильтр / ошибка парсинга — только вручную
-        banner += "⚠️ <b>НА ЧЕЛОВЕКА</b> — авто-ответа нет, ответьте через «✏️ Ответить вручную»\n"
-    elif not allow_pub:
-        # Причины показываем ПОЛНОСТЬЮ: обрезанная причина недоверия ничем не лучше её отсутствия.
-        banner += ("⛔ <b>ПУБЛИКАЦИЯ ЗАПРЕЩЕНА</b> — " + e(publish_gate.reason_line(why, 600))
-                   + "\nЧерновик ниже — материал для ответа, не ответ. Отвечайте через «✏️ Править».\n")
+    if not allow_pub and publish_gate.operator_can_send(row):
+        banner += ("⚠️ <b>ПРОВЕРЬТЕ ОТВЕТ</b> — " + e(publish_gate.reason_line(why, 600))
+                   + "\nЕсли ответ верен, нажмите «✅ Отправить»: это ваше подтверждение публикации.\n")
+    elif not publish_gate.operator_can_send(row):
+        banner += "⚠️ <b>НЕТ ГОТОВОГО ОТВЕТА</b> — используйте «✏️ Ответить вручную».\n"
     elif isinstance(g, dict) and g.get("no_card"):  # профильный товар, но карточка пустая
         banner += "🔍 <b>БЕЗ ДАННЫХ КАРТОЧКИ</b> — ответ собран по каталогу/вебу, проверьте внимательнее\n"
     if trace:
@@ -412,9 +403,9 @@ def send_batch(limit=5, days=None, kind=None):
     sent = lost = 0
     for row in _pending(limit, days, kind):
         _allow, _why = publish_gate.verdict(row)
-        _allow = _allow and row.get("draft_route") != "human"
+        _allow = _allow and publish_gate.operator_can_send(row)
         card, kb = _card(row), _kb(row["id"], allow_send=_allow,
-                                   allow_override=publish_gate.can_override(_why))
+                                   allow_override=publish_gate.operator_can_send(row))
         canon = None                              # первый успешный (chat_id,msg_id) — канонический для правок
         for cid in NOTIFY_IDS:
             if row.get("tg_msg_id") and str(row.get("tg_chat_id")) == str(cid):
@@ -469,11 +460,11 @@ def refresh_markup(days=None, dry=False):
     done = same = 0
     for r in rows:
         allow, why = publish_gate.verdict(dict(r))
-        allow = allow and r.get("draft_route") != "human"
+        allow = allow and publish_gate.operator_can_send(r)
         if allow:
             # п.3 снял блок (карточный класс) — на висящей плашке кнопки ✅ всё ещё нет
             kb, mark = _kb(r["id"], allow_send=True), "✅ Отправить"
-        elif _soft_only(why) and publish_gate.can_override(why):
+        elif publish_gate.operator_can_send(r):
             kb, mark = _kb(r["id"], allow_send=False, allow_override=True), "✅ Отправить как есть"
         else:
             continue                     # претензии, стоп-лист и жёсткие причины не трогаем
@@ -684,7 +675,7 @@ def _hold_card(mod_id, fr, ec, em, why, head):
     _set(mod_id, "carded", error=reason)
     body = _card(dict(fr)) if fr else ""
     edit_text(ec, em, f"{head}\n\n{body}".strip(), reply_markup=_kb(
-        mod_id, allow_send=False, allow_override=publish_gate.can_override(why)))
+        mod_id, allow_send=False, allow_override=publish_gate.operator_can_send(fr)))
 
 
 def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False, operator_edit=False):
@@ -733,7 +724,7 @@ def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False, o
     if override_block and not override:
         allow_now, why_now = publish_gate.verdict(dict(fr), text)
         if not allow_now:
-            if not publish_gate.can_override(why_now):
+            if not publish_gate.operator_can_send(fr, text):
                 # причина необходимая (обещание / претензия / заглушка) — кнопки быть не должно,
                 # но карточка живёт в чате дольше вердикта: перепроверяем перед самой отправкой.
                 _hold_card(mod_id, fr, ec, em, why_now,
@@ -842,7 +833,7 @@ def handle_callback(cb):
         m = bound
         if not m:
             answer_cb(cb["id"], "нет записи"); return
-        res = _do_send(mod_id, from_id, (m.get('final_text') or m.get("draft_text") or ""), chat_id, message_id)
+        res = _do_send(mod_id, from_id, (m.get('final_text') or m.get("draft_text") or ""), chat_id, message_id, override_block=True)
         answer_cb(cb["id"], res)
     elif action == "ovr":                         # «✅ Отправить как есть» — обход блока человеком
         m = bound

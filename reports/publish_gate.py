@@ -146,6 +146,18 @@ def can_override(reasons):
     """Можно ли показать «✅ Отправить как есть» (п.1). Пустые причины = кнопка и так обычная ✅."""
     return bool(reasons) and not any(r.startswith(NO_OVERRIDE) for r in reasons)
 
+
+def operator_can_send(row, text=None):
+    """Human approval is independent of machine confidence; delivery fences remain mandatory."""
+    body=(text if text is not None else row.get('final_text') or row.get('draft_text') or '').strip()
+    if not body or body.startswith(('⚠️','Черновик не готов:')):
+        return False
+    if row.get('is_answered') or row.get('posted_ok') or row.get('skipped_no_api'):
+        return False
+    if row.get('recovery_active_unanswered') is False or row.get('editing'):
+        return False
+    return row.get('state') not in ('sent','skipped','external_answered')
+
 # A1.2 (07.09.2026). Обещание от лица компании в МАШИННОМ черновике — запрет независимо от класса
 # обращения: движок не знает ни условий возврата, ни остатка на замену. Реальные случаи — HP 953XL
 # 03.09.2026 и Konica CMYK 31.08.2026, оба «оформим замену или возврат». К тексту, который написал

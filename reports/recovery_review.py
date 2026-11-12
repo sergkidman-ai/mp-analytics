@@ -157,8 +157,8 @@ def refresh(mod_id, already_locked=False):
         mark(mod_id,'done')  # First delivery waits for a completed draft in send_cards().
         return True
     allowed, reasons, _ = publish_gate.verdict_full(row)
-    markup = bot._kb(mod_id,allow_send=allowed,
-                     allow_override=not allowed and publish_gate.can_override(reasons))
+    markup = bot._kb(mod_id,allow_send=allowed and publish_gate.operator_can_send(row),
+                     allow_override=not allowed and publish_gate.operator_can_send(row))
     # An edit retry is idempotent. Treat "message is not modified" as a confirmed edit.
     try:
         response = bot.api('editMessageText',{'chat_id':row['tg_chat_id'],'message_id':row['tg_msg_id'],

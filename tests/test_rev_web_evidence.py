@@ -23,12 +23,39 @@ class WebEvidenceTests(unittest.TestCase):
     def test_wrong_printer_triggers_exact_manufacturer_search(self):
         wrong={'url':'https://neon.epson-europe.com/wrong','text':'LQ-690 '+('x '*100),'title':'Old printer'}
         right={'url':'https://www.epson.eu/p/31995','text':'LQ-690II '+('x '*100),'title':'Epson LQ-690II'}
-        with patch('reports.deepseek_search.targeted',side_effect=[{'documents':[wrong]},{'documents':[right]}]) as search:
+        with patch('reports.deepseek_search.targeted',side_effect=[{'documents':[wrong]},{'documents':[right]},{'documents':[]}]) as search:
             result=web.lookup(self.row(),{'name':'Лента Epson C13S015610BA'},['compatibility'])
-        self.assertEqual(search.call_count,2)
-        self.assertIn('site:epson.eu',search.call_args.args[0])
+        self.assertEqual(search.call_count,3)
+        self.assertIn('site:epson.eu',search.call_args_list[1].args[0])
+        self.assertIn('C13S015610BA',search.call_args.args[0])
         self.assertEqual(result['documents'],[right])
         self.assertEqual(result['attempts'][0]['relevant_primary'],0)
+
+    def test_reverse_lookup_runs_even_when_printer_source_found(self):
+        forward={'url':'https://www.epson.eu/printer','title':'LQ-690II','text':'LQ-690II '+('text '*30)}
+        reverse={'url':'https://www.epson.eu/ribbon','title':'C13S015610BA','text':'C13S015610BA compatible with LQ-690II '+('text '*30)}
+        with patch('reports.deepseek_search.targeted',side_effect=[{'documents':[forward]},{'documents':[reverse]}]) as search:
+            result=web.lookup(self.row(),{'name':'Лента C13S015610BA для Epson LQ-690'},['compatibility'])
+        self.assertEqual(search.call_count,2)
+        self.assertEqual(result['attempts'][1]['direction'],'cartridge_to_printer')
+        self.assertEqual(result['attempts'][1]['relevant_primary'],1)
+        self.assertNotIn('LQ-690II',search.call_args.args[0])
+        self.assertEqual(len(result['documents']),2)
+
+    def test_reverse_lookup_does_not_silently_drop_ba_suffix(self):
+        source={'url':'https://www.epson.eu/ribbon','title':'C13S015610','text':'C13S015610 '+('text '*30)}
+        with patch('reports.deepseek_search.targeted',return_value={'documents':[source]}):
+            result=web.lookup(self.row(),{'name':'Лента C13S015610BA для Epson LQ-690'},['compatibility'])
+        self.assertEqual(result['cartridge_codes'],['C13S015610BA'])
+        self.assertEqual(result['attempts'][-1]['relevant_primary'],0)
+
+    def test_reverse_lookup_survives_forward_search_error(self):
+        with patch('reports.deepseek_search.targeted',side_effect=[TimeoutError(),{'documents':[]}]) as search:
+            result=web.lookup(self.row(),{'name':'Картридж TN-217 для Brother DCP-L3550CDW'},['compatibility'])
+        self.assertEqual(search.call_count,2)
+        self.assertEqual(result['cartridge_codes'],['TN-217'])
+        self.assertEqual(result['attempts'][-1]['direction'],'cartridge_to_printer')
+        self.assertEqual(result['attempts'][0]['error_type'],'TimeoutError')
 
     def test_absent_sources_are_not_a_negative_compatibility_result(self):
         with patch('reports.deepseek_search.targeted',return_value={'documents':[]}):
