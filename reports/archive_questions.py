@@ -13,16 +13,16 @@ def norm(text):
 
 
 def package_contents(offer_id):
-    rows=db.query('''SELECT nm_id,payload FROM raw_wb_card_content
-        WHERE vendor_code=%s OR vendor_code ~ ('^'||%s||'[^0-9]')
-        ORDER BY (vendor_code=%s) DESC,nm_id LIMIT 1''',(offer_id,re.escape(offer_id),offer_id))
+    rows=db.query('''SELECT payload FROM raw_yandex_offer
+        WHERE account='ya_acc1' AND offer_id=%s''',(offer_id,))
     if not rows:return [],None
+    offer=rows[0]['payload'].get('offer') or {}
     contents=[]
-    for field in rows[0]['payload'].get('characteristics',[]):
-        if (field.get('name') or '').strip().lower()=='комплектация':
-            value=field.get('value') or []
-            contents.extend(value if isinstance(value,list) else [str(value)])
-    return contents,'https://www.wildberries.ru/catalog/'+str(rows[0]['nm_id'])+'/detail.aspx'
+    for field in offer.get('parameterValues') or []:
+        if (field.get('parameterName') or field.get('name') or '').strip().lower()=='комплектация':
+            value=field.get('value')
+            if isinstance(value,str) and value.strip():contents.append(value)
+    return contents,'https://api.partner.market.yandex.ru/v2/businesses/{businessId}/offer-mappings'
 
 
 def answer(row,facts=None):
@@ -34,10 +34,11 @@ def answer(row,facts=None):
     q=question.lower()
     reply='';missing=None;basis=None;references=[]
     kind=str(native.get('kind') or '').lower()
-    if not native or not native.get('name'):
+    if not native or not native.get('name') or not kind:
         from reports.rev_archive_fact_recovery import native_archive_answer
         recovered=native_archive_answer(row)
         if recovered:return recovered
+    if not native or not native.get('name'):
         missing='Не восстановлены название и карточка товара '+str(row.get('item_id') or '')
     elif re.search(r'тонер.*(?:входит|комплект)|комплект.*тонер',q):
         contents,url=package_contents(str(row.get('item_id') or ''))

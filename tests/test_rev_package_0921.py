@@ -78,7 +78,7 @@ class P4Jargon(unittest.TestCase):
         self.assertIn("вариант серии", fl.SYSTEM)
 
     def test_детерминированный_ответ_без_жаргона(self):
-        src = inspect.getsource(ft._answer)
+        src = inspect.getsource(ft._answer_impl)
         # сам текст ответа (f-строка), а не комментарий, который объясняет правку
         self.assertNotIn('f"совместимости карточки."', src)
         self.assertIn('fam_reply = (f"Здравствуйте! Да, подойдёт для {\', \'.join(mm)}."', src)
@@ -86,7 +86,7 @@ class P4Jargon(unittest.TestCase):
 
 class P5Fallback(unittest.TestCase):
     def test_нет_серийного_фолбэка_на_многосоставный(self):
-        src = inspect.getsource(ft._answer)
+        src = inspect.getsource(ft._answer_impl)
         self.assertNotIn("fallback на shortcut", src)
         self.assertIn("вопрос многосоставный", src)
 
@@ -146,7 +146,7 @@ class P9AutoCardQ(unittest.TestCase):
 
     def g(self, **kw):
         base = {"request_class": "характеристики", "source": "карточка", "verify": "PASS",
-                "grounded": True, "llm": True}
+                "grounded": True, "llm": True, "facts_checked": True}
         base.update(kw)
         return base
 

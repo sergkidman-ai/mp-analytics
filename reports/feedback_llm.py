@@ -24,14 +24,14 @@ load_dotenv(BASE_DIR / ".env")
 from core import db                                        # noqa: E402
 from reports.feedback_drafts import _write_html, _classify, _norm, MODEL_RX  # noqa: E402
 from reports.feedback_corpus import load_corpus            # noqa: E402
-from reports.card_facts import CardFacts                   # noqa: E402
+from reports.card_facts import CardFacts, FACTS_VERSION    # noqa: E402
 from reports.catalog import catalog_block                  # noqa: E402
 from reports.prompt_privacy import (public_name, assert_public_facts,       # noqa: E402
                                     scrub_finance, public_block)
 
-_CHIP_RU = {"installed": "с чипом (уже установлен, докупать не нужно)",
-            "not_required": "чип уже установлен, дополнительно докупать/ставить не требуется",
-            "none": "без чипа (чип переставляется с прежнего оригинального картриджа)"}
+_CHIP_RU = {"installed": "с чипом (способ установки и контроль уровня этим не подтверждены)",
+            "not_required": "чип не требуется; наличие установленного чипа этим НЕ подтверждено",
+            "none": "без чипа; необходимость и возможность перестановки требуют отдельного подтверждения"}
 
 
 def _card_data(r, cf):
@@ -39,7 +39,7 @@ def _card_data(r, cf):
     raw_ozon_attributes). Чип — 3 корректных состояния, модели — чистый список. '' если карточки нет."""
     f = (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon"
          else cf.for_wb(r["item_id"]) if r["platform"] == "wb"
-         else cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else None)
+         else cf.for_yandex(r["item_id"], account=r.get("account") or "ya_acc1") if r["platform"] == "yandex" else None)
     # каталог наших листингов — для вопросов о наличии/цвете/артикуле (источник №3); модель принтера
     # берём из карточки, если в вопросе её нет («а цветной есть?» — модель уже известна)
     cat = (catalog_block(r.get("body") or "", r.get("product_name") or "", (f or {}).get("models"),
@@ -63,23 +63,24 @@ def _card_data(r, cf):
     if not f:
         return cat  # карточки нет, но каталог по наличию может быть
     assert_public_facts(f, "CARD_DATA")   # запрет на уровне сборки: цены/остатки/поставщики — не наружу
-    lines = []
+    lines = [f"версия извлечения: {FACTS_VERSION}; источник: {f.get('facts_src') or f.get('platform')}"]
     if f.get("code"):       lines.append(f"код картриджа: {f['code']} (можно назвать покупателю)")
     if f.get("kind"):       lines.append(f"тип: {f['kind']}" + (f" / {f['ptype']}" if f.get("ptype") else ""))
     if f.get("chip"):       lines.append("чип: " + _CHIP_RU.get(f["chip"], f["chip"]))
     else:                   lines.append("чип: в карточке НЕ указан (не утверждать)")
     lines.append("заправляемость: " + (f["refillable"] if f.get("refillable") else "в описании НЕ заявлена"))
-    if f.get("resource"):   lines.append(f"ресурс, стр: {f['resource']}")
+    if f.get("resource"):   lines.append(f"ресурс (значение поля карточки): {f['resource']}")
+    if f.get("country"):    lines.append(f"страна производства из карточки: {f['country']}")
     if f.get("weight_pkg"): lines.append(f"вес товара с упаковкой: {f['weight_pkg']} (это НЕ граммы тонера в тубе)")
     if f.get("set_info"):   lines.append(f"КОМПЛЕКТАЦИЯ НАБОРА: {f['set_info']}")
-    if f.get("color"):      lines.append(f"цвет: {f['color']}")
+    if f.get("color"):      lines.append(f"поле цвета: {f['color']} (само по себе не определяет число и состав картриджей)")
     if f.get("models"):
         lines.append("СОВМЕСТИМЫЕ МОДЕЛИ (полный список карточки): " + ", ".join(f["models"]))
     else:
         lines.append("совместимые модели: в карточке НЕ перечислены (совместимость не утверждать)")
     if f.get("annot"):
         lines.append("ОПИСАНИЕ КАРТОЧКИ (свободный текст — бери отсюда состав/комплектацию набора, модель "
-                     "картриджа, число листов; факты в полях выше приоритетнее): " + f["annot"])
+                     "картриджа, число листов; противоречие с полями выше требует проверки, не выбирай факт произвольно): " + f["annot"])
     head = f"Товар: {public_name(f.get('name') or r['product_name'])} (артикул {f.get('article') or '—'})"
     block = head + "\nФАКТЫ КАРТОЧКИ:\n- " + scrub_finance("\n- ".join(lines), "ФАКТЫ КАРТОЧКИ")
     if f.get("chip_src"):
@@ -112,6 +113,11 @@ SYSTEM = """Ты — специалист поддержки интернет-м
 
 ГЛАВНОЕ ПРАВИЛО — ФАКТЫ И ЧЕСТНОСТЬ. ХАРАКТЕРИСТИКИ нашего товара (чип, ресурс, цвет, заправляемость,
 комплектация набора) бери ТОЛЬКО из CARD_DATA — их не выдумывай.
+«Чип не требуется» не означает «чип установлен». «Без чипа» не доказывает возможность его
+перестановки. «С чипом» не доказывает контроль уровня, отсутствие настройки или установку чипа
+на заводе. «Готов к использованию» не подтверждает ни одного из этих свойств отдельно.
+Один цвет в поле карточки не доказывает, что в комплекте один картридж. При противоречии
+характеристик и описания укажи недостающий факт в note, не придумывай разрешение противоречия.
 Отвечай на заданный вопрос. Не добавляй страну, ресурс и чип, если их не спрашивали и они не нужны для ответа.
 Если нужный тип картриджа уже установлен, назови его сразу. Не добавляй «напишите нам — подберём»,
 повторные приглашения, извинения за предполагаемую ошибку описания и объяснения про наши списки.

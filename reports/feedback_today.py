@@ -479,6 +479,8 @@ def _auto_card_q(r, reply, route, ground):
     cls = ground.get("request_class") or rc.classify(r.get("body"), kind="question", rating=r.get("rating"))
     if cls not in AUTO_Q_CLASSES or ground.get("verify") != "PASS":
         return route, ground
+    if not ground.get("facts_checked"):
+        return route, ground
     src = str(ground.get("source") or "")
     cache = ground.get("cache") if isinstance(ground.get("cache"), dict) else {}
     if src.startswith("кэш"):
@@ -953,7 +955,7 @@ def _card_facts(cf, r):
     """Карточка товара под площадку строки (у Яндекса item_id = offerId, а не nmID)."""
     try:
         return (cf.for_ozon(r["item_id"]) if r["platform"] == "ozon" else
-                cf.for_yandex(r["item_id"]) if r["platform"] == "yandex" else
+                cf.for_yandex(r["item_id"], account=r.get("account") or "ya_acc1") if r["platform"] == "yandex" else
                 cf.for_wb(r["item_id"]))
     except Exception:
         return None
@@ -1098,6 +1100,30 @@ def _verified(client, r, reply, card, ground):
 
 
 def _answer(client, r, cf, corpus):
+    """Validate every branch, including cached and deterministic early returns."""
+    result = _answer_impl(client, r, cf, corpus)
+    outd, reply, route, conf, ground, used_llm, used_web = result
+    if r['kind'] != 'question':
+        return result
+    from reports.card_facts import FACTS_VERSION
+    from reports.card_fact_validation import problems, signature
+    facts = _card_facts(cf, r) or {}
+    expert, _ = bn.facts_for(_brand_of(r), r.get('body'),
+                             ' '.join(str(facts.get(k) or '') for k in ('name', 'annot')))
+    issues = problems(facts, reply, expert)
+    ground = dict(ground, facts_version=FACTS_VERSION, facts_signature=signature(facts),
+                  facts_checked=bool(reply) and not issues)
+    if issues:
+        ground['fact_block'] = '; '.join(issues)
+        route = 'human'
+    # A model's route alone cannot bypass the existing narrow card-answer policy.
+    if route == 'auto':
+        route = 'review'
+    outd = dict(outd, route=route)
+    return outd, reply, route, conf, ground, used_llm, used_web
+
+
+def _answer_impl(client, r, cf, corpus):
     """Полный движок ответа на ОДИН элемент. → (out_dict, reply, route, conf, ground, used_llm, used_web)."""
     from reports.simple_review_policy import answer as simple_answer
     simple = simple_answer(r)
@@ -1475,12 +1501,7 @@ def _answer(client, r, cf, corpus):
             route = "review"
             ground.update({"note": f"нет листинга в канале {r['platform']} → без ссылки, "
                            f"предложено уточнить в чате; " + (ground.get("note") or "")[:180]})
-    # производитель/страна → прямой ответ «Китай» (детерминированно, т.к. DeepSeek уклоняется)
-    if r["kind"] == "question" and reply:
-        fixed = _fix_producer(reply, r["body"])
-        if fixed != reply:
-            reply = fixed
-            ground["note"] = "guard: производитель→Китай; " + (ground.get("note") or "")[:220]
+    # Country must come from the exact product source, never a brand-based default.
     # guardrail от выдуманных кодов расходников: любой код в ответе, которого нет в CARD_DATA/КАТАЛОГ
     # (и не из вопроса покупателя), — вырезаем предложение с ним. Только для вопросов (у отзывов cc пуст).
     if r["kind"] == "question" and cc:

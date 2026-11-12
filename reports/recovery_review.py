@@ -114,7 +114,7 @@ def save(mod_id, original, result):
           AND NOT coalesce(f.posted_ok,false)''')[0]['id']
     from reports.simple_review_policy import matches as simple_matches
     simple = simple_matches(dict(original, draft_grounding=ground), reply)
-    if reply and not simple and (original['kind']=='question' or mod_id==sample):
+    if reply and not simple and original['kind']=='review' and mod_id==sample:
         route = 'review' if route!='human' else route
         ground = dict(ground,operator_sample=True)
     cls = request_class.classify(' '.join(filter(None,[original.get('body'),original.get('pros'),original.get('cons')]))
@@ -185,6 +185,7 @@ def refresh(mod_id, already_locked=False):
 
 def tick():
     setup()
+    requeue_changed_facts()
     db.execute('''INSERT INTO rev_card_reprocess(mod_id)
         SELECT m.id FROM feedback_moderation m JOIN raw_feedback f USING(platform,account,kind,ext_id)
         WHERE m.state IN ('carded','queued') AND m.final_text IS NULL AND m.decided_at IS NULL
@@ -226,3 +227,40 @@ def tick():
         stats['updated_existing_cards'] += bool(save(mid,row,result))
     Path('/root/rev-recovery/reprocess-latest.json').write_text(json.dumps(stats,indent=2))
     return stats
+
+
+def requeue_changed_facts():
+    """Invalidate stale PASS under the same lock as operator edits. No paid calls."""
+    from reports.card_facts import FACTS_VERSION
+    from reports.card_fact_validation import signature
+    facts = engine.CardFacts()
+    changed = 0
+    ids = db.query('''SELECT m.id FROM feedback_moderation m JOIN raw_feedback f
+        USING(platform,account,kind,ext_id) WHERE f.kind='question' AND m.state IN ('carded','queued')
+        AND m.final_text IS NULL AND m.decided_at IS NULL AND NOT f.is_answered
+        AND NOT coalesce(f.posted_ok,false) AND NOT f.skipped_old
+        AND coalesce(f.recovery_active_unanswered,true)''')
+    for item in ids:
+        mid = item['id']
+        with runtime.card_lock(mid):
+            row = load(mid)
+            if not row or not eligible(row):
+                continue
+            sig = signature(engine._card_facts(facts,row))
+            ground = row.get('draft_grounding') or {}
+            if ground.get('facts_version') == FACTS_VERSION and ground.get('facts_signature') == sig:
+                continue
+            if ground.get('facts_pending_signature') == sig and ground.get('facts_pending_version') == FACTS_VERSION:
+                continue
+            pending = dict(ground, facts_checked=False, facts_pending_signature=sig,
+                           facts_pending_version=FACTS_VERSION,
+                           fact_block='обновлены факты карточки; черновик проходит повторную проверку')
+            with db.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute('''UPDATE raw_feedback SET draft_grounding=%s,draft_route='review'
+                        WHERE (platform,account,kind,ext_id)=(%s,%s,%s,%s)''',
+                        (Json(pending),*(row[k] for k in ('platform','account','kind','ext_id'))))
+                    cur.execute('''INSERT INTO rev_card_reprocess(mod_id,state) VALUES(%s,'pending')
+                        ON CONFLICT(mod_id) DO UPDATE SET state='pending',error_type=NULL,updated_at=now()''',(mid,))
+            changed += 1
+    return changed

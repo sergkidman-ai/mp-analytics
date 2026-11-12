@@ -251,6 +251,10 @@ def main():
     active = refresh_wb_active()
     if '--prepare-only' not in sys.argv:
         refresh_catalog_if_stale()
+        from collectors.rev_yandex_cards import refresh as refresh_native_market
+        card_refresh = refresh_native_market()
+        collect.report.append(dict(channel='ya_acc1:native_cards',
+                                   status='error' if card_refresh['errors'] else 'ok', **card_refresh))
     with runtime.processing_lock() as wait_seconds:
         process_collected(active,wait_seconds)
 

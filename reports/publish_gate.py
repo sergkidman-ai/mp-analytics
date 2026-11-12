@@ -223,6 +223,12 @@ def verdict_full(row, text=None):
     from reports.compatibility_evidence import absence_denial
     if kind=='question' and absence_denial(body):
         reasons.append('неподтверждённый факт: отсутствие модели в списке не доказывает несовместимость')
+    if kind == 'question' and g.get('facts_signature') and _same(body, row.get('draft_text')):
+        from reports.card_fact_validation import signature
+        from reports.feedback_today import _card_facts
+        from reports.card_facts import CardFacts
+        if signature(_card_facts(CardFacts(), row)) != g['facts_signature']:
+            reasons.append('неподтверждённый факт: карточка изменилась после проверки ответа; нужна повторная проверка')
 
     # --- жёсткие: детерминированные факты конвейера ---
     if g.get('fact_block'):
