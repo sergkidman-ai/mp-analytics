@@ -113,7 +113,10 @@ class GitSyncTests(unittest.TestCase):
             self.assertNotIn('docs/rev/brand_notes_2026-09-21.md',command(root,'ls-tree','-r','--name-only',plan['tree']).splitlines())
 
     def test_export_includes_both_recovery_dependencies(self):
-        for name in ('reports/rev_archive_fact_recovery.py','reports/rev_delivery_recovery.py'):
+        for name in ('reports/rev_archive_fact_recovery.py','reports/rev_delivery_recovery.py',
+                     'reports/card_fact_validation.py','reports/card_facts.py','reports/feedback_draft_run.py',
+                     'reports/evidence_answers.py','reports/question_evidence.py','reports/rev_fact_sources.py',
+                     'reports/rev_image_facts.py','collectors/rev_yandex_cards.py'):
             self.assertTrue(sync.export_allowed(name),name)
         self.assertFalse(sync.export_allowed('reports/inventory.py'))
 

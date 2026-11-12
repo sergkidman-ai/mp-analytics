@@ -42,6 +42,14 @@ class EvidenceTests(unittest.TestCase):
                                'test','question','Вопрос','Ответ','Факты')
             self.assertEqual(verdict,'FIX')
 
+    def test_fresh_tk_snapshot_survives_primary_database_outage(self):
+        record={'payload':{'title':'378XL-478XL','colors_count':6},'source_at':None}
+        with patch.object(src,'offer_identity',return_value='5280ABC'),patch.object(src,'primary') as primary,patch.object(
+                src,'cached',side_effect=lambda kind,key,age:record if key=='5280' else None):
+            result=src.resolve(self.row(),{'name':'Комплект 378XL-478XL'})
+        primary.assert_not_called()
+        self.assertEqual(result['status'],'matched')
+
     def row(self,question='Все 6 цвета как на фото?'):
         return dict(platform='ozon',account='oz_acc2',kind='question',ext_id='test',item_id='123',
                     body=question,product_name='Комплект 378XL-478XL',pros=None,cons=None,rating=None)

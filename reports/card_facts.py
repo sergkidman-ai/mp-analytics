@@ -9,7 +9,7 @@
 
 Чип — 3 состояния (клиент требует прямой ответ, не уклончивый):
   installed         — «с чипом», «оснащён чипом», #с_чипом, «в комплекте чип»
-  not_required      — «не требуется чип», «полностью готов к использованию» (докупать не надо)
+  not_required      — явно «не требуется чип»; это не означает, что чип установлен
   none              — «без чипа», «чип отсутствует»
   None              — в карточке нет сигнала (→ движок эскалирует, не выдумывает)
 
@@ -24,6 +24,8 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 from core import db                          # noqa: E402
 from core.text_norm import fix_homoglyphs    # noqa: E402
+
+FACTS_VERSION = "native-cards-20261112"
 
 # --- карта attribute-id Ozon ---
 OZ = dict(name=4180, article=12141, vcode=9048, ptype=5708, kind=5713,
@@ -87,7 +89,7 @@ def _classify_chip(text):
         return "none"
     if re.search(r"с\s*чипом|оснащ\w*\s+чип|#с_чипом|в\s+комплект\w*\s*.{0,15}чип|чип\s*[:\-]?\s*с\s*чипом", t):
         return "installed"
-    if re.search(r"не\s+требуется\s+чип|чип\s+не\s+требуется|полностью\s+готов", t):
+    if re.search(r"не\s+требуется\s+чип|чип\s+не\s+требуется", t):
         return "not_required"
     return None
 
@@ -113,7 +115,7 @@ def _set_info(vals, name, annot):
     is_set = bool(re.search(r"K[PC]-?\d{2,3}I[PN]|RP-?\d{2,4}|фотобумаг|фотопечат", blob, re.I)) or \
         ("комплект" in blob.lower() and re.search(r"лист|фотобумаг", blob.lower()) is not None)
     if not is_set:
-        return None
+        return _general_set_info(blob)
     # число листов: приоритет — цифра в коде набора (KP-108IN = 108 листов), затем «N листов», затем поле 9628
     mc = re.search(r"K[PC]-?(\d{2,3})I[PN]|RP-?(\d{2,4})", blob, re.I)
     ml = re.search(r"(\d{2,4})\s*лист", blob.lower())
@@ -129,6 +131,15 @@ def _set_info(vals, name, annot):
         parts.append(f"листов фотобумаги в наборе: {sheets}")
     parts.append("комплектация: картридж(и) + фотобумага")
     return ", ".join(parts) if parts else None
+
+
+def _general_set_info(text):
+    """Only explicit package claims; a colour or printer count is not a kit count."""
+    if not re.search(r"\b(?:комплект|набор)\b", text or "", re.I):
+        return None
+    m = re.search(r"(?:комплект|набор)\s*(?:из\s*)?(\d{1,2})\s*(?:шт|картридж|цвет)", text, re.I)
+    return (f"комплект: {m.group(1)} шт./цветов (как указано в карточке)" if m else
+            "заявлен комплект; точное количество и состав брать из описания, не выводить из поля цвета")
 
 
 def facts_ozon(payload):
@@ -169,7 +180,7 @@ def facts_ozon(payload):
         "color": _first(vals, OZ["color"]),
         "refillable": refill,
         "set_info": _set_info(vals, payload.get("name"), annot),
-        "annot": annot[:600],
+        "annot": annot[:5000],
     }
 
 
@@ -283,8 +294,21 @@ def facts_wb(payload):
         "kind": "совместимый" if "совместим" in desc.lower() else None,
         "color": _wb_char(chars, "Цвет картриджа/чернил", "Цвет"),
         "refillable": refill,
-        "annot": desc[:600],
+        "set_info": _wb_char(chars, "Комплектация") or _general_set_info(title + " " + desc),
+        "annot": desc[:5000],
     }
+
+
+def facts_yandex(payload):
+    """Native offer only. Never substitute another marketplace's variant."""
+    offer = (payload or {}).get("offer") or {}
+    if not offer:
+        return None
+    facts = facts_wb({"title": offer.get("name"), "description": offer.get("description"),
+                      "vendorCode": offer.get("offerId")})
+    facts.update(platform="yandex", facts_src="yandex-native",
+                 country=", ".join(offer.get("manufacturerCountries") or []))
+    return facts
 
 
 class CardFacts:
@@ -295,6 +319,7 @@ class CardFacts:
         self._oz_by_sku = None
         self._oz_pay = {}    # offer_id -> payload | None (кэш точечных чтений)
         self._wb = {}        # nm_id -> payload | None (кэш точечных чтений, см. _wb_payload)
+        self._oz_skus = {}
 
     def _ensure_oz(self):
         """Лёгкий индекс карточек Ozon: offer_id → account и sku → offer_id, БЕЗ payload.
@@ -406,43 +431,31 @@ class CardFacts:
 
         SKU у Ozon глобально уникален, поэтому фильтр по аккаунту здесь ничего не защищал,
         а Дисквэра (oz_acc2) отсекал целиком: его вопросы шли в промпт без CARD_DATA."""
-        self._ensure_oz()
-        offer = self._oz_by_sku.get(str(sku))
-        name = None
-        p = self._oz_payload(offer) if offer else None
-        if p is None:                      # sku→offer_id через ozon_product
-            r = db.query("SELECT offer_id, name FROM ozon_product WHERE sku=%s "
+        key = str(sku)
+        if key in self._oz_skus:
+            return self._oz_skus[key]
+        rows = db.query("SELECT payload FROM raw_ozon_attributes WHERE sku=%s ORDER BY account LIMIT 1", (key,))
+        p = rows[0]['payload'] if rows else None
+        if p is None:
+            r = db.query("SELECT offer_id, account FROM ozon_product WHERE sku=%s "
                          "ORDER BY account LIMIT 1", (str(sku),))
             if r:
-                offer = str(r[0]["offer_id"])
-                name = r[0].get("name")
-                p = self._oz_payload(offer) if offer in self._oz else None
-        if p:
-            return facts_ozon(p)
-        if offer:                          # точной карточки нет — добираем вариант по префиксу кода
-            f = self._oz_sibling(offer, name)
-            if f:
-                f = dict(f, facts_src="ozon-вариант(код-префикс)")
-                return f
-        return None
+                exact = db.query("SELECT payload FROM raw_ozon_attributes WHERE account=%s AND offer_id=%s",
+                                 (r[0]['account'], str(r[0]['offer_id'])))
+                p = exact[0]['payload'] if exact else None
+        # Prefix similarity does not establish identical kit/chip/colour. Missing exact
+        # data must remain missing, rather than silently becoming a sibling's facts.
+        self._oz_skus[key] = facts_ozon(p) if p else None
+        return self._oz_skus[key]
 
-    def for_yandex(self, offer_id):
-        """Факты по offerId Яндекса — через карточку ВБ того же товара.
-
-        Своей карточки-сырья у Маркета мы не собираем, но offerId = код товара платформы и совпадает
-        с vendorCode ВБ либо является его началом (сверено 28.07: '0996'→nm 1055733312 / '0996WY63PELM',
-        '23937'→nm 216460101). Хвост после кода отсекаем регексом по НЕ-цифре — иначе '2393' поймал бы
-        чужой '23937'. Приоритет — точное совпадение (wb_acc1), затем префиксное (wb_acc2)."""
+    def for_yandex(self, offer_id, account="ya_acc1"):
+        """Exact native Market offer, scoped to the buyer's seller account."""
         off = str(offer_id or "").strip()
         if not off:
             return None
-        rows = db.query("""SELECT nm_id FROM raw_wb_card_content
-            WHERE vendor_code = %s OR vendor_code ~ ('^' || %s || '[^0-9]')
-            ORDER BY (vendor_code = %s) DESC, nm_id LIMIT 1""", (off, re.escape(off), off))
-        if not rows:
-            return None
-        f = self.for_wb(rows[0]["nm_id"], code=off)
-        return dict(f, facts_src="wb-двойник(offerId)") if f else None
+        rows = db.query("SELECT payload FROM raw_yandex_offer WHERE account=%s AND offer_id=%s",
+                        (account, off))
+        return facts_yandex(rows[0]["payload"]) if rows else None
 
     def for_wb(self, nm_id, code=None):
         """code — наш код товара (offerId площадки), если он известен вызывающему: по нему,
