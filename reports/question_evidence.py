@@ -30,6 +30,7 @@ TOPICS={
  'availability':r'налич|когда.*появ|когда.*поступ|когда.*будет',
  'dimensions':r'размер|габарит|вес|длин|ширин|высот',
  'selection':r'подбер|подбор|какой.*(?:картридж|нужен)|есть\s+ли.*для',
+ 'setup':r'настрой|отключ|меню|блокир|ошибк|не\s+(?:принима|определ|распозна)',
 }
 
 
@@ -142,7 +143,10 @@ def build(row,facts,identity,ms,choice,image_info,notes,approved,compat_memory=N
             elif tk_fresh and (facts.get('set_info') or re.search('комплект|набор',facts.get('name',''),re.I)) and int(tk.get('colors_count') or 0)>1:
                 value={'colors_count':tk['colors_count']};ids=['tk','card']
             elif facts.get('color') and not facts.get('set_info'):value=facts['color'];ids=['card']
-        elif topic=='resource' and facts.get('resource'):value=facts['resource'];ids=['card']
+        elif topic=='resource' and facts.get('resource'):
+            per_item=bool(re.search(r'кажд|одн(?:ого|ом)\s+картридж',row.get('body') or '',re.I))
+            if not (per_item and facts.get('set_info')):
+                value=facts['resource'];ids=['card']
         elif topic=='ink' and tk_fresh and tk.get('ink_type'):value=tk['ink_type'];ids=['tk']
         elif topic=='country' and facts.get('country'):value=facts['country'];ids=['card']
         elif topic=='originality' and facts.get('kind'):value=facts['kind'];ids=['card']
@@ -161,6 +165,7 @@ def requests_for(packet):
             'composition':'Подтвердить состав и количество предметов в этом предложении',
             'manufacturer':'Подтвердить производителя именно предлагаемого товара',
             'availability':'Нужен подтверждённый срок/наличие для предложения покупателя',
+            'setup':'Нужна подтверждённая инструкция для точной модели принтера',
             'compatibility':'Подтвердить пару: точная модель принтера и наш вариант расходника'}
     return [labels.get(c['id'],'Подтвердить свойство: '+c['id']) for c in packet['conditions'] if c['status']!='confirmed']
 
@@ -247,7 +252,7 @@ def prepare(row,cf,allow_paid=True):
     packet['errors']+=errors
     # Only missing external facts justify a search. Kit contents and shop stock are internal facts.
     missing=[c['id'] for c in packet['conditions'] if c['status']=='missing']
-    if allow_paid and set(missing)&{'compatibility','firmware','ink','refill','level'}:
+    if allow_paid and set(missing)&{'compatibility','firmware','ink','refill','level','setup'}:
         from reports import deepseek_search
         question=str(row.get('body') or '')
         versions=re.findall(r'\d+(?:\.\d+){2,}(?:-\d+)?',question)

@@ -84,6 +84,14 @@ class EvidenceTests(unittest.TestCase):
     def test_question_has_two_independent_requirements(self):
         self.assertEqual([x['id'] for x in e.conditions('Подойдут для 4303fdw, прошивка 6.28.3.30?')],['compatibility','firmware'])
 
+    def test_setup_is_a_separate_requirement_from_originality(self):
+        ids={x['id'] for x in e.conditions('Что изменить в настройках для неоригинального картриджа?')}
+        self.assertEqual(ids,{'originality','setup'})
+
+    def test_bundle_resource_is_not_resource_of_each_cartridge(self):
+        packet=self.packet('Какой ресурс каждого картриджа?',facts={'name':'Набор','set_info':'Комплект','resource':'9200 страниц'})
+        self.assertEqual(packet['conditions'][0]['status'],'missing')
+
     def test_spaced_suffix_is_exact_and_firmware_is_not_a_model(self):
         asked,matched=e.matching_models('Подойдут для HP MFP 4303 fdw, прошивка 6.28.3.30?', ['HP Color LaserJet Pro MFP 4303fdw'])
         self.assertEqual(asked,matched);self.assertEqual(len(asked),1)
