@@ -17,8 +17,10 @@ class EvidenceTests(unittest.TestCase):
 
     def test_memory_usage_statistics_do_not_invalidate_answers(self):
         with patch.object(e.db,'query',return_value=[{'stamp':'unchanged'}]) as query:
-            e.memory_revision()
+            e.memory_revision(self.row(),'5280')
         self.assertTrue(all("-'hit_count'-'last_hit_at'" in call.args[0] for call in query.call_args_list))
+        self.assertIn('WHERE article=%s AND request_class=%s AND question_key=%s',query.call_args_list[0].args[0])
+        self.assertEqual(query.call_args_list[0].args[1][0],'5280')
 
     def test_single_item_set_info_does_not_prove_six_item_variant(self):
         from contextlib import contextmanager
