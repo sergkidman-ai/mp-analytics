@@ -115,6 +115,9 @@ def _fetch(question, query, key, token):
                  (r.get('content') or r.get('summary') or r.get('snippet') or '')[:5000]) for r in results),
                 'sources':sources,'note':'DeepSeek Search: external evidence, not product-card facts',
                 'verdict':'unclear','reply':''}
+    evidence['documents']=[{'url':r.get('url',''),'title':r.get('title',''),
+                           'text':(r.get('content') or r.get('summary') or r.get('snippet') or '')[:8000]}
+                          for r in results]
     with db.get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute('''INSERT INTO rev_search_cache(query_key,evidence) VALUES(%s,%s)
@@ -122,3 +125,19 @@ def _fetch(question, query, key, token):
             cur.execute('UPDATE rev_llm_budget SET actual_usd=%s WHERE request_key=%s', ('0.00075' if results else '0',reservation))
     batch_health.clear('deepseek', source='request')
     return evidence
+
+
+def targeted(query,max_age_hours=168):
+    """Preserve the exact firmware/model at the front of a bounded query."""
+    query=' '.join(str(query).split())[:128]
+    key=hashlib.sha256(('targeted-v2:'+query).encode()).hexdigest()
+    token=os.getenv('DEEPSEEK_API_KEY')
+    if not token or os.getenv('FEEDBACK_LLM_PIPELINE_READY','0')!='1':
+        raise RuntimeError('Search configuration unavailable')
+    if batch_health.blocked('deepseek'):raise RuntimeError('Search provider paused')
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('SELECT pg_advisory_xact_lock(hashtext(%s))',('rev_search:'+key,))
+            rows=db.query("SELECT evidence FROM rev_search_cache WHERE query_key=%s AND cached_at>now()-(%s*interval '1 hour')",(key,max_age_hours))
+            if rows:return rows[0]['evidence']
+            return _fetch(query,query,key,token)

@@ -46,6 +46,9 @@ NO_OVERRIDE = ("обещание в черновике", "претензия, р
 
 
 def _card_sourced(g):
+    if g.get('source')=='проверенные источники':
+        checks=g.get('evidence_conditions') or []
+        return bool(checks) and all(c.get('status')=='confirmed' for c in checks)
     """Источник ответа — карточка или утверждённый оператором кэш (не веб, не «модель»)."""
     src = str(g.get("source") or "")
     if src.startswith("кэш"):
@@ -223,6 +226,10 @@ def verdict_full(row, text=None):
     from reports.compatibility_evidence import absence_denial
     if kind=='question' and absence_denial(body):
         reasons.append('неподтверждённый факт: отсутствие модели в списке не доказывает несовместимость')
+    if kind=='question' and g.get('evidence_signature') and _same(body,row.get('draft_text')):
+        from reports.question_evidence import changed
+        if changed(row,g):
+            reasons.append('неподтверждённый факт: доказательства изменились после проверки ответа')
     if kind == 'question' and g.get('facts_signature') and _same(body, row.get('draft_text')):
         from reports.card_fact_validation import signature
         from reports.feedback_today import _card_facts

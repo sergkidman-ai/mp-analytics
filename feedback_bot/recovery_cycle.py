@@ -255,6 +255,10 @@ def main():
         card_refresh = refresh_native_market()
         collect.report.append(dict(channel='ya_acc1:native_cards',
                                    status='error' if card_refresh['errors'] else 'ok', **card_refresh))
+        if os.getenv('FEEDBACK_EVIDENCE_V2','0')=='1':
+            from ops.rev_evidence_refresh import refresh as refresh_evidence_sources
+            evidence_refresh=refresh_evidence_sources(max_pages=40)
+            collect.report.append(dict(channel='technical_evidence',status='ok',details=evidence_refresh))
     with runtime.processing_lock() as wait_seconds:
         process_collected(active,wait_seconds)
 

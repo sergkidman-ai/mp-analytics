@@ -409,11 +409,12 @@ def _llm(client, r, cf, corpus, hint=None, web_facts=None):
     primary = cached_primary(r.get('body'),r.get('product_name'))
     web_facts = web_facts or primary
     cc = _card_data(r, cf)
-    ex = corpus.retrieve(r["kind"], r["body"] or r["pros"] or r["cons"] or "", r["product_name"], k=5)
+    example_limit=2 if r.get('_evidence_packet') else 5
+    ex = corpus.retrieve(r["kind"], r["body"] or r["pros"] or r["cons"] or "", r["product_name"], k=example_limit)
     _cls = rc.classify(" ".join(filter(None, [r.get("body"), r.get("pros"), r.get("cons")]))
                        if r["kind"] == "review" else r.get("body"),
                        kind=r["kind"], rating=r.get("rating"))
-    approved = ac.recent_for(_cls, _brand_of(r), limit=5,
+    approved = ac.recent_for(_cls, _brand_of(r), limit=example_limit,
                              exclude_article=ac.internal_article(r["platform"], None, r.get("item_id")))
     # Справочник бренда (brand_notes, миграция 707) — наши факты о серии: чип, заправка, прошивка.
     # Идут в промпт отдельным блоком сразу за CARD_DATA и попадают во ВХОДНЫЕ ДАННЫЕ контролёра,
@@ -424,6 +425,7 @@ def _llm(client, r, cf, corpus, hint=None, web_facts=None):
     # thinking-модели (DeepSeek-v4 pro/flash) тратят output-токены на размышления до JSON —
     # держим запас (env FEEDBACK_MAX_TOKENS). Кэш SYSTEM снимаем на не-Anthropic (DeepSeek его игнорит).
     max_tok = int(os.environ.get("FEEDBACK_MAX_TOKENS", "3000"))
+    if r.get('_evidence_packet'):max_tok=min(max_tok,1200)
     model = QUESTION_MODEL if r["kind"] == "question" else MODEL
     if llm_batch.enabled():
         raw = llm_batch.ask(model, SYSTEM, content, max_tok, r)      # или LlmPending
@@ -487,6 +489,9 @@ def _auto_card_q(r, reply, route, ground):
         # первые подстановки («подтвердите»), устаревший кэш и попадание по семейству кода — глазами
         if cache.get("confirm") or cache.get("stale") or cache.get("family") or "веб" in src:
             return route, ground
+    elif src=='проверенные источники':
+        checks=ground.get('evidence_conditions') or []
+        if not checks or any(c.get('status')!='confirmed' for c in checks):return route,ground
     elif src != "карточка":
         return route, ground
     g = dict(ground, request_class=cls)
@@ -1101,7 +1106,12 @@ def _verified(client, r, reply, card, ground):
 
 def _answer(client, r, cf, corpus):
     """Validate every branch, including cached and deterministic early returns."""
-    result = _answer_impl(client, r, cf, corpus)
+    if r.get('kind')=='question' and os.getenv('FEEDBACK_EVIDENCE_V2','0')=='1':
+        from reports import question_evidence, evidence_answers
+        packet=question_evidence.prepare(r,cf)
+        result=evidence_answers.answer(client,r,cf,corpus,packet)
+    else:
+        result = _answer_impl(client, r, cf, corpus)
     outd, reply, route, conf, ground, used_llm, used_web = result
     if r['kind'] != 'question':
         return result
@@ -1110,6 +1120,10 @@ def _answer(client, r, cf, corpus):
     facts = _card_facts(cf, r) or {}
     expert, _ = bn.facts_for(_brand_of(r), r.get('body'),
                              ' '.join(str(facts.get(k) or '') for k in ('name', 'annot')))
+    if ground.get('evidence_version'):
+        # Preserve literal evidence: "with a chip" does not prove installation/level control.
+        expert += '\n'+'\n'.join(s['text'] for s in packet['sources']
+                                 if s.get('fresh') is not False and s['kind']!='internal_technical')
     issues = problems(facts, reply, expert)
     ground = dict(ground, facts_version=FACTS_VERSION, facts_signature=signature(facts),
                   facts_checked=bool(reply) and not issues)

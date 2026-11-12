@@ -248,12 +248,17 @@ def requeue_changed_facts():
                 continue
             sig = signature(engine._card_facts(facts,row))
             ground = row.get('draft_grounding') or {}
-            if ground.get('facts_version') == FACTS_VERSION and ground.get('facts_signature') == sig:
+            import os
+            from reports.question_evidence import VERSION as EVIDENCE_VERSION, changed as evidence_changed
+            evidence_due=os.getenv('FEEDBACK_EVIDENCE_V2','0')=='1' and (
+                ground.get('evidence_version')!=EVIDENCE_VERSION or evidence_changed(row,ground))
+            if not evidence_due and ground.get('facts_version') == FACTS_VERSION and ground.get('facts_signature') == sig:
                 continue
-            if ground.get('facts_pending_signature') == sig and ground.get('facts_pending_version') == FACTS_VERSION:
+            pending_version=FACTS_VERSION+(':'+EVIDENCE_VERSION if evidence_due else '')
+            if ground.get('facts_pending_signature') == sig and ground.get('facts_pending_version') == pending_version:
                 continue
             pending = dict(ground, facts_checked=False, facts_pending_signature=sig,
-                           facts_pending_version=FACTS_VERSION,
+                           facts_pending_version=pending_version,
                            fact_block='обновлены факты карточки; черновик проходит повторную проверку')
             with db.get_conn() as conn:
                 with conn.cursor() as cur:

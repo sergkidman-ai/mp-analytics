@@ -60,14 +60,19 @@ def _card_data(r, cf):
                                             card_kind=(f or {}).get("kind"))
         if rel:
             cat = (cat + "\n\n" + public_block(rel, "CARD_DATA/СВЯЗИ")).strip()
+    evidence_block=''
+    if r.get('_evidence_packet'):
+        from reports.question_evidence import prompt
+        evidence_block=prompt(r['_evidence_packet'])+'\n\n'
     if not f:
-        return cat  # карточки нет, но каталог по наличию может быть
+        return evidence_block+cat
     assert_public_facts(f, "CARD_DATA")   # запрет на уровне сборки: цены/остатки/поставщики — не наружу
     lines = [f"версия извлечения: {FACTS_VERSION}; источник: {f.get('facts_src') or f.get('platform')}"]
     if f.get("code"):       lines.append(f"код картриджа: {f['code']} (можно назвать покупателю)")
     if f.get("kind"):       lines.append(f"тип: {f['kind']}" + (f" / {f['ptype']}" if f.get("ptype") else ""))
     if f.get("chip"):       lines.append("чип: " + _CHIP_RU.get(f["chip"], f["chip"]))
-    else:                   lines.append("чип: в карточке НЕ указан (не утверждать)")
+    else:                   lines.append("чип: в карточке НЕ указан" +
+                                ("; проверить отдельный пакет источников" if evidence_block else " (не утверждать)"))
     lines.append("заправляемость: " + (f["refillable"] if f.get("refillable") else "в описании НЕ заявлена"))
     if f.get("resource"):   lines.append(f"ресурс (значение поля карточки): {f['resource']}")
     if f.get("country"):    lines.append(f"страна производства из карточки: {f['country']}")
@@ -82,7 +87,7 @@ def _card_data(r, cf):
         lines.append("ОПИСАНИЕ КАРТОЧКИ (свободный текст — бери отсюда состав/комплектацию набора, модель "
                      "картриджа, число листов; противоречие с полями выше требует проверки, не выбирай факт произвольно): " + f["annot"])
     head = f"Товар: {public_name(f.get('name') or r['product_name'])} (артикул {f.get('article') or '—'})"
-    block = head + "\nФАКТЫ КАРТОЧКИ:\n- " + scrub_finance("\n- ".join(lines), "ФАКТЫ КАРТОЧКИ")
+    block = evidence_block + head + "\nФАКТЫ КАРТОЧКИ:\n- " + scrub_finance("\n- ".join(lines), "ФАКТЫ КАРТОЧКИ")
     if f.get("chip_src"):
         block += f"\n(чип уточнён по Ozon-двойнику того же артикула)"
     return block + ("\n\n" + cat if cat else "")

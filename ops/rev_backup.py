@@ -29,7 +29,8 @@ ROOT=Path(__file__).resolve().parents[1]
 CRITICAL=('compat_ref','raw_feedback','feedback_moderation','approved_answers','brand_notes','rev_expert_evidence',
           'rev_publication_attempt','feedback_send_attempts','rev_edit_session','rev_telegram_inbox',
           'rev_telegram_checkpoint','rev_archive_publication','rev_history_analysis','feedback_llm_queue',
-          'feedback_llm_batch','feedback_llm_result','rev_llm_budget','rev_card_reprocess')
+          'feedback_llm_batch','feedback_llm_result','rev_llm_budget','rev_card_reprocess',
+          'rev_fact_source','rev_question_evidence','rev_fact_cursor')
 UNITS=('feedback-moderation.service','feedback-recovery-cycle.service','feedback-recovery-cycle.timer',
        'feedback-recovery-review.service','feedback-recovery-review.timer','feedback-rev-backup.service',
        'feedback-rev-backup.timer')

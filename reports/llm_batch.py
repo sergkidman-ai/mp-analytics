@@ -69,7 +69,18 @@ class synchronous:
         return False
 
 
+def message_content(content):
+    import json
+    if isinstance(content,str) and content.startswith('REV_MULTIMODAL_V1:'):
+        blocks=json.loads(content[len('REV_MULTIMODAL_V1:'):])
+        if not isinstance(blocks,list):raise ValueError('Invalid multimodal content')
+        return blocks
+    return content
+
+
 def _key(model, purpose, r, content, system_text=''):
+    import json
+    if not isinstance(content,str):content=json.dumps(content,ensure_ascii=False,sort_keys=True)
     h = hashlib.md5()
     for part in (model, purpose, str((r or {}).get("platform")), str((r or {}).get("account")),
                  str((r or {}).get("kind")), str((r or {}).get("ext_id")), content, system_text):
@@ -86,6 +97,9 @@ def ask(model, system_text, content, max_tokens, r, purpose="draft"):
     from reports.archive_question_policy import require_paid_model_allowed
     require_paid_model_allowed(r or {})
     k = _key(model, purpose, r, content, system_text)
+    if isinstance(content,list):
+        import json
+        content='REV_MULTIMODAL_V1:'+json.dumps(content,ensure_ascii=False,sort_keys=True)
     got = db.query("SELECT raw FROM feedback_llm_result WHERE req_key=%s", (k,))
     if got and (got[0]["raw"] or "").strip():
         db.execute("UPDATE feedback_llm_result SET used_at=now() WHERE req_key=%s", (k,))
@@ -159,7 +173,8 @@ def flush_if_due(force=False, verbose=True):
                   flush=True)
         return None
     rows = db.query("""SELECT * FROM feedback_llm_queue WHERE batch_id IS NULL AND submission_key IS NULL
-                        ORDER BY created_at LIMIT %s""", (BATCH_CAP,))
+                        ORDER BY CASE WHEN purpose LIKE 'verify%%' THEN 0 WHEN purpose='image_evidence' THEN 1 ELSE 2 END,
+                        created_at LIMIT %s""", (BATCH_CAP,))
     if not rows:
         return None
     from reports.archive_question_policy import is_archive_question
@@ -181,7 +196,7 @@ def flush_if_due(force=False, verbose=True):
         reqs.append(Request(custom_id=r["req_key"],
                             params=MessageCreateParamsNonStreaming(
                                 model=model, max_tokens=int(r["max_tokens"]), system=sysparam,
-                                messages=[{"role": "user", "content": r["content"]}])))
+                                messages=[{"role": "user", "content": message_content(r["content"])}])))
     from reports import recovery_budget
     from decimal import Decimal
     recovery_budget.setup()
@@ -189,10 +204,22 @@ def flush_if_due(force=False, verbose=True):
     if not prices:
         raise RuntimeError('Unpriced model blocked before batch submission')
     def upper(row):
-        return ((len((row['system_text']+row['content']).encode('utf-8'))+4096)*prices[0]*1.25
+        content=message_content(row['content'])
+        if isinstance(content,list):
+            # Images are locally bounded to 1000px. Conservative 4,000 tokens/image;
+            # base64 bytes must not be counted as text tokens.
+            size=len(row['system_text'].encode())+sum(len(x.get('text','').encode()) if x.get('type')=='text' else 4000 for x in content)
+        else:size=len((row['system_text']+content).encode('utf-8'))
+        return ((size+4096)*prices[0]*1.25
                 +int(row['max_tokens'])*prices[1])/1e6*llm_pricing.BATCH_DISCOUNT
     spent = recovery_budget.status()
     available = Decimal(os.getenv('FEEDBACK_LLM_DAILY_TARGET_USD', '1')) - Decimal(str(spent['spent_usd'])) - Decimal(str(spent['reserved_usd']))
+    # The $1 target is soft. A real waiting queue may use the already-authorized
+    # $2 hard cap; never leave affordable verification jobs stuck until midnight.
+    cap=min(Decimal('2'),Decimal(os.getenv('FEEDBACK_LLM_DAILY_CAP_USD','2')))
+    hard_available=cap-Decimal(str(spent['spent_usd']))-Decimal(str(spent['reserved_usd']))
+    if rows and not any(Decimal(str(upper(row)))<=available for row in rows):
+        available=hard_available
     selected, upper_cost = [], 0.0
     for row in rows:
         if Decimal(str(upper_cost+upper(row))) <= available:
