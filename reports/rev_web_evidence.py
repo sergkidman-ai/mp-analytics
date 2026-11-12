@@ -30,9 +30,15 @@ def focused_text(text,context,limit=2400):
 def cartridge_codes(facts):
     """Codes from our listing, preserving variant suffixes; never printer model guesses."""
     from reports.card_facts import _CODE_RX
+    from reports.sku_relations import code_of_title
     title=re.split(r'\bдля\b|\bfor\b',str(facts.get('name') or ''),maxsplit=1,flags=re.I)[0]
     text=str(facts.get('code') or '')+' '+title
-    codes=re.findall(r'\bC13S\d{6}[A-Z0-9]*\b',text,re.I)
+    codes=[]
+    for candidate in [facts.get('code'),code_of_title(title)]:
+        candidate=re.sub(r'\s+','',str(candidate or '')).upper()
+        if re.fullmatch(r'[A-Z0-9][A-Z0-9/-]{1,29}',candidate) and re.search(r'\d',candidate):
+            codes.append(candidate)
+    codes += re.findall(r'\bC13S\d{6}[A-Z0-9]*\b',text,re.I)
     codes += [m.group(0) for m in _CODE_RX.finditer(text)]
     return list(dict.fromkeys(re.sub(r'\s+','',c).upper() for c in codes))[:2]
 

@@ -49,6 +49,10 @@ class WebEvidenceTests(unittest.TestCase):
         self.assertEqual(result['cartridge_codes'],['C13S015610BA'])
         self.assertEqual(result['attempts'][-1]['relevant_primary'],0)
 
+    def test_numeric_cartridge_code_uses_explicit_listing_field_not_printer_digits(self):
+        self.assertEqual(web.cartridge_codes({'code':'069H','name':'Картридж для Canon LBP673Cdw'}),['069H'])
+        self.assertEqual(web.cartridge_codes({'name':'Лента для Epson LQ-690II'}),[])
+
     def test_reverse_lookup_survives_forward_search_error(self):
         with patch('reports.deepseek_search.targeted',side_effect=[TimeoutError(),{'documents':[]}]) as search:
             result=web.lookup(self.row(),{'name':'Картридж TN-217 для Brother DCP-L3550CDW'},['compatibility'])
