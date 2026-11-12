@@ -92,6 +92,12 @@ class EvidenceTests(unittest.TestCase):
         asked,matched=e.matching_models('Подойдут для HP 4303fdw?', ['HP Color LaserJet Pro 4303dw'])
         self.assertTrue(asked);self.assertEqual(matched,[])
 
+    def test_spaced_hp_family_matches_without_dropping_model_suffix(self):
+        asked,matched=e.matching_models('Для HP Desk Jet 2320 подойдёт?', ['HP DeskJet 2320'])
+        self.assertTrue(asked);self.assertEqual(asked,matched)
+        asked,matched=e.matching_models('Для HP Laser Jet 4303fdw подойдёт?', ['HP LaserJet 4303dw'])
+        self.assertTrue(asked);self.assertEqual(matched,[])
+
     def test_printer_match_does_not_confirm_firmware(self):
         p=self.packet('Подойдут для HP 4303fdw, прошивка 6.28.3.30?',facts={'name':'Комплект 230A','models':['HP MFP 4303fdw'],'chip':'installed'})
         c={x['id']:x['status'] for x in p['conditions']}

@@ -65,11 +65,13 @@ def primary_url(url):
 
 def matching_models(question,models):
     from reports.compat_index import query_models
+    def spacing(text):
+        return re.sub(r'\b(desk|laser|office)\s+jet\b',r'\1jet',str(text or ''),flags=re.I)
     # Version/date components are not printer models.
-    clean=re.split(r'прошив\w*|firmware',question or '',flags=re.I)[0]
+    clean=spacing(re.split(r'прошив\w*|firmware',question or '',flags=re.I)[0])
     clean=re.sub(r'(\d)\s+(fdw|fdn|cdn|cdw|dw|dn|fnw|cx|cd|cn)\b',r'\1\2',clean,flags=re.I)
     queries=query_models(clean)
-    candidates=query_models('',models)
+    candidates=query_models('',[spacing(model) for model in models])
     asked=[];matched=[]
     for q in queries:
         if not q.get('digits'):continue
