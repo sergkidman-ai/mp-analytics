@@ -63,6 +63,12 @@ def answer(client,row,cf,corpus,packet):
         ground['fact_block']='Не получен содержательный ответ; '+ '; '.join(packet['operator_requests'])
         return {},'','human',0,ground,used_llm,False
     text,ground=engine._verified(client,row,text,card,ground)
+    ground['evidence_controller_version']=evidence.CONTROLLER_VERSION
+    if ground.get('evidence_checks'):
+        packet=evidence.apply_checks(packet,ground['evidence_checks'])
+        evidence.remember(row,packet)
+        ground.update(evidence_signature=evidence.store.digest(packet),evidence_conditions=packet['conditions'],
+                      operator_requests=packet['operator_requests'],grounded=complete(packet))
     route='review'
     if ground.get('verify')!='PASS':route='human'
     if not complete(packet):

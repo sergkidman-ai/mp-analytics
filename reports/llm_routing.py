@@ -131,7 +131,7 @@ VERIFY_SYSTEM = (
 )
 
 
-def verify(create, model, kind, question, draft, inputs, max_tokens=300):
+def verify(create, model, kind, question, draft, inputs, max_tokens=300, check_conditions=False):
     """Проверяющий проход. `create` — функция вызова модели (client, **kw) уже с ретраями.
 
     → (verdict, note, usage). Неудача разбора означает FIX, не разрешение публикации.
@@ -140,7 +140,17 @@ def verify(create, model, kind, question, draft, inputs, max_tokens=300):
                f"{'ВОПРОС' if kind == 'question' else 'ОТЗЫВ'} ПОКУПАТЕЛЯ:\n"
                f"\"\"\"{(question or '')[:2400]}\"\"\"\n\n"
                f"ГОТОВЫЙ ОТВЕТ:\n\"\"\"{(draft or '')[:1500]}\"\"\"\n\nВерни JSON.")
-    m = create(model=model, max_tokens=max_tokens, system=VERIFY_SYSTEM,
+    system=VERIFY_SYSTEM
+    if check_conditions:
+        system += (' Для этого запроса формат JSON расширен: {"verdict":"PASS" или "FIX",'
+                   '"note":"причина","checks":[{"id":"id условия из пакета","status":"confirmed или missing или conflict",'
+                   '"source_ids":["id источника"],"quote":"дословная цитата из источника"}]}. '
+                   'Проверь каждое условие пакета. Исходное missing означает, что простой сборщик не нашёл доказательство; '
+                   'ты можешь подтвердить условие только по точной цитате из переданных источников нужного товара. '
+                   'Для отсутствующего доказательства верни missing и FIX. Невыбранные варианты поставщиков не доказательство. '
+                   'Не используй сами статусы conditions как цитаты. Если сам ответ неполный или противоречит цитате, верни FIX.')
+        max_tokens=max(max_tokens,900)
+    m = create(model=model, max_tokens=max_tokens, system=system,
                messages=[{"role": "user", "content": content}])
     raw = "".join(getattr(b, "text", "") for b in m.content
                   if getattr(b, "type", None) == "text").strip()

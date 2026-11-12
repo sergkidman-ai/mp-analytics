@@ -50,6 +50,24 @@ class EvidenceTests(unittest.TestCase):
         primary.assert_not_called()
         self.assertEqual(result['status'],'matched')
 
+    def test_controller_evidence_can_complete_an_existing_draft_without_regeneration(self):
+        from reports import feedback_today as engine
+        from contextlib import ExitStack
+        row=self.row('Какой производитель?');packet=self.packet(row['body'])
+        quote='Изготовитель данного товара — Завод А.'
+        packet['sources'].append(e.source('expert','expert_memory',quote))
+        checks=[{'id':'manufacturer','status':'confirmed','source_ids':['expert'],'quote':quote}]
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(engine,'_card_data',return_value='источники'))
+            generator=stack.enter_context(patch.object(engine,'_llm',return_value=({'reply':'Изготовитель — Завод А.'},'источники',None)))
+            stack.enter_context(patch.object(engine,'_qa_guards',side_effect=lambda reply,*args:(reply,[])))
+            stack.enter_context(patch.object(engine,'_verified',side_effect=lambda client,row,reply,card,ground:(reply,dict(ground,verify='PASS',evidence_checks=checks))))
+            stack.enter_context(patch.object(e,'remember',side_effect=lambda row,p:p))
+            result=answers.answer(None,row,None,None,packet)
+        self.assertEqual(generator.call_count,1)
+        self.assertEqual(result[2],'review');self.assertTrue(result[4]['grounded'])
+        self.assertEqual(result[4]['evidence_conditions'][0]['status'],'confirmed')
+
     def row(self,question='Все 6 цвета как на фото?'):
         return dict(platform='ozon',account='oz_acc2',kind='question',ext_id='test',item_id='123',
                     body=question,product_name='Комплект 378XL-478XL',pros=None,cons=None,rating=None)

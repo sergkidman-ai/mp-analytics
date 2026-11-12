@@ -12,6 +12,7 @@ from reports.card_fact_validation import signature
 from reports.prompt_privacy import assert_public_facts,public_name
 
 VERSION='question-evidence-v2-20261112'
+CONTROLLER_VERSION='quoted-conditions-v1'
 PRIMARY=('hp.com','hpcloud.hp.com','epson.com','epson.eu','epson.co.uk','brother.com','brother.eu',
          'canon.com','canon-europe.com','canon.ru','xerox.com','kyoceradocumentsolutions.com',
          'kyoceradocumentsolutions.eu','pantum.com','ricoh.com','lexmark.com','oki.com')
@@ -260,6 +261,8 @@ def prepare(row,cf,allow_paid=True):
 
 
 def changed(row,ground):
+    if (any(c.get('status')!='confirmed' for c in ground.get('evidence_conditions',[]))
+            and ground.get('evidence_controller_version')!=CONTROLLER_VERSION):return True
     records=db.query('''SELECT payload,fingerprint,updated_at FROM rev_question_evidence
         WHERE (platform,account,kind,ext_id)=(%s,%s,%s,%s)''',tuple(row[k] for k in ('platform','account','kind','ext_id')))
     if not records:return True
