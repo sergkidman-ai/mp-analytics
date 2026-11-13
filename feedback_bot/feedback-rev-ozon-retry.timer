@@ -1,0 +1,11 @@
+# поток: rev
+[Unit]
+Description=Check approved Ozon replies every 15 minutes until delivered
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Unit=feedback-rev-ozon-retry.service
+
+[Install]
+WantedBy=timers.target

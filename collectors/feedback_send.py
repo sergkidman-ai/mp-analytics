@@ -170,7 +170,9 @@ def send_ozon_question(account, question_id, sku, text):
             continue
         r.raise_for_status()
         return True
-    raise RuntimeError("Ozon question/answer: исчерпаны ретраи по 429")
+    # Four explicit 429 responses prove the write was rejected. Preserve the HTTP
+    # status so the publication ledger does not classify it as an unknown outcome.
+    r.raise_for_status()
 
 
 def send_wb_review(account, feedback_id, text):

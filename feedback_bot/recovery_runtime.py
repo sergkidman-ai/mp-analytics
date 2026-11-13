@@ -152,8 +152,15 @@ def poll_once(api, callback, message):
 
 
 def claim_publication(row, text):
-    return bool(db.execute('''INSERT INTO rev_publication_attempt(platform,account,kind,ext_id,state,final_text)
+    inserted=db.execute('''INSERT INTO rev_publication_attempt(platform,account,kind,ext_id,state,final_text)
         VALUES(%s,%s,%s,%s,'inflight',%s) ON CONFLICT DO NOTHING''',
+        (row['platform'],row['account'],row['kind'],row['ext_id'],text))
+    if inserted:return True
+    # A definitive HTTP rejection can be retried after fresh readback. Unknown,
+    # inflight and accepted writes remain fenced even when readback is empty.
+    return bool(db.execute('''UPDATE rev_publication_attempt SET state='inflight',updated_at=now()
+        WHERE (platform,account,kind,ext_id)=(%s,%s,%s,%s)
+          AND state='rejected' AND final_text=%s''',
         (row['platform'],row['account'],row['kind'],row['ext_id'],text)))
 
 
