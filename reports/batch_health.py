@@ -50,7 +50,7 @@ def _enqueue(cur, provider, kind, reason, severity, message):
 
 
 def observe(provider, reason, detail, *, severity='critical', blocks_work=True,
-            source='request', transient=False, retry_seconds=300):
+            source='request', transient=False, retry_seconds=300, repeat_seconds=21600):
     setup()
     now = datetime.datetime.now(datetime.timezone.utc)
     with db.get_conn() as conn:
@@ -63,7 +63,7 @@ def observe(provider, reason, detail, *, severity='critical', blocks_work=True,
                 severity = 'warning' if failures==1 else 'critical'
             due = (not previous or previous['reason']!=reason or previous['severity']!=severity
                    or not previous['last_event_at']
-                   or (now-previous['last_event_at']).total_seconds()>=21600)
+                   or (now-previous['last_event_at']).total_seconds()>=repeat_seconds)
             event_at = now if due else previous['last_event_at']
             cur.execute('''INSERT INTO rev_batch_health
                 (provider,reason,detail,severity,source,blocks_work,failures,last_event_at,retry_at)
@@ -97,7 +97,7 @@ def blocked(provider='anthropic'):
     return rows[0]['detail'] if rows else None
 
 
-def clear(provider='anthropic', source=None):
+def clear(provider='anthropic', source=None, notify_recovery=True):
     """Only a successful operation resolves its failure; balance checks are scoped."""
     setup()
     with db.get_conn() as conn:
@@ -110,12 +110,14 @@ def clear(provider='anthropic', source=None):
                 return False
             cur.execute('''UPDATE rev_provider_alert SET superseded_at=now()
                 WHERE provider=%s AND delivered_at IS NULL AND superseded_at IS NULL''', (provider,))
-            resolved = ('Доступ восстановлен. Обработка возобновляется автоматически.'
-                        if previous['blocks_work'] else 'Проверка успешна. Предупреждение снято.')
-            message = '🟢 Rev · '+html.escape(label(provider))+'\n'+resolved
-            _enqueue(cur,provider,'recovery',previous['reason'],'healthy',message)
+            if notify_recovery:
+                resolved = ('Доступ восстановлен. Обработка возобновляется автоматически.'
+                            if previous['blocks_work'] else 'Проверка успешна. Предупреждение снято.')
+                message = '🟢 Rev · '+html.escape(label(provider))+'\n'+resolved
+                _enqueue(cur,provider,'recovery',previous['reason'],'healthy',message)
             cur.execute('DELETE FROM rev_batch_health WHERE provider=%s', (provider,))
-    deliver_alerts(provider=provider)
+    if notify_recovery:
+        deliver_alerts(provider=provider)
     return True
 
 

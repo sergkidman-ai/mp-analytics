@@ -38,6 +38,15 @@ class ProviderAlerts(unittest.TestCase):
         self.assertEqual([e['kind'] for e in self.events()],['problem','recovery'])
         self.assertTrue(all(e['delivered_at'] and e['message_id'] for e in self.events()))
 
+    def test_silent_balance_recovery_clears_state_without_green_message(self):
+        health.observe(self.provider,'low_balance','Low balance',
+                       severity='warning',blocks_work=False,source='balance')
+        self.assertEqual(self.send.call_count,1)
+        self.assertTrue(health.clear(self.provider,source='balance',notify_recovery=False))
+        self.assertEqual(self.send.call_count,1)
+        self.assertEqual([e['kind'] for e in self.events()],['problem'])
+        self.assertFalse(db.query('SELECT 1 FROM rev_batch_health WHERE provider=%s',(self.provider,)))
+
     def test_failed_telegram_delivery_is_durable_and_retried(self):
         self.send.return_value=None
         health.record(SimpleNamespace(status_code=401,body={}),self.provider)
@@ -107,22 +116,33 @@ class DeepSeekRecovery(unittest.TestCase):
         database.execute.assert_not_called()
         alert.assert_called_once()
 
-    def test_balance_warning_continues_work_and_billing_recovery_is_scoped(self):
+    def test_balance_above_red_zone_is_silent_and_billing_recovery_is_scoped(self):
         response=SimpleNamespace(ok=True,json=lambda:{'is_available':True,'balance_infos':[{'currency':'USD','total_balance':'0.68'}]})
         with patch.object(watch,'batch_health') as state, patch.object(watch.requests,'get',return_value=response), \
              patch.dict('os.environ',{'DEEPSEEK_API_KEY':'test','DEEPSEEK_BASE_URL':'https://api.deepseek.com/anthropic'}):
             result=watch.check_deepseek()
             self.assertTrue(result['available'])
+            state.observe.assert_not_called()
+            state.clear.assert_any_call('deepseek',source='balance')
+            state.clear.assert_any_call('deepseek-balance',source='balance',notify_recovery=False)
+
+    def test_balance_in_red_zone_alerts_without_blocking_work(self):
+        response=SimpleNamespace(ok=True,json=lambda:{'is_available':True,'balance_infos':[{'currency':'USD','total_balance':'0.24'}]})
+        with patch.object(watch,'batch_health') as state, patch.object(watch.requests,'get',return_value=response), \
+             patch.dict('os.environ',{'DEEPSEEK_API_KEY':'test','DEEPSEEK_BASE_URL':'https://api.deepseek.com/anthropic'}):
+            result=watch.check_deepseek()
+            self.assertEqual(result['usd'],'0.24')
+            self.assertEqual(state.observe.call_args.args[:2],('deepseek-balance','low_balance'))
+            self.assertEqual(state.observe.call_args.kwargs['severity'],'critical')
             self.assertFalse(state.observe.call_args.kwargs['blocks_work'])
-            state.clear.assert_called_once_with('deepseek',source='balance')
+            self.assertEqual(state.observe.call_args.kwargs['repeat_seconds'],86400)
 
     def test_failed_balance_endpoint_does_not_overwrite_proven_search_failure(self):
         response=SimpleNamespace(ok=False,status_code=503)
         with patch.object(watch,'batch_health') as state, patch.object(watch.requests,'get',return_value=response), \
              patch.dict('os.environ',{'DEEPSEEK_API_KEY':'test','DEEPSEEK_BASE_URL':'https://api.deepseek.com/anthropic'}):
             watch.check_deepseek()
-            self.assertEqual(state.observe.call_args.args[0],'deepseek-balance')
-            self.assertFalse(state.observe.call_args.kwargs['blocks_work'])
+            state.observe.assert_not_called()
             state.record.assert_not_called()
 
 
