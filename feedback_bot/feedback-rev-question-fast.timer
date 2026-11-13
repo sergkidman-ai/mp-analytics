@@ -1,0 +1,12 @@
+# поток: rev
+[Unit]
+Description=Check for new marketplace questions every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+Persistent=true
+Unit=feedback-rev-question-fast.service
+
+[Install]
+WantedBy=timers.target
