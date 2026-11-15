@@ -22,10 +22,17 @@ class SimpleReviews(unittest.TestCase):
         ready = dict(row, draft_text=answer[1], draft_grounding=answer[4], draft_route='auto')
         self.assertTrue(publish_gate.verdict(ready)[0])
 
+    def test_middle_ratings_use_safe_templates_without_paid_model(self):
+        with patch.object(llm_batch, 'ask', side_effect=AssertionError('Paid model called')):
+            for rating in (2, 3):
+                self.assertEqual(policy.answer(dict(self.row(), rating=rating, body='Не работает'))[1], policy.NEGATIVE)
+            self.assertEqual(policy.answer(dict(self.row(), rating=4))[1], policy.POSITIVE)
+
     def test_question_and_positive_with_problem_are_not_auto_templates(self):
         row = self.row()
         self.assertIsNone(policy.answer(dict(row, kind='question')))
         self.assertIsNone(policy.answer(dict(row, body='Не подходит. Что купить?')))
+        self.assertIsNone(policy.answer(dict(row, rating=4, body='Не подходит к принтеру')))
         self.assertIsNone(policy.answer(dict(row, skipped_old=True)))
         self.assertIsNone(policy.answer(dict(row, platform='ozon')))
 

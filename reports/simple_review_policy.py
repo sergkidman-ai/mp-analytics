@@ -1,5 +1,5 @@
 # поток: rev
-"""Owner-approved, fact-free replies to live 1/5-star reviews (11 November)."""
+"""Owner-approved, fact-free replies to simple live reviews."""
 from reports.feedback_draft_run import review_flagged
 
 POSITIVE = 'Здравствуйте! Спасибо за отзыв и оценку.'
@@ -14,9 +14,9 @@ def reply_for(row):
             or row.get('final_text') is not None or row.get('decided_at') is not None
             or row.get('editing')):
         return None
-    if row.get('rating') == 1:
+    if row.get('rating') in (1, 2, 3):
         return NEGATIVE
-    if row.get('rating') == 5 and not review_flagged(row):
+    if row.get('rating') in (4, 5) and not review_flagged(row):
         return POSITIVE
     return None
 
