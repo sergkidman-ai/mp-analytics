@@ -1,6 +1,6 @@
 # поток: infra
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock,patch
 from ops.pult_backup import retention_selection,Drive,PROJECT
 
 
@@ -10,7 +10,7 @@ class BackupRetentionTest(unittest.TestCase):
                  {'file_id':'evening','snapshot_utc':'2026-11-16T20:00:00+00:00'},
                  {'file_id':'previous','snapshot_utc':'2026-11-14T01:00:00+00:00'},
                  {'file_id':'older','snapshot_utc':'2026-11-13T01:00:00+00:00'}]
-        self.assertEqual(retention_selection(records),{'evening','previous'})
+        self.assertEqual(retention_selection(records,daily=2),{'evening','previous'})
 
     def test_weeks_and_months_preserve_older_restore_points(self):
         records=[{'file_id':day,'snapshot_utc':day+'T01:00:00+00:00'}
@@ -24,15 +24,17 @@ class BackupRetentionTest(unittest.TestCase):
     def test_rotation_cannot_touch_other_projects_or_folders(self):
         drive=Drive({'folder_id':'owned'});drive.call=Mock()
         with self.assertRaises(AssertionError):
-            drive.trash({'id':'foreign','parents':['owned'],'appProperties':{'project':'another-app'}})
+            drive.delete({'id':'foreign','parents':['owned'],'appProperties':{'project':'another-app'}})
         with self.assertRaises(AssertionError):
-            drive.trash({'id':'foreign','parents':['other-folder'],'appProperties':{'project':PROJECT}})
+            drive.delete({'id':'foreign','parents':['other-folder'],'appProperties':{'project':PROJECT}})
         drive.call.assert_not_called()
 
-    def test_expiration_is_reversible_and_never_uses_delete(self):
-        drive=Drive({'folder_id':'owned'});drive.call=Mock();drive.call.return_value.json.return_value={'id':'file','trashed':True}
-        drive.trash({'id':'file','parents':['owned'],'appProperties':{'project':PROJECT}})
-        self.assertEqual(drive.call.call_args.args[0],'PATCH')
-        self.assertEqual(drive.call.call_args.kwargs['json'],{'trashed':True})
+    def test_permanent_deletion_rechecks_metadata_and_confirms_absence(self):
+        drive=Drive({'folder_id':'owned'});drive.call=Mock();drive.headers=Mock(return_value={})
+        item={'id':'file','name':'old','size':'10','parents':['owned'],'appProperties':{'project':PROJECT}}
+        drive.call.return_value.json.return_value=item
+        with patch('ops.pult_backup.requests.get',return_value=Mock(status_code=404)):
+            drive.delete(item)
+        self.assertEqual([x.args[0]for x in drive.call.call_args_list],['GET','DELETE'])
 
 if __name__=='__main__':unittest.main()

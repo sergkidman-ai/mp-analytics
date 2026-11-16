@@ -4,7 +4,7 @@
 
 Never restores to the production cluster. Restore verification starts a separate
 PostgreSQL cluster with no network, workers or production sockets configured.
-Drive rotation moves only this application's verified, expired files to Trash.
+Drive rotation deletes only this application's verified files older than 72h.
 """
 import argparse
 import configparser
@@ -123,9 +123,12 @@ class Drive:
         command([*self.transfer_args(),'copyto','pult-drive:'+item['name'],path,'--immutable'],timeout=5400,log=Path(path).parent/'download.log')
         Path(path).chmod(0o600)
         assert Path(path).stat().st_size==int(item['size'])
-    def trash(self,item):
+    def delete(self,item):
         assert item.get('appProperties',{}).get('project')==PROJECT and self.c['folder_id']in item.get('parents',[]),'outside_backup_scope'
-        d=self.call('PATCH','https://www.googleapis.com/drive/v3/files/'+item['id'],params={'fields':'id,trashed'},json={'trashed':True}).json();assert d['trashed']
+        live=self.call('GET','https://www.googleapis.com/drive/v3/files/'+item['id'],params={'fields':'id,name,size,parents,appProperties'}).json()
+        assert live['name']==item['name']and int(live['size'])==int(item['size'])and self.c['folder_id']in live['parents']
+        self.call('DELETE','https://www.googleapis.com/drive/v3/files/'+item['id'])
+        check=requests.get('https://www.googleapis.com/drive/v3/files/'+item['id'],headers=self.headers(),timeout=(15,60));assert check.status_code==404,'deletion_not_verified'
 
 
 def pg_environment():
@@ -272,9 +275,11 @@ def restore_test(directory):
         assert cluster.parent==Path('/var/tmp')and cluster.name.startswith('pult-backup-verify-');shutil.rmtree(cluster)
 
 
-def retention_selection(records,daily=2,weekly=0,monthly=0):
+def retention_selection(records,daily=3,weekly=0,monthly=0,max_age_hours=None,reference=None):
     chosen=set();days=set();weeks=set();months=set()
+    cutoff=(reference or dt.datetime.now(dt.timezone.utc))-dt.timedelta(hours=max_age_hours)if max_age_hours is not None else None
     for rec in sorted(records,key=lambda r:r['snapshot_utc'],reverse=True):
+        if cutoff and dt.datetime.fromisoformat(rec['snapshot_utc'])<cutoff:continue
         day=dt.datetime.fromisoformat(rec['snapshot_utc']).date();week=day.isocalendar()[:2];month=(day.year,day.month)
         if day not in days and len(days)<daily:days.add(day);chosen.add(rec['file_id'])
         if week not in weeks and len(weeks)<weekly:weeks.add(week);chosen.add(rec['file_id'])
@@ -291,14 +296,22 @@ def rotate(drive,c,new_success):
     for rec in records:
         if rec['file_id']in keep or rec['file_id']not in items:continue
         item=items[rec['file_id']];assert item['name']==rec['name']and int(item['size'])==rec['bytes']
-        drive.trash(item);removed.append(item['name'])
-    return {'retained_file_ids':sorted(keep),'trashed':removed,'permanent_deletion':False}
+        drive.delete(item);removed.append(item['name'])
+    dependencies={ident for parent,ids in c.get('initial_dependencies',{}).items()if parent in keep for ident in ids}
+    cutoff=dt.datetime.now(dt.timezone.utc)-dt.timedelta(hours=c['retention']['max_age_hours'])
+    for item in items.values():
+        if item['id']in dependencies or item.get('appProperties',{}).get('kind')not in('bootstrap','documents'):continue
+        match=re.fullmatch(r'pult-(?:bootstrap|documents)-(\d{8}T\d{6}Z)\.tar\.gpg',item['name'])
+        if match and dt.datetime.strptime(match[1],'%Y%m%dT%H%M%SZ').replace(tzinfo=dt.timezone.utc)<cutoff:
+            drive.delete(item);removed.append(item['name'])
+    return {'retained_file_ids':sorted(keep),'deleted':removed,'permanent_deletion':True,'max_age_hours':72}
 def rotate_local(new_success):
     records=[]
     for p in (LOCAL/'success').glob('*.json'):
         r=json.loads(p.read_text())
         if r.get('restore',{}).get('passed')and r.get('download_sha256_verified')and r.get('local_directory'):records.append(r)
-    records.sort(key=lambda r:r['completed_at'],reverse=True);keep={r['local_directory']for r in records[:2]}|{new_success['local_directory']};removed=[]
+    keep_ids=retention_selection(records,**config()['retention'])
+    keep={r['local_directory']for r in records if r['file_id']in keep_ids}|{new_success['local_directory']};removed=[]
     for r in records:
         directory=Path(r['local_directory'])
         if str(directory)in keep or not directory.exists():continue
