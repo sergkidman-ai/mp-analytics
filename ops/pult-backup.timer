@@ -1,0 +1,12 @@
+# поток: infra
+[Unit]
+Description=Daily verified Pult offsite backup
+
+[Timer]
+OnCalendar=*-*-* 03:10:00 UTC
+RandomizedDelaySec=0
+Persistent=true
+Unit=pult-backup.service
+
+[Install]
+WantedBy=timers.target
