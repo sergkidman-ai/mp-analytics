@@ -61,7 +61,7 @@ def mark(mod_id, state, error=None):
 
 
 def stage_candidate(original, reply, ground):
-    """Show a completed draft while its Batch controller is pending, without send buttons."""
+    """Show a completed draft while its controller is pending, with explicit operator approval."""
     mid = original.get('mod_id')
     if not mid or not (reply or '').strip():
         return False
@@ -72,16 +72,19 @@ def stage_candidate(original, reply, ground):
         pending = dict(ground, verify='pending', recovery_reprocessed=True,
                        note='Ответ подготовлен; ожидается проверка контролёра Anthropic Batch.')
         key = tuple(current[k] for k in ['platform','account','kind','ext_id'])
-        db.execute('''UPDATE raw_feedback SET draft_text=%s,draft_route='review',
+        db.execute('''WITH revision AS (
+                UPDATE feedback_moderation SET recovery_revision=%s WHERE id=%s RETURNING id)
+            UPDATE raw_feedback SET draft_text=%s,draft_route='review',
             draft_grounding=%s,draft_at=now()
-            WHERE (platform,account,kind,ext_id)=(%s,%s,%s,%s)''', (reply,Json(pending),*key))
+            WHERE EXISTS (SELECT 1 FROM revision) AND (platform,account,kind,ext_id)=(%s,%s,%s,%s)''',
+            (uuid.uuid4().hex[:10], mid, reply, Json(pending), *key))
         if current.get('tg_msg_id'):
             current.update(id=mid,draft_text=reply,draft_grounding=pending,draft_route='review')
             try:
                 response=bot.api('editMessageText',{'chat_id':current['tg_chat_id'],
                     'message_id':current['tg_msg_id'],'text':bot._card(current)[:4000],
                     'parse_mode':'HTML','disable_web_page_preview':True,
-                    'reply_markup':bot._kb(mid,allow_send=False,allow_override=False)})
+                    'reply_markup':bot._kb(mid,allow_send=False,allow_override=publish_gate.operator_can_send(current))})
                 return bool(response.get('ok'))
             except Exception:
                 return False  # Retry the same edit on the next tick; never send another card.

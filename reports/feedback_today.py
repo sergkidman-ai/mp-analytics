@@ -473,15 +473,43 @@ AUTO_Q_CLASSES = ("характеристики", "производитель", 
 AUTO_Q_ON = os.environ.get("FEEDBACK_AUTO_CARD_Q", "1") == "1"
 
 
+def _filled_on_arrival(question, reply, facts):
+    """Only a single factory-fill question about a complete laser toner cartridge."""
+    def normalized(text):
+        return " ".join(re.findall(r"[а-яёa-z0-9]+", (text or "").lower())).replace("ё", "е")
+
+    question = normalized(question)
+    if not re.fullmatch(r"(?:(?:здравствуйте|добрый день) )?(?:картридж |катридж |он )?"
+                        r"(?:(?:приходит|придет|поставляется|идет) )?(?:уже )?"
+                        r"заправлен(?:ный|ным)?(?: ли)?", question):
+        return False
+    if not re.fullmatch(r"(?:здравствуйте )?(?:да )?картридж "
+                        r"(?:(?:приходит|поставляется|идет) )?(?:уже )?заправлен(?:ный|ным)?"
+                        r"(?: и готов к (?:работе|печати))?", normalized(reply)):
+        return False
+    description = normalized(" ".join(str(facts.get(k) or "") for k in ("name", "annot", "set_info")))
+    return (normalized(facts.get("name")).startswith("картридж ")
+            and normalized(facts.get("set_info")).startswith("картридж ")
+            and "лазерн" in description and facts.get("kind") == "совместимый"
+            and str(facts.get("resource") or "").isdigit() and int(facts["resource"]) > 0
+            and facts.get("chip") == "installed"
+            and not re.search(r"пуст|пзк|без тонера|без заправки|не заправлен|без чипа|"
+                              r"фотобарабан|драм|бункер|стартов.*без тонера", description))
+
+
 def _auto_card_q(r, reply, route, ground):
     """→ (route, ground). Меняет только review → auto и только для вопросов, прошедших всё сразу."""
     if not AUTO_Q_ON or r.get("kind") != "question" or route != "review" or not (reply or "").strip():
         return route, ground
     from reports import publish_gate
     cls = ground.get("request_class") or rc.classify(r.get("body"), kind="question", rating=r.get("rating"))
-    if cls not in AUTO_Q_CLASSES or ground.get("verify") != "PASS":
+    if ground.get("verify") != "PASS":
         return route, ground
     if not ground.get("facts_checked"):
+        return route, ground
+    factory_fill = cls == "заправка" and _filled_on_arrival(
+        r.get("body"), reply, _card_facts(CardFacts(), r) or {})
+    if cls not in AUTO_Q_CLASSES and not factory_fill:
         return route, ground
     src = str(ground.get("source") or "")
     cache = ground.get("cache") if isinstance(ground.get("cache"), dict) else {}
@@ -498,7 +526,7 @@ def _auto_card_q(r, reply, route, ground):
     if cls == "совместимость" and not (g.get("compat") or {}).get("exact"):
         return route, ground
     row = dict(r, draft_text=reply, draft_route="auto", draft_grounding=g)
-    if not publish_gate.eased_class(row, g, cls):
+    if not factory_fill and not publish_gate.eased_class(row, g, cls):
         return route, ground
     allow, why, _trace = publish_gate.verdict_full(row, reply)
     if not allow or why:

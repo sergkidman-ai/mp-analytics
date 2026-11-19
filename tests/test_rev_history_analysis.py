@@ -48,10 +48,10 @@ class PendingDraft(TestCase):
                          platform='wb',account='wb_acc1',kind='question',ext_id='q',
                          body='Подойдёт?',pros=None,cons=None,tg_chat_id=1,tg_msg_id=22),**kw)
 
-    def test_candidate_edits_existing_card_with_send_disabled(self):
+    def test_candidate_edits_existing_card_with_operator_approval(self):
         row=self.row();events=[]
         def kb(*a,**kw):
-            self.assertFalse(kw['allow_send']);self.assertFalse(kw['allow_override']);return {'inline_keyboard':[]}
+            self.assertFalse(kw['allow_send']);self.assertTrue(kw['allow_override']);return {'inline_keyboard':[]}
         with patch.object(review.runtime,'card_lock',return_value=nullcontext()), \
              patch.object(review,'load',return_value=dict(row)), \
              patch.object(review.db,'execute',side_effect=lambda *a:events.append('save')), \
