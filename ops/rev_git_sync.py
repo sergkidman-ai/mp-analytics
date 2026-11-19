@@ -203,6 +203,9 @@ def export_allowed(name):
     if name in ('feedback_bot/rev-backup-public.caddy','web/rev_backup_public/index.html',
                 'web/rev_backup_public/privacy/index.html','web/rev_backup_public/terms/index.html',
                 'web/rev_backup_public/robots.txt'):return True
+    if name == 'tools/ozon_lk/import_office.py': return True
+    if p.parent == Path('tools/ozon_lk/office'):
+        return p.name in {'collect.py','README.md','requirements.txt','Setup-Windows.cmd','Setup-macOS.command'}
     if len(p.parts)!=2:return False
     directory,filename=p.parts
     if directory=='collectors':return filename in EXPORT_COLLECTORS
