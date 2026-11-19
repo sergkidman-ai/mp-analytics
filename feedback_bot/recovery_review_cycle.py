@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -15,8 +16,20 @@ from collectors.feedback_preflight import reconcile_unknown,notify_readback_revi
 from reports import recovery_budget, recovery_review, llm_batch
 
 
-def main():
+RESULT = Path('/root/rev-recovery/review-cycle-result.json')
+
+
+def main(scheduled=False):
     os.umask(0o077)
+    collected = None
+    if scheduled and RESULT.exists() and time.time() - RESULT.stat().st_mtime < 300:
+        if os.getenv('FEEDBACK_LLM_PIPELINE_READY', '0') != '1':
+            return
+        # Between regular cycles only poll existing batches. A completed result
+        # can advance the next stage immediately under the same processing lock.
+        collected = llm_batch.collect(verbose=False)
+        if not collected:
+            return
     recovery_runtime.setup()
     recovery_budget.setup()
     saved_edits=recovery_runtime.refresh_edit_cards(bot.edit_text,bot._kb)
@@ -25,7 +38,7 @@ def main():
         print(json.dumps({'blocked':'LLM validation incomplete',
                           'archive_publication':recovery_archive_publish.tick()}))
         return
-    report={'saved_edits_refreshed':saved_edits,'collected':llm_batch.collect(verbose=False)}
+    report={'saved_edits_refreshed':saved_edits,'collected':llm_batch.collect(verbose=False) if collected is None else collected}
     report['review']=recovery_review.tick()
     from reports import recovery_history
     report['historical_analysis']=recovery_history.tick()
@@ -39,8 +52,8 @@ def main():
     report['moderation_delivery']=send_cards()
     report['budget']=recovery_budget.status()
     report['status_notified']=send_status_if_due(status_report())
-    Path('/root/rev-recovery/review-cycle-result.json').write_text(json.dumps(report,default=str,indent=2))
+    RESULT.write_text(json.dumps(report,default=str,indent=2))
     print(json.dumps(report,default=str),flush=True)
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':main(scheduled='--scheduled' in sys.argv)

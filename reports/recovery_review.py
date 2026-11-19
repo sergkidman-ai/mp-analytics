@@ -61,7 +61,7 @@ def mark(mod_id, state, error=None):
 
 
 def stage_candidate(original, reply, ground):
-    """Show a completed draft while its controller is pending, with explicit operator approval."""
+    """Keep the candidate private until the controller returns its verdict."""
     mid = original.get('mod_id')
     if not mid or not (reply or '').strip():
         return False
@@ -78,16 +78,6 @@ def stage_candidate(original, reply, ground):
             draft_grounding=%s,draft_at=now()
             WHERE EXISTS (SELECT 1 FROM revision) AND (platform,account,kind,ext_id)=(%s,%s,%s,%s)''',
             (uuid.uuid4().hex[:10], mid, reply, Json(pending), *key))
-        if current.get('tg_msg_id'):
-            current.update(id=mid,draft_text=reply,draft_grounding=pending,draft_route='review')
-            try:
-                response=bot.api('editMessageText',{'chat_id':current['tg_chat_id'],
-                    'message_id':current['tg_msg_id'],'text':bot._card(current)[:4000],
-                    'parse_mode':'HTML','disable_web_page_preview':True,
-                    'reply_markup':bot._kb(mid,allow_send=False,allow_override=publish_gate.operator_can_send(current))})
-                return bool(response.get('ok'))
-            except Exception:
-                return False  # Retry the same edit on the next tick; never send another card.
         return True
 
 
@@ -154,6 +144,9 @@ def refresh(mod_id, already_locked=False):
     row = load(mod_id)
     if not row or not eligible(row):
         mark(mod_id,'preserved_decision')
+        return False
+    if (row.get('draft_grounding') or {}).get('verify') == 'pending':
+        mark(mod_id, 'pending')
         return False
     row['id'] = mod_id
     if not row.get('tg_msg_id'):

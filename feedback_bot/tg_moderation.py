@@ -693,6 +693,8 @@ def _do_send(mod_id, from_id, text, chat_id, message_id, override_block=False, o
     if not fr:
         _set(mod_id, "failed", error="raw_feedback не найден", decided_at="now()", decided_by=int(from_id))
         return "raw_feedback не найден"
+    if not operator_edit and (fr.get('draft_grounding') or {}).get('verify') == 'pending':
+        return "Ответ ещё проверяется. Готовый текст появится в этой карточке."
     # правим ту карточку, по кнопке которой пришло решение; для потока правки (message_id=None) —
     # каноническую сохранённую карточку.
     ec = chat_id if message_id else (m["tg_chat_id"] or chat_id)

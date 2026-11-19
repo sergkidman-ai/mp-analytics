@@ -48,20 +48,16 @@ class PendingDraft(TestCase):
                          platform='wb',account='wb_acc1',kind='question',ext_id='q',
                          body='Подойдёт?',pros=None,cons=None,tg_chat_id=1,tg_msg_id=22),**kw)
 
-    def test_candidate_edits_existing_card_with_operator_approval(self):
-        row=self.row();events=[]
-        def kb(*a,**kw):
-            self.assertFalse(kw['allow_send']);self.assertTrue(kw['allow_override']);return {'inline_keyboard':[]}
-        with patch.object(review.runtime,'card_lock',return_value=nullcontext()), \
-             patch.object(review,'load',return_value=dict(row)), \
-             patch.object(review.db,'execute',side_effect=lambda *a:events.append('save')), \
-             patch.object(review.bot,'api',return_value={'ok':True}) as api, \
-             patch.object(review.bot,'_kb',side_effect=kb), \
-             patch.object(review.bot,'_card',return_value='draft'):
-            self.assertTrue(review.stage_candidate(row,'Готовый ответ',{}))
-            self.assertEqual(api.call_args.args[0],'editMessageText')
-            self.assertEqual(api.call_args.args[1]['message_id'],22)
-        self.assertEqual(events,['save'])
+    def test_pending_candidate_is_saved_without_exposing_it_to_moderation(self):
+        for message in (None, 22):
+            row = self.row(tg_msg_id=message)
+            with patch.object(review.runtime, 'card_lock', return_value=nullcontext()), \
+                 patch.object(review, 'load', return_value=row), \
+                 patch.object(review.db, 'execute') as save, \
+                 patch.object(review.bot, 'api') as telegram:
+                self.assertTrue(review.stage_candidate(row, 'Кандидат', {}))
+                self.assertEqual(save.call_args.args[1][3].adapted['verify'], 'pending')
+                telegram.assert_not_called()
 
     def test_candidate_never_overwrites_manual_edit(self):
         with patch.object(review.runtime,'card_lock',return_value=nullcontext()), \
