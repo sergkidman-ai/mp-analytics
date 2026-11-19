@@ -24,6 +24,33 @@ class Unavailable(Exception):
     pass
 
 
+class OzonIncident(Unavailable):
+    pass
+
+
+INCIDENT = re.compile(r"(?:инцидент\s*:\s*)?(fab_chlg_[a-z0-9_]{5,100})", re.I)
+
+
+def check_incident(page):
+    # Use the displayed incident identifier, not Chromium's normal automation banner.
+    marker = page.get_by_text(INCIDENT).first
+    if marker.is_visible():
+        match = INCIDENT.search(marker.inner_text())
+        if match:
+            raise OzonIncident(match.group(1))
+
+
+def wait_for_login(page):
+    import time
+    deadline = time.monotonic() + 300
+    while time.monotonic() < deadline:
+        check_incident(page)
+        if seller_page(page.url) and page.locator(ROW).count():
+            return
+        page.wait_for_timeout(500)
+    raise Unavailable("За 5 минут таблица отзывов не появилась.")
+
+
 def seller_page(url):
     u = urlsplit(url)
     return u.scheme == "https" and u.hostname == "seller.ozon.ru" and u.path.rstrip("/") == "/app/reviews"
@@ -77,9 +104,11 @@ def project(rows):
 
 def scan(page, label, max_pages):
     page.goto(REVIEWS, wait_until="domcontentloaded", timeout=45000)
+    check_incident(page)
     try:
         page.get_by_text(label, exact=True).first.wait_for(state="visible", timeout=15000)
     except Exception:
+        check_incident(page)
         raise Unavailable("check_login_and_active_shop") from None
     records = {}
     previous = set()
@@ -167,6 +196,9 @@ def run(account, login, root, max_pages, host):
     folder.mkdir(parents=True, exist_ok=True, mode=0o700)
     browser, profile, launch_options = browser_for_account(account, sys.platform == "win32")
     binding = folder / ("shop.txt" if profile == "profile" else profile + "-shop.txt")
+    pause = folder / "ozon-incident.txt"
+    if not login and pause.exists():
+        raise Unavailable("Сбор приостановлен. Инцидент Ozon: " + pause.read_text(encoding="utf8"))
     if not login and not binding.is_file():
         raise Unavailable("login_required")
     with sync_playwright() as pw:
@@ -174,11 +206,14 @@ def run(account, login, root, max_pages, host):
             print(f"Открываю {browser} для магазина «{SHOP_NAMES[account]}».", flush=True)
         ctx = pw.chromium.launch_persistent_context(str(folder / profile), **launch_options,
                                                     headless=not login, locale="ru-RU")
+        page = ctx.new_page()
         try:
-            page = ctx.new_page()
             if login:
                 page.goto(REVIEWS, wait_until="domcontentloaded")
+                print("Войдите вручную и откройте раздел «Отзывы».", flush=True)
+                wait_for_login(page)
                 label = input(f"{account}: войдите, выберите «{SHOP_NAMES[account]}», откройте «Отзывы». Введите точное видимое название активного магазина: ").strip()
+                check_incident(page)
                 if not label or not seller_page(page.url) or not page.get_by_text(label, exact=True).first.is_visible():
                     raise Unavailable("shop_label_not_visible")
                 for other in ACCOUNTS:
@@ -188,6 +223,7 @@ def run(account, login, root, max_pages, host):
                     if any(path.read_text(encoding="utf8").strip().casefold() == label.casefold() for path in labels):
                         raise Unavailable("same_shop_for_two_accounts")
                 binding.write_text(label, encoding="utf8")
+                pause.unlink(missing_ok=True)
                 return "profile_saved"
             records = scan(page, binding.read_text(encoding="utf8").strip(), max_pages)
             with closing(sqlite3.connect(root / "reviews.sqlite3", timeout=30)) as db:
@@ -195,6 +231,16 @@ def run(account, login, root, max_pages, host):
                 if host:
                     sync(db, account, host)
             return f"seen={len(records)} new={added}"
+        except Exception as exc:
+            if not isinstance(exc, OzonIncident) and not page.is_closed():
+                try:
+                    check_incident(page)
+                except OzonIncident as incident:
+                    exc = incident
+            if isinstance(exc, OzonIncident):
+                pause.write_text(str(exc), encoding="utf8")
+                raise Unavailable("Сбор приостановлен. Инцидент Ozon: " + str(exc)) from None
+            raise
         finally:
             ctx.close()
 

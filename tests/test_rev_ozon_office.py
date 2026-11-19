@@ -14,6 +14,15 @@ except ImportError:
 
 @unittest.skipUnless(sync_playwright, "Install the office collector requirements for its browser test")
 class OfficeReviewTest(unittest.TestCase):
+    def test_incident_stops_login_before_shop_prompt(self):
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            page = browser.new_page()
+            page.set_content("<p>Инцидент: fab_chlg_12345_example</p>")
+            with self.assertRaisesRegex(collect.OzonIncident, "fab_chlg_12345_example"):
+                collect.wait_for_login(page)
+            browser.close()
+
     def test_reopen_paginate_deduplicate_and_update(self):
         with TemporaryDirectory() as tmp, sqlite3.connect(":memory:") as db, sync_playwright() as pw:
             for poll in range(2):
