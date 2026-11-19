@@ -12,7 +12,8 @@ import sys
 from urllib.parse import urlsplit
 from uuid import UUID
 
-ACCOUNTS = ("oz_acc1", "oz_acc2")
+SHOP_NAMES = {"oz_acc1": "Цифровой квадрат", "oz_acc2": "Дисквэр"}
+ACCOUNTS = tuple(SHOP_NAMES)
 REVIEWS = "https://seller.ozon.ru/app/reviews"
 HOME = Path.home() / ".rev-ozon"
 ROW = 'tr:visible, [role="row"]:visible, [data-review-id]:visible'
@@ -142,25 +143,49 @@ def sync(db, account, host):
                        (host, account, rows[-1][1], rows[-1][2]))
 
 
+def browser_for_account(account, windows):
+    if not windows:
+        return "Google Chrome", "profile", {"channel": "chrome"}
+    if account == "oz_acc2":
+        return "Microsoft Edge", "edge-profile", {"channel": "msedge"}
+    override = os.getenv("REV_YANDEX_BROWSER")
+    if override:
+        candidates = [Path(override)]
+    else:
+        candidates = [Path(root) / "Yandex" / "YandexBrowser" / "Application" / "browser.exe"
+                      for key in ("LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)")
+                      if (root := os.getenv(key))]
+    for path in candidates:
+        if path.is_file():
+            return "Яндекс Браузер", "yandex-profile", {"executable_path": str(path)}
+    raise Unavailable("Яндекс Браузер не найден. Укажите путь к browser.exe в REV_YANDEX_BROWSER.")
+
+
 def run(account, login, root, max_pages, host):
     from playwright.sync_api import sync_playwright
     folder = root / account
     folder.mkdir(parents=True, exist_ok=True, mode=0o700)
-    binding = folder / "shop.txt"
+    browser, profile, launch_options = browser_for_account(account, sys.platform == "win32")
+    binding = folder / ("shop.txt" if profile == "profile" else profile + "-shop.txt")
     if not login and not binding.is_file():
         raise Unavailable("login_required")
     with sync_playwright() as pw:
-        ctx = pw.chromium.launch_persistent_context(str(folder / "profile"), channel="chrome", headless=not login, locale="ru-RU")
+        if login:
+            print(f"Открываю {browser} для магазина «{SHOP_NAMES[account]}».", flush=True)
+        ctx = pw.chromium.launch_persistent_context(str(folder / profile), **launch_options,
+                                                    headless=not login, locale="ru-RU")
         try:
             page = ctx.new_page()
             if login:
                 page.goto(REVIEWS, wait_until="domcontentloaded")
-                label = input(f"{account}: войдите, выберите магазин, откройте «Отзывы». Введите точное видимое название активного магазина: ").strip()
+                label = input(f"{account}: войдите, выберите «{SHOP_NAMES[account]}», откройте «Отзывы». Введите точное видимое название активного магазина: ").strip()
                 if not label or not seller_page(page.url) or not page.get_by_text(label, exact=True).first.is_visible():
                     raise Unavailable("shop_label_not_visible")
                 for other in ACCOUNTS:
-                    path = root / other / "shop.txt"
-                    if other != account and path.exists() and path.read_text(encoding="utf8").strip().casefold() == label.casefold():
+                    if other == account:
+                        continue
+                    labels = (root / other).glob("*shop.txt")
+                    if any(path.read_text(encoding="utf8").strip().casefold() == label.casefold() for path in labels):
                         raise Unavailable("same_shop_for_two_accounts")
                 binding.write_text(label, encoding="utf8")
                 return "profile_saved"

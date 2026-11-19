@@ -1,7 +1,9 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-py -3 -m venv .venv || goto fail
+if not exist ".venv\Scripts\python.exe" (
+    py -3 -m venv .venv || goto fail
+)
 .venv\Scripts\python.exe -m pip install -r requirements.txt || goto fail
 .venv\Scripts\python.exe collect.py login oz_acc1 || goto fail
 .venv\Scripts\python.exe collect.py login oz_acc2 || goto fail
